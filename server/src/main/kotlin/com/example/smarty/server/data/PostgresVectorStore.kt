@@ -36,12 +36,12 @@ class PostgresVectorStore : VectorStore {
         }
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                // v6: store memories as notes with category='memory'
-                val category = metadata["type"] ?: metadata["category"] ?: "memory"
+                // v6: store memories as notes - category is now stored in metadata
                 val title = metadata["title"] ?: content.take(50)
+                val metadataJson = json.encodeToString(metadata + mapOf("memory_type" to (metadata["type"] ?: metadata["category"] ?: "memory")))
                 val sql = """
-                    INSERT INTO notes (user_id, title, content, category, metadata, created_at, updated_at)
-                    VALUES (?::uuid, ?, ?, ?, ?::jsonb, now(), now())
+                    INSERT INTO notes (user_id, title, content, metadata, created_at, updated_at)
+                    VALUES (?::uuid, ?, ?, ?::jsonb, now(), now())
                     ON CONFLICT DO NOTHING
                 """.trimIndent()
 
@@ -49,8 +49,7 @@ class PostgresVectorStore : VectorStore {
                     stmt.setString(1, userId)
                     stmt.setString(2, title)
                     stmt.setString(3, content)
-                    stmt.setString(4, category)
-                    stmt.setString(5, json.encodeToString(metadata))
+                    stmt.setString(4, metadataJson)
                     stmt.executeUpdate()
                 }
             }
@@ -174,21 +173,21 @@ class PostgresVectorStore : VectorStore {
             val results = mutableListOf<ContextResult>()
             dataSource.connection.use { conn ->
                 val sql = """
-                    SELECT id::text,
-                           COALESCE(content, '') as content,
-                           COALESCE(metadata, '{}') as metadata,
+                    SELECT n.id::text,
+                           COALESCE(n.content, '') as content,
+                           COALESCE(n.metadata, '{}') as metadata,
                            1.0 as similarity
-                    FROM notes
-                    WHERE user_id = ?::uuid
-                      AND deleted_at IS NULL
+                    FROM notes n
+                    WHERE n.user_id = ?::uuid
+                      AND n.deleted_at IS NULL
                     ORDER BY
-                        CASE category
-                            WHEN 'preference' THEN 1
-                            WHEN 'memory'     THEN 2
-                            WHEN 'factual'    THEN 3
+                        CASE 
+                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'preference') THEN 1
+                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'memory') THEN 2
+                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'factual') THEN 3
                             ELSE 4
                         END,
-                        updated_at DESC
+                        n.updated_at DESC
                     LIMIT ?
                 """.trimIndent()
 

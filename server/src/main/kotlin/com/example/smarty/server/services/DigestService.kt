@@ -385,13 +385,15 @@ val systemPrompt = buildString {
     private suspend fun getNotesInTimeRange(userId: String, startTime: Long, endTime: Long): List<NoteData> = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category, created_at
-                FROM notes
-                WHERE user_id = ?
-                AND created_at >= to_timestamp(? / 1000.0)
-                AND created_at < to_timestamp(? / 1000.0)
-                AND is_archived = FALSE
-                ORDER BY created_at DESC
+                SELECT n.id, n.title, n.content, COALESCE(nc.name, 'uncategorized') as category, n.created_at
+                FROM notes n
+                LEFT JOIN note_categories nc ON n.category_id = nc.id
+                WHERE n.user_id = ?
+                AND n.created_at >= to_timestamp(? / 1000.0)
+                AND n.created_at < to_timestamp(? / 1000.0)
+                AND n.is_archived = FALSE
+                AND n.deleted_at IS NULL
+                ORDER BY n.created_at DESC
             """
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, userId)

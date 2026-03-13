@@ -226,7 +226,7 @@ override suspend fun stream(
     private fun LlmMessage.toOpenAiMessage(): OpenAiMessage {
         val roleStr = when (role) {
             LlmMessage.Role.TOOL -> "tool"
-            LlmMessage.Role.SMARTY -> "assistant"
+            LlmMessage.Role.ASSISTANT -> "assistant"
             LlmMessage.Role.SYSTEM -> "system"
             LlmMessage.Role.USER -> "user"
         }

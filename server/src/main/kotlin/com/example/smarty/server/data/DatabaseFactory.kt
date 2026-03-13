@@ -56,18 +56,33 @@ private fun runMigrations(ds: DataSource) {
                             last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
 
-                        // v6: notes table replaces agent_context for user memory / RAG
+                        // v6: chat_folders table
+                        """CREATE TABLE IF NOT EXISTS chat_folders (
+                            id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name       TEXT NOT NULL,
+                            color      TEXT DEFAULT '#6200EE',
+                            sort_order INTEGER NOT NULL DEFAULT 0,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: notes table - matches DATABASE_SCHEMA_v6.0.0_UNIFIED_PRODUCTION.sql
                         """CREATE TABLE IF NOT EXISTS notes (
-                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                            title       TEXT NOT NULL DEFAULT '',
-                            content     TEXT,
-                            category    TEXT DEFAULT 'general',
-                            is_pinned   BOOLEAN NOT NULL DEFAULT false,
-                            metadata    JSONB NOT NULL DEFAULT '{}',
-                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                            deleted_at  TIMESTAMPTZ
+                            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            category_id     UUID REFERENCES note_categories(id) ON DELETE SET NULL,
+                            stack_id        UUID REFERENCES note_stacks(id) ON DELETE SET NULL,
+                            parent_note_id  UUID REFERENCES notes(id) ON DELETE SET NULL,
+                            title           TEXT NOT NULL DEFAULT '',
+                            content         TEXT NOT NULL DEFAULT '',
+                            is_archived     BOOLEAN NOT NULL DEFAULT false,
+                            is_pinned       BOOLEAN NOT NULL DEFAULT false,
+                            is_favorite     BOOLEAN NOT NULL DEFAULT false,
+                            metadata        JSONB NOT NULL DEFAULT '{}',
+                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            deleted_at      TIMESTAMPTZ
                         )""",
 
                         // v6: agent_traces requires step_name NOT NULL
@@ -88,33 +103,73 @@ private fun runMigrations(ds: DataSource) {
                             created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
-                        // v6: chat_sessions (minimal, without FKs that may not exist yet)
+                        // v6: note_categories table
+                        """CREATE TABLE IF NOT EXISTS note_categories (
+                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name        TEXT NOT NULL,
+                            color       TEXT DEFAULT '#6200EE',
+                            icon        TEXT DEFAULT 'folder',
+                            parent_id   UUID REFERENCES note_categories(id) ON DELETE SET NULL,
+                            sort_order  INTEGER NOT NULL DEFAULT 0,
+                            note_count  INTEGER NOT NULL DEFAULT 0,
+                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: note_stacks table
+                        """CREATE TABLE IF NOT EXISTS note_stacks (
+                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name        TEXT NOT NULL,
+                            description TEXT,
+                            color       TEXT DEFAULT '#03DAC6',
+                            icon        TEXT DEFAULT 'stack',
+                            parent_id   UUID REFERENCES note_stacks(id) ON DELETE SET NULL,
+                            note_count  INTEGER NOT NULL DEFAULT 0,
+                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: chat_sessions (full v6.0.0 schema)
                         """CREATE TABLE IF NOT EXISTS chat_sessions (
                             id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                             user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            folder_id       UUID REFERENCES chat_folders(id) ON DELETE SET NULL,
                             title           TEXT,
                             is_active       BOOLEAN NOT NULL DEFAULT true,
                             is_archived     BOOLEAN NOT NULL DEFAULT false,
+                            is_pinned       BOOLEAN NOT NULL DEFAULT false,
                             model_used      TEXT,
+                            temperature     NUMERIC(3,2) DEFAULT 0.7 CHECK (temperature BETWEEN 0 AND 2),
+                            max_tokens      INTEGER DEFAULT 4096 CHECK (max_tokens > 0),
+                            system_prompt   TEXT,
                             token_count     INTEGER NOT NULL DEFAULT 0,
                             message_count   INTEGER NOT NULL DEFAULT 0,
                             metadata        JSONB NOT NULL DEFAULT '{}',
                             created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            expires_at      TIMESTAMPTZ
                         )""",
 
-                        // v6: chat_messages
+                        // v6: chat_messages (full v6.0.0 schema)
                         """CREATE TABLE IF NOT EXISTS chat_messages (
-                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            session_id  UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                            role        TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
-                            content     TEXT NOT NULL,
-                            thinking    TEXT,
-                            tool_calls  JSONB,
-                            metadata    JSONB NOT NULL DEFAULT '{}',
-                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                            id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id        UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                            user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            parent_message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL,
+                            role              TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
+                            content           TEXT NOT NULL,
+                            content_hash      TEXT,
+                            thinking          TEXT,
+                            tool_calls        JSONB,
+                            tool_call_id      TEXT,
+                            token_count       INTEGER DEFAULT 0,
+                            is_edited         BOOLEAN NOT NULL DEFAULT false,
+                            is_starred        BOOLEAN NOT NULL DEFAULT false,
+                            metadata          JSONB NOT NULL DEFAULT '{}',
+                            created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
                         // Indexes for performance

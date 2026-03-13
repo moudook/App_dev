@@ -38,7 +38,7 @@ data class LlmMessage(
     val images: List<ByteArray>? = null // Optional image attachments
 ) {
     enum class Role {
-        SYSTEM, USER, SMARTY, TOOL
+        SYSTEM, USER, ASSISTANT, TOOL
     }
 }
 

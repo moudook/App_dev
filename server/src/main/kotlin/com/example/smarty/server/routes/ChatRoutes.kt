@@ -424,7 +424,7 @@ fun Application.configureChatRoutes() {
                              chatRepository.saveMessage(
                                  userId = userId,
                                  sessionId = sessionId!!,
-                                 role = LlmMessage.Role.SMARTY.name,
+                                 role = LlmMessage.Role.ASSISTANT.name,
                                  content = cleanResponse,
                                  thinking = thinking,
                                  toolCalls = citationsJson  // Store citations as tool_calls JSON
@@ -586,7 +586,7 @@ fun Application.configureChatRoutes() {
                              chatRepository.saveMessage(
                                  userId = userId,
                                  sessionId = sessionId!!,
-                                 role = LlmMessage.Role.SMARTY.name,
+                                 role = LlmMessage.Role.ASSISTANT.name,
                                  content = cleanResponse,
                                  thinking = thinking,
                                  toolCalls = citationsJson  // Store citations as tool_calls JSON
