@@ -230,6 +230,23 @@ C:/Users/gbust/DOOMSDAY/TESTING/
 LLM_THROUGH_USB_THEARING/
 C:\Users\gbust\Smarty\LLM_THROUGH_USB_THEARING\llama-b7541-bin-win-cuda-12.4-x64/
 
-COMPLETE_SCHEMA_v2.3.sql
-COMPLETE_SCHEMA_v3.0_RESEARCH.sql
-SUPABASE_SCHEMA_v3.2.1.sql
+# ============================================
+# ARCHIVED RESEARCH & REPORTS
+# ============================================
+_research_archive/
+cleanup.bat
+cleanup_root.py
+
+# ============================================
+# DATABASE SCHEMAS & MIGRATIONS
+# ============================================
+*.sql
+!init-db.sql
+!app/src/main/assets/*.sql
+# Legacy schemas (documented in _research_archive)
+COMPLETE_SCHEMA_v*.sql
+SUPABASE_SCHEMA_v*.sql
+DATABASE_SCHEMA_v*.sql
+MIGRATION_v*.sql
+supabase_add_thinking_column.sql
+
