@@ -78,7 +78,7 @@ class ChatRepository(
 
             // Insert the message - use citations column (JSONB)
             try {
-                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations) VALUES (?, ?, ?, ?, ?, ?)"
+                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations) VALUES (?, ?, ?, ?, ?, ?::jsonb)"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
                     stmt.setString(2, userId)

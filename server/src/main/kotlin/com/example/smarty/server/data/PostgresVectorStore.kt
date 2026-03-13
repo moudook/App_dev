@@ -196,14 +196,31 @@ class PostgresVectorStore : VectorStore {
             try {
                 dataSource.connection.use { conn ->
                     conn.createStatement().use { stmt ->
+                        // Create users table first if it doesn't exist (required for FK)
+                        stmt.execute("""
+                            CREATE TABLE IF NOT EXISTS users (
+                                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                firebase_uid TEXT UNIQUE NOT NULL,
+                                email TEXT,
+                                display_name TEXT,
+                                avatar_url TEXT,
+                                is_active BOOLEAN DEFAULT true,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                            );
+                        """.trimIndent())
+
+                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);")
+
+                        // Create agent_context table
                         stmt.execute("""
                             CREATE TABLE IF NOT EXISTS agent_context (
                                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                 user_id TEXT NOT NULL DEFAULT '',
                                 content TEXT NOT NULL,
+                                embedding vector(1536),
                                 metadata JSONB,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                             );
                         """.trimIndent())
 
