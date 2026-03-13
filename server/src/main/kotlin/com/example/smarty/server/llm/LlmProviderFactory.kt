@@ -47,7 +47,8 @@ object LlmProviderFactory {
         logger.info("Initializing LLM Provider: $activeProvider with ${keys.size} API key(s)")
 
         if (keys.isEmpty()) {
-            require(false) { "ERROR: $envKeyName is missing." }
+            logger.warn("WARNING: $envKeyName is missing. Falling back to MOCK provider.")
+            return createMock(client)
         }
 
         return when (activeProvider) {

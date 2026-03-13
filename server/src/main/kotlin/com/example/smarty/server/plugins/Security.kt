@@ -179,25 +179,20 @@ fun verifyFirebaseToken(token: String, deviceId: String?): FirebaseUserPrincipal
 
     return try {
         val decodedToken = FirebaseAuth.getInstance().verifyIdToken(token)
-        val uid = decodedToken.uid
+        val firebaseUid = decodedToken.uid
         val email = decodedToken.email
         val displayName = decodedToken.name
         
-        // Create FirebaseUserPrincipal first
+        // Ensure user exists in database and get their UUID user_id
+        val userId = ensureUserExistsInDatabase(firebaseUid, email, displayName)
+        
+        // Create FirebaseUserPrincipal with UUID user_id
         val principal = FirebaseUserPrincipal(
-            userId = uid,
+            userId = userId,
             email = email,
             displayName = displayName,
             deviceId = deviceId
         )
-        
-        // Ensure user exists in database (synchronous to prevent FK constraint violations)
-        // This runs synchronously to ensure the user record is created before returning
-        try {
-            ensureUserExistsInDatabase(uid, email, displayName)
-        } catch (e: Exception) {
-            logger.warn("Failed to ensure user exists in database: ${e.message}")
-        }
         
         return principal
     } catch (e: FirebaseAuthException) {
@@ -211,28 +206,28 @@ fun verifyFirebaseToken(token: String, deviceId: String?): FirebaseUserPrincipal
 
 /**
  * Ensures a user exists in the database. Creates the user record if it doesn't exist.
- * This is called after successful Firebase authentication to prevent foreign key constraint errors.
+ * Returns the user's UUID user_id.
  */
 private fun ensureUserExistsInDatabase(
     firebaseUid: String, 
     email: String?, 
     displayName: String?
-) {
+): String {
     val ds = DatabaseFactory.getDataSource()
     if (ds == null) {
         LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, skipping user creation")
-        return
+        throw IllegalStateException("DataSource not available")
     }
     
     ds.connection.use { conn ->
-        // Check if user already exists
-        val checkSql = "SELECT 1 FROM users WHERE firebase_uid = ?"
+        // Check if user already exists and get their user_id
+        val checkSql = "SELECT id FROM users WHERE firebase_uid = ?"
         conn.prepareStatement(checkSql).use { stmt ->
             stmt.setString(1, firebaseUid)
             stmt.executeQuery().use { rs ->
                 if (rs.next()) {
-                    // User already exists, nothing to do
-                    return
+                    // User already exists, return their UUID
+                    return rs.getString("id")
                 }
             }
         }
@@ -241,15 +236,22 @@ private fun ensureUserExistsInDatabase(
         val insertSql = """
             INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
             VALUES (?, ?, ?, NOW(), NOW())
+            RETURNING id
         """.trimIndent()
         conn.prepareStatement(insertSql).use { stmt ->
             stmt.setString(1, firebaseUid)
             stmt.setString(2, email)
             stmt.setString(3, displayName)
-            stmt.executeUpdate()
-            
-            LoggerFactory.getLogger("FirebaseAuth").info("Created user record for Firebase UID: {}", firebaseUid)
+            stmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    val userId = rs.getString("id")
+                    LoggerFactory.getLogger("FirebaseAuth").info("Created user record for Firebase UID: {}, User ID: {}", firebaseUid, userId)
+                    return userId
+                }
+            }
         }
+        
+        throw IllegalStateException("Failed to create user record")
     }
 }
 
