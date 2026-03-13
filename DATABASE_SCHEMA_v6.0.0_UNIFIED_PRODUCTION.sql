@@ -184,9 +184,12 @@ CREATE TABLE IF NOT EXISTS tags (
     name        TEXT NOT NULL,
     color       TEXT DEFAULT '#6200EE',
     usage_count INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_id, lower(name))
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    -- REMOVED: UNIQUE (user_id, lower(name))
 );
+
+-- ADDED: Expression-based unique index to handle lower(name)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_user_name_unique ON tags (user_id, lower(name));
 
 CREATE INDEX IF NOT EXISTS idx_tags_user ON tags (user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags (user_id, name);
@@ -1130,7 +1133,9 @@ $$ LANGUAGE plpgsql;
 -- Update verification state after citation changes
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_update_verification_state()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER 
+AS $$
 DECLARE
     v_session_id UUID;
 BEGIN
@@ -1399,7 +1404,8 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- research_session_summary
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_research_session_summary AS
+CREATE OR REPLACE VIEW v_research_session_summary 
+WITH (security_invoker = on) AS
 SELECT
     rs.id, rs.user_id, rs.topic, rs.original_question, rs.status,
     rs.current_phase, rs.confidence_level, rs.human_review_required,
@@ -1416,7 +1422,8 @@ LEFT JOIN research_verification_state rv ON rs.id = rv.session_id;
 -- ---------------------------------------------------------------------------
 -- high_confidence_citations
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_high_confidence_citations AS
+CREATE OR REPLACE VIEW v_high_confidence_citations 
+WITH (security_invoker = on) AS
 SELECT c.*
 FROM research_citations c
 JOIN research_verification_state rv ON c.session_id = rv.session_id
@@ -1425,7 +1432,8 @@ WHERE rv.rule_of_three_satisfied = true AND c.trust_tier IN (1, 2);
 -- ---------------------------------------------------------------------------
 -- ach_matrix_summary
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_ach_matrix_summary AS
+CREATE OR REPLACE VIEW v_ach_matrix_summary 
+WITH (security_invoker = on) AS
 SELECT
     h.session_id, h.id AS hypothesis_id, h.description, h.status, h.confidence_pct,
     h.consistent_count, h.inconsistent_count,
@@ -1440,7 +1448,8 @@ GROUP BY h.id;
 -- ---------------------------------------------------------------------------
 -- user_activity_summary
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_user_activity_summary AS
+CREATE OR REPLACE VIEW v_user_activity_summary 
+WITH (security_invoker = on) AS
 SELECT
     u.id, u.email, u.display_name, u.subscription_tier,
     (SELECT COUNT(*) FROM chat_sessions cs WHERE cs.user_id = u.id AND cs.is_active = true) AS active_sessions,
@@ -1455,7 +1464,8 @@ WHERE u.is_active = true AND u.deleted_at IS NULL;
 -- ---------------------------------------------------------------------------
 -- reasoning_trace_timeline
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_reasoning_trace_timeline AS
+CREATE OR REPLACE VIEW v_reasoning_trace_timeline 
+WITH (security_invoker = on) AS
 SELECT
     rt.id, rt.session_id, rt.message_id, rt.user_id,
     rt.step_index, rt.step_type, rt.title, rt.content,
@@ -1468,7 +1478,8 @@ ORDER BY rt.session_id, rt.step_index;
 -- ---------------------------------------------------------------------------
 -- user_reasoning_analytics
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_user_reasoning_analytics AS
+CREATE OR REPLACE VIEW v_user_reasoning_analytics 
+WITH (security_invoker = on) AS
 SELECT
     u.id AS user_id, u.email, u.display_name,
     COUNT(DISTINCT rt.session_id)  AS total_reasoning_sessions,
@@ -1662,6 +1673,45 @@ DROP POLICY IF EXISTS "rls_shared_recipient" ON shared_items;
 CREATE POLICY "rls_shared_recipient" ON shared_items
     FOR SELECT TO authenticated
     USING (shared_with_id = (select auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- shared items collaboration policies (secondary selects for core tables)
+-- ---------------------------------------------------------------------------
+CREATE POLICY "rls_notes_shared_select" ON notes
+    FOR SELECT TO authenticated
+    USING (
+        id IN (
+            SELECT item_id FROM shared_items 
+            WHERE item_type = 'note' AND shared_with_id = (select auth.uid())
+        )
+    );
+
+CREATE POLICY "rls_chat_sessions_shared_select" ON chat_sessions
+    FOR SELECT TO authenticated
+    USING (
+        id IN (
+            SELECT item_id FROM shared_items 
+            WHERE item_type = 'chat_session' AND shared_with_id = (select auth.uid())
+        )
+    );
+
+CREATE POLICY "rls_research_sessions_shared_select" ON research_sessions
+    FOR SELECT TO authenticated
+    USING (
+        id IN (
+            SELECT item_id FROM shared_items 
+            WHERE item_type = 'research_session' AND shared_with_id = (select auth.uid())
+        )
+    );
+
+CREATE POLICY "rls_tasks_shared_select" ON tasks
+    FOR SELECT TO authenticated
+    USING (
+        id IN (
+            SELECT item_id FROM shared_items 
+            WHERE item_type = 'task' AND shared_with_id = (select auth.uid())
+        )
+    );
 
 
 -- =============================================================================
