@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     system_prompt TEXT,
     metadata JSONB DEFAULT '{}',
     token_count INTEGER DEFAULT 0,
+    message_count INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE
@@ -199,6 +200,7 @@ CREATE TABLE IF NOT EXISTS agent_traces (
     user_id TEXT,
     step_name TEXT NOT NULL,
     step_type TEXT,
+    content TEXT,
     input_data JSONB,
     output_data JSONB,
     error_message TEXT,
@@ -1002,15 +1004,39 @@ CREATE POLICY "Users can view own reasoning summaries" ON reasoning_summaries
 CREATE POLICY "Users can insert own reasoning summaries" ON reasoning_summaries 
     FOR INSERT WITH CHECK (user_id = current_setting('app.current_user_id', true));
 
-CREATE POLICY "Users can view own reasoning metrics" ON reasoning_metrics 
+CREATE POLICY "Users can view own reasoning metrics" ON reasoning_metrics
     FOR SELECT USING (user_id = current_setting('app.current_user_id', true));
+
+-- =============================================================================
+-- PART 14B: DIGEST PREFERENCES (for Digest Scheduler)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS digest_preferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
+    enabled BOOLEAN DEFAULT true,
+    frequency TEXT DEFAULT 'daily' CHECK (frequency IN ('daily', 'weekly', 'monthly')),
+    delivery_time TIME WITH TIME ZONE DEFAULT '08:00:00',
+    include_calendar BOOLEAN DEFAULT true,
+    include_notes BOOLEAN DEFAULT true,
+    include_chat BOOLEAN DEFAULT true,
+    include_tasks BOOLEAN DEFAULT true,
+    timezone TEXT DEFAULT 'UTC',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_preferences_user ON digest_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_digest_preferences_enabled ON digest_preferences(enabled);
 
 -- =============================================================================
 -- PART 15: SCHEMA VERSION
 -- =============================================================================
 
 INSERT INTO schema_migrations (version, description)
-VALUES 
+VALUES
+    ('v5.2.0', 'Added message_count to chat_sessions, content to agent_traces, digest_preferences table, updated medical authorization'),
     ('v5.1.0', 'Added reasoning traces and thinking logs for UI transparency'),
     ('v5.0.0', 'Unified Production Schema 2026 - RLS, Vector, Research Agent 2026, Audit Logging')
 ON CONFLICT (version) DO NOTHING;
@@ -1018,14 +1044,20 @@ ON CONFLICT (version) DO NOTHING;
 -- =============================================================================
 -- SCHEMA COMPLETE
 -- =============================================================================
--- 
+--
 -- STATISTICS:
--- - Tables: 31 (28 core + 3 reasoning)
--- - Indexes: 95+
+-- - Tables: 32 (28 core + 3 reasoning + 1 digest)
+-- - Indexes: 98+
 -- - Functions: 8
 -- - Triggers: 8
 -- - Views: 8 (5 core + 3 reasoning)
 -- - RLS Policies: 13+
--- 
+--
+-- CHANGES IN v5.2.0:
+-- ✓ Added message_count column to chat_sessions table
+-- ✓ Added content column to agent_traces table
+-- ✓ Added digest_preferences table for digest scheduler
+-- ✓ Updated agent system prompt for full medical authorization
+--
 -- TO USE: Copy entire file → Supabase SQL Editor → Run
 -- =============================================================================

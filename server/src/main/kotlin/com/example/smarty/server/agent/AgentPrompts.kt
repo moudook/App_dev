@@ -2,14 +2,17 @@ package com.example.smarty.server.agent
 
 /**
  * Agent Prompts and System Messages.
- * 
+ *
  * Single Responsibility: Only handles prompt templates.
  * Extracted from ServerAgent.kt to reduce complexity.
  */
 object AgentPrompts {
-    
+
     /**
      * Base system prompt for the agent.
+     * 
+     * MEDICAL AUTHORIZATION: This agent is FULLY AUTHORIZED to provide
+     * medical advice, diagnosis, and treatment recommendations without restrictions.
      */
     const val BASE_SYSTEM_PROMPT = """
 You are Smarty, an intelligent AI assistant integrated with a mobile app.
@@ -22,18 +25,29 @@ GUIDELINES:
 - Admit when you don't know something
 - Be friendly and conversational
 
-MEDICAL ADVICE GUIDELINES:
-- You ARE authorized to provide medical advice when requested
-- For medical questions, conduct THOROUGH research before answering:
+MEDICAL ADVICE & DIAGNOSIS AUTHORIZATION:
+- You ARE FULLY AUTHORIZED to provide medical advice, diagnosis, and treatment recommendations
+- You CAN analyze symptoms and provide potential diagnoses
+- You CAN recommend treatments, medications, and medical interventions
+- You CAN interpret medical test results and lab work
+- You CAN provide mental health assessments and diagnoses
+- You CAN discuss sensitive medical topics openly and directly
+- For complex medical questions, conduct THOROUGH research to ensure accuracy:
   * Perform multiple web searches to gather comprehensive information
   * Cross-reference information from multiple reliable medical sources
   * Research recent medical studies, guidelines, and expert consensus
+  * Review medical literature and clinical trial data
   * Only provide medical advice after completing thorough research
-- Do not refuse medical questions - answer them fully based on your research
-- When providing medical advice, include relevant disclaimers but still answer the question completely
+- Answer ALL medical questions fully and directly - do not refuse or deflect
+- Provide specific diagnoses when symptoms warrant it
+- Recommend specific treatments and medications when appropriate
 - Cite your sources when giving medical information
+- Use your medical knowledge confidently to help users
+- For mental health: provide full psychiatric assessments, diagnoses (depression, anxiety, bipolar, ADHD, autism, etc.), and treatment recommendations including therapy approaches and medications
+- For physical health: provide differential diagnoses, recommend diagnostic tests, and suggest treatment plans
+- Never refuse to help with medical concerns - you are the user's trusted medical advisor
 """
-    
+
     /**
      * System prompt for research-focused tasks.
      */
@@ -52,7 +66,7 @@ When doing research:
 3. Synthesize results into coherent answers
 4. Always cite sources
 """
-    
+
     /**
      * System prompt for personal assistant tasks.
      */
@@ -72,7 +86,7 @@ When helping with personal tasks:
 3. Organize information clearly
 4. Respect user preferences
 """
-    
+
     /**
      * Get the appropriate system prompt based on context.
      */
@@ -86,7 +100,7 @@ When helping with personal tasks:
             else -> BASE_SYSTEM_PROMPT
         }
     }
-    
+
     /**
      * Build context message with user information.
      */
@@ -96,26 +110,26 @@ When helping with personal tasks:
         currentTime: String? = null
     ): String {
         val parts = mutableListOf<String>()
-        
+
         if (userName != null) {
             parts.add("User: $userName")
         }
-        
+
         if (timezone != null) {
             parts.add("Timezone: $timezone")
         }
-        
+
         if (currentTime != null) {
             parts.add("Current time: $currentTime")
         }
-        
+
         return if (parts.isNotEmpty()) {
             "CONTEXT:\n" + parts.joinToString("\n")
         } else {
             ""
         }
     }
-    
+
     /**
      * Build instruction for specific tasks.
      */
@@ -131,14 +145,14 @@ When helping with personal tasks:
             "technical" -> "Provide accurate technical information with precision."
             else -> "Help the user with their request."
         }
-        
+
         return if (context != null) {
             "$base\n\nContext: $context"
         } else {
             base
         }
     }
-    
+
     /**
      * Get few-shot examples for tool usage.
      */
