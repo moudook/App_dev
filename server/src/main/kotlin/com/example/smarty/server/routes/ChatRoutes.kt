@@ -393,7 +393,7 @@ fun Application.configureChatRoutes() {
                     // CRITICAL: Pass sessionId to preserve chat history continuity
                     val assistantResponse = agent.run(
                         query = query,
-                        sessionId = sessionId!!,  // Use the session ID from client for history continuity
+                        sessionId = activeSessionId,
                         history = history,
                         modelOverride = modelParam,
                         clientTimezone = timezoneParam,
@@ -401,7 +401,7 @@ fun Application.configureChatRoutes() {
                     )
 
                     // Save Smarty Response if persistence is enabled
-                    if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
+                    if (chatRepository != null && assistantResponse.isNotEmpty()) {
                         try {
                             // Extract thinking from response if present in <think> tags
                             val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
@@ -556,7 +556,7 @@ fun Application.configureChatRoutes() {
                     try {
                         val assistantResponse = agent.run(
                             query = fullQuery,
-                            sessionId = sessionId!!,  // Use the session ID from client for history continuity
+                            sessionId = activeSessionId,
                             history = history,
                             modelOverride = request.model,
                             clientTimezone = request.timezone,
@@ -564,7 +564,7 @@ fun Application.configureChatRoutes() {
                         )
 
                         // Save response with citations
-                        if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
+                        if (chatRepository != null && assistantResponse.isNotEmpty()) {
                             // Extract thinking from response if present in <think> tags
                             val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
                             val thinkMatch = thinkRegex.find(assistantResponse)
