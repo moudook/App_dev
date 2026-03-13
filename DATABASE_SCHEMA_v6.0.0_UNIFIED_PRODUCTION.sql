@@ -1398,7 +1398,35 @@ END $$;
 
 
 -- =============================================================================
--- PART 21: VIEWS
+-- PART 21: AGENT CONTEXT (RAG / Vector Store)
+-- =============================================================================
+
+-- agent_context: stores user context entries for RAG-based memory.
+-- user_id is TEXT (not a UUID FK) because the Kotlin VectorStore code passes
+-- the Firebase-derived userId string directly without UUID casting.
+CREATE TABLE IF NOT EXISTS agent_context (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     TEXT NOT NULL DEFAULT '',
+    content     TEXT NOT NULL,
+    metadata    JSONB,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_context_user
+    ON agent_context (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_agent_context_fts
+    ON agent_context USING GIN (to_tsvector('english', content));
+
+-- updated_at trigger
+CREATE TRIGGER trg_agent_context_updated_at
+    BEFORE UPDATE ON agent_context
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+
+
+-- =============================================================================
+-- PART 22: VIEWS
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------

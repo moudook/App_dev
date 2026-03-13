@@ -35,7 +35,7 @@ class PostgresTracer(private val userId: String) : AgentTracer {
 
                             conn.prepareStatement(sql).use { stmt ->
                                 stmt.setObject(1, UUID.fromString(event.sessionId))
-                                stmt.setString(2, userId)
+                                stmt.setObject(2, UUID.fromString(userId))
                                 stmt.setString(3, event.stepType.name)
                                 stmt.setString(4, event.content)
                                 stmt.setString(5, json.encodeToString(event.metadata))

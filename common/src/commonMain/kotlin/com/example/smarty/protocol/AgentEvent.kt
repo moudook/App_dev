@@ -41,6 +41,10 @@ sealed class AgentEvent {
     /**
      * Agent is executing a tool.
      * Status transitions: "started" -> "completed" or "failed"
+     *
+     * inputSummary  - human-readable summary of the tool input (e.g. search query).
+     * outputSummary - abbreviated result (e.g. first 400 chars of web search result).
+     * searchQueries - for parallel web searches: individual (query, result) pairs.
      */
     @Serializable
     @SerialName("tool_call")
@@ -49,8 +53,18 @@ sealed class AgentEvent {
         override val timestamp: Long,
         @SerialName("tool_name") val toolName: String,
         @SerialName("display_name") val displayName: String,
-        val status: String  // "started", "completed", "failed"
+        val status: String,  // "started", "completed", "failed"
+        @SerialName("input_summary") val inputSummary: String? = null,
+        @SerialName("output_summary") val outputSummary: String? = null,
+        @SerialName("search_queries") val searchQueries: List<SearchQueryResult> = emptyList()
     ) : AgentEvent()
+
+    /** Individual web-search query + its result (used inside a ToolCall event). */
+    @Serializable
+    data class SearchQueryResult(
+        val query: String,
+        val result: String? = null   // null when status=="started"
+    )
 
     /**
      * Agent produced a result chunk.

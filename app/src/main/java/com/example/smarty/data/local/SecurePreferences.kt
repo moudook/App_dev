@@ -94,10 +94,8 @@ class SecurePreferences(private val context: Context) {
         // FTS Maintenance
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
 
-        // Remote Server Configuration
+        // Remote Server Configuration - Hardcoded to Hugging Face Spaces
         private const val KEY_SERVER_URL = "server_url"
-        // Default to production Hugging Face Spaces server
-        // Users can change this in Settings for local development
         private const val DEFAULT_SERVER_URL = "https://k1tt3n-friday-server.hf.space"
 
         // Google Calendar Sync
@@ -212,7 +210,7 @@ class SecurePreferences(private val context: Context) {
 
     // Compatibility methods for AIConnectionOrchestrator
     fun getLocalPCUrl(): String = getServerUrl()
-    fun isLocalPCEnabled(): Boolean = isServerEnabled()
+    fun isLocalPCEnabled(): Boolean = false
     fun isServerEnabled(): Boolean = true // Always enabled in Remote-Only mode
 
     fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {

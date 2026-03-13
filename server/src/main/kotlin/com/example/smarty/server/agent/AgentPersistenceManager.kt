@@ -33,7 +33,8 @@ class AgentPersistenceManager(private val userId: String) {
 
     /**
      * Saves the current agent state for a specific session.
-     * Non-blocking with timeout to prevent hanging.
+     * Uses a DELETE + INSERT approach to overwrite the latest version (version=1 slot),
+     * since the unique constraint is (session_id, version).
      */
     suspend fun saveCheckpoint(sessionId: String, messages: List<LlmMessage>, lastNode: String? = null) {
         if (dataSource == null) return
@@ -46,20 +47,25 @@ class AgentPersistenceManager(private val userId: String) {
                             val checkpoint = AgentCheckpoint(messages)
                             val stateJson = json.encodeToString(checkpoint)
 
-                            val sql = """
-                                INSERT INTO agent_checkpoints (session_id, user_id, state_json, last_node, version)
-                                VALUES (?, ?, ?::jsonb, ?, 1)
-                                ON CONFLICT (session_id) DO UPDATE SET
-                                    state_json = EXCLUDED.state_json,
-                                    last_node = EXCLUDED.last_node,
-                                    version = agent_checkpoints.version + 1,
-                                    created_at = NOW()
+                            // Upsert: delete existing version=1 slot then insert fresh
+                            val deleteSql = """
+                                DELETE FROM agent_checkpoints
+                                WHERE session_id = ? AND user_id = ? AND version = 1
                             """.trimIndent()
-                            conn.prepareStatement(sql).use { stmt ->
+                            conn.prepareStatement(deleteSql).use { stmt ->
                                 stmt.setObject(1, UUID.fromString(sessionId))
-                                stmt.setString(2, userId)
+                                stmt.setObject(2, UUID.fromString(userId))
+                                stmt.executeUpdate()
+                            }
+
+                            val insertSql = """
+                                INSERT INTO agent_checkpoints (session_id, user_id, state_json, version)
+                                VALUES (?, ?, ?::jsonb, 1)
+                            """.trimIndent()
+                            conn.prepareStatement(insertSql).use { stmt ->
+                                stmt.setObject(1, UUID.fromString(sessionId))
+                                stmt.setObject(2, UUID.fromString(userId))
                                 stmt.setString(3, stateJson)
-                                stmt.setString(4, lastNode)
                                 stmt.executeUpdate()
                             }
                         }
@@ -85,10 +91,15 @@ class AgentPersistenceManager(private val userId: String) {
                 withContext(Dispatchers.IO) {
                     try {
                         dataSource.connection.use { conn ->
-                            val sql = "SELECT state_json FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
+                            val sql = """
+                                SELECT state_json FROM agent_checkpoints
+                                WHERE session_id = ? AND user_id = ?
+                                ORDER BY version DESC
+                                LIMIT 1
+                            """.trimIndent()
                             conn.prepareStatement(sql).use { stmt ->
                                 stmt.setObject(1, UUID.fromString(sessionId))
-                                stmt.setString(2, userId)
+                                stmt.setObject(2, UUID.fromString(userId))
                                 stmt.executeQuery().use { rs ->
                                     if (rs.next()) {
                                         val stateJson = rs.getString("state_json")
@@ -120,7 +131,7 @@ class AgentPersistenceManager(private val userId: String) {
                     val sql = "DELETE FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
                     conn.prepareStatement(sql).use { stmt ->
                         stmt.setObject(1, UUID.fromString(sessionId))
-                        stmt.setString(2, userId)
+                        stmt.setObject(2, UUID.fromString(userId))
                         stmt.executeUpdate()
                     }
                 }

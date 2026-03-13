@@ -85,7 +85,7 @@ class ChatRepository(
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
                 stmt.setObject(2, UUID.fromString(userId))
-                stmt.setString(3, role)
+                stmt.setString(3, role.lowercase())
                 stmt.setString(4, content)
                 stmt.setString(5, thinking)
                 stmt.setString(6, toolCalls ?: "null")

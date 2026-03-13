@@ -37,6 +37,8 @@ import com.example.smarty.data.state.SharedAppState
 import com.example.smarty.di.ServiceLocator
 import com.example.smarty.core.domain.model.AttachmentMetadata
 import com.example.smarty.data.remote.AIResponse
+import com.example.smarty.core.domain.model.AgentToolCallEntry
+import com.example.smarty.core.domain.model.SearchQueryEntry
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.service.CommandResult
@@ -201,6 +203,9 @@ class AssistViewModel(
 
     // Temporary storage for inline images during agent execution (thread-safe)
     private val pendingInlineImages = java.util.concurrent.CopyOnWriteArrayList<InlineChatImage>()
+
+    // Accumulated tool call entries for the current request (thread-safe)
+    private val pendingToolCalls = java.util.concurrent.CopyOnWriteArrayList<AgentToolCallEntry>()
 
     // Current streaming job for cancellation
     private var currentStreamingJob: Job? = null
@@ -784,6 +789,7 @@ class AssistViewModel(
         // Clear previous state
         pendingCitations.clear()
         pendingInlineImages.clear()
+        pendingToolCalls.clear()
 
         try {
             // Collect chunks from the remote stream
@@ -814,11 +820,13 @@ class AssistViewModel(
                                 updated = true
                             }
                             if (!event.thinking.isNullOrEmpty()) {
+                                // event.thinking is the complete accumulated trace, so replace instead of append
+                                thinkingBuilder.clear()
                                 thinkingBuilder.append(event.thinking)
                                 updated = true
                             }
                             if (updated) {
-                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                                chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().takeIf { it.isNotBlank() })
                             }
                         }
                         is com.example.smarty.protocol.AgentEvent.Result -> {
@@ -828,21 +836,38 @@ class AssistViewModel(
                                 updated = true
                             }
                             if (!event.thinking.isNullOrEmpty()) {
+                                thinkingBuilder.clear()
                                 thinkingBuilder.append(event.thinking)
                                 updated = true
                             }
                             if (updated) {
-                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                                chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().takeIf { it.isNotBlank() })
                             }
                         }
                         is com.example.smarty.protocol.AgentEvent.Error -> {
                             if (event.message.isNotEmpty()) {
                                 responseBuilder.append("\n[Error: ${event.message}]")
-                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                                chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().takeIf { it.isNotBlank() })
                             }
                         }
+                        is com.example.smarty.protocol.AgentEvent.ToolCall -> {
+                            // Accumulate rich tool call entries for the Action Panel
+                            pendingToolCalls.add(
+                                AgentToolCallEntry(
+                                    toolName      = event.toolName,
+                                    status        = event.status,
+                                    displayName   = event.displayName,
+                                    inputSummary  = event.inputSummary,
+                                    outputSummary = event.outputSummary,
+                                    searchQueries = event.searchQueries.map { sq ->
+                                        SearchQueryEntry(query = sq.query, result = sq.result)
+                                    },
+                                    timestamp     = event.timestamp
+                                )
+                            )
+                        }
                         else -> {
-                           // Other events like ToolCall, StateSync, Command are handled by eventSink inside RemoteAgentService
+                           // StateSync, Command handled by eventSink inside RemoteAgentService
                         }
                     }
                 }
@@ -862,6 +887,7 @@ class AssistViewModel(
                 role = ChatRole.SMARTY,
                 content = fullResponse,
                 thinking = fullThinking.takeIf { it.isNotBlank() },
+                toolCalls = pendingToolCalls.toList(),
                 timestamp = System.currentTimeMillis(),
                 citations = pendingCitations.map { citation ->
                     Citation(

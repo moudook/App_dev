@@ -75,7 +75,8 @@ data class ChatMessageEntity(
     val referencedNoteIds: String = "",  // Comma-separated note IDs
     val citationsJson: String = "[]",  // JSON serialized citations from web search
     val inlineImagesJson: String = "[]",  // JSON serialized inline images from ViewImageTool
-    val thinking: String? = null  // AI reasoning/thinking content
+    val thinking: String? = null,   // AI reasoning/thinking content (SMARTY_TRACE_V2 or plain)
+    val toolCallsJson: String = "[]" // JSON serialized AgentToolCallEntry list
 ) {
     /**
      * Convert to domain model ChatMessage
@@ -106,6 +107,26 @@ data class ChatMessageEntity(
             emptyList()
         }
 
+        // Parse tool calls from toolCallsJson OR from SMARTY_TRACE_V2 thinking payload
+        val toolCalls: List<AgentToolCallEntry> = try {
+            when {
+                toolCallsJson.isNotBlank() && toolCallsJson != "[]" ->
+                    parseToolCallsJson(toolCallsJson)
+                thinking != null && thinking.startsWith(TRACE_PREFIX) ->
+                    parseToolCallsFromTrace(thinking)
+                else -> emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        // Strip the SMARTY_TRACE_V2 prefix from the thinking field (UI gets clean reasoning)
+        val cleanThinking: String? = when {
+            thinking == null -> null
+            thinking.startsWith(TRACE_PREFIX) -> extractReasoningFromTrace(thinking)
+            else -> thinking
+        }
+
         return ChatMessage(
             id = id,
             role = ChatRole.valueOf(role),
@@ -116,7 +137,8 @@ data class ChatMessageEntity(
             referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
             citations = citations,
             inlineImages = inlineImages,
-            thinking = thinking
+            thinking = cleanThinking,
+            toolCalls = toolCalls
         )
     }
 
@@ -139,6 +161,13 @@ data class ChatMessageEntity(
                 "[]"
             }
 
+            // Serialize tool calls to JSON
+            val toolCallsJson = if (message.toolCalls.isNotEmpty()) {
+                serializeToolCallsToJson(message.toolCalls)
+            } else {
+                "[]"
+            }
+
             return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
@@ -148,7 +177,8 @@ data class ChatMessageEntity(
                 referencedNoteIds = message.referencedNoteIds.joinToString(","),
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson,
-                thinking = message.thinking
+                thinking = message.thinking,
+                toolCallsJson = toolCallsJson
             )
         }
 
@@ -289,6 +319,180 @@ data class ChatMessageEntity(
                 """{"uri":"$uri","fileName":"$fileName","noteTitle":"$noteTitle"}"""
             }
             return "[${items.joinToString(",")}]"
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // SMARTY_TRACE_V2 helpers
+        // ─────────────────────────────────────────────────────────────────────
+
+        const val TRACE_PREFIX = "SMARTY_TRACE_V2:"
+
+        /**
+         * Parse tool calls from our custom toolCallsJson column.
+         * Format: [{"toolName":"...","status":"...","displayName":"...","inputSummary":"...","outputSummary":"...","queries":[...]}]
+         */
+        fun parseToolCallsJson(json: String): List<AgentToolCallEntry> {
+            val entries = mutableListOf<AgentToolCallEntry>()
+            try {
+                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
+                for (item in items) {
+                    val fields = parseJsonFields(item)
+                    val queries = parseSearchQueriesFromField(fields["queries"] ?: "[]")
+                    entries.add(
+                        AgentToolCallEntry(
+                            toolName   = fields["toolName"]    ?: "",
+                            status     = fields["status"]      ?: "completed",
+                            displayName = fields["displayName"] ?: (fields["toolName"] ?: ""),
+                            inputSummary  = fields["inputSummary"],
+                            outputSummary = fields["outputSummary"],
+                            searchQueries = queries
+                        )
+                    )
+                }
+            } catch (_: Exception) {}
+            return entries
+        }
+
+        /**
+         * Parse tool calls from the SMARTY_TRACE_V2 trace stored in the thinking field.
+         * Extracts only the "tool" type blocks.
+         */
+        fun parseToolCallsFromTrace(trace: String): List<AgentToolCallEntry> {
+            val entries = mutableListOf<AgentToolCallEntry>()
+            try {
+                val json = trace.removePrefix(TRACE_PREFIX).trim()
+                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
+                for (item in items) {
+                    val fields = parseJsonFields(item)
+                    if (fields["type"] != "tool") continue
+                    val queries = parseSearchQueriesFromField(fields["queries"] ?: "[]")
+                    val toolName = fields["name"] ?: ""
+                    val inputSummary = fields["input"]
+                    entries.add(
+                        AgentToolCallEntry(
+                            toolName      = toolName,
+                            status        = fields["status"]  ?: "completed",
+                            displayName   = buildDisplayName(toolName, inputSummary),
+                            inputSummary  = inputSummary,
+                            outputSummary = fields["output"],
+                            searchQueries = queries
+                        )
+                    )
+                }
+            } catch (_: Exception) {}
+            return entries
+        }
+
+        /**
+         * Extract only the reasoning text blocks from a SMARTY_TRACE_V2 string.
+         * Returns null if there is no reasoning content.
+         */
+        fun extractReasoningFromTrace(trace: String): String? {
+            return try {
+                val json = trace.removePrefix(TRACE_PREFIX).trim()
+                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
+                val sb = StringBuilder()
+                for (item in items) {
+                    val fields = parseJsonFields(item)
+                    if (fields["type"] == "reasoning") {
+                        val text = fields["text"] ?: continue
+                        if (sb.isNotEmpty()) sb.append("\n")
+                        sb.append(text)
+                    }
+                }
+                sb.toString().takeIf { it.isNotBlank() }
+            } catch (_: Exception) { null }
+        }
+
+        /** Serialise AgentToolCallEntry list to JSON for the toolCallsJson column. */
+        fun serializeToolCallsToJson(entries: List<AgentToolCallEntry>): String {
+            if (entries.isEmpty()) return "[]"
+            val items = entries.map { e ->
+                val tn  = e.toolName.esc()
+                val st  = e.status.esc()
+                val dn  = e.displayName.esc()
+                val ins = e.inputSummary?.esc()
+                val out = e.outputSummary?.esc()
+                buildString {
+                    append("{\"toolName\":\"$tn\",\"status\":\"$st\",\"displayName\":\"$dn\"")
+                    if (ins != null) append(",\"inputSummary\":\"$ins\"")
+                    if (out != null) append(",\"outputSummary\":\"$out\"")
+                    if (e.searchQueries.isNotEmpty()) {
+                        val qs = e.searchQueries.joinToString(",") { sq ->
+                            val res = sq.result
+                            "{\"query\":\"${sq.query.esc()}\"" +
+                            (if (res != null) ",\"result\":\"${res.esc()}\"" else "") +
+                            "}"
+                        }
+                        append(",\"queries\":[$qs]")
+                    }
+                    append("}")
+                }
+            }
+            return "[${items.joinToString(",")}]"
+        }
+
+        // ─── tiny JSON utilities ───────────────────────────────────────────────
+
+        private fun String.esc() = replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+
+        private fun buildDisplayName(toolName: String, inputSummary: String?): String {
+            return when {
+                toolName.contains("search", ignoreCase = true) ||
+                toolName.contains("web", ignoreCase = true) ->
+                    if (inputSummary != null) "Searched: $inputSummary" else "Web Search"
+                toolName.contains("memory", ignoreCase = true) ||
+                toolName.contains("note", ignoreCase = true) ->
+                    if (inputSummary != null) "Saved: $inputSummary" else "Memory Action"
+                toolName.contains("schedule", ignoreCase = true) ||
+                toolName.contains("calendar", ignoreCase = true) ->
+                    if (inputSummary != null) "Scheduled: $inputSummary" else "Calendar Action"
+                toolName.contains("remind", ignoreCase = true) ->
+                    if (inputSummary != null) "Reminder: $inputSummary" else "Reminder Set"
+                else -> toolName.replace("_", " ").replaceFirstChar { it.uppercase() }
+            }.take(80)
+        }
+
+        /** Split a JSON array body into individual object strings. */
+        private fun splitJsonObjects(body: String): List<String> {
+            if (body.isBlank()) return emptyList()
+            val items = mutableListOf<String>()
+            var depth = 0; var start = 0
+            for (i in body.indices) {
+                when (body[i]) {
+                    '{' -> { if (depth == 0) start = i; depth++ }
+                    '}' -> { depth--; if (depth == 0) items.add(body.substring(start, i + 1)) }
+                }
+            }
+            return items
+        }
+
+        /** Parse top-level string fields from a single JSON object string. */
+        private fun parseJsonFields(obj: String): Map<String, String?> {
+            val map = mutableMapOf<String, String?>()
+            val fieldRe = Regex(""""(\w+)"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|(\{.*?\}|\[.*?\]|true|false|null|\d+))""")
+            fieldRe.findAll(obj).forEach { m ->
+                val key   = m.groupValues[1]
+                val strVal = m.groupValues[2].takeIf { it.isNotEmpty() }
+                val rawVal = m.groupValues[3].takeIf { it.isNotEmpty() }
+                map[key] = strVal?.replace("\\\"", "\"")?.replace("\\n", "\n")?.replace("\\\\", "\\")
+                            ?: rawVal
+            }
+            return map
+        }
+
+        private fun parseSearchQueriesFromField(queriesJson: String): List<SearchQueryEntry> {
+            val list = mutableListOf<SearchQueryEntry>()
+            try {
+                splitJsonObjects(queriesJson.trim().removePrefix("[").removeSuffix("]"))
+                    .forEach { obj ->
+                        val f = parseJsonFields(obj)
+                        val q = f["q"] ?: f["query"] ?: return@forEach
+                        list.add(SearchQueryEntry(query = q, result = f["r"] ?: f["result"]))
+                    }
+            } catch (_: Exception) {}
+            return list
         }
     }
 }

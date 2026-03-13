@@ -3,6 +3,8 @@ package com.example.smarty.server.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.sql.Timestamp
+import java.util.UUID
 import javax.sql.DataSource
 
 data class SyncStatusRecord(
@@ -18,13 +20,13 @@ class SyncRepository(private val dataSource: DataSource) {
         dataSource.connection.use { conn ->
             val sql = "SELECT user_id, last_sync_at, last_pull_at FROM sync_state WHERE user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
                         SyncStatusRecord(
                             userId = rs.getString("user_id"),
-                            lastSyncAt = rs.getLong("last_sync_at"),
-                            lastPullAt = rs.getLong("last_pull_at")
+                            lastSyncAt = rs.getTimestamp("last_sync_at")?.time,
+                            lastPullAt = rs.getTimestamp("last_pull_at")?.time
                         )
                     } else null
                 }
@@ -34,7 +36,7 @@ class SyncRepository(private val dataSource: DataSource) {
 
     suspend fun updateSyncStatus(userId: String): Unit = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val now = System.currentTimeMillis()
+            val now = Timestamp(System.currentTimeMillis())
             val sql = """
                 INSERT INTO sync_state (user_id, last_sync_at, last_pull_at)
                 VALUES (?, ?, ?)
@@ -43,9 +45,9 @@ class SyncRepository(private val dataSource: DataSource) {
                     last_pull_at = EXCLUDED.last_pull_at
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
-                stmt.setLong(2, now)
-                stmt.setLong(3, now)
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setTimestamp(2, now)
+                stmt.setTimestamp(3, now)
                 stmt.executeUpdate()
             }
         }
@@ -53,15 +55,15 @@ class SyncRepository(private val dataSource: DataSource) {
 
     suspend fun updatePullAt(userId: String): Unit = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val now = System.currentTimeMillis()
+            val now = Timestamp(System.currentTimeMillis())
             val sql = """
                 INSERT INTO sync_state (user_id, last_pull_at)
                 VALUES (?, ?)
                 ON CONFLICT (user_id) DO UPDATE SET last_pull_at = EXCLUDED.last_pull_at
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
-                stmt.setLong(2, now)
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setTimestamp(2, now)
                 stmt.executeUpdate()
             }
         }

@@ -267,34 +267,31 @@ class DigestScheduler(
      */
     private suspend fun createCalendarEvent(userId: String, digest: DigestService.DigestResult) {
         try {
-            // Create a calendar event to log the digest summary
-            // This allows users to see their daily/weekly summary in their calendar
             dataSource.connection.use { conn ->
                 val eventTitle = "Smarty ${digest.digestType.replaceFirstChar { it.uppercase() }} Digest"
-                val eventDescription = digest.summary.take(500) // Limit description length
-                
-                // Create event for end of day (10 PM) to review the day's activities
-                val eventStartTime = java.time.LocalDate.now()
-                    .atTime(22, 0) // 10:00 PM
-                    .toEpochSecond(java.time.ZoneOffset.UTC) * 1000
-                val eventEndTime = eventStartTime + (60 * 60 * 1000) // 1 hour duration
-                
+                val eventDescription = digest.summary.take(500)
+
+                val now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
+                val eventStart = now.toLocalDate().atTime(22, 0)
+                    .atOffset(java.time.ZoneOffset.UTC)
+                val eventEnd = eventStart.plusHours(1)
+
                 val insertSql = """
-                    INSERT INTO calendar_events 
-                    (user_id, title, description, start_time, end_time, reminder_minutes)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO calendar_events
+                    (user_id, title, description, start_time, end_time, is_all_day, status, visibility,
+                     reminders, attendees, metadata, created_at, updated_at)
+                    VALUES (?::uuid, ?, ?, ?, ?, false, 'confirmed', 'private', '[]'::jsonb, '[]'::jsonb, '{}'::jsonb, now(), now())
                 """.trimIndent()
-                
+
                 conn.prepareStatement(insertSql).use { stmt ->
-                    stmt.setString(1, userId)
+                    stmt.setObject(1, java.util.UUID.fromString(userId))
                     stmt.setString(2, eventTitle)
                     stmt.setString(3, eventDescription)
-                    stmt.setLong(4, eventStartTime)
-                    stmt.setLong(5, eventEndTime)
-                    stmt.setInt(6, 30) // 30 minute reminder
+                    stmt.setObject(4, eventStart.toInstant().let { java.sql.Timestamp.from(it) })
+                    stmt.setObject(5, eventEnd.toInstant().let { java.sql.Timestamp.from(it) })
                     stmt.executeUpdate()
                 }
-                
+
                 logger.info("Created calendar event for digest ${digest.id} for user $userId")
             }
         } catch (e: Exception) {
@@ -321,11 +318,10 @@ class DigestScheduler(
     private suspend fun getUsersWithDigestPreferences(): List<UserDigestPreferences> = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             try {
-                // Use createStatement to avoid prepared statement conflicts in connection pool
                 conn.createStatement().use { stmt ->
                     val sql = """
-                        SELECT user_id, enabled, delivery_time, frequency,
-                               timezone
+                        SELECT user_id, enabled, frequency,
+                               delivery_hour, delivery_minute, timezone
                         FROM digest_preferences
                         WHERE enabled = TRUE
                     """.trimIndent()
@@ -333,15 +329,18 @@ class DigestScheduler(
                         val prefs = mutableListOf<UserDigestPreferences>()
                         while (rs.next()) {
                             val frequency = rs.getString("frequency") ?: "daily"
+                            val hour = rs.getInt("delivery_hour").takeIf { !rs.wasNull() } ?: 8
+                            val minute = rs.getInt("delivery_minute").takeIf { !rs.wasNull() } ?: 0
+                            val deliveryTime = LocalTime.of(hour, minute)
                             prefs.add(UserDigestPreferences(
                                 userId = rs.getString("user_id"),
                                 dailyEnabled = frequency == "daily",
-                                dailyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
+                                dailyTime = deliveryTime,
                                 weeklyEnabled = frequency == "weekly",
                                 weeklyDay = 1, // Default to Monday
-                                weeklyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
-                                pushNotification = false, // Default
-                                calendarLogging = false, // Default
+                                weeklyTime = deliveryTime,
+                                pushNotification = false, // Not in v6 schema
+                                calendarLogging = false,  // Not in v6 schema
                                 timezone = rs.getString("timezone") ?: "UTC"
                             ))
                         }
@@ -349,7 +348,6 @@ class DigestScheduler(
                     }
                 }
             } catch (e: Exception) {
-                // Table doesn't exist yet - return empty list
                 logger.warn("digest_preferences table not available: ${e.message}")
                 emptyList()
             }
@@ -391,24 +389,27 @@ class DigestScheduler(
     private suspend fun getUserPreferences(userId: String): UserDigestPreferences? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT user_id, daily_enabled, daily_time, weekly_enabled, weekly_day, 
-                       weekly_time, push_notification, calendar_logging, 'UTC' as timezone
+                SELECT user_id, enabled, frequency, delivery_hour, delivery_minute, timezone
                 FROM digest_preferences
                 WHERE user_id = ?
             """
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, java.util.UUID.fromString(userId))
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
+                        val hour = rs.getInt("delivery_hour").takeIf { !rs.wasNull() } ?: 8
+                        val minute = rs.getInt("delivery_minute").takeIf { !rs.wasNull() } ?: 0
+                        val deliveryTime = LocalTime.of(hour, minute)
+                        val frequency = rs.getString("frequency") ?: "daily"
                         UserDigestPreferences(
                             userId = rs.getString("user_id"),
-                            dailyEnabled = rs.getBoolean("daily_enabled"),
-                            dailyTime = rs.getTime("daily_time")?.toLocalTime() ?: LocalTime.of(7, 0),
-                            weeklyEnabled = rs.getBoolean("weekly_enabled"),
-                            weeklyDay = rs.getInt("weekly_day"),
-                            weeklyTime = rs.getTime("weekly_time")?.toLocalTime() ?: LocalTime.of(8, 0),
-                            pushNotification = rs.getBoolean("push_notification"),
-                            calendarLogging = rs.getBoolean("calendar_logging"),
+                            dailyEnabled = frequency == "daily",
+                            dailyTime = deliveryTime,
+                            weeklyEnabled = frequency == "weekly",
+                            weeklyDay = 1, // Default to Monday
+                            weeklyTime = deliveryTime,
+                            pushNotification = false, // Not in v6 schema
+                            calendarLogging = false,  // Not in v6 schema
                             timezone = rs.getString("timezone") ?: "UTC"
                         )
                     } else null

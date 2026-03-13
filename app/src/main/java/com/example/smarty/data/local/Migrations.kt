@@ -769,5 +769,16 @@ object Migrations {
             )
         }
     }
+    /**
+     * Migration 36 → 37: Add toolCallsJson column to chat_messages.
+     * Stores structured AgentToolCallEntry list (JSON) for the Action Panel UI.
+     * Allows previous chat sessions to restore full tool-call traces.
+     */
+    val MIGRATION_36_37 = object : Migration(36, 37) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE chat_messages ADD COLUMN toolCallsJson TEXT NOT NULL DEFAULT '[]'")
+        }
+    }
 }
+
 

@@ -37,8 +37,8 @@ import com.example.smarty.data.local.CachedAIResponse
         ChatMessageNote::class,
         CalendarEventNote::class
     ],
-    version = 36,  // Incremented for v4.2.0 junction tables
-    exportSchema = true
+    version = 37,  // Incremented for toolCallsJson in chat_messages (Action Panel)
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class SmartyDatabase : RoomDatabase() {
@@ -290,7 +290,8 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Migrations.MIGRATION_32_33,   // Feature: calendar_events updatedAt for sync
                         Migrations.MIGRATION_33_34,   // Feature: thinking column for AI reasoning
                         Migrations.MIGRATION_34_35,   // Performance: Additional indices for common queries
-                        Migrations.MIGRATION_35_36    // Feature: Junction tables for note relationships (v4.2.0)
+                        Migrations.MIGRATION_35_36,    // Feature: Junction tables for note relationships (v4.2.0)
+                        Migrations.MIGRATION_36_37     // Feature: toolCallsJson for Action Panel in chat
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

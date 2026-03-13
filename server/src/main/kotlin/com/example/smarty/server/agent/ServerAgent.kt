@@ -756,31 +756,60 @@ ${goalMemoryManager.getProgressContext()}
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content
 
-                        // Track thinking state from tags
-                        if (newContent.contains("<think>") || newContent.contains("<thought>")) {
+                        val hadThinkStart = newContent.contains("<think>") || newContent.contains("<thought>")
+                        if (hadThinkStart) {
                             inThinkingState = true
                             inFinalState = false
                         }
-                        if (newContent.contains("</final>") || newContent.contains("</think>") || newContent.contains("</thought>")) {
+                        
+                        val hadThinkEnd = newContent.contains("</final>") || newContent.contains("</think>") || newContent.contains("</thought>") || newContent.contains("<final>")
+
+                        var cleanContent = ""
+                        var thinkingPart = ""
+
+                        if (inThinkingState && !inFinalState) {
+                            if (hadThinkStart) {
+                                // Transitioned to thinking in this chunk
+                                val parts = newContent.split(Regex("<(?:think|thought)>"))
+                                cleanContent = parts.firstOrNull() ?: ""
+                                thinkingPart = parts.drop(1).joinToString("")
+                            } else {
+                                thinkingPart = newContent
+                            }
+                        }
+                        
+                        if (hadThinkEnd) {
                             inFinalState = true
                             inThinkingState = false
+                            
+                            // Transitioned out of thinking in this chunk
+                            val parts = newContent.split(Regex("</(?:think|thought|final)>|<final>"))
+                            // If we also had a start in the same chunk, thinkingPart was already set
+                            if (hadThinkStart) {
+                                thinkingPart = thinkingPart.split(Regex("</(?:think|thought|final)>|<final>")).firstOrNull() ?: ""
+                                cleanContent += parts.drop(1).joinToString("")
+                            } else {
+                                thinkingPart = parts.firstOrNull() ?: ""
+                                cleanContent = parts.drop(1).joinToString("")
+                            }
+                        }
+                        
+                        if (!inThinkingState && !inFinalState && !hadThinkEnd && !hadThinkStart) {
+                            cleanContent = newContent
                         }
 
-                        // Accumulate <think> content into thinking storage
-                        if (inThinkingState && !inFinalState) {
-                            thinkingStorage.addReasoning(sessionId, newContent)
-                        }
+                        // Sanitize lingering tags
+                        cleanContent = cleanContent
+                            .replace(Regex("<(?:think|thought|final)>"), "")
+                            .replace(Regex("</(?:think|thought|final)>"), "")
 
-                        // Extract clean content (remove thinking tags for display)
-                        val cleanContent = newContent
-                            .replace(Regex("<think>.*?</final>", RegexOption.DOT_MATCHES_ALL), "")
-                            .replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
-                            .replace(Regex("<think>.*?</thought>", RegexOption.DOT_MATCHES_ALL), "")
-                            .replace(Regex("<think>.*", RegexOption.DOT_MATCHES_ALL), "")
-                            .replace("</final>", "")
-                            .replace("</think>", "")
-                            .replace("</thought>", "")
-                            .replace("<final>", "")
+                        thinkingPart = thinkingPart
+                            .replace(Regex("<(?:think|thought|final)>"), "")
+                            .replace(Regex("</(?:think|thought|final)>"), "")
+
+                        if (thinkingPart.isNotEmpty()) {
+                            thinkingStorage.addReasoning(sessionId, thinkingPart)
+                        }
 
                         currentContent += cleanContent
 
@@ -930,18 +959,63 @@ ${goalMemoryManager.getProgressContext()}
                         Metrics.counter("agent.tool." + if (isToolError) "error" else "success", "tool", currentToolName).increment()
 
                         // ═══════════════════════════════════════════════════════════
-                        // ADD TOOL CALL TO THINKING STORAGE (COMPLETELY REWRITTEN)
+                        // RICH TOOL TRACING — stores query+result for UI Action Blocks
                         // ═══════════════════════════════════════════════════════════
                         val toolStatus = if (isToolError) "failed" else "completed"
-                        thinkingStorage.addToolCall(sessionId, currentToolName, toolStatus)
-                        logger.info("Added tool call to thinking: $currentToolName ($toolStatus)")
 
+                        // Extract a human-readable summary of what was sent to the tool
+                        val inputSummary = extractInputSummary(currentToolName, currentToolArgs)
+
+                        // Truncate result to keep the trace manageable (UI shows max ~800 chars)
+                        val outputSummary = maskedToolResult.take(800)
+                            .let { if (maskedToolResult.length > 800) "$it…" else it }
+
+                        // For web search: extract individual query→result pairs
+                        val searchPairs: List<Pair<String, String?>> =
+                            if (isSearchTool(currentToolName)) {
+                                val pairs = mutableListOf<Pair<String, String?>>()
+                                if (maskedToolResult.contains("### Parallel Search Results")) {
+                                    val queryBlocks = maskedToolResult.split("## Query: ")
+                                    for (i in 1 until queryBlocks.size) { // skip index 0 which is header
+                                        val block = queryBlocks[i]
+                                        val newLineIdx = block.indexOf('\n')
+                                        if (newLineIdx > 0) {
+                                            val query = block.substring(0, newLineIdx).trim()
+                                            // Take up to 1500 chars per result for the UI
+                                            val resultStr = block.substring(newLineIdx + 1).trim()
+                                            val result = resultStr.take(1500).let { if (resultStr.length > 1500) "$it…" else it }
+                                            pairs.add(Pair(query, result))
+                                        }
+                                    }
+                                }
+                                if (pairs.isEmpty()) {
+                                    pairs.add(Pair(inputSummary ?: currentToolArgs.take(300), outputSummary))
+                                }
+                                pairs
+                            } else emptyList()
+
+                        thinkingStorage.addToolCall(
+                            sessionId = sessionId,
+                            toolName = currentToolName,
+                            status = toolStatus,
+                            inputSummary = inputSummary,
+                            outputSummary = outputSummary,
+                            searchQueries = searchPairs
+                        )
+                        logger.info("Added rich tool call to thinking: $currentToolName ($toolStatus)")
+
+                        // Emit rich ToolCall event so client can show it inside the Action Panel
                         emit(AgentEvent.ToolCall(
                             eventId = UUID.randomUUID().toString(),
                             timestamp = System.currentTimeMillis(),
                             toolName = currentToolName,
-                            displayName = "Executed $currentToolName",
-                            status = if (isToolError) "error" else "completed"
+                            displayName = buildDisplayName(currentToolName, inputSummary),
+                            status = if (isToolError) "failed" else "completed",
+                            inputSummary = inputSummary,
+                            outputSummary = outputSummary,
+                            searchQueries = searchPairs.map { (q, r) ->
+                                AgentEvent.SearchQueryResult(query = q, result = r)
+                            }
                         ))
 
                         messagesForAgent += LlmMessage(
@@ -1771,5 +1845,61 @@ ${goalMemoryManager.getProgressContext()}
             }
         }
         return null
+    }
+
+    /** Returns true for tool names that perform web/internet searches. */
+    private fun isSearchTool(toolName: String): Boolean =
+        toolName.lowercase().let {
+            it.contains("search") || it.contains("web") || it.contains("tavily") ||
+            it.contains("fetch") || it.contains("scrape") || it.contains("browse")
+        }
+
+    /**
+     * Extract a short human-readable description of the tool input.
+     * For search tools this returns the query string.
+     * For other tools it returns a trimmed representation of the key argument.
+     */
+    private fun extractInputSummary(toolName: String, argsJson: String): String? {
+        return try {
+            // Try to parse the "query" field first (used by search tools + find tools)
+            val queryRegex = Regex(""""query"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""")
+            queryRegex.find(argsJson)?.groupValues?.get(1)?.let { return it }
+
+            // For title-based tools (memory_save, schedule_add, etc.)
+            val titleRegex = Regex(""""title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""")
+            titleRegex.find(argsJson)?.groupValues?.get(1)?.let { return "\"$it\"" }
+
+            // For "what" field (reminders)
+            val whatRegex = Regex(""""what"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""")
+            whatRegex.find(argsJson)?.groupValues?.get(1)?.let { return it }
+
+            // Fallback: take first 120 chars of args
+            argsJson.take(120).let { if (argsJson.length > 120) "$it…" else it }
+        } catch (e: Exception) {
+            argsJson.take(120)
+        }
+    }
+
+    /** Build a friendly display name for the action card header. */
+    private fun buildDisplayName(toolName: String, inputSummary: String?): String {
+        val base = when {
+            toolName.contains("search", ignoreCase = true) ||
+            toolName.contains("web", ignoreCase = true) ->
+                if (inputSummary != null) "Searched: $inputSummary" else "Web Search"
+            toolName.contains("memory", ignoreCase = true) ||
+            toolName.contains("note", ignoreCase = true) ->
+                if (inputSummary != null) "Saved: $inputSummary" else "Memory Action"
+            toolName.contains("schedule", ignoreCase = true) ||
+            toolName.contains("calendar", ignoreCase = true) ->
+                if (inputSummary != null) "Scheduled: $inputSummary" else "Calendar Action"
+            toolName.contains("remind", ignoreCase = true) ->
+                if (inputSummary != null) "Reminder: $inputSummary" else "Reminder Set"
+            toolName.contains("device", ignoreCase = true) ->
+                "Device: ${toolName.substringAfter("_").replaceFirstChar { it.uppercase() }}"
+            toolName.contains("navigate", ignoreCase = true) ->
+                if (inputSummary != null) "Navigated to $inputSummary" else "Navigation"
+            else -> toolName.replace("_", " ").replaceFirstChar { it.uppercase() }
+        }
+        return base.take(80)
     }
 }

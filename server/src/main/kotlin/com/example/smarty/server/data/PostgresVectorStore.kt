@@ -188,7 +188,8 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
-     * Optional: Initialize the schema if it doesn't exist.
+     * Optional: Ensure indexes exist. The table itself is created by the SQL schema.
+     * This is idempotent and safe to call on startup.
      */
     suspend fun initSchema() {
         if (dataSource == null) return
@@ -196,41 +197,13 @@ class PostgresVectorStore : VectorStore {
             try {
                 dataSource.connection.use { conn ->
                     conn.createStatement().use { stmt ->
-                        // Create users table first if it doesn't exist (required for FK)
-                        stmt.execute("""
-                            CREATE TABLE IF NOT EXISTS users (
-                                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                                firebase_uid TEXT UNIQUE NOT NULL,
-                                email TEXT,
-                                display_name TEXT,
-                                avatar_url TEXT,
-                                is_active BOOLEAN DEFAULT true,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                            );
-                        """.trimIndent())
-
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);")
-
-                        // Create agent_context table
-                        stmt.execute("""
-                            CREATE TABLE IF NOT EXISTS agent_context (
-                                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                                user_id TEXT NOT NULL DEFAULT '',
-                                content TEXT NOT NULL,
-                                embedding vector(1536),
-                                metadata JSONB,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                            );
-                        """.trimIndent())
-
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id);")
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_context_content ON agent_context USING GIN (to_tsvector('english', content));")
+                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_agent_context_user ON agent_context(user_id);")
+                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_agent_context_fts ON agent_context USING GIN (to_tsvector('english', content));")
                     }
                 }
-                logger.info("Database schema initialized successfully")
+                logger.info("agent_context indexes verified successfully")
             } catch (e: Exception) {
-                logger.error("Failed to initialize schema: ${e.message}")
+                logger.warn("Could not verify agent_context indexes (non-fatal): ${e.message}")
             }
         }
     }

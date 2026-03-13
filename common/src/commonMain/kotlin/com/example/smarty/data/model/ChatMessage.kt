@@ -29,6 +29,37 @@ data class AgentActionResult(
 )
 
 /**
+ * A single search query + its result, used inside an [AgentToolCallEntry].
+ * Allows the UI to show expandable result cards for each parallel web search.
+ */
+data class SearchQueryEntry(
+    val query: String,
+    val result: String? = null
+)
+
+/**
+ * An action block recorded during agent reasoning.
+ * Stored alongside the message so previous chat sessions restore the full trace.
+ *
+ * @param toolName   machine name ("search_web", "memory_save", …)
+ * @param status     "started" | "completed" | "failed"
+ * @param displayName friendly header for the action card
+ * @param inputSummary  what the agent sent to the tool (e.g. the search query)
+ * @param outputSummary abbreviated tool output (~800 chars)
+ * @param searchQueries for web search tools: each discrete query + its result
+ * @param timestamp  epoch ms when the tool call finished
+ */
+data class AgentToolCallEntry(
+    val toolName: String,
+    val status: String,
+    val displayName: String,
+    val inputSummary: String? = null,
+    val outputSummary: String? = null,
+    val searchQueries: List<SearchQueryEntry> = emptyList(),
+    val timestamp: Long = 0L
+)
+
+/**
  * Citation/source from web research
  */
 @Serializable
@@ -56,6 +87,7 @@ data class ChatMessage(
     val role: ChatRole,
     val content: String,
     val thinking: String? = null,  // AI thinking/reasoning process (collapsible)
+    val toolCalls: List<AgentToolCallEntry> = emptyList(), // Structured action blocks
     val attachments: List<Attachment> = emptyList(),
     val timestamp: Long = 0L, // System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
@@ -72,6 +104,14 @@ data class ChatMessage(
      * Check if this message has a thinking/reasoning section
      */
     val hasThinking: Boolean get() = thinking != null && thinking.isNotBlank()
+    /**
+     * Check if this message has agent action blocks to display
+     */
+    val hasToolCalls: Boolean get() = toolCalls.isNotEmpty()
+    /**
+     * Show the full Action Panel if there's thinking OR tool call blocks
+     */
+    val hasActionPanel: Boolean get() = hasThinking || hasToolCalls
     /**
      * Check if this is a user message
      */

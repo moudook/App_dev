@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -308,19 +307,19 @@ fun ChatMessageItem(
             ) {
                 if (!isUser) {
 
-                    // THINKING SECTION - Using extracted component (DRY principle)
-                    // During streaming: shows live thinking with expandable view
-                    // After completion: shows "Thought process" collapsed
-                    if (message.hasThinking || (message.isStreaming && !message.thinking.isNullOrBlank())) {
+                    // ACTION PANEL - Unified Thinking + Tool Calls (DRY: extracted ThinkingSection)
+                    // Shows during streaming: live thinking with tool-call action cards interleaved
+                    // After done: collapsed "Thoughts (N actions)" header, expandable
+                    if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank())) {
                         var thinkingExpanded by remember { mutableStateOf(message.isStreaming) }
                         val thinkingText = message.thinking ?: ""
-                        
-                        // Use extracted ThinkingSection component
+
                         ThinkingSection(
-                            thinkingText = thinkingText,
-                            isExpanded = thinkingExpanded,
-                            isStreaming = message.isStreaming,
-                            onExpandToggle = { thinkingExpanded = !thinkingExpanded }
+                            thinkingText   = thinkingText,
+                            isExpanded     = thinkingExpanded,
+                            isStreaming    = message.isStreaming,
+                            onExpandToggle = { thinkingExpanded = !thinkingExpanded },
+                            toolCalls      = message.toolCalls
                         )
                     }
 
