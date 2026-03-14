@@ -56,7 +56,7 @@ fun EmptyChatState(modifier: Modifier = Modifier, onCreateNewChat: () -> Unit = 
 
 @Composable
 fun EmptyNotesState(modifier: Modifier = Modifier, onCreateNote: () -> Unit = {}) {
-    EmptyState(icon = Icons.Default.NoteAdd, title = "No notes yet", description = "Create your first note to get started", actionText = "Create note", onAction = onCreateNote, modifier = modifier)
+    EmptyState(icon = Icons.Filled.NoteAdd, title = "No notes yet", description = "Create your first note to get started", actionText = "Create note", onAction = onCreateNote, modifier = modifier)
 }
 
 @Composable
@@ -66,7 +66,7 @@ fun EmptySearchState(query: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun EmptyCalendarState(modifier: Modifier = Modifier, onAddEvent: () -> Unit = {}) {
-    EmptyState(icon = Icons.Default.EventNote, title = "No events scheduled", description = "Your calendar is clear. Add an event to get started.", actionText = "Add event", onAction = onAddEvent, modifier = modifier)
+    EmptyState(icon = Icons.Filled.EventNote, title = "No events scheduled", description = "Your calendar is clear. Add an event to get started.", actionText = "Add event", onAction = onAddEvent, modifier = modifier)
 }
 
 @Composable

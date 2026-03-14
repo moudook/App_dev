@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
+import java.util.UUID
 import javax.sql.DataSource
 
 /**
@@ -47,7 +48,7 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
             """.trimIndent()
             
             conn.prepareStatement(contentSql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.setString(2, content)
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
@@ -86,7 +87,7 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
             
             conn.prepareStatement(findDuplicatesSql).use { findStmt ->
                 if (userId != null) {
-                    findStmt.setString(1, userId)
+                    findStmt.setObject(1, UUID.fromString(userId))  // UUID cast — v6 schema
                 }
                 
                 findStmt.executeQuery().use { rs ->
@@ -104,7 +105,8 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
                         """.trimIndent()
                         
                         conn.prepareStatement(deleteSql).use { deleteStmt ->
-                            deleteStmt.setString(1, dupUserId)
+                            // dupUserId from rs.getString is a UUID-formatted string — cast to UUID object
+                            deleteStmt.setObject(1, UUID.fromString(dupUserId))
                             deleteStmt.setString(2, content)
                             deleteStmt.setTimestamp(3, oldestCreatedAt)
                             

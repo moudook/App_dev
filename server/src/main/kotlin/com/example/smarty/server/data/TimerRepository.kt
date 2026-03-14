@@ -40,7 +40,7 @@ class TimerRepository(private val dataSource: DataSource) {
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, id)
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema user_id is UUID
                 stmt.setString(3, name)
                 stmt.setLong(4, durationMs)
                 stmt.setTimestamp(5, Timestamp(actualTriggerAt))
@@ -65,7 +65,7 @@ class TimerRepository(private val dataSource: DataSource) {
                 ORDER BY trigger_at ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         results.add(TimerInfo(
@@ -92,7 +92,7 @@ class TimerRepository(private val dataSource: DataSource) {
             val sql = "UPDATE timers SET is_active = FALSE WHERE id = ? AND user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(timerId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.executeUpdate() > 0
             }
         }
@@ -106,7 +106,7 @@ class TimerRepository(private val dataSource: DataSource) {
             val sql = "DELETE FROM timers WHERE id = ? AND user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(timerId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.executeUpdate() > 0
             }
         }

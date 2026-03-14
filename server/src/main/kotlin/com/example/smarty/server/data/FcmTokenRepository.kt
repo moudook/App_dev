@@ -27,7 +27,7 @@ class FcmTokenRepository(private val dataSource: DataSource) {
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.randomUUID())
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.setString(3, token)
                 stmt.setString(4, deviceName)
                 stmt.setString(5, deviceId)
@@ -44,7 +44,7 @@ class FcmTokenRepository(private val dataSource: DataSource) {
         dataSource.connection.use { conn ->
             val sql = "DELETE FROM user_fcm_tokens WHERE user_id = ? AND token = ?"
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.setString(2, token)
                 stmt.executeUpdate() > 0
             }
@@ -56,7 +56,7 @@ class FcmTokenRepository(private val dataSource: DataSource) {
         dataSource.connection.use { conn ->
             val sql = "SELECT token FROM user_fcm_tokens WHERE user_id = ? ORDER BY last_used_at DESC"
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))  // UUID cast — v6 schema
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         tokens.add(rs.getString("token"))

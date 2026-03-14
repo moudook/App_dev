@@ -98,19 +98,16 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Hide status bar for immersive experience
-        window.decorView.systemUiVisibility = (
-            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        )
         
         // Enable edge-to-edge
         enableEdgeToEdge()
-        
-        // Set transparent status bar
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+        // Hide status bar for immersive experience using modern APIs
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
 
         // Edge-to-edge is enabled, windowBackground in theme handles status bar color
 

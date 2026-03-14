@@ -42,6 +42,10 @@ import com.example.smarty.features.notes.ui.inputstream.ChatModeContent
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.ComponentColors
+import android.util.Log
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.features.chat.domain.AssistViewModel
 import kotlinx.coroutines.launch
 
@@ -62,6 +66,7 @@ fun AssistOverlayScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     
     // Theme-aware colors
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -71,6 +76,38 @@ fun AssistOverlayScreen(
     
     // Input text state
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
+    
+    // Voice Input State (Speech-to-Text)
+    val speechState = rememberSpeechToText(
+        onResult = { result ->
+            if (result.isNotBlank()) {
+                inputText = TextFieldValue(result, TextRange(result.length))
+                Log.d("AssistOverlay", "Speech result received, sending message")
+                viewModel.sendMessage(result)
+                inputText = TextFieldValue("")
+                // Close the overlay smoothly after command
+                onDismiss()
+            }
+        },
+        onError = { error ->
+            Log.e("AssistOverlay", "Speech error: $error")
+            viewModel.setListening(false)
+        }
+    )
+
+    // Handle partial results for progressive text append
+    LaunchedEffect(speechState) {
+        speechState.onPartialResult = { partialText ->
+            if (partialText.isNotBlank()) {
+                inputText = TextFieldValue(partialText, TextRange(partialText.length))
+            }
+        }
+    }
+
+    // Sync ViewModel listening state with SpeechToTextState
+    LaunchedEffect(speechState.isListening) {
+        viewModel.setListening(speechState.isListening)
+    }
     
     // ALWAYS start fresh - clear previous messages
     LaunchedEffect(Unit) {
@@ -83,16 +120,19 @@ fun AssistOverlayScreen(
     ) { isGranted ->
         if (isGranted) {
             // Start listening immediately after permission granted
-            viewModel.setListening(true)
+            speechState.startListening(isChatMode = true)
         }
     }
 
     // Auto-start voice listening when assistant activates
     LaunchedEffect(Unit) {
+        // Prevent keyboard from automatically showing up
+        focusManager.clearFocus()
+        
         // Request permission and start listening automatically
         when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
             PackageManager.PERMISSION_GRANTED -> {
-                viewModel.setListening(true)
+                speechState.startListening(isChatMode = true)
             }
             else -> {
                 // Auto-request permission
@@ -110,6 +150,7 @@ fun AssistOverlayScreen(
     // Dismiss with cleanup
     fun handleDismiss() {
         isVisible = false
+        speechState.stopListening()    // Stop speech recognition
         viewModel.setListening(false)  // Stop listening
         viewModel.clearMessages()       // Clear chat for next time
         onDismiss()
@@ -156,7 +197,7 @@ fun AssistOverlayScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -168,7 +209,7 @@ fun AssistOverlayScreen(
                         )
                         IconButton(
                             onClick = { handleDismiss() },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = androidx.compose.material.icons.Icons.Default.Close,
@@ -183,39 +224,38 @@ fun AssistOverlayScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 16.dp, horizontal = 20.dp),
+                            .padding(vertical = 4.dp, horizontal = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.AutoAwesome,
                             contentDescription = null,
                             tint = LocalAccentColor.current,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "How can I help you today?",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = textColor,
-                            fontWeight = FontWeight.Medium
+                            modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
+                            text = "How can I help you?",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = textColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
                             text = "Speak or type your question",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = textColor.copy(alpha = 0.6f)
                         )
                         
                         // Voice listening indicator
-                        val isListening by viewModel.isListening.collectAsState()
-                        if (isListening) {
-                            Spacer(modifier = Modifier.height(24.dp))
+                        if (speechState.isListening) {
+                            Spacer(modifier = Modifier.height(12.dp))
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
+                                    modifier = Modifier.size(20.dp),
                                     color = LocalAccentColor.current,
                                     strokeWidth = 2.dp
                                 )
@@ -237,26 +277,28 @@ fun AssistOverlayScreen(
                             if (inputText.text.isNotBlank()) {
                                 viewModel.sendMessage(inputText.text)
                                 inputText = TextFieldValue("")
+                                focusManager.clearFocus()
+                                onDismiss()
                             }
                         },
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         isChatMode = true,
                         chatPlaceholder = "Ask anything...",
-                        isVoiceListening = viewModel.isListening.value,
+                        isVoiceListening = speechState.isListening,
                         isProcessing = viewModel.isProcessing.value,
                         isAgentWorking = viewModel.isProcessing.value,
                         onStopGeneration = { viewModel.stopGeneration() },
                         onStartVoiceInput = {
                             when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
                                 PackageManager.PERMISSION_GRANTED -> {
-                                    viewModel.setListening(true)
+                                    speechState.startListening(isChatMode = true)
                                 }
                                 else -> {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 }
                             }
                         },
-                        onStopVoiceInput = { viewModel.setListening(false) },
+                        onStopVoiceInput = { speechState.stopListening() },
                         onPickFile = { },
                         onOpenCamera = { },
                         showHistoryOption = false

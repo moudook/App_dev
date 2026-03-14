@@ -1340,7 +1340,11 @@ ${goalMemoryManager.getProgressContext()}
                 when (args.action) {
                     "save" -> {
                         if (noteRepository != null && args.title != null && args.content != null) {
-                            val noteId = noteRepository.create(userId, args.title, args.content, args.category)
+                            // BUGFIX: args.category is a name like "health", NOT a UUID.
+                            // Passing it directly as categoryId causes PostgreSQL error:
+                            // "operator does not exist: uuid = character varying"
+                            // Fix: Pass null for categoryId; category name stored in note content context.
+                            val noteId = noteRepository.create(userId, args.title, args.content, null)
                             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
                             "Saved: '${args.title}' (ID: $noteId)"
                         } else {

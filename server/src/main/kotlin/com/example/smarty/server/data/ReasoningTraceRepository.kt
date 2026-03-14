@@ -40,18 +40,18 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 stmt.setObject(1, traceId)
                 stmt.setObject(2, UUID.fromString(trace.sessionId))
                 trace.messageId?.let { stmt.setObject(3, UUID.fromString(it)) } ?: stmt.setNull(3, java.sql.Types.OTHER)
-                stmt.setString(4, trace.userId)
+                stmt.setObject(4, UUID.fromString(trace.userId))  // UUID cast — v6 schema
                 stmt.setInt(5, trace.stepIndex)
                 stmt.setString(6, trace.stepType.name)
                 stmt.setString(7, trace.title)
                 stmt.setString(8, trace.content)
                 stmt.setDouble(9, trace.confidenceScore)
-                stmt.setDouble(10, trace.importanceScore)
-                stmt.setBoolean(12, trace.isFinal)
-                stmt.setBoolean(13, trace.wasRevised)
-                trace.revisedByTraceId?.let { stmt.setObject(14, UUID.fromString(it)) } ?: stmt.setNull(14, java.sql.Types.OTHER)
-                stmt.setInt(15, trace.tokenCount)
-                stmt.setLong(16, trace.durationMs)
+                stmt.setDouble(10, trace.importanceScore)  // fixed: was param 11 before, skipping index
+                stmt.setBoolean(11, trace.isFinal)         // fixed: corrected param indices
+                stmt.setBoolean(12, trace.wasRevised)
+                trace.revisedByTraceId?.let { stmt.setObject(13, UUID.fromString(it)) } ?: stmt.setNull(13, java.sql.Types.OTHER)
+                stmt.setInt(14, trace.tokenCount)
+                stmt.setLong(15, trace.durationMs)
                 stmt.executeUpdate()
             }
         }
@@ -68,11 +68,11 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
             try {
                 val sql = """
                     INSERT INTO reasoning_traces (
-                        trace_id, session_id, message_id, user_id,
-                        step_index, step_type, title, content, content_hash,
+                        id, session_id, message_id, user_id,
+                        step_index, step_type, title, content,
                         confidence_score, importance_score, is_final, was_revised,
-                        revised_by_trace_id, token_count, duration_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        revised_by_trace_id, token_count, duration_ms, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
                 """.trimIndent()
                 
                 conn.prepareStatement(sql).use { stmt ->
@@ -81,19 +81,18 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                         stmt.setObject(1, traceId)
                         stmt.setObject(2, UUID.fromString(trace.sessionId))
                         trace.messageId?.let { stmt.setObject(3, UUID.fromString(it)) } ?: stmt.setNull(3, java.sql.Types.OTHER)
-                        stmt.setString(4, trace.userId)
+                        stmt.setObject(4, UUID.fromString(trace.userId))  // UUID cast — v6 schema
                         stmt.setInt(5, trace.stepIndex)
                         stmt.setString(6, trace.stepType.name)
                         stmt.setString(7, trace.title)
                         stmt.setString(8, trace.content)
-                        stmt.setString(9, generateContentHash(trace.content))
-                        stmt.setDouble(10, trace.confidenceScore)
-                        stmt.setDouble(11, trace.importanceScore)
-                        stmt.setBoolean(12, trace.isFinal)
-                        stmt.setBoolean(13, trace.wasRevised)
-                        trace.revisedByTraceId?.let { stmt.setObject(14, UUID.fromString(it)) } ?: stmt.setNull(14, java.sql.Types.OTHER)
-                        stmt.setInt(15, trace.tokenCount)
-                        stmt.setLong(16, trace.durationMs)
+                        stmt.setDouble(9, trace.confidenceScore)
+                        stmt.setDouble(10, trace.importanceScore)
+                        stmt.setBoolean(11, trace.isFinal)
+                        stmt.setBoolean(12, trace.wasRevised)
+                        trace.revisedByTraceId?.let { stmt.setObject(13, UUID.fromString(it)) } ?: stmt.setNull(13, java.sql.Types.OTHER)
+                        stmt.setInt(14, trace.tokenCount)
+                        stmt.setLong(15, trace.durationMs)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -119,7 +118,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
         dataSource.connection.use { conn ->
             val sql = """
                 SELECT 
-                    trace_id, session_id, message_id, user_id,
+                    id, session_id, message_id, user_id,
                     step_index, step_type, title, content,
                     confidence_score, importance_score, is_final, was_revised,
                     revised_by_trace_id, token_count, duration_ms, created_at
@@ -139,7 +138,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                     while (rs.next()) {
                         traces.add(
                             ReasoningTrace(
-                                traceId = rs.getObject("trace_id") as UUID,
+                            traceId = rs.getObject("id") as UUID,  // v6 schema: 'id' not 'trace_id'
                                 sessionId = (rs.getObject("session_id") as UUID).toString(),
                                 messageId = (rs.getObject("message_id") as UUID?)?.toString(),
                                 userId = rs.getString("user_id"),
@@ -173,7 +172,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
         dataSource.connection.use { conn ->
             val sql = """
                 SELECT 
-                    rt.trace_id, rt.session_id, rt.message_id, rt.user_id,
+                    rt.id, rt.session_id, rt.message_id, rt.user_id,
                     rt.step_index, rt.step_type, rt.title, rt.content,
                     rt.confidence_score, rt.importance_score,
                     rt.is_final, rt.was_revised, rt.duration_ms, rt.created_at,
@@ -191,7 +190,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                     while (rs.next()) {
                         traces.add(
                             ReasoningTraceWithSummary(
-                                traceId = rs.getObject("trace_id") as UUID,
+                                traceId = rs.getObject("id") as UUID,  // v6 schema: 'id' not 'trace_id'
                                 sessionId = (rs.getObject("session_id") as UUID).toString(),
                                 stepIndex = rs.getInt("step_index"),
                                 stepType = ReasoningStepType.valueOf(rs.getString("step_type")),
@@ -241,7 +240,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 stmt.setObject(1, summaryId)
                 stmt.setObject(2, UUID.fromString(summary.sessionId))
                 summary.messageId?.let { stmt.setObject(3, UUID.fromString(it)) } ?: stmt.setNull(3, java.sql.Types.OTHER)
-                stmt.setString(4, summary.userId)
+                stmt.setObject(4, UUID.fromString(summary.userId))  // UUID cast — v6 schema
                 stmt.setString(5, summary.oneLiner)
                 stmt.setString(6, summary.briefSummary)
                 stmt.setString(7, summary.detailedSummary)

@@ -6,8 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -156,9 +155,9 @@ fun StatCard(
                 ) {
                     Icon(
                         imageVector = if (trend.isPositive) 
-                            androidx.compose.material.icons.Icons.Default.TrendingUp 
+                            Icons.Filled.TrendingUp
                         else 
-                            androidx.compose.material.icons.Icons.Default.TrendingDown,
+                            Icons.Filled.TrendingDown,
                         contentDescription = null,
                         tint = if (trend.isPositive) 
                             MaterialTheme.colorScheme.primary 

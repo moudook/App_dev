@@ -210,7 +210,7 @@ class CalendarRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Event {} does not belong to user {}", eventId, userId)
@@ -235,7 +235,7 @@ class CalendarRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Event {} does not belong to user {}", eventId, userId)
@@ -259,7 +259,7 @@ class CalendarRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))  // UUID cast — v6 schema
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Event {} does not belong to user {}", eventId, userId)
