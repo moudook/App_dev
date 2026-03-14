@@ -152,9 +152,8 @@ fun AssistOverlayScreen(
     // Dismiss with cleanup
     fun handleDismiss() {
         isVisible = false
-        speechState.stopListening()    // Stop speech recognition
-        viewModel.setListening(false)  // Stop listening
-        viewModel.clearMessages()       // Clear chat for next time
+        // Removed: viewModel.clearMessages() - Don't clear until next fresh start
+        // Removed: speechState.stopListening() - Don't stop if active generation is happening
         onDismiss()
     }
 
@@ -181,12 +180,21 @@ fun AssistOverlayScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .imePadding()
+                // CONSUME CLICKS to prevent background dismissal when clicking the card
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { /* Consume */ }
         ) {
-            // Card-like container with MARGINS (not padding)
+            // Collect ViewModel states
+            val vmResearchMode by viewModel.isResearchMode.collectAsState()
+            val vmImageGenMode by viewModel.isImageGenMode.collectAsState()
+
+            // Card-like container
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),  // MARGINS
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 shape = RoundedCornerShape(28.dp),
                 color = backgroundColor,
                 border = BorderStroke(1.dp, borderColor),
@@ -277,22 +285,22 @@ fun AssistOverlayScreen(
                         onValueChange = { inputText = it },
                         onSubmit = {
                             if (inputText.text.isNotBlank()) {
-                                if (isImageGenMode) {
+                                if (vmImageGenMode) {
                                     viewModel.generateImageDirect(inputText.text)
                                 } else {
                                     viewModel.sendMessage(inputText.text)
                                 }
                                 inputText = TextFieldValue("")
                                 focusManager.clearFocus()
-                                onDismiss()
+                                handleDismiss()
                             }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         isChatMode = true,
                         chatPlaceholder = "Ask anything...",
                         isVoiceListening = speechState.isListening,
-                        isProcessing = viewModel.isProcessing.value,
-                        isAgentWorking = viewModel.isProcessing.value,
+                        isProcessing = viewModel.isProcessing.collectAsState().value,
+                        isAgentWorking = viewModel.isProcessing.collectAsState().value,
                         onStopGeneration = { viewModel.stopGeneration() },
                         onStartVoiceInput = {
                             when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
@@ -305,10 +313,10 @@ fun AssistOverlayScreen(
                             }
                         },
                         onStopVoiceInput = { speechState.stopListening() },
-                        isResearchMode = isResearchMode,
-                        onToggleResearchMode = { isResearchMode = !isResearchMode },
-                        isImageGenMode = isImageGenMode,
-                        onToggleImageGenMode = { isImageGenMode = !isImageGenMode },
+                        isResearchMode = vmResearchMode,
+                        onToggleResearchMode = { viewModel.toggleResearchMode() },
+                        isImageGenMode = vmImageGenMode,
+                        onToggleImageGenMode = { viewModel.toggleImageGenMode() },
                         onPickFile = { },
                         onOpenCamera = { },
                         showHistoryOption = false

@@ -633,6 +633,23 @@ class AssistViewModel(
     // Connection Status (from SharedAppState)
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
 
+    // Feature Toggles (Persistent in ViewModel for overlay)
+    private val _isResearchMode = MutableStateFlow(false)
+    val isResearchMode: StateFlow<Boolean> = _isResearchMode.asStateFlow()
+
+    private val _isImageGenMode = MutableStateFlow(false)
+    val isImageGenMode: StateFlow<Boolean> = _isImageGenMode.asStateFlow()
+
+    fun toggleResearchMode() {
+        _isResearchMode.value = !_isResearchMode.value
+        if (_isResearchMode.value) _isImageGenMode.value = false // Mutual exclusivity
+    }
+
+    fun toggleImageGenMode() {
+        _isImageGenMode.value = !_isImageGenMode.value
+        if (_isImageGenMode.value) _isResearchMode.value = false // Mutual exclusivity
+    }
+
     init {
         // Enter chat mode for this Smarty interaction
         viewModelScope.launch {
@@ -688,7 +705,14 @@ class AssistViewModel(
                 chatManager.ensureSession()
 
                 // 1. Add user message via manager
-                val userMessage = chatManager.addUserMessage(content, attachments)
+                // ENHANCEMENT: If Research Mode is active, prefix with hidden instruction or trigger
+                val finalContent = if (_isResearchMode.value) {
+                    "[SEARCH_MODE:DEEP] $content" 
+                } else {
+                    content
+                }
+                
+                val userMessage = chatManager.addUserMessage(finalContent, attachments)
 
                 // 2. FAST-PATH: Check Local Command Processor (offline, 0ms latency)
                 val commandResult = localCommandProcessor.process(content)
