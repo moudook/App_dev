@@ -22,6 +22,7 @@ import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.plugins.configureMonitoring
 import com.example.smarty.server.plugins.installStructuredLogging
+import com.example.smarty.server.plugins.configureEnhancedHealthCheck
 import com.example.smarty.server.routes.configureHandshakeRoutes
 import com.example.smarty.server.routes.configureDataRoutes
 import com.example.smarty.server.services.DigestService
@@ -228,6 +229,9 @@ fun Application.module() {
 
     // Configure Monitoring
     configureMonitoring()
+    
+    // Configure Enhanced Health Check
+    configureEnhancedHealthCheck()
 
     // Log startup
     log.info("Friday Server started on port $serverPort")
