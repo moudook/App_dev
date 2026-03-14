@@ -98,6 +98,14 @@ class ThinkingStorageManager {
         return thinking
     }
 
+    /** Get current thinking without finalizing (for progressive save during streaming). */
+    suspend fun getCurrentThinking(sessionId: String): String {
+        return mutex.withLock {
+            val state = states[sessionId] ?: return@withLock ""
+            serialiseBlocks(state.blocks)
+        }
+    }
+
     /** Free memory for the given session. */
     suspend fun clear(sessionId: String) {
         mutex.withLock { states.remove(sessionId) }

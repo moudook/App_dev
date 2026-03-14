@@ -322,9 +322,13 @@ fun Application.configureChatRoutes() {
                     emptyList()
                 }
 
+                // Register active session BEFORE creating agent (needed for progressive thinking save)
+                val activeSessionId = sessionId ?: UUID.randomUUID().toString()
+                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat")
+
                 // Collect citations during stream
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
-                
+
                 // Create agent instance for this request with userId for multi-tenant isolation
                 val agent = ServerAgent(
                     llmProvider = streamProvider,
@@ -343,7 +347,21 @@ fun Application.configureChatRoutes() {
                                     collectedCitations.addAll(command.citations)
                                 }
                             }
-                            
+
+                            // PROGRESSIVE SAVE: Save thinking to database during streaming
+                            // This ensures thinking is persisted even if stream fails
+                            if (event is AgentEvent.Processing || event is AgentEvent.ToolCall) {
+                                val currentThinking = ThinkingStorageManagerSingleton.instance
+                                    .getCurrentThinking(activeSessionId)
+                                if (currentThinking.isNotBlank()) {
+                                    chatRepository?.updateMessageThinking(
+                                        userId = userId,
+                                        sessionId = activeSessionId,
+                                        thinking = currentThinking
+                                    )
+                                }
+                            }
+
                             val eventType = when(event) {
                                 is AgentEvent.Processing -> "processing"
                                 is AgentEvent.ToolCall -> "tool_call"
@@ -364,10 +382,6 @@ fun Application.configureChatRoutes() {
                     },
                     userId = userId
                 )
-
-                // Register active session to prevent digest scheduler interference
-                val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat")
 
                 try {
                     // Run the agent strategy with history, model override, and time context

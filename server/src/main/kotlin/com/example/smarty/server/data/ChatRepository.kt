@@ -384,6 +384,66 @@ class ChatRepository(
             thinking = rs.getString("thinking")
         )
     }
+
+    /**
+     * Update thinking field for the latest ASSISTANT message in a session.
+     * Used for progressive saving during streaming.
+     */
+    suspend fun updateMessageThinking(
+        userId: String,
+        sessionId: String,
+        thinking: String?
+    ) = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Update the latest ASSISTANT message in this session
+            val sql = """
+                UPDATE chat_messages 
+                SET thinking = ? 
+                WHERE session_id = ? 
+                  AND role = ? 
+                  AND id = (
+                    SELECT id FROM chat_messages 
+                    WHERE session_id = ? AND role = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                  )
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, thinking)
+                stmt.setObject(2, UUID.fromString(sessionId))
+                stmt.setString(3, LlmMessage.Role.ASSISTANT.name)
+                stmt.setObject(4, UUID.fromString(sessionId))
+                stmt.setString(5, LlmMessage.Role.ASSISTANT.name)
+                val rows = stmt.executeUpdate()
+                if (rows > 0) {
+                    logger.debug("Updated thinking for session {} ({} rows)", sessionId, rows)
+                }
+            }
+        }
+    }
+
+    /**
+     * Get the latest thinking for a session (for debugging).
+     */
+    suspend fun getLatestThinking(sessionId: String): String? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT thinking FROM chat_messages 
+                WHERE session_id = ? AND role = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, LlmMessage.Role.ASSISTANT.name)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) rs.getString("thinking") else null
+                }
+            }
+        }
+    }
 }
 
 /**
