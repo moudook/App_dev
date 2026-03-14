@@ -95,6 +95,7 @@ fun ThinkingSection(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             // ── Header ─────────────────────────────────────────────────────
+            // Always show tool count, even when collapsed
             ActionPanelHeader(
                 isStreaming  = isStreaming,
                 isExpanded   = isExpanded,
@@ -129,6 +130,12 @@ fun ThinkingSection(
                         )
                     }
                 }
+            }
+            
+            // Show tool summary when collapsed and there are tools
+            if (!isExpanded && toolCalls.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                ToolSummaryRow(toolCalls = toolCalls, accentColor = accentColor)
             }
         }
     }
@@ -229,6 +236,55 @@ private fun ActionCountBadge(count: Int, color: Color) {
                     fontSize   = 11.sp
                 ),
                 color = color
+            )
+        }
+    }
+}
+
+/**
+ * Shows a summary row of tools used when thinking section is collapsed.
+ */
+@Composable
+private fun ToolSummaryRow(
+    toolCalls: List<AgentToolCallEntry>,
+    accentColor: Color
+) {
+    val uniqueTools = toolCalls.map { it.toolName }.distinct()
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                accentColor.copy(alpha = 0.08f),
+                RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Build,
+            contentDescription = null,
+            tint = accentColor.copy(alpha = 0.7f),
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = "Tools used: ",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+        )
+        uniqueTools.forEachIndexed { index, toolName ->
+            if (index > 0) {
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accentColor.copy(alpha = 0.5f)
+                )
+            }
+            Text(
+                text = toolName.replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = accentColor
             )
         }
     }

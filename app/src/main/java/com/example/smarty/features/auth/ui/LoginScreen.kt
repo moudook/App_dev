@@ -79,11 +79,11 @@ import com.example.smarty.ui.components.SmartyButton
 fun StaticPremiumBackground(modifier: Modifier = Modifier) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
-    // Highly premium ultra-dark static canvas
-    val bgColor = if (isDark) Color(0xFF060608) else Color(0xFFF6F6FA)
-    val accent1 = if (isDark) PinkAccent.copy(alpha = 0.25f) else PinkLight.copy(alpha = 0.6f)
-    val accent2 = if (isDark) Color(0xFF5E22D5).copy(alpha = 0.2f) else Color(0xFFE2D5FA).copy(alpha = 0.7f)
-    val accent3 = if (isDark) Color(0xFF1B8AC9).copy(alpha = 0.15f) else Color(0xFFD5F2FA).copy(alpha = 0.5f)
+    // Theme-adaptive background with neutral colors (no purple)
+    val bgColor = if (isDark) Color(0xFF0A0A0C) else Color(0xFFFAFAFC)
+    val accent1 = if (isDark) Color(0xFF2A2A3C).copy(alpha = 0.5f) else Color(0xFFE8E8F0).copy(alpha = 0.7f)
+    val accent2 = if (isDark) Color(0xFF1A1A2E).copy(alpha = 0.4f) else Color(0xFFF0F0F8).copy(alpha = 0.8f)
+    val accent3 = if (isDark) Color(0xFF0F0F1A).copy(alpha = 0.3f) else Color(0xFFF8F8FC).copy(alpha = 0.6f)
 
     Box(
         modifier = modifier
@@ -94,20 +94,15 @@ fun StaticPremiumBackground(modifier: Modifier = Modifier) {
             val width = size.width
             val height = size.height
 
-            // Sweeping diagonal gradient overlay for a polished metallic/glass base
+            // Subtle diagonal gradient for depth
             drawRect(
                 brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(
-                        bgColor,
-                        if (isDark) Color(0xFF0F0F1A) else Color.White,
-                        bgColor
-                    ),
+                    colors = listOf(bgColor, if (isDark) Color(0xFF12121A) else Color.White, bgColor),
                     start = androidx.compose.ui.geometry.Offset(0f, 0f),
                     end = androidx.compose.ui.geometry.Offset(width, height)
                 )
             )
 
-            // Perfectly placed static light leak blooms to give it an AI feel
             // Top Right Bloom
             drawCircle(
                 brush = androidx.compose.ui.graphics.Brush.radialGradient(
@@ -229,16 +224,19 @@ fun LoginScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Title
+                        // Title - "Meet your" adapts to theme, "AI Agent" stays pink
+                        val meetYourColor = if (isDark) Color(0xFFE8E8F0) else Color(0xFF1A1A2E)
+                        
                         androidx.compose.material3.Text(
                             text = androidx.compose.ui.text.buildAnnotatedString {
-                                append("Meet your ")
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = meetYourColor)) {
+                                    append("Meet your ")
+                                }
                                 withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
                                     append("AI Agent")
                                 }
                                 append(".")
                             },
-                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 44.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -246,10 +244,10 @@ fun LoginScreen(
                             textAlign = TextAlign.Center
                         )
 
-                        // Description
+                        // Description - Theme adaptive text color
                         Text(
                             text = "Initialize the entity that remembers, organizes, and acts autonomously.",
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (isDark) Color(0xFFD0D0D8) else Color(0xFF4A4A5C),
                             fontSize = 17.sp,
                             lineHeight = 26.sp,
                             fontWeight = FontWeight.Medium,
