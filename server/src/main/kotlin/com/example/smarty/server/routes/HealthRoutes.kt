@@ -6,6 +6,8 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.serverStartTime
+import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.monitoring.ServerActivityMonitor
 import java.lang.management.ManagementFactory
 
 /**
@@ -54,6 +56,41 @@ fun Application.configureHealthRoutes() {
                     protocolVersion = "AgentCommand.$protocolCheck"
                 )
             )
+        }
+
+        /**
+         * Advanced health dashboard - shows everything happening in the server.
+         * Returns active sessions, recent agent activities, and tool calls.
+         */
+        get("/health/advanced") {
+            val uptimeMs = System.currentTimeMillis() - serverStartTime
+            val uptimeSeconds = uptimeMs / 1000
+            val uptimeMinutes = uptimeSeconds / 60
+            val uptimeHours = uptimeMinutes / 60
+            val uptimeStr = String.format("%02d:%02d:%02d", uptimeHours, uptimeMinutes % 60, uptimeSeconds % 60)
+
+            val health = HealthResponse(
+                status = "ok",
+                module = "smarty-server",
+                timestamp = System.currentTimeMillis(),
+                uptime = uptimeStr,
+                protocolVersion = "AgentCommand.${AgentCommand::class.simpleName ?: "Unknown"}"
+            )
+
+            val activeSessions = ActiveSessionManager.getAllSessions()
+            val recentActivities = ServerActivityMonitor.getRecentEvents()
+
+            call.respond(mapOf(
+                "server" to health,
+                "active_sessions" to activeSessions,
+                "recent_activities" to recentActivities,
+                "environment" to mapOf(
+                    "jvm_version" to System.getProperty("java.version"),
+                    "available_processors" to Runtime.getRuntime().availableProcessors(),
+                    "free_memory_mb" to Runtime.getRuntime().freeMemory() / (1024 * 1024),
+                    "total_memory_mb" to Runtime.getRuntime().totalMemory() / (1024 * 1024)
+                )
+            ))
         }
 
         /**

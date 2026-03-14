@@ -410,10 +410,11 @@ private fun runMigrations(ds: DataSource) {
                 password = dbPassword
                 driverClassName = "org.postgresql.Driver"
                 maximumPoolSize = 20  // Increased for better concurrency
-                minimumIdle = 5
-                idleTimeout = 300000  // 5 minutes
+                minimumIdle = 2  // Small warm pool for Supabase PgBouncer
+                idleTimeout = 45000  // 45 seconds - shorter than PgBouncer idle timeout
                 connectionTimeout = 30000  // 30 seconds
-                maxLifetime = 1800000  // 30 minutes (shorter to prevent stale connections)
+                maxLifetime = 60000  // 1 minute - much shorter than default to work with PgBouncer
+                keepaliveTime = 30000  // 30 seconds - keep connections alive
                 connectionTestQuery = "SELECT 1"
                 leakDetectionThreshold = 120000  // 2 minutes
                 addDataSourceProperty("prepareThreshold", "0")

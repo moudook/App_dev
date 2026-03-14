@@ -48,3 +48,23 @@ class LoggerTracer(private val userId: String) : AgentTracer {
         )
     }
 }
+
+/**
+ * Forwards trace events to the global ServerActivityMonitor.
+ */
+class MonitoringTracer(private val userId: String) : AgentTracer {
+    override suspend fun trace(event: AgentTraceEvent) {
+        // Use reflection or a common interface to avoid circular dependency if needed,
+        // but since ServerActivityMonitor is in a subpackage or sibling, we can just import it.
+        com.example.smarty.server.monitoring.ServerActivityMonitor.recordEvent(userId, event)
+    }
+}
+
+/**
+ * Combines multiple tracers into one.
+ */
+class CompositeTracer(private val tracers: List<AgentTracer>) : AgentTracer {
+    override suspend fun trace(event: AgentTraceEvent) {
+        tracers.forEach { it.trace(event) }
+    }
+}

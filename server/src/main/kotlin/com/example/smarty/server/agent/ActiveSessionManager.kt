@@ -3,6 +3,7 @@ package com.example.smarty.server.agent
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import kotlinx.serialization.Serializable
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -19,8 +20,10 @@ object ActiveSessionManager {
     
     private const val SESSION_TIMEOUT_MS = 30 * 60 * 1000L // 30 minutes
     
+    @Serializable
     data class SessionInfo(
         val sessionId: String,
+        val userId: String? = null, // Added to identify user in advanced health
         val startedAt: Long,
         val lastActivity: Long,
         val operation: String
@@ -34,6 +37,7 @@ object ActiveSessionManager {
             val now = System.currentTimeMillis()
             activeSessions[userId] = SessionInfo(
                 sessionId = sessionId,
+                userId = userId,
                 startedAt = now,
                 lastActivity = now,
                 operation = operation
@@ -90,6 +94,14 @@ object ActiveSessionManager {
         return activeSessions.keys.toSet()
     }
     
+    /**
+     * Get all active sessions.
+     */
+    suspend fun getAllSessions(): List<SessionInfo> {
+        cleanupStaleSessions()
+        return activeSessions.values.toList()
+    }
+
     /**
      * Get session info for a user.
      */

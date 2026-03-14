@@ -76,7 +76,11 @@ class ServerAgent(
 
     
     // KOOG-inspired infrastructure
-    private val tracer: AgentTracer = PostgresTracer(userId)
+    private val tracer: AgentTracer = CompositeTracer(listOf(
+        PostgresTracer(userId),
+        MonitoringTracer(userId),
+        LoggerTracer(userId)
+    ))
     private val persistenceManager = AgentPersistenceManager(userId)
 
     private val MAX_HISTORY = 20
@@ -755,11 +759,35 @@ ${goalMemoryManager.getProgressContext()}
 
         // Get thinking storage manager for this session
         val thinkingStorage = ThinkingStorageManagerSingleton.instance
-        
+
         // State machine for <think> tag detection
         var inThinkingState = false
         var inFinalState = false
-        
+
+        // Bug 3 Fix: SSE event throttling - track last emit time to prevent spam
+        var lastProcessingEventTime = 0L
+        val PROCESSING_EVENT_THROTTLE_MS = 1000L // 1 second throttle
+
+        /**
+         * Throttled emit for Processing events.
+         * Only emits if at least [PROCESSING_EVENT_THROTTLE_MS] has passed since last emit,
+         * or if this is a significant update (thinking just updated, or substantial content).
+         */
+        suspend fun emitThrottledProcessing(content: String, thinking: String?) {
+            val now = System.currentTimeMillis()
+            val shouldEmit = (now - lastProcessingEventTime >= PROCESSING_EVENT_THROTTLE_MS) ||
+                    (thinking != null && thinking.isNotEmpty()) // Always emit thinking updates
+            if (shouldEmit) {
+                emit(AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = content,
+                    thinking = thinking
+                ))
+                lastProcessingEventTime = now
+            }
+        }
+
         var agentIteration = 0
         // Use the class-level constant — was previously overridden by a hardcoded local 50
         val maxAgentIterations = MAX_ITERATIONS  // 200 iterations
@@ -792,16 +820,11 @@ ${goalMemoryManager.getProgressContext()}
                         // Add to thinking storage
                         thinkingStorage.addReasoning(sessionId, chunk.reasoning)
                         reasoningUpdated = true
-                        
+
                         // Emit thinking progress for UI immediately for reasoning blocks
                         if (!isToolCallInProgress) {
                             val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
-                            emit(AgentEvent.Processing(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                content = "",
-                                thinking = currentThinking
-                            ))
+                            emitThrottledProcessing("", currentThinking)
                         }
                     }
 
@@ -882,12 +905,7 @@ ${goalMemoryManager.getProgressContext()}
                             } else null
 
                             // Always send currentContent chunk, but only send thinking if changed
-                            emit(AgentEvent.Processing(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                content = cleanContent,
-                                thinking = thinkingToSend
-                            ))
+                            emitThrottledProcessing(cleanContent, thinkingToSend)
                         }
                     }
 
@@ -1254,6 +1272,45 @@ ${goalMemoryManager.getProgressContext()}
     private suspend fun executeTool(name: String, argsJson: String, history: List<LlmMessage>, clientTimezone: String? = null, clientTimeMillis: Long? = null): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
+        // Bug 1 Fix: generate_image has its own dedicated args class to avoid
+        // MissingFieldException for "action" field. The LLM sends {"prompt": "...", "aspect_ratio": "..."}
+        // which doesn't include "action" since the tool name already identifies the operation.
+        @Serializable
+        data class GenerateImageArgs(
+            val prompt: String,
+            val aspectRatio: String? = null
+        )
+
+        // Handle generate_image separately - bypass UnifiedToolArgs entirely
+        if (name == "generate_image") {
+            val imageArgs = try {
+                json.decodeFromString<GenerateImageArgs>(argsJson)
+            } catch (e: Exception) {
+                val firstJson = extractFirstJsonObject(argsJson)
+                if (firstJson != null) {
+                    logger.warn("Malformed generate_image args, using first JSON object: ${firstJson.take(100)}...")
+                    json.decodeFromString<GenerateImageArgs>(firstJson)
+                } else {
+                    throw e
+                }
+            }
+            return try {
+                val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                val jobId = kreaTool.generateImage(imageArgs.prompt, imageArgs.aspectRatio ?: "1:1")
+
+                generatedImageRepository?.create(
+                    userId = userId,
+                    sessionId = null,
+                    prompt = imageArgs.prompt,
+                    kreaJobId = jobId
+                )
+
+                "Successfully started image generation. The image will appear in the chat shortly once Krea completes it. (Job ID: $jobId)"
+            } catch (e: Exception) {
+                "Failed to generate image: ${e.message}"
+            }
+        }
+
         @Serializable
         data class UnifiedToolArgs(
             val action: String,
@@ -1274,9 +1331,7 @@ ${goalMemoryManager.getProgressContext()}
             val setting: String? = null,
             val on: Boolean? = null,
             val info: String? = null,
-            val screen: String? = null,
-            val prompt: String? = null,
-            val aspect_ratio: String? = null
+            val screen: String? = null
         )
 
         val args = try {
@@ -1361,23 +1416,6 @@ ${goalMemoryManager.getProgressContext()}
                         vectorStore.store(userId, fact, mapOf("type" to (args.type ?: "factual")))
                         "Remembered: ${fact.take(50)}"
                     } catch (e: Exception) { "Failed: ${e.message}" }
-                }
-                "generate_image" -> {
-                    try {
-                        val kreaTool = com.example.smarty.server.tools.KreaImageTool()
-                        val jobId = kreaTool.generateImage(args.prompt ?: "", args.aspect_ratio ?: "1:1")
-                        
-                        generatedImageRepository?.create(
-                            userId = userId,
-                            sessionId = null, // Will be fixed later to include context
-                            prompt = args.prompt ?: "",
-                            kreaJobId = jobId
-                        )
-                        
-                        "Successfully started image generation. The image will appear in the chat shortly once Krea completes it. (Job ID: $jobId)"
-                    } catch (e: Exception) {
-                        "Failed to generate image: ${e.message}"
-                    }
                 }
                 else -> when (name) {
                     "memory" -> {

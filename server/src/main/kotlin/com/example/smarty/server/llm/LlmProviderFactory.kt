@@ -222,6 +222,27 @@ class KeyRotatingOpenAiProvider(
         }
 
     /**
+     * Check if an error is a permanent failure that should not be retried.
+     * Permanent failures include deserialization errors, missing fields, schema mismatches.
+     * Retrying these with identical args will always fail.
+     */
+    private fun isPermanentFailure(e: Throwable): Boolean {
+        val msg = e.message ?: ""
+        return when {
+            // Deserialization errors - missing required fields, invalid JSON structure
+            msg.contains("MissingFieldException", ignoreCase = true) -> true
+            msg.contains("missing", ignoreCase = true) && msg.contains("field", ignoreCase = true) -> true
+            msg.contains("deserialization", ignoreCase = true) -> true
+            msg.contains("JSON", ignoreCase = true) && (msg.contains("format", ignoreCase = true) || msg.contains("structure", ignoreCase = true)) -> true
+            // Schema validation errors
+            msg.contains("schema", ignoreCase = true) && msg.contains("validation", ignoreCase = true) -> true
+            // Invalid argument errors that won't be fixed by retrying
+            msg.contains("invalid", ignoreCase = true) && (msg.contains("argument", ignoreCase = true) || msg.contains("parameter", ignoreCase = true)) -> true
+            else -> false
+        }
+    }
+
+    /**
      * Exponential backoff with jitter for retry logic.
      *
      * **Algorithm**: baseDelay * 2^attempt + randomJitter
@@ -313,6 +334,15 @@ class KeyRotatingOpenAiProvider(
                 return provider.generate(messages, tools, model)
 
             } catch (e: Exception) {
+                // Bug 2 Fix: Check for permanent failures - don't retry these
+                if (isPermanentFailure(e)) {
+                    logger.warn(
+                        "[$sessionId] Permanent failure detected for $baseProviderName: ${e.message?.take(200)}. " +
+                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                    )
+                    throw e
+                }
+
                 lastException = e
                 val error = ApiKeyErrorClassifier.classify(e)
 
@@ -430,6 +460,15 @@ class KeyRotatingOpenAiProvider(
                 return@flow
 
             } catch (e: Exception) {
+                // Bug 2 Fix: Check for permanent failures - don't retry these
+                if (isPermanentFailure(e)) {
+                    logger.warn(
+                        "[$sessionId] Permanent failure detected for $baseProviderName: ${e.message?.take(200)}. " +
+                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                    )
+                    throw e
+                }
+
                 lastException = e
                 val error = ApiKeyErrorClassifier.classify(e)
 
@@ -544,6 +583,24 @@ class KeyRotatingGeminiProvider(
         }
 
     /**
+     * Check if an error is a permanent failure that should not be retried.
+     * Permanent failures include deserialization errors, missing fields, schema mismatches.
+     * Retrying these with identical args will always fail.
+     */
+    private fun isPermanentFailure(e: Throwable): Boolean {
+        val msg = e.message ?: ""
+        return when {
+            msg.contains("MissingFieldException", ignoreCase = true) -> true
+            msg.contains("missing", ignoreCase = true) && msg.contains("field", ignoreCase = true) -> true
+            msg.contains("deserialization", ignoreCase = true) -> true
+            msg.contains("JSON", ignoreCase = true) && (msg.contains("format", ignoreCase = true) || msg.contains("structure", ignoreCase = true)) -> true
+            msg.contains("schema", ignoreCase = true) && msg.contains("validation", ignoreCase = true) -> true
+            msg.contains("invalid", ignoreCase = true) && (msg.contains("argument", ignoreCase = true) || msg.contains("parameter", ignoreCase = true)) -> true
+            else -> false
+        }
+    }
+
+    /**
      * Exponential backoff with jitter for retry logic.
      *
      * @param attempt Retry attempt number (0-based)
@@ -613,6 +670,15 @@ class KeyRotatingGeminiProvider(
                 return provider.generate(messages, tools, model)
 
             } catch (e: Exception) {
+                // Bug 2 Fix: Check for permanent failures - don't retry these
+                if (isPermanentFailure(e)) {
+                    logger.warn(
+                        "[$sessionId] Permanent failure detected for Gemini: ${e.message?.take(200)}. " +
+                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                    )
+                    throw e
+                }
+
                 lastException = e
                 val error = ApiKeyErrorClassifier.classify(e)
 
@@ -715,6 +781,15 @@ class KeyRotatingGeminiProvider(
                 return@flow
 
             } catch (e: Exception) {
+                // Bug 2 Fix: Check for permanent failures - don't retry these
+                if (isPermanentFailure(e)) {
+                    logger.warn(
+                        "[$sessionId] Permanent failure detected for Gemini: ${e.message?.take(200)}. " +
+                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                    )
+                    throw e
+                }
+
                 lastException = e
                 val error = ApiKeyErrorClassifier.classify(e)
 
