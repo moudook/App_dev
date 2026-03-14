@@ -334,15 +334,15 @@ fun ChatMessageItem(
 
                         val rawContent = if (isUser) message.content else cleanContent(message.content)
                         val targetLength = rawContent.length
-                        
+
                         // State that persists across content updates within same message
                         // Only resets when message.id changes (new message)
-                        var displayPosition by remember(message.id) { 
-                            mutableIntStateOf(if (message.isStreaming) 0 else targetLength) 
+                        var displayPosition by remember(message.id) {
+                            mutableIntStateOf(if (message.isStreaming) 0 else targetLength)
                         }
-                        
-                        // Run typewriter animation
-                        LaunchedEffect(message.isStreaming, targetLength) {
+
+                        // Run typewriter animation - keyed on message.id to prevent re-render on scroll
+                        LaunchedEffect(message.id, message.isStreaming) {
                             if (message.isStreaming) {
                                 // Continue from current position, not restart
                                 val charsPerFrame = 2

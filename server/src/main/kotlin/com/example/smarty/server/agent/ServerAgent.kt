@@ -954,7 +954,15 @@ ${goalMemoryManager.getProgressContext()}
                         
                         // Use arguments directly
                         val unmaskedArgs = currentToolArgs
-                        val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent, clientTimezone, clientTimeMillis)
+                        
+                        logger.info("EXECUTING TOOL: $currentToolName with args: $unmaskedArgs")
+                        
+                        val toolResult = try {
+                            executeTool(currentToolName, unmaskedArgs, messagesForAgent, clientTimezone, clientTimeMillis)
+                        } catch (e: Exception) {
+                            logger.error("TOOL EXECUTION FAILED: $currentToolName - ${e.message}", e)
+                            "Error executing $currentToolName: ${e.message}"
+                        }
                         
                         // Check if tool returned an error result
                         val isToolError = toolResult.startsWith("Error", ignoreCase = true) || 
