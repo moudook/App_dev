@@ -1,7 +1,6 @@
 package com.example.smarty.server.llm
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -18,6 +17,11 @@ import org.slf4j.LoggerFactory
 /**
  * Universal implementation for OpenAI-compatible APIs.
  * Works with OpenAI, Groq, DeepSeek, OpenRouter, Cerebras, GitHub Models, etc.
+ *
+ * FIX: The HttpClient used here does NOT have the ContentNegotiation plugin installed.
+ * Therefore, we manually serialize request bodies to JSON strings using the local
+ * Json instance before calling setBody(). This avoids the
+ * "Fail to prepare request body" IllegalStateException.
  */
 class OpenAiCompatibleProvider(
     private val client: HttpClient,
@@ -34,26 +38,29 @@ class OpenAiCompatibleProvider(
         explicitNulls = false
     }
 
-override suspend fun generate(
+    override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?
     ): LlmResponse {
         val requestBody = buildRequestBody(messages, tools, model, stream = false)
+        // Manually serialize to JSON string — no ContentNegotiation plugin required
+        val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
 
         val endpoint = resolveEndpoint(baseUrl)
 
         try {
-            val response: OpenAiChatResponse = client.post(endpoint) {
+            val responseText = client.post(endpoint) {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
                 timeout {
                     requestTimeoutMillis = 120_000
                     connectTimeoutMillis = 30_000
                 }
-                setBody(requestBody)
-            }.body()
+                setBody(requestBodyJson)
+            }.bodyAsText()
 
+            val response: OpenAiChatResponse = json.decodeFromString(responseText)
             val choice = response.choices.firstOrNull() ?: return LlmResponse(content = null)
 
             // Some providers (GLM-5, DeepSeek) return content=null with reasoning_content
@@ -79,38 +86,14 @@ override suspend fun generate(
         }
     }
 
-    private suspend fun <T> withRetry(
-        maxRetries: Int = 2,
-        initialDelay: Long = 500L,
-        block: suspend () -> T
-    ): T {
-        var lastException: Exception? = null
-        repeat(maxRetries + 1) { attempt ->
-            try {
-                return block()
-            } catch (e: Exception) {
-                lastException = e
-                val msg = e.message?.lowercase() ?: ""
-                val isRetryable = msg.contains("500") || msg.contains("502") || 
-                                  msg.contains("503") || msg.contains("rate") ||
-                                  msg.contains("timeout") || msg.contains("reset")
-                if (!isRetryable || attempt == maxRetries) {
-                    throw e
-                }
-                val delay = initialDelay * (1 shl attempt)
-                logger.warn("Retryable error on attempt ${attempt + 1}, waiting ${delay}ms: ${e.message}")
-                kotlinx.coroutines.delay(delay)
-            }
-        }
-        throw lastException ?: IllegalStateException("Retry failed")
-    }
-
-override suspend fun stream(
+    override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?
     ): Flow<LlmChunk> = flow {
         val requestBody = buildRequestBody(messages, tools, model, stream = true)
+        // Manually serialize to JSON string — no ContentNegotiation plugin required
+        val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
 
         val endpoint = resolveEndpoint(baseUrl)
 
@@ -125,7 +108,7 @@ override suspend fun stream(
                     connectTimeoutMillis = 60_000
                     socketTimeoutMillis = Long.MAX_VALUE
                 }
-                setBody(requestBody)
+                setBody(requestBodyJson)
             }.execute { httpResponse ->
                 if (!httpResponse.status.isSuccess()) {
                     val errorBody = httpResponse.bodyAsText()
@@ -272,7 +255,7 @@ override suspend fun stream(
 // --- OpenAI DTOs ---
 
 @Serializable
-private data class OpenAiChatRequest(
+internal data class OpenAiChatRequest(
     val model: String,
     val messages: List<OpenAiMessage>,
     val tools: List<OpenAiTool>? = null,
@@ -280,7 +263,7 @@ private data class OpenAiChatRequest(
 )
 
 @Serializable
-private data class OpenAiMessage(
+internal data class OpenAiMessage(
     val role: String,
     val content: String?,
     val name: String? = null,
@@ -289,56 +272,56 @@ private data class OpenAiMessage(
 )
 
 @Serializable
-private data class OpenAiTool(
+internal data class OpenAiTool(
     val type: String,
     val function: OpenAiFunctionDefinition
 )
 
 @Serializable
-private data class OpenAiFunctionDefinition(
+internal data class OpenAiFunctionDefinition(
     val name: String,
     val description: String,
     val parameters: ToolParametersSchema
 )
 
 @Serializable
-private data class ToolParametersSchema(
+internal data class ToolParametersSchema(
     val type: String = "object",
     val properties: Map<String, ToolPropertySchema>,
     val required: List<String> = emptyList()
 )
 
 @Serializable
-private data class ToolPropertySchema(
+internal data class ToolPropertySchema(
     val type: String,
     val description: String? = null,
     val enum: List<String>? = null
 )
 
 @Serializable
-private data class OpenAiChatResponse(
+internal data class OpenAiChatResponse(
     val choices: List<OpenAiChoice>,
     val usage: OpenAiUsage? = null
 )
 
 @Serializable
-private data class OpenAiChoice(
+internal data class OpenAiChoice(
     val message: OpenAiMessageDelta, // Non-streaming response has full message structure
     val finish_reason: String?
 )
 
 @Serializable
-private data class OpenAiStreamChunk(
+internal data class OpenAiStreamChunk(
     val choices: List<OpenAiStreamChoice>
 )
 
 @Serializable
-private data class OpenAiStreamChoice(
+internal data class OpenAiStreamChoice(
     val delta: OpenAiMessageDelta
 )
 
 @Serializable
-private data class OpenAiMessageDelta(
+internal data class OpenAiMessageDelta(
     val content: String? = null,
     val reasoningContent: String? = null,
     @SerialName("reasoning_content") val reasoning_content: String? = null,
@@ -351,20 +334,20 @@ private data class OpenAiMessageDelta(
 }
 
 @Serializable
-private data class OpenAiToolCall(
+internal data class OpenAiToolCall(
     val id: String? = null,
     val type: String? = null,
     val function: OpenAiFunctionCall? = null
 )
 
 @Serializable
-private data class OpenAiFunctionCall(
+internal data class OpenAiFunctionCall(
     val name: String? = null,
     val arguments: String? = null
 )
 
 @Serializable
-private data class OpenAiUsage(
+internal data class OpenAiUsage(
     @SerialName("prompt_tokens") val promptTokens: Int = 0,
     @SerialName("completion_tokens") val completionTokens: Int = 0,
     @SerialName("total_tokens") val totalTokens: Int = 0

@@ -209,8 +209,8 @@ fun verifyFirebaseToken(token: String, deviceId: String?): FirebaseUserPrincipal
  * Returns the user's UUID user_id.
  */
 private fun ensureUserExistsInDatabase(
-    firebaseUid: String, 
-    email: String?, 
+    firebaseUid: String,
+    email: String?,
     displayName: String?
 ): String {
     val ds = DatabaseFactory.getDataSource()
@@ -218,40 +218,42 @@ private fun ensureUserExistsInDatabase(
         LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, skipping user creation")
         throw IllegalStateException("DataSource not available")
     }
-    
+
+    val logger = LoggerFactory.getLogger("FirebaseAuth")
+
     ds.connection.use { conn ->
-        // Check if user already exists and get their user_id
-        val checkSql = "SELECT id FROM users WHERE firebase_uid = ?"
-        conn.prepareStatement(checkSql).use { stmt ->
-            stmt.setString(1, firebaseUid)
-            stmt.executeQuery().use { rs ->
-                if (rs.next()) {
-                    // User already exists, return their UUID
-                    return rs.getString("id")
-                }
-            }
-        }
-        
-        // User doesn't exist, create them
+        // Atomic upsert: INSERT ... ON CONFLICT DO NOTHING eliminates the TOCTOU race condition
+        // where two concurrent requests for the same firebase_uid both see "not found" and both
+        // try to INSERT, causing a duplicate key violation on the users_firebase_uid_key constraint.
         val insertSql = """
             INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
             VALUES (?, ?, ?, NOW(), NOW())
-            RETURNING id
+            ON CONFLICT (firebase_uid) DO NOTHING
         """.trimIndent()
         conn.prepareStatement(insertSql).use { stmt ->
             stmt.setString(1, firebaseUid)
             stmt.setString(2, email)
             stmt.setString(3, displayName)
+            val rowsAffected = stmt.executeUpdate()
+            if (rowsAffected > 0) {
+                logger.info("Created user record for Firebase UID: {}", firebaseUid)
+            }
+        }
+
+        // Always SELECT to get the id — works whether the row was just inserted or already existed
+        val selectSql = "SELECT id FROM users WHERE firebase_uid = ?"
+        conn.prepareStatement(selectSql).use { stmt ->
+            stmt.setString(1, firebaseUid)
             stmt.executeQuery().use { rs ->
                 if (rs.next()) {
                     val userId = rs.getString("id")
-                    LoggerFactory.getLogger("FirebaseAuth").info("Created user record for Firebase UID: {}, User ID: {}", firebaseUid, userId)
+                    logger.info("Resolved user for Firebase UID: {}, User ID: {}", firebaseUid, userId)
                     return userId
                 }
             }
         }
-        
-        throw IllegalStateException("Failed to create user record")
+
+        throw IllegalStateException("Failed to find or create user record for Firebase UID: $firebaseUid")
     }
 }
 
