@@ -69,12 +69,21 @@ data class KreaImageResult(
 class KreaImageTool {
     private val logger = LoggerFactory.getLogger(KreaImageTool::class.java)
 
-    private val kreaApiKey = System.getenv("KREA_API_KEY") ?: ""
+    private val kreaApiKey = System.getenv("KREA_API_KEY")
     private val baseUrl = "https://api.krea.ai"
 
     // Default model paths
     private val textToImageModel = "/generate/image/bfl/flux-1-dev"
     private val imageToImageModel = "/generate/image/google/nano-banana-pro"
+
+    init {
+        if (kreaApiKey.isNullOrBlank()) {
+            logger.error("KREA_API_KEY environment variable is not set. Image generation will fail. " +
+                "Set KREA_API_KEY in your deployment environment (Hugging Face Spaces secrets or GitHub secrets).")
+        } else {
+            logger.info("KreaImageTool initialized with API key (length: ${kreaApiKey.length} chars)")
+        }
+    }
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
@@ -103,9 +112,14 @@ class KreaImageTool {
         aspectRatio: String = "1:1",
         referenceImageUrl: String? = null
     ): String {
-        if (kreaApiKey.isBlank()) {
-            logger.warn("KREA_API_KEY is missing. Mocking success for development.")
-            return "mock-job-${UUID.randomUUID()}"
+        // Fail fast if API key is missing - don't make HTTP request
+        if (kreaApiKey.isNullOrBlank()) {
+            logger.error("generateImage() called but KREA_API_KEY is not set. Cannot proceed.")
+            throw IllegalStateException(
+                "KREA_API_KEY is not configured. Set this environment variable in your deployment " +
+                "environment before using image generation. Check Hugging Face Spaces secrets or " +
+                "GitHub repository secrets."
+            )
         }
 
         try {
@@ -147,8 +161,21 @@ class KreaImageTool {
                 }
             }
 
+            // Always read raw response body first for debugging
+            val rawBody = response.bodyAsText()
+            
             if (response.status.isSuccess()) {
-                val body = response.body<KreaJobResponse>()
+                // Log raw response for debugging
+                logger.info("Krea raw response: $rawBody")
+                
+                // Parse manually to expose exact response structure
+                val body = try {
+                    Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResponse>(rawBody)
+                } catch (e: Exception) {
+                    logger.error("Failed to parse Krea response as KreaJobResponse. Raw body: $rawBody", e)
+                    throw RuntimeException("Failed to parse Krea API response: ${e.message}", e)
+                }
+                
                 logger.info(
                     "Successfully triggered Krea image generation. Job ID: {} (status: {})",
                     body.job_id,
@@ -156,22 +183,22 @@ class KreaImageTool {
                 )
                 return body.job_id
             } else {
-                val errorText = response.bodyAsText()
-                logger.error("Krea API failed: ${response.status} - $errorText")
-                
+                // Log raw error response
+                logger.error("Krea API failed: ${response.status} - Krea raw response: $rawBody")
+
                 when {
-                    response.status == HttpStatusCode.BadRequest && 
-                        errorText.contains("filter", ignoreCase = true) -> {
+                    response.status == HttpStatusCode.BadRequest &&
+                        rawBody.contains("filter", ignoreCase = true) -> {
                         throw IllegalStateException("Prompt rejected by safety filters.")
                     }
                     response.status == HttpStatusCode.Unauthorized -> {
-                        throw IllegalStateException("Krea API authentication failed. Check API key.")
+                        throw IllegalStateException("Krea API authentication failed (401). Check KREA_API_KEY in deployment environment.")
                     }
                     response.status == HttpStatusCode.Forbidden -> {
-                        throw IllegalStateException("Krea API access denied. Check API key permissions.")
+                        throw IllegalStateException("Krea API access denied (403). Check API key permissions.")
                     }
                     else -> {
-                        throw RuntimeException("Krea API returned ${response.status}: ${errorText.take(200)}")
+                        throw RuntimeException("Krea API returned ${response.status}: ${rawBody.take(200)}")
                     }
                 }
             }
@@ -188,18 +215,10 @@ class KreaImageTool {
      * @return The job result with image URL if completed
      */
     suspend fun pollJobStatus(jobId: String): KreaJobResult {
-        if (kreaApiKey.isBlank()) {
-            // Return mock completed job for development
-            return KreaJobResult(
-                job_id = jobId,
-                status = "completed",
-                result = KreaImageResult(
-                    url = "https://via.placeholder.com/1024x1024.png?text=Mock+Krea+Image",
-                    width = 1024,
-                    height = 1024
-                ),
-                completed_at = java.time.Instant.now().toString()
-            )
+        // Fail fast if API key is missing
+        if (kreaApiKey.isNullOrBlank()) {
+            logger.error("pollJobStatus() called but KREA_API_KEY is not set")
+            throw IllegalStateException("KREA_API_KEY is not configured. Cannot poll job status.")
         }
 
         try {
@@ -207,11 +226,20 @@ class KreaImageTool {
                 header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
             }
 
+            // Always read raw response body first for debugging
+            val rawBody = response.bodyAsText()
+
             if (response.status.isSuccess()) {
-                return response.body<KreaJobResult>()
+                logger.debug("Poll job {} raw response: $rawBody")
+                
+                return try {
+                    Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResult>(rawBody)
+                } catch (e: Exception) {
+                    logger.error("Failed to parse poll response as KreaJobResult. Raw body: $rawBody", e)
+                    throw RuntimeException("Failed to parse Krea poll response: ${e.message}", e)
+                }
             } else {
-                val errorText = response.bodyAsText()
-                logger.error("Failed to poll job status: ${response.status} - $errorText")
+                logger.error("Failed to poll job status: ${response.status} - Krea raw response: $rawBody")
                 throw RuntimeException("Failed to poll job status: ${response.status}")
             }
         } catch (e: Exception) {
