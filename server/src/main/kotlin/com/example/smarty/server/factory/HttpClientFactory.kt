@@ -43,23 +43,26 @@ object HttpClientFactory {
         install(ContentNegotiation) {
             json(json)
         }
-        
+
         install(HttpTimeout) {
             requestTimeoutMillis = AppConfig.httpTimeoutMs
             connectTimeoutMillis = AppConfig.connectionTimeoutMs
             socketTimeoutMillis = AppConfig.httpTimeoutMs
         }
-        
+
         install(HttpRequestRetry) {
             retryOnServerErrors(maxRetries = 3)
             exponentialDelay()
         }
-        
+
         engine {
             config {
                 connectTimeout(AppConfig.connectionTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
                 readTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
                 writeTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                
+                // Retry on connection failure
+                retryOnConnectionFailure(true)
             }
         }
     }
@@ -95,17 +98,26 @@ object HttpClientFactory {
         install(ContentNegotiation) {
             json(json)
         }
-        
+
         install(HttpTimeout) {
             requestTimeoutMillis = 600_000 // 10 minutes
             connectTimeoutMillis = 30_000
             socketTimeoutMillis = 600_000
         }
-        
+
+        install(HttpRequestRetry) {
+            retryOnServerErrors(maxRetries = 5)
+            exponentialDelay(baseDelayMs = 1000)
+        }
+
         engine {
             config {
                 connectTimeout(30_000, TimeUnit.MILLISECONDS)
                 readTimeout(600_000, TimeUnit.MILLISECONDS)
+                writeTimeout(600_000, TimeUnit.MILLISECONDS)
+                
+                // Retry on connection failure for streaming
+                retryOnConnectionFailure(true)
             }
         }
     }

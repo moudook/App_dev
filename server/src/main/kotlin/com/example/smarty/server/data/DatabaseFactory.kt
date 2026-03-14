@@ -401,16 +401,19 @@ private fun runMigrations(ds: DataSource) {
                 username = dbUser
                 password = dbPassword
                 driverClassName = "org.postgresql.Driver"
-                maximumPoolSize = 10  // Increased from 4 for better concurrency
-                minimumIdle = 2
-                idleTimeout = 120000
-                connectionTimeout = 10000
-                maxLifetime = 600000
-                leakDetectionThreshold = 60000
+                maximumPoolSize = 20  // Increased for better concurrency
+                minimumIdle = 5
+                idleTimeout = 300000  // 5 minutes
+                connectionTimeout = 30000  // 30 seconds
+                maxLifetime = 1800000  // 30 minutes (shorter to prevent stale connections)
+                connectionTestQuery = "SELECT 1"
+                leakDetectionThreshold = 120000  // 2 minutes
                 addDataSourceProperty("prepareThreshold", "0")
                 addDataSourceProperty("cachePrepStmts", "true")
                 addDataSourceProperty("prepStmtCacheSize", "250")
                 addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
+                addDataSourceProperty("tcpKeepAlive", "true")
+                addDataSourceProperty("socketTimeout", "60")
             }
 
             dataSource = try {
