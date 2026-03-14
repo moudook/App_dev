@@ -419,11 +419,10 @@ fun SmartyInputField(
                         else
                             pillBorder
 
-                        // Deep Research Button - Standard 48dp touch target
-                        Box(
+                        // Deep Research Button - Match history button size (36dp circular)
+                        Surface(
                             modifier = Modifier
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(24.dp))
+                                .requiredSize(36.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -431,16 +430,14 @@ fun SmartyInputField(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         onToggleResearchMode()
                                     }
-                                )
-                                .background(researchPillBackground)
-                                .border(0.5.dp, researchPillBorder, RoundedCornerShape(24.dp))
-                                .padding(horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
+                                ),
+                            shape = CircleShape,
+                            color = researchPillBackground,
+                            border = BorderStroke(0.5.dp, researchPillBorder)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Science,
@@ -448,18 +445,12 @@ fun SmartyInputField(
                                     tint = if (isResearchMode) researchAccentColor else monochromeColor,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Text(
-                                    text = "Deep Research",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isResearchMode) researchAccentColor else monochromeColor,
-                                    maxLines = 1
-                                )
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.width(12.dp))
 
-                        // Direct Image Generation Button - Standard 48dp touch target
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Direct Image Generation Button - Match history button size (36dp circular)
                         val imageGenAccentColor = ComponentColors.assistantPurple
                         val imageGenPillBackground = if (isImageGenMode)
                             imageGenAccentColor.copy(alpha = 0.15f)
@@ -470,10 +461,9 @@ fun SmartyInputField(
                         else
                             pillBorder
 
-                        Box(
+                        Surface(
                             modifier = Modifier
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(24.dp))
+                                .requiredSize(36.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -481,28 +471,20 @@ fun SmartyInputField(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         onToggleImageGenMode()
                                     }
-                                )
-                                .background(imageGenPillBackground)
-                                .border(0.5.dp, imageGenPillBorder, RoundedCornerShape(24.dp))
-                                .padding(horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
+                                ),
+                            shape = CircleShape,
+                            color = imageGenPillBackground,
+                            border = BorderStroke(0.5.dp, imageGenPillBorder)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = "Generate Image",
                                     tint = if (isImageGenMode) imageGenAccentColor else monochromeColor,
                                     modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Generate",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isImageGenMode) imageGenAccentColor else monochromeColor,
-                                    maxLines = 1
                                 )
                             }
                         }

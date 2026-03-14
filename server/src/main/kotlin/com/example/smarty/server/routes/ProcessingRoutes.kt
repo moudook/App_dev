@@ -317,14 +317,14 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
                     return@post
                 }
-                
+
                 try {
                     val request = call.receive<DirectImageGenerationRequest>()
                     call.application.log.info("Direct image generation requested by user: ${user.userId} with prompt: ${request.prompt}")
-                    
+
                     val kreaTool = com.example.smarty.server.tools.KreaImageTool()
                     val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
-                    
+
                     val dataSource = DatabaseFactory.getDataSource()
                     if (dataSource != null) {
                         val imageRepo = GeneratedImageRepository(dataSource)
@@ -335,8 +335,19 @@ fun Application.configureProcessingRoutes() {
                             kreaJobId = jobId
                         )
                     }
-                    
+
                     call.respond(HttpStatusCode.OK, DirectImageGenerationResponse(jobId = jobId, success = true))
+                } catch (e: IllegalStateException) {
+                    // KREA_API_KEY not configured - return descriptive error
+                    call.application.log.error("Direct image generation failed: KREA_API_KEY not configured")
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        DirectImageGenerationResponse(
+                            jobId = "",
+                            success = false,
+                            message = "Image generation service is not configured. KREA_API_KEY is missing from server environment."
+                        )
+                    )
                 } catch (e: Exception) {
                     call.application.log.error("Direct image generation failed", e)
                     call.respond(
