@@ -1296,6 +1296,16 @@ ${goalMemoryManager.getProgressContext()}
             }
             return try {
                 val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                
+                // Emit processing event for image generation start
+                emit(AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    content = "Starting image generation...",
+                    thinking = "Generating image with prompt: ${imageArgs.prompt.take(100)}..."
+                ))
+                
+                // Trigger image generation
                 val jobId = kreaTool.generateImage(imageArgs.prompt, imageArgs.aspectRatio ?: "1:1")
 
                 generatedImageRepository?.create(
@@ -1305,8 +1315,28 @@ ${goalMemoryManager.getProgressContext()}
                     kreaJobId = jobId
                 )
 
-                "Successfully started image generation. The image will appear in the chat shortly once Krea completes it. (Job ID: $jobId)"
+                // Wait for completion with polling (max 2 minutes)
+                emit(AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    content = "Image generation in progress...",
+                    thinking = "Polling Krea API for job $jobId"
+                ))
+                
+                val result = kreaTool.waitForCompletion(jobId, maxAttempts = 60, pollIntervalMs = 2000L)
+                
+                // Emit final result with image URL
+                val imageUrl = result.result?.url ?: "Unknown"
+                emit(AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    content = "Image generated successfully!",
+                    thinking = "Image URL: $imageUrl"
+                ))
+
+                "Successfully generated your image! (Job ID: $jobId)\n\nImage URL: $imageUrl"
             } catch (e: Exception) {
+                logger.error("Image generation failed", e)
                 "Failed to generate image: ${e.message}"
             }
         }

@@ -14,83 +14,274 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
+/**
+ * Request schema for Text-to-Image generation.
+ */
 @Serializable
-data class KreaImageRequest(
+data class KreaTextToImageRequest(
     val prompt: String,
-    val aspect_ratio: String = "1:1",
-    val webhook: String? = null
+    val width: Int = 1024,
+    val height: Int = 1024,
+    val steps: Int = 28
+)
+
+/**
+ * Request schema for Image-to-Image / Reference generation.
+ */
+@Serializable
+data class KreaImageToImageRequest(
+    val prompt: String,
+    val imageUrls: List<String>
+)
+
+/**
+ * Job response from Krea API.
+ */
+@Serializable
+data class KreaJobResponse(
+    val job_id: String,
+    val status: String,
+    val created_at: String? = null
+)
+
+/**
+ * Completed job result.
+ */
+@Serializable
+data class KreaJobResult(
+    val job_id: String,
+    val status: String,
+    val result: KreaImageResult? = null,
+    val completed_at: String? = null
 )
 
 @Serializable
-data class KreaImageResponse(
-    val id: String, // job_id
-    val status: String? = null
+data class KreaImageResult(
+    val url: String,
+    val width: Int,
+    val height: Int
 )
 
 /**
  * Tool for triggering Krea AI Image Generation.
- * Shared by both the AI Agent (Workflow A) and Direct Request (Workflow B).
+ * Supports both text-to-image and image-to-image workflows.
  */
 class KreaImageTool {
     private val logger = LoggerFactory.getLogger(KreaImageTool::class.java)
 
     private val kreaApiKey = System.getenv("KREA_API_KEY") ?: ""
-    private val webhookUrl = System.getenv("SUPABASE_KREA_WEBHOOK_URL") 
-        ?: "https://project_ref.supabase.co/functions/v1/krea-webhook"
+    private val baseUrl = "https://api.krea.ai"
+
+    // Default model paths
+    private val textToImageModel = "/generate/image/bfl/flux-1-dev"
+    private val imageToImageModel = "/generate/image/google/nano-banana-pro"
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
                 encodeDefaults = true
+                explicitNulls = false
             })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30000
+            connectTimeoutMillis = 10000
+            socketTimeoutMillis = 30000
         }
     }
 
     /**
-     * Triggers Krea image generation asynchronously using webhooks.
-     * @param prompt The prompt (raw from user or enhanced by Art Director)
+     * Triggers Krea image generation asynchronously.
+     * @param prompt The text description of the image
      * @param aspectRatio e.g., "16:9", "1:1", "9:16"
-     * @return The job ID returned by Krea AI
+     * @param referenceImageUrl Optional URL for image-to-image generation
+     * @return The job ID for polling
      */
-    suspend fun generateImage(prompt: String, aspectRatio: String = "1:1"): String {
+    suspend fun generateImage(
+        prompt: String,
+        aspectRatio: String = "1:1",
+        referenceImageUrl: String? = null
+    ): String {
         if (kreaApiKey.isBlank()) {
             logger.warn("KREA_API_KEY is missing. Mocking success for development.")
-            // Return a mock job ID if apiKey is missing so UI testing can proceed
             return "mock-job-${UUID.randomUUID()}"
         }
 
         try {
-            // NOTE: The exact Krea endpoint may vary based on model (e.g. flux-1-dev vs other)
-            // Defaulting to standard v1 generative endpoint pattern
-            val response: HttpResponse = client.post("https://api.krea.ai/v1/generate/image/bfl/flux-1-dev") {
-                header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
-                header("X-Webhook-URL", webhookUrl)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    KreaImageRequest(
-                        prompt = prompt,
-                        aspect_ratio = aspectRatio,
-                        webhook = webhookUrl // Sometimes passed in body depending on specific API revision
+            // Parse aspect ratio to dimensions
+            val (width, height) = parseAspectRatio(aspectRatio)
+
+            // Choose endpoint based on whether we have a reference image
+            val endpoint = if (referenceImageUrl != null) {
+                imageToImageModel
+            } else {
+                textToImageModel
+            }
+
+            val response: HttpResponse = if (referenceImageUrl != null) {
+                // Image-to-Image request
+                client.post("$baseUrl$endpoint") {
+                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        KreaImageToImageRequest(
+                            prompt = prompt,
+                            imageUrls = listOf(referenceImageUrl)
+                        )
                     )
-                )
+                }
+            } else {
+                // Text-to-Image request
+                client.post("$baseUrl$endpoint") {
+                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        KreaTextToImageRequest(
+                            prompt = prompt,
+                            width = width,
+                            height = height,
+                            steps = 28
+                        )
+                    )
+                }
             }
 
             if (response.status.isSuccess()) {
-                val body = response.body<KreaImageResponse>()
-                logger.info("Successfully triggered Krea image generation. Job ID: ${body.id}")
-                return body.id
+                val body = response.body<KreaJobResponse>()
+                logger.info(
+                    "Successfully triggered Krea image generation. Job ID: {} (status: {})",
+                    body.job_id,
+                    body.status
+                )
+                return body.job_id
             } else {
                 val errorText = response.bodyAsText()
-                if (response.status == HttpStatusCode.BadRequest && errorText.contains("filter", ignoreCase = true)) {
-                    throw IllegalStateException("Prompt rejected by safety filters.")
-                }
                 logger.error("Krea API failed: ${response.status} - $errorText")
-                throw RuntimeException("Krea API returned ${response.status}")
+                
+                when {
+                    response.status == HttpStatusCode.BadRequest && 
+                        errorText.contains("filter", ignoreCase = true) -> {
+                        throw IllegalStateException("Prompt rejected by safety filters.")
+                    }
+                    response.status == HttpStatusCode.Unauthorized -> {
+                        throw IllegalStateException("Krea API authentication failed. Check API key.")
+                    }
+                    response.status == HttpStatusCode.Forbidden -> {
+                        throw IllegalStateException("Krea API access denied. Check API key permissions.")
+                    }
+                    else -> {
+                        throw RuntimeException("Krea API returned ${response.status}: ${errorText.take(200)}")
+                    }
+                }
             }
         } catch (e: Exception) {
+            if (e is IllegalStateException) throw e
             logger.error("Error triggering Krea AI", e)
-            throw e
+            throw RuntimeException("Failed to trigger Krea image generation: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Polls the job status from Krea API.
+     * @param jobId The job ID to check
+     * @return The job result with image URL if completed
+     */
+    suspend fun pollJobStatus(jobId: String): KreaJobResult {
+        if (kreaApiKey.isBlank()) {
+            // Return mock completed job for development
+            return KreaJobResult(
+                job_id = jobId,
+                status = "completed",
+                result = KreaImageResult(
+                    url = "https://via.placeholder.com/1024x1024.png?text=Mock+Krea+Image",
+                    width = 1024,
+                    height = 1024
+                ),
+                completed_at = java.time.Instant.now().toString()
+            )
+        }
+
+        try {
+            val response: HttpResponse = client.get("$baseUrl/jobs/$jobId") {
+                header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+            }
+
+            if (response.status.isSuccess()) {
+                return response.body<KreaJobResult>()
+            } else {
+                val errorText = response.bodyAsText()
+                logger.error("Failed to poll job status: ${response.status} - $errorText")
+                throw RuntimeException("Failed to poll job status: ${response.status}")
+            }
+        } catch (e: Exception) {
+            logger.error("Error polling Krea job status", e)
+            throw RuntimeException("Failed to poll job status: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Waits for job completion with polling.
+     * @param jobId The job ID to wait for
+     * @param maxAttempts Maximum number of polling attempts
+     * @param pollIntervalMs Interval between polls in milliseconds
+     * @return The completed job result
+     */
+    suspend fun waitForCompletion(
+        jobId: String,
+        maxAttempts: Int = 60,
+        pollIntervalMs: Long = 2000L
+    ): KreaJobResult {
+        var attempts = 0
+        
+        while (attempts < maxAttempts) {
+            val result = pollJobStatus(jobId)
+            
+            when (result.status.lowercase()) {
+                "completed" -> {
+                    logger.info("Job {} completed successfully. Image URL: {}", jobId, result.result?.url)
+                    return result
+                }
+                "failed", "error", "cancelled" -> {
+                    logger.error("Job {} failed with status: {}", jobId, result.status)
+                    throw IllegalStateException("Image generation failed: ${result.status}")
+                }
+                "queued", "processing", "pending" -> {
+                    logger.debug("Job {} still {} (attempt {}/{})", jobId, result.status, attempts + 1, maxAttempts)
+                    attempts++
+                    if (attempts < maxAttempts) {
+                        kotlinx.coroutines.delay(pollIntervalMs)
+                    }
+                }
+                else -> {
+                    logger.warn("Job {} has unknown status: {}", jobId, result.status)
+                    attempts++
+                    if (attempts < maxAttempts) {
+                        kotlinx.coroutines.delay(pollIntervalMs)
+                    }
+                }
+            }
+        }
+        
+        throw IllegalStateException("Job $jobId did not complete within $maxAttempts attempts")
+    }
+
+    /**
+     * Parses aspect ratio string to pixel dimensions.
+     * @param aspectRatio e.g., "16:9", "1:1", "9:16"
+     * @return Pair of (width, height)
+     */
+    private fun parseAspectRatio(aspectRatio: String): Pair<Int, Int> {
+        val baseSize = 1024
+        
+        return when (aspectRatio) {
+            "16:9" -> Pair(baseSize, (baseSize * 9 / 16).coerceAtLeast(512))
+            "9:16" -> Pair((baseSize * 9 / 16).coerceAtLeast(512), baseSize)
+            "4:3" -> Pair(baseSize, (baseSize * 3 / 4).coerceAtLeast(512))
+            "3:4" -> Pair((baseSize * 3 / 4).coerceAtLeast(512), baseSize)
+            "21:9" -> Pair(baseSize, (baseSize * 9 / 21).coerceAtLeast(512))
+            "9:21" -> Pair((baseSize * 9 / 21).coerceAtLeast(512), baseSize)
+            "1:1", else -> Pair(baseSize, baseSize)
         }
     }
 }
