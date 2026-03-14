@@ -734,15 +734,15 @@ ${goalMemoryManager.getProgressContext()}
                     // ═══════════════════════════════════════════════════════════
                     // REASONING CONTENT (from API reasoning_content field)
                     // ═══════════════════════════════════════════════════════════
+                    var reasoningUpdated = false
                     if (!chunk.reasoning.isNullOrEmpty()) {
                         // Add to thinking storage
                         thinkingStorage.addReasoning(sessionId, chunk.reasoning)
+                        reasoningUpdated = true
                         
-                        // Get current accumulated thinking for streaming UI
-                        val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
-                        
-                        // Emit thinking progress for UI
+                        // Emit thinking progress for UI immediately for reasoning blocks
                         if (!isToolCallInProgress) {
+                            val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
@@ -815,18 +815,25 @@ ${goalMemoryManager.getProgressContext()}
 
                         if (thinkingPart.isNotEmpty()) {
                             thinkingStorage.addReasoning(sessionId, thinkingPart)
+                            reasoningUpdated = true
                         }
                         if (cleanContent.isNotEmpty()) {
                             currentContent += cleanContent
                         }
 
                         if (!isToolCallInProgress) {
-                            val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
+                            // OPTIMIZATION: Only send the full thinking trace if it was updated in this chunk.
+                            // This prevents sending multi-KB JSON strings for every single character of the final answer.
+                            val thinkingToSend = if (reasoningUpdated) {
+                                thinkingStorage.getCompleteThinking(sessionId)
+                            } else null
+
+                            // Always send currentContent chunk, but only send thinking if changed
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
                                 content = cleanContent,
-                                thinking = currentThinking.takeIf { it.isNotEmpty() }
+                                thinking = thinkingToSend
                             ))
                         }
                     }
@@ -1098,11 +1105,12 @@ ${goalMemoryManager.getProgressContext()}
                         ))
                     }
 
-                    // Emit result with final thinking
+                    // Emit result with final thinking and complete content
+                    val finalAnswer = extractFinalResponse(currentContent)
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
-                        content = "",
+                        content = finalAnswer,
                         thinking = finalThinking,
                         isFinal = true
                     ))
@@ -1247,7 +1255,7 @@ ${goalMemoryManager.getProgressContext()}
                 "memory_save" -> {
                     if (noteRepository != null && args.title != null && args.content != null) {
                         val noteId = noteRepository.create(userId, args.title, args.content, null)  // categoryId null - handled by Android
-                        emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}""")
+                        emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
                         "Saved: '${args.title}' (ID: $noteId)"
                     } else {
                         emitDeviceCommand(AgentCommand.AddNote(commandId = UUID.randomUUID().toString(), content = "${args.title}\n\n${args.content}", category = args.category))
@@ -1817,9 +1825,15 @@ ${goalMemoryManager.getProgressContext()}
     }
 
     private fun extractFinalResponse(raw: String): String {
+        // 1. If <final> tags exist, take only that content
         val finalRegex = Regex("""<final>(.*?)</final>""", RegexOption.DOT_MATCHES_ALL)
         val match = finalRegex.find(raw)
-        return match?.groupValues?.get(1)?.trim() ?: raw.trim()
+        if (match != null) return match.groupValues[1].trim()
+
+        // 2. Fallback: return the content but ensure ALL technical tags are stripped
+        return raw.replace(Regex("<(?:think|thought|final)>"), "")
+                  .replace(Regex("</(?:think|thought|final)>"), "")
+                  .trim()
     }
     
     private fun extractThinking(raw: String): String? {

@@ -176,7 +176,6 @@ class ThinkingStorageManager {
         for (c in value) {
             when (c) {
                 '"'  -> sb.append("\\\"")
-                '\'' -> sb.append("\\'")
                 '\\' -> sb.append("\\\\")
                 '\n' -> sb.append("\\n")
                 '\r' -> sb.append("\\r")
