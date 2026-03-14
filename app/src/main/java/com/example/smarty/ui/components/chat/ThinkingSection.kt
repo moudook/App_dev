@@ -605,7 +605,7 @@ private fun ThinkingEmojiAnimation() {
         infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
         label = "emoji_progress"
     )
-    val emojis  = listOf("🧠", "🔍", "⚡")
+    val emojis  = listOf("🧠", "🐦‍🔥", "⚡")
     val current = emojis[((progress * 2.99f).toInt()).coerceIn(0, 2)]
     Text(text = current, style = MaterialTheme.typography.titleMedium)
 }

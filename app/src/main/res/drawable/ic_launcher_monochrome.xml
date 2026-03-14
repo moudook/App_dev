@@ -4,42 +4,4 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- 
-       Graphic Companion Hand (String Metamorphosis)
-       - Refined the palm-to-thumb transition for a cleaner "string" look.
-       - Maintains the chunky, high-contrast aesthetic.
-       - Preserves the sharp inward notches between fingers.
-       - Smooth, continuous flow from the thumb into the heavy sweeping base.
-    -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="
-            M32,52 
-            L32,24 
-            C32,16 48,16 48,24 
-            L48,52 
-            L50,52 
-            L50,18 
-            C50,10 66,10 66,18 
-            L66,52 
-            L68,52 
-            L68,22 
-            C68,14 84,14 84,22 
-            L84,52 
-            L86,52 
-            L86,30 
-            C86,22 102,22 102,30 
-            L102,65 
-            C102,95 45,100 20,85 
-            C12,80 14,70 20,70 
-            L40,70 
-            C48,70 48,46 40,46 
-            L14,46 
-            C6,46 6,70 14,70 
-            L14,70 
-            C14,80 25,90 32,85 
-            L32,52 
-            Z" />
-
 </vector>

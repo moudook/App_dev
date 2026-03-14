@@ -68,12 +68,6 @@ val MinimalRed = Color(0xFFE57373) // Minimal/Soft Red for less "poppy" alerts
 val NeonPurple = Color(0xFFBB86FC)
 
 // =============================================================================
-// BRAND COLORS - Named tokens for specific UI use-cases
-// =============================================================================
-/** Used on the Login screen as the brand/illustration accent. Previously `Color(0xFFD66A48)` inline. */
-val BrandOrange = Color(0xFFD66A48)
-
-// =============================================================================
 // TEXT COLORS - Dark Theme
 // =============================================================================
 val TextPrimaryDark = Color(0xFFFFFFFF)

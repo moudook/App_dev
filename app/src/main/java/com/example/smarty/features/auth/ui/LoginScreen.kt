@@ -26,9 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +42,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -54,7 +58,10 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.features.auth.domain.AuthViewModel
 import com.example.smarty.features.auth.domain.AuthViewModelFactory
 import com.example.smarty.features.auth.domain.AuthFeatureManager
-import com.example.smarty.ui.theme.BrandOrange
+import com.example.smarty.ui.theme.PinkAccent
+import com.example.smarty.ui.theme.PinkLight
+import com.example.smarty.ui.theme.PinkMedium
+import com.example.smarty.ui.theme.PinkDark
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.LocalShapes
@@ -67,6 +74,75 @@ import com.example.smarty.ui.components.SmartyButton
 // 
 // LOGIN SCREEN - STACKS / NOTECARD DESIGN
 // 
+
+@Composable
+fun StaticPremiumBackground(modifier: Modifier = Modifier) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    // Highly premium ultra-dark static canvas
+    val bgColor = if (isDark) Color(0xFF060608) else Color(0xFFF6F6FA)
+    val accent1 = if (isDark) PinkAccent.copy(alpha = 0.25f) else PinkLight.copy(alpha = 0.6f)
+    val accent2 = if (isDark) Color(0xFF5E22D5).copy(alpha = 0.2f) else Color(0xFFE2D5FA).copy(alpha = 0.7f)
+    val accent3 = if (isDark) Color(0xFF1B8AC9).copy(alpha = 0.15f) else Color(0xFFD5F2FA).copy(alpha = 0.5f)
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(bgColor)
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+
+            // Sweeping diagonal gradient overlay for a polished metallic/glass base
+            drawRect(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(
+                        bgColor,
+                        if (isDark) Color(0xFF0F0F1A) else Color.White,
+                        bgColor
+                    ),
+                    start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                    end = androidx.compose.ui.geometry.Offset(width, height)
+                )
+            )
+
+            // Perfectly placed static light leak blooms to give it an AI feel
+            // Top Right Bloom
+            drawCircle(
+                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(accent1, Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(width * 0.9f, -height * 0.1f),
+                    radius = width * 1.2f
+                ),
+                center = androidx.compose.ui.geometry.Offset(width * 0.9f, -height * 0.1f),
+                radius = width * 1.2f
+            )
+
+            // Bottom Left Bloom
+            drawCircle(
+                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(accent2, Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(-width * 0.2f, height * 1.1f),
+                    radius = width * 1.3f
+                ),
+                center = androidx.compose.ui.geometry.Offset(-width * 0.2f, height * 1.1f),
+                radius = width * 1.3f
+            )
+
+            // Center subtle presence
+            drawCircle(
+                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(accent3, Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(width * 0.6f, height * 0.5f),
+                    radius = width * 0.8f
+                ),
+                center = androidx.compose.ui.geometry.Offset(width * 0.6f, height * 0.5f),
+                radius = width * 0.8f
+            )
+        }
+    }
+}
 
 @Composable
 fun LoginScreen(
@@ -114,109 +190,84 @@ fun LoginScreen(
 
     // --- LANDING SCREEN ---
     if (!showForm) {
-        val imageOrange = BrandOrange
-        val shapes = LocalShapes.current
+        val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
-        GeometricGradientBackground(
-            modifier = modifier.fillMaxSize()
-        ) {
-            // Top Illustration Placeholder
+        Box(modifier = modifier.fillMaxSize()) {
+            // Static Premium Background
+            StaticPremiumBackground()
+
+            // Top Illustration (Clean, Floating Logo)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.35f),
+                    .fillMaxHeight(0.5f),
                 contentAlignment = Alignment.Center
             ) {
+                // You could use a sleek floating animation here if desired
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_ball),
-                    contentDescription = "App Illustration",
-                    modifier = Modifier.size(160.dp),
-                    tint = imageOrange
+                    painter = painterResource(id = R.drawable.ic_launcher_monochrome),
+                    contentDescription = "Smarty Logo",
+                    modifier = Modifier.size(120.dp),
+                    tint = if (isDark) Color.White else Color.Black
                 )
             }
 
-            // Bottom Content Card
+            // Bottom Content Section (Glassy & Floating instead of a hard box)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.65f)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = shapes.bottomSheet
-                    )
+                    .fillMaxHeight(0.6f)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp, vertical = 24.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 32.dp, vertical = 40.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        // Badge "New"
-                        Box(
-                            modifier = Modifier
-                                .border(1.dp, imageOrange.copy(alpha = 0.3f), shapes.tag)
-                                .background(imageOrange.copy(alpha = 0.1f), shapes.tag)
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("New", color = imageOrange,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
-                        }
-
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         // Title
-                        Text(
-                            text = "Smarty: Your New App",
+                        androidx.compose.material3.Text(
+                            text = androidx.compose.ui.text.buildAnnotatedString {
+                                append("Meet your ")
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                    append("AI Agent")
+                                }
+                                append(".")
+                            },
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 32.sp,
+                            fontSize = 44.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                            lineHeight = 36.sp
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            letterSpacing = (-1.5).sp,
+                            textAlign = TextAlign.Center
                         )
 
                         // Description
                         Text(
-                            text = "Experience the power of Smarty, our most advanced cognitive assistant for smarter living and productivity.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 15.sp,
-                            lineHeight = 22.sp
+                            text = "Initialize the entity that remembers, organizes, and acts autonomously.",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 17.sp,
+                            lineHeight = 26.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Item 1
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Icon(painterResource(R.drawable.ic_shortcut_stacks), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Column {
-                                Text("Smart Task Management:", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                                Text("Organize your day with intelligence.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, lineHeight = 20.sp)
-                            }
-                        }
                     }
-
-                    Spacer(modifier = Modifier.height(32.dp))
 
                     // Buttons
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp),
+                            .padding(bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp) 
                     ) {
-                        // Combined Button Card: Continue with Email & Google
+                        // Combined Button Card: Continue with Google & Email
                         SmartySettingsCard(horizontalPadding = 0.dp) {
-                            // Option 1: Email
-                            SmartySettingsRow(
-                                label = "Continue with Email",
-                                icon = SmartyIcons.Email,
-                                onClick = { showForm = true },
-                                showChevron = true
-                            )
-                            
-                            // Separator is handled by the Card's spacedBy logic
-                            
-                            // Option 2: Google
+                            // Option 1: Google
                             SmartySettingsRow(
                                 label = "Continue with Google",
                                 onClick = {
@@ -227,11 +278,19 @@ fun LoginScreen(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_google_logo),
                                         contentDescription = "Google Logo",
-                                        modifier = Modifier.size(24.dp), // Matched size
+                                        modifier = Modifier.size(24.dp),
                                         tint = Color.Unspecified
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
+                            )
+
+                            // Option 2: Email
+                            SmartySettingsRow(
+                                label = "Continue with Email",
+                                icon = SmartyIcons.Email,
+                                onClick = { showForm = true },
+                                showChevron = true
                             )
                         }
                     }
@@ -247,12 +306,11 @@ fun LoginScreen(
         viewModel.clearError()
     }
 
-    val imageOrange = BrandOrange
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val shapes = LocalShapes.current
 
-    GeometricGradientBackground(
-        modifier = modifier.fillMaxSize()
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        StaticPremiumBackground()
         // Top Illustration Placeholder
         Box(
             modifier = Modifier
@@ -264,20 +322,21 @@ fun LoginScreen(
                 painter = painterResource(id = R.drawable.ic_launcher_monochrome),
                 contentDescription = "App Illustration",
                 modifier = Modifier.size(IconSize.brandLogo),
-                tint = imageOrange
+                tint = PinkAccent
             )
         }
 
-        // Bottom Content Card
+        // Floating Content Container for Form (No solid background block to preserve orb visibility)
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.Center)
                 .fillMaxWidth()
-                .fillMaxHeight(0.65f)
+                .padding(horizontal = 16.dp)
                 .background(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = shapes.bottomSheet
+                    color = if (isDark) Color(0xFF101016).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(24.dp)
                 )
+                .border(1.dp, if (isDark) Color.White.copy(0.1f) else Color.White.copy(0.8f), RoundedCornerShape(24.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -288,46 +347,56 @@ fun LoginScreen(
             ) {
                 // Header
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = if (isLoginMode) stringResource(R.string.welcome) else stringResource(R.string.create_account),
+                    androidx.compose.material3.Text(
+                        text = androidx.compose.ui.text.buildAnnotatedString {
+                            if (isLoginMode) {
+                                append("Agent ")
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                    append("Login")
+                                }
+                            } else {
+                                append("Initialize ")
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                    append("Agent")
+                                }
+                            }
+                        },
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                        lineHeight = 36.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        letterSpacing = (-1.0).sp,
                         textAlign = TextAlign.Center
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = if (isLoginMode) stringResource(R.string.sign_in_subtitle) else stringResource(R.string.sign_up_subtitle),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = if (isLoginMode) "Authenticate to resume session." else "Establish neural link.",
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 15.sp,
                         lineHeight = 22.sp,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
-                // Constants for internal fields
-                val monochromeColor = rememberMonochromeAccent()
-                val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-                val pillBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
-                val pillBorder = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                val pillShape = shapes.pill
+                // Constants for internal fields - Super sleek glass
+                val pillBackground = if (isDark) Color.White.copy(alpha = 0.03f) else Color.White.copy(alpha = 0.4f)
+                val pillBorder = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.8f)
+                val focusedBorder = PinkAccent
+                val pillShape = RoundedCornerShape(16.dp)
 
                 // 2. FORM FIELDS
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                // Email Field (Legend/Label on Top Border)
-                // Theme-aware focus color: White for Dark Mode, Black for Light Mode
-                val focusHighlightColor = monochromeColor
+                // Email Field
 
                 OutlinedTextField(
                     value = email,
@@ -350,10 +419,10 @@ fun LoginScreen(
                         unfocusedContainerColor = pillBackground,
                         disabledContainerColor = pillBackground,
                         errorContainerColor = pillBackground,
-                        focusedBorderColor = Color.White,
+                        focusedBorderColor = focusedBorder,
                         unfocusedBorderColor = pillBorder,
                         errorBorderColor = MaterialTheme.colorScheme.error,
-                        focusedLabelColor = Color.White,
+                        focusedLabelColor = focusedBorder,
                         unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         errorLabelColor = MaterialTheme.colorScheme.error,
                         cursorColor = MaterialTheme.colorScheme.onSurface,
@@ -405,10 +474,10 @@ fun LoginScreen(
                         unfocusedContainerColor = pillBackground,
                         disabledContainerColor = pillBackground,
                         errorContainerColor = pillBackground,
-                        focusedBorderColor = Color.White,
+                        focusedBorderColor = focusedBorder,
                         unfocusedBorderColor = pillBorder,
                         errorBorderColor = MaterialTheme.colorScheme.error,
-                        focusedLabelColor = Color.White,
+                        focusedLabelColor = focusedBorder,
                         unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         errorLabelColor = MaterialTheme.colorScheme.error,
                         cursorColor = MaterialTheme.colorScheme.onSurface,
@@ -453,10 +522,10 @@ fun LoginScreen(
                             unfocusedContainerColor = pillBackground,
                             disabledContainerColor = pillBackground,
                             errorContainerColor = pillBackground,
-                            focusedBorderColor = focusHighlightColor,
+                            focusedBorderColor = focusedBorder,
                             unfocusedBorderColor = pillBorder,
                             errorBorderColor = MaterialTheme.colorScheme.error,
-                            focusedLabelColor = focusHighlightColor,
+                            focusedLabelColor = focusedBorder,
                             unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             errorLabelColor = MaterialTheme.colorScheme.error,
                             cursorColor = MaterialTheme.colorScheme.onSurface,
@@ -464,6 +533,7 @@ fun LoginScreen(
                             unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
+                }
                 }
 
                 // Error Message
@@ -512,15 +582,15 @@ fun LoginScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 val isPasswordMatch = isLoginMode || (password.isNotEmpty() && password == confirmPassword)
                 val isEnabled = !isLoading && email.isNotBlank() && password.isNotBlank() && isPasswordMatch
 
-                // Single Primary Submit Button - Pill Design with border
-                val buttonBackgroundColor = MaterialTheme.colorScheme.onSurface
-                val buttonBorderColor = if (isDark) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.2f)
-                
+                // Animated Button state
+                var isPressed by remember { mutableStateOf(false) }
+                val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+
                 Surface(
                     onClick = {
                         if (isEnabled) {
@@ -537,14 +607,23 @@ fun LoginScreen(
                     enabled = isEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .border(1.dp, buttonBorderColor, pillShape),
-                    shape = pillShape,
-                    color = buttonBackgroundColor,
-                    contentColor = if (isDark) Color.Black else Color.White
+                        .height(58.dp)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Transparent, // Managed by gradient background
+                    contentColor = Color.White
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = if (isEnabled) listOf(PinkAccent, PinkDark) else listOf(Color.Gray.copy(0.3f), Color.Gray.copy(0.3f))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isLoading) {
@@ -555,10 +634,11 @@ fun LoginScreen(
                             )
                         } else {
                             Text(
-                                text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.sign_up),
-                                color = if (isDark) Color.Black else Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold
+                                text = if (isLoginMode) "Authenticate" else "Initialize",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.0.sp
                             )
                         }
                     }
@@ -573,13 +653,13 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                 ) {
                     Text(
-                        text = if (isLoginMode) stringResource(R.string.new_here) else stringResource(R.string.have_account),
+                        text = if (isLoginMode) "New user?" else "Existing agent?",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isLoginMode) stringResource(R.string.sign_up) else stringResource(R.string.sign_in),
+                        text = if (isLoginMode) "Initialize" else "Authenticate",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -596,5 +676,4 @@ fun LoginScreen(
             }
         }
     }
-}
 }
