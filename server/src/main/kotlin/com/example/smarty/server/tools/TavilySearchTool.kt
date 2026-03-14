@@ -55,8 +55,8 @@ class TavilySearchTool {
         }
         engine {
             config {
-                connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                connectTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+                readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
             }
         }
     }
@@ -169,8 +169,9 @@ class TavilySearchTool {
                     setBody(TavilyRequest(
                         apiKey = currentKey,
                         query = query,
-                        searchDepth = "basic",
-                        maxResults = 5
+                        searchDepth = "advanced",
+                        maxResults = 10,
+                        includeRawContent = true
                     ))
                 }
 
@@ -283,8 +284,9 @@ class TavilySearchTool {
                 setBody(TavilyRequest(
                     apiKey = apiKey,
                     query = query,
-                    searchDepth = "basic",
-                    maxResults = 5
+                    searchDepth = "advanced",
+                    maxResults = 10,
+                    includeRawContent = true
                 ))
             }
 
@@ -307,11 +309,23 @@ class TavilySearchTool {
     private fun formatResults(results: List<TavilyResult>): String {
         if (results.isEmpty()) return "No results found."
 
+        // Sort by relevance score descending so the best sources come first
+        val sorted = results.sortedByDescending { it.score }
+
         return buildString {
-            appendLine("### Search Results")
-            results.forEach { result ->
-                appendLine("- **[${result.title}](${result.url})**")
-                appendLine("  ${result.content.take(200)}")
+            appendLine("### Search Results (${sorted.size} sources)")
+            sorted.forEachIndexed { i, result ->
+                appendLine("#### ${i + 1}. [${result.title}](${result.url})  *(score: ${ "%.2f".format(result.score) })*")
+
+                // Prefer raw full-page content for depth; fall back to snippet
+                val body = if (!result.rawContent.isNullOrBlank()) {
+                    result.rawContent.take(1500).let {
+                        if (result.rawContent.length > 1500) "$it\n[...full article available]" else it
+                    }
+                } else {
+                    result.content.take(800)
+                }
+                appendLine(body)
                 appendLine()
             }
         }
@@ -326,8 +340,9 @@ class TavilySearchTool {
 data class TavilyRequest(
     @SerialName("api_key") val apiKey: String,
     val query: String,
-    @SerialName("search_depth") val searchDepth: String = "basic",
-    @SerialName("max_results") val maxResults: Int = 5
+    @SerialName("search_depth") val searchDepth: String = "advanced",
+    @SerialName("max_results") val maxResults: Int = 10,
+    @SerialName("include_raw_content") val includeRawContent: Boolean = true
 )
 
 @Serializable
@@ -340,5 +355,6 @@ data class TavilyResult(
     val title: String,
     val url: String,
     val content: String,
-    val score: Double
+    val score: Double,
+    @SerialName("raw_content") val rawContent: String? = null
 )
