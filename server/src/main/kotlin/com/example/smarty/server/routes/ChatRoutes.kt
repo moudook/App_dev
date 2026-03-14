@@ -37,7 +37,7 @@ import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.server.tools.TavilySearchTool
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
+import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 
@@ -384,36 +384,34 @@ fun Application.configureChatRoutes() {
                     // Save Smarty Response if persistence is enabled
                     if (chatRepository != null && assistantResponse.isNotEmpty()) {
                         try {
-                            // Extract thinking from response if present in <think> tags
-                            val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
-                            val thinkMatch = thinkRegex.find(assistantResponse)
-                            val thinking = thinkMatch?.groupValues?.get(1)?.trim()?.ifBlank { null }
-                            val cleanResponse = if (thinking != null) {
-                                assistantResponse.replace(thinkMatch!!.value, "").trim()
-                            } else {
-                                assistantResponse
-                            }
-                            
+                            // Retrieve the rich SMARTY_TRACE_V2 thinking trace that was built during
+                            // streaming. This is the correct source for the thinking field — the old
+                            // <think>-tag extraction no longer works with the new trace format.
+                            val thinkingTrace = ThinkingStorageManagerSingleton.instance
+                                .finalizeAndGetThinking(activeSessionId)
+                                .ifBlank { null }
+
                             // Convert citations to JSON
                             val citationsJson = if (collectedCitations.isNotEmpty()) {
                                 json.encodeToString(collectedCitations)
                             } else {
                                 "[]"
                             }
-                            
-                             // Save message
-                             chatRepository.saveMessage(
-                                 userId = userId,
-                                 sessionId = sessionId!!,
-                                 role = LlmMessage.Role.ASSISTANT.name,
-                                 content = cleanResponse,
-                                 thinking = thinking,
-                                 toolCalls = citationsJson  // Store citations as tool_calls JSON
-                             )
-                             call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
-                         } catch (e: Exception) {
-                             call.application.log.error("Failed to save assistant response (non-fatal)", e)
-                         }
+
+                            chatRepository.saveMessage(
+                                userId = userId,
+                                sessionId = sessionId!!,
+                                role = LlmMessage.Role.ASSISTANT.name,
+                                content = assistantResponse,
+                                thinking = thinkingTrace,
+                                toolCalls = citationsJson
+                            )
+                            call.application.log.info(
+                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}"
+                            )
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to save assistant response (non-fatal)", e)
+                        }
                     }
                 } catch (e: Exception) {
                     call.application.log.error("Agent execution failed", e)
@@ -546,34 +544,31 @@ fun Application.configureChatRoutes() {
 
                         // Save response with citations
                         if (chatRepository != null && assistantResponse.isNotEmpty()) {
-                            // Extract thinking from response if present in <think> tags
-                            val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
-                            val thinkMatch = thinkRegex.find(assistantResponse)
-                            val thinking = thinkMatch?.groupValues?.get(1)?.trim()?.ifBlank { null }
-                            val cleanResponse = if (thinking != null) {
-                                assistantResponse.replace(thinkMatch!!.value, "").trim()
-                            } else {
-                                assistantResponse
-                            }
-                            
+                            // Retrieve the rich SMARTY_TRACE_V2 thinking trace persisted during
+                            // streaming instead of regex-parsing deprecated <think> tags.
+                            val thinkingTrace = ThinkingStorageManagerSingleton.instance
+                                .finalizeAndGetThinking(activeSessionId)
+                                .ifBlank { null }
+
                             // Convert citations to JSON
                             val citationsJson = if (collectedCitations.isNotEmpty()) {
                                 json.encodeToString(collectedCitations)
                             } else {
                                 "[]"
                             }
-                            
-                             // Save message
-                             chatRepository.saveMessage(
-                                 userId = userId,
-                                 sessionId = sessionId!!,
-                                 role = LlmMessage.Role.ASSISTANT.name,
-                                 content = cleanResponse,
-                                 thinking = thinking,
-                                 toolCalls = citationsJson  // Store citations as tool_calls JSON
-                             )
-                             call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
-                         }
+
+                            chatRepository.saveMessage(
+                                userId = userId,
+                                sessionId = sessionId!!,
+                                role = LlmMessage.Role.ASSISTANT.name,
+                                content = assistantResponse,
+                                thinking = thinkingTrace,
+                                toolCalls = citationsJson
+                            )
+                            call.application.log.info(
+                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}"
+                            )
+                        }
 
                         // Return all events
                         call.respond(HttpStatusCode.OK, mapOf(

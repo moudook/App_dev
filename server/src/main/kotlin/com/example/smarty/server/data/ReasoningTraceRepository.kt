@@ -299,7 +299,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                             confidenceScore = rs.getDouble("confidence_score"),
                             complexityScore = rs.getDouble("complexity_score"),
                             reasoningType = rs.getString("reasoning_type"),
-                            tags = (rs.getArray("tags") as java.sql.Array)?.array as? List<String> ?: emptyList()
+                            tags = (rs.getArray("tags")?.array as? Array<*>)?.filterIsInstance<String>() ?: emptyList()
                         )
                     } else {
                         null
