@@ -410,11 +410,11 @@ private fun runMigrations(ds: DataSource) {
                 password = dbPassword
                 driverClassName = "org.postgresql.Driver"
                 maximumPoolSize = 20  // Increased for better concurrency
-                minimumIdle = 2  // Small warm pool for Supabase PgBouncer
-                idleTimeout = 45000  // 45 seconds - shorter than PgBouncer idle timeout
+                minimumIdle = 5  // Warm pool of 5 connections for local PostgreSQL
+                idleTimeout = 300000  // 5 minutes (standard for local DB, not PgBouncer)
                 connectionTimeout = 30000  // 30 seconds
-                maxLifetime = 60000  // 1 minute - much shorter than default to work with PgBouncer
-                keepaliveTime = 30000  // 30 seconds - keep connections alive
+                maxLifetime = 1800000  // 30 minutes (PostgreSQL default, not PgBouncer)
+                keepaliveTime = 0  // Disabled for local PostgreSQL connections
                 connectionTestQuery = "SELECT 1"
                 leakDetectionThreshold = 120000  // 2 minutes
                 addDataSourceProperty("prepareThreshold", "0")
@@ -427,10 +427,19 @@ private fun runMigrations(ds: DataSource) {
 
             dataSource = try {
                 val ds = HikariDataSource(config)
-                logger.info("Database connection established successfully")
+                
+                // Test connection immediately to verify database is accessible
+                ds.connection.use { conn ->
+                    conn.createStatement().executeQuery("SELECT 1").close()
+                    logger.info("Database connection test successful - PostgreSQL is accessible")
+                }
+                
+                logger.info("Database connection established successfully (pool size: ${ds.maximumPoolSize}, min idle: ${ds.minimumIdle})")
                 ds
             } catch (e: Exception) {
                 logger.error("Failed to initialize DataSource: ${e.message}")
+                logger.error("Check that PostgreSQL is running and DB_URL/DB_USER/DB_PASSWORD are correct")
+                logger.error("If using Docker: docker ps (check container), docker logs <container_id>")
                 logger.error("Server will continue without database support")
                 null
             }
