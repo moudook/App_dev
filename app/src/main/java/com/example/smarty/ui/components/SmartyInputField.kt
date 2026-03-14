@@ -23,6 +23,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.Canvas
@@ -418,20 +419,26 @@ fun SmartyInputField(
                         else
                             pillBorder
 
-                        Surface(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onToggleResearchMode()
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            color = researchPillBackground,
-                            border = BorderStroke(0.5.dp, researchPillBorder),
+                        // Deep Research Button - Standard 48dp touch target
+                        Box(
                             modifier = Modifier
-                                .height(36.dp)
-                                .padding(top = 0.dp)  // Align with other icons
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onToggleResearchMode()
+                                    }
+                                )
+                                .background(researchPillBackground)
+                                .border(0.5.dp, researchPillBorder, RoundedCornerShape(24.dp))
+                                .padding(horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -450,7 +457,9 @@ fun SmartyInputField(
                             }
                         }
                         
-                        // Direct Image Generation Button (Icon + Text)
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Direct Image Generation Button - Standard 48dp touch target
                         val imageGenAccentColor = ComponentColors.assistantPurple
                         val imageGenPillBackground = if (isImageGenMode)
                             imageGenAccentColor.copy(alpha = 0.15f)
@@ -461,20 +470,25 @@ fun SmartyInputField(
                         else
                             pillBorder
 
-                        Surface(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onToggleImageGenMode()
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            color = imageGenPillBackground,
-                            border = BorderStroke(0.5.dp, imageGenPillBorder),
+                        Box(
                             modifier = Modifier
-                                .height(36.dp)
-                                .padding(top = 0.dp)  // Align with other icons
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onToggleImageGenMode()
+                                    }
+                                )
+                                .background(imageGenPillBackground)
+                                .border(0.5.dp, imageGenPillBorder, RoundedCornerShape(24.dp))
+                                .padding(horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {

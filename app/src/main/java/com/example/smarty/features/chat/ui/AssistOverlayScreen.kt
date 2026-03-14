@@ -181,6 +181,7 @@ fun AssistOverlayScreen(
                 .align(Alignment.BottomCenter)
                 .imePadding()
                 // CONSUME CLICKS to prevent background dismissal when clicking the card
+                // Using clickable with no indication but with specific interactionSource
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
