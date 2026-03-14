@@ -613,6 +613,9 @@ fun sendQueryWithContext(
                 if (event.status == "completed") {
                     eventSink.onToolExecutionCompleted(event.toolName)
                 }
+                // Emit the ToolCall event into the flow so AssistViewModel.processRemoteQuery()
+                // can accumulate it in pendingToolCalls and display the result (including image URLs).
+                flowCollector.emit(event)
                 false
             }
             is AgentEvent.Command -> {

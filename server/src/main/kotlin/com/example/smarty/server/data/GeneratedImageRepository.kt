@@ -10,7 +10,8 @@ data class GeneratedImage(
     val prompt: String,
     val kreaJobId: String,
     val status: String,
-    val supabaseUrl: String?,
+    val imageUrl: String?,      // Original Krea URL
+    val supabaseUrl: String?,    // Supabase Storage URL
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -54,8 +55,8 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
         supabaseUrl: String? = null
     ) = withConnection {
         val sql = """
-            UPDATE generated_images 
-            SET status = ?, 
+            UPDATE generated_images
+            SET status = ?,
                 supabase_url = COALESCE(?, supabase_url),
                 updated_at = now()
             WHERE krea_job_id = ?
@@ -65,7 +66,33 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             stmt.setString(1, status)
             stmt.setString(2, supabaseUrl)
             stmt.setString(3, kreaJobId)
-            
+
+            stmt.executeUpdate()
+        }
+    }
+
+    /**
+     * Update the image URLs (both Krea original and Supabase storage).
+     */
+    suspend fun updateImageUrls(
+        kreaJobId: String,
+        imageUrl: String?,
+        supabaseUrl: String? = null
+    ) = withConnection {
+        val sql = """
+            UPDATE generated_images
+            SET image_url = ?,
+                supabase_url = COALESCE(?, supabase_url),
+                status = 'completed',
+                updated_at = now()
+            WHERE krea_job_id = ?
+        """.trimIndent()
+
+        it.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, imageUrl)
+            stmt.setString(2, supabaseUrl)
+            stmt.setString(3, kreaJobId)
+
             stmt.executeUpdate()
         }
     }
@@ -91,6 +118,7 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             prompt = rs.getString("prompt"),
             kreaJobId = rs.getString("krea_job_id"),
             status = rs.getString("status"),
+            imageUrl = rs.getString("image_url"),
             supabaseUrl = rs.getString("supabase_url"),
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at").time

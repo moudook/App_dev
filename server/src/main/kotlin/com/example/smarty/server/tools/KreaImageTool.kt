@@ -67,6 +67,19 @@ data class KreaImageResult(
 )
 
 /**
+ * Structured response for image generation results.
+ * Used by the frontend Image Visualizer to detect and render images.
+ */
+@Serializable
+data class ImageGenerationResult(
+    val type: String = "image",
+    val url: String,
+    val source: String = "krea",  // "krea" or "supabase"
+    val prompt: String? = null,
+    val jobId: String? = null
+)
+
+/**
  * Tool for triggering Krea AI Image Generation.
  * Supports both text-to-image and image-to-image workflows.
  */
@@ -419,6 +432,72 @@ class KreaImageTool {
             "9:21" -> Pair((baseSize * 9 / 21).coerceAtLeast(512), baseSize)
             "1:1" -> Pair(baseSize, baseSize)
             else -> Pair(baseSize, baseSize)
+        }
+    }
+
+    /**
+     * Downloads image bytes from a URL and uploads to Supabase Storage using REST API.
+     * @param imageUrl The source image URL (from Krea)
+     * @param jobId The Krea job ID (used as filename)
+     * @param bucketName Supabase storage bucket name (default: "generated-images")
+     * @return The Supabase public URL if successful, null if upload fails
+     */
+    suspend fun uploadToSupabase(
+        imageUrl: String,
+        jobId: String,
+        bucketName: String = "generated-images"
+    ): String? {
+        logger.info("SUPABASE UPLOAD: Starting upload to Supabase Storage")
+        logger.info("   Source URL: $imageUrl")
+        logger.info("   Job ID (filename): $jobId")
+        logger.info("   Bucket: $bucketName")
+
+        val supabaseUrl = com.example.smarty.server.factory.SupabaseClientFactory.getSupabaseUrl()
+        val supabaseKey = com.example.smarty.server.factory.SupabaseClientFactory.getSupabaseKey()
+        
+        if (supabaseUrl.isNullOrBlank() || supabaseKey.isNullOrBlank()) {
+            logger.warn("SUPABASE UPLOAD: Supabase not configured - will return Krea URL")
+            return null
+        }
+
+        try {
+            // Download image bytes from Krea
+            logger.info("DOWNLOAD: Fetching image bytes from Krea...")
+            val imageBytes = client.get(imageUrl).body<ByteArray>()
+            logger.info("DOWNLOAD: Successfully downloaded ${imageBytes.size} bytes")
+
+            // Generate filename with extension
+            val fileExtension = imageUrl.substringAfterLast('.', "png")
+            val fileName = "$jobId.$fileExtension"
+
+            // Upload to Supabase Storage using REST API
+            logger.info("UPLOAD: Uploading to Supabase bucket '$bucketName' as '$fileName'...")
+            
+            // Supabase Storage REST API endpoint
+            val uploadUrl = "$supabaseUrl/storage/v1/object/$bucketName/$fileName"
+            
+            val response = client.post(uploadUrl) {
+                header("Authorization", "Bearer $supabaseKey")
+                header("apikey", supabaseKey)
+                header("Content-Type", "image/$fileExtension")
+                setBody(imageBytes)
+            }
+            
+            if (response.status.isSuccess()) {
+                // Get public URL
+                val publicUrl = "$supabaseUrl/storage/v1/object/public/$bucketName/$fileName"
+                logger.info("UPLOAD: Successfully uploaded to Supabase!")
+                logger.info("   Public URL: $publicUrl")
+                return publicUrl
+            } else {
+                logger.error("SUPABASE UPLOAD: Upload failed with status ${response.status}")
+                logger.error("   Response: ${response.bodyAsText()}")
+                return null
+            }
+        } catch (e: Exception) {
+            logger.error("SUPABASE UPLOAD: Failed to upload to Supabase: ${e.message}", e)
+            logger.warn("FALLBACK: Will use original Krea URL instead")
+            return null
         }
     }
 }

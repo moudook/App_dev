@@ -349,6 +349,23 @@ private fun runMigrations(ds: DataSource) {
                             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
+                        // Generated images table (for Krea AI image generation)
+                        """CREATE TABLE IF NOT EXISTS generated_images (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+                            prompt TEXT NOT NULL,
+                            krea_job_id TEXT NOT NULL UNIQUE,
+                            status TEXT NOT NULL DEFAULT 'queued',
+                            image_url TEXT,
+                            supabase_url TEXT,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_generated_images_user ON generated_images(user_id, created_at DESC)",
+                        "CREATE INDEX IF NOT EXISTS idx_generated_images_session ON generated_images(session_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_generated_images_krea_job ON generated_images(krea_job_id)",
+
                         // Indexes for performance
                         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
                         "CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC)",

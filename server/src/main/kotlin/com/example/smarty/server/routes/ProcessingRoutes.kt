@@ -310,11 +310,13 @@ fun Application.configureProcessingRoutes() {
             /**
              * Direct Image Generation Endpoint (Workflow B)
              * Bypasses the AI Agent and directly triggers Krea.
+             * Returns a structured response with type: "image" and url for the Image Visualizer.
+             * Uploads the generated image to Supabase Storage for permanent hosting.
              */
             post("/api/v1/image/direct") {
                 val log = call.application.log
                 val startTime = System.currentTimeMillis()
-                
+
                 val user = call.firebaseUser()
                 if (user == null) {
                     log.warn("❌ /api/v1/image/direct - Unauthorized request (no Firebase user)")
@@ -333,17 +335,18 @@ fun Application.configureProcessingRoutes() {
 
                     log.info("🔧 Creating KreaImageTool instance...")
                     val kreaTool = com.example.smarty.server.tools.KreaImageTool()
-                    
+
                     log.info("🚀 Calling kreaTool.generateImage()...")
                     val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
-                    
+
                     log.info("✅ Image generation triggered successfully!")
                     log.info("   Job ID: $jobId")
 
                     val dataSource = DatabaseFactory.getDataSource()
+                    var imageRepo: GeneratedImageRepository? = null
                     if (dataSource != null) {
                         try {
-                            val imageRepo = GeneratedImageRepository(dataSource)
+                            imageRepo = GeneratedImageRepository(dataSource)
                             imageRepo.create(
                                 userId = user.userId,
                                 sessionId = null,
@@ -359,11 +362,68 @@ fun Application.configureProcessingRoutes() {
                         log.warn("⚠️  Database not available - skipping job ID storage")
                     }
 
+                    // Wait for image generation to complete
+                    log.info("⏳ Waiting for Krea image generation to complete...")
+                    val result = kreaTool.waitForCompletion(jobId)
+
+                    // Extract the Krea image URL
+                    val kreaImageUrl = result.result?.urls?.firstOrNull()
+                    if (kreaImageUrl.isNullOrBlank()) {
+                        throw IllegalStateException("Image generation completed but no image URL was returned")
+                    }
+                    log.info("✅ Krea image generated: $kreaImageUrl")
+
+                    // Upload to Supabase Storage for permanent hosting
+                    var supabaseUrl: String? = null
+                    try {
+                        log.info("📤 Uploading image to Supabase Storage...")
+                        supabaseUrl = kreaTool.uploadToSupabase(
+                            imageUrl = kreaImageUrl,
+                            jobId = jobId,
+                            bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName()
+                        )
+
+                        if (supabaseUrl != null) {
+                            log.info("✅ Image uploaded to Supabase: $supabaseUrl")
+                        } else {
+                            log.warn("⚠️  Supabase upload returned null - will use Krea URL")
+                        }
+                    } catch (e: Exception) {
+                        log.warn("⚠️  Supabase upload failed, will use Krea URL: ${e.message}")
+                        // Continue with Krea URL as fallback
+                    }
+
+                    // Store the mapping in database
+                    imageRepo?.let { repo ->
+                        try {
+                            repo.updateImageUrls(
+                                kreaJobId = jobId,
+                                imageUrl = kreaImageUrl,
+                                supabaseUrl = supabaseUrl
+                            )
+                            log.info("💾 Database updated with image URLs")
+                        } catch (e: Exception) {
+                            log.warn("⚠️  Failed to update database with image URLs: ${e.message}")
+                        }
+                    }
+
+                    // Return the permanent URL (Supabase) or fallback to Krea URL
+                    val finalImageUrl = supabaseUrl ?: kreaImageUrl
+                    val imageSource = if (supabaseUrl != null) "supabase" else "krea"
+
                     val elapsed = System.currentTimeMillis() - startTime
                     log.info("✅ /api/v1/image/direct - Completed in ${elapsed}ms")
+                    log.info("   Final URL ($imageSource): $finalImageUrl")
                     log.info("═".repeat(60))
-                    
-                    call.respond(HttpStatusCode.OK, DirectImageGenerationResponse(jobId = jobId, success = true))
+
+                    // Return structured response for frontend Image Visualizer
+                    call.respond(HttpStatusCode.OK, ImageGenerationSuccessResponse(
+                        type = "image",
+                        url = finalImageUrl,
+                        source = imageSource,
+                        prompt = request.prompt,
+                        jobId = jobId
+                    ))
                 } catch (e: IllegalStateException) {
                     // KREA_API_KEY not configured - return descriptive error
                     val elapsed = System.currentTimeMillis() - startTime
@@ -373,10 +433,13 @@ fun Application.configureProcessingRoutes() {
                     log.error("   Message: ${e.message}")
                     call.respond(
                         HttpStatusCode.ServiceUnavailable,
-                        DirectImageGenerationResponse(
+                        ImageGenerationSuccessResponse(
+                            type = "error",
+                            url = "",
+                            source = "error",
+                            prompt = "",
                             jobId = "",
-                            success = false,
-                            message = "Image generation service is not configured. KREA_API_KEY is missing from server environment."
+                            error = "Image generation service is not configured. KREA_API_KEY is missing from server environment."
                         )
                     )
                 } catch (e: Exception) {
@@ -387,7 +450,14 @@ fun Application.configureProcessingRoutes() {
                     log.error("   Stack trace: ${e.stackTraceToString().take(500)}")
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        DirectImageGenerationResponse(jobId = "", success = false, message = e.message)
+                        ImageGenerationSuccessResponse(
+                            type = "error",
+                            url = "",
+                            source = "error",
+                            prompt = "",
+                            jobId = "",
+                            error = e.message
+                        )
                     )
                 }
             }
@@ -451,4 +521,18 @@ data class DirectImageGenerationResponse(
     val jobId: String,
     val success: Boolean,
     val message: String? = null
+)
+
+/**
+ * Structured response for image generation success.
+ * Used by the frontend Image Visualizer to detect and render images.
+ */
+@Serializable
+data class ImageGenerationSuccessResponse(
+    val type: String,           // "image" or "error"
+    val url: String,            // Image URL (Supabase or Krea)
+    val source: String,         // "supabase", "krea", or "error"
+    val prompt: String,         // Original prompt
+    val jobId: String,          // Krea job ID
+    val error: String? = null   // Error message if type is "error"
 )

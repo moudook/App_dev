@@ -407,33 +407,44 @@ fun SmartyInputField(
                         }
                     }
                     
-                    // Deep Research Button (Icon + Text)
+                    // Deep Research Button
                     if (isChatMode) {
                         val researchAccentColor = LocalAccentColor.current
-                        val researchPillBackground = if (isResearchMode)
-                            researchAccentColor.copy(alpha = 0.15f)
-                        else
-                            pillBackground
-                        val researchPillBorder = if (isResearchMode)
-                            researchAccentColor
-                        else
-                            pillBorder
+                        val researchInteractionSource = remember { MutableInteractionSource() }
+                        val researchIsPressed by researchInteractionSource.collectIsPressedAsState()
+                        val researchScale by animateFloatAsState(
+                            targetValue = if (researchIsPressed) 0.88f else 1f,
+                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+                            label = "researchScale"
+                        )
+                        val researchBg by animateColorAsState(
+                            targetValue = if (isResearchMode) researchAccentColor.copy(alpha = 0.18f) else pillBackground,
+                            animationSpec = tween(200), label = "researchBg"
+                        )
+                        val researchBorder by animateColorAsState(
+                            targetValue = if (isResearchMode) researchAccentColor else pillBorder,
+                            animationSpec = tween(200), label = "researchBorder"
+                        )
+                        val researchIconTint by animateColorAsState(
+                            targetValue = if (isResearchMode) researchAccentColor else monochromeColor,
+                            animationSpec = tween(200), label = "researchIconTint"
+                        )
 
-                        // Deep Research Button - Match history button size (36dp circular)
                         Surface(
                             modifier = Modifier
+                                .scale(researchScale)
                                 .requiredSize(36.dp)
                                 .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
+                                    interactionSource = researchInteractionSource,
                                     indication = null,
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         onToggleResearchMode()
                                     }
                                 ),
                             shape = CircleShape,
-                            color = researchPillBackground,
-                            border = BorderStroke(0.5.dp, researchPillBorder)
+                            color = researchBg,
+                            border = BorderStroke(0.5.dp, researchBorder)
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
@@ -442,7 +453,7 @@ fun SmartyInputField(
                                 Icon(
                                     imageVector = Icons.Default.Science,
                                     contentDescription = "Deep Research",
-                                    tint = if (isResearchMode) researchAccentColor else monochromeColor,
+                                    tint = researchIconTint,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -450,31 +461,56 @@ fun SmartyInputField(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        // Direct Image Generation Button - Match history button size (36dp circular)
+                        // Generate Image Button — press scale + spinning star when active
                         val imageGenAccentColor = ComponentColors.assistantPurple
-                        val imageGenPillBackground = if (isImageGenMode)
-                            imageGenAccentColor.copy(alpha = 0.15f)
-                        else
-                            pillBackground
-                        val imageGenPillBorder = if (isImageGenMode)
-                            imageGenAccentColor
-                        else
-                            pillBorder
+                        val imageGenInteractionSource = remember { MutableInteractionSource() }
+                        val imageGenIsPressed by imageGenInteractionSource.collectIsPressedAsState()
+                        val imageGenScale by animateFloatAsState(
+                            targetValue = if (imageGenIsPressed) 0.88f else 1f,
+                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+                            label = "imageGenScale"
+                        )
+                        val imageGenBg by animateColorAsState(
+                            targetValue = if (isImageGenMode) imageGenAccentColor.copy(alpha = 0.18f) else pillBackground,
+                            animationSpec = tween(200), label = "imageGenBg"
+                        )
+                        val imageGenBorder by animateColorAsState(
+                            targetValue = if (isImageGenMode) imageGenAccentColor else pillBorder,
+                            animationSpec = tween(220), label = "imageGenBorder"
+                        )
+                        val imageGenIconTint by animateColorAsState(
+                            targetValue = if (isImageGenMode) imageGenAccentColor else monochromeColor,
+                            animationSpec = tween(200), label = "imageGenIconTint"
+                        )
+                        // Slow star spin when image gen mode is on
+                        val infiniteTransition = rememberInfiniteTransition(label = "imageGenSpin")
+                        val starRotation by infiniteTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = 360f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 3000, easing = LinearEasing)
+                            ),
+                            label = "starRotation"
+                        )
 
                         Surface(
                             modifier = Modifier
+                                .scale(imageGenScale)
                                 .requiredSize(36.dp)
                                 .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
+                                    interactionSource = imageGenInteractionSource,
                                     indication = null,
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         onToggleImageGenMode()
                                     }
                                 ),
                             shape = CircleShape,
-                            color = imageGenPillBackground,
-                            border = BorderStroke(0.5.dp, imageGenPillBorder)
+                            color = imageGenBg,
+                            border = BorderStroke(
+                                width = if (isImageGenMode) 1.dp else 0.5.dp,
+                                color = imageGenBorder
+                            )
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
@@ -483,8 +519,12 @@ fun SmartyInputField(
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = "Generate Image",
-                                    tint = if (isImageGenMode) imageGenAccentColor else monochromeColor,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = imageGenIconTint,
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .graphicsLayer {
+                                            rotationZ = if (isImageGenMode) starRotation else 0f
+                                        }
                                 )
                             }
                         }

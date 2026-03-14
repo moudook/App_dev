@@ -276,15 +276,17 @@ Use for: screen navigation, sharing to other apps.""",
             name = "generate_image",
             description = """Act as a Master Art Director to generate high-quality images using Krea AI.
 When the user asks for an image, imagine the scene, understand the story, and visualize the composition.
-Create a highly detailed, professional prompt specifying camera angles, lighting (e.g., cinematic, volumetric), and rendering engines.
+Create a highly detailed, professional prompt specifying camera angles, lighting, realistic textures, and specific aesthetics to achieve a hyper-realistic, high-fashion, or candid look (as detailed in the <image_generation_guidelines>).
 
 EXAMPLES:
-- generate_image(prompt='A cinematic 8k extremely detailed shot of a red dragon flying over a volcano, volumetric lighting, Unreal Engine 5 render', aspect_ratio='16:9')
+- generate_image(prompt='A spontaneously captured iPhone-styled candid photo of a young woman with platinum hair casually lounging against a textured, slightly weathered Parisian stone wall... Soft shadows and delicate highlights reveal the delicate fabric fibers, realistic leather grain, and glass transparency...', aspect_ratio='16:9')
+- generate_image(prompt='In a smoky late-70s diner bathed in glowing red neon, a Latino man lounges nonchalantly across a vinyl booth, his long wavy hair flowing casually over the gleam of a classic handlebar mustache. His mustard-hued leather jacket... —late-70s / early-80s cinematic photograph, authentic film grain.', aspect_ratio='16:9')
+- generate_image(prompt='Caught in the cracked reflection of an old bedroom mirror, the freckled redhead girl leans in close, carefully applying a glossy lip gloss that gleams under the soft direct flash. Her velour pink tracksuit top is sprinkled with subtle rhinestone details... —casual candid early-2000s Y2K snapshot, grainy low-res softness', aspect_ratio='9:16')
 
 Use for: generating images, creating artwork, visualizing scenes.""",
             parameters = ToolParameters(
                 properties = mapOf(
-                    "prompt" to ToolProperty("string", "The highly detailed, professional image prompt"),
+                    "prompt" to ToolProperty("string", "The highly detailed, professional image prompt, focusing on camera angles, textures, and lighting"),
                     "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1, 16:9, or 9:16", enum = listOf("1:1", "16:9", "9:16"))
                 ),
                 required = listOf("prompt")
@@ -588,6 +590,32 @@ SEARCH: [topic] what people get wrong
 | "share this"                                | `share_content`                     |
 
 </tool_rules>
+
+---
+
+<image_generation_guidelines>
+**When generating images, act as a Master Art Director.** Produce highly detailed, professional, and evocative prompts that capture a specific aesthetic, mood, texture, and lighting style. The user wants imagery that looks hyper-real, effortlessly candid (e.g., iPhone snapshots, vintage cameras), highly textured, and cinematic.
+
+Here are TOP TIER examples of the EXACT style and prompt length you should emulate. Use THESE precisely as references for the vibe, length, and level of specific detail required:
+
+EXAMPLE 1 (Parisian iPhone Candid):
+A spontaneously captured iPhone-styled candid photo of a young woman with platinum hair casually lounging against a textured, slightly weathered Parisian stone wall on a city sidewalk. She wears understated effortless cool conveyed through an ivory silk blouse from COS with soft draping and subtle fabric wrinkles paired with sleek black leather pants by Our Legacy, complemented by classic white Converse sneakers gently scuffed from wear. Over her hair sit minimal black headphones, resting lightly and adding a contemporary casual touch. In one hand, she holds a translucent iced coffee glass showing realistic condensation and subtle reflections. Her hair is styled in a naturally tousled manner, some strands catching soft natural daylight that gently illuminates her neutral makeup and natural skin texture, including faint freckles and fine pores. Surrounding her are authentic urban textures of worn concrete pavement and the rough stone wall with patches of subtle moss. The composition features a slightly tilted overhead angle, off-center framing, and an informal crop that evoke the intuitive spontaneity and genuine intimacy emblematic of everyday Parisian iPhone street photography. Soft shadows and delicate highlights reveal the delicate fabric fibers, realistic leather grain, and glass transparency, completing the true-to-life candid aesthetic.
+
+EXAMPLE 2 (Vintage Cinematic 35mm):
+In a smoky late-70s diner bathed in glowing red neon, a Latino man lounges nonchalantly across a vinyl booth, his long wavy hair flowing casually over the gleam of a classic handlebar mustache. His mustard-hued leather jacket, slightly worn and supple, slips open to reveal a daring mesh shirt that clings softly, catching the lingering neon glints. His flared jeans fan out, edges kissed by the soft sheen of the diner’s chrome-plated tables and curved seats that frame him perfectly. The lighting is a seductive cocktail of warm sodium-vapour lanterns mixing with the electric ruby pulse from neon strips, lending a moody, saturated glow to his sharp yet relaxed gaze. His skin displays a subtle texture of pores and light beard shadow, accentuated by the tactile grain of 35 mm film, which drapes the image in a gently scratched matte finish typical of Kodachrome stock from the period. This lends an organic, tactile quality to his confident stance. Shot from eye-level with a 50 mm lens, the composition centers tightly on the subject's upper body, capturing the vivid textures of the leather and mesh alongside blurred chrome reflections. The diner’s sprawling jukebox silhouette occupies the background, deepening the frame with its retro-futuristic curves. Sharp shadows and warm highlights create an interplay that recalls the visual vocabulary of cinematographers like Gordon Willis. The overall effect is unmistakably vintage—a narrative frozen in sumptuous reds and glints of silver, a portrait of relaxed cool amid the electric heartbeat of an iconic American diner. An effortless blend of intimacy and style, caught on authentic film with that rich analog grain texture. —late-70s / early-80s cinematic photograph, authentic film grain.
+
+EXAMPLE 3 (Early-2000s Y2K CCD Camera):
+Caught in the cracked reflection of an old bedroom mirror, the freckled redhead girl leans in close, carefully applying a glossy lip gloss that gleams under the soft direct flash. Her velour pink tracksuit top is sprinkled with subtle rhinestone details, and layered tank tops peek out from underneath, adding to the playful Y2K vibe. Chunky gold hoop earrings catch the light perfectly, with a few rhinestone barrettes clipping strands of her bright hair back casually. She rocks a rhinestone-studded belt visible at the edge of the frame, paired with loose low-rise jeans. The photo quality suggests a slightly grainy or low-resolution digital look, capturing a candid moment, with the flash bounce adding a warm tungsten glow and that signature soft CCD camera grain. The cropped frame and slightly tilted angle make it feel like an authentic early-2000s snapshot.—casual candid early-2000s Y2K snapshot, grainy low-res softness
+
+EXAMPLE 4 (Sun-warmed Mediterranean candid):
+Wide shot taken from about 10 meters away showing a stylish Latina man sitting on sun-warmed, smooth whitewashed stones at the edge of the crystalline Mediterranean sea. He wears tailored swim shorts in a striking dusty lavender with a subtle abstract wavy stripe motif in muted coral and pale peach, crafted from lightweight swim fabric. A loosely draped, unbuttoned blush pink linen shirt adds softness and texture, sleeves rolled casually above the elbow. His sun-kissed skin glows naturally under the soft, clear daylight, complemented by a wide-brimmed boater hat made of woven straw and vintage minimalist gold-rim sunglasses perched slightly down on his nose. He reclines with legs partly submerged in the gently lapping turquoise water, one hand resting on a textured, handwoven canvas tote bag featuring delicate terracotta and sky-blue geometric embroidery. Nearby, a striped pastel towel lies draped over the rocks, while the shimmering sea dominates the foreground and background, reflecting scattered olive tree shadows above. The candid, three-quarter iPhone angle captures tactile textures—wet stone, linen, bronzed skin—and the serene, quietly stylish atmosphere of Mediterranean luxury summer leisure. —hyper-real texture fidelity, natural skin
+
+Key elements your generated prompts MUST specify based on the above examples:
+- Specific camera format/angles (candid iPhone snapshot, high-angle camera, early-2000s digital camera, 50mm lens).
+- Highly specific textural details (matte-finished zippers, visible skin pores, wet stone, delicate fabric fibers).
+- Stylized lighting (soft overcast lighting, harsh direct flash, golden hour glow, neon ruby pulse).
+- A unified aesthetic mood (e.g., 'casual candid aesthetic', 'hyper-real texture fidelity', 'authentic film grain').
+</image_generation_guidelines>
 
 ---
 
@@ -1296,15 +1324,15 @@ ${goalMemoryManager.getProgressContext()}
             }
             return try {
                 val kreaTool = com.example.smarty.server.tools.KreaImageTool()
-                
+
                 // Emit processing event for image generation start
                 emit(AgentEvent.Processing(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    content = "Starting image generation...",
+                    content = "",
                     thinking = "Generating image with prompt: ${imageArgs.prompt.take(100)}..."
                 ))
-                
+
                 // Trigger image generation
                 val jobId = kreaTool.generateImage(imageArgs.prompt, imageArgs.aspectRatio ?: "1:1")
 
@@ -1322,19 +1350,76 @@ ${goalMemoryManager.getProgressContext()}
                     content = "Image generation in progress...",
                     thinking = "Polling Krea API for job $jobId"
                 ))
-                
+
                 val result = kreaTool.waitForCompletion(jobId)
 
-                // Emit final result with image URL (extract first URL from array)
-                val imageUrl = result.result?.urls?.firstOrNull() ?: "Unknown"
+                // Extract the Krea image URL
+                val kreaImageUrl = result.result?.urls?.firstOrNull()
+                if (kreaImageUrl.isNullOrBlank()) {
+                    throw IllegalStateException("Image generation completed but no image URL was returned")
+                }
+
                 emit(AgentEvent.Processing(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    content = "Image generated successfully!",
-                    thinking = "Image URL: $imageUrl"
+                    content = "Image generated successfully from Krea!",
+                    thinking = "Krea Image URL: $kreaImageUrl"
                 ))
 
-                "Successfully generated your image! (Job ID: $jobId)\n\nImage URL: $imageUrl"
+                // Upload to Supabase Storage for permanent hosting
+                var supabaseUrl: String? = null
+                try {
+                    emit(AgentEvent.Processing(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        content = "Uploading image to permanent storage...",
+                        thinking = "Uploading to Supabase Storage"
+                    ))
+
+                    supabaseUrl = kreaTool.uploadToSupabase(
+                        imageUrl = kreaImageUrl,
+                        jobId = jobId,
+                        bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName()
+                    )
+
+                    if (supabaseUrl != null) {
+                        emit(AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            content = "Image uploaded to permanent storage!",
+                            thinking = "Supabase URL: $supabaseUrl"
+                        ))
+                    }
+                } catch (e: Exception) {
+                    logger.warn("Supabase upload failed, will use Krea URL: ${e.message}")
+                    // Continue with Krea URL as fallback
+                }
+
+                // Store the mapping in database
+                try {
+                    generatedImageRepository?.updateImageUrls(
+                        kreaJobId = jobId,
+                        imageUrl = kreaImageUrl,
+                        supabaseUrl = supabaseUrl
+                    )
+                    logger.info("Database updated with image URLs")
+                } catch (e: Exception) {
+                    logger.warn("Failed to update database with image URLs: ${e.message}")
+                }
+
+                // Return the permanent URL (Supabase) or fallback to Krea URL
+                val finalImageUrl = supabaseUrl ?: kreaImageUrl
+                val imageSource = if (supabaseUrl != null) "supabase" else "krea"
+
+                emit(AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    content = "Image generation completed!",
+                    thinking = "Final URL ($imageSource): $finalImageUrl"
+                ))
+
+                // Return structured JSON response for frontend Image Visualizer
+                """{"type": "image", "url": "$finalImageUrl", "source": "$imageSource", "prompt": "${imageArgs.prompt.replace("\"", "\\\"").take(200)}", "jobId": "$jobId"}"""
             } catch (e: Exception) {
                 logger.error("Image generation failed", e)
                 "Failed to generate image: ${e.message}"

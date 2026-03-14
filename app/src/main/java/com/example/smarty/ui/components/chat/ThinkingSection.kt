@@ -41,6 +41,31 @@ private data class ThinkingColors(
     val text: Color
 )
 
+/**
+ * Strips out sensitive architectural information, system prompts, 
+ * or raw schema details so they remain invisible on the UI.
+ */
+internal fun sanitizeThinking(text: String): String {
+    if (text.isBlank()) return text
+    var sanitized = text
+    
+    // 1. Redact SQL CREATE / ALTER statements
+    sanitized = sanitized.replace(Regex("(?i)\\bCREATE\\s+(TABLE|VIEW|INDEX|POLICY|TYPE|FUNCTION|TRIGGER)[^;]+;", RegexOption.DOT_MATCHES_ALL), "\n[Database schema redacted]\n")
+    sanitized = sanitized.replace(Regex("(?i)\\bALTER\\s+(TABLE|VIEW|POLICY)[^;]+;", RegexOption.DOT_MATCHES_ALL), "\n[Architecture context redacted]\n")
+    
+    // 2. Redact System Prompt Identifiers
+    sanitized = sanitized.replace(Regex("(?i)You are Smarty[\\s\\S]*?GUIDELINES:", RegexOption.DOT_MATCHES_ALL), "[System instruction redacted]")
+    sanitized = sanitized.replace(Regex("(?i)MEDICAL ADVICE & DIAGNOSIS AUTHORIZATION[\\s\\S]*?trusted medical advisor", RegexOption.DOT_MATCHES_ALL), "[System instruction redacted]")
+    
+    // 3. Redact specific files/schema names
+    sanitized = sanitized.replace(Regex("(?i)DATABASE_SCHEMA_v\\d+\\.\\d+\\.\\d+_[A-Z]+\\.sql"), "[Schema File]")
+    
+    // 4. Redact raw tool JSON schema representations often vomited by the LLM
+    sanitized = sanitized.replace(Regex("(?i)\\{\\s*\"name\"\\s*:\\s*\"[a-zA-Z0-9_]+\"\\s*,\\s*\"description\"\\s*:.*?\\}", RegexOption.DOT_MATCHES_ALL), "[Tool schema redacted]")
+
+    return sanitized
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,20 +135,23 @@ fun ThinkingSection(
                 enter   = expandVertically(animationSpec = tween(300)) + fadeIn(),
                 exit    = shrinkVertically(animationSpec = tween(250)) + fadeOut()
             ) {
+                // Sanitize thinking content before rendering
+                val safeThinkingText = sanitizeThinking(thinkingText)
+
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     // If there are tool calls, render interleaved blocks
                     if (toolCalls.isNotEmpty()) {
                         InterleavedContent(
-                            reasoningText = thinkingText,
+                            reasoningText = safeThinkingText,
                             toolCalls     = toolCalls,
                             isStreaming   = isStreaming,
                             accentColor   = accentColor,
                             thinkingColors = thinkingColors
                         )
-                    } else if (thinkingText.isNotBlank()) {
+                    } else if (safeThinkingText.isNotBlank()) {
                         // Plain reasoning only (old messages / no tool calls)
                         ReasoningBlock(
-                            text           = thinkingText,
+                            text           = safeThinkingText,
                             isStreaming    = isStreaming,
                             accentColor    = accentColor,
                             thinkingColors = thinkingColors
@@ -478,14 +506,14 @@ private fun ActionCard(
                         entry.searchQueries.forEachIndexed { idx, sq ->
                             SearchQueryCard(
                                 index  = idx + 1,
-                                query  = sq.query,
-                                result = sq.result
+                                query  = sanitizeThinking(sq.query),
+                                result = sq.result?.let { sanitizeThinking(it) }
                             )
                         }
                     } else {
                         // ── Generic tool: input then output ──────────────────
-                        val inSum = entry.inputSummary
-                        val outSum = entry.outputSummary
+                        val inSum = entry.inputSummary?.let { sanitizeThinking(it) }
+                        val outSum = entry.outputSummary?.let { sanitizeThinking(it) }
                         if (!inSum.isNullOrBlank()) {
                             DetailRow(label = "Input", value = inSum)
                         }
