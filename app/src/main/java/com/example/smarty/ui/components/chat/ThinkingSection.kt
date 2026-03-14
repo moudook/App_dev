@@ -66,28 +66,33 @@ fun ThinkingSection(
 ) {
     val accentColor = LocalAccentColor.current
     val thinkingColors = ThinkingColors(
-        background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-        border = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+        background = if (isStreaming) {
+            accentColor.copy(alpha = 0.08f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        },
+        border = if (isStreaming) {
+            accentColor.copy(alpha = 0.3f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        },
         text = MaterialTheme.colorScheme.onSurface
     )
 
     Surface(
-        shape = MaterialTheme.smartyShapes.thinkingContainer,
+        shape = RoundedCornerShape(16.dp),
         color = thinkingColors.background,
-        border = BorderStroke(0.5.dp, thinkingColors.border),
+        border = BorderStroke(1.dp, thinkingColors.border),
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = ComponentSpacing.thinkingMarginBottom)
+            .padding(bottom = 16.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) { onExpandToggle() }
     ) {
         Column(
-            modifier = Modifier.padding(
-                horizontal = ComponentSpacing.thinkingPaddingHorizontal,
-                vertical   = ComponentSpacing.thinkingPaddingVertical
-            )
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             // ── Header ─────────────────────────────────────────────────────
             ActionPanelHeader(
@@ -141,66 +146,91 @@ private fun ActionPanelHeader(
     accentColor: Color,
     thinkingColors: ThinkingColors
 ) {
+    val headerAlpha by animateFloatAsState(
+        targetValue = if (isExpanded) 1f else 0.8f,
+        animationSpec = tween(200),
+        label = "headerAlpha"
+    )
+    
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Icon with animation
         if (isStreaming) {
             ThinkingEmojiAnimation()
+        } else {
+            Icon(
+                imageVector = Icons.Default.Psychology,
+                contentDescription = null,
+                tint = accentColor.copy(alpha = 0.9f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        
+        // Text label
+        if (isStreaming) {
             Text(
                 text  = "Thinking…",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight    = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight    = FontWeight.SemiBold,
+                    letterSpacing = 0.3.sp
                 ),
-                color = accentColor.copy(alpha = 0.9f)
+                color = accentColor
             )
         } else {
             Text(
-                text  = "🧠",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
                 text  = "Thoughts",
-                style = MaterialTheme.typography.labelMedium.copy(
+                style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight    = FontWeight.SemiBold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.3.sp
                 ),
-                color = thinkingColors.text.copy(alpha = 0.8f)
+                color = thinkingColors.text.copy(alpha = 0.9f * headerAlpha)
             )
             if (toolCount > 0) {
-                Spacer(Modifier.width(4.dp))
                 ActionCountBadge(count = toolCount, color = accentColor)
             }
         }
 
         Spacer(Modifier.weight(1f))
 
+        // Expand/collapse chevron
         Icon(
-            imageVector        = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = null,
-            tint               = thinkingColors.text.copy(alpha = 0.5f),
-            modifier           = Modifier.size(ComponentSpacing.thinkingIndicatorSize)
+            imageVector        = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = if (isExpanded) "Collapse" else "Expand",
+            tint               = thinkingColors.text.copy(alpha = 0.6f),
+            modifier           = Modifier.size(22.dp)
         )
     }
 }
 
 @Composable
 private fun ActionCountBadge(count: Int, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = color.copy(alpha = 0.15f),
+        modifier = Modifier.padding(horizontal = 2.dp)
     ) {
-        Text(
-            text  = "$count action${if (count != 1) "s" else ""}",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.Medium,
-                fontSize   = 10.sp
-            ),
-            color = color
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text  = "$count",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 11.sp
+                ),
+                color = color
+            )
+        }
     }
 }
 
