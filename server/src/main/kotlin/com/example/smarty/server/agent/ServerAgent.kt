@@ -1323,10 +1323,10 @@ ${goalMemoryManager.getProgressContext()}
                     thinking = "Polling Krea API for job $jobId"
                 ))
                 
-                val result = kreaTool.waitForCompletion(jobId, maxAttempts = 60, pollIntervalMs = 2000L)
-                
-                // Emit final result with image URL
-                val imageUrl = result.result?.url ?: "Unknown"
+                val result = kreaTool.waitForCompletion(jobId)
+
+                // Emit final result with image URL (extract first URL from array)
+                val imageUrl = result.result?.urls?.firstOrNull() ?: "Unknown"
                 emit(AgentEvent.Processing(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
