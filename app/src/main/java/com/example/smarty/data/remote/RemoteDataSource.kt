@@ -56,7 +56,12 @@ class RemoteDataSource(
 
     // ==================== SYNC API ====================
 
-    suspend fun pullAllData(): SyncPullResponse? {
+    /**
+     * OPTIMIZED PULL with delta-sync support
+     * @param lastSyncAt Timestamp of last sync (for delta-sync, null = full sync)
+     * @param limit Maximum items to return per category
+     */
+    suspend fun pullAllData(lastSyncAt: Long? = null, limit: Int = 1000): SyncPullResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
@@ -64,15 +69,21 @@ class RemoteDataSource(
             // Retry logic with exponential backoff
             val maxRetries = 3
             var lastException: Exception? = null
-            
+
             for (attempt in 1..maxRetries) {
                 try {
                     val response = client.post("$baseUrl/api/v1/sync/pull") {
                         addAuthHeaders(token)
+                        contentType(ContentType.Application.Json)
+                        // DELTA SYNC: Send lastSyncAt timestamp
+                        setBody(mapOf(
+                            "lastSyncAt" to (lastSyncAt ?: 0L),
+                            "limit" to limit
+                        ))
                     }
 
                     if (response.status.isSuccess()) {
-                        Log.i(TAG, "Pull successful on attempt $attempt")
+                        Log.i(TAG, "Pull successful on attempt $attempt (lastSyncAt=$lastSyncAt)")
                         return response.body()
                     } else {
                         Log.e(TAG, "Failed to pull data: ${response.status} (attempt $attempt)")
@@ -90,7 +101,7 @@ class RemoteDataSource(
                     }
                 }
             }
-            
+
             Log.e(TAG, "Pull failed after all retries", lastException)
             null
         } catch (e: Exception) {

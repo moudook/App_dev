@@ -179,6 +179,48 @@ class ChatRepository(
     suspend fun listAllSessions(userId: String, limit: Int = 100): List<SessionInfo> = listSessions(userId, limit)
 
     /**
+     * DELTA SYNC: List sessions updated after a specific timestamp.
+     * Uses index on (user_id, updated_at) for fast queries.
+     */
+    suspend fun listSessionsUpdatedAfter(userId: String, timestamp: Long, limit: Int = 50): List<SessionInfo> = withContext(Dispatchers.IO) {
+        val sessions = mutableListOf<SessionInfo>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, created_at, updated_at, message_count,
+                       is_active, is_archived, is_pinned, model_used, temperature, max_tokens
+                FROM chat_sessions
+                WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0)
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setLong(2, timestamp)
+                stmt.setInt(3, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        sessions.add(
+                            SessionInfo(
+                                id = rs.getString("id"),
+                                title = rs.getString("title"),
+                                createdAt = rs.getTimestamp("created_at")?.time ?: 0,
+                                updatedAt = rs.getTimestamp("updated_at")?.time ?: 0,
+                                messageCount = rs.getInt("message_count"),
+                                lastMessagePreview = "",  // Not available in new schema
+                                isActive = rs.getBoolean("is_active"),
+                                summary = null,  // Not available in new schema
+                                summaryGeneratedAt = null  // Not available in new schema
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        sessions
+    }
+
+    /**
      * Gets ALL messages for a session (for sync).
      */
     suspend fun getAllMessagesForSession(userId: String, sessionId: String): List<MessageRecord> = withContext(Dispatchers.IO) {

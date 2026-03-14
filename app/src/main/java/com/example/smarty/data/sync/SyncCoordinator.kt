@@ -11,6 +11,8 @@ import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.*
 import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.protocol.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class SyncCoordinator(
     private val context: Context,
@@ -22,150 +24,191 @@ class SyncCoordinator(
     private val networkMonitor: NetworkMonitor
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    
+    // MUTEX LOCK: Prevents duplicate concurrent pull requests
+    // This fixes the issue where 3 identical pull requests fire within ~2 seconds
+    private val pullMutex = Mutex()
+    
+    // Track last pull time for debouncing (5 second window)
+    @Volatile
+    private var lastPullTime = 0L
+    private val pullDebounceMs = 5000L // 5 seconds
 
     val isOnline = networkMonitor.isOnline
 
+    /**
+     * OPTIMIZED PULL with mutex lock and debouncing
+     * - Mutex prevents concurrent duplicate pulls
+     * - Debouncing ignores pulls within 5s of last pull
+     * - Delta-sync sends lastSyncAt timestamp
+     */
     suspend fun pullFromServer(): PullResult {
         if (!isOnline.value) {
             return PullResult.Offline
         }
 
+        // DEBOUNCE CHECK: Skip if pulled within last 5 seconds
+        val now = System.currentTimeMillis()
+        if (now - lastPullTime < pullDebounceMs) {
+            Log.d(TAG, "Pull debounced: last pull was ${now - lastPullTime}ms ago")
+            return PullResult.Offline // Treat as temporarily unavailable
+        }
+
         Log.i(TAG, "Starting pull from server...")
-        
-        return try {
-            val response = remoteDataSource.pullAllData()
-            if (response == null) {
-                Log.e(TAG, "Pull failed: null response")
-                return PullResult.Error("Failed to connect to server")
+
+        // MUTEX LOCK: Only one pull can execute at a time
+        return pullMutex.withLock {
+            // Double-check debounce after acquiring lock
+            val nowAfterLock = System.currentTimeMillis()
+            if (nowAfterLock - lastPullTime < pullDebounceMs) {
+                Log.d(TAG, "Pull debounced (post-lock): last pull was ${nowAfterLock - lastPullTime}ms ago")
+                return@withLock PullResult.Offline
             }
+            
+            lastPullTime = nowAfterLock
 
-            var notesUpdated = 0
-            var sessionsUpdated = 0
-            var eventsUpdated = 0
-
-            // Sync notes with deduplication
-            response.notes.forEach { noteInfo ->
-                val existing = noteDao.getNoteByIdSync(noteInfo.id)
-                val note = mapToNote(noteInfo)
-
-                // ADD: Content-based deduplication to prevent duplicates
-                val shouldInsert = if (existing == null) {
-                    // Check for notes with similar content (within last 5 seconds to catch race conditions)
-                    val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
-                    val isDuplicateByContent = recentNotes.any { recentNote -> 
-                        recentNote.content.trim() == note.content.trim() && 
-                        recentNote.title.trim() == note.title.trim() 
-                    }
-                    if (isDuplicateByContent) {
-                        Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
-                    }
-                    !isDuplicateByContent
-                } else {
-                    // Existing note - update if server version is newer
-                    existing.updatedAt < noteInfo.updatedAt
-                }
-
-                if (shouldInsert && (existing == null || existing.updatedAt < noteInfo.updatedAt)) {
-                    if (existing != null) {
-                        noteDao.updateNote(note)
-                    } else {
-                        noteDao.insertNote(note)
-                    }
-                    notesUpdated++
-                }
-            }
-
-            // Sync sessions
-            response.sessions.forEach { sessionData ->
-                val existingSession = chatDao.getSessionById(sessionData.id)
+            try {
+                val startTime = System.currentTimeMillis()
                 
-                if (existingSession == null || existingSession.updatedAt < sessionData.updatedAt) {
-                    val session = ChatSession(
-                        id = sessionData.id,
-                        title = sessionData.title ?: "Chat",
-                        createdAt = sessionData.createdAt,
-                        updatedAt = sessionData.updatedAt,
-                        messageCount = sessionData.messageCount,
-                        lastMessagePreview = sessionData.lastMessagePreview,
-                        isActive = false
-                    )
-                    
-                    if (existingSession == null) {
-                        chatDao.insertSession(session)
+                // DELTA SYNC: Send lastSyncAt to get only changed data
+                val lastSyncAt = getLastPullTime()
+                Log.d(TAG, "Delta sync: lastSyncAt=$lastSyncAt")
+
+                val response = remoteDataSource.pullAllData(lastSyncAt = lastSyncAt)
+                if (response == null) {
+                    Log.e(TAG, "Pull failed: null response")
+                    return@withLock PullResult.Error("Failed to connect to server")
+                }
+
+                var notesUpdated = 0
+                var sessionsUpdated = 0
+                var eventsUpdated = 0
+
+                // Sync notes with deduplication
+                response.notes.forEach { noteInfo ->
+                    val existing = noteDao.getNoteByIdSync(noteInfo.id)
+                    val note = mapToNote(noteInfo)
+
+                    // ADD: Content-based deduplication to prevent duplicates
+                    val shouldInsert = if (existing == null) {
+                        // Check for notes with similar content (within last 5 seconds to catch race conditions)
+                        val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
+                        val isDuplicateByContent = recentNotes.any { recentNote ->
+                            recentNote.content.trim() == note.content.trim() &&
+                            recentNote.title.trim() == note.title.trim()
+                        }
+                        if (isDuplicateByContent) {
+                            Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
+                        }
+                        !isDuplicateByContent
                     } else {
-                        chatDao.updateSession(session)
+                        // Existing note - update if server version is newer
+                        existing.updatedAt < noteInfo.updatedAt
                     }
 
-                    // Sync messages for this session
-                    // Get all existing local messages for deduplication
-                    val existingLocalMessages = chatDao.getMessagesForSessionOnce(sessionData.id)
-                    sessionData.messages.forEach { msgData ->
-                        // Check by server ID first
-                        val existingById = chatDao.getMessageById(msgData.id)
-                        // Also check if a message with same role+normalized content already exists locally
-                        // (app and server generate different UUIDs for the same message)
-                        // BUG FIX: Normalize content before comparing - strip <think> tags and trim
-                        // so server content (with think tags) matches app content (tags stripped)
-                        val normalizedServerContent = normalizeContentForDedup(msgData.content)
-                        val existingByContent = existingLocalMessages.any { local ->
-                            local.role == msgData.role.uppercase() &&
-                            normalizeContentForDedup(local.content) == normalizedServerContent
+                    if (shouldInsert && (existing == null || existing.updatedAt < noteInfo.updatedAt)) {
+                        if (existing != null) {
+                            noteDao.updateNote(note)
+                        } else {
+                            noteDao.insertNote(note)
                         }
-                        if (existingById == null && !existingByContent) {
-                            // Extract thinking from server content if embedded in <think> tags
-                            val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
-                            val cleanContent = if (thinking != null && msgData.thinking == null) {
-                                // Server had thinking embedded in content, strip it
-                                stripThinkTags(msgData.content)
-                            } else {
-                                msgData.content
+                        notesUpdated++
+                    }
+                }
+
+                // Sync sessions
+                response.sessions.forEach { sessionData ->
+                    val existingSession = chatDao.getSessionById(sessionData.id)
+
+                    if (existingSession == null || existingSession.updatedAt < sessionData.updatedAt) {
+                        val session = ChatSession(
+                            id = sessionData.id,
+                            title = sessionData.title ?: "Chat",
+                            createdAt = sessionData.createdAt,
+                            updatedAt = sessionData.updatedAt,
+                            messageCount = sessionData.messageCount,
+                            lastMessagePreview = sessionData.lastMessagePreview,
+                            isActive = false
+                        )
+
+                        if (existingSession == null) {
+                            chatDao.insertSession(session)
+                        } else {
+                            chatDao.updateSession(session)
+                        }
+
+                        // Sync messages for this session
+                        // Get all existing local messages for deduplication
+                        val existingLocalMessages = chatDao.getMessagesForSessionOnce(sessionData.id)
+                        sessionData.messages.forEach { msgData ->
+                            // Check by server ID first
+                            val existingById = chatDao.getMessageById(msgData.id)
+                            // Also check if a message with same role+normalized content already exists locally
+                            // (app and server generate different UUIDs for the same message)
+                            // BUG FIX: Normalize content before comparing - strip <think> tags and trim
+                            // so server content (with think tags) matches app content (tags stripped)
+                            val normalizedServerContent = normalizeContentForDedup(msgData.content)
+                            val existingByContent = existingLocalMessages.any { local ->
+                                local.role == msgData.role.uppercase() &&
+                                normalizeContentForDedup(local.content) == normalizedServerContent
                             }
-                            val message = ChatMessage(
-                                id = msgData.id,
-                                role = when (msgData.role.uppercase()) {
-                                    "USER" -> ChatRole.USER
-                                    "SMARTY", "ASSISTANT" -> ChatRole.SMARTY
-                                    else -> ChatRole.SYSTEM
-                                },
-                                content = cleanContent,
-                                thinking = thinking,
-                                timestamp = msgData.createdAt
-                            )
-                            val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
-                            chatDao.insertMessage(entity)
+                            if (existingById == null && !existingByContent) {
+                                // Extract thinking from server content if embedded in <think> tags
+                                val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
+                                val cleanContent = if (thinking != null && msgData.thinking == null) {
+                                    // Server had thinking embedded in content, strip it
+                                    stripThinkTags(msgData.content)
+                                } else {
+                                    msgData.content
+                                }
+                                val message = ChatMessage(
+                                    id = msgData.id,
+                                    role = when (msgData.role.uppercase()) {
+                                        "USER" -> ChatRole.USER
+                                        "SMARTY", "ASSISTANT" -> ChatRole.SMARTY
+                                        else -> ChatRole.SYSTEM
+                                    },
+                                    content = cleanContent,
+                                    thinking = thinking,
+                                    timestamp = msgData.createdAt
+                                )
+                                val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
+                                chatDao.insertMessage(entity)
+                            }
                         }
+                        sessionsUpdated++
                     }
-                    sessionsUpdated++
                 }
-            }
 
-            // Sync events
-            response.events.forEach { eventInfo ->
-                val existing = calendarDao.getEventById(eventInfo.id)
-                
-                if (existing == null) {
-                    val event = CalendarEvent(
-                        id = eventInfo.id,
-                        title = eventInfo.title,
-                        startTime = eventInfo.startTime,
-                        endTime = eventInfo.endTime,
-                        description = eventInfo.description,
-                        reminderMinutes = eventInfo.reminderMinutes,
-                        createdAt = eventInfo.createdAt
-                    )
-                    calendarDao.insertEvent(event)
-                    eventsUpdated++
+                // Sync events
+                response.events.forEach { eventInfo ->
+                    val existing = calendarDao.getEventById(eventInfo.id)
+
+                    if (existing == null) {
+                        val event = CalendarEvent(
+                            id = eventInfo.id,
+                            title = eventInfo.title,
+                            startTime = eventInfo.startTime,
+                            endTime = eventInfo.endTime,
+                            description = eventInfo.description,
+                            reminderMinutes = eventInfo.reminderMinutes,
+                            createdAt = eventInfo.createdAt
+                        )
+                        calendarDao.insertEvent(event)
+                        eventsUpdated++
+                    }
                 }
+
+                // Update last sync time
+                prefs.edit().putLong(KEY_LAST_PULL, System.currentTimeMillis()).apply()
+
+                val duration = System.currentTimeMillis() - startTime
+                Log.i(TAG, "Pull complete in ${duration}ms: $notesUpdated notes, $sessionsUpdated sessions, $eventsUpdated events")
+                PullResult.Success(notesUpdated, sessionsUpdated, eventsUpdated)
+            } catch (e: Exception) {
+                Log.e(TAG, "Pull failed", e)
+                PullResult.Error(e.message ?: "Unknown error")
             }
-
-            // Update last sync time
-            prefs.edit().putLong(KEY_LAST_PULL, System.currentTimeMillis()).apply()
-
-            Log.i(TAG, "Pull complete: $notesUpdated notes, $sessionsUpdated sessions, $eventsUpdated events")
-            PullResult.Success(notesUpdated, sessionsUpdated, eventsUpdated)
-        } catch (e: Exception) {
-            Log.e(TAG, "Pull failed", e)
-            PullResult.Error(e.message ?: "Unknown error")
         }
     }
 

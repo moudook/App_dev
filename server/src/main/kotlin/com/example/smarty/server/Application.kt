@@ -9,7 +9,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import com.example.smarty.server.routes.configureHealthRoutes
 import com.example.smarty.server.routes.configureChatRoutes
-import com.example.smarty.server.routes.configureSyncRoutes
+import com.example.smarty.server.routes.configureOptimizedSyncRoutes
 import com.example.smarty.server.routes.configureDataRoutes
 import com.example.smarty.server.routes.configureResearchRoutes
 import com.example.smarty.server.data.DatabaseFactory
@@ -222,7 +222,7 @@ fun Application.module() {
         webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
         progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
     ))
-    configureSyncRoutes()
+    configureOptimizedSyncRoutes()
     if (digestService != null && digestScheduler != null && ds != null) {
         configureDigestRoutes(digestService, digestScheduler, ds!!)
     }

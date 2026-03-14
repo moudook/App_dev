@@ -150,6 +150,42 @@ class CalendarRepository(
     }
 
     /**
+     * DELTA SYNC: List events updated after a specific timestamp.
+     * Uses index on (user_id, updated_at) for fast queries.
+     */
+    suspend fun listEventsUpdatedAfter(userId: String, timestamp: Long, limit: Int = 200): List<CalendarEventInfo> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<CalendarEventInfo>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, start_time, end_time, description, created_at, updated_at
+                FROM calendar_events
+                WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0)
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setLong(2, timestamp)
+                stmt.setInt(3, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        results.add(CalendarEventInfo(
+                            id = rs.getString("id"),
+                            title = rs.getString("title"),
+                            startTime = rs.getTimestamp("start_time").time,
+                            endTime = rs.getTimestamp("end_time").time,
+                            description = rs.getString("description"),
+                            reminderMinutes = 15, // Default
+                            createdAt = rs.getTimestamp("created_at").time
+                        ))
+                    }
+                }
+            }
+        }
+        results
+    }
+
+    /**
      * Create an event with a specific ID (for sync).
      */
     suspend fun createWithId(

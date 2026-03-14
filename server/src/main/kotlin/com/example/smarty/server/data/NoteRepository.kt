@@ -152,6 +152,48 @@ class NoteRepository(
     }
 
     /**
+     * DELTA SYNC: List notes updated after a specific timestamp.
+     * Uses index on (user_id, updated_at) for fast queries.
+     */
+    suspend fun listByUserUpdatedAfter(userId: String, timestamp: Long, limit: Int = 50): List<NoteInfo> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<NoteInfo>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, content, category_id, stack_id, parent_note_id,
+                       word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
+                FROM notes
+                WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0) AND deleted_at IS NULL
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setLong(2, timestamp)
+                stmt.setInt(3, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        results.add(NoteInfo(
+                            id = rs.getString("id"),
+                            title = rs.getString("title"),
+                            content = rs.getString("content"),
+                            categoryId = rs.getObject("category_id")?.toString(),
+                            stackId = rs.getObject("stack_id")?.toString(),
+                            parentNoteId = rs.getObject("parent_note_id")?.toString(),
+                            wordCount = rs.getInt("word_count"),
+                            isArchived = rs.getBoolean("is_archived"),
+                            isPinned = rs.getBoolean("is_pinned"),
+                            isFavorite = rs.getBoolean("is_favorite"),
+                            createdAt = rs.getTimestamp("created_at").time,
+                            updatedAt = rs.getTimestamp("updated_at").time
+                        ))
+                    }
+                }
+            }
+        }
+        results
+    }
+
+    /**
      * Gets a single note by ID.
      */
     suspend fun getById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
