@@ -40,6 +40,9 @@ Then add the corresponding API key:
 | `OPENROUTER` | `OPENROUTER_API_KEY` |
 | `GITHUB` | `GITHUB_TOKEN` |
 | `CEREBRAS` | `CEREBRAS_API_KEY` |
+| `KREA` | `KREA_API_KEY` |
+
+**Important:** After adding or modifying secrets in Hugging Face Spaces, you **must restart** the Space for the changes to take effect. Go to your Space page → Click "Restart Space" button → Wait for rebuild (~2-5 minutes).
 
 ## 3. Deploying the Code
 

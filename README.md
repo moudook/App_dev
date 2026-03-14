@@ -398,9 +398,12 @@ Add the following repository secrets.
 | DB_USER | Yes | Database username |
 | DB_PASSWORD | Yes | Database password |
 | TAVILY_API_KEY | Yes | Tavily search API key |
+| KREA_API_KEY | Yes | Krea AI image generation API key |
 | ACTIVE_PROVIDER | Optional | GEMINI or OPENAI |
 | GEMINI_API_KEY | Conditional | Required if Gemini is used |
 | OPENAI_API_KEY | Conditional | Required if OpenAI is used |
+
+**Important:** After adding or modifying secrets, you **must restart** the Hugging Face Space for changes to take effect.
 
 ---
 
