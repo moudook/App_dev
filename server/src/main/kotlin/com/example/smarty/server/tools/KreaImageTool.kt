@@ -273,7 +273,7 @@ class KreaImageTool {
      */
     private fun parseAspectRatio(aspectRatio: String): Pair<Int, Int> {
         val baseSize = 1024
-        
+
         return when (aspectRatio) {
             "16:9" -> Pair(baseSize, (baseSize * 9 / 16).coerceAtLeast(512))
             "9:16" -> Pair((baseSize * 9 / 16).coerceAtLeast(512), baseSize)
@@ -281,7 +281,8 @@ class KreaImageTool {
             "3:4" -> Pair((baseSize * 3 / 4).coerceAtLeast(512), baseSize)
             "21:9" -> Pair(baseSize, (baseSize * 9 / 21).coerceAtLeast(512))
             "9:21" -> Pair((baseSize * 9 / 21).coerceAtLeast(512), baseSize)
-            "1:1", else -> Pair(baseSize, baseSize)
+            "1:1" -> Pair(baseSize, baseSize)
+            else -> Pair(baseSize, baseSize)
         }
     }
 }
