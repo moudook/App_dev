@@ -783,6 +783,102 @@ class AssistViewModel(
     }
 
     /**
+     * Workflow B: Direct Image Generation.
+     * Captures UI Intent and routes directly to the API, bypassing AI Agent.
+     */
+    fun generateImageDirect(prompt: String, aspectRatio: String = "1:1") {
+        if (prompt.isBlank()) return
+
+        // Cancel any existing streaming job before starting new one
+        currentStreamingJob?.cancel()
+
+        currentStreamingJob = viewModelScope.launch {
+            chatManager.resetApiCallFlag()
+            
+            
+            val userMessage = chatManager.addUserMessage(prompt)
+            
+            var processingSet = false
+            try {
+                _isProcessing.value = true
+                processingSet = true
+
+                val streamingMessageId = java.util.UUID.randomUUID().toString()
+                
+                // Represent Krea Job locally inside toolCallsJson to trigger UI
+                val streamingMessage = ChatMessage(
+                    id = streamingMessageId,
+                    role = ChatRole.SMARTY,
+                    content = "",
+                    timestamp = System.currentTimeMillis(),
+                    isStreaming = true,
+                    toolCalls = listOf(
+                        com.example.smarty.core.domain.model.AgentToolCallEntry(
+                            toolName = "generate_image",
+                            status = "started",
+                            displayName = "Direct Request",
+                            inputSummary = prompt
+                        )
+                    )
+                )
+                
+                chatManager.addSmartyMessage(streamingMessage)
+
+                val result = remoteAgentService.generateImageDirect(prompt, aspectRatio)
+
+                if (result != null && result.success) {
+                    val completedMessage = streamingMessage.copy(
+                        isStreaming = false,
+                        // Provide job ID as outputSummary and set status to completed
+                        toolCalls = listOf(
+                            com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                toolName = "generate_image",
+                                status = "completed",
+                                displayName = "Direct Request - Completed",
+                                inputSummary = prompt,
+                                outputSummary = result.jobId
+                            )
+                        )
+                    )
+                    chatManager.replaceMessage(streamingMessageId, completedMessage)
+                    chatManager.markApiCallSuccessful()
+                } else {
+                    val errorMessage = streamingMessage.copy(
+                        isStreaming = false,
+                        isError = true,
+                        toolCalls = listOf(
+                            com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                toolName = "generate_image",
+                                status = "error",
+                                displayName = "Direct Request - Failed",
+                                inputSummary = prompt
+                            )
+                        )
+                    )
+                    chatManager.replaceMessage(streamingMessageId, errorMessage)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Direct Image Gen failed: ${e.message}", e)
+                val errorMessage = ChatMessage(
+                    id = java.util.UUID.randomUUID().toString(),
+                    role = ChatRole.SMARTY,
+                    content = getApplication<Application>().getString(R.string.request_timed_out),
+                    timestamp = System.currentTimeMillis(),
+                    isError = true
+                )
+                chatManager.addSmartyMessage(errorMessage)
+            } finally {
+                if (processingSet) {
+                    try {
+                        withContext(NonCancellable) { _isProcessing.value = false }
+                    } catch (e: Exception) {}
+                }
+            }
+        }
+    }
+
+    /**
      * REMOTE-PATH: AI Agent execution for complex intent.
      */
     private suspend fun processRemoteQuery(content: String, userMessage: ChatMessage) {

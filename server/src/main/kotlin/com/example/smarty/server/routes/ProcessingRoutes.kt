@@ -16,6 +16,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.GeneratedImageRepository
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.*
@@ -304,6 +306,45 @@ fun Application.configureProcessingRoutes() {
                     )
                 }
             }
+
+            /**
+             * Direct Image Generation Endpoint (Workflow B)
+             * Bypasses the AI Agent and directly triggers Krea.
+             */
+            post("/api/v1/image/direct") {
+                val user = call.firebaseUser()
+                if (user == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                    return@post
+                }
+                
+                try {
+                    val request = call.receive<DirectImageGenerationRequest>()
+                    call.application.log.info("Direct image generation requested by user: ${user.userId} with prompt: ${request.prompt}")
+                    
+                    val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                    val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
+                    
+                    val dataSource = DatabaseFactory.getDataSource()
+                    if (dataSource != null) {
+                        val imageRepo = GeneratedImageRepository(dataSource)
+                        imageRepo.create(
+                            userId = user.userId,
+                            sessionId = null,
+                            prompt = request.prompt,
+                            kreaJobId = jobId
+                        )
+                    }
+                    
+                    call.respond(HttpStatusCode.OK, DirectImageGenerationResponse(jobId = jobId, success = true))
+                } catch (e: Exception) {
+                    call.application.log.error("Direct image generation failed", e)
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        DirectImageGenerationResponse(jobId = "", success = false, message = e.message)
+                    )
+                }
+            }
         }
     }
 }
@@ -351,4 +392,17 @@ data class ImageProcessingResponse(
     val contentType: String,
     val success: Boolean,
     val error: String? = null
+)
+
+@Serializable
+data class DirectImageGenerationRequest(
+    val prompt: String,
+    val aspectRatio: String = "1:1"
+)
+
+@Serializable
+data class DirectImageGenerationResponse(
+    val jobId: String,
+    val success: Boolean,
+    val message: String? = null
 )

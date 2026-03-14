@@ -319,7 +319,7 @@ fun ChatMessageItem(
                             isExpanded     = thinkingExpanded,
                             isStreaming    = message.isStreaming,
                             onExpandToggle = { thinkingExpanded = !thinkingExpanded },
-                            toolCalls      = message.toolCalls
+                            toolCalls      = message.toolCalls.filter { it.toolName != "generate_image" }
                         )
                     }
 
@@ -380,6 +380,32 @@ fun ChatMessageItem(
                         // Streaming cursor - using extracted component (DRY)
                         if (message.isStreaming && displayPosition < targetLength) {
                             StreamingCursor(cursorColor = brandPrimary)
+                        }
+
+                        // Krea Image Generation direct inline display
+                        val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
+                        if (generateImageCall != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val state = when (generateImageCall.status) {
+                                "completed" -> com.example.smarty.ui.components.krea.ImageGenState.Completed
+                                "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
+                                else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
+                            }
+                            
+                            // The URL might be stored in outputSummary once available
+                            val imageUrl = generateImageCall.outputSummary?.takeIf { it.startsWith("http") }
+                            
+                            com.example.smarty.ui.components.krea.ImageGenerationCard(
+                                state = state,
+                                mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true)) 
+                                    com.example.smarty.ui.components.krea.ImageGenMode.Direct
+                                else 
+                                    com.example.smarty.ui.components.krea.ImageGenMode.Agent,
+                                prompt = generateImageCall.inputSummary ?: message.content.takeIf { it.isNotBlank() } ?: "Generating image...",
+                                imageUrl = imageUrl,
+                                onRemix = { onRegenerateMessage(message.id) },
+                                onRetry = { onRegenerateMessage(message.id) }
+                            )
                         }
 
                     // Inline Image Preview

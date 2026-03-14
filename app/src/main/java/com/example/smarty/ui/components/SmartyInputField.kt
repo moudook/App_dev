@@ -212,6 +212,9 @@ fun SmartyInputField(
     // Research mode toggle
     isResearchMode: Boolean = false,
     onToggleResearchMode: () -> Unit = {},
+    // Image Generation (Krea) mode toggle
+    isImageGenMode: Boolean = false,
+    onToggleImageGenMode: () -> Unit = {},
     // Scrolling support
     showScrollButton: Boolean = false,
     isAtLatest: Boolean = true,
@@ -252,6 +255,7 @@ fun SmartyInputField(
         isVoiceListening -> {
             stringResource(R.string.listening)
         }
+        isImageGenMode -> "Describe an image for Krea AI..."
         isSearchMode -> stringResource(R.string.find_notes)
         isChatMode -> stringResource(R.string.ask_smarty)
         else -> stringResource(R.string.add_note)
@@ -441,6 +445,49 @@ fun SmartyInputField(
                                     text = "Deep Research",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                     color = if (isResearchMode) researchAccentColor else monochromeColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        
+                        // Direct Image Generation Button (Icon + Text)
+                        val imageGenAccentColor = ComponentColors.assistantPurple
+                        val imageGenPillBackground = if (isImageGenMode)
+                            imageGenAccentColor.copy(alpha = 0.15f)
+                        else
+                            pillBackground
+                        val imageGenPillBorder = if (isImageGenMode)
+                            imageGenAccentColor
+                        else
+                            pillBorder
+
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onToggleImageGenMode()
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            color = imageGenPillBackground,
+                            border = BorderStroke(0.5.dp, imageGenPillBorder),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .padding(top = 0.dp)  // Align with other icons
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Generate Image",
+                                    tint = if (isImageGenMode) imageGenAccentColor else monochromeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Generate",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isImageGenMode) imageGenAccentColor else monochromeColor,
                                     maxLines = 1
                                 )
                             }

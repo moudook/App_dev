@@ -142,6 +142,8 @@ fun AssistOverlayScreen(
     }
 
     // Bottom sheet state
+    var isResearchMode by remember { mutableStateOf(false) }
+    var isImageGenMode by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         isVisible = true
@@ -275,7 +277,11 @@ fun AssistOverlayScreen(
                         onValueChange = { inputText = it },
                         onSubmit = {
                             if (inputText.text.isNotBlank()) {
-                                viewModel.sendMessage(inputText.text)
+                                if (isImageGenMode) {
+                                    viewModel.generateImageDirect(inputText.text)
+                                } else {
+                                    viewModel.sendMessage(inputText.text)
+                                }
                                 inputText = TextFieldValue("")
                                 focusManager.clearFocus()
                                 onDismiss()
@@ -299,6 +305,10 @@ fun AssistOverlayScreen(
                             }
                         },
                         onStopVoiceInput = { speechState.stopListening() },
+                        isResearchMode = isResearchMode,
+                        onToggleResearchMode = { isResearchMode = !isResearchMode },
+                        isImageGenMode = isImageGenMode,
+                        onToggleImageGenMode = { isImageGenMode = !isImageGenMode },
                         onPickFile = { },
                         onOpenCamera = { },
                         showHistoryOption = false

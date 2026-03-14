@@ -12,6 +12,8 @@ import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.CalendarRepository
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.ToolDefinition
@@ -62,6 +64,10 @@ class ServerAgent(
     private val userId: String = "dev-user"
 ) {
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
+    
+    // DB Instances
+    private val dataSource = DatabaseFactory.getDataSource()
+    private val generatedImageRepository = dataSource?.let { GeneratedImageRepository(it) }
     private val json = Json { ignoreUnknownKeys = true }
     private val toolExampleStore = ToolExampleStore()
     
@@ -259,6 +265,25 @@ Use for: screen navigation, sharing to other apps.""",
                     "title" to ToolProperty("string", "Share title (share action, optional)")
                 ),
                 required = listOf("action")
+            )
+        ),
+
+        ToolDefinition(
+            name = "generate_image",
+            description = """Act as a Master Art Director to generate high-quality images using Krea AI.
+When the user asks for an image, imagine the scene, understand the story, and visualize the composition.
+Create a highly detailed, professional prompt specifying camera angles, lighting (e.g., cinematic, volumetric), and rendering engines.
+
+EXAMPLES:
+- generate_image(prompt='A cinematic 8k extremely detailed shot of a red dragon flying over a volcano, volumetric lighting, Unreal Engine 5 render', aspect_ratio='16:9')
+
+Use for: generating images, creating artwork, visualizing scenes.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "prompt" to ToolProperty("string", "The highly detailed, professional image prompt"),
+                    "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1, 16:9, or 9:16", enum = listOf("1:1", "16:9", "9:16"))
+                ),
+                required = listOf("prompt")
             )
         )
     )
@@ -1249,7 +1274,9 @@ ${goalMemoryManager.getProgressContext()}
             val setting: String? = null,
             val on: Boolean? = null,
             val info: String? = null,
-            val screen: String? = null
+            val screen: String? = null,
+            val prompt: String? = null,
+            val aspect_ratio: String? = null
         )
 
         val args = try {
@@ -1334,6 +1361,23 @@ ${goalMemoryManager.getProgressContext()}
                         vectorStore.store(userId, fact, mapOf("type" to (args.type ?: "factual")))
                         "Remembered: ${fact.take(50)}"
                     } catch (e: Exception) { "Failed: ${e.message}" }
+                }
+                "generate_image" -> {
+                    try {
+                        val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                        val jobId = kreaTool.generateImage(args.prompt ?: "", args.aspect_ratio ?: "1:1")
+                        
+                        generatedImageRepository?.create(
+                            userId = userId,
+                            sessionId = null, // Will be fixed later to include context
+                            prompt = args.prompt ?: "",
+                            kreaJobId = jobId
+                        )
+                        
+                        "Successfully started image generation. The image will appear in the chat shortly once Krea completes it. (Job ID: $jobId)"
+                    } catch (e: Exception) {
+                        "Failed to generate image: ${e.message}"
+                    }
                 }
                 else -> when (name) {
                     "memory" -> {

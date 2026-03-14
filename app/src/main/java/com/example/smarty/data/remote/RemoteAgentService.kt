@@ -509,6 +509,38 @@ fun sendQueryWithContext(
     }
 
     /**
+     * Workflow B: Direct Image Generation.
+     * Bypasses the Agent and generates an image directly on the server.
+     */
+    suspend fun generateImageDirect(
+        prompt: String,
+        aspectRatio: String = "1:1"
+    ): DirectImageGenerationResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+
+            val response = client.post("$baseUrl/api/v1/image/direct") {
+                if (token != null) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+                contentType(ContentType.Application.Json)
+                setBody(DirectImageGenerationRequest(prompt, aspectRatio))
+            }
+
+            if (response.status.isSuccess()) {
+                response.body<DirectImageGenerationResponse>()
+            } else {
+                Log.e(TAG, "Direct image generation failed: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct image generation error: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
      * Get current authenticated user info.
      */
     fun getCurrentUser(): UserInfo? {
@@ -757,4 +789,17 @@ data class ChatQueryResponse(
     val sessionId: String? = null,
     val response: String = "",
     val events: List<String> = emptyList()
+)
+
+@Serializable
+data class DirectImageGenerationRequest(
+    val prompt: String,
+    val aspectRatio: String = "1:1"
+)
+
+@Serializable
+data class DirectImageGenerationResponse(
+    val jobId: String,
+    val success: Boolean,
+    val message: String? = null
 )
