@@ -61,16 +61,38 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/v1/sync/pull") {
-                addAuthHeaders(token)
-            }
+            // Retry logic with exponential backoff
+            val maxRetries = 3
+            var lastException: Exception? = null
+            
+            for (attempt in 1..maxRetries) {
+                try {
+                    val response = client.post("$baseUrl/api/v1/sync/pull") {
+                        addAuthHeaders(token)
+                    }
 
-            if (response.status.isSuccess()) {
-                response.body()
-            } else {
-                Log.e(TAG, "Failed to pull data: ${response.status}")
-                null
+                    if (response.status.isSuccess()) {
+                        Log.i(TAG, "Pull successful on attempt $attempt")
+                        return response.body()
+                    } else {
+                        Log.e(TAG, "Failed to pull data: ${response.status} (attempt $attempt)")
+                        if (attempt == maxRetries) {
+                            Log.e(TAG, "Pull failed after $attempt attempts")
+                            return null
+                        }
+                    }
+                } catch (e: Exception) {
+                    lastException = e
+                    Log.w(TAG, "Pull attempt $attempt failed: ${e.message}")
+                    if (attempt < maxRetries) {
+                        val delayMs = (1000 * attempt).toLong() // Exponential backoff: 1s, 2s, 3s
+                        kotlinx.coroutines.delay(delayMs)
+                    }
+                }
             }
+            
+            Log.e(TAG, "Pull failed after all retries", lastException)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "Error pulling data: ${e.message}", e)
             null

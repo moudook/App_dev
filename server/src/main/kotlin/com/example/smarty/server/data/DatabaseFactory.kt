@@ -34,6 +34,10 @@ object DatabaseFactory {
 private fun runMigrations(ds: DataSource) {
         try {
             ds.connection.use { conn ->
+                logger.info("Starting database migrations...")
+                val startTime = System.currentTimeMillis()
+                var migrationsApplied = 0
+                
                 conn.createStatement().use { stmt ->
                     // ── v6.0.0 compatibility minimal migrations ──
                     // Full schema lives in DATABASE_SCHEMA_v6.0.0_UNIFIED_PRODUCTION.sql
@@ -359,18 +363,22 @@ private fun runMigrations(ds: DataSource) {
                         "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned ON chat_sessions(user_id) WHERE is_pinned = true"
                     )
 
-                    for (sql in migrations) {
+                    for ((index, sql) in migrations.withIndex()) {
                         try {
                             stmt.execute(sql)
+                            migrationsApplied++
                         } catch (e: Exception) {
                             logger.warn("Migration statement skipped (may already exist): ${e.message?.take(120)}")
                         }
                     }
+                    
+                    val duration = System.currentTimeMillis() - startTime
+                    logger.info("Database migrations applied successfully (v6.0.0 minimal) - $migrationsApplied tables, ${duration}ms")
                 }
             }
-            logger.info("Database migrations applied successfully (v6.0.0 minimal)")
         } catch (e: Exception) {
             logger.error("Failed to run database migrations", e)
+            throw e
         }
     }
 
