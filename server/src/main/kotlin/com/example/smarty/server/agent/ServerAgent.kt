@@ -1278,7 +1278,7 @@ ${goalMemoryManager.getProgressContext()}
         @Serializable
         data class GenerateImageArgs(
             val prompt: String,
-            val aspectRatio: String? = null
+            @SerialName("aspect_ratio") val aspectRatio: String? = null
         )
 
         // Handle generate_image separately - bypass UnifiedToolArgs entirely

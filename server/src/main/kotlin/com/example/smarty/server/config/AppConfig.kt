@@ -25,6 +25,7 @@ object AppConfig {
     val geminiApiKeys: List<String> = parseApiKeys(System.getenv("GEMINI_API_KEY"))
     val openAiApiKeys: List<String> = parseApiKeys(System.getenv("OPENAI_API_KEY"))
     val tavilyApiKeys: List<String> = parseApiKeys(System.getenv("TAVILY_API_KEY"))
+    val kreaApiKey: String? = System.getenv("KREA_API_KEY")?.trim()?.ifBlank { null }
     
     // Active Provider Selection
     val activeProvider: String = System.getenv("ACTIVE_PROVIDER") ?: "GEMINI"
@@ -99,6 +100,7 @@ object AppConfig {
         "gemini_keys_count" to geminiApiKeys.size,
         "openai_keys_count" to openAiApiKeys.size,
         "tavily_keys_count" to tavilyApiKeys.size,
+        "krea_api_key_set" to (kreaApiKey != null),
         "max_concurrent_sessions" to maxConcurrentSessions,
         "monitoring_enabled" to enableMonitoring,
         "tracing_enabled" to enableTracing

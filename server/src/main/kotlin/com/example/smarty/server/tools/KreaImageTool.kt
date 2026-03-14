@@ -73,7 +73,7 @@ data class KreaImageResult(
 class KreaImageTool {
     private val logger = LoggerFactory.getLogger(KreaImageTool::class.java)
 
-    private val kreaApiKey = System.getenv("KREA_API_KEY")
+    private val kreaApiKey = System.getenv("KREA_API_KEY")?.trim()?.ifBlank { null }
     private val baseUrl = "https://api.krea.ai"
 
     // Default model paths
@@ -182,7 +182,7 @@ class KreaImageTool {
                 val promptShort = prompt.take(50)
                 logger.info("   Request: { prompt: \"$promptShort...\", imageUrls: [\"$referenceImageUrl\"] }")
                 client.post("$baseUrl$endpoint") {
-                    header(HttpHeaders.Authorization, "Bearer [REDACTED]")
+                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
                     contentType(ContentType.Application.Json)
                     setBody(
                         KreaImageToImageRequest(
@@ -197,7 +197,7 @@ class KreaImageTool {
                 val promptShort = prompt.take(50)
                 logger.info("   Request: { prompt: \"$promptShort...\", width: $width, height: $height, steps: 28 }")
                 client.post("$baseUrl$endpoint") {
-                    header(HttpHeaders.Authorization, "Bearer [REDACTED]")
+                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
                     contentType(ContentType.Application.Json)
                     setBody(
                         KreaTextToImageRequest(
@@ -293,7 +293,7 @@ class KreaImageTool {
             logger.debug("POLL URL: $pollUrl")
             
             val response: HttpResponse = client.get("$baseUrl/jobs/$jobId") {
-                header(HttpHeaders.Authorization, "Bearer [REDACTED]")
+                header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
             }
 
             // Always read raw response body first for debugging
