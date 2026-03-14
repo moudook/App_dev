@@ -30,6 +30,10 @@ data class HealthResponse(
  */
 fun Application.configureHealthRoutes() {
     routing {
+        get("/") {
+            call.respondText("Friday Server is running (v6.0.0-Unified)")
+        }
+
         get("/health") {
             // Verify we can access the common module's AgentCommand
             // This confirms the :server -> :common dependency works
