@@ -81,9 +81,15 @@ class KreaImageTool {
     private val imageToImageModel = "/generate/image/google/nano-banana-pro"
 
     init {
+        logger.info("=".repeat(60))
+        logger.info("KreaImageTool Initialization")
+        logger.info("=".repeat(60))
+        
         if (kreaApiKey.isNullOrBlank()) {
-            logger.error("KREA_API_KEY environment variable is not set. Image generation will fail. " +
-                "Set KREA_API_KEY in your deployment environment (Hugging Face Spaces secrets or GitHub secrets).")
+            logger.error("❌ KREA_API_KEY environment variable is NOT SET")
+            logger.error("   Hugging Face Spaces: Go to Settings → Secrets → Add secret named 'KREA_API_KEY'")
+            logger.error("   GitHub: Go to Settings → Secrets → Add secret named 'KREA_API_KEY'")
+            logger.error("   Image generation will FAIL until this is configured.")
         } else {
             // Redact API key in logs - only show length and first/last 2 chars
             val keyPreview = if (kreaApiKey.length > 4) {
@@ -91,8 +97,15 @@ class KreaImageTool {
             } else {
                 "***"
             }
-            logger.info("KreaImageTool initialized with API key (length: ${kreaApiKey.length} chars, preview: $keyPreview)")
+            logger.info("✅ KREA_API_KEY is configured")
+            logger.info("   Key length: ${kreaApiKey.length} chars")
+            logger.info("   Key preview: $keyPreview")
+            logger.info("   Base URL: $baseUrl")
+            logger.info("   Text-to-Image Model: $textToImageModel")
+            logger.info("   Image-to-Image Model: $imageToImageModel")
         }
+        
+        logger.info("=".repeat(60))
     }
 
     private val client = HttpClient(OkHttp) {
@@ -122,9 +135,20 @@ class KreaImageTool {
         aspectRatio: String = "1:1",
         referenceImageUrl: String? = null
     ): String {
+        logger.info("─".repeat(60))
+        logger.info("📸 generateImage() called")
+        logger.info("   Prompt: ${prompt.take(80)}${if (prompt.length > 80) "..." else ""}")
+        logger.info("   Aspect Ratio: $aspectRatio")
+        logger.info("   Reference Image: ${referenceImageUrl ?: "none (text-to-image)}")
+        logger.info("─".repeat(60))
+        
         // Fail fast if API key is missing - don't make HTTP request
         if (kreaApiKey.isNullOrBlank()) {
-            logger.error("generateImage() called but KREA_API_KEY is not set. Cannot proceed.")
+            logger.error("❌ ABORT: KREA_API_KEY is not set. Cannot proceed with image generation.")
+            logger.error("   Troubleshooting:")
+            logger.error("   1. Hugging Face Spaces: Settings → Secrets → Add 'KREA_API_KEY'")
+            logger.error("   2. Restart the Space after adding the secret")
+            logger.error("   3. Check build logs to verify secret was loaded")
             throw IllegalStateException(
                 "KREA_API_KEY is not configured. Set this environment variable in your deployment " +
                 "environment before using image generation. Check Hugging Face Spaces secrets or " +
@@ -135,16 +159,25 @@ class KreaImageTool {
         try {
             // Parse aspect ratio to dimensions
             val (width, height) = parseAspectRatio(aspectRatio)
+            logger.info("📐 Parsed dimensions: ${width}x${height} from aspect ratio '$aspectRatio'")
 
             // Choose endpoint based on whether we have a reference image
             val endpoint = if (referenceImageUrl != null) {
+                logger.info("🔗 Using Image-to-Image endpoint: $imageToImageModel")
                 imageToImageModel
             } else {
+                logger.info("📝 Using Text-to-Image endpoint: $textToImageModel")
                 textToImageModel
             }
 
+            val fullUrl = "$baseUrl$endpoint"
+            logger.info("🌐 Request URL: $fullUrl")
+            logger.info("🔑 Authorization: Bearer [REDACTED] (key length: ${kreaApiKey.length} chars)")
+
             val response: HttpResponse = if (referenceImageUrl != null) {
                 // Image-to-Image request
+                logger.info("📤 Sending Image-to-Image request...")
+                logger.info("   Request body: { prompt: \"${prompt.take(50)}...\", imageUrls: [\"$referenceImageUrl\"] }")
                 client.post("$baseUrl$endpoint") {
                     header(HttpHeaders.Authorization, "Bearer [REDACTED]")  // Never log actual API key
                     contentType(ContentType.Application.Json)
@@ -157,6 +190,8 @@ class KreaImageTool {
                 }
             } else {
                 // Text-to-Image request
+                logger.info("📤 Sending Text-to-Image request...")
+                logger.info("   Request body: { prompt: \"${prompt.take(50)}...\", width: $width, height: $height, steps: 28 }")
                 client.post("$baseUrl$endpoint") {
                     header(HttpHeaders.Authorization, "Bearer [REDACTED]")  // Never log actual API key
                     contentType(ContentType.Application.Json)
@@ -171,50 +206,66 @@ class KreaImageTool {
                 }
             }
 
+            logger.info("📥 Received response: HTTP ${response.status}")
+
             // Always read raw response body first for debugging
             val rawBody = response.bodyAsText()
+            logger.info("📄 Raw response body (${rawBody.length} chars):")
+            logger.info(rawBody.take(500))
 
             if (response.status.isSuccess()) {
-                // Log raw response for debugging (truncated to prevent log spam)
-                logger.info("Krea raw response: {}", rawBody.take(300))
+                logger.info("✅ Response status is SUCCESS (2xx)")
 
                 // Parse manually to expose exact response structure
                 val body = try {
                     Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResponse>(rawBody)
                 } catch (e: Exception) {
-                    logger.error("Failed to parse Krea response as KreaJobResponse. Raw body: {}", rawBody.take(300), e)
+                    logger.error("❌ Failed to parse Krea response as KreaJobResponse")
+                    logger.error("   Error: ${e.message}")
+                    logger.error("   Raw body: $rawBody")
+                    logger.error("   Expected schema: { job_id: String, status: String, created_at: String? }")
                     throw RuntimeException("Failed to parse Krea API response: ${e.message}", e)
                 }
 
-                logger.info(
-                    "Successfully triggered Krea image generation. Job ID: {} (status: {})",
-                    body.job_id,
-                    body.status
-                )
+                logger.info("✅ Successfully parsed response:")
+                logger.info("   Job ID: ${body.job_id}")
+                logger.info("   Status: ${body.status}")
+                logger.info("   Created At: ${body.created_at ?: "not provided"}")
+                logger.info("─".repeat(60))
                 return body.job_id
             } else {
-                // Log raw error response (truncated)
-                logger.error("Krea API failed: {} - response: {}", response.status, rawBody.take(300))
+                logger.error("❌ Response status is ERROR (${response.status})")
+                logger.error("   Response body: $rawBody")
 
                 when {
-                    response.status == HttpStatusCode.BadRequest &&
-                        rawBody.contains("filter", ignoreCase = true) -> {
-                        throw IllegalStateException("Prompt rejected by safety filters.")
-                    }
                     response.status == HttpStatusCode.Unauthorized -> {
+                        logger.error("❌ HTTP 401 Unauthorized - API key is INVALID or EXPIRED")
+                        logger.error("   Troubleshooting:")
+                        logger.error("   1. Verify the API key in Hugging Face Secrets is correct")
+                        logger.error("   2. Check if the key has expired on Krea.ai")
+                        logger.error("   3. Ensure there are no extra spaces in the secret value")
                         throw IllegalStateException("Krea API authentication failed (401). Check KREA_API_KEY in deployment environment.")
                     }
                     response.status == HttpStatusCode.Forbidden -> {
+                        logger.error("❌ HTTP 403 Forbidden - API key lacks permissions")
+                        logger.error("   Check if your Krea.ai account has API access enabled")
                         throw IllegalStateException("Krea API access denied (403). Check API key permissions.")
                     }
+                    response.status == HttpStatusCode.BadRequest &&
+                        rawBody.contains("filter", ignoreCase = true) -> {
+                        logger.error("❌ HTTP 400 Bad Request - Prompt rejected by safety filters")
+                        throw IllegalStateException("Prompt rejected by safety filters.")
+                    }
                     else -> {
+                        logger.error("❌ HTTP ${response.status} - Unexpected error")
                         throw RuntimeException("Krea API returned ${response.status}: ${rawBody.take(200)}")
                     }
                 }
             }
         } catch (e: Exception) {
             if (e is IllegalStateException) throw e
-            logger.error("Error triggering Krea AI", e)
+            logger.error("❌ Unexpected error in generateImage(): ${e.message}")
+            logger.error("   Stack trace: ${e.stackTraceToString().take(500)}")
             throw RuntimeException("Failed to trigger Krea image generation: ${e.message}", e)
         }
     }
@@ -225,36 +276,50 @@ class KreaImageTool {
      * @return The job result with image URL if completed
      */
     suspend fun pollJobStatus(jobId: String): KreaJobResult {
+        logger.debug("🔍 pollJobStatus() called for job: $jobId")
+        
         // Fail fast if API key is missing
         if (kreaApiKey.isNullOrBlank()) {
-            logger.error("pollJobStatus() called but KREA_API_KEY is not set")
+            logger.error("❌ ABORT: pollJobStatus() called but KREA_API_KEY is not set")
             throw IllegalStateException("KREA_API_KEY is not configured. Cannot poll job status.")
         }
 
         try {
+            val pollUrl = "$baseUrl/jobs/$jobId"
+            logger.debug("🌐 Polling URL: $pollUrl")
+            
             val response: HttpResponse = client.get("$baseUrl/jobs/$jobId") {
                 header(HttpHeaders.Authorization, "Bearer [REDACTED]")  // Never log actual key
             }
 
             // Always read raw response body first for debugging
             val rawBody = response.bodyAsText()
+            logger.debug("📥 Poll response: HTTP ${response.status}")
+            logger.debug("📄 Response body: $rawBody")
 
             if (response.status.isSuccess()) {
-                logger.debug("Poll job {} raw response: {}", jobId, rawBody.take(200))
+                logger.debug("✅ Poll successful (2xx)")
 
                 return try {
-                    Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResult>(rawBody)
+                    val result = Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResult>(rawBody)
+                    logger.debug("   Job status: ${result.status}")
+                    if (result.result?.urls != null) {
+                        logger.debug("   Result URLs count: ${result.result.urls.size}")
+                    }
+                    result
                 } catch (e: Exception) {
-                    logger.error("Failed to parse poll response as KreaJobResult. Raw body: {}", rawBody.take(200), e)
+                    logger.error("❌ Failed to parse poll response as KreaJobResult")
+                    logger.error("   Error: ${e.message}")
+                    logger.error("   Raw body: $rawBody")
                     throw RuntimeException("Failed to parse Krea poll response: ${e.message}", e)
                 }
             } else {
-                // Log error response (safe, no API key in response)
-                logger.error("Failed to poll job {}: status {} - response: {}", jobId, response.status, rawBody.take(200))
+                logger.error("❌ Poll failed with status: ${response.status}")
+                logger.error("   Response: $rawBody")
                 throw RuntimeException("Failed to poll job status: ${response.status}")
             }
         } catch (e: Exception) {
-            logger.error("Error polling Krea job status for job {}: {}", jobId, e.message, e)
+            logger.error("❌ Error polling Krea job status for job $jobId: ${e.message}")
             throw RuntimeException("Failed to poll job status: ${e.message}", e)
         }
     }
@@ -271,44 +336,56 @@ class KreaImageTool {
         maxAttempts: Int = 150,  // 5 minutes max (150 * 2000ms)
         pollIntervalMs: Long = 2000L
     ): KreaJobResult {
+        logger.info("⏳ waitForCompletion() started for job: $jobId")
+        logger.info("   Max attempts: $maxAttempts")
+        logger.info("   Poll interval: ${pollIntervalMs}ms")
+        logger.info("   Max wait time: ${maxAttempts * pollIntervalMs / 1000}s (${maxAttempts * pollIntervalMs / 60000} min)")
+        
         var attempts = 0
+        val startTime = System.currentTimeMillis()
 
         while (attempts < maxAttempts) {
+            attempts++
+            val elapsed = (System.currentTimeMillis() - startTime) / 1000
+            logger.info("🔍 Poll attempt $attempts/$maxAttempts (elapsed: ${elapsed}s)...")
+
             val result = pollJobStatus(jobId)
 
             when (result.status.lowercase()) {
                 "completed" -> {
+                    val elapsedTime = (System.currentTimeMillis() - startTime) / 1000
+                    logger.info("✅ Job COMPLETED after ${elapsedTime}s!")
+                    
                     // Validate result has URLs
                     val imageUrl = result.result?.urls?.firstOrNull()
                     if (imageUrl.isNullOrBlank()) {
-                        logger.error("Job {} completed but result.urls is empty or null. Raw result: {}", jobId, result.result)
+                        logger.error("❌ Job completed but result.urls is empty or null")
+                        logger.error("   Full result: $result")
                         throw IllegalStateException("Image generation completed but no image URL was returned")
                     }
-                    logger.info("Job {} completed successfully. Image URL: {}", jobId, imageUrl)
+                    logger.info("🖼️  Image URL: $imageUrl")
+                    logger.info("⏳ Total wait time: ${elapsedTime}s")
                     return result
                 }
                 "failed", "error", "cancelled" -> {
-                    logger.error("Job {} failed with status: {}", jobId, result.status)
+                    logger.error("❌ Job FAILED with status: ${result.status}")
+                    logger.error("   Full result: $result")
                     throw IllegalStateException("Image generation failed: ${result.status}")
                 }
                 "queued", "processing", "pending", "backlogged", "scheduled", "sampling" -> {
-                    logger.debug("Job {} still {} (attempt {}/{})", jobId, result.status, attempts + 1, maxAttempts)
-                    attempts++
+                    logger.info("⏳ Job still '$result.status' - waiting ${pollIntervalMs}ms before next poll...")
                     if (attempts < maxAttempts) {
                         kotlinx.coroutines.delay(pollIntervalMs)
                     }
                 }
                 "intermediate-complete" -> {
-                    // Intermediate result available, continue polling for final
-                    logger.debug("Job {} has intermediate result, continuing to poll...", jobId)
-                    attempts++
+                    logger.info("🔄 Job has intermediate result - continuing to poll for final result...")
                     if (attempts < maxAttempts) {
                         kotlinx.coroutines.delay(pollIntervalMs)
                     }
                 }
                 else -> {
-                    logger.warn("Job {} has unknown status: {}", jobId, result.status)
-                    attempts++
+                    logger.warn("⚠️  Job has unknown status: '${result.status}' - continuing to poll...")
                     if (attempts < maxAttempts) {
                         kotlinx.coroutines.delay(pollIntervalMs)
                     }
@@ -316,6 +393,8 @@ class KreaImageTool {
             }
         }
 
+        val totalTime = (System.currentTimeMillis() - startTime) / 1000
+        logger.error("❌ Job did not complete within $maxAttempts attempts (${totalTime}s)")
         throw IllegalStateException("Job $jobId did not complete within ${maxAttempts * pollIntervalMs / 1000} seconds")
     }
 

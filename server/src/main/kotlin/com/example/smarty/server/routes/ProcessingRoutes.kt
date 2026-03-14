@@ -312,34 +312,65 @@ fun Application.configureProcessingRoutes() {
              * Bypasses the AI Agent and directly triggers Krea.
              */
             post("/api/v1/image/direct") {
+                val log = call.application.log
+                val startTime = System.currentTimeMillis()
+                
                 val user = call.firebaseUser()
                 if (user == null) {
+                    log.warn("❌ /api/v1/image/direct - Unauthorized request (no Firebase user)")
                     call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
                     return@post
                 }
 
                 try {
                     val request = call.receive<DirectImageGenerationRequest>()
-                    call.application.log.info("Direct image generation requested by user: ${user.userId} with prompt: ${request.prompt}")
+                    log.info("═".repeat(60))
+                    log.info("📸 /api/v1/image/direct - Request received")
+                    log.info("   User ID: ${user.userId}")
+                    log.info("   Prompt: ${request.prompt.take(80)}${if (request.prompt.length > 80) "..." else ""}")
+                    log.info("   Aspect Ratio: ${request.aspectRatio}")
+                    log.info("═".repeat(60))
 
+                    log.info("🔧 Creating KreaImageTool instance...")
                     val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                    
+                    log.info("🚀 Calling kreaTool.generateImage()...")
                     val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
+                    
+                    log.info("✅ Image generation triggered successfully!")
+                    log.info("   Job ID: $jobId")
 
                     val dataSource = DatabaseFactory.getDataSource()
                     if (dataSource != null) {
-                        val imageRepo = GeneratedImageRepository(dataSource)
-                        imageRepo.create(
-                            userId = user.userId,
-                            sessionId = null,
-                            prompt = request.prompt,
-                            kreaJobId = jobId
-                        )
+                        try {
+                            val imageRepo = GeneratedImageRepository(dataSource)
+                            imageRepo.create(
+                                userId = user.userId,
+                                sessionId = null,
+                                prompt = request.prompt,
+                                kreaJobId = jobId
+                            )
+                            log.info("💾 Job ID saved to database")
+                        } catch (e: Exception) {
+                            log.warn("⚠️  Failed to save job ID to database: ${e.message}")
+                            // Continue anyway - image generation succeeded
+                        }
+                    } else {
+                        log.warn("⚠️  Database not available - skipping job ID storage")
                     }
 
+                    val elapsed = System.currentTimeMillis() - startTime
+                    log.info("✅ /api/v1/image/direct - Completed in ${elapsed}ms")
+                    log.info("═".repeat(60))
+                    
                     call.respond(HttpStatusCode.OK, DirectImageGenerationResponse(jobId = jobId, success = true))
                 } catch (e: IllegalStateException) {
                     // KREA_API_KEY not configured - return descriptive error
-                    call.application.log.error("Direct image generation failed: KREA_API_KEY not configured")
+                    val elapsed = System.currentTimeMillis() - startTime
+                    log.error("❌ /api/v1/image/direct - FAILED after ${elapsed}ms")
+                    log.error("   Error type: IllegalStateException")
+                    log.error("   Cause: KREA_API_KEY not configured")
+                    log.error("   Message: ${e.message}")
                     call.respond(
                         HttpStatusCode.ServiceUnavailable,
                         DirectImageGenerationResponse(
@@ -349,7 +380,11 @@ fun Application.configureProcessingRoutes() {
                         )
                     )
                 } catch (e: Exception) {
-                    call.application.log.error("Direct image generation failed", e)
+                    val elapsed = System.currentTimeMillis() - startTime
+                    log.error("❌ /api/v1/image/direct - FAILED after ${elapsed}ms")
+                    log.error("   Error type: ${e::class.simpleName}")
+                    log.error("   Message: ${e.message}")
+                    log.error("   Stack trace: ${e.stackTraceToString().take(500)}")
                     call.respond(
                         HttpStatusCode.InternalServerError,
                         DirectImageGenerationResponse(jobId = "", success = false, message = e.message)
