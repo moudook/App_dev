@@ -1002,8 +1002,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.photo), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(accentColor.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Image, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp)) // Attach image
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(accentColor.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Image,
+                                                contentDescription = "Attach image",
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickImage() },
@@ -1012,8 +1024,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.video), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.VideoRed.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Videocam, contentDescription = null, tint = com.example.smarty.ui.theme.VideoRed, modifier = Modifier.size(18.dp)) // Record video
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(com.example.smarty.ui.theme.VideoRed.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Videocam,
+                                                contentDescription = "Record video",
+                                                tint = com.example.smarty.ui.theme.VideoRed,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickVideo() },
@@ -1022,8 +1046,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.document), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.DocumentBlue.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Description, contentDescription = null, tint = com.example.smarty.ui.theme.DocumentBlue, modifier = Modifier.size(18.dp)) // Attach document
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(com.example.smarty.ui.theme.DocumentBlue.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Description,
+                                                contentDescription = "Attach document",
+                                                tint = com.example.smarty.ui.theme.DocumentBlue,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickDocument() },
@@ -1034,8 +1070,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.audio_label), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.AudioPink.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = com.example.smarty.ui.theme.AudioPink, modifier = Modifier.size(18.dp)) // Attach audio
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(com.example.smarty.ui.theme.AudioPink.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Audiotrack,
+                                                contentDescription = "Attach audio",
+                                                tint = com.example.smarty.ui.theme.AudioPink,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickAudio() },
@@ -1044,8 +1092,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text("Deep Research", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF7C4DFF).copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.School, contentDescription = null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp)) // Deep Research
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF7C4DFF).copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.School,
+                                                contentDescription = "Deep Research - Comprehensive AI analysis",
+                                                tint = Color(0xFF7C4DFF),
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickResearch() },
@@ -1054,8 +1114,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.link), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF80DEEA).copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF80DEEA), modifier = Modifier.size(18.dp)) // Attach link
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF80DEEA).copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Link,
+                                                contentDescription = "Attach link",
+                                                tint = Color(0xFF80DEEA),
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onPickLink() },
@@ -1064,8 +1136,20 @@ private fun InputPill(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.camera), fontSize = 14.sp) },
                                     leadingIcon = {
-                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) // Open camera
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CameraAlt,
+                                                contentDescription = "Open camera",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     },
                                     onClick = { showMenu = false; onOpenCamera() },
