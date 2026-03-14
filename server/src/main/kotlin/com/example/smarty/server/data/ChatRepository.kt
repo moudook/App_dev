@@ -392,13 +392,15 @@ class ChatRepository(
     suspend fun updateMessageThinking(
         userId: String,
         sessionId: String,
-        thinking: String?
+        thinking: String?,
+        toolCalls: String? = null
     ) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             // Update the latest ASSISTANT message in this session
             val sql = """
                 UPDATE chat_messages 
-                SET thinking = ? 
+                SET thinking = ?, 
+                    tool_calls = ?::jsonb
                 WHERE session_id = ? 
                   AND role = ? 
                   AND id = (
@@ -411,13 +413,14 @@ class ChatRepository(
             
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, thinking)
-                stmt.setObject(2, UUID.fromString(sessionId))
-                stmt.setString(3, LlmMessage.Role.ASSISTANT.name)
-                stmt.setObject(4, UUID.fromString(sessionId))
-                stmt.setString(5, LlmMessage.Role.ASSISTANT.name)
+                stmt.setString(2, toolCalls ?: "[]")
+                stmt.setObject(3, UUID.fromString(sessionId))
+                stmt.setString(4, LlmMessage.Role.ASSISTANT.name)
+                stmt.setObject(5, UUID.fromString(sessionId))
+                stmt.setString(6, LlmMessage.Role.ASSISTANT.name)
                 val rows = stmt.executeUpdate()
                 if (rows > 0) {
-                    logger.debug("Updated thinking for session {} ({} rows)", sessionId, rows)
+                    logger.debug("Updated thinking and tool calls for session {} ({} rows)", sessionId, rows)
                 }
             }
         }

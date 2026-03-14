@@ -348,16 +348,26 @@ fun Application.configureChatRoutes() {
                                 }
                             }
 
-                            // PROGRESSIVE SAVE: Save thinking to database during streaming
-                            // This ensures thinking is persisted even if stream fails
+                            // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
+                            // This ensures thinking and tools are persisted even if stream fails
                             if (event is AgentEvent.Processing || event is AgentEvent.ToolCall) {
                                 val currentThinking = ThinkingStorageManagerSingleton.instance
                                     .getCurrentThinking(activeSessionId)
+                                
+                                // Extract tool calls from thinking trace for progressive save
+                                val currentToolCalls = if (currentThinking.contains("SMARTY_TRACE_V2")) {
+                                    // Parse tool calls from thinking trace
+                                    currentThinking.substringAfter("SMARTY_TRACE_V2:")
+                                } else {
+                                    null
+                                }
+                                
                                 if (currentThinking.isNotBlank()) {
                                     chatRepository?.updateMessageThinking(
                                         userId = userId,
                                         sessionId = activeSessionId,
-                                        thinking = currentThinking
+                                        thinking = currentThinking,
+                                        toolCalls = currentToolCalls
                                     )
                                 }
                             }
