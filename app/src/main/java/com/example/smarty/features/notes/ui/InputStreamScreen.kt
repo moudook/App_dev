@@ -182,6 +182,7 @@ fun InputStreamScreen(
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when clicking AI tab
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
+    onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
     onStopGeneration: () -> Unit = {},
     // Chat history parameters
     chatSessions: List<ChatSession> = emptyList(),
@@ -649,6 +650,9 @@ onPlayYouTube: (String) -> Unit = {},
     
     // Research Mode State
     var isResearchMode by remember { mutableStateOf(false) }
+    
+    // Image Generation Mode State
+    var isImageGenMode by remember { mutableStateOf(false) }
 
     // Filtered Notes Logic
     // OPTIMIZATION: Filter logic moved to ViewModel (SmartyViewModel.notes)
@@ -1690,7 +1694,12 @@ onPlayYouTube: (String) -> Unit = {},
                                 // textValue is derived and may be stale in the closure
                                 val actualText = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text
                                 if (actualText.isNotBlank() || currentInputAttachments.isNotEmpty()) {
-                                    if (isChatMode) {
+                                    if (isChatMode && isImageGenMode) {
+                                        // Direct image generation mode
+                                        onGenerateImageDirect(actualText)
+                                        chatModeTextValue = TextFieldValue("")
+                                        isImageGenMode = false // Auto-exit image gen mode after submit
+                                    } else if (isChatMode) {
                                         onSendChatMessage(actualText, currentInputAttachments)
                                         chatModeTextValue = TextFieldValue("")
                                     } else if (!isSearchMode) {
@@ -1839,6 +1848,12 @@ onPlayYouTube: (String) -> Unit = {},
                             isResearchMode = isResearchMode,
                             onToggleResearchMode = {
                                 isResearchMode = !isResearchMode
+                            },
+                            // Image generation mode toggle
+                            isImageGenMode = isImageGenMode,
+                            onToggleImageGenMode = {
+                                isImageGenMode = !isImageGenMode
+                                if (isImageGenMode) isResearchMode = false // Mutual exclusivity
                             },
                             showScrollButton = chatListState.canScrollForward || chatListState.canScrollBackward,
                             isAtLatest = !chatListState.canScrollBackward,

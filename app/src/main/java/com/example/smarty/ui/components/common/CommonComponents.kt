@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -155,9 +156,9 @@ fun StatCard(
                 ) {
                     Icon(
                         imageVector = if (trend.isPositive) 
-                            Icons.Filled.TrendingUp
+                            Icons.AutoMirrored.Filled.TrendingUp
                         else 
-                            Icons.Filled.TrendingDown,
+                            Icons.AutoMirrored.Filled.TrendingDown,
                         contentDescription = null,
                         tint = if (trend.isPositive) 
                             MaterialTheme.colorScheme.primary 

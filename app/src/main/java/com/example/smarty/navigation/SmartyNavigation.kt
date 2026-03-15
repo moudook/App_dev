@@ -129,6 +129,7 @@ fun SmartyNavHost(
     isChatProcessing: Boolean = false,
     agentActivity: com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity? = null,
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
+    onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
     onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
@@ -371,6 +372,7 @@ fun SmartyNavHost(
                 isChatProcessing = isChatProcessing,
                 agentActivity = agentActivity,
                 onSendChatMessage = onSendChatMessage,
+                onGenerateImageDirect = onGenerateImageDirect,
                 onStopGeneration = viewModel::stopGeneration,
                 onExitChatMode = onExitChatMode,
                 onEnterChatMode = onEnterChatMode,

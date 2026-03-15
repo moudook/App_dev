@@ -249,4 +249,5 @@ SUPABASE_SCHEMA_v*.sql
 DATABASE_SCHEMA_v*.sql
 MIGRATION_v*.sql
 supabase_add_thinking_column.sql
-
+
+ServerAgent.kt

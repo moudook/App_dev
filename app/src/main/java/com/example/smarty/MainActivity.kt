@@ -511,6 +511,9 @@ class MainActivity : ComponentActivity() {
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },
+                                    onGenerateImageDirect = { prompt ->
+                                        viewModel.generateImageDirect(prompt)
+                                    },
                                     onExitChatMode = {
                                         viewModel.exitChatMode()
                                     },

@@ -61,7 +61,7 @@ data class SmartyShapes(
     val skeleton: RoundedCornerShape = RoundedCornerShape(4.dp)
 )
 
-val LocalShapes = staticCompositionLocalOf { SmartyShapes() }
+public val LocalShapes = staticCompositionLocalOf { SmartyShapes() }
 
 /**
  * Access shapes from any composable

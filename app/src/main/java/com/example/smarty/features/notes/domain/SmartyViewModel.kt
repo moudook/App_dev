@@ -1646,6 +1646,13 @@ class SmartyViewModel(
         chatFeatureManager.sendChatMessage(content, attachments)
     }
 
+    /**
+     * Direct image generation via Krea API (delegated to ChatFeatureManager).
+     */
+    fun generateImageDirect(prompt: String, aspectRatio: String = "1:1") {
+        chatFeatureManager.generateImageDirect(prompt, aspectRatio)
+    }
+
     // ==================== Calendar Operations (delegated to CalendarFeatureManager) ====================
 
     /**

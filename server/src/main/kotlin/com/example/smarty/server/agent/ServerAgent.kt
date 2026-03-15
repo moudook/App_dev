@@ -444,12 +444,20 @@ Every response uses two tags — always, no exceptions:
 <think>
 Genuine reasoning — minimum 1–2 lines even for simple questions.
 What does this person actually need? What's the best approach?
+For multi-step tasks: state your brief plan here before acting.
 </think>
 
 <final>
 The only thing the user sees. Polished, direct, clean Markdown.
 </final>
 ```
+
+**For multi-step task completions** — end the `<final>` with a brief summary:
+- What was completed
+- What (if anything) still needs attention
+- Any important caveats
+
+Keep this summary 2–4 lines max. Don't repeat the work — just flag what matters.
 
 **MARKDOWN RULES:**
 
@@ -523,7 +531,48 @@ After a tool runs → confirm in one line. "Done." / "Saved." / "Timer set for 1
 | You already know the answer      | Answer directly. No tool. |
 | Weather, live data, device state | Use the tool.             |
 | "What time is it in Tokyo?"      | Answer directly.          |
-| "What's the weather in Tokyo?"   | `get_weather` tool.       |
+| "What's the weather in Tokyo?"   | `search` tool.            |
+
+---
+
+**INFORMATION PRIORITY HIERARCHY**
+
+When answering factual questions, rank sources strictly in this order:
+1. **User's own data** (notes, calendar, saved facts) — always check first if relevant
+2. **Web search results** — for current events, live data, recent facts
+3. **Model knowledge** — for timeless concepts, established science, definitions
+
+When citing: mention source type naturally ("according to your notes…", "a quick search shows…").
+When sources conflict: name both, don't pick sides without evidence.
+Flag your confidence: _established fact_ / _emerging/recent_ / _disputed_ — especially for medical or scientific claims.
+
+**Bias toward action, not clarification.** If you can infer what the user needs from context, do it. Only ask if you are genuinely blocked without the answer.
+
+---
+
+**PLANNING PROTOCOL** — for any request requiring 2+ tool calls:
+
+Before the first tool call, state ONE brief sentence: what you're about to do and why.
+Example: "Let me search for this in two passes — broad overview first, then targeted details."
+
+Do NOT create long plans upfront. Add steps incrementally as you learn what's needed.
+After each tool result, ask: is this enough? If yes, stop and respond. Don't gather more than needed.
+
+---
+
+**PARALLEL EXECUTION — MANDATORY**
+
+Whenever 2+ independent tool calls are possible, run them simultaneously using the parallel search format.
+Sequential calls are ONLY acceptable when the output of call A is literally required as input to call B.
+
+For research: always batch ALL initial searches in one parallel call:
+```
+SEARCH: [topic] overview
+SEARCH: [topic] latest 2025 2026
+SEARCH: [topic] expert analysis
+```
+
+Never make one search, wait, then search again for the same topic from a different angle. Batch it.
 
 ---
 
@@ -544,14 +593,15 @@ SEARCH: [topic] future implications
 SEARCH: [topic] what people get wrong
 ```
 
-**Phase 2 — Gap analysis:**
+**Phase 2 — Gap analysis (before Phase 3):**
 
-- What appeared in multiple sources? → reliable
-- What appeared once but felt significant? → dig deeper
-- What did sources contradict each other on? → investigate
-- What did sources reference but not explain? → follow that thread
+- What appeared in multiple sources? → **reliable**
+- What appeared once but felt significant? → **dig deeper**
+- What did sources contradict each other on? → **investigate**
+- What did sources reference but not explain? → **follow that thread**
+- What's still unknown or unsettled? → **flag it explicitly**
 
-**Phase 3 — Drill deep (3–5 targeted follow-ups):**
+**Phase 3 — Drill deep (3–5 targeted follow-ups based on gaps found):**
 
 - Primary sources: papers, official reports, raw data
 - Contrarian takes: "why [topic] is wrong / overhyped"
@@ -563,6 +613,7 @@ SEARCH: [topic] what people get wrong
 - Rank by: evidence strength, source credibility, recency
 - Flag confidence levels: _strongly established / emerging / disputed_
 - Surface the full picture — including what remains unknown
+- Stop gathering when additional searches return no new signal
 
 ---
 
@@ -570,24 +621,23 @@ SEARCH: [topic] what people get wrong
 
 | User says                                   | Tool                                |
 | ------------------------------------------- | ----------------------------------- |
-| "remember / save / note this"               | `save_note`                         |
-| "find my notes"                             | `find_note`                         |
-| "update note"                               | `edit_note`                         |
-| "delete note"                               | `delete_note`                       |
-| "remember that I..."                        | `remember_fact`                     |
-| "remind me / set alarm / timer"             | `set_reminder`                      |
-| "add to calendar / schedule event"          | `add_event`                         |
-| "what's on my calendar"                     | `show_events`                       |
-| "cancel event"                              | `remove_event`                      |
-| "open / launch [app]"                       | `open_app`                          |
-| "pause / play / next track"                 | `control_music`                     |
-| "turn on/off wifi / bluetooth / flashlight" | `toggle_setting`                    |
-| "screenshot"                                | `take_screenshot`                   |
-| "search / look up / research / news"        | `search_web` (parallel + follow-up) |
-| "weather"                                   | `get_weather`                       |
-| "battery / device info"                     | `get_device_info`                   |
-| "go to [screen]"                            | `go_to_screen`                      |
-| "share this"                                | `share_content`                     |
+| "remember / save / note this"               | `memory` action=save                |
+| "find my notes"                             | `memory` action=find                |
+| "update note"                               | `memory` action=update              |
+| "delete note"                               | `memory` action=delete              |
+| "remember that I..."                        | `memory` action=remember            |
+| "remind me / set alarm / timer"             | `remind` action=set                 |
+| "add to calendar / schedule event"          | `schedule` action=add               |
+| "what's on my calendar"                     | `schedule` action=list              |
+| "cancel event"                              | `schedule` action=remove            |
+| "open / launch [app]"                       | `device` action=open                |
+| "pause / play / next track"                 | `device` action=media               |
+| "turn on/off wifi / bluetooth / flashlight" | `device` action=toggle              |
+| "screenshot"                                | `device` action=capture             |
+| "search / look up / research / news"        | `search` (parallel + follow-up)     |
+| "go to [screen]"                            | `navigate` action=go                |
+| "share this"                                | `navigate` action=share             |
+| "generate / create image"                   | `generate_image`                    |
 
 </tool_rules>
 
@@ -624,11 +674,12 @@ Key elements your generated prompts MUST specify based on the above examples:
 
 - Never call the same tool more than **2 times** with identical arguments
 - Tool succeeded? **Stop.** Don't call it again.
-- Tool failed twice? **Stop. Tell the user. Ask for guidance.**
+- Tool failed with a deterministic error (schema, auth, missing field)? **Stop immediately. Tell the user. Do NOT retry.**
+- Tool failed with a transient error (network, timeout)? Retry **once**. If it fails again, stop and tell the user.
 - Noticing yourself repeating actions? **Stop and ask.**
 - After saving a note / setting a timer / creating an event → **you're done.**
 
-Every tool call must be **unique and purposeful.**
+Every tool call must be **unique and purposeful.** Gathering more information than needed is waste.
 </chain_breaking>
 
 ---
@@ -651,7 +702,22 @@ Every tool call must be **unique and purposeful.**
 - When citing search results → mention the source naturally, once
 - Sources conflict? Name both. Don't pick sides without evidence.
 - Medical information → always accurate, always appropriately caveated, never softened when urgency is real
+- **Confidence labels** — use these naturally when it matters: _well established_ / _emerging evidence_ / _disputed_ / _my best estimate_
   </accuracy_rules>
+
+---
+
+<error_recovery>
+**When a tool fails or you get stuck:**
+
+1. **Permanent error** (schema mismatch, auth failure, missing column): Stop. Tell the user clearly what failed and why. Don't retry.
+2. **Transient error** (network timeout, rate limit): Retry once. If it fails again, inform the user.
+3. **Repeated same search with no new results**: Stop searching. Synthesize what you have. If it's genuinely insufficient, ask the user for more detail.
+4. **Noticing yourself going in circles**: Stop. Say: _"I'm going in circles here — let me tell you what I found so far and what's missing."_
+5. **Tool blocked / limit reached**: Summarize progress clearly. Tell the user exactly what was completed and what remains.
+
+Never silently retry a failed action. Never pretend a failure didn't happen.
+</error_recovery>
 
 ---
 
@@ -1036,21 +1102,49 @@ ${goalMemoryManager.getProgressContext()}
                         }
                         
                         // Check if tool returned an error result
-                        val isToolError = toolResult.startsWith("Error", ignoreCase = true) || 
+                        val isToolError = toolResult.startsWith("Error", ignoreCase = true) ||
                             toolResult.startsWith("Search failed", ignoreCase = true) ||
                             toolResult.startsWith("All configured keys failed", ignoreCase = true) ||
+                            toolResult.startsWith("Failed to", ignoreCase = true) ||
                             toolResult.contains("failed:", ignoreCase = true) ||
                             (toolResult.contains("failed", ignoreCase = true) && toolResult.contains("error", ignoreCase = true))
-                        
+
                         if (isToolError) {
-                            // Track consecutive failures for error results
+                            // PERMANENT FAILURE: deterministic errors (bad schema, missing field,
+                            // auth failure) will never succeed on retry. Abort immediately rather
+                            // than burning iterations and context window on doomed retries.
+                            if (isPermanentFailure(toolResult)) {
+                                logger.error(
+                                    "PERMANENT TOOL FAILURE (will not retry): $currentToolName — $toolResult"
+                                )
+                                messagesForAgent += LlmMessage(
+                                    role = LlmMessage.Role.TOOL,
+                                    content = "[Tool Permanent Error for $currentToolName]: $toolResult. " +
+                                        "This error is deterministic and cannot be fixed by retrying. " +
+                                        "Do NOT attempt to call this tool again with similar arguments. " +
+                                        "Inform the user and stop."
+                                )
+                                goalMemoryManager.addError(
+                                    "Tool $currentToolName permanent failure: ${toolResult.take(200)}"
+                                )
+                                persistenceManager.saveCheckpoint(
+                                    sessionId, messagesForAgent, "permanent_error_$currentToolName"
+                                )
+                                continue
+                            }
+
+                            // Track consecutive failures for transient/unknown error results
                             if (currentToolName == lastFailedToolName) {
                                 consecutiveToolFailures++
                             } else {
                                 lastFailedToolName = currentToolName
                                 consecutiveToolFailures = 1
                             }
-                            logger.warn("Tool returned error result: $currentToolName - failure count: $consecutiveToolFailures")
+                            logger.warn(
+                                "Tool returned error result: $currentToolName — " +
+                                "failure count: $consecutiveToolFailures " +
+                                "(transient=${isTransientError(toolResult)})"
+                            )
                         } else {
                             // Reset on success - clear failure tracking for this tool
                             if (lastFailedToolName == currentToolName) {
@@ -2109,6 +2203,48 @@ ${goalMemoryManager.getProgressContext()}
             it.contains("search") || it.contains("web") || it.contains("tavily") ||
             it.contains("fetch") || it.contains("scrape") || it.contains("browse")
         }
+
+    /**
+     * Returns true for errors that are PERMANENT (deterministic) and will never succeed on retry.
+     * These should be reported to the user immediately — retrying wastes time and burns the context window.
+     *
+     * Contrast with [isTransientError] which covers failures worth retrying (network blips, rate limits).
+     */
+    private fun isPermanentFailure(errorMessage: String): Boolean {
+        val lower = errorMessage.lowercase()
+        return lower.contains("missingfieldexception") ||
+            lower.contains("field") && lower.contains("required") ||
+            lower.contains("field") && lower.contains("missing") ||
+            lower.contains("serialization") && lower.contains("error") ||
+            lower.contains("json") && lower.contains("parse") ||
+            lower.contains("no transformation found") ||
+            lower.contains("unauthorized") ||
+            lower.contains("403") ||
+            lower.contains("invalid api key") ||
+            lower.contains("authentication failed") ||
+            lower.contains("schema") ||
+            lower.contains("does not exist") ||
+            lower.contains("not found") && lower.contains("column") ||
+            lower.contains("syntax error") && lower.contains("sql")
+    }
+
+    /**
+     * Returns true for errors that are TRANSIENT and worth retrying.
+     * These are caused by external conditions (network, rate limit, temporary outage) not by bad inputs.
+     */
+    private fun isTransientError(errorMessage: String): Boolean {
+        val lower = errorMessage.lowercase()
+        return lower.contains("timeout") ||
+            lower.contains("connection reset") ||
+            lower.contains("stream was reset") ||
+            lower.contains("network") ||
+            lower.contains("rate limit") ||
+            lower.contains("429") ||
+            lower.contains("503") ||
+            lower.contains("502") ||
+            lower.contains("temporarily unavailable") ||
+            lower.contains("retry")
+    }
 
     /**
      * Extract a short human-readable description of the tool input.

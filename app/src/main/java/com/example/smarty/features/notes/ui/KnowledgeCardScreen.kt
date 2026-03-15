@@ -50,7 +50,7 @@ import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
-import com.example.smarty.ui.components.MarkdownRenderer
+import com.example.smarty.ui.components.markdown.MarkdownRenderer
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import com.example.smarty.core.common.util.ContentTypeDetector

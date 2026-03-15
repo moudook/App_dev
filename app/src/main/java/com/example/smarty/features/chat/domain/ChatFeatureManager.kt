@@ -1270,6 +1270,67 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         dispatchQuery(content, attachments)
     }
 
+    /**
+     * Direct image generation via Krea API.
+     * Adds user message, shows generating state, calls server, posts result.
+     */
+    fun generateImageDirect(prompt: String, aspectRatio: String = "1:1") {
+        if (prompt.isBlank()) return
+
+        scope.launch {
+            try {
+                chatManager.setProcessing(true)
+                chatManager.ensureSession()
+
+                // Add user message
+                val userMessage = chatManager.addUserMessage("🎨 Generate image: $prompt")
+
+                // Show activity indicator
+                _agentActivity.value = AgentActivity(
+                    type = AgentActivity.Type.TOOL_RUNNING,
+                    displayText = "Generating image...",
+                    toolName = "generate_image"
+                )
+
+                // Call server
+                val result = remoteAgentService.generateImageDirect(prompt, aspectRatio)
+
+                _agentActivity.value = null
+
+                val responseContent = if (result != null && result.success) {
+                    "✨ Image generation started!\n\nJob ID: `${result.jobId}`\n${result.message ?: "Your image is being generated..."}"
+                } else {
+                    "❌ Image generation failed. ${result?.message ?: "Please try again."}"
+                }
+
+                val smartyMessage = ChatMessage(
+                    id = java.util.UUID.randomUUID().toString(),
+                    role = ChatRole.SMARTY,
+                    content = responseContent,
+                    timestamp = System.currentTimeMillis()
+                )
+                chatManager.addSmartyMessage(smartyMessage)
+                chatManager.saveMessagePair(
+                    userMessage = userMessage,
+                    smartyMessage = smartyMessage
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Image generation error: ${e.message}", e)
+                _agentActivity.value = null
+
+                val errorMessage = ChatMessage(
+                    id = java.util.UUID.randomUUID().toString(),
+                    role = ChatRole.SMARTY,
+                    content = "❌ Image generation failed: ${e.message}",
+                    timestamp = System.currentTimeMillis()
+                )
+                chatManager.addSmartyMessage(errorMessage)
+            } finally {
+                chatManager.setProcessing(false)
+            }
+        }
+    }
+
     fun stopGeneration() {
         Log.d(TAG, "Stopping generation...")
         currentStreamingJob?.cancel()
