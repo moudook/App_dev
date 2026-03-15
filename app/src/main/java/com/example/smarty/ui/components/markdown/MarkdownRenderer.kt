@@ -1,8 +1,12 @@
 package com.example.smarty.ui.components.markdown
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +40,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.components.LaTeXView
@@ -126,7 +138,7 @@ fun MarkdownRenderer(
                         // Headers - ElevenLabs Style: Tighter, bolder, closer to content
                         trimmedLine.startsWith("### ") -> {
                             Spacer(modifier = Modifier.height(20.dp))
-                            Text(
+                            ClickableMarkdownText(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("### "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
@@ -134,16 +146,16 @@ fun MarkdownRenderer(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 20.sp,
                                     lineHeight = 28.sp,
-                                    letterSpacing = (-0.1).sp
-                                ),
-                                color = boldColor
+                                    letterSpacing = (-0.1).sp,
+                                    color = boldColor
+                                )
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             i++
                         }
                         trimmedLine.startsWith("## ") -> {
                             Spacer(modifier = Modifier.height(24.dp))
-                            Text(
+                            ClickableMarkdownText(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("## "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
@@ -151,16 +163,16 @@ fun MarkdownRenderer(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 24.sp,
                                     lineHeight = 32.sp,
-                                    letterSpacing = (-0.2).sp
-                                ),
-                                color = boldColor
+                                    letterSpacing = (-0.2).sp,
+                                    color = boldColor
+                                )
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             i++
                         }
                         trimmedLine.startsWith("# ") -> {
                             Spacer(modifier = Modifier.height(28.dp))
-                            Text(
+                            ClickableMarkdownText(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("# "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
@@ -168,9 +180,9 @@ fun MarkdownRenderer(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 28.sp,
                                     lineHeight = 38.sp,
-                                    letterSpacing = (-0.3).sp
-                                ),
-                                color = boldColor
+                                    letterSpacing = (-0.3).sp,
+                                    color = boldColor
+                                )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             i++
@@ -274,7 +286,7 @@ fun MarkdownRenderer(
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
+                                        ClickableMarkdownText(
                                             text = parseMarkdownToAnnotatedString(
                                                 taskText, normalColor, boldColor, normalColor, linkColor, codeColor
                                             ),
@@ -308,7 +320,7 @@ fun MarkdownRenderer(
                             Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
                                 Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize=16.sp), color = normalColor.copy(alpha = 0.7f))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
+                                ClickableMarkdownText(
                                     text = parseMarkdownToAnnotatedString(
                                         itemLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
@@ -350,7 +362,7 @@ fun MarkdownRenderer(
                                          modifier = Modifier.padding(top = 2.dp)
                                      )
                                      Spacer(modifier = Modifier.width(8.dp))
-                                     Text(
+                                     ClickableMarkdownText(
                                          text = parseMarkdownToAnnotatedString(
                                              itemLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                          ),
@@ -424,7 +436,7 @@ fun MarkdownRenderer(
                                     }
                                     .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
                             ) {
-                                Text(
+                                ClickableMarkdownText(
                                     text = parseMarkdownToAnnotatedString(
                                         quoteLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
@@ -603,7 +615,7 @@ fun MarkdownTable(
                             )
                         } else {
                             // Regular markdown rendering
-                            Text(
+                            ClickableMarkdownText(
                                 text = parseMarkdownToAnnotatedString(
                                     content = cellText,
                                     normalColor = if (isHeader) boldColor else normalColor,
@@ -615,9 +627,9 @@ fun MarkdownTable(
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 14.sp,
                                     fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                                    lineHeight = 20.sp
-                                ),
-                                color = if (isHeader) boldColor else normalColor
+                                    lineHeight = 20.sp,
+                                    color = if (isHeader) boldColor else normalColor
+                                )
                             )
                         }
                     }
@@ -655,13 +667,13 @@ fun StandardText(
             isStreaming = isStreaming
         )
     } else {
-        Text(
+        ClickableMarkdownText(
             text = parseMarkdownToAnnotatedString(
                 text, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
             ),
             style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 17.sp, 
-                lineHeight = 28.sp, 
+                fontSize = 17.sp,
+                lineHeight = 28.sp,
                 letterSpacing = 0.sp,
                 fontWeight = FontWeight.Medium,
                 color = normalColor
@@ -669,6 +681,42 @@ fun StandardText(
             modifier = Modifier.padding(vertical = 4.dp)
         )
     }
+}
+
+/**
+ * Helper composable for clickable markdown text with URL support.
+ */
+@Composable
+private fun ClickableMarkdownText(
+    text: androidx.compose.ui.text.AnnotatedString,
+    style: TextStyle,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    
+    // Extract URLs from the annotated string
+    val urls = remember(text) {
+        text.getStringAnnotations(tag = "URL", start = 0, end = text.text.length)
+            .map { it.item }
+            .distinct()
+    }
+    
+    Text(
+        text = text,
+        style = style,
+        modifier = modifier
+            .clickable(enabled = urls.isNotEmpty()) {
+                // Open the first URL when clicked
+                urls.firstOrNull()?.let { url ->
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // Failed to open URL - ignore
+                    }
+                }
+            }
+    )
 }
 
 /**
@@ -705,11 +753,11 @@ private fun RichTextWithLatex(
         // First pass: render non-math parts with proper line structure
         val textContent = segments.filter { !it.isLatex }.joinToString("") { it.content }
         if (textContent.isNotBlank()) {
-            Text(
+            ClickableMarkdownText(
                 text = annotatedString,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 16.sp, 
-                    lineHeight = 26.sp, 
+                    fontSize = 16.sp,
+                    lineHeight = 26.sp,
                     letterSpacing = 0.sp,
                     fontWeight = FontWeight.Normal,
                     color = normalColor

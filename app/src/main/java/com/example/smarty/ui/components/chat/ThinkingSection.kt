@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components.chat
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -10,6 +12,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -25,8 +28,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.AgentToolCallEntry
@@ -371,6 +380,8 @@ private fun ReasoningBlock(
     accentColor: Color,
     thinkingColors: ThinkingColors
 ) {
+    val context = LocalContext.current
+    
     // Typewriter effect
     var displayLength by remember { mutableIntStateOf(if (isStreaming) 0 else text.length) }
     LaunchedEffect(text, isStreaming) {
@@ -385,6 +396,40 @@ private fun ReasoningBlock(
     }
     val visible = remember(displayLength, text) {
         if (displayLength >= text.length) text else text.substring(0, displayLength)
+    }
+
+    // Create AnnotatedString with clickable URLs
+    val annotatedText = remember(visible) {
+        buildAnnotatedString {
+            append(visible)
+            
+            // Find and annotate URLs
+            val urlPattern = Regex("(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)")
+            var matchResult = urlPattern.find(visible)
+            while (matchResult != null) {
+                val url = matchResult.value
+                val startIndex = matchResult.range.first
+                val endIndex = matchResult.range.last + 1
+                
+                addStyle(
+                    style = SpanStyle(
+                        color = accentColor,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    start = startIndex,
+                    end = endIndex
+                )
+                
+                addStringAnnotation(
+                    tag = "URL",
+                    annotation = url,
+                    start = startIndex,
+                    end = endIndex
+                )
+                
+                matchResult = urlPattern.find(visible, startIndex + 1)
+            }
+        }
     }
 
     Row(
@@ -402,14 +447,33 @@ private fun ReasoningBlock(
                     shape = RoundedCornerShape(2.dp)
                 )
         )
+        
+        // Clickable text with URL support
+        val urls = remember(annotatedText) {
+            annotatedText.getStringAnnotations(tag = "URL", start = 0, end = annotatedText.text.length)
+                .map { it.item }
+                .distinct()
+        }
+        
         Text(
-            text  = visible,
+            text = annotatedText,
             style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily  = FontFamily.Monospace,
-                lineHeight  = 20.sp,
-                fontSize    = 11.sp
+                fontFamily = FontFamily.Monospace,
+                lineHeight = 20.sp,
+                fontSize = 11.sp,
+                color = thinkingColors.text.copy(alpha = 0.85f)
             ),
-            color = thinkingColors.text.copy(alpha = 0.85f)
+            modifier = Modifier.clickable(enabled = urls.isNotEmpty()) {
+                // Open the first URL when clicked
+                urls.firstOrNull()?.let { url ->
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // Failed to open URL - ignore
+                    }
+                }
+            }
         )
     }
 }
