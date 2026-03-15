@@ -981,9 +981,16 @@ ${goalMemoryManager.getProgressContext()}
                         // Extract a human-readable summary of what was sent to the tool
                         val inputSummary = extractInputSummary(currentToolName, currentToolArgs)
 
-                        // Truncate result to keep the trace manageable (UI shows max ~800 chars)
-                        val outputSummary = maskedToolResult.take(800)
-                            .let { if (maskedToolResult.length > 800) "$it…" else it }
+                        // For generate_image tool, keep the full structured JSON response
+                        val outputSummary = if (currentToolName == "generate_image") {
+                            maskedToolResult // Keep full JSON
+                        } else {
+                            // Truncate result for other tools to keep the trace manageable (UI shows max ~800 chars)
+                            maskedToolResult.take(800)
+                                .let { if (maskedToolResult.length > 800) "$it…" else it }
+                        }
+                        
+                        logger.debug("Tool call outputSummary for $currentToolName: $outputSummary")
 
                         // For web search: extract individual query→result pairs
                         val searchPairs: List<Pair<String, String?>> =

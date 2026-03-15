@@ -85,11 +85,7 @@ internal fun sanitizeThinking(text: String): String {
     s = s.replace(SanitisePatterns.xmlToolUse, "")
     s = s.replace(SanitisePatterns.thinkTags, "")
 
-    // Remove raw JSON blocks containing tool internals
-    s = s.replace(SanitisePatterns.jsonBlock, "")
-    s = s.replace(SanitisePatterns.functionCall, "")
-
-    // Remove specific field patterns
+    // Remove specific field patterns (less aggressive than full JSON block removal)
     s = s.replace(SanitisePatterns.toolCallId, "")
     s = s.replace(SanitisePatterns.toolIdField, "")
     s = s.replace(SanitisePatterns.roleField, "")

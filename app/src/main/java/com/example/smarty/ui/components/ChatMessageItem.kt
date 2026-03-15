@@ -538,12 +538,17 @@ fun ChatMessageItem(
 
         // Apply Bubble or Container (isDark already computed above)
 
-        // Inverted colors for user bubble: opposite of theme
-        val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
-        val userBubbleTextColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F5)
+        // Inverted colors for user bubble
+        // TODO: For Dark Theme - currently using off-white, consider reducing intensity or using a different shade later
+        val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
+        val userBubbleTextColor = if (isDark) {
+            Color(0xFF1A1A1A)
+        } else {
+            Color.Black
+        }
         
         // Pill-shaped bubble for user messages
-        val userBubbleShape = RoundedCornerShape(26.dp)
+        val userBubbleShape = RoundedCornerShape(20.dp)
 
 if (isUser) {
             Box(
@@ -557,7 +562,7 @@ if (isUser) {
                 ) {
                     Box(
                         modifier = Modifier.padding(
-                            horizontal = 16.dp,
+                            horizontal = 12.dp,
                             vertical = 10.dp
                         )
                     ) {

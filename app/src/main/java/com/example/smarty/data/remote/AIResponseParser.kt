@@ -80,6 +80,25 @@ object AIResponseParser {
     }
 
     /**
+     * Sanitizes JSON string to remove sensitive information like API keys, tokens, etc.
+     */
+    private fun sanitizeJson(json: String): String {
+        var sanitized = json
+        
+        // Remove sensitive information patterns
+        val sensitivePatterns = listOf(
+            Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*"[^"]*"""") to """ "$1": "REDACTED" """,
+            Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*[^,"}]*""") to """ "$1": "REDACTED" """
+        )
+        
+        sensitivePatterns.forEach { (pattern, replacement) ->
+            sanitized = sanitized.replace(pattern, replacement)
+        }
+        
+        return sanitized
+    }
+
+    /**
      * Extract JSON from AI response text and parse it into AIResponse.
      *
      * Handles various AI output formats:
@@ -105,10 +124,12 @@ object AIResponseParser {
             return null
         }
 
-        Log.d(TAG, "Extracted JSON: ${jsonStr.take(200)}")
+        // Sanitize JSON to remove sensitive information
+        val sanitizedJsonStr = sanitizeJson(jsonStr)
+        Log.d(TAG, "Extracted JSON: ${sanitizedJsonStr.take(200)}")
 
         return try {
-            val parsed = JsonParser.parseString(jsonStr).asJsonObject
+            val parsed = JsonParser.parseString(sanitizedJsonStr).asJsonObject
 
             // Extract todos array safely
             val todos = try {

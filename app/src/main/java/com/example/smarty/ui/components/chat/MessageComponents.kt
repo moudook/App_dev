@@ -38,8 +38,13 @@ fun UserMessageBubble(
 ) {
     // Inverted colors for user bubble: opposite of theme
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
-    val userBubbleTextColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F5)
+    val accentColor = LocalAccentColor.current
+    val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
+    val userBubbleTextColor = if (isDark) {
+        Color(0xFF1A1A1A)
+    } else {
+        Color.Black
+    }
     
     var showCopied by remember { mutableStateOf(false) }
     
@@ -56,10 +61,10 @@ fun UserMessageBubble(
     ) {
         Surface(
             color = userBubbleBackground,
-            shape = RoundedCornerShape(26.dp)
+            shape = RoundedCornerShape(16.dp)
         ) {
             Box(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = content,
