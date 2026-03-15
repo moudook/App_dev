@@ -60,7 +60,7 @@ class SpeechToTextState(
     private val maxRetries = 3
     private var lastIntent: Intent? = null
 
-    private val recognitionListener = object : RecognitionListener {
+    private val recognitionListener: RecognitionListener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             Log.d(TAG, "onReadyForSpeech")
             retryCount = 0  // Reset retry count on success
