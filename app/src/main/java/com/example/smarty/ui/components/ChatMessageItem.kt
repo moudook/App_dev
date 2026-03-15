@@ -394,15 +394,22 @@ fun ChatMessageItem(
                                 "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
                                 else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
                             }
-                            
+
                             // The URL might be stored in outputSummary once available
                             val imageUrl = generateImageCall.outputSummary?.let { summary ->
+                                android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
                                 if (summary.startsWith("http")) summary
                                 else if (summary.startsWith("{") && summary.contains("\"url\"")) {
                                     // Robust extraction of url from JSON string without adding heavy dependencies
-                                    summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
-                                } else null
+                                    val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
+                                    android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
+                                    extracted
+                                } else {
+                                    android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
+                                    null
+                                }
                             }
+                            android.util.Log.d("ChatMessageItem", "Final imageUrl: $imageUrl")
                             
                             com.example.smarty.ui.components.krea.ImageGenerationCard(
                                 state = state,
@@ -1235,3 +1242,4 @@ private fun cleanContent(raw: String): String {
     
     return text.trim()
 }
+

@@ -97,11 +97,32 @@ class SpeechToTextState(
                     retryCount++
                     Log.i(TAG, "Retrying speech recognition (attempt $retryCount/$maxRetries)")
                     handler.postDelayed({
-                        lastIntent?.let { intent ->
-                            speechRecognizer?.startListening(intent)
+                        // Recreate the recognizer on retry to avoid stale state
+                        try {
+                            speechRecognizer?.destroy()
+                            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                            speechRecognizer?.setRecognitionListener(recognitionListener)
+                            lastIntent?.let { intent ->
+                                speechRecognizer?.startListening(intent)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to retry speech recognition: ${e.message}", e)
+                            isListening = false
+                            onError("Failed to retry: ${e.message}")
                         }
                     }, 1000L * retryCount)  // Exponential backoff: 1s, 2s, 3s
                     return
+                }
+            }
+            
+            // Client error - recreate recognizer for next attempt
+            if (error == SpeechRecognizer.ERROR_CLIENT) {
+                Log.w(TAG, "Client error - will recreate recognizer on next start")
+                try {
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error destroying recognizer after client error: ${e.message}")
                 }
             }
             
@@ -153,11 +174,13 @@ class SpeechToTextState(
             return
         }
 
+        Log.d(TAG, "Starting speech recognition...")
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             Log.e(TAG, "Speech recognition not available")
             onError("Speech recognition not available on this device")
             return
         }
+        Log.d(TAG, "Speech recognition is available")
 
         // Set listening state BEFORE creating recognizer to prevent race condition
         // where duplicate calls slip through before the recognizer is created
@@ -169,10 +192,23 @@ class SpeechToTextState(
 
         try {
             // Destroy existing recognizer if any
-            speechRecognizer?.destroy()
+            try {
+                speechRecognizer?.destroy()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error destroying previous recognizer: ${e.message}")
+            }
+            speechRecognizer = null
 
             // Create new recognizer
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            val newRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            if (newRecognizer == null) {
+                Log.e(TAG, "Failed to create SpeechRecognizer - returned null")
+                isListening = false
+                onError("Speech recognition is not available on this device")
+                return
+            }
+            
+            speechRecognizer = newRecognizer
             speechRecognizer?.setRecognitionListener(recognitionListener)
 
             // Configure intent with robust settings
@@ -196,6 +232,7 @@ class SpeechToTextState(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start listening: ${e.message}", e)
             isListening = false
+            speechRecognizer = null
             onError("Failed to start speech recognition: ${e.message}")
         }
     }

@@ -44,8 +44,10 @@ import kotlinx.coroutines.delay
 private object SanitisePatterns {
     // Tool call IDs like "call_abc123" or "toolu_01abc..."
     val toolCallId = Regex("""(?i)\b(call_[a-zA-Z0-9_-]+|toolu_[a-zA-Z0-9_-]+)\b""")
-    // Raw JSON blocks (objects or arrays)
-    val jsonBlock = Regex("""\{[\s\S]*?"(name|type|function|parameters|tool_call_id|id)"[\s\S]*?\}""")
+    // Raw JSON blocks (objects or arrays) - more aggressive matching
+    val jsonBlock = Regex("""\{[\s\S]*?"(name|type|function|parameters|tool_call_id|id|description|properties|required|input_schema|tool_choice)"[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
+    // JSON arrays
+    val jsonArray = Regex("""\[[\s\S]*?\{[\s\S]*?"(type|properties|required|name|description)"[\s\S]*?\}[\s\S]*?\]""", RegexOption.DOT_MATCHES_ALL)
     // SQL statements
     val sqlStatement = Regex("""(?i)\b(CREATE|ALTER|DROP)\s+(TABLE|VIEW|INDEX|POLICY|TYPE|FUNCTION|TRIGGER)\b[^;]*;""", RegexOption.DOT_MATCHES_ALL)
     // System prompt identifiers
@@ -53,8 +55,8 @@ private object SanitisePatterns {
     val medicalPrompt = Regex("""(?i)MEDICAL ADVICE & DIAGNOSIS AUTHORIZATION[\s\S]*?trusted medical advisor""", RegexOption.DOT_MATCHES_ALL)
     // Schema file references
     val schemaFile = Regex("""(?i)DATABASE_SCHEMA_v\d+\.\d+\.\d+_[A-Z]+\.sql""")
-    // Tool schema JSON vomit
-    val toolSchema = Regex("""(?i)\{\s*"name"\s*:\s*"[a-zA-Z0-9_]+"\s*,\s*"description"\s*:.*?\}""", RegexOption.DOT_MATCHES_ALL)
+    // Tool schema JSON vomit - more comprehensive
+    val toolSchema = Regex("""(?i)\{\s*"(name|type|description|properties|required|input_schema)"\s*:[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
     // Internal trace markers like [TOOL_START], [TOOL_END], tool_use blocks
     val traceMarkers = Regex("""(?i)\[(TOOL_START|TOOL_END|FUNCTION_CALL|TOOL_RESULT|TOOL_USE)\]""")
     // "tool_call_id": "..." or "id": "call_..." patterns
@@ -66,10 +68,16 @@ private object SanitisePatterns {
     // Content like "name": "search_web" that exposes tool internals
     val toolNameField = Regex(""""name"\s*:\s*"[a-z_]+"""")
     // Thinking tag remnants
-    val thinkTags = Regex("""</?think>|</?thinking>|</?internal>""", RegexOption.IGNORE_CASE)
+    val thinkTags = Regex("""</?think>|</?thinking>|</?internal>|</?final>""", RegexOption.IGNORE_CASE)
     // XML-like tool blocks <tool_call>...</tool_call>
     val xmlToolBlocks = Regex("""<tool_call>[\s\S]*?</tool_call>""", RegexOption.IGNORE_CASE)
     val xmlToolUse = Regex("""<tool_use>[\s\S]*?</tool_use>""", RegexOption.IGNORE_CASE)
+    // Entire JSON schema blocks that start with "type": "object" or similar
+    val fullJsonSchema = Regex("""\{[\s\S]*?"type"\s*:\s*"object"[\s\S]*?"properties"\s*:\s*\{[\s\S]*?\}[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
+    // Tool definitions with input_schema
+    val toolDefinition = Regex("""\{[\s\S]*?"input_schema"\s*:[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
+    // Line breaks with only JSON-like content
+    val jsonOnlyLines = Regex("""(?m)^\s*[\{\[\}\],:"]+\s*$""")
 }
 
 /**
@@ -85,25 +93,37 @@ internal fun sanitizeThinking(text: String): String {
     s = s.replace(SanitisePatterns.xmlToolUse, "")
     s = s.replace(SanitisePatterns.thinkTags, "")
 
+    // Remove full JSON schemas and tool definitions (most aggressive first)
+    s = s.replace(SanitisePatterns.fullJsonSchema, "")
+    s = s.replace(SanitisePatterns.toolDefinition, "")
+    s = s.replace(SanitisePatterns.jsonArray, "")
+    s = s.replace(SanitisePatterns.jsonBlock, "")
+    s = s.replace(SanitisePatterns.toolSchema, "")
+    
     // Remove specific field patterns (less aggressive than full JSON block removal)
     s = s.replace(SanitisePatterns.toolCallId, "")
     s = s.replace(SanitisePatterns.toolIdField, "")
     s = s.replace(SanitisePatterns.roleField, "")
     s = s.replace(SanitisePatterns.toolNameField, "")
     s = s.replace(SanitisePatterns.traceMarkers, "")
+    s = s.replace(SanitisePatterns.functionCall, "")
 
     // Remove SQL/schema
     s = s.replace(SanitisePatterns.sqlStatement, "")
     s = s.replace(SanitisePatterns.schemaFile, "")
-    s = s.replace(SanitisePatterns.toolSchema, "")
 
     // Remove system prompt leaks
     s = s.replace(SanitisePatterns.systemPrompt, "")
     s = s.replace(SanitisePatterns.medicalPrompt, "")
+    
+    // Remove lines that are just JSON syntax
+    s = s.replace(SanitisePatterns.jsonOnlyLines, "")
 
     // Clean up resulting whitespace mess
     s = s.replace(Regex("""\n{3,}"""), "\n\n")  // Collapse triple+ newlines
     s = s.replace(Regex("""^\s*\n""", RegexOption.MULTILINE), "")  // Remove blank lines at start
+    s = s.replace(Regex("""\s*,\s*\n"""), "\n")  // Remove trailing commas
+    s = s.replace(Regex(""":\s*\n"""), "\n")  // Remove colons at end of lines
     return s.trim()
 }
 
@@ -204,7 +224,9 @@ fun ThinkingSection(
             enter = expandVertically(tween(300)) + fadeIn(tween(200)),
             exit = shrinkVertically(tween(250)) + fadeOut(tween(150))
         ) {
+            android.util.Log.d("ThinkingSection", "Raw thinkingText: $thinkingText")
             val safeText = sanitizeThinking(thinkingText)
+            android.util.Log.d("ThinkingSection", "Sanitized thinkingText: $safeText")
             Row(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
                 // Subtle vertical line to indicate hierarchy
                 Box(

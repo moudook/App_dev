@@ -63,17 +63,25 @@ class RemoteDataSource(
      */
     suspend fun pullAllData(lastSyncAt: Long? = null, limit: Int = 1000): SyncPullResponse? {
         Log.i(TAG, ">>> RemoteDataSource.pullAllData STARTING - lastSyncAt=$lastSyncAt")
+        val serverUrl = serverUrlProvider()
+        Log.d(TAG, "Server URL: $serverUrl")
+        
+        val token = getFirebaseToken()
+        if (token == null) {
+            Log.e(TAG, "Cannot pull data - no Firebase authentication token available")
+            return null
+        }
+        Log.d(TAG, "Firebase token obtained successfully")
+        
         return try {
-            val baseUrl = serverUrlProvider()
-            val token = getFirebaseToken() ?: return null
-
             // Retry logic with exponential backoff
             val maxRetries = 3
             var lastException: Exception? = null
 
             for (attempt in 1..maxRetries) {
                 try {
-                    val response = client.post("$baseUrl/api/v1/sync/pull") {
+                    Log.d(TAG, "Pull attempt $attempt/$maxRetries to $serverUrl/api/v1/sync/pull")
+                    val response = client.post("$serverUrl/api/v1/sync/pull") {
                         addAuthHeaders(token)
                         contentType(ContentType.Application.Json)
                         // DELTA SYNC: Send lastSyncAt timestamp
@@ -84,20 +92,23 @@ class RemoteDataSource(
                     }
 
                     if (response.status.isSuccess()) {
-                        Log.i(TAG, "Pull successful on attempt $attempt (lastSyncAt=$lastSyncAt)")
-                        return response.body()
+                        val pullResponse: SyncPullResponse = response.body()
+                        Log.i(TAG, "Pull successful: ${pullResponse.notes.size} notes, ${pullResponse.sessions.size} sessions, ${pullResponse.events.size} events, ${pullResponse.generatedImages.size} images")
+                        return pullResponse
                     } else {
-                        Log.e(TAG, "Failed to pull data: ${response.status} (attempt $attempt)")
+                        val errorBody = try { response.body<String>() } catch (e: Exception) { "Unable to read error body" }
+                        Log.e(TAG, "Failed to pull data: ${response.status} (attempt $attempt) - $errorBody")
                         if (attempt == maxRetries) {
-                            Log.e(TAG, "Pull failed after $attempt attempts")
+                            Log.e(TAG, "Pull failed after $maxRetries attempts")
                             return null
                         }
                     }
                 } catch (e: Exception) {
                     lastException = e
-                    Log.w(TAG, "Pull attempt $attempt failed: ${e.message}")
+                    Log.w(TAG, "Pull attempt $attempt failed: ${e.javaClass.simpleName}: ${e.message}")
                     if (attempt < maxRetries) {
                         val delayMs = (1000 * attempt).toLong() // Exponential backoff: 1s, 2s, 3s
+                        Log.d(TAG, "Retrying after ${delayMs}ms delay...")
                         kotlinx.coroutines.delay(delayMs)
                     }
                 }
@@ -106,7 +117,7 @@ class RemoteDataSource(
             Log.e(TAG, "Pull failed after all retries", lastException)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "Error pulling data: ${e.message}", e)
+            Log.e(TAG, "Error pulling data: ${e.javaClass.simpleName}: ${e.message}", e)
             null
         }
     }
@@ -160,20 +171,29 @@ class RemoteDataSource(
     suspend fun fetchNotes(): List<NoteInfo> {
         return try {
             val baseUrl = serverUrlProvider()
-            val token = getFirebaseToken() ?: return emptyList()
+            Log.d(TAG, "Fetching notes from: $baseUrl/api/v1/notes")
+            
+            val token = getFirebaseToken()
+            if (token == null) {
+                Log.e(TAG, "Cannot fetch notes - no Firebase authentication token")
+                return emptyList()
+            }
 
             val response = client.get("$baseUrl/api/v1/notes") {
                 addAuthHeaders(token)
             }
 
             if (response.status.isSuccess()) {
-                response.body()
+                val notes: List<NoteInfo> = response.body()
+                Log.i(TAG, "Successfully fetched ${notes.size} notes from server")
+                return notes
             } else {
-                Log.e(TAG, "Failed to fetch notes: ${response.status}")
+                val errorBody = try { response.body<String>() } catch (e: Exception) { "Unable to read error body" }
+                Log.e(TAG, "Failed to fetch notes: ${response.status} - $errorBody")
                 emptyList()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching notes: ${e.message}", e)
+            Log.e(TAG, "Error fetching notes: ${e.javaClass.simpleName}: ${e.message}", e)
             emptyList()
         }
     }
