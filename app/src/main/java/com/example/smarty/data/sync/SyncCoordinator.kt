@@ -13,6 +13,8 @@ import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
 
 class SyncCoordinator(
     private val context: Context,
@@ -24,6 +26,7 @@ class SyncCoordinator(
     private val networkMonitor: NetworkMonitor
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val generatedImagesPrefs: SharedPreferences = context.getSharedPreferences(PREFS_GENERATED_IMAGES, Context.MODE_PRIVATE)
     
     // MUTEX LOCK: Prevents duplicate concurrent pull requests
     // This fixes the issue where 3 identical pull requests fire within ~2 seconds
@@ -37,13 +40,53 @@ class SyncCoordinator(
     val isOnline = networkMonitor.isOnline
 
     /**
+     * Get all stored generated images from local cache.
+     * @return List of generated image info maps with id, prompt, imageUrl, etc.
+     */
+    fun getStoredGeneratedImages(): List<Map<String, Any>> {
+        val images = mutableListOf<Map<String, Any>>()
+        try {
+            val allKeys = generatedImagesPrefs.all
+            allKeys.forEach { (id, jsonStr) ->
+                if (jsonStr is String) {
+                    try {
+                        val json = JSONObject(jsonStr)
+                        val imgMap = mutableMapOf<String, Any>()
+                        imgMap["id"] = json.getString("id")
+                        imgMap["prompt"] = json.getString("prompt")
+                        imgMap["status"] = json.getString("status")
+                        val imageUrl = json.getString("imageUrl")
+                        if (imageUrl.isNotEmpty()) {
+                            imgMap["imageUrl"] = imageUrl
+                        }
+                        val supabaseUrl = json.getString("supabaseUrl")
+                        if (supabaseUrl.isNotEmpty()) {
+                            imgMap["supabaseUrl"] = supabaseUrl
+                        }
+                        imgMap["createdAt"] = json.getLong("createdAt")
+                        images.add(imgMap)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to parse generated image: $id", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get stored generated images", e)
+        }
+        return images.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
+    }
+
+    /**
      * OPTIMIZED PULL with mutex lock and debouncing
      * - Mutex prevents concurrent duplicate pulls
      * - Debouncing ignores pulls within 5s of last pull
      * - Delta-sync sends lastSyncAt timestamp
      */
     suspend fun pullFromServer(): PullResult {
+        Log.i(TAG, ">>> pullFromServer STARTING - isOnline=${isOnline.value}")
+        
         if (!isOnline.value) {
+            Log.w(TAG, "<<< pullFromServer FAILED: Device is offline")
             return PullResult.Offline
         }
 
@@ -76,9 +119,11 @@ class SyncCoordinator(
 
                 val response = remoteDataSource.pullAllData(lastSyncAt = lastSyncAt)
                 if (response == null) {
-                    Log.e(TAG, "Pull failed: null response")
+                    Log.e(TAG, "<<< pullFromServer FAILED: null response from server")
                     return@withLock PullResult.Error("Failed to connect to server")
                 }
+
+                Log.i(TAG, ">>> pullFromServer SUCCESS: notes=${response.notes.size}, sessions=${response.sessions.size}, events=${response.events.size}")
 
                 var notesUpdated = 0
                 var sessionsUpdated = 0
@@ -199,11 +244,38 @@ class SyncCoordinator(
                     }
                 }
 
+                // Sync generated images to local storage
+                val generatedImages = response.generatedImages
+                if (generatedImages.isNotEmpty()) {
+                    var imagesStored = 0
+                    generatedImages.forEach { imgInfo ->
+                        try {
+                            val imgJson = JSONObject().apply {
+                                put("id", imgInfo.id)
+                                put("userId", imgInfo.userId)
+                                put("sessionId", imgInfo.sessionId ?: "")
+                                put("prompt", imgInfo.prompt)
+                                put("kreaJobId", imgInfo.kreaJobId)
+                                put("status", imgInfo.status)
+                                put("imageUrl", imgInfo.imageUrl ?: "")
+                                put("supabaseUrl", imgInfo.supabaseUrl ?: "")
+                                put("createdAt", imgInfo.createdAt)
+                                put("updatedAt", imgInfo.updatedAt)
+                            }
+                            generatedImagesPrefs.edit().putString(imgInfo.id, imgJson.toString()).apply()
+                            imagesStored++
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to store generated image: ${imgInfo.id}", e)
+                        }
+                    }
+                    Log.i(TAG, "Stored ${imagesStored} generated images locally")
+                }
+
                 // Update last sync time
                 prefs.edit().putLong(KEY_LAST_PULL, System.currentTimeMillis()).apply()
 
                 val duration = System.currentTimeMillis() - startTime
-                Log.i(TAG, "Pull complete in ${duration}ms: $notesUpdated notes, $sessionsUpdated sessions, $eventsUpdated events")
+                Log.i(TAG, "Pull complete in ${duration}ms: $notesUpdated notes, $sessionsUpdated sessions, $eventsUpdated events, ${generatedImages.size} generated images")
                 PullResult.Success(notesUpdated, sessionsUpdated, eventsUpdated)
             } catch (e: Exception) {
                 Log.e(TAG, "Pull failed", e)
@@ -325,6 +397,7 @@ class SyncCoordinator(
     companion object {
         private const val TAG = "SyncCoordinator"
         private const val PREFS_NAME = "sync_prefs"
+        private const val PREFS_GENERATED_IMAGES = "generated_images_prefs"
         private const val KEY_LAST_PULL = "last_pull"
         private const val KEY_LAST_PUSH = "last_push"
 

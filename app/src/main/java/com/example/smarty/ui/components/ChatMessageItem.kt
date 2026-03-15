@@ -396,7 +396,13 @@ fun ChatMessageItem(
                             }
                             
                             // The URL might be stored in outputSummary once available
-                            val imageUrl = generateImageCall.outputSummary?.takeIf { it.startsWith("http") }
+                            val imageUrl = generateImageCall.outputSummary?.let { summary ->
+                                if (summary.startsWith("http")) summary
+                                else if (summary.startsWith("{") && summary.contains("\"url\"")) {
+                                    // Robust extraction of url from JSON string without adding heavy dependencies
+                                    summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
+                                } else null
+                            }
                             
                             com.example.smarty.ui.components.krea.ImageGenerationCard(
                                 state = state,

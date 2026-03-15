@@ -62,6 +62,7 @@ class RemoteDataSource(
      * @param limit Maximum items to return per category
      */
     suspend fun pullAllData(lastSyncAt: Long? = null, limit: Int = 1000): SyncPullResponse? {
+        Log.i(TAG, ">>> RemoteDataSource.pullAllData STARTING - lastSyncAt=$lastSyncAt")
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null

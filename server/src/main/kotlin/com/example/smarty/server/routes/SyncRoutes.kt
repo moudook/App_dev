@@ -19,13 +19,17 @@ import com.example.smarty.server.data.SessionInfo
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
+import com.example.smarty.protocol.GeneratedImageInfo
+
 @Serializable
 data class SyncPullResponse(
     val notes: List<NoteInfo>,
     val sessions: List<SessionInfoData>,
     val events: List<CalendarEventInfo>,
+    val generatedImages: List<GeneratedImageInfo> = emptyList(),
     val lastSyncAt: Long
 )
+
 
 @Serializable
 data class SessionInfoData(
@@ -120,17 +124,43 @@ fun Application.configureSyncRoutes() {
             route("/api/v1/sync") {
                 
                 post("/pull") {
-                    val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                    val user = call.firebaseUser()
+                    if (user == null) {
+                        logger.warn("<<< SYNC PULL FAILED: No authenticated user (Firebase token invalid or missing)")
+                        return@post call.respond(HttpStatusCode.Unauthorized)
+                    }
                     if (noteRepository == null || chatRepository == null || calendarRepository == null || syncRepository == null) {
+                        logger.error("<<< SYNC PULL FAILED: Database not available")
                         return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
                     }
 
                     try {
                         val userId = user.userId
+                        logger.info(">>> SYNC PULL STARTED for user: $userId")
                         
                         val notes = noteRepository.listByUser(userId, limit = 1000)
                         val sessions = chatRepository.listAllSessions(userId, limit = 100)
                         val events = calendarRepository.listAllEvents(userId, limit = 500)
+                        
+                        // Get generated images for sync
+                        val generatedImageRepo = dataSource?.let { com.example.smarty.server.data.GeneratedImageRepository(it) }
+                        val generatedImages = generatedImageRepo?.listByUser(userId, limit = 100) ?: emptyList()
+                        val generatedImagesData = generatedImages.map { img ->
+                            com.example.smarty.protocol.GeneratedImageInfo(
+                                id = img.id,
+                                userId = img.userId,
+                                sessionId = img.sessionId,
+                                prompt = img.prompt,
+                                kreaJobId = img.kreaJobId,
+                                status = img.status,
+                                imageUrl = img.imageUrl,
+                                supabaseUrl = img.supabaseUrl,
+                                createdAt = img.createdAt,
+                                updatedAt = img.updatedAt
+                            )
+                        }
+                        
+                        logger.info(">>> SYNC PULL RESULT for user $userId: notes=${notes.size}, sessions=${sessions.size}, events=${events.size}, generatedImages=${generatedImages.size}")
                         
                         val sessionData = sessions.map { session ->
                             val messages = chatRepository.getAllMessagesForSession(userId, session.id)
@@ -159,6 +189,7 @@ fun Application.configureSyncRoutes() {
                             notes = notes,
                             sessions = sessionData,
                             events = events,
+                            generatedImages = generatedImagesData,
                             lastSyncAt = syncStatus?.lastPullAt ?: 0L
                         ))
                     } catch (e: Exception) {

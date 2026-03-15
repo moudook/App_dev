@@ -47,7 +47,22 @@ data class SyncPullResponse(
     val notes: List<NoteInfo>,
     val sessions: List<SessionInfoData>,
     val events: List<CalendarEventInfo>,
+    val generatedImages: List<GeneratedImageInfo> = emptyList(),
     val lastSyncAt: Long
+)
+
+@Serializable
+data class GeneratedImageInfo(
+    val id: String,
+    val userId: String,
+    val sessionId: String?,
+    val prompt: String,
+    val kreaJobId: String,
+    val status: String,
+    val imageUrl: String?,
+    val supabaseUrl: String?,
+    val createdAt: Long,
+    val updatedAt: Long
 )
 
 @Serializable

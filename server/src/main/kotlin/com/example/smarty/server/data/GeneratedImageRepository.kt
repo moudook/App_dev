@@ -110,6 +110,30 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
         }
     }
 
+    /**
+     * List all generated images for a user (for sync).
+     */
+    suspend fun listByUser(userId: String, limit: Int = 100): List<GeneratedImage> = withConnection {
+        val sql = """
+            SELECT * FROM generated_images 
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """.trimIndent()
+        
+        val images = mutableListOf<GeneratedImage>()
+        it.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, userId)
+            stmt.setInt(2, limit)
+            stmt.executeQuery().use { rs ->
+                while (rs.next()) {
+                    images.add(mapRow(rs))
+                }
+            }
+        }
+        images
+    }
+
     private fun mapRow(rs: ResultSet): GeneratedImage {
         return GeneratedImage(
             id = rs.getString("id"),

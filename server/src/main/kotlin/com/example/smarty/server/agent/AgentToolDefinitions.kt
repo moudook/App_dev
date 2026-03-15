@@ -205,6 +205,40 @@ Use for: screen navigation, sharing to other apps.""",
     )
     
     /**
+     * Tool for generating images based on text prompts.
+     */
+    val generateImageTool: ToolDefinition = ToolDefinition(
+        name = "generate_image",
+        description = """Act as a Master Art Director to generate high-quality images using Krea AI.
+            When the user asks for an image, imagine the scene, understand the story, and visualize the composition.
+            Create a highly detailed, professional prompt specifying camera angles, lighting, realistic textures, and specific aesthetics to achieve a hyper-realistic, high-fashion, or candid look.
+            
+ACTIONS:
+- generate: Create a new image (prompt, aspect_ratio optional)
+
+ASPECT RATIOS:
+- 1:1 (Square - default)
+- 16:9 (Landscape)
+- 9:16 (Portrait)
+- 4:3
+- 3:4
+
+EXAMPLES:
+- generate_image(prompt='A spontaneously captured iPhone-styled candid photo of a young woman with platinum hair casually lounging against a textured, slightly weathered Parisian stone wall... Soft shadows and delicate highlights reveal the delicate fabric fibers, realistic leather grain, and glass transparency...', aspect_ratio='16:9')
+- generate_image(prompt='In a smoky late-70s diner bathed in glowing red neon, a Latino man lounges nonchalantly across a vinyl booth, his long wavy hair flowing casually over the gleam of a classic handlebar mustache. His mustard-hued leather jacket... —late-70s / early-80s cinematic photograph, authentic film grain.', aspect_ratio='16:9')
+- generate_image(prompt='Caught in the cracked reflection of an old bedroom mirror, the freckled redhead girl leans in close, carefully applying a glossy lip gloss that gleams under the soft direct flash. Her velour pink tracksuit top is sprinkled with subtle rhinestone details... —casual candid early-2000s Y2K snapshot, grainy low-res softness', aspect_ratio='9:16')
+
+Use for: generating images, creating artwork, visualizing scenes, drawing, painting.""",
+        parameters = ToolParameters(
+            properties = mapOf(
+                "prompt" to ToolProperty("string", "Detailed description of the image to generate"),
+                "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1|16:9|9:16|4:3|3:4", enum = listOf("1:1", "16:9", "9:16", "4:3", "3:4"))
+            ),
+            required = listOf("prompt")
+        )
+    )
+    
+    /**
      * Get all standard tools.
      */
     fun getAllTools(): List<ToolDefinition> = listOf(
@@ -213,6 +247,7 @@ Use for: screen navigation, sharing to other apps.""",
         remindTool,
         deviceTool,
         searchTool,
-        navigateTool
+        navigateTool,
+        generateImageTool
     )
 }
