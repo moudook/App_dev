@@ -36,7 +36,7 @@ Key design goals:
 
 # Key Features
 
-## Deep Research Agent
+## Deep Research Agent(its under testing)
 
 The research agent is designed to conduct structured multi-step research sessions with professional intelligence methodologies.
 
@@ -104,12 +104,12 @@ Features include:
 
 Smarty supports multiple specialized agents that can be switched dynamically.
 
-| Agent | Purpose | Tool Access | Timeout |
-|------|------|------|------|
-| Normal Agent | General assistant tasks | Full tool access | None |
-| Research Agent | Structured research | Web search and note creation | 15 minutes |
-| Advanced Research Agent | Professional intelligence analysis | Full research + ACH matrix | None |
-| Medical Advisor | Health consultations | Medical tools + symptom analysis | None |
+| Agent                   | Purpose                            | Tool Access                      | Timeout    |
+| ----------------------- | ---------------------------------- | -------------------------------- | ---------- |
+| Normal Agent            | General assistant tasks            | Full tool access                 | None       |
+| Research Agent          | Structured research                | Web search and note creation     | 15 minutes |
+| Advanced Research Agent | Professional intelligence analysis | Full research + ACH matrix       | None       |
+| Medical Advisor         | Health consultations               | Medical tools + symptom analysis | None       |
 
 ## User Experience
 
@@ -241,7 +241,6 @@ Smarty is designed with a privacy-first architecture.
 
 # Architecture
 
-
 ┌─────────────────────────┐
 │ Smarty Android Client │
 │ │
@@ -267,7 +266,6 @@ Smarty is designed with a privacy-first architecture.
 │ Tavily Search API │
 │ PostgreSQL + pgvector │
 └─────────────────────────┘
-
 
 ---
 
@@ -375,8 +373,8 @@ Research sessions support:
 
 ## 1. Deploy the Server
 
-1. Open Hugging Face Spaces  
-2. Create a new Space  
+1. Open Hugging Face Spaces
+2. Create a new Space
 
 Configuration:
 
@@ -392,16 +390,16 @@ Connect this repository to the Space.
 
 Add the following repository secrets.
 
-| Secret | Required | Description |
-|------|------|------|
-| DB_URL | Yes | PostgreSQL JDBC URL |
-| DB_USER | Yes | Database username |
-| DB_PASSWORD | Yes | Database password |
-| TAVILY_API_KEY | Yes | Tavily search API key |
-| KREA_API_KEY | Yes | Krea AI image generation API key |
-| ACTIVE_PROVIDER | Optional | GEMINI or OPENAI |
-| GEMINI_API_KEY | Conditional | Required if Gemini is used |
-| OPENAI_API_KEY | Conditional | Required if OpenAI is used |
+| Secret          | Required    | Description                      |
+| --------------- | ----------- | -------------------------------- |
+| DB_URL          | Yes         | PostgreSQL JDBC URL              |
+| DB_USER         | Yes         | Database username                |
+| DB_PASSWORD     | Yes         | Database password                |
+| TAVILY_API_KEY  | Yes         | Tavily search API key            |
+| KREA_API_KEY    | Yes         | Krea AI image generation API key |
+| ACTIVE_PROVIDER | Optional    | GEMINI or OPENAI                 |
+| GEMINI_API_KEY  | Conditional | Required if Gemini is used       |
+| OPENAI_API_KEY  | Conditional | Required if OpenAI is used       |
 
 **Important:** After adding or modifying secrets, you **must restart** the Hugging Face Space for changes to take effect.
 
@@ -646,3 +644,4 @@ MIT License
 ---
 
 **Version 6.0.0**
+```
