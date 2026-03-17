@@ -36,7 +36,7 @@ Key design goals:
 
 # Key Features
 
-## Deep Research Agent(its under testing)
+## Deep Research Agent(its under testing will take long time to refine)
 
 The research agent is designed to conduct structured multi-step research sessions with professional intelligence methodologies.
 
