@@ -1,0 +1,467 @@
+# DUPLICATION ANALYSIS
+
+## Overview
+
+This document identifies duplicate logic, similar patterns, and opportunities for code consolidation.
+
+---
+
+## DUPLICATE PATTERNS
+
+### 1. Repository Pattern Duplication
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/data/NoteRepository.kt`
+- `server/src/main/kotlin/com/example/smarty/server/data/ChatRepository.kt`
+- `server/src/main/kotlin/com/example/smarty/server/data/CalendarRepository.kt`
+- `server/src/main/kotlin/com/example/smarty/server/data/TimerRepository.kt`
+
+**Pattern:** Each repository implements similar CRUD operations
+
+**Example:**
+```kotlin
+// NoteRepository
+class NoteRepository(private val dataSource: DataSource, ...) {
+    suspend fun getAll(userId: String, ...): List<Note>
+    suspend fun getById(userId: String, id: String): Note?
+    suspend fun create(note: Note): Note
+    suspend fun update(note: Note): Note
+    suspend fun delete(userId: String, id: String)
+}
+
+// ChatRepository - Same pattern
+class ChatRepository(private val dataSource: DataSource, ...) {
+    suspend fun getAll(userId: String, ...): List<ChatSession>
+    suspend fun getById(userId: String, id: String): ChatSession?
+    suspend fun create(session: ChatSession): ChatSession
+    suspend fun update(session: ChatSession): ChatSession
+    suspend fun delete(userId: String, id: String)
+}
+```
+
+**Impact:** Code duplication, maintenance overhead
+
+**Recommendation:** Create generic `BaseRepository<T>` with common operations
+
+**Current State:** `BaseRepository.kt` exists but may not be fully utilized
+
+---
+
+### 2. Event Emission Pattern
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/routes/ChatRoutes.kt`
+- `server/src/main/kotlin/com/example/smarty/server/routes/ResearchRoutes.kt`
+
+**Pattern:** SSE event emission logic duplicated
+
+**Example:**
+```kotlin
+// ChatRoutes.kt
+eventEmitter = { event ->
+    try {
+        val eventType = when(event) {
+            is AgentEvent.Processing -> "processing"
+            is AgentEvent.ToolCall -> "tool_call"
+            is AgentEvent.Result -> "result"
+            is AgentEvent.Error -> "error"
+            ...
+        }
+        send(ServerSentEvent(data = json.encodeToString(event), event = eventType))
+    } catch (e: Exception) {
+        logger.warn("Failed to send SSE event: ${e.message}")
+    }
+}
+
+// Similar pattern in ResearchRoutes.kt
+```
+
+**Recommendation:** Extract to `SseEventEmitter` utility class
+
+---
+
+### 3. Authentication Pattern
+
+**Files:** Multiple route files
+
+**Pattern:** Firebase user extraction duplicated
+
+**Example:**
+```kotlin
+// ChatRoutes.kt
+val user = call.firebaseUser()
+if (user == null) {
+    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+    return@post
+}
+
+// ResearchRoutes.kt - Same pattern
+val user = call.principal<FirebaseUserPrincipal>()
+?: return@post call.respond(HttpStatusCode.Unauthorized)
+
+// DataRoutes.kt - Same pattern
+val user = call.firebaseUser()
+if (user == null) {
+    ...
+}
+```
+
+**Current State:** `firebaseUser()` helper exists but inconsistent usage
+
+**Recommendation:** Create authentication middleware that injects user
+
+---
+
+### 4. Error Handling Pattern
+
+**Files:** All route files
+
+**Pattern:** Try-catch with logging and error response
+
+**Example:**
+```kotlin
+try {
+    // Business logic
+} catch (e: Exception) {
+    call.application.log.error("Operation failed", e)
+    call.respond(HttpStatusCode.InternalServerError, 
+        mapOf("error" to "An internal error occurred."))
+}
+```
+
+**Recommendation:** Create `handleErrors` wrapper function
+
+---
+
+### 5. Session Management Pattern
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/routes/ChatRoutes.kt`
+- `server/src/main/kotlin/com/example/smarty/server/agent/ServerAgent.kt`
+
+**Pattern:** Session creation and retrieval logic
+
+**Example:**
+```kotlin
+// In ChatRoutes
+if (sessionId.isNullOrBlank()) {
+    sessionId = chatRepository.createSession(userId, "New Chat")
+} else {
+    val existingSession = chatRepository.getSession(userId, sessionId)
+    if (existingSession == null) {
+        // Create with provided ID or new session
+    }
+}
+
+// Similar logic in ServerAgent
+```
+
+**Recommendation:** Centralize in `SessionManager` service
+
+---
+
+### 6. Vector Store Pattern
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/data/PostgresVectorStore.kt`
+- `server/src/main/kotlin/com/example/smarty/server/data/VectorStore.kt`
+
+**Issue:** Interface and implementation may be redundant
+
+**Pattern:**
+```kotlin
+// VectorStore.kt - Interface
+interface VectorStore {
+    suspend fun search(userId: String, query: String, limit: Int): List<SearchResult>
+    suspend fun insert(userId: String, content: String, metadata: Map<String, String>)
+}
+
+// PostgresVectorStore.kt - Only implementation
+class PostgresVectorStore : VectorStore {
+    // Implementation using pgvector
+}
+```
+
+**Assessment:** Acceptable pattern (interface for testability)
+
+**Recommendation:** Keep if multiple implementations planned, otherwise simplify
+
+---
+
+### 7. Tool Definition Pattern
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/agent/AgentToolDefinitions.kt`
+- `server/src/main/kotlin/com/example/smarty/server/agent/ResearchAgentTools.kt`
+
+**Issue:** Potential overlap in tool definitions
+
+**Verification Needed:** Check if both files define the same tools differently
+
+---
+
+### 8. Prompt Building Pattern
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/agent/AgentPrompts.kt`
+- `server/src/main/kotlin/com/example/smarty/server/agent/ServerAgent.kt`
+- `server/src/main/kotlin/com/example/smarty/server/agent/DeepResearchAgent.kt`
+- `server/src/main/kotlin/com/example/smarty/server/agent/AdvancedDeepResearchAgent.kt`
+
+**Pattern:** Each agent builds system prompts similarly
+
+**Example:**
+```kotlin
+// ServerAgent.kt
+val systemMessage = LlmMessage(
+    role = LlmMessage.Role.SYSTEM,
+    content = """<long system prompt>"""
+)
+
+// DeepResearchAgent.kt
+private fun buildSystemPrompt(): String {
+    return """<research system prompt>"""
+}
+
+// AdvancedDeepResearchAgent.kt
+private fun buildPlanningSystemPrompt(): String {
+    return """<planning system prompt>"""
+}
+```
+
+**Current State:** `AgentPrompts.kt` extracted but agents still have inline prompts
+
+**Recommendation:** Centralize all prompts in `AgentPrompts` object
+
+---
+
+## SIMILAR IMPLEMENTATIONS
+
+### 1. DeepResearchAgent vs AdvancedDeepResearchAgent
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/agent/DeepResearchAgent.kt` (463 lines)
+- `server/src/main/kotlin/com/example/smarty/server/agent/AdvancedDeepResearchAgent.kt` (1159 lines)
+
+**Similarities:**
+- Both handle research sessions
+- Both use Tavily search
+- Both track citations
+- Both have timeout handling
+
+**Differences:**
+- Advanced version has ACH matrix
+- Advanced version has bias detection
+- Advanced version has source tier classification
+
+**Assessment:** Intentional evolution, not duplication
+
+**Recommendation:** Consider making AdvancedDeepResearchAgent extend DeepResearchAgent
+
+---
+
+### 2. GeminiProvider vs OpenAiCompatibleProvider
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/llm/GeminiProvider.kt`
+- `server/src/main/kotlin/com/example/smarty/server/llm/OpenAiCompatibleProvider.kt`
+
+**Pattern:** Both implement `LlmProvider` interface
+
+**Assessment:** Acceptable (polymorphic design)
+
+**Recommendation:** Keep separate, ensure common base class handles shared logic
+
+---
+
+### 3. DigestService vs DigestScheduler
+
+**Files:**
+- `server/src/main/kotlin/com/example/smarty/server/services/DigestService.kt`
+- `server/src/main/kotlin/com/example/smarty/server/services/DigestScheduler.kt`
+
+**Pattern:** 
+- `DigestService` generates digest content
+- `DigestScheduler` triggers scheduled generation
+
+**Assessment:** Acceptable separation of concerns
+
+---
+
+### 4. Android vs Server Data Models
+
+**Files:**
+- `app/src/main/java/com/example/smarty/core/domain/model/Note.kt`
+- `server/src/main/kotlin/com/example/smarty/server/data/NewDataModels.kt`
+
+**Issue:** Same entities defined in both places
+
+**Example:**
+```kotlin
+// Android Note
+@Entity(tableName = "notes")
+data class Note(
+    @PrimaryKey val id: String,
+    val title: String,
+    val content: String,
+    ...
+)
+
+// Server Note (Exposed)
+object Notes : Table() {
+    val id = uuid("id")
+    val title = text("title")
+    val content = text("content")
+    ...
+}
+```
+
+**Assessment:** Necessary duplication (different ORMs)
+
+**Recommendation:** Ensure `common` module has shared DTOs for serialization
+
+---
+
+## COPY-PASTE DETECTION
+
+### 1. Database Migration Scripts
+
+**Files:** `server/src/main/kotlin/com/example/smarty/server/data/DatabaseFactory.kt`
+
+**Issue:** Similar CREATE TABLE patterns
+
+**Example:**
+```kotlin
+// Multiple tables with same pattern
+"""CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ...
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)""",
+
+"""CREATE TABLE IF NOT EXISTS tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ...
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)""",
+```
+
+**Assessment:** Acceptable (SQL schema patterns)
+
+---
+
+### 2. Index Creation
+
+**File:** `DatabaseFactory.kt`
+
+**Issue:** Repetitive index creation
+```kotlin
+"CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
+"CREATE INDEX IF NOT EXISTS idx_notes_user_active ON notes(user_id, updated_at DESC) WHERE is_archived = false AND deleted_at IS NULL",
+"CREATE INDEX IF NOT EXISTS idx_notes_user_pinned ON notes(user_id, updated_at DESC) WHERE is_pinned = true AND deleted_at IS NULL",
+```
+
+**Assessment:** Acceptable (database optimization)
+
+---
+
+### 3. Repository Implementations
+
+**Files:** All repository files in `server/src/main/kotlin/com/example/smarty/server/data/`
+
+**Pattern:** Similar SQL query patterns
+
+**Example:**
+```kotlin
+// NoteRepository
+query {
+    select { (Notes.userId eq userId) and (Notes.deletedAt.isNull()) }
+}
+
+// ChatRepository  
+query {
+    select { (ChatSessions.userId eq userId) and (ChatSessions.deletedAt.isNull()) }
+}
+```
+
+**Recommendation:** Use `BaseRepository` generic methods
+
+---
+
+## CONSOLIDATION OPPORTUNITIES
+
+### High Priority
+
+1. **Generic Repository Base**
+   - Extract common CRUD operations
+   - Keep entity-specific queries in subclasses
+   - Estimated effort: 4 hours
+
+2. **SSE Event Emitter Utility**
+   - Extract event type mapping
+   - Handle serialization centrally
+   - Estimated effort: 2 hours
+
+3. **Authentication Middleware**
+   - Create route-level auth wrapper
+   - Inject user into call context
+   - Estimated effort: 3 hours
+
+### Medium Priority
+
+1. **Prompt Centralization**
+   - Move all prompts to `AgentPrompts`
+   - Use template functions with parameters
+   - Estimated effort: 4 hours
+
+2. **Error Handling Wrapper**
+   - Create `handleErrors` function
+   - Standardize error responses
+   - Estimated effort: 2 hours
+
+### Low Priority
+
+1. **Session Manager Service**
+   - Centralize session lifecycle
+   - Add session metrics
+   - Estimated effort: 4 hours
+
+---
+
+## DUPLICATION METRICS
+
+| Category | Occurrences | Lines Duplicated | Impact |
+|----------|-------------|------------------|--------|
+| Repository Pattern | 10+ | ~500 | High |
+| Error Handling | 20+ | ~100 | Medium |
+| Auth Pattern | 15+ | ~75 | Medium |
+| SSE Emission | 5+ | ~100 | Medium |
+| Prompt Building | 4+ | ~200 | Low |
+
+**Total Duplication:** ~1000 lines (estimable for consolidation)
+
+---
+
+## RECOMMENDATIONS
+
+### Refactoring Priority
+
+1. **Create Generic Repository** (High impact, medium effort)
+2. **Extract SSE Emitter** (Medium impact, low effort)
+3. **Centralize Auth** (Medium impact, medium effort)
+4. **Consolidate Prompts** (Low impact, medium effort)
+
+### Acceptable Duplication
+
+1. **Provider Implementations** (Polymorphic design)
+2. **Data Model Definitions** (Different ORMs required)
+3. **SQL Schema Patterns** (Database conventions)
+4. **Service Separation** (DigestService vs DigestScheduler)
+
+### Monitoring
+
+1. Add code duplication detection to CI (e.g., detekt SimilarRule)
+2. Set threshold for acceptable duplication
+3. Review new code for copy-paste patterns

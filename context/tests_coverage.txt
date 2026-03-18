@@ -1,0 +1,603 @@
+# TESTS AND COVERAGE ANALYSIS
+
+## Overview
+
+This document analyzes the testing strategy, coverage gaps, and testing recommendations for the Smarty codebase.
+
+---
+
+## TEST STRUCTURE
+
+### Android Tests
+
+**Location:** `app/src/test/`, `app/src/androidTest/`
+
+**Test Frameworks:**
+```kotlin
+// Unit Tests
+testImplementation(libs.junit)
+testImplementation("io.mockk:mockk:1.13.9")
+testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+testImplementation("app.cash.turbine:turbine:1.0.0")
+testImplementation("org.robolectric:robolectric:4.14.1")
+
+// Instrumented Tests
+androidTestImplementation(libs.androidx.junit)
+androidTestImplementation(libs.androidx.espresso.core)
+androidTestImplementation(platform(libs.androidx.compose.bom))
+androidTestImplementation(libs.androidx.ui.test.junit4)
+androidTestImplementation("io.mockk:mockk-android:1.13.9")
+```
+
+### Server Tests
+
+**Location:** `server/src/test/`
+
+**Test Frameworks:**
+```kotlin
+testImplementation(kotlin("test"))
+testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+```
+
+### Common Tests
+
+**Location:** `common/src/commonTest/`
+
+**Test Frameworks:**
+```kotlin
+implementation(kotlin("test"))
+```
+
+---
+
+## TEST COVERAGE ANALYSIS
+
+### Android Module
+
+**Testable Components:**
+
+| Component | Test File | Coverage Estimate |
+|-----------|-----------|-------------------|
+| NoteDao | NoteDaoTest.kt | Unknown |
+| CategoryDao | CategoryDaoTest.kt | Unknown |
+| ChatDao | ChatDaoTest.kt | Unknown |
+| NoteRepository | NoteRepositoryTest.kt | Unknown |
+| SmartyViewModel | SmartyViewModelTest.kt | Unknown |
+| AuthViewModel | AuthViewModelTest.kt | Unknown |
+| AudioPlayerViewModel | AudioPlayerViewModelTest.kt | Unknown |
+
+**Likely Missing Tests:**
+- UI Composables (Screen-level tests)
+- Navigation logic
+- Intent handling
+- Permission handling
+- Shake detection
+- Speech-to-text integration
+
+### Server Module
+
+**Testable Components:**
+
+| Component | Test File | Coverage Estimate |
+|-----------|-----------|-------------------|
+| GeminiProvider | GeminiProviderTest.kt | Unknown |
+| TavilySearchTool | TavilySearchToolTest.kt | Unknown |
+| NoteRepository | NoteRepositoryTest.kt | Unknown |
+| ChatRepository | ChatRepositoryTest.kt | Unknown |
+| ServerAgent | ServerAgentTest.kt | Unknown |
+| DeepResearchAgent | DeepResearchAgentTest.kt | Unknown |
+
+**Likely Missing Tests:**
+- Route handlers (integration tests)
+- SSE streaming logic
+- Agent loop with mocked LLM
+- Database migrations
+- Plugin configurations
+
+---
+
+## TESTING GAPS
+
+### Critical Gaps
+
+1. **No Integration Tests Visible**
+   - End-to-end flow testing
+   - API endpoint testing
+   - Database integration testing
+
+2. **No Agent Loop Tests**
+   - ServerAgent behavior
+   - Tool execution
+   - SSE event emission
+
+3. **No UI Tests**
+   - Composable testing
+   - Navigation testing
+   - User interaction flows
+
+### High Priority Gaps
+
+1. **No Contract Tests**
+   - API request/response validation
+   - Protocol serialization
+
+2. **No Performance Tests**
+   - Load testing
+   - Stress testing
+   - Memory leak detection
+
+3. **No Security Tests**
+   - Authentication bypass attempts
+   - Input validation
+   - Rate limit testing
+
+### Medium Priority Gaps
+
+1. **No Migration Tests**
+   - Database upgrade paths
+   - Data integrity after migration
+
+2. **No Sync Protocol Tests**
+   - Conflict resolution
+   - Offline operation
+
+3. **No Error Handling Tests**
+   - Network failure scenarios
+   - Database failure scenarios
+
+---
+
+## RECOMMENDED TEST STRUCTURE
+
+### Android Unit Tests
+
+```
+app/src/test/java/com/example/smarty/
+├── data/
+│   ├── local/
+│   │   ├── NoteDaoTest.kt
+│   │   ├── ChatDaoTest.kt
+│   │   └── ConvertersTest.kt
+│   ├── repository/
+│   │   ├── NoteRepositoryTest.kt
+│   │   └── ChatRepositoryTest.kt
+│   └── sync/
+│       ├── SyncQueueManagerTest.kt
+│       └── ConflictResolverTest.kt
+├── domain/
+│   ├── model/
+│   │   ├── NoteTest.kt
+│   │   └── ChatMessageTest.kt
+│   └── util/
+│       ├── InputValidationTest.kt
+│       └── DateFormatterTest.kt
+└── viewmodel/
+    ├── SmartyViewModelTest.kt
+    ├── ChatViewModelTest.kt
+    └── AudioPlayerViewModelTest.kt
+```
+
+### Android Instrumented Tests
+
+```
+app/src/androidTest/java/com/example/smarty/
+├── data/
+│   └── local/
+│       ├── DatabaseTest.kt
+│       └── MigrationTest.kt
+├── ui/
+│   ├── screens/
+│   │   ├── HomeScreenTest.kt
+│   │   ├── ChatScreenTest.kt
+│   │   └── SettingsScreenTest.kt
+│   └── components/
+│       ├── NoteCardTest.kt
+│       └── ChatMessageBubbleTest.kt
+└── navigation/
+    └── NavigationTest.kt
+```
+
+### Server Unit Tests
+
+```
+server/src/test/kotlin/com/example/smarty/server/
+├── agent/
+│   ├── ServerAgentTest.kt
+│   ├── DeepResearchAgentTest.kt
+│   └── AgentPromptsTest.kt
+├── data/
+│   ├── NoteRepositoryTest.kt
+│   ├── ChatRepositoryTest.kt
+│   └── PostgresVectorStoreTest.kt
+├── llm/
+│   ├── GeminiProviderTest.kt
+│   ├── ProviderRouterTest.kt
+│   └── LlmCacheTest.kt
+├── routes/
+│   ├── ChatRoutesTest.kt
+│   ├── ResearchRoutesTest.kt
+│   └── HealthRoutesTest.kt
+├── services/
+│   ├── DigestServiceTest.kt
+│   └── VisionServiceTest.kt
+└── tools/
+    ├── TavilySearchToolTest.kt
+    └── WebScrapeToolTest.kt
+```
+
+### Server Integration Tests
+
+```
+server/src/test/kotlin/com/example/smarty/server/integration/
+├── ChatIntegrationTest.kt
+├── ResearchIntegrationTest.kt
+├── SyncIntegrationTest.kt
+└── DatabaseIntegrationTest.kt
+```
+
+---
+
+## TEST EXAMPLES
+
+### ViewModel Test Example
+
+```kotlin
+class SmartyViewModelTest {
+
+    private lateinit var viewModel: SmartyViewModel
+    private lateinit var repository: MockNoteRepository
+    private lateinit var testDispatcher: TestDispatcher
+
+    @Before
+    fun setup() {
+        testDispatcher = StandardTestDispatcher()
+        repository = MockNoteRepository()
+        viewModel = SmartyViewModel(repository, Dispatchers.Main = testDispatcher)
+    }
+
+    @Test
+    fun `addNote should add note to list`() = runTest {
+        // Given
+        val noteContent = "Test note"
+        
+        // When
+        viewModel.addNote(noteContent, emptyList())
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        // Then
+        val notes = viewModel.notes.value
+        assertEquals(1, notes.size)
+        assertEquals(noteContent, notes.first().content)
+    }
+
+    @Test
+    fun `deleteNote should remove note from list`() = runTest {
+        // Given
+        viewModel.addNote("Note 1", emptyList())
+        viewModel.addNote("Note 2", emptyList())
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        val noteToDelete = viewModel.notes.value.first()
+        
+        // When
+        viewModel.deleteNote(noteToDelete)
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        // Then
+        assertEquals(1, viewModel.notes.value.size)
+    }
+}
+```
+
+### Agent Test Example
+
+```kotlin
+class ServerAgentTest {
+
+    private lateinit var agent: ServerAgent
+    private lateinit var llmProvider: MockLlmProvider
+    private lateinit var tavilyTool: MockTavilySearchTool
+    private lateinit var vectorStore: MockVectorStore
+
+    @Before
+    fun setup() {
+        llmProvider = MockLlmProvider()
+        tavilyTool = MockTavilySearchTool()
+        vectorStore = MockVectorStore()
+        
+        agent = ServerAgent(
+            llmProvider = llmProvider,
+            tavilyTool = tavilyTool,
+            vectorStore = vectorStore,
+            eventEmitter = { /* mock emitter */ },
+            userId = "test-user"
+        )
+    }
+
+    @Test
+    fun `run should emit processing events`() = runTest {
+        // Given
+        llmProvider.responseChunks = listOf(
+            LlmChunk(content = "Thinking"),
+            LlmChunk(content = " about"),
+            LlmChunk(content = " this")
+        )
+        
+        val events = mutableListOf<AgentEvent>()
+        agent = agent.copy(eventEmitter = { events.add(it) })
+        
+        // When
+        agent.run("Test query")
+        
+        // Then
+        assertTrue(events.any { it is AgentEvent.Processing })
+    }
+
+    @Test
+    fun `run should call search tool for research queries`() = runTest {
+        // Given
+        val query = "Research climate change"
+        
+        // When
+        agent.run(query)
+        
+        // Then
+        assertTrue(tavilyTool.searchCalled)
+    }
+}
+```
+
+### Route Test Example
+
+```kotlin
+class ChatRoutesTest {
+
+    private lateinit var application: Application
+    private lateinit var testClient: TestApplicationEngine
+
+    @Before
+    fun setup() {
+        testClient = TestApplicationEngine {
+            module()
+        }
+        testClient.start()
+    }
+
+    @Test
+    fun `chat stream should require authentication`() = runTest {
+        // When
+        val response = testClient.handleRequest {
+            addRequestHeader("Authorization", "")
+            get("/chat/stream?query=test")
+        }
+
+        // Then
+        assertEquals(HttpStatusCode.Unauthorized, response.response.status())
+    }
+
+    @Test
+    fun `chat stream should return SSE events`() = runTest {
+        // Given
+        val token = createTestToken()
+        
+        // When
+        val response = testClient.handleRequest {
+            addRequestHeader("Authorization", "Bearer $token")
+            get("/chat/stream?query=test")
+        }
+
+        // Then
+        assertEquals(HttpStatusCode.OK, response.response.status())
+        assertEquals("text/event-stream", response.response.headers["Content-Type"])
+    }
+}
+```
+
+---
+
+## COVERAGE TARGETS
+
+### Recommended Targets
+
+| Module | Line Coverage | Branch Coverage |
+|--------|---------------|-----------------|
+| Android Domain | 80% | 70% |
+| Android Data | 70% | 60% |
+| Android UI | 50% | 40% |
+| Server Agent | 80% | 70% |
+| Server Routes | 70% | 60% |
+| Server Data | 70% | 60% |
+| Common | 90% | 80% |
+
+### Critical Path Coverage (Must Test)
+
+1. **Authentication Flow**
+   - Login success/failure
+   - Token refresh
+   - Session expiry
+
+2. **Chat Flow**
+   - Message send/receive
+   - SSE streaming
+   - Tool execution
+
+3. **Data Operations**
+   - Note CRUD
+   - Calendar CRUD
+   - Timer operations
+
+4. **Sync Flow**
+   - Push changes
+   - Pull changes
+   - Conflict resolution
+
+---
+
+## CI/CD INTEGRATION
+
+### Recommended Pipeline
+
+```yaml
+# .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+      - name: Run Android tests
+        run: ./gradlew :app:test
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  test-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+      - name: Run server tests
+        run: ./gradlew :server:test
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ankane/pgvector
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run integration tests
+        run: ./gradlew :server:integrationTest
+```
+
+---
+
+## TESTING RECOMMENDATIONS
+
+### Immediate Actions
+
+1. **Add Basic Unit Tests**
+   - ViewModels
+   - Repositories
+   - Utilities
+
+2. **Add API Contract Tests**
+   - Request/response validation
+   - Serialization tests
+
+3. **Add Integration Tests**
+   - Database operations
+   - API endpoints
+
+### Short-Term Actions
+
+1. **Add UI Tests**
+   - Critical user flows
+   - Key composables
+
+2. **Add Performance Tests**
+   - Load testing
+   - Memory profiling
+
+3. **Add Security Tests**
+   - Authentication bypass
+   - Input validation
+
+### Long-Term Actions
+
+1. **Achieve Coverage Targets**
+   - 70%+ overall coverage
+   - 90%+ critical path coverage
+
+2. **Add E2E Tests**
+   - Full user journeys
+   - Cross-platform testing
+
+3. **Implement Visual Regression Testing**
+   - Screenshot comparison
+   - UI consistency
+
+---
+
+## TESTING TOOLS
+
+### Recommended Additions
+
+1. **Coverage Reporting**
+   ```kotlin
+   // build.gradle.kts
+   plugins {
+       id("jacoco")
+   }
+   
+   tasks.jacocoTestReport {
+       reports {
+           xml.required = true
+           html.required = true
+       }
+   }
+   ```
+
+2. **Mutation Testing**
+   ```kotlin
+   plugins {
+       id("org.pitest.pitest") version "1.15.0"
+   }
+   ```
+
+3. **Screenshot Testing**
+   ```kotlin
+   androidTestImplementation("com.github.takahirom:roborazzi:1.0.0")
+   ```
+
+4. **Contract Testing**
+   ```kotlin
+   testImplementation("io.rest-assured:rest-assured:5.3.0")
+   ```
+
+---
+
+## CURRENT TEST STATUS
+
+### Known Tests (from build.gradle.kts)
+
+**Android Test Dependencies Present:**
+- JUnit
+- MockK
+- Kotlinx Coroutines Test
+- Turbine
+- Robolectric
+- Espresso
+- Compose UI Test
+- LeakCanary
+
+**Server Test Dependencies Present:**
+- Kotlin Test
+- Kotlinx Coroutines Test
+
+### Test Files Status
+
+**Note:** Actual test file contents were not analyzed in this review. The presence of test dependencies suggests tests may exist but coverage is unknown.
+
+**Recommendation:** Run coverage report to establish baseline:
+```bash
+./gradlew :app:jacocoTestReport
+./gradlew :server:jacocoTestReport
+```

@@ -1,0 +1,135 @@
+# PROJECT OVERVIEW
+
+## Project Identity
+
+**Name:** Smarty (also referenced as "Friday" in server code)
+
+**Type:** Advanced AI Research Agent (AAA - Advanced AI Agent) with Android thin-client
+
+**Version:** 6.0.0 (Android app reports 3.2.0 in build.gradle.kts, README states 6.0.0)
+
+**License:** MIT
+
+**Platform:** Android client with cloud-hosted Ktor server (Hugging Face Spaces)
+
+## Core Purpose
+
+Smarty is an AI companion application featuring:
+- Autonomous research agents with persistent reasoning
+- Multi-agent architecture (Normal, Research, Advanced Research, Medical Advisor)
+- Structured knowledge storage with citations
+- Privacy-first design with bring-your-own API keys
+- Server-side agent orchestration with Android thin-client display
+
+## Key Statistics
+
+- **Modules:** 3 (app, common, server)
+- **Languages:** Kotlin (primary), SQL (database)
+- **Build System:** Gradle 8.12.1 with Kotlin 2.1.21
+- **Target SDK:** Android 35, minSdk 26
+- **Server:** Ktor on Netty, Java 17
+
+## Architecture Pattern
+
+**Thin-Client Architecture:**
+- Android app: UI, local caching (Room), media playback, device control
+- Server: AI agent logic, LLM orchestration, tool execution, database (PostgreSQL)
+- Communication: HTTPS with Server-Sent Events (SSE) for streaming
+
+## Primary Technologies
+
+### Client-Side
+- Jetpack Compose for UI
+- Room Database with FTS5 search
+- Media3 ExoPlayer for audio
+- Firebase Authentication
+- WorkManager for background tasks
+- Ktor Client for server communication
+
+### Server-Side
+- Ktor Server with Netty
+- PostgreSQL with pgvector (vector search)
+- HikariCP connection pooling
+- Exposed ORM
+- Firebase Admin SDK
+- Multi-provider LLM routing (Gemini, OpenAI compatible)
+
+### External Services
+- Tavily Search API (web search)
+- Krea AI API (Flux.1 Dev for image generation)
+- Google Gemini API (primary LLM)
+- Firebase Cloud Messaging (push notifications)
+
+## Deployment Target
+
+- **Server:** Hugging Face Spaces (Docker)
+- **Client:** Android devices (arm64-v8a ABI split)
+- **Database:** Supabase/Neon PostgreSQL or self-hosted
+
+## Development Status
+
+**Production-Ready Components:**
+- Chat streaming with SSE
+- Deep research agent
+- Image generation
+- Calendar/timer management
+- Note management with versioning
+- Daily/weekly digest system
+- FCM push notifications
+
+**In-Development/Testing:**
+- Advanced Deep Research v3.0 (ACH matrix, bias detection)
+- Multi-agent switching
+- Zero-knowledge vault
+- Cloud sync system
+
+## Repository Structure
+
+```
+Smarty/
+├── app/           # Android application (Jetpack Compose)
+├── common/        # Shared models and protocol definitions
+├── server/        # Ktor server with agent logic
+├── conductor/     # (Empty directory)
+├── docs/          # Documentation
+├── scripts/       # Build/deployment scripts
+├── _private/      # Private configuration (gitignored)
+└── _research_archive/  # Research artifacts (gitignored)
+```
+
+## Entry Points
+
+**Android App:**
+- `MainActivity.kt` - Main activity with Compose UI
+- `SmartyApplication.kt` - Application class with global init
+
+**Server:**
+- `Application.kt` - Ktor server entry point
+- Main function starts embedded Netty server on port 7860
+
+## Build Configuration
+
+**Android Build:**
+- Minification enabled for release (R8)
+- ABI split for arm64-v8a only
+- ProGuard rules for Firebase, Ktor, Room, PDFBox, Media3
+
+**Server Build:**
+- Shadow JAR for fat JAR deployment
+- Multi-stage Docker build optimized for Hugging Face
+- JRE runtime image (~100MB total)
+
+## Environment Requirements
+
+**Server Environment Variables:**
+- DB_URL (PostgreSQL JDBC URL)
+- DB_USER
+- DB_PASSWORD
+- TAVILY_API_KEY
+- KREA_API_KEY
+- GEMINI_API_KEY or OPENAI_API_KEY
+- ACTIVE_PROVIDER (GEMINI or OPENAI)
+
+**Android Configuration:**
+- Firebase configuration (google-services.json)
+- Server URL in SecurePreferences.kt or environment variable

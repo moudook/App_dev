@@ -1,0 +1,388 @@
+# DEPENDENCIES
+
+## Build System
+
+**Gradle:** 8.12.1
+**Kotlin:** 2.1.21 (forced across all subprojects)
+**Java Target:** 17
+
+---
+
+## Version Catalog
+
+**Location:** `gradle/libs.versions.toml` (referenced but not visible in analysis)
+
+Dependencies are managed via Gradle version catalog with `libs.*` references.
+
+---
+
+## ANDROID APP DEPENDENCIES
+
+### Core Android
+
+```kotlin
+implementation(libs.androidx.core.ktx)           // AndroidX core utilities
+implementation(libs.androidx.lifecycle.runtime.ktx)  // Lifecycle-aware components
+implementation(libs.androidx.activity.compose)    // Compose integration with Activity
+implementation(platform(libs.androidx.compose.bom))  // Compose BOM for versioning
+implementation(libs.androidx.ui)                  // Compose UI fundamentals
+implementation(libs.androidx.ui.graphics)         // Graphics primitives
+implementation(libs.androidx.ui.tooling.preview)  // Preview support
+implementation(libs.androidx.material3)           // Material 3 components
+implementation(libs.material)                     // Material Components (XML)
+implementation(libs.google.fonts)                 // Google Fonts
+implementation(libs.androidx.material.icons.extended)  // Extended icons
+implementation(libs.androidx.navigation.compose)  // Navigation Compose
+```
+
+### Database
+
+```kotlin
+implementation(libs.androidx.room.runtime)        // Room database runtime
+implementation(libs.androidx.room.ktx)            // Kotlin extensions
+implementation(libs.androidx.room.paging)         // Paging integration
+ksp(libs.androidx.room.compiler)                  // Room compiler (KSP)
+
+implementation(libs.androidx.paging.runtime)      // Paging 3 runtime
+implementation(libs.androidx.paging.compose)      // Paging 3 Compose
+```
+
+### Networking
+
+```kotlin
+implementation(libs.okhttp)                       // HTTP client
+implementation(libs.kotlinx.serialization.json)   // JSON serialization
+implementation(libs.kotlinx.coroutines.core)      // Coroutines
+implementation(libs.ktor.client.okhttp)           // Ktor client (OkHttp engine)
+implementation(libs.ktor.client.content.negotiation)  // Content negotiation
+implementation(libs.ktor.serialization.kotlinx.json)  // Ktor JSON serialization
+```
+
+### Firebase
+
+```kotlin
+implementation(platform(libs.firebase.bom))       // Firebase BOM
+implementation(libs.firebase.auth)                // Firebase Authentication
+implementation(libs.firebase.crashlytics)         // Crash reporting
+implementation(libs.firebase.messaging)           // Push notifications (FCM)
+// Note: Analytics and Remote Config explicitly NOT included
+```
+
+### Media & Images
+
+```kotlin
+implementation(libs.coil.compose)                 // Image loading
+implementation(libs.androidx.palette.ktx)         // Color extraction
+implementation(libs.androidx.media3.exoplayer)    // Audio playback
+implementation(libs.androidx.media3.session)      // Media session
+implementation(libs.androidx.media3.ui)           // Media UI
+```
+
+### Security & Storage
+
+```kotlin
+implementation(libs.androidx.security.crypto)     // Encrypted storage
+implementation(libs.androidx.datastore.preferences)  // DataStore preferences
+```
+
+### Google Services
+
+```kotlin
+implementation(libs.play.services.auth)           // Google Sign-In
+implementation(libs.google.api.services.drive)    // Google Drive API
+implementation(libs.google.api.client.android)    // Google API client
+implementation(libs.google.http.client.gson)      // HTTP client for Google APIs
+```
+
+### Background Work
+
+```kotlin
+implementation(libs.androidx.work.runtime.ktx)    // WorkManager
+implementation(libs.javax.inject)                 // Dependency injection
+```
+
+### Utilities
+
+```kotlin
+implementation(libs.gson)                         // JSON parsing
+implementation(libs.zxing.core)                   // QR code generation
+```
+
+### Markdown & Rich Text
+
+```kotlin
+implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
+implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
+```
+
+### Testing
+
+```kotlin
+testImplementation(libs.junit)
+testImplementation("io.mockk:mockk:1.13.9")
+testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+testImplementation("app.cash.turbine:turbine:1.0.0")
+testImplementation("org.robolectric:robolectric:4.14.1")
+
+androidTestImplementation(libs.androidx.junit)
+androidTestImplementation(libs.androidx.espresso.core)
+androidTestImplementation(platform(libs.androidx.compose.bom))
+androidTestImplementation(libs.androidx.ui.test.junit4)
+androidTestImplementation("io.mockk:mockk-android:1.13.9")
+androidTestImplementation("androidx.test:rules:1.6.1")
+androidTestImplementation("androidx.test:runner:1.6.2")
+
+debugImplementation(libs.androidx.ui.tooling)
+debugImplementation(libs.androidx.ui.test.manifest)
+debugImplementation(libs.leakcanary)              // Memory leak detection
+```
+
+### Removed Dependencies (Optimization Notes)
+
+```kotlin
+// REMOVED: YouTube Player - Not used in codebase (BATCH-08 optimization)
+// REMOVED: PDFBox Android - Moved to server-side
+// REMOVED: ML Kit Text Recognition - Moved to server-side
+// REMOVED: Koog AI Agent Framework - Migrated to server
+// REMOVED: Vosk - Using Google Speech Recognizer instead
+// REMOVED: Firestore - Migrated to server sync
+```
+
+---
+
+## COMMON MODULE DEPENDENCIES
+
+### Kotlin Multiplatform
+
+```kotlin
+plugins {
+    kotlin("multiplatform")
+    kotlin("plugin.serialization")
+}
+
+kotlin {
+    androidTarget()  // When Android SDK available
+    jvm()
+}
+```
+
+### Common Main
+
+```kotlin
+implementation(libs.kotlinx.serialization.json)   // JSON serialization
+implementation(libs.kotlinx.coroutines.core)      // Coroutines
+implementation(libs.androidx.room.common)         // Room annotations (pure Java)
+```
+
+### Common Test
+
+```kotlin
+implementation(kotlin("test"))
+```
+
+---
+
+## SERVER MODULE DEPENDENCIES
+
+### Ktor Server
+
+```kotlin
+implementation(libs.ktor.server.core)             // Ktor core
+implementation(libs.ktor.server.netty)            // Netty engine
+implementation(libs.ktor.server.content.negotiation)  // Content negotiation
+implementation(libs.ktor.serialization.kotlinx.json)  // JSON serialization
+implementation(libs.ktor.server.sse)              // Server-Sent Events
+implementation(libs.ktor.server.call.id)          // Call ID tracking
+implementation(libs.ktor.server.rate.limit)       // Rate limiting
+implementation(libs.ktor.server.cors)             // CORS support
+implementation(libs.ktor.server.call.logging)     // Call logging
+implementation(libs.ktor.server.auth)             // Authentication
+```
+
+### Ktor Client
+
+```kotlin
+implementation(libs.ktor.client.okhttp)           // HTTP client (OkHttp)
+implementation(libs.ktor.client.content.negotiation)  // Content negotiation
+implementation(libs.ktor.serialization.kotlinx.json)  // JSON serialization
+```
+
+### Database
+
+```kotlin
+implementation(libs.postgresql)                   // PostgreSQL driver
+implementation(libs.hikaricp)                     // Connection pooling
+implementation(libs.exposed.core)                 // Exposed ORM
+implementation(libs.exposed.jdbc)                 // Exposed JDBC
+```
+
+### LLM & AI
+
+```kotlin
+// LLM providers implemented directly (GeminiProvider, OpenAiCompatibleProvider)
+// No external AI framework dependencies
+```
+
+### PDF Processing
+
+```kotlin
+implementation("org.apache.pdfbox:pdfbox:3.0.1")  // PDF text extraction
+```
+
+### Kotlinx
+
+```kotlin
+implementation(libs.kotlinx.serialization.json)   // JSON serialization
+implementation(libs.kotlinx.coroutines.core)      // Coroutines
+```
+
+### Logging
+
+```kotlin
+implementation(libs.logback.classic)              // Logging implementation
+implementation(libs.logstash.logback.encoder)     // JSON log formatting
+```
+
+### Monitoring
+
+```kotlin
+implementation(libs.micrometer.registry.prometheus)  // Prometheus metrics
+implementation(libs.ktor.server.metrics.micrometer)  // Ktor metrics integration
+```
+
+### Firebase
+
+```kotlin
+implementation(libs.firebase.admin)               // Firebase Admin SDK
+```
+
+### Testing
+
+```kotlin
+testImplementation(kotlin("test"))
+testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+```
+
+### Build Plugins
+
+```kotlin
+plugins {
+    application
+    kotlin("jvm")
+    kotlin("plugin.serialization")
+    id("com.github.johnrengelman.shadow") version "8.1.1"
+}
+```
+
+---
+
+## Root Project Dependencies
+
+### Android Plugins
+
+```kotlin
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.google.services) apply false
+    alias(libs.plugins.firebase.crashlytics) apply false
+}
+```
+
+### Server Build Plugins
+
+```kotlin
+plugins {
+    kotlin("multiplatform") version "2.1.0" apply false
+    kotlin("jvm") version "2.1.0" apply false
+    kotlin("plugin.serialization") version "2.1.0" apply false
+    id("com.github.johnrengelman.shadow") version "8.1.1" apply false
+}
+```
+
+---
+
+## Kotlin Version Enforcement
+
+Root `build.gradle.kts` forces Kotlin versions across all subprojects:
+
+```kotlin
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            force("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-common:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-reflect:2.1.21")
+        }
+    }
+}
+```
+
+---
+
+## External API Dependencies
+
+### Required API Keys
+
+| Service | Environment Variable | Purpose |
+|---------|---------------------|---------|
+| Tavily | TAVILY_API_KEY | Web search |
+| Krea AI | KREA_API_KEY | Image generation |
+| Google Gemini | GEMINI_API_KEY | Primary LLM |
+| OpenAI | OPENAI_API_KEY | Alternative LLM |
+| Firebase | (google-services.json) | Authentication, FCM |
+
+### External Endpoints
+
+| Service | Base URL | Used By |
+|---------|----------|---------|
+| Google Gemini | https://generativelanguage.googleapis.com/v1beta/ | GeminiProvider |
+| Tavily | https://api.tavily.com/ | TavilySearchTool |
+| Krea AI | https://api.krea.ai/ | KreaImageTool |
+| Firebase Auth | https://identitytoolkit.googleapis.com/ | Firebase Admin SDK |
+
+---
+
+## Dependency Analysis
+
+### Dependency Count
+
+| Module | Direct Dependencies | Test Dependencies |
+|--------|---------------------|-------------------|
+| app | ~40 | ~10 |
+| common | ~3 | ~1 |
+| server | ~20 | ~2 |
+
+### Potential Issues
+
+1. **Kotlin Version Mismatch:**
+   - Root forces 2.1.21
+   - Server build uses 2.1.0 in plugins
+   - Risk: Runtime incompatibilities
+
+2. **Duplicate Dependencies:**
+   - kotlinx.serialization.json in all 3 modules
+   - kotlinx.coroutines.core in all 3 modules
+   - ktor.client.* in both app and server
+
+3. **Firebase BOM Usage:**
+   - App uses Firebase BOM
+   - Server uses firebase-admin directly
+   - Risk: Version mismatches
+
+4. **Exposed ORM Version:**
+   - No explicit version in server build
+   - Relies on version catalog
+   - Risk: Unexpected version changes
+
+### Recommendations
+
+1. Align Kotlin plugin versions (2.1.0 vs 2.1.21)
+2. Consider centralizing common dependencies in platform convention
+3. Add explicit versions for critical dependencies
+4. Review Firebase BOM alignment between app and server

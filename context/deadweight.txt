@@ -1,0 +1,431 @@
+# DEADWEIGHT ANALYSIS
+
+## Overview
+
+This document identifies dead code, unused dependencies, and unnecessary complexity in the codebase.
+
+---
+
+## DEAD CODE
+
+### 1. Unused Imports and Variables
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/Application.kt`
+
+**Issue:** Commented-out import not removed
+```kotlin
+// import io.ktor.server.plugins.callloging.CallLogging
+```
+
+**Recommendation:** Remove commented code entirely.
+
+---
+
+### 2. Disabled Call Logging
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/Application.kt`
+
+**Issue:** Legacy CallLogging disabled but code remains
+```kotlin
+/*
+install(CallLogging) {
+    level = Level.INFO
+    filter { call -> call.request.path().startsWith("/") }
+    callIdMdc("trace_id")
+}
+*/
+```
+
+**Impact:** Code confusion, maintenance overhead
+
+**Recommendation:** Remove entirely since StructuredLogging replaced it.
+
+---
+
+### 3. Unused Conductor Module
+
+**Location:** `conductor/`
+
+**Issue:** Empty directory with only gitignored files
+
+**Impact:** Repository clutter, confusion about purpose
+
+**Recommendation:** Remove directory or document intended purpose.
+
+---
+
+### 4. Deprecated Vosk Integration
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Vosk dependency removed but comments remain
+```kotlin
+// Vosk - Offline speech recognition for wake word detection (Values removed for Cloud Migration)
+// implementation("com.alphacephei:vosk-android:0.3.75")
+```
+
+**Related Code:** Wake word detection references may still exist
+
+**Recommendation:** Search for and remove all Vosk-related code.
+
+---
+
+### 5. Removed YouTube Player
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Dependency removed with comment
+```kotlin
+// REMOVED: YouTube Player - Not used in codebase (BATCH-08 optimization)
+// implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1")
+```
+
+**Recommendation:** Verify no YouTube-related code remains in UI.
+
+---
+
+### 6. Unused Firebase Dependencies
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Explicitly commented as not implemented
+```kotlin
+// Analytics not implemented - no logEvent() calls
+// implementation(libs.firebase.analytics)
+// Remote Config not implemented - no fetchAndActivate() calls
+// implementation(libs.firebase.config)
+```
+
+**Impact:** Clear in this case (comments explain why), but could be moved to documentation.
+
+---
+
+### 7. Disabled Detekt
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Detekt configuration commented out
+```kotlin
+// detekt {
+//     buildUponDefaultConfig = true
+//     ...
+// }
+```
+
+**Comment:** "temporarily disabled for schema integration"
+
+**Impact:** Code quality checks disabled
+
+**Recommendation:** Re-enable or remove configuration.
+
+---
+
+### 8. Unused PDFBox Android
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Dependency removed (moved to server)
+```kotlin
+// PDF text extraction (Removed - Server side)
+// implementation(libs.pdfbox.android)
+```
+
+**Verification Needed:** Ensure no PDF processing remains in Android code.
+
+---
+
+### 9. Removed ML Kit
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Dependency removed (moved to server)
+```kotlin
+// ML Kit Text Recognition (Removed - Server side)
+// implementation("com.google.mlkit:text-recognition:16.0.1")
+```
+
+**Verification Needed:** Ensure no ML Kit calls remain.
+
+---
+
+### 10. Removed Firestore
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Multiple Firestore-related dependencies removed
+```kotlin
+// REMOVED: Firestore - migrated to server sync (Phase 4)
+// REMOVED: gRPC dependencies - only needed for Firestore
+```
+
+**Verification Needed:** Search for any remaining Firestore references.
+
+---
+
+## UNUSED ENDPOINTS
+
+### 1. Research Session GET Endpoint
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/routes/ResearchRoutes.kt`
+
+**Endpoint:** `GET /api/v1/research/{id}`
+
+**Issue:** Returns not implemented
+```kotlin
+get("/{id}") {
+    // TODO: Load from database
+    call.respond(HttpStatusCode.OK, mapOf("status" to "not_implemented_yet"))
+}
+```
+
+**Status:** Incomplete implementation
+
+**Recommendation:** Complete implementation or remove endpoint.
+
+---
+
+### 2. Image Generation Placeholder
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/services/OrchestratorService.kt`
+
+**Issue:** Placeholder response
+```kotlin
+ActionType.GENERATE_IMAGE -> {
+    // Placeholder for Image Generation Service
+    // val imageUrl = imageGenService.generate(query)
+    "Image generation is coming soon! (Capability: ${providerRouter.getModelForCapability(Capability.IMAGE_GENERATION)})"
+}
+```
+
+**Note:** Krea AI integration exists in `KreaImageTool.kt` but may not be wired up here.
+
+**Recommendation:** Wire up actual image generation or remove placeholder.
+
+---
+
+### 3. Edit Image Endpoint
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/services/OrchestratorService.kt`
+
+**Issue:** Not implemented
+```kotlin
+ActionType.EDIT_IMAGE -> {
+    "Image editing is coming soon!"
+}
+```
+
+**Recommendation:** Implement or remove from ActionType enum.
+
+---
+
+## UNUSED CAPABILITIES
+
+### 1. Image Editing
+
+**Referenced in:** `OrchestratorService.kt`
+
+**Status:** No implementation exists
+
+**Recommendation:** Remove `ActionType.EDIT_IMAGE` until feature is implemented.
+
+---
+
+### 2. Advanced Deep Research v3.0
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/agent/AdvancedDeepResearchAgent.kt`
+
+**Issue:** Extensive implementation (1159 lines) but unclear if wired into routes
+
+**Verification Needed:** Check if `AdvancedDeepResearchAgent` is actually used in `ResearchRoutes.kt`
+
+**Current Route Uses:** `DeepResearchAgent` (not AdvancedDeepResearchAgent)
+
+**Recommendation:** Either wire up AdvancedDeepResearchAgent or document as experimental.
+
+---
+
+### 3. Zero-Knowledge Vault
+
+**Referenced in:** README features list
+
+**Implementation:** `VaultRepository.kt` exists
+
+**Issue:** Unclear if UI integration exists
+
+**Verification Needed:** Check for vault UI screens and API usage.
+
+---
+
+## DEPENDENCY DEADWEIGHT
+
+### 1. Duplicate Kotlinx Dependencies
+
+**Issue:** Same dependencies in multiple modules
+```kotlin
+// In app, common, and server
+implementation(libs.kotlinx.serialization.json)
+implementation(libs.kotlinx.coroutines.core)
+```
+
+**Impact:** Larger build size, potential version conflicts
+
+**Recommendation:** Use platform convention or BOM for shared dependencies.
+
+---
+
+### 2. Ktor Client Duplication
+
+**Issue:** Ktor client in both app and server
+```kotlin
+// app/build.gradle.kts
+implementation(libs.ktor.client.okhttp)
+
+// server/build.gradle.kts
+implementation(libs.ktor.client.okhttp)
+```
+
+**Justification:** Server uses Ktor client for external API calls (Tavily, Krea, Gemini)
+
+**Status:** Acceptable duplication
+
+---
+
+### 3. Unused Google Services
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Google Sign-In included but may not be used
+```kotlin
+implementation(libs.play.services.auth)
+```
+
+**Verification Needed:** Check if Google Sign-In is actually implemented or if only Firebase email auth is used.
+
+---
+
+### 4. Javax Inject
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** Legacy DI dependency
+```kotlin
+implementation(libs.javax.inject)
+```
+
+**Context:** Used for WorkManager integration
+
+**Status:** Likely needed, but verify no Hilt/Koin migration planned.
+
+---
+
+## CONFIGURATION DEADWEIGHT
+
+### 1. Version Mismatch
+
+**Issue:** Kotlin version inconsistency
+```kotlin
+// Root build.gradle.kts forces 2.1.21
+force("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
+
+// Server build.gradle.kts uses 2.1.0
+plugins {
+    kotlin("jvm") version "2.1.0"
+}
+```
+
+**Impact:** Potential runtime incompatibilities
+
+**Recommendation:** Align versions.
+
+---
+
+### 2. Unused Build Features
+
+**File:** `app/build.gradle.kts`
+
+**Issue:** BuildConfig enabled but may not be used
+```kotlin
+buildFeatures {
+    compose = true
+    buildConfig = true  // Verify usage
+}
+```
+
+**Verification Needed:** Search for `BuildConfig.` references.
+
+---
+
+### 3. Multiple Schema Versions
+
+**Issue:** README mentions v6.0.0 but app build shows v3.2.0
+```kotlin
+// app/build.gradle.kts
+versionName = "3.2.0"
+
+// README.md
+# Version 6.0.0
+```
+
+**Impact:** Version confusion
+
+**Recommendation:** Align version numbers.
+
+---
+
+## UI DEADWEIGHT
+
+### 1. Unused Composables
+
+**Verification Needed:** Search for composables that are defined but never called.
+
+**Potential Candidates:**
+- FullAudioPlayer (verify it's actually used)
+- BreathingExercise (verify integration)
+- Game composables (Coin Toss, Tic Tac Toe)
+
+---
+
+### 2. Debug UI
+
+**Issue:** Debug composables may exist in release builds
+
+**Verification Needed:** Check for `if (BuildConfig.DEBUG)` guards on debug-only UI.
+
+---
+
+## RECOMMENDATIONS SUMMARY
+
+### Immediate Actions
+
+1. **Remove commented code** in Application.kt
+2. **Delete conductor/ directory** or document purpose
+3. **Complete or remove** `/api/v1/research/{id}` endpoint
+4. **Align Kotlin versions** (2.1.0 vs 2.1.21)
+5. **Align version numbers** (3.2.0 vs 6.0.0)
+
+### Short-Term Actions
+
+1. **Verify AdvancedDeepResearchAgent** usage
+2. **Remove unused ActionType.EDIT_IMAGE**
+3. **Re-enable Detekt** or document why disabled
+4. **Clean up dependency comments** (move to changelog)
+
+### Long-Term Actions
+
+1. **Implement or remove** zero-knowledge vault feature
+2. **Complete image editing** capability
+3. **Audit UI composables** for unused components
+4. **Consider dependency consolidation** with platform convention
+
+---
+
+## ESTIMATED IMPACT
+
+| Category | Lines of Code | Files Affected | Priority |
+|----------|---------------|----------------|----------|
+| Dead Code | ~200 | 10+ | Medium |
+| Unused Endpoints | ~50 | 3 | Low |
+| Dependency Cleanup | N/A | 5 | Low |
+| Configuration | N/A | 3 | Medium |
+
+**Total Estimated Cleanup:** 4-8 hours

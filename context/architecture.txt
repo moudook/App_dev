@@ -1,0 +1,283 @@
+# ARCHITECTURE
+
+## System Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SMARTY ANDROID CLIENT                         │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
+│  │ Jetpack     │  │ Room         │  │ Media3                  │ │
+│  │ Compose UI  │  │ Database     │  │ ExoPlayer               │ │
+│  │             │  │ (FTS5)       │  │                         │ │
+│  └──────┬──────┘  └──────┬───────┘  └───────────┬─────────────┘ │
+│         │                │                       │               │
+│         └────────────────┼───────────────────────┘               │
+│                          │                                       │
+│                  ┌───────▼────────┐                              │
+│                  │ Ktor Client    │                              │
+│                  │ + SSE Stream   │                              │
+│                  └───────┬────────┘                              │
+└──────────────────────────┼───────────────────────────────────────┘
+                           │ HTTPS / SSE
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SMARTY SERVER (Ktor)                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    ROUTE LAYER                            │   │
+│  │  ChatRoutes | ResearchRoutes | DataRoutes | SyncRoutes   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                            │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐ │
+│  │                    SERVICE LAYER                            │ │
+│  │  OrchestratorService | DigestService | VisionService      │ │
+│  │  ReasoningService | FileProcessingService | FcmService    │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                            │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐ │
+│  │                    AGENT LAYER                              │ │
+│  │  ServerAgent | DeepResearchAgent | AdvancedDeepResearch    │ │
+│  │  + AgentTracer | AgentPersistenceManager | GoalMemoryMgr  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                            │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐ │
+│  │                    TOOL LAYER                               │ │
+│  │  TavilySearchTool | WebScrapeTool | KreaImageTool         │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                            │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐ │
+│  │                    LLM LAYER                                │ │
+│  │  ProviderRouter | GeminiProvider | OpenAiCompatibleProvider││
+│  │  LlmCache | KeyRotationManager                             │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                            │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐ │
+│  │                  DATA LAYER                                 │ │
+│  │  Repositories | Exposed ORM | HikariCP | PostgresVector   │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL SERVICES                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ Google       │  │ Tavily       │  │ Krea AI              │  │
+│  │ Gemini API   │  │ Search API   │  │ (Flux.1 Dev)         │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ Firebase     │  │ PostgreSQL   │  │ Firebase Cloud       │  │
+│  │ Auth         │  │ + pgvector   │  │ Messaging            │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Architectural Layers
+
+### 1. Presentation Layer (Android)
+
+**Location:** `app/src/main/java/com/example/smarty/`
+
+**Components:**
+- `MainActivity.kt` - Single activity architecture
+- `ui/` - Compose screens and components
+- `viewmodel/` - State management with Flow
+- `navigation/` - NavHost-based navigation
+
+**Responsibilities:**
+- UI rendering with Jetpack Compose
+- Local state management
+- SSE stream consumption
+- Device feature access (camera, microphone, storage)
+- Local database caching (Room)
+
+### 2. Domain Layer (Shared)
+
+**Location:** `common/src/commonMain/kotlin/`
+
+**Components:**
+- `protocol/` - AgentCommand, AgentEvent, ClientEvent
+- `data/` - Shared data models
+- `features/` - Feature-specific domain models
+- `core/domain/` - Core domain entities
+
+**Responsibilities:**
+- Protocol definitions for client-server communication
+- Shared data models (Note, ChatSession, CalendarEvent, etc.)
+- Serialization contracts
+
+### 3. Application Layer (Server)
+
+**Location:** `server/src/main/kotlin/com/example/smarty/server/`
+
+**Sub-layers:**
+
+#### Route Layer (`routes/`)
+- `ChatRoutes.kt` - SSE streaming, chat queries
+- `ResearchRoutes.kt` - Research session management
+- `DataRoutes.kt` - CRUD for notes, calendar, timers
+- `SyncRoutes.kt` - Optimistic sync protocol
+- `DigestRoutes.kt` - Daily/weekly digest generation
+- `ProcessingRoutes.kt` - Image/PDF processing
+- `HealthRoutes.kt` - Health checks, metrics
+
+#### Service Layer (`services/`)
+- `OrchestratorService.kt` - Request routing (vision/chat/generation)
+- `DigestService.kt` - Activity synthesis
+- `DigestScheduler.kt` - Scheduled digest generation
+- `FcmNotificationService.kt` - Push notification delivery
+- `VisionService.kt` - Image OCR and analysis
+- `FileProcessingService.kt` - PDF text extraction
+- `ReasoningService.kt` - Thinking trace management
+
+#### Agent Layer (`agent/`)
+- `ServerAgent.kt` - Main chat agent with tool loop
+- `DeepResearchAgent.kt` - Research session orchestration
+- `AdvancedDeepResearchAgent.kt` - ACH matrix, bias detection
+- `AgentPrompts.kt` - System prompt templates
+- `AgentToolDefinitions.kt` - Tool schema definitions
+- `AgentTracer.kt` - Execution tracing
+- `AgentPersistenceManager.kt` - Checkpoint storage
+- `GoalMemoryManager.kt` - Goal-oriented memory
+- `ThinkingStorageManager.kt` - Progressive thinking persistence
+- `ActiveSessionManager.kt` - Session lifecycle tracking
+- `ConversationSummarizer.kt` - Context window management
+
+#### Tool Layer (`tools/`)
+- `TavilySearchTool.kt` - Web search via Tavily API
+- `WebScrapeTool.kt` - Full page content extraction
+- `KreaImageTool.kt` - Image generation via Krea AI
+
+#### LLM Layer (`llm/`)
+- `LlmProvider.kt` - Provider interface
+- `GeminiProvider.kt` - Google Gemini implementation
+- `OpenAiCompatibleProvider.kt` - OpenAI-compatible APIs
+- `ProviderRouter.kt` - Model selection by capability
+- `LlmProviderFactory.kt` - Provider instantiation
+- `LlmCache.kt` - Response caching
+- `KeyRotationManager.kt` - API key rotation
+
+#### Data Layer (`data/`)
+- `DatabaseFactory.kt` - HikariCP connection pool
+- `BaseRepository.kt` - Generic repository pattern
+- `NoteRepository.kt` - Note CRUD operations
+- `ChatRepository.kt` - Chat session/message storage
+- `CalendarRepository.kt` - Calendar event management
+- `TimerRepository.kt` - Timer/alarm management
+- `PostgresVectorStore.kt` - Vector similarity search
+- `SyncRepository.kt` - Sync state tracking
+- `FcmTokenRepository.kt` - FCM token management
+- `GeneratedImageRepository.kt` - Image generation tracking
+
+### 4. Infrastructure Layer
+
+**Database:**
+- PostgreSQL 15+ with pgvector extension
+- HikariCP connection pooling (max 10 connections)
+- Exposed ORM for type-safe queries
+- Migrations via SQL scripts
+
+**Caching:**
+- LlmCache for LLM response caching
+- Room database for local Android caching
+- In-memory session cache (ConcurrentHashMap)
+
+**Monitoring:**
+- Micrometer with Prometheus registry
+- Structured logging (Logback + Logstash)
+- Security monitoring (SecurityMonitor)
+- Agent tracing (PostgresTracer, MonitoringTracer)
+
+## Communication Patterns
+
+### Client → Server
+
+**SSE Streaming (Primary):**
+```
+GET /chat/stream?query=...&sessionId=...
+Authorization: Bearer <firebase_token>
+
+Response: text/event-stream
+event: processing
+data: {"eventId":"...","content":"..."}
+
+event: tool_call
+data: {"toolName":"web_search","status":"started"}
+
+event: result
+data: {"content":"...","isFinal":true}
+```
+
+**REST Endpoints:**
+- POST /chat/query - Chat with file attachments
+- POST /chat/events - Client event submission
+- POST /api/v1/research/start - Start research session
+- GET/POST /api/v1/notes - Note management
+- POST /api/v1/sync/pull - Pull changes
+- POST /api/v1/sync/push - Push changes
+
+### Server → Client
+
+**AgentEvent Types:**
+- `Processing` - Agent thinking/reasoning updates
+- `ToolCall` - Tool execution status (started/completed/failed)
+- `Result` - Response content chunks
+- `Command` - Device action requests
+- `StateSync` - Server state change notifications
+- `Error` - Error conditions
+- `ToolBlocked` - Blocked tool execution
+
+**AgentCommand Types:**
+- Note operations (add, update, delete, archive)
+- Calendar operations (schedule, list, delete)
+- Timer operations (set, cancel)
+- Device control (launch app, toggle settings)
+- Audio control (play, pause, seek)
+- Navigation (home, calendar, settings)
+
+## Security Architecture
+
+### Authentication
+- Firebase JWT token verification
+- Multi-tenant isolation via user_id in all queries
+- Row-level security through foreign key constraints
+
+### Authorization
+- All routes require Firebase authentication
+- User-scoped data access (userId in all queries)
+- No cross-tenant data access possible
+
+### Data Protection
+- HTTPS-only communication
+- Encrypted credential storage (Android EncryptedSharedPreferences)
+- Zero-knowledge vault for sensitive data
+- No conversation logging
+
+### Input Validation
+- Query length limits (10000 chars)
+- Input sanitization via InputValidation utility
+- XSS prevention
+- Security headers (CSP, X-Frame-Options, HSTS)
+
+### Rate Limiting
+- Chat endpoints: 120 requests/minute per user
+- Processing endpoints: 30 requests/minute per user
+- Global fallback: 100 requests/minute per user
+
+## Scalability Considerations
+
+### Current Design
+- Single-server deployment (Hugging Face Spaces)
+- Connection pool: 10 max connections
+- JVM heap: 384MB max (-Xmx384m)
+- No horizontal scaling support
+
+### Bottlenecks
+- Single LLM provider connection per request
+- No request queuing for high load
+- In-memory session cache not distributed
+- PostgreSQL single-instance
+
+### Scaling Recommendations
+- Add Redis for distributed session cache
+- Implement request queue with backpressure
+- Add read replicas for PostgreSQL
+- Consider Kubernetes for horizontal scaling

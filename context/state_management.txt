@@ -1,0 +1,725 @@
+# STATE MANAGEMENT
+
+## Overview
+
+This document describes how state is managed across the Smarty application, including local state, server state, and synchronization mechanisms.
+
+---
+
+## ANDROID STATE MANAGEMENT
+
+### Architecture Pattern
+
+**Pattern:** MVVM with Unidirectional Data Flow
+
+**Components:**
+- **ViewModel:** State holder and business logic
+- **StateFlow:** Reactive state streams
+- **Compose:** Declarative UI based on state
+
+### State Flow Hierarchy
+
+```
+ViewModel (State Holder)
+    │
+    ├─> StateFlow<State>
+    │       │
+    │       └─> collectAsState() in Composable
+    │               │
+    │               └─> UI renders based on state
+    │
+    └─> User Actions
+            │
+            └─> ViewModel functions update state
+```
+
+---
+
+## VIEWMODEL STATE
+
+### SmartyViewModel (Main)
+
+**File:** `app/src/main/java/com/example/smarty/features/notes/domain/SmartyViewModel.kt`
+
+**State Properties:**
+```kotlin
+// Note State
+val notes: StateFlow<List<Note>>
+val categories: StateFlow<List<Category>>
+val selectedNote: StateFlow<Note?>
+val selectedCategory: StateFlow<Category?>
+val archivedNotes: StateFlow<List<Note>>
+
+// Loading State
+val isNotesLoading: StateFlow<Boolean>
+val isStacksLoading: StateFlow<Boolean>
+val isArchiveLoading: StateFlow<Boolean>
+val isChatHistoryLoading: StateFlow<Boolean>
+val isCalendarLoading: StateFlow<Boolean>
+val isNoteVersionsLoading: StateFlow<Boolean>
+
+// Processing State
+val isProcessing: StateFlow<Boolean>
+val isChatProcessing: StateFlow<Boolean>
+val agentActivity: StateFlow<AgentActivity?>
+
+// Chat State
+val chatMessages: StateFlow<List<ChatMessage>>
+val currentSessionId: StateFlow<String?>
+val chatSessions: StateFlow<List<ChatSession>>
+val mentionState: StateFlow<MentionState?>
+val pendingChatText: StateFlow<String?>
+
+// Search State
+val searchQuery: StateFlow<String>
+val selectedFilters: StateFlow<Set<Filter>>
+val recentSearches: StateFlow<List<SearchHistoryEntry>>
+
+// Theme State
+val isDarkTheme: StateFlow<Boolean>
+
+// Chat Mode State
+val isChatMode: StateFlow<Boolean>
+
+// Selection State
+val isSelectionMode: StateFlow<Boolean>
+val selectedNotes: StateFlow<Set<String>>
+
+// Archive State
+val lastArchivedNotes: StateFlow<List<Note>?>
+
+// Cache State
+val cacheSizeBytes: StateFlow<Long>
+val isClearingCache: StateFlow<Boolean>
+
+// Shake State
+val shakeSensitivity: StateFlow<Float>
+val wasShakeTriggered: StateFlow<Boolean>
+
+// Wake Word State
+val wakeWordTriggered: StateFlow<Boolean>
+
+// Camera State
+val cameraTriggered: StateFlow<Boolean>
+
+// Audio State
+val pendingAudioPlayback: StateFlow<AudioTrack?>
+
+// Navigation State
+val navigationRequest: StateFlow<NavigationRequest?>
+
+// Connection State
+val connectionStatus: StateFlow<ConnectionStatus>
+
+// Privacy State
+val isAppInForeground: StateFlow<Boolean>
+val isAiExcluded: StateFlow<Boolean>
+```
+
+**State Update Pattern:**
+```kotlin
+class SmartyViewModel(...) : ViewModel() {
+    
+    private val _notes = MutableStateFlow<List<Note>>(emptyList())
+    val notes: StateFlow<List<Note>> = _notes.asStateFlow()
+    
+    private val _isProcessing = MutableStateFlow(false)
+    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+    
+    fun addNote(content: String, attachments: List<Attachment>) {
+        viewModelScope.launch {
+            _isProcessing.value = true
+            try {
+                val newNote = repository.addNote(content, attachments)
+                _notes.value = _notes.value + newNote
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+}
+```
+
+---
+
+### ChatViewModel
+
+**File:** `app/src/main/java/com/example/smarty/features/chat/domain/ChatViewModel.kt`
+
+**State Properties:**
+```kotlin
+val messages: StateFlow<List<ChatMessage>>
+val inputText: StateFlow<String>
+val isSending: StateFlow<Boolean>
+val connectionState: StateFlow<ConnectionState>
+val currentSession: StateFlow<ChatSession?>
+val typingIndicator: StateFlow<Boolean>
+```
+
+**SSE Stream Handling:**
+```kotlin
+fun connectToStream(query: String, sessionId: String) {
+    viewModelScope.launch {
+        _connectionState.value = ConnectionState.CONNECTING
+        
+        try {
+            api.chatStream(query, sessionId)
+                .collect { event ->
+                    when (event) {
+                        is AgentEvent.Processing -> {
+                            _typingIndicator.value = true
+                            _agentActivity.value = AgentActivity.Thinking(event.content)
+                        }
+                        is AgentEvent.ToolCall -> {
+                            _agentActivity.value = AgentActivity.UsingTool(
+                                event.toolName,
+                                event.status
+                            )
+                        }
+                        is AgentEvent.Result -> {
+                            appendToMessage(event.content)
+                            if (event.isFinal) {
+                                _isSending.value = false
+                                _typingIndicator.value = false
+                            }
+                        }
+                        is AgentEvent.Command -> {
+                            handleCommand(event.command)
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            _connectionState.value = ConnectionState.ERROR
+        }
+    }
+}
+```
+
+---
+
+### AudioPlayerViewModel
+
+**File:** `app/src/main/java/com/example/smarty/features/audio/domain/AudioPlayerViewModel.kt`
+
+**State Properties:**
+```kotlin
+val uiState: StateFlow<AudioUiState>
+val isMiniPlayerVisible: StateFlow<Boolean>
+val isFullPlayerVisible: StateFlow<Boolean>
+val currentTrack: StateFlow<AudioTrack?>
+val playbackState: StateFlow<PlaybackState>
+val position: StateFlow<Long>
+val duration: StateFlow<Long>
+```
+
+**State Updates:**
+```kotlin
+fun playAudio(track: AudioTrack) {
+    viewModelScope.launch {
+        _currentTrack.value = track
+        _playbackState.value = PlaybackState.PLAYING
+        _isMiniPlayerVisible.value = true
+        
+        media3Player.play()
+    }
+}
+
+fun onSpeechListeningChanged(isListening: Boolean) {
+    viewModelScope.launch {
+        if (isListening && playbackState.value == PlaybackState.PLAYING) {
+            pauseAudio()  // Pause during speech
+        }
+    }
+}
+```
+
+---
+
+### AuthViewModel
+
+**File:** `app/src/main/java/com/example/smarty/features/auth/domain/AuthViewModel.kt`
+
+**State Properties:**
+```kotlin
+val currentUser: StateFlow<FirebaseUser?>
+val authState: StateFlow<AuthState>
+val isSigningIn: StateFlow<Boolean>
+```
+
+**Auth Flow:**
+```kotlin
+fun signInWithGoogle() {
+    viewModelScope.launch {
+        _authState.value = AuthState.Loading
+        _isSigningIn.value = true
+        
+        try {
+            val result = authRepository.signInWithGoogle()
+            _currentUser.value = result.user
+            _authState.value = AuthState.Authenticated
+        } catch (e: Exception) {
+            _authState.value = AuthState.Error(e.message)
+        } finally {
+            _isSigningIn.value = false
+        }
+    }
+}
+```
+
+---
+
+## LOCAL STATE PERSISTENCE
+
+### Room Database
+
+**File:** `app/src/main/java/com/example/smarty/data/local/SmartyDatabase.kt`
+
+**Entities with State:**
+```kotlin
+@Entity(tableName = "notes")
+data class Note(
+    @PrimaryKey val id: String,
+    val title: String,
+    val content: String,
+    val isArchived: Boolean,
+    val isPinned: Boolean,
+    val isFavorite: Boolean,
+    val categoryId: String?,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+@Entity(tableName = "chat_sessions")
+data class ChatSession(
+    @PrimaryKey val id: String,
+    val title: String?,
+    val isActive: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+@Entity(tableName = "chat_messages")
+data class ChatMessageEntity(
+    @PrimaryKey val id: String,
+    val sessionId: String,
+    val role: String,
+    val content: String,
+    val thinking: String?,
+    val toolCalls: String?,  // JSON
+    val createdAt: Long
+)
+```
+
+### DataStore Preferences
+
+**File:** `app/src/main/java/com/example/smarty/data/local/SecurePreferences.kt`
+
+**Preferences:**
+```kotlin
+object SecurePreferences {
+    private const val DEFAULT_SERVER_URL = "https://your-server.hf.space"
+    
+    suspend fun getServerUrl(): String = 
+        dataStore.data[SERVER_URL_KEY] ?: DEFAULT_SERVER_URL
+    
+    suspend fun setServerUrl(url: String) {
+        dataStore.edit { preferences ->
+            preferences[SERVER_URL_KEY] = url
+        }
+    }
+    
+    suspend fun getTheme(): Theme = 
+        Theme.valueOf(dataStore.data[THEME_KEY] ?: Theme.SYSTEM.name)
+}
+```
+
+---
+
+## SERVER STATE MANAGEMENT
+
+### Session State
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/agent/ServerAgent.kt`
+
+**In-Memory Session Cache:**
+```kotlin
+class ServerAgent(...) {
+    private val sessions = ConcurrentHashMap<String, ChatSession>()
+    
+    private fun getOrCreateSession(sessionId: String): ChatSession {
+        return sessions.computeIfAbsent(sessionId) {
+            ChatSession(sessionId)
+        }
+    }
+    
+    private fun updateSessionLastInteracted(sessionId: String) {
+        sessions[sessionId]?.lastInteractedAt = System.currentTimeMillis()
+    }
+}
+```
+
+### Active Session Manager
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/agent/ActiveSessionManager.kt`
+
+**Session Tracking:**
+```kotlin
+object ActiveSessionManager {
+    private val activeSessions = ConcurrentHashMap<String, SessionInfo>()
+    
+    fun startSession(userId: String, sessionId: String, type: String) {
+        activeSessions[sessionId] = SessionInfo(
+            userId = userId,
+            sessionId = sessionId,
+            type = type,
+            startedAt = System.currentTimeMillis()
+        )
+    }
+    
+    fun endSession(userId: String, sessionId: String) {
+        activeSessions.remove(sessionId)
+    }
+    
+    fun getActiveSession(userId: String): SessionInfo? {
+        return activeSessions.values.find { it.userId == userId }
+    }
+}
+```
+
+### Thinking Storage
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/agent/ThinkingStorageManager.kt`
+
+**Progressive Thinking Persistence:**
+```kotlin
+object ThinkingStorageManagerSingleton {
+    private val thinkingCache = ConcurrentHashMap<String, StringBuilder>()
+    
+    fun appendThinking(sessionId: String, thinking: String) {
+        thinkingCache
+            .computeIfAbsent(sessionId) { StringBuilder() }
+            .append(thinking)
+    }
+    
+    fun getCurrentThinking(sessionId: String): String {
+        return thinkingCache[sessionId]?.toString() ?: ""
+    }
+    
+    fun finalizeAndGetThinking(sessionId: String): String {
+        val thinking = getCurrentThinking(sessionId)
+        thinkingCache.remove(sessionId)
+        return thinking
+    }
+}
+```
+
+---
+
+## DATABASE STATE (PostgreSQL)
+
+### State Tables
+
+**Chat Sessions:**
+```sql
+CREATE TABLE chat_sessions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    title TEXT,
+    is_active BOOLEAN DEFAULT true,
+    is_archived BOOLEAN DEFAULT false,
+    is_pinned BOOLEAN DEFAULT false,
+    token_count INTEGER DEFAULT 0,
+    message_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Chat Messages:**
+```sql
+CREATE TABLE chat_messages (
+    id UUID PRIMARY KEY,
+    session_id UUID REFERENCES chat_sessions(id),
+    user_id UUID NOT NULL,
+    role TEXT NOT NULL,  -- user, assistant, system, tool
+    content TEXT NOT NULL,
+    thinking TEXT,  -- Reasoning trace
+    tool_calls JSONB,  -- Action panel data
+    is_edited BOOLEAN DEFAULT false,
+    is_starred BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Sync State:**
+```sql
+CREATE TABLE sync_state (
+    user_id UUID PRIMARY KEY,
+    last_sync_at TIMESTAMPTZ,
+    last_pull_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## STATE SYNCHRONIZATION
+
+### Sync Protocol
+
+**File:** `common/src/commonMain/kotlin/com/example/smarty/protocol/SyncModels.kt`
+
+**Sync Request:**
+```kotlin
+@Serializable
+data class SyncPushRequest(
+    val operations: List<SyncOperation>,
+    val lastSyncAt: Long
+)
+
+@Serializable
+data class SyncOperation(
+    val operation: String,  // INSERT, UPDATE, DELETE
+    val entityType: String,
+    val entityId: String,
+    val entityData: String,  // JSON
+    val createdAt: Long
+)
+```
+
+**Sync Response:**
+```kotlin
+@Serializable
+data class SyncPullResponse(
+    val changes: Map<String, List<EntityData>>,
+    val serverTimestamp: Long
+)
+```
+
+### WorkManager Sync
+
+**File:** `app/src/main/java/com/example/smarty/data/worker/SyncWorker.kt`
+
+**Sync Scheduling:**
+```kotlin
+class SyncWorker(...) : CoroutineWorker(...) {
+    
+    override suspend fun doWork(): Result {
+        return try {
+            // Push local changes
+            val pendingOps = syncQueueDao.getPendingOperations()
+            if (pendingOps.isNotEmpty()) {
+                api.pushSync(pendingOps)
+                syncQueueDao.markProcessed(pendingOps)
+            }
+            
+            // Pull remote changes
+            val lastSyncAt = syncStateDao.getLastSyncAt()
+            val changes = api.pullSync(lastSyncAt)
+            applyChanges(changes)
+            
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
+    }
+    
+    companion object {
+        fun schedule(context: Context) {
+            val workRequest = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
+                .build()
+            WorkManager.getInstance(context).enqueue(workRequest)
+        }
+    }
+}
+```
+
+---
+
+## STATE RECOVERY
+
+### Checkpoint System
+
+**File:** `server/src/main/kotlin/com/example/smarty/server/agent/AgentPersistenceManager.kt`
+
+**Checkpoint Storage:**
+```kotlin
+class AgentPersistenceManager(private val userId: String) {
+    
+    suspend fun saveCheckpoint(sessionId: String, state: AgentState) {
+        val checkpoint = AgentCheckpoint(
+            sessionId = sessionId,
+            userId = userId,
+            stateJson = Json.encodeToString(state),
+            version = state.version
+        )
+        repository.saveCheckpoint(checkpoint)
+    }
+    
+    suspend fun loadCheckpoint(sessionId: String): AgentState? {
+        val checkpoint = repository.getLatestCheckpoint(sessionId)
+        return checkpoint?.let {
+            Json.decodeFromString(it.stateJson)
+        }
+    }
+}
+```
+
+### Session Recovery
+
+```kotlin
+suspend fun runInternal(query: String, sessionId: String, ...): String {
+    // Try to recover from checkpoint
+    val checkpoint = persistenceManager.loadCheckpoint(sessionId)
+    val initialHistory = checkpoint?.messages ?: emptyList()
+    
+    // Continue from recovered state
+    val messages = buildMessages(initialHistory, query)
+    
+    // ... continue agent loop
+}
+```
+
+---
+
+## CONCURRENT STATE UPDATES
+
+### Thread Safety
+
+**Android:**
+```kotlin
+// StateFlow is thread-safe
+private val _notes = MutableStateFlow<List<Note>>(emptyList())
+
+// Updates are atomic
+_notes.update { current -> current + newNote }
+
+// Collection happens on Main thread
+viewModelScope.launch {
+    _notes.collect { notes ->
+        // UI update
+    }
+}
+```
+
+**Server:**
+```kotlin
+// ConcurrentHashMap for session cache
+private val sessions = ConcurrentHashMap<String, ChatSession>()
+
+// Atomic operations
+sessions.computeIfAbsent(sessionId) { ChatSession(sessionId) }
+
+// Coroutine-safe database operations
+withContext(Dispatchers.IO) {
+    repository.saveMessage(...)
+}
+```
+
+---
+
+## STATE CLEANUP
+
+### Session Expiration
+
+**Server:**
+```kotlin
+// Expire sessions after 30 days
+fun cleanupExpiredSessions() {
+    val expiryThreshold = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
+    sessions.entries.removeIf { (_, session) ->
+        session.lastInteractedAt < expiryThreshold
+    }
+}
+```
+
+### Cache Cleanup
+
+**Android:**
+```kotlin
+class CacheCleanupWorker(...) : CoroutineWorker(...) {
+    
+    override suspend fun doWork(): Result {
+        val cacheDir = applicationContext.cacheDir
+        val threshold = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)
+        
+        cacheDir.listFiles()?.forEach { file ->
+            if (file.lastModified() < threshold) {
+                file.delete()
+            }
+        }
+        
+        return Result.success()
+    }
+}
+```
+
+---
+
+## STATE OBSERVABILITY
+
+### Logging
+
+**Server:**
+```kotlin
+logger.info("Session created: $sessionId for user: $userId")
+logger.info("State updated: messages=${messages.size}, tokens=$tokenCount")
+```
+
+### Metrics
+
+**Server:**
+```kotlin
+// Micrometer counters
+counter.increment()  // Request count
+distributionSummary.record(duration)  // Response time
+gauge("active_sessions", sessions.size)  // Active sessions
+```
+
+### Debug State
+
+**Android:**
+```kotlin
+// LeakCanary for memory leak detection
+// Only in debug builds
+debugImplementation(libs.leakcanary)
+```
+
+---
+
+## STATE DIAGRAMS
+
+### Chat Message State
+
+```
+CREATED → SENDING → SENT → ACKNOWLEDGED
+            │          │
+            └─> FAILED ─┘
+```
+
+### Sync State
+
+```
+IDLE → SYNCING → SYNCED
+       │          │
+       └─> ERROR <─┘
+```
+
+### Agent Activity State
+
+```
+IDLE → THINKING → USING_TOOL → RESPONDING → IDLE
+         │              │           │
+         └──────────────┴───────────┘
+                    (direct response)
+```
+
+### Note State
+
+```
+DRAFT → SAVED → SYNCED → ARCHIVED
+                │          │
+                └─> DELETED <─┘
+```

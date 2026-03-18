@@ -1,0 +1,489 @@
+# MODULES
+
+## Module Structure
+
+The project uses a multi-module Gradle build with 3 primary modules:
+
+```
+Smarty/
+├── app/           # Android application module
+├── common/        # Shared Kotlin Multiplatform module
+└── server/        # Ktor server module
+```
+
+---
+
+## APP MODULE
+
+**Path:** `app/`
+
+**Type:** Android Application
+
+**Build File:** `app/build.gradle.kts`
+
+**Namespace:** `com.example.smarty`
+
+**Purpose:** Android thin-client UI application with Jetpack Compose
+
+### Directory Structure
+
+```
+app/src/main/java/com/example/smarty/
+├── MainActivity.kt          # Single activity entry point
+├── SmartyApplication.kt     # Application class
+├── core/
+│   ├── common/              # Utility classes
+│   └── domain/              # Domain models
+├── data/
+│   ├── backup/              # Google Drive backup
+│   ├── cache/               # AI response caching
+│   ├── local/               # Room database
+│   ├── model/               # Data models
+│   ├── remote/              # API clients
+│   ├── repository/          # Repository implementations
+│   ├── state/               # State management
+│   ├── sync/                # Sync logic
+│   └── worker/              # WorkManager workers
+├── di/                      # Dependency injection
+├── features/
+│   ├── audio/               # Audio playback
+│   ├── auth/                # Firebase auth
+│   ├── breathing/           # Breathing exercises
+│   ├── calendar/            # Calendar management
+│   ├── chat/                # Chat interface
+│   ├── digest/              # Daily digest
+│   ├── games/               # Games (Coin Toss, Tic Tac Toe)
+│   ├── notes/               # Note management
+│   ├── search/              # Search functionality
+│   ├── settings/            # App settings
+│   ├── system/              # System features
+│   └── voice/               # Voice input
+├── navigation/
+│   └── SmartyNavHost.kt     # Navigation graph
+├── service/                 # Background services
+├── ui/
+│   ├── animation/           # Animation utilities
+│   ├── components/          # Reusable UI components
+│   ├── screens/             # Screen composables
+│   ├── theme/               # Theme configuration
+│   └── utils/               # UI utilities
+├── util/                    # Utility classes
+└── viewmodel/
+    └── managers/            # ViewModel implementations
+```
+
+### Key Components
+
+**MainActivity.kt:**
+- Single activity architecture
+- Compose UI hosting
+- Permission handling
+- Intent processing (share, voice note, camera note)
+- Shake detector for chat mode toggle
+- Speech-to-text integration
+
+**SmartyApplication.kt:**
+- Global initialization
+- ResourceManager setup
+- LazyDecompressor initialization
+- WorkManager configuration
+- Network monitoring
+- Worker scheduling (DailyDigest, CalendarSync, SyncWorker)
+
+**Room Database (`data/local/SmartyDatabase.kt`):**
+- Version 38 schema
+- Entities: Note, Category, ChatSession, ChatMessage, CalendarEvent, Timer, etc.
+- FTS5 full-text search integration
+- 38 migration scripts
+- Junction tables for note relationships
+
+**Feature Modules:**
+- `chat/` - SSE streaming, agent interaction, memory management
+- `notes/` - Note CRUD, versioning, categories, stacks
+- `calendar/` - Event management, note linking
+- `audio/` - Media3 ExoPlayer integration, playlist management
+- `auth/` - Firebase authentication, login screen
+
+### Dependencies
+
+**Major Libraries:**
+- androidx.core.ktx, lifecycle, activity.compose
+- androidx.compose.bom, material3, navigation
+- Room (runtime, ktx, paging, compiler via KSP)
+- Paging3, Coil, Palette
+- OkHttp, Ktor Client
+- Firebase (auth, messaging, crashlytics)
+- Media3 ExoPlayer
+- WorkManager
+- DataStore Preferences
+- Security Crypto
+- ZXing (QR codes)
+- Compose Markdown rendering
+
+### Build Configuration
+
+```kotlin
+compileSdk = 35
+minSdk = 26
+targetSdk = 35
+versionCode = 5
+versionName = "3.2.0"
+
+compileOptions { JavaVersion.VERSION_17 }
+kotlinOptions { jvmTarget = "17" }
+
+buildTypes {
+    release {
+        isMinifyEnabled = true
+        isShrinkResources = true
+        proguardFiles(...)
+    }
+}
+
+splits {
+    abi {
+        isEnable = true
+        include("arm64-v8a")  // 64-bit ARM only
+    }
+}
+```
+
+---
+
+## COMMON MODULE
+
+**Path:** `common/`
+
+**Type:** Kotlin Multiplatform (JVM + Android)
+
+**Build File:** `common/build.gradle.kts`
+
+**Namespace:** `com.example.smarty.common`
+
+**Purpose:** Shared protocol definitions and data models
+
+### Directory Structure
+
+```
+common/src/commonMain/kotlin/com/example/smarty/
+├── core/
+│   └── domain/
+│       └── model/           # Core domain entities
+├── data/
+│   └── model/               # Data transfer models
+├── features/
+│   └── chat/
+│       └── agent/
+│           └── models/      # Agent-related models
+└── protocol/
+    ├── AgentProtocol.kt     # AgentCommand sealed class
+    ├── AgentEvent.kt        # AgentEvent sealed class
+    ├── ClientEvents.kt      # ClientEvent sealed class
+    ├── HandshakeProtocol.kt # Handshake protocol
+    └── SyncModels.kt        # Sync protocol models
+```
+
+### Key Components
+
+**AgentProtocol.kt:**
+- `AgentCommand` sealed class with 20+ command types
+- Commands: AddNote, UpdateNote, DeleteNote, ScheduleEvent, SetTimer, LaunchApp, etc.
+- ProtocolWebCitation data class
+
+**AgentEvent.kt:**
+- `AgentEvent` sealed class for SSE streaming
+- Event types: Processing, ToolCall, Result, Error, Command, StateSync, ToolBlocked
+- SearchQueryResult nested class
+
+**ClientEvents.kt:**
+- `ClientEvent` sealed class for client→server events
+- Events: ToolResult, ActiveNotesResponse, SearchResultsResponse, RecallResultsResponse, etc.
+
+**Domain Models:**
+- Note, Category, ChatSession, ChatMessageEntity
+- CalendarEvent, SmartyTimer
+- Citation, ConnectionUsage
+- NoteVersion, AIMemory
+
+### Dependencies
+
+```kotlin
+kotlin {
+    androidTarget()  // When Android SDK available
+    jvm()
+    
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation(kotlinx.serialization.json)
+                implementation(kotlinx.coroutines.core)
+                implementation(androidx.room.common)  // Pure annotations
+            }
+        }
+    }
+}
+```
+
+---
+
+## SERVER MODULE
+
+**Path:** `server/`
+
+**Type:** Kotlin JVM Application (Ktor)
+
+**Build File:** `server/build.gradle.kts`
+
+**Group:** `com.example.smarty.server`
+
+**Version:** `1.0.0`
+
+**Purpose:** Cloud-hosted AI agent runtime with tool orchestration
+
+### Directory Structure
+
+```
+server/src/main/kotlin/com/example/smarty/server/
+├── Application.kt           # Ktor application entry point
+├── agent/
+│   ├── ActiveSessionManager.kt
+│   ├── AdvancedDeepResearchAgent.kt    # v3.0 with ACH matrix
+│   ├── AgentPersistenceManager.kt
+│   ├── AgentPrompts.kt                 # System prompts
+│   ├── AgentToolDefinitions.kt         # Tool schemas
+│   ├── AgentTrace.kt                   # Tracing infrastructure
+│   ├── ConversationSummarizer.kt
+│   ├── DeepResearchAgent.kt
+│   ├── GoalMemoryManager.kt
+│   ├── PostgresTracer.kt
+│   ├── ProgressFileManager.kt
+│   ├── ResearchAgentTools.kt
+│   ├── ResearchMethodologies.kt
+│   ├── ThinkingStorageManager.kt
+│   └── ToolExampleStore.kt
+├── config/
+│   └── EnvironmentConfig.kt
+├── data/
+│   ├── BaseRepository.kt
+│   ├── CalendarEventNotesRepository.kt
+│   ├── CalendarRepository.kt
+│   ├── ChatMessageNotesRepository.kt
+│   ├── ChatRepository.kt
+│   ├── ConversationSummarizer.kt
+│   ├── DatabaseFactory.kt              # HikariCP setup
+│   ├── DigestPreferencesRepository.kt
+│   ├── FcmTokenRepository.kt
+│   ├── GeneratedImageRepository.kt
+│   ├── NewDataModels.kt                # Exposed table definitions
+│   ├── NewRepositories.kt
+│   ├── NoteDeduplicationManager.kt
+│   ├── NoteRepository.kt
+│   ├── PostgresVectorStore.kt
+│   ├── ReasoningTraceRepository.kt
+│   ├── SyncRepository.kt
+│   ├── TimerRepository.kt
+│   ├── VaultRepository.kt
+│   └── VectorStore.kt
+├── factory/
+│   └── (Dependency injection helpers)
+├── llm/
+│   ├── GeminiProvider.kt
+│   ├── KeyRotationManager.kt
+│   ├── LlmCache.kt
+│   ├── LlmProvider.kt                  # Provider interface
+│   ├── LlmProviderFactory.kt
+│   ├── OpenAiCompatibleProvider.kt
+│   └── ProviderRouter.kt               # Model selection
+├── models/
+│   └── (Server-specific models)
+├── monitoring/
+│   ├── MetricsService.kt
+│   └── SecurityMonitor.kt
+├── plugins/
+│   ├── FirebaseAuth.kt                 # Firebase JWT verification
+│   ├── Firewall.kt                     # IP restrictions
+│   ├── HealthCheck.kt
+│   ├── Metrics.kt
+│   ├── RateLimiting.kt
+│   └── StructuredLogging.kt
+├── routes/
+│   ├── ChatRoutes.kt                   # SSE streaming
+│   ├── DataRoutes.kt                   # CRUD operations
+│   ├── DigestRoutes.kt
+│   ├── HandshakeRoutes.kt
+│   ├── HealthRoutes.kt
+│   ├── NewFeaturesRoutes.kt            # v6.0.0 features
+│   ├── OptimizedSyncRoutes.kt
+│   ├── ProcessingRoutes.kt
+│   ├── ReasoningRoutes.kt
+│   ├── ResearchRoutes.kt
+│   └── SyncRoutes.kt
+├── services/
+│   ├── ContentAnalysisService.kt
+│   ├── DigestScheduler.kt
+│   ├── DigestService.kt
+│   ├── FcmNotificationService.kt
+│   ├── FileProcessingService.kt
+│   ├── OrchestratorService.kt          # Request routing
+│   ├── ReasoningService.kt
+│   ├── UtilityService.kt
+│   └── VisionService.kt
+├── tools/
+│   ├── KreaImageTool.kt
+│   ├── TavilySearchTool.kt
+│   └── WebScrapeTool.kt
+└── utils/
+    └── (Utility functions)
+```
+
+### Key Components
+
+**Application.kt:**
+- Ktor embedded server setup (Netty, port 7860)
+- Plugin installation (CORS, RateLimit, SSE, ContentNegotiation, Auth)
+- Database initialization
+- Digest scheduler startup
+- Route configuration
+- Security monitoring setup
+
+**ServerAgent.kt:**
+- Main AI agent with tool execution loop
+- RAG integration with vector store
+- Conversation summarization
+- Tool orchestration (search, memory, schedule, device)
+- Multi-tenant isolation via userId
+- Execution limits (30 min timeout, 100 tool calls, 200 iterations)
+- Progressive thinking persistence
+
+**DeepResearchAgent.kt:**
+- Research session management
+- Clarification question workflow
+- Parallel web search execution
+- Citation tracking
+- Progress file for long-running research
+- Timeout handling (12 min warning, 15 min force complete)
+- User interruption handling
+
+**AdvancedDeepResearchAgent.kt:**
+- ACH (Analysis of Competing Hypotheses) matrix
+- Cognitive bias detection
+- Source credibility hierarchy (Tier 1-5)
+- ALCOA source verification
+- BLUF-style intelligence reporting
+- Knowledge graph construction
+- Entity extraction
+- Security checkpoints (OWASP Top 10 for Agentic AI)
+
+**ProviderRouter.kt:**
+- Capability-based model selection
+- Health tracking (circuit breaker)
+- Model mapping:
+  - FAST_CHAT → gemini-1.5-flash
+  - REASONING → gemini-1.5-pro
+  - VISION → gemini-1.5-flash
+  - IMAGE_GENERATION → imagen-3.0-generate-001
+
+**DatabaseFactory.kt:**
+- HikariCP connection pool (max 10)
+- PostgreSQL migration execution
+- Exposed ORM initialization
+- Environment-based configuration
+
+### Dependencies
+
+```kotlin
+dependencies {
+    implementation(project(":common"))
+    
+    // Ktor Server
+    implementation(ktor.server.core)
+    implementation(ktor.server.netty)
+    implementation(ktor.server.sse)
+    implementation(ktor.server.auth)
+    implementation(ktor.server.rate.limit)
+    implementation(ktor.server.cors)
+    
+    // Ktor Client
+    implementation(ktor.client.okhttp)
+    
+    // Database
+    implementation(postgresql)
+    implementation(hikaricp)
+    implementation(exposed.core)
+    implementation(exposed.jdbc)
+    
+    // LLM
+    implementation(ktor.serialization.kotlinx.json)
+    
+    // Tools
+    implementation(pdfbox)  // PDF processing
+    
+    // Monitoring
+    implementation(micrometer.registry.prometheus)
+    implementation(logstash.logback.encoder)
+    
+    // Firebase
+    implementation(firebase.admin)
+}
+```
+
+### Build Configuration
+
+```kotlin
+application {
+    mainClass.set("com.example.smarty.server.ApplicationKt")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.shadowJar {
+    archiveClassifier.set("all")
+    mergeServiceFiles()
+}
+
+tasks.build {
+    dependsOn(tasks.shadowJar)
+}
+```
+
+---
+
+## Module Dependencies
+
+```
+┌─────────────────┐
+│      app        │
+│  (Android App)  │
+└────────┬────────┘
+         │ depends on
+         ▼
+┌─────────────────┐
+│     common      │
+│  (KMP Module)   │
+└─────────────────┘
+
+┌─────────────────┐
+│     server      │
+│  (Ktor Server)  │
+└────────┬────────┘
+         │ depends on
+         ▼
+┌─────────────────┐
+│     common      │
+│  (KMP Module)   │
+└─────────────────┘
+```
+
+**Note:** app and server are independent modules that both depend on common. They do not depend on each other.
+
+---
+
+## Unused/Empty Modules
+
+**conductor/**
+- Empty directory (gitignored files only)
+- Possibly planned future module
+- No build configuration
