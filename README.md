@@ -426,7 +426,7 @@ Navigate to Settings
 
 Select Server Configuration
 
-Enter your Space URL
+Enter your Space URL(this was old methods not you have to manually put the server url in the code under app)
 
 Example:
 
