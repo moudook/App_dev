@@ -12,14 +12,6 @@ local.properties
 captures/
 .externalNativeBuild
 .cxx
-nul
-NUL
-con
-CON
-aux
-AUX
-prn
-PRN
 
 # ============================================
 # 2. BUILD, COMPILED FILES & LOGS
@@ -52,16 +44,10 @@ logs/
 *.temp
 *.bak
 *.swp
-temp.txt
-instructions.txt
-errors.txt
-build_*.txt
-server_*_feature.txt
-server_log*.txt
 
 # JVM Dumps
-java_pid*.hprof
 *.hprof
+java_pid*.hprof
 
 # ============================================
 # 3. SECURITY & CREDENTIALS
@@ -74,8 +60,6 @@ secrets.*
 *.keystore
 *.jks
 keystore.properties
-*.json
-firebase-config.json
 api-keys.properties
 secrets.properties
 auth.properties
@@ -96,6 +80,12 @@ credentials.json
 **/apikey*
 **/*_secret*
 **/*_credentials*
+
+# Firebase & Google Cloud
+**/google-services.json
+**/*firebase*.json
+**/firebase-*.json
+**/*-firebase-*.json
 
 # Ktor / Server secrets
 application-*.conf
@@ -139,110 +129,112 @@ ngrok.yml
 *.raw
 *.pcm
 *.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
 thread-*.png
 screenshot*.png
-
-# Specific files user explicitly listed
-app/src/main/res/raw/completion_sound.mp3
-app/src/main/res/raw/welcome_intro.wav
 
 # Speech and Voice Folders
 AUDIO_effects/
 vosk-model-*/
-vosk-model-small-hi-0.22/
-vosk-model-small-en-us-0.15/
 **/vosk-model-*/
-app/src/main/assets/vosk-model-*/
-!app/src/main/assets/vosk-model-*/uuid
 app/src/main/assets/tts_models/
 
 # ============================================
-# 6. SCRIPTS & DATABASE
+# 6. AI TOOL DIRECTORIES (Claude, Qwen, etc.)
 # ============================================
+# AI coding assistant configurations
+.antigravity/
+.claude/
+.agent/
+.kilocode/
+.qoder/
+.qwen/
+.cursor/
+.windsurf/
+.copilot/
+.devbot/
+
+# Kotlin/Gradle caches
+.kotlin/
+
+# ============================================
+# 7. SCRIPTS & DATABASE
+# ============================================
+# Ignore most scripts (keep gradlew)
 *.bat
 *.sh
 *.py
 !gradlew
 !gradlew.bat
 
-# Batch/Python files related to local environments
-start_smarty.bat
-start_tunnel.bat
-run_server_public.bat
-run_local_server.bat
-run_server_build.bat
-run_server_antigravity.bat
-run_proxy.bat
-setup_ngrok.bat
-init_database.bat
-connect_via_usb.bat
-create_keystore.bat
-move_backups.py
-remove_emojis.py
-verify_backend.py
-cleanup.bat
-cleanup_root.py
-
-# Database schemas/migrations
+# Database migrations (keep only essential)
 *.sql
 !init-db.sql
 !app/src/main/assets/*.sql
-COMPLETE_SCHEMA_v*.sql
-SUPABASE_SCHEMA_v*.sql
-DATABASE_SCHEMA_v*.sql
-MIGRATION_v*.sql
-supabase_add_thinking_column.sql
-
-# Unknown file
-ServerAgent.kt
 
 # ============================================
-# 7. GENERAL AI, METADATA & DOCUMENTS
+# 8. DOCUMENTATION & TEMP FILES
 # ============================================
-.antigravity/
-.claude/
-.qoder/
-.kotlin/
-.agent/
-# .agent/*.md is implied allowed if handled outside or specifically
-*.notes
-*.reference
-refrences/
-*.pdf
-BUG_INVESTIGATION_REPORT.md
-
 # Ignore all markdown files except core docs
 *.md
 !README.md
-!inspirations.md
 !DEPLOYMENT.md
 !LOCAL_HOSTING.md
-!features_list.md
 
 # Ignore all text files generally
 *.txt
 
+# PDFs
+*.pdf
+
 # ============================================
-# 8. PRIVATE, REDUNDANT & MISC DIRECTORIES
+# 9. PRIVATE & REDUNDANT DIRECTORIES
 # ============================================
 _private/
+_research_archive/
 original/
 do any/
 for_my_reference/
 system-prompts-and-models-of-ai-tools-main/
 optimization-analysis-report/
-_research_archive/
 
-# DOOMSDAY and local LLM specific
-C:/Users/gbust/DOOMSDAY/TESTING/
-**/antigravity-claude-proxy/
-LLM_THROUGH_USB_THEARING/
-C:\Users\gbust\Smarty\LLM_THROUGH_USB_THEARING\llama-b7541-bin-win-cuda-12.4-x64/
+# Empty or junk directories
+-p/
+$null/
 
 # ============================================
-# 9. EXPLICIT ALLOWLISTS (Must be at the bottom)
+# 10. PROJECT-SPECIFIC CLEANUP
 # ============================================
-# Guarantee context directory and its contents are tracked
+# Temporary development files
+ServerAgent.kt
+SYNC_OPTIMIZATION.md
+
+# Progress/completion reports (not for public repo)
+FINAL_VERIFICATION_COMPLETE.md
+SERVER_FIXES_COMPLETE.md
+BUG_INVESTIGATION_REPORT.md
+
+# Task tracking directories
+tasks/
+plans/
+
+# Reference folders
+refrences/
+inspirations.md
+
+# ============================================
+# 11. ALLOWLISTS (Must be at the bottom)
+# ============================================
+# Keep context directory (used for build context)
 !context/
 !context/*
-!context/**/*.txt
+
+# Keep essential gradle wrapper scripts
+!gradlew
+!gradlew.bat
+
+# Keep essential SQL
+!init-db.sql
