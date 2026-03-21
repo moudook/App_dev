@@ -1,6 +1,8 @@
 package com.example.smarty.server.routes
 
 import com.example.smarty.server.agent.DeepResearchAgent
+import com.example.smarty.server.agent.AdvancedDeepResearchAgent
+import com.example.smarty.server.agent.ResearchEvaluator
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -14,119 +16,157 @@ import org.slf4j.LoggerFactory
 import java.util.*
 
 /**
- * Routes for Deep Research Agent
+ * Routes for Deep Research Agent (Enhanced with Workflow v4.0)
  */
 fun Application.configureResearchRoutes(
-    researchAgent: DeepResearchAgent
+    researchAgent: DeepResearchAgent,
+    advancedResearchAgent: AdvancedDeepResearchAgent? = null
 ) {
     val logger = LoggerFactory.getLogger("ResearchRoutes")
-    
+
     routing {
         authenticate("firebase") {
             route("/api/v1/research") {
-                
+
                 // Start new research session
                 post("/start") {
-                    val user = call.principal<FirebaseUserPrincipal>() 
+                    val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                    
+
                     try {
                         val request = call.receive<StartResearchRequest>()
                         logger.info("Starting research for user ${user.userId}: ${request.topic}")
-                        
+
+                        // Use standard research (workflow integration pending)
                         val session = researchAgent.startResearch(request.topic)
                         call.respond(ResearchResponse(session))
-                        
+
                     } catch (e: Exception) {
                         logger.error("Failed to start research", e)
-                        call.respond(HttpStatusCode.InternalServerError, 
+                        call.respond(HttpStatusCode.InternalServerError,
                             mapOf("error" to "Failed to start research: ${e.message}"))
                     }
                 }
-                
+
+                // Get evaluation status (NEW - Workflow v4.0)
+                get("/{id}/evaluation") {
+                    val user = call.principal<FirebaseUserPrincipal>()
+                        ?: return@get call.respond(HttpStatusCode.Unauthorized)
+
+                    try {
+                        val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                        
+                        // TODO: Implement evaluation status endpoint
+                        call.respond(HttpStatusCode.OK, mapOf("status" to "not_implemented_yet"))
+                        
+                    } catch (e: Exception) {
+                        logger.error("Failed to get evaluation status", e)
+                        call.respond(HttpStatusCode.InternalServerError,
+                            mapOf("error" to "Failed to get evaluation: ${e.message}"))
+                    }
+                }
+
+                // Get iteration status (NEW - Workflow v4.0)
+                get("/{id}/iterations") {
+                    val user = call.principal<FirebaseUserPrincipal>()
+                        ?: return@get call.respond(HttpStatusCode.Unauthorized)
+
+                    try {
+                        val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                        
+                        // TODO: Implement iteration status endpoint
+                        call.respond(HttpStatusCode.OK, mapOf("status" to "not_implemented_yet"))
+                        
+                    } catch (e: Exception) {
+                        logger.error("Failed to get iteration status", e)
+                        call.respond(HttpStatusCode.InternalServerError,
+                            mapOf("error" to "Failed to get iteration status: ${e.message}"))
+                    }
+                }
+
                 // Submit clarification answers
                 post("/{id}/answer") {
                     val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                    
+
                     try {
                         val sessionId = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
                         val request = call.receive<AnswerQuestionsRequest>()
-                        
+
                         logger.info("Processing answers for session $sessionId")
-                        
+
                         // Mock session for now (database integration pending)
                         val mockSession = DeepResearchAgent.ResearchSession(
                             id = sessionId,
                             topic = "Research Topic",
                             userAnswers = request.answers
                         )
-                        
+
                         val updatedSession = researchAgent.processUserAnswers(mockSession, request.answers)
                         call.respond(ResearchResponse(updatedSession))
-                        
+
                     } catch (e: Exception) {
                         logger.error("Failed to process answers", e)
                         call.respond(HttpStatusCode.InternalServerError,
                             mapOf("error" to "Failed to process answers: ${e.message}"))
                     }
                 }
-                
+
                 // Change research direction (user interruption)
                 post("/{id}/interrupt") {
                     val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                    
+
                     try {
                         val sessionId = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
                         val request = call.receive<UserInterruptionRequest>()
-                        
+
                         logger.info("User interrupting research $sessionId: ${request.message}")
-                        
+
                         val mockSession = DeepResearchAgent.ResearchSession(id = sessionId, topic = "Topic")
                         val updatedSession = researchAgent.handleUserInterruption(mockSession, request.message)
                         call.respond(ResearchResponse(updatedSession))
-                        
+
                     } catch (e: Exception) {
                         logger.error("Failed to process interruption", e)
                         call.respond(HttpStatusCode.InternalServerError,
                             mapOf("error" to "Failed to process interruption: ${e.message}"))
                     }
                 }
-                
+
                 // Check timeout status
                 get("/{id}/timeout") {
                     val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@get call.respond(HttpStatusCode.Unauthorized)
-                    
+
                     try {
                         val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                        
+
                         val mockSession = DeepResearchAgent.ResearchSession(id = sessionId, topic = "Topic")
                         val timeoutStatus = researchAgent.checkTimeout(mockSession)
-                        
+
                         call.respond(mapOf(
                             "status" to timeoutStatus.name,
                             "elapsed" to (System.currentTimeMillis() - mockSession.startTime)
                         ))
-                        
+
                     } catch (e: Exception) {
                         logger.error("Failed to check timeout", e)
                         call.respond(HttpStatusCode.InternalServerError,
                             mapOf("error" to "Failed to check timeout: ${e.message}"))
                     }
                 }
-                
+
                 // Get research session status
                 get("/{id}") {
                     val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@get call.respond(HttpStatusCode.Unauthorized)
-                    
+
                     try {
                         val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                         // TODO: Load from database
                         call.respond(HttpStatusCode.OK, mapOf("status" to "not_implemented_yet"))
-                        
+
                     } catch (e: Exception) {
                         logger.error("Failed to get session", e)
                         call.respond(HttpStatusCode.InternalServerError,
@@ -138,8 +178,26 @@ fun Application.configureResearchRoutes(
     }
 }
 
+/**
+ * Convert ResearchState to ResearchSession
+ */
+private fun convertToSession(state: AdvancedDeepResearchAgent.ResearchState): DeepResearchAgent.ResearchSession {
+    return DeepResearchAgent.ResearchSession(
+        id = state.id,
+        topic = state.topic,
+        status = state.status.name,
+        researchPlan = state.researchPlan?.mainQuestions?.joinToString("\n"),
+        finalReport = null,  // Would be populated on completion
+        createdAt = state.createdAt
+    )
+}
+
 @Serializable
-data class StartResearchRequest(val topic: String)
+data class StartResearchRequest(
+    val topic: String,
+    val originalQuestion: String? = null,  // Optional: more specific than topic
+    val useWorkflow: Boolean = true         // Use workflow v4.0 if available
+)
 
 @Serializable
 data class AnswerQuestionsRequest(val answers: Map<String, String>)
@@ -223,3 +281,32 @@ data class CitationResponse(
         keyFindings = citation.keyFindings
     )
 }
+
+// ==================== WORKFLOW v4.0 RESPONSES ====================
+
+/**
+ * Evaluation response for workflow-based research
+ */
+@Serializable
+data class EvaluationResponse(
+    val sessionId: String,
+    val completenessScore: Double,
+    val conflictCount: Int,
+    val identifiedGaps: List<String>,
+    val recommendation: String,
+    val requiresHumanReview: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Iteration status response for workflow-based research
+ */
+@Serializable
+data class IterationStatusResponse(
+    val sessionId: String,
+    val currentIteration: Int,
+    val totalSearches: Int,
+    val totalSources: Int,
+    val status: String,
+    val timestamp: Long = System.currentTimeMillis()
+)

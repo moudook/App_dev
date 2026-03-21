@@ -1126,6 +1126,10 @@ Collected Evidence:
 Create a comprehensive research report with full citations.
 """
     }
+
+    // ==================== WORKFLOW v4.0 INTEGRATION (Placeholder) ====================
+    // Note: Full workflow integration requires additional type alignment work.
+    // The DeepResearchWorkflow and ResearchEvaluator classes are available for future integration.
 }
 
 /**
