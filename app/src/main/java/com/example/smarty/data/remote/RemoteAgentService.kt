@@ -635,6 +635,8 @@ fun sendQueryWithContext(
             }
         }
     }
+
+    /**
      * Handles events streaming from the SSE endpoint and emits whole AgentEvents
      */
     private suspend fun handleEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>): Boolean {
