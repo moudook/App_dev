@@ -728,5 +728,30 @@ fun Application.configureChatRoutes() {
                 call.respond(HttpStatusCode.InternalServerError, "Failed to get linked notes")
             }
         }
+
+        /**
+         * DELETE /chat/messages/{messageId}/and-after
+         * Delete a message and all messages after it in the same session.
+         * Used for Edit & Resend feature.
+         */
+        delete("/chat/messages/{messageId}/and-after") {
+            val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val messageId = call.parameters["messageId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "messageId required")
+
+            try {
+                val deletedCount = chatRepository?.deleteMessageAndAfter(userId, messageId) ?: 0
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "success" to true,
+                    "deletedCount" to deletedCount,
+                    "fromMessageId" to messageId
+                ))
+            } catch (e: IllegalAccessException) {
+                call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
+            } catch (e: Exception) {
+                call.application.log.error("Failed to delete messages", e)
+                call.respond(HttpStatusCode.InternalServerError, "Failed to delete messages")
+            }
+        }
     }
 }

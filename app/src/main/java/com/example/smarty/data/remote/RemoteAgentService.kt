@@ -201,6 +201,33 @@ class RemoteAgentService(
     }
 
     /**
+     * Delete a message and all messages after it.
+     * Used for Edit & Resend feature.
+     */
+    suspend fun deleteMessageAndAfter(messageId: String): Int {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return 0
+            
+            val response = client.delete("$baseUrl/chat/messages/$messageId/and-after") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                val body = response.bodyAsText()
+                try {
+                    val jsonMap = com.google.gson.JsonParser.parseString(body).asJsonObject
+                    jsonMap.get("deletedCount")?.asInt ?: 0
+                } catch (e: Exception) {
+                    0
+                }
+            } else 0
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete messages", e)
+            0
+        }
+    }
+
+    /**
      * Analyze content on the server.
      */
     suspend fun analyzeContent(

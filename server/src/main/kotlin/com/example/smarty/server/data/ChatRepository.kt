@@ -273,6 +273,51 @@ class ChatRepository(
     }
 
     /**
+     * Delete a message and all messages after it in the same session.
+     * Used for Edit & Resend feature.
+     *
+     * @param userId The authenticated user's UUID
+     * @param messageId The message ID to delete from (inclusive)
+     * @return Number of messages deleted
+     */
+    suspend fun deleteMessageAndAfter(userId: String, messageId: String): Int = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // First get the session_id and created_at of the target message
+            val selectSql = """
+                SELECT session_id, created_at 
+                FROM chat_messages 
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            
+            conn.prepareStatement(selectSql).use { selectStmt ->
+                selectStmt.setObject(1, UUID.fromString(messageId))
+                selectStmt.setObject(2, UUID.fromString(userId))
+                
+                val rs = selectStmt.executeQuery()
+                if (!rs.next()) {
+                    return@withContext 0 // Message not found
+                }
+                
+                val sessionId = rs.getObject("session_id") as UUID
+                val createdAt = rs.getTimestamp("created_at")
+                
+                // Delete all messages from this point forward in the same session
+                val deleteSql = """
+                    DELETE FROM chat_messages 
+                    WHERE session_id = ? AND user_id = ? AND created_at >= ?
+                """.trimIndent()
+                
+                conn.prepareStatement(deleteSql).use { deleteStmt ->
+                    deleteStmt.setObject(1, sessionId)
+                    deleteStmt.setObject(2, UUID.fromString(userId))
+                    deleteStmt.setTimestamp(3, createdAt)
+                    deleteStmt.executeUpdate()
+                }
+            }
+        }
+    }
+
+    /**
      * Creates a session with a specific ID (for client-provided session IDs).
      * Uses ON CONFLICT DO NOTHING to handle race conditions.
      *

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -270,6 +271,7 @@ fun ChatMessageItem(
     onClarificationSubmit: (String) -> Unit = {},
     onCopyMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
+    onEditMessage: ((com.example.smarty.core.domain.model.ChatMessage) -> Unit)? = null,
     onRegenerateMessage: (String) -> Unit = {},
     showActions: Boolean = true
 ) {
@@ -612,6 +614,16 @@ if (isUser) {
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = {
+                            showContextMenu = false
+                            onEditMessage?.invoke(message)
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                         }
                     )
                 }
