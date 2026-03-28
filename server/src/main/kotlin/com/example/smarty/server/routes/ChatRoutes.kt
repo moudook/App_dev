@@ -757,7 +757,7 @@ fun Application.configureChatRoutes() {
         }
 
         /**
-         * GET /chat/sessions/{sessionId}/summary
+          * GET /chat/sessions/{sessionId}/summary
          * Get a summary of the conversation in a session.
          */
         get("/chat/sessions/{sessionId}/summary") {
@@ -781,6 +781,36 @@ fun Application.configureChatRoutes() {
             } catch (e: Exception) {
                 call.application.log.error("Failed to generate summary", e)
                 call.respond(HttpStatusCode.InternalServerError, "Failed to generate summary")
+            }
+        }
+        
+        /**
+         * DEBUG endpoint - List all chat sessions for current user
+         */
+        get("/chat/debug/sessions") {
+            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            
+            try {
+                if (chatRepository == null) {
+                    call.respond(HttpStatusCode.OK, mapOf("error" to "chatRepository is null", "sessions" to emptyList<Any>()))
+                    return@get
+                }
+                val sessions = chatRepository.listAllSessions(userId, limit = 100)
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "userId" to userId,
+                    "sessionCount" to sessions.size,
+                    "sessions" to sessions.map { mapOf(
+                        "id" to it.id.toString(),
+                        "title" to it.title,
+                        "messageCount" to it.messageCount,
+                        "createdAt" to it.createdAt.toString(),
+                        "updatedAt" to it.updatedAt.toString()
+                    )}
+                ))
+            } catch (e: Exception) {
+                call.application.log.error("Debug sessions error", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
             }
         }
     }
