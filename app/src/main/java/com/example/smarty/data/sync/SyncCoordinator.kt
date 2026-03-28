@@ -9,8 +9,12 @@ import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.*
+import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.data.remote.RemoteDataSource
+import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.protocol.*
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -37,7 +41,7 @@ class SyncCoordinator(
     private var lastPullTime = 0L
     private val pullDebounceMs = 5000L // 5 seconds
 
-    val isOnline = networkMonitor.isOnline
+    val isOnline = networkMonitor.connectionStatus.map { it == ConnectionStatus.CONNECTED }
 
     /**
      * Get all stored generated images from local cache.
@@ -83,9 +87,9 @@ class SyncCoordinator(
      * - Delta-sync sends lastSyncAt timestamp
      */
     suspend fun pullFromServer(): PullResult {
-        Log.i(TAG, ">>> pullFromServer STARTING - isOnline=${isOnline.value}")
+        Log.i(TAG, ">>> pullFromServer STARTING - isOnline=${isOnline.first()}")
         
-        if (!isOnline.value) {
+        if (!isOnline.first()) {
             Log.w(TAG, "<<< pullFromServer FAILED: Device is offline")
             return PullResult.Offline
         }
@@ -285,7 +289,7 @@ class SyncCoordinator(
     }
 
     suspend fun pushPendingChanges(): PushResult {
-        if (!isOnline.value) {
+        if (!isOnline.first()) {
             return PushResult.Offline
         }
 

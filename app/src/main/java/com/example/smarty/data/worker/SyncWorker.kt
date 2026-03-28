@@ -9,9 +9,11 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.RemoteDataSource
+import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.data.sync.SyncCoordinator
-import com.example.smarty.data.sync.NetworkMonitor
 import com.example.smarty.data.sync.MigrationManager
+import com.example.smarty.ui.components.ConnectionStatus
+import kotlinx.coroutines.flow.first
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
@@ -33,7 +35,7 @@ class SyncWorker(
 
             val networkMonitor = NetworkMonitor(applicationContext)
 
-            if (!networkMonitor.isOnline.value) {
+            if (networkMonitor.connectionStatus.first() != ConnectionStatus.CONNECTED) {
                 Log.d(TAG, "Device offline, skipping sync")
                 return Result.success()
             }
@@ -174,7 +176,7 @@ class SyncWorker(
             return try {
                 val networkMonitor = NetworkMonitor(context)
                 
-                if (!networkMonitor.isOnline.value) {
+            if (networkMonitor.connectionStatus.first() != ConnectionStatus.CONNECTED) {
                     Log.d(TAG, "Device offline, skipping sync")
                     return false
                 }

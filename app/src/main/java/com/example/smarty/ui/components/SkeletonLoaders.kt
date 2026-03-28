@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.animation.directionalShimmer
+import com.example.smarty.ui.animation.shimmerEffect
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.ComponentSpacing
 import androidx.compose.animation.core.*

@@ -18,7 +18,6 @@ import com.example.smarty.core.domain.model.getAttachments
 import com.example.smarty.core.domain.model.getTodos
 import com.example.smarty.core.domain.model.withAttachments
 import com.example.smarty.core.domain.model.withTodos
-import com.example.smarty.core.common.util.AIResponseParser
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.core.common.util.ContentTypeDetector

@@ -10,7 +10,7 @@ import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.repository.SyncRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.sync.SyncCoordinator
-import com.example.smarty.data.sync.NetworkMonitor
+import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.data.sync.OfflineQueue
 import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.audio.domain.AudioPlaybackManager

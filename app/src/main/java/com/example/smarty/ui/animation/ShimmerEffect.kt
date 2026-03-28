@@ -2,6 +2,7 @@ package com.example.smarty.ui.animation
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -93,6 +94,12 @@ fun Modifier.shimmerEffect(
     )
 
     this.background(gradient)
+}
+
+fun Modifier.skeletonShimmer(): Modifier = composed {
+    val isDark = isSystemInDarkTheme()
+    val shimmerColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFF5F5F5)
+    shimmerEffect(shimmerColor = shimmerColor, durationMs = 1200)
 }
 
 

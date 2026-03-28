@@ -53,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.InlineChatImage
 import com.example.smarty.ui.theme.Alpha
+import com.example.smarty.ui.animation.skeletonShimmer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs

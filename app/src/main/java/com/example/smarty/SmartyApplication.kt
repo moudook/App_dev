@@ -10,7 +10,9 @@ import androidx.work.WorkManager
 import com.example.smarty.core.common.util.LazyDecompressor
 import com.example.smarty.core.common.util.ResourceManager
 import com.example.smarty.core.common.util.api.ApiMetrics
-import com.example.smarty.data.sync.NetworkMonitor
+import com.example.smarty.core.common.util.NetworkMonitor
+import com.example.smarty.ui.components.ConnectionStatus
+import kotlinx.coroutines.flow.first
 import com.example.smarty.data.worker.SyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -139,7 +141,7 @@ class SmartyApplication : Application(), Configuration.Provider {
         try {
             val networkMonitor = NetworkMonitor(this)
             
-            if (networkMonitor.isOnline.value) {
+            if (networkMonitor.connectionStatus.first() == ConnectionStatus.CONNECTED) {
                 Log.i(TAG, "Online at startup - performing initial sync")
                 SyncWorker.syncNow(this)
             } else {
