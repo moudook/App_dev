@@ -410,7 +410,9 @@ fun Application.configureChatRoutes() {
                     )
 
                     // Save Smarty Response if persistence is enabled
-                    if (chatRepository != null && assistantResponse.isNotEmpty()) {
+                    if (chatRepository == null) {
+                        call.application.log.error("CRITICAL: chatRepository is NULL! Database not configured. Messages will NOT be saved!")
+                    } else if (assistantResponse.isNotEmpty()) {
                         try {
                             // Retrieve the rich SMARTY_TRACE_V2 thinking trace that was built during
                             // streaming. This is the correct source for the thinking field — the old
@@ -438,7 +440,7 @@ fun Application.configureChatRoutes() {
                                 "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}"
                             )
                         } catch (e: Exception) {
-                            call.application.log.error("Failed to save assistant response (non-fatal)", e)
+                            call.application.log.error("Failed to save assistant response: ${e.message}", e)
                         }
                     }
                 } catch (e: Exception) {
