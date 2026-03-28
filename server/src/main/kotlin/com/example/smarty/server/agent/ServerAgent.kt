@@ -1129,11 +1129,27 @@ ${goalMemoryManager.getProgressContext()}
 
                     // Emit result with final thinking and complete content
                     val finalAnswer = extractFinalResponse(currentContent)
+                    
+                    // Compute confidence based on citations and tool usage
+                    val citationCount = toolCallHistory.size
+                    val confidence = when {
+                        citationCount >= 3 -> "verified"
+                        citationCount >= 1 -> "moderate"
+                        else -> "model_knowledge"
+                    }
+                    val sourceType = when {
+                        toolCallHistory.any { it.first.contains("search") || it.first.contains("tavily") } -> "web_search"
+                        toolCallHistory.any { it.first.contains("memory") || it.first.contains("note") } -> "user_data"
+                        else -> "model_knowledge"
+                    }
+                    
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
                         content = finalAnswer,
                         thinking = finalThinking,
+                        confidence = confidence,
+                        sourceType = sourceType,
                         isFinal = true
                     ))
                     

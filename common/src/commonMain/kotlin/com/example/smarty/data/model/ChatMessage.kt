@@ -98,7 +98,9 @@ data class ChatMessage(
     val isStreaming: Boolean = false,  // True when AI response is still being received
     val citations: List<Citation> = emptyList(),  // Sources from web research
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
-    val clarificationRequest: ClarificationRequest? = null  // Interactive clarification request
+    val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
+    val confidence: String? = null,  // Server-computed confidence: verified, moderate, model_knowledge
+    val sourceType: String? = null   // Source type: web_search, user_data, model_knowledge
 ) {
     /**
      * Check if this message has a thinking/reasoning section

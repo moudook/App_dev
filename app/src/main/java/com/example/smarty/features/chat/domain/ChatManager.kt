@@ -263,10 +263,15 @@ class ChatManager(
         }
     }
 
-    suspend fun updateMessageWithThinking(messageId: String, newContent: String, newThinking: String?) {
+    suspend fun updateMessageWithThinking(messageId: String, newContent: String, newThinking: String?, confidence: String? = null, sourceType: String? = null) {
         chatMutex.withLock {
             _chatMessages.value = _chatMessages.value.map { msg ->
-                if (msg.id == messageId) msg.copy(content = newContent, thinking = newThinking.takeIf { !it.isNullOrBlank() }) else msg
+                if (msg.id == messageId) msg.copy(
+                    content = newContent, 
+                    thinking = newThinking.takeIf { !it.isNullOrBlank() },
+                    confidence = confidence ?: msg.confidence,
+                    sourceType = sourceType ?: msg.sourceType
+                ) else msg
             }
         }
     }

@@ -1509,7 +1509,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                                 val cleanThinking = if (thinking.startsWith("SMARTY_TRACE_V2:")) thinking.removePrefix("SMARTY_TRACE_V2:").trim() else thinking
                                 thinkingBuilder.append(cleanThinking)
                             }
-                            chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().ifEmpty { null })
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId, 
+                                responseBuilder.toString(), 
+                                thinkingBuilder.toString().ifEmpty { null },
+                                event.confidence,
+                                event.sourceType
+                            )
                         }
                         is AgentEvent.Error -> {
                             responseBuilder.append("\n[Error: ${event.message}]")

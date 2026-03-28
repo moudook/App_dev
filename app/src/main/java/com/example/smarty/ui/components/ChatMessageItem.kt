@@ -751,16 +751,22 @@ if (isUser) {
                             accentColor = accentColor
                         )
 
+                        val serverConfidence = message.confidence
                         val sourceCount = message.citations.size
-                        val confidenceColor = when {
-                            sourceCount >= 3 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
-                            sourceCount >= 2 -> androidx.compose.ui.graphics.Color(0xFFFFA726)
+                        val confidenceColor = when (serverConfidence) {
+                            "verified" -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                            "moderate" -> androidx.compose.ui.graphics.Color(0xFFFFA726)
                             else -> androidx.compose.ui.graphics.Color(0xFF9E9E9E)
                         }
-                        val confidenceText = when {
-                            sourceCount >= 3 -> "Verified"
-                            sourceCount >= 2 -> "Moderate"
-                            else -> "Unverified"
+                        val confidenceText = when (serverConfidence) {
+                            "verified" -> "Verified"
+                            "moderate" -> "Moderate"
+                            "model_knowledge" -> "AI Knowledge"
+                            else -> when {
+                                sourceCount >= 3 -> "Verified"
+                                sourceCount >= 2 -> "Moderate"
+                                else -> "Unverified"
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
