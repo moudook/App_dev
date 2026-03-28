@@ -189,21 +189,30 @@ fun ThinkingSection(
             } else 1f
 
             Text(
-                text = if (isStreaming) "Thinking..." else "Thoughts",
+                text = when {
+                    isStreaming && toolCalls.isNotEmpty() -> {
+                        val lastTool = toolCalls.last()
+                        val name = lastTool.displayName.ifBlank { lastTool.toolName }
+                        if (name.length > 30) "Thinking..." else name
+                    }
+                    isStreaming -> "Thinking..."
+                    else -> "Thoughts"
+                },
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.5.sp
                 ),
                 color = (if (isStreaming) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
-                modifier = Modifier.alpha(textAlpha)
+                modifier = Modifier.alpha(textAlpha),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
-            
-            // Tool count badge (minimal)
-            if (toolCalls.isNotEmpty() && !isStreaming) {
+
+            if (toolCalls.isNotEmpty()) {
                 Text(
-                    text = "· ${toolCalls.size} actions",
+                    text = if (isStreaming) "step ${toolCalls.size}" else "· ${toolCalls.size} actions",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    color = if (isStreaming) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
 

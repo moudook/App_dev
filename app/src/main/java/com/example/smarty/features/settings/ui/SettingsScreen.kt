@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -78,7 +80,7 @@ private const val TAG = "SettingsScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
-    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy
+    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory
 }
 
 /**
@@ -261,6 +263,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Cloud,
                                         subtitle = "Configure remote connection",
                                         onClick = { currentView = SettingsView.ServerConfig }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Agent Memory",
+                                        icon = SmartyIcons.Psychology,
+                                        subtitle = "View what the agent remembers",
+                                        onClick = { currentView = SettingsView.AgentMemory }
                                     )
                                 }
                             }
@@ -452,6 +460,11 @@ fun SettingsScreen(
                              },
                              onBack = { currentView = SettingsView.Main }
                          )
+                    }
+                    SettingsView.AgentMemory -> {
+                        AgentMemoryView(
+                            onBack = { currentView = SettingsView.Main }
+                        )
                     }
                 }
             }
@@ -1014,6 +1027,201 @@ fun formatCacheSize(bytes: Long): String {
         bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
         bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
         else -> "%.1f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+@Composable
+private fun AgentMemoryView(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var memories by remember { mutableStateOf<List<com.example.smarty.data.model.AIMemory>>(emptyList()) }
+    var showDeleteAll by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val dao = com.example.smarty.data.local.SmartyDatabase.getDatabase(context).aiMemoryDao()
+            memories = dao.getAllMemories()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBack() }
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Agent Memory",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            if (memories.isNotEmpty()) {
+                TextButton(onClick = { showDeleteAll = true }) {
+                    Text(
+                        text = "Clear All",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+        if (memories.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No memories yet",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "The agent will remember things as you chat",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        } else {
+            val grouped = memories.groupBy { it.type }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                grouped.forEach { (type, memoryList) ->
+                    item {
+                        Text(
+                            text = type.name.lowercase().replace('_', ' '),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    items(memoryList, key = { it.id }) { memory ->
+                        MemoryCard(
+                            memory = memory,
+                            onDelete = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+                                            .aiMemoryDao().deleteMemoryById(memory.id)
+                                        memories = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+                                            .aiMemoryDao().getAllMemories()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteAll) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteAll = false },
+            title = { Text("Clear all memories?") },
+            text = { Text("The agent will forget everything it has learned about you.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteAll = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+                                .aiMemoryDao().clearAllMemories()
+                            memories = emptyList()
+                        }
+                    }
+                }) {
+                    Text("Clear", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAll = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun MemoryCard(
+    memory: com.example.smarty.data.model.AIMemory,
+    onDelete: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = memory.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Used ${memory.usageCount}x",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    val confidencePercent = (memory.confidence * 100).toInt()
+                    Text(
+                        text = "$confidencePercent% confident",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
 }
 

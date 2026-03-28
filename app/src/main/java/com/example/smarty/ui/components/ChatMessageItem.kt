@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -749,6 +750,48 @@ if (isUser) {
                             citations = message.citations,
                             accentColor = accentColor
                         )
+
+                        val sourceCount = message.citations.size
+                        val confidenceColor = when {
+                            sourceCount >= 3 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                            sourceCount >= 2 -> androidx.compose.ui.graphics.Color(0xFFFFA726)
+                            else -> androidx.compose.ui.graphics.Color(0xFF9E9E9E)
+                        }
+                        val confidenceText = when {
+                            sourceCount >= 3 -> "Verified"
+                            sourceCount >= 2 -> "Moderate"
+                            else -> "Unverified"
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = confidenceColor.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, confidenceColor.copy(alpha = 0.25f)),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (sourceCount >= 3) Icons.Default.CheckCircle else Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = confidenceColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = confidenceText,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 10.sp
+                                    ),
+                                    color = confidenceColor
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.width(10.dp))
                     }
 
