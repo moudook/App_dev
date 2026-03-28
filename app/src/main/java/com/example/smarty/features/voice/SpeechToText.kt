@@ -97,20 +97,12 @@ class SpeechToTextState(
                     retryCount++
                     Log.i(TAG, "Retrying speech recognition (attempt $retryCount/$maxRetries)")
                     handler.postDelayed({
-                        // Recreate the recognizer on retry to avoid stale state
                         try {
                             speechRecognizer?.destroy()
-                            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-                            speechRecognizer?.setRecognitionListener(recognitionListener)
-                            lastIntent?.let { intent ->
-                                speechRecognizer?.startListening(intent)
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to retry speech recognition: ${e.message}", e)
-                            isListening = false
-                            onError("Failed to retry: ${e.message}")
-                        }
-                    }, 1000L * retryCount)  // Exponential backoff: 1s, 2s, 3s
+                        } catch (_: Exception) {}
+                        speechRecognizer = null
+                        startListening(speechInitiatedInChatMode == true)
+                    }, 1000L * retryCount)
                     return
                 }
             }
