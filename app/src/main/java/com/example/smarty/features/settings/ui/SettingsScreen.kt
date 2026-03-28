@@ -125,6 +125,18 @@ fun SettingsScreen(
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {}
 ) {
+    // SecurePreferences for personality
+    val context = LocalContext.current
+    val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
+    
+    // Use passed values as defaults, but override with stored values
+    var currentPersonality by remember { 
+        mutableStateOf(if (personality != "DEFAULT") personality else securePrefs.getPersonality()) 
+    }
+    var currentProviderStrategy by remember {
+        mutableStateOf(if (providerStrategy != "BALANCED") providerStrategy else securePrefs.getProviderStrategy())
+    }
+
     // Navigation State
     var currentView by remember { mutableStateOf(SettingsView.Main) }
 
@@ -132,7 +144,6 @@ fun SettingsScreen(
     var expandedSection by remember { mutableStateOf<String?>("ai") }
 
     val isSystemDark = isDarkTheme
-    val context = LocalContext.current
 
     // Intercept system back button
     androidx.activity.compose.BackHandler(enabled = currentView != SettingsView.Main) {
@@ -258,13 +269,13 @@ fun SettingsScreen(
                                     SmartySettingsRow(
                                         label = "AI Strategy",
                                         icon = SmartyIcons.Analytics,
-                                        subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        subtitle = currentProviderStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                         onClick = { currentView = SettingsView.ProviderStrategy }
                                     )
                                     SmartySettingsRow(
                                         label = "AI Personality",
                                         icon = SmartyIcons.Psychology,
-                                        subtitle = personality.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        subtitle = currentPersonality.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                         onClick = { currentView = SettingsView.Personality }
                                     )
                                     SmartySettingsRow(
@@ -435,8 +446,10 @@ fun SettingsScreen(
                     }
                     SettingsView.ProviderStrategy -> {
                         ProviderStrategyView(
-                            currentStrategy = providerStrategy,
+                            currentStrategy = currentProviderStrategy,
                             onSelect = {
+                                securePrefs.setProviderStrategy(it)
+                                currentProviderStrategy = it
                                 onSetProviderStrategy(it)
                                 currentView = SettingsView.Main
                             },
@@ -445,8 +458,10 @@ fun SettingsScreen(
                     }
                     SettingsView.Personality -> {
                         PersonalityView(
-                            currentPersonality = personality,
+                            currentPersonality = currentPersonality,
                             onSelect = {
+                                securePrefs.setPersonality(it)
+                                currentPersonality = it
                                 onSetPersonality(it)
                                 currentView = SettingsView.Main
                             },
