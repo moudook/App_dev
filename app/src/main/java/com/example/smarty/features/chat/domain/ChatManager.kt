@@ -276,6 +276,14 @@ class ChatManager(
         }
     }
 
+    suspend fun updateMessageClarification(messageId: String, clarification: com.example.smarty.core.domain.model.ClarificationRequest?) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) msg.copy(clarificationRequest = clarification) else msg
+            }
+        }
+    }
+
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
         Log.d(TAG, "Entering replaceMessage. Target messageId: $messageId, New message ID: ${newMessage.id}")
         chatMutex.withLock {

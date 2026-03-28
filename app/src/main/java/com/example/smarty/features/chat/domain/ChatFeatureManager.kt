@@ -1544,7 +1544,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
                         is AgentEvent.Question -> {
-                            // Interactive question - will be handled in Feature 2
+                            // Create clarification request and add to message
+                            val clarification = com.example.smarty.core.domain.model.ClarificationRequest(
+                                question = event.question,
+                                options = event.options ?: emptyList(),
+                                allowCustomInput = event.allowCustom ?: true
+                            )
+                            chatManager.updateMessageClarification(streamingMessageId, clarification)
                         }
                     }
                 }
