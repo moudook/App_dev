@@ -95,6 +95,8 @@ class ChatViewModel(
             is ChatEvent.InputTextChanged -> handleInputTextChange(event.newText)
             is ChatEvent.MessageCopied -> handleCopyMessage(event.messageId, event.content)
             is ChatEvent.MessageDeleted -> handleDeleteMessage(event.messageId)
+            is ChatEvent.MessageEdited -> handleEditMessage(event.message)
+            is ChatEvent.ClarificationSubmitted -> handleClarificationSubmit(event.messageId, event.response)
             is ChatEvent.InputFocusChanged -> handleFocusChange(event.isFocused)
             is ChatEvent.AttachmentPanelToggled -> handleAttachmentPanelToggle(event.isVisible)
             is ChatEvent.ScrollPositionChanged -> handleScrollPositionChange(event.position, event.isAtLatest)
@@ -238,6 +240,24 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Handle message edit - for Edit & Resend feature.
+     * Note: This is a placeholder. Full implementation requires ChatFeatureManager integration.
+     */
+    private fun handleEditMessage(message: ChatMessage) {
+        Log.d(TAG, "Edit message requested for: ${message.id}")
+        // TODO: Integrate with ChatFeatureManager for full edit functionality
+    }
+
+    /**
+     * Handle clarification submission - for Interactive Question Mode.
+     * Note: This is a placeholder. Full implementation requires ChatFeatureManager integration.
+     */
+    private fun handleClarificationSubmit(messageId: String, response: String) {
+        Log.d(TAG, "Clarification submitted for message: $messageId, response: $response")
+        // TODO: Integrate with ChatFeatureManager to send clarification response
     }
 
     /**

@@ -29,6 +29,7 @@ sealed class ChatEvent {
     data class MessageCopied(val messageId: String, val content: String) : ChatEvent()
     data class MessageDeleted(val messageId: String) : ChatEvent()
     data class MessageRegenerated(val messageId: String) : ChatEvent()
+    data class MessageEdited(val message: ChatMessage) : ChatEvent()
     data class SuggestionClicked(val suggestion: String) : ChatEvent()
     data class ClarificationSubmitted(val messageId: String, val response: String) : ChatEvent()
     data class NoteClicked(val noteId: String) : ChatEvent()

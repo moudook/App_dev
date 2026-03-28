@@ -115,6 +115,16 @@ fun ChatScreen(
                         onDeleteMessage = {
                             viewModel.onEvent(ChatEvent.MessageDeleted(message.id))
                         },
+                        onEditMessage = { editedMessage ->
+                            viewModel.onEvent(ChatEvent.MessageEdited(editedMessage))
+                        },
+                        onClarificationSubmit = { response ->
+                            // Find the message with clarification request and submit response
+                            val msgWithClarification = messages.find { it.clarificationRequest != null }
+                            if (msgWithClarification != null) {
+                                viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, response))
+                            }
+                        },
                         onRegenerateMessage = {
                             // Handle regeneration
                         },
