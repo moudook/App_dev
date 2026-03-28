@@ -1598,6 +1598,8 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                 Log.d("ChatFeatureManager", "saveMessage: parsedResponse.thinking preview=${parsedResponse.thinking.take(300)}")
             }
 
+            // Retrieve streaming-accumulated fields before replacing the message
+            val streamingMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
             val smartyMessage = ChatMessage(
                 id = streamingMessageId,
                 role = ChatRole.SMARTY,
@@ -1607,7 +1609,14 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                 executedActions = pendingActions.toList(),
                 citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                 inlineImages = pendingInlineImages.toList(),
-                isStreaming = false
+                isStreaming = false,
+                // Feature 3: carry over server-computed confidence badge
+                confidence = streamingMsg?.confidence,
+                sourceType = streamingMsg?.sourceType,
+                // Feature 2: carry over interactive clarification request
+                clarificationRequest = streamingMsg?.clarificationRequest,
+                // Feature 5: carry over note reference cards
+                noteReferences = streamingMsg?.noteReferences ?: emptyList()
             )
 
             // Update the message to its final state (no longer streaming)

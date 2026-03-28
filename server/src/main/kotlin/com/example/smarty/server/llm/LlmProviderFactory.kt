@@ -120,10 +120,33 @@ object LlmProviderFactory {
             }
             "LOCAL", "LOCAL_PC" -> createLocal(client, finalBaseUrl, keys.firstOrNull(), finalModelId)
             "MOCK" -> createMock(client)
+            "CUSTOM", "OPENAI_COMPATIBLE" -> {
+                if (keys.isNotEmpty()) {
+                    if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Custom", finalBaseUrl ?: "http://localhost:8000/v1", keys, finalModelId ?: "llama3")
+                    else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                } else {
+                    createLocal(client, finalBaseUrl, null, finalModelId)
+                }
+            }
             else -> {
-                logger.warn("Unknown provider: $activeProvider. Falling back to OpenAI.")
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "OpenAI", finalBaseUrl ?: "https://api.openai.com/v1", keys, finalModelId ?: "gpt-4-turbo-preview")
-                else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                // For unknown providers, check if LLM_BASE_URL is provided - treat as OpenAI-compatible
+                if (finalBaseUrl != null) {
+                    logger.info("Unknown provider: $activeProvider. Using as OpenAI-compatible with baseUrl: $finalBaseUrl")
+                    if (keys.isNotEmpty()) {
+                        if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Custom", finalBaseUrl, keys, finalModelId ?: "llama3")
+                        else createOpenAi(client, keys.first(), finalBaseUrl, finalModelId)
+                    } else {
+                        createLocal(client, finalBaseUrl, null, finalModelId)
+                    }
+                } else {
+                    logger.warn("Unknown provider: $activeProvider with no LLM_BASE_URL. Falling back to OpenAI.")
+                    if (keys.isNotEmpty()) {
+                        if (keys.size > 1) KeyRotatingOpenAiProvider(client, "OpenAI", finalBaseUrl ?: "https://api.openai.com/v1", keys, finalModelId ?: "gpt-4-turbo-preview")
+                        else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                    } else {
+                        createMock(client)
+                    }
+                }
             }
         }
     }

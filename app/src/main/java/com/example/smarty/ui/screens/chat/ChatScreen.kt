@@ -158,8 +158,22 @@ fun ChatScreen(
             }
         }
         
-        // Input field
-        SmartyInputField(
+        // Input area: If there's an active clarification request, show the interactive question block
+        val msgWithClarification = messages.find { it.clarificationRequest != null }
+        if (msgWithClarification?.clarificationRequest != null) {
+            com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
+                request = msgWithClarification.clarificationRequest!!,
+                onSubmit = { response ->
+                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, response))
+                },
+                onSkip = {
+                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, ""))
+                },
+                modifier = Modifier.padding(16.dp)
+            )
+        } else {
+            // Standard Input field
+            SmartyInputField(
             value = inputText,
             onValueChange = { 
                 inputText = it
@@ -183,6 +197,7 @@ fun ChatScreen(
             onNewChat = { viewModel.onEvent(ChatEvent.NewChatRequested) },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+        }
     }
 }
 

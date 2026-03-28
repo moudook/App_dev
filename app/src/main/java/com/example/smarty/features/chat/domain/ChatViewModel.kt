@@ -243,21 +243,51 @@ class ChatViewModel(
     }
 
     /**
-     * Handle message edit - for Edit & Resend feature.
-     * Note: This is a placeholder. Full implementation requires ChatFeatureManager integration.
+     * Handle message edit - Feature 4: Edit & Resend.
+     * Removes the original message and all messages after it, then re-sends as a new message.
      */
     private fun handleEditMessage(message: ChatMessage) {
-        Log.d(TAG, "Edit message requested for: ${message.id}")
-        // TODO: Integrate with ChatFeatureManager for full edit functionality
+        Log.d(TAG, "Edit & Resend for message: ${message.id}")
+        viewModelScope.launch {
+            try {
+                // Remove the edited message and everything after it from state
+                val currentMessages = _chatState.value.messages
+                val editIndex = currentMessages.indexOfFirst { it.id == message.id }
+                if (editIndex >= 0) {
+                    val messagesToRemove = currentMessages.drop(editIndex)
+                    val trimmedMessages = currentMessages.take(editIndex)
+                    messagesToRemove.forEach { msg ->
+                        try { deleteMessageUseCase.execute(msg.id) } catch (_: Exception) {}
+                    }
+                    _chatState.update { it.copy(messages = trimmedMessages, lastUpdated = System.currentTimeMillis()) }
+                }
+                // Re-send the edited content
+                handleSendMessage(message.content, message.attachments)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in Edit & Resend: ${e.message}", e)
+                _chatState.update { it.copy(errorMessage = "Edit failed: ${e.message}") }
+            }
+        }
     }
 
     /**
-     * Handle clarification submission - for Interactive Question Mode.
-     * Note: This is a placeholder. Full implementation requires ChatFeatureManager integration.
+     * Handle clarification submission - Feature 2: Interactive Question Mode.
+     * Sends the user's chosen clarification answer as a new message to the AI.
      */
     private fun handleClarificationSubmit(messageId: String, response: String) {
-        Log.d(TAG, "Clarification submitted for message: $messageId, response: $response")
-        // TODO: Integrate with ChatFeatureManager to send clarification response
+        Log.d(TAG, "Clarification submitted for message: $messageId -> $response")
+        if (response.isBlank()) return
+        // Clear the clarification UI from the message
+        _chatState.update { state ->
+            state.copy(
+                messages = state.messages.map { msg ->
+                    if (msg.id == messageId) msg.copy(clarificationRequest = null) else msg
+                },
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        // Send the clarification answer as a new user message
+        handleSendMessage(response, emptyList())
     }
 
     /**

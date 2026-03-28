@@ -534,15 +534,7 @@ fun ChatMessageItem(
                         }
                     }
 
-                    // Clarification request
-                    message.clarificationRequest?.let { request ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        ClarificationBubble(
-                            request = request,
-                            onSubmit = onClarificationSubmit,
-                            accentColor = accentColor
-                        )
-                    }
+                    // Clarification request removed from here - it's now handled in the input block area
 
                     // Note references (clickable note cards)
                     if (message.noteReferences.isNotEmpty()) {
