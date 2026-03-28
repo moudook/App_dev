@@ -1361,7 +1361,10 @@ ${goalMemoryManager.getProgressContext()}
             val setting: String? = null,
             val on: Boolean? = null,
             val info: String? = null,
-            val screen: String? = null
+            val screen: String? = null,
+            val question: String? = null,
+            val options: List<String>? = null,
+            val allowCustom: Boolean? = null
         )
 
         val args = try {
@@ -1606,6 +1609,20 @@ ${goalMemoryManager.getProgressContext()}
                     }
                     else -> "Unknown search action: ${args.action}"
                 }
+            }
+
+            "ask_user" -> {
+                val question = args.question ?: "What would you like?"
+                val options = args.options ?: emptyList()
+                val allowCustom = args.allowCustom ?: false
+                emit(AgentEvent.Question(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    question = question,
+                    options = options,
+                    allowCustom = allowCustom
+                ))
+                "__WAITING_FOR_USER_RESPONSE__"
             }
 
             "navigate" -> {
