@@ -753,5 +753,33 @@ fun Application.configureChatRoutes() {
                 call.respond(HttpStatusCode.InternalServerError, "Failed to delete messages")
             }
         }
+
+        /**
+         * GET /chat/sessions/{sessionId}/summary
+         * Get a summary of the conversation in a session.
+         */
+        get("/chat/sessions/{sessionId}/summary") {
+            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val sessionId = call.parameters["sessionId"] ?: return@get call.respond(HttpStatusCode.BadRequest, "sessionId required")
+
+            try {
+                val messages = chatRepository?.getHistory(userId, sessionId, limit = 50) ?: emptyList()
+                if (messages.isEmpty()) {
+                    call.respond(HttpStatusCode.OK, mapOf("summary" to "No messages in this conversation yet."))
+                    return@get
+                }
+                
+                val userMessages = messages.filter { it.role == com.example.smarty.server.llm.LlmMessage.Role.USER }
+                val assistantMessages = messages.filter { it.role == com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT }
+                
+                val summary = "Conversation with ${userMessages.size} messages from you and ${assistantMessages.size} responses."
+                
+                call.respond(HttpStatusCode.OK, mapOf("summary" to summary))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to generate summary", e)
+                call.respond(HttpStatusCode.InternalServerError, "Failed to generate summary")
+            }
+        }
     }
 }
