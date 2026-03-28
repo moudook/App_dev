@@ -1485,8 +1485,11 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
-                personality = personality,
-                provider = providerStrategy
+                personality = personality
+                // NOTE: provider is intentionally omitted — the server resolves the LLM
+                // provider from its own ACTIVE_PROVIDER environment variable.
+                // Passing providerStrategy (BALANCED, FASTEST, etc.) here caused the server
+                // to treat it as an unknown provider name and fall back to mock.
             )
                 .collect { event ->
                     when (event) {
