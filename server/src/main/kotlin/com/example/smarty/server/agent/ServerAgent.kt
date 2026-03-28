@@ -1392,7 +1392,9 @@ ${goalMemoryManager.getProgressContext()}
             val screen: String? = null,
             val question: String? = null,
             val options: List<String>? = null,
-            val allowCustom: Boolean? = null
+            val allowCustom: Boolean? = null,
+            val noteId: String? = null,
+            val snippet: String? = null
         )
 
         val args = try {

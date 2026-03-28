@@ -383,6 +383,7 @@ fun Application.configureChatRoutes() {
                                 is AgentEvent.StateSync -> "state_sync"
                                 is AgentEvent.ToolBlocked -> "tool_blocked"
                                 is AgentEvent.Question -> "question"
+                                is AgentEvent.NoteBlock -> "note_block"
                             }
                             call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
                             send(ServerSentEvent(
