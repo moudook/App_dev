@@ -45,6 +45,12 @@ fun SettingsSheet(
         onDismiss()
     }
 
+    // Get personality from SecurePreferences directly
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
+    val personality = remember { securePrefs.getPersonality() }
+    val providerStrategy = remember { securePrefs.getProviderStrategy() }
+
     // Full-page overlay
     Box(
         modifier = Modifier
@@ -61,6 +67,10 @@ fun SettingsSheet(
             shakeSensitivity = shakeSensitivity,
             onShakeSensitivityChange = onShakeSensitivityChange,
             onSignOut = onSignOut,
+            personality = personality,
+            onSetPersonality = { securePrefs.setPersonality(it) },
+            providerStrategy = providerStrategy,
+            onSetProviderStrategy = { securePrefs.setProviderStrategy(it) },
             backupContent = backupContent,
             // Google Calendar Two-Way Sync
             isCalendarSyncEnabled = isCalendarSyncEnabled,
