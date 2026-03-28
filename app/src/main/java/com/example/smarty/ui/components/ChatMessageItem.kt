@@ -314,7 +314,7 @@ fun ChatMessageItem(
                     // Shows during streaming: live thinking with tool-call action cards interleaved
                     // After done: collapsed "Thoughts (N actions)" header, expandable
                     if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank())) {
-                        var thinkingExpanded by remember { mutableStateOf(message.isStreaming) }
+                        var thinkingExpanded by remember { mutableStateOf(message.isStreaming || message.hasActionPanel) }
                         val thinkingText = message.thinking ?: ""
 
                         ThinkingSection(

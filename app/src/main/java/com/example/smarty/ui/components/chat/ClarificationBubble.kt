@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
@@ -50,6 +52,7 @@ fun ClarificationBubble(
     accentColor: Color
 ) {
     var customInput by remember { mutableStateOf("") }
+    var selectedOption by remember { mutableStateOf<String?>(null) }
     var isSubmitted by remember { mutableStateOf(false) }
 
     Surface(
@@ -93,29 +96,80 @@ fun ClarificationBubble(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 request.options.forEach { option ->
+                    val isSelected = selectedOption == option
+                    val showCheck = isSelected && !isSubmitted
+                    val showSubmittedCheck = isSelected && isSubmitted
+
                     Surface(
                         onClick = {
                             if (!isSubmitted) {
-                                isSubmitted = true
-                                onSubmit(option)
+                                selectedOption = option
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isSubmitted) MaterialTheme.colorScheme.surfaceVariant else accentColor.copy(alpha = 0.1f),
-                        border = BorderStroke(1.dp, if (isSubmitted) Color.Transparent else accentColor.copy(alpha = 0.5f)),
+                        color = when {
+                            showSubmittedCheck -> accentColor.copy(alpha = 0.2f)
+                            showCheck -> accentColor.copy(alpha = 0.15f)
+                            isSubmitted -> MaterialTheme.colorScheme.surfaceVariant
+                            else -> accentColor.copy(alpha = 0.08f)
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            when {
+                                showSubmittedCheck -> accentColor
+                                showCheck -> accentColor
+                                isSubmitted -> Color.Transparent
+                                else -> accentColor.copy(alpha = 0.3f)
+                            }
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isSubmitted
                     ) {
-                        Text(
-                            text = option,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 15.sp
-                            ),
-                            color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
-                            modifier = Modifier.padding(12.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (showCheck || showSubmittedCheck) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = option,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 15.sp
+                                ),
+                                color = when {
+                                    showSubmittedCheck -> accentColor
+                                    showCheck -> accentColor
+                                    isSubmitted -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                },
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
+                }
+            }
+
+            if (!isSubmitted && selectedOption != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        isSubmitted = true
+                        onSubmit(selectedOption!!)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(text = stringResource(R.string.submit))
                 }
             }
 

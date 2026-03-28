@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -83,6 +84,8 @@ private fun EmptyStateContainer(
     title: String,
     subtitle: String,
     hint: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     graphic: @Composable BoxScope.() -> Unit
 ) {
@@ -90,9 +93,33 @@ private fun EmptyStateContainer(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        // Graphic Layer (Optional)
         graphic()
-        // Text Layer Removed as per user request
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            hint?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (actionLabel != null && onAction != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onAction,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(text = actionLabel)
+                }
+            }
+        }
     }
 }
 
@@ -108,9 +135,8 @@ fun CompactEmptyState(
     Column(
         modifier = modifier.padding(ComponentSpacing.sheetPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Static dot for compact state
         Box(
             modifier = Modifier.size(60.dp),
             contentAlignment = Alignment.Center
@@ -128,7 +154,16 @@ fun CompactEmptyState(
                 )
             }
         }
-        // Text Removed
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -253,14 +288,15 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
  * Notes Empty State
  */
 @Composable
-fun NotesEmptyState(modifier: Modifier = Modifier) {
+fun NotesEmptyState(modifier: Modifier = Modifier, onAddNote: (() -> Unit)? = null) {
     EmptyStateContainer(
         title = stringResource(R.string.notes),
         subtitle = stringResource(R.string.capture_your_thoughts),
         hint = stringResource(R.string.tap_plus_to_create_your_first_note),
+        actionLabel = if (onAddNote != null) "Create Note" else null,
+        onAction = onAddNote,
         modifier = modifier
     ) {
-        // No graphic
     }
 }
 
