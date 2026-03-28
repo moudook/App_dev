@@ -383,6 +383,12 @@ fun SmartyNavHost(
                 onNewChatSession = onNewChatSession,
                 onDeleteChatSession = onDeleteChatSession,
                 onDeleteChatMessage = onDeleteChatMessage,
+                onNoteClickById = { noteId ->
+                    // Navigate to note detail - for now just select it
+                    notes.find { it.id == noteId }?.let { note ->
+                        onSelectNote(note)
+                    }
+                },
                 // @Mention autocomplete
                 mentionState = mentionState,
                 onMentionSelected = onMentionSelected,

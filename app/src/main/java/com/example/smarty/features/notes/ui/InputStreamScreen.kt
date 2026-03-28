@@ -191,6 +191,7 @@ fun InputStreamScreen(
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
     onDeleteChatMessage: (String) -> Unit = {},
+    onNoteClickById: (String) -> Unit = {},  // For NoteBlock cards in chat
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
@@ -1456,6 +1457,7 @@ onPlayYouTube: (String) -> Unit = {},
                                         chatListState = chatListState,
                                         notes = notes,
                                         onNoteClick = onNoteClick,
+                                        onNoteClickById = onNoteClickById,
                                         onSendChatMessage = onSendChatMessage,
                                         onDeleteMessage = onDeleteChatMessage,
                                         contentPadding = contentPaddingWithTop,

@@ -97,6 +97,7 @@ fun ChatModeContent(
     chatListState: LazyListState,
     notes: List<Note>,
     onNoteClick: (Note) -> Unit,
+    onNoteClickById: (String) -> Unit = {},
     onSendChatMessage: (String, List<Attachment>) -> Unit,
     contentPadding: PaddingValues,
     isChatProcessing: Boolean = false,
@@ -106,6 +107,8 @@ fun ChatModeContent(
     onCopyMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
     onRegenerateMessage: (String) -> Unit = {},
+    onEditMessage: ((ChatMessage) -> Unit)? = null,
+    onClarificationSubmit: ((String) -> Unit)? = null,
     onRetryFailed: (FailedMessage) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -195,12 +198,15 @@ fun ChatModeContent(
                             groupPosition = groupPosition,
                             getNote = stableGetNote,
                             onNoteClick = onNoteClick,
+                            onNoteClickById = onNoteClickById,
                             onSuggestionClick = { suggestion ->
                                 onSendChatMessage(suggestion, emptyList())
                             },
                             onCopyMessage = onCopyMessage,
                             onDeleteMessage = onDeleteMessage,
                             onRegenerateMessage = onRegenerateMessage,
+                            onEditMessage = onEditMessage,
+                            onClarificationSubmit = onClarificationSubmit ?: {},
                             modifier = Modifier.padding(top = topSpacing)
                         )
                     }
