@@ -1480,11 +1480,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             val thinkingBuilder = StringBuilder()
             val sessionId = currentSessionId.value
             val personality = securePreferences.getPersonality()
+            val providerStrategy = securePreferences.getProviderStrategy()
 
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
-                personality = personality
+                personality = personality,
+                provider = providerStrategy
             )
                 .collect { event ->
                     when (event) {
