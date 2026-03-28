@@ -457,6 +457,13 @@ SEARCH: [topic] what people get wrong
 | "go to [screen]"                            | `navigate` action=go                |
 | "share this"                                | `navigate` action=share             |
 | "generate / create image"                   | `generate_image`                    |
+| "reference / cite / show note"              | `get_note_by_id`                    |
+
+**Note block usage:**
+- Use `get_note_by_id` when you want to embed a clickable note card in your response
+- The card appears inline in your response and can be tapped to view full note details
+- Provide a meaningful snippet that helps users understand the note content
+- Don't overuse - only include when the note genuinely adds value
 
 </tool_rules>
 
@@ -1644,6 +1651,27 @@ ${goalMemoryManager.getProgressContext()}
                     allowCustom = allowCustom
                 ))
                 "__WAITING_FOR_USER_RESPONSE__"
+            }
+
+            "get_note_by_id" -> {
+                if (noteRepository != null && args.noteId != null) {
+                    val note = noteRepository.getById(userId, args.noteId)
+                    if (note != null) {
+                        emit(AgentEvent.NoteBlock(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            noteId = note.id,
+                            title = note.title,
+                            snippet = args.snippet ?: note.content.take(100),
+                            category = note.categoryId
+                        ))
+                        "Note: ${note.title}"
+                    } else {
+                        "Note not found: ${args.noteId}"
+                    }
+                } else {
+                    "Note retrieval not available"
+                }
             }
 
             "navigate" -> {

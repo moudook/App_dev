@@ -270,6 +270,37 @@ Use for: clarification, preference gathering, scoping research, multi-choice dec
             required = listOf("question", "options")
         )
     )
+
+    /**
+     * Get note by ID tool for embedding clickable note cards in AI responses.
+     * Sends a NoteBlock event to the client which renders interactive note cards.
+     * The note card can be tapped to open full note details in a bottom sheet.
+     */
+    val getNoteByIdTool: ToolDefinition = ToolDefinition(
+        name = "get_note_by_id",
+        description = """Retrieve a specific note by its ID to embed as a clickable card in your response.
+
+Use this when you want to reference a specific note in your response. The client will 
+display an interactive note card that users can tap to view full note details.
+
+RULES:
+- Only use for notes that exist and belong to the user
+- Provide a brief snippet/summary that helps users understand the note content
+- Use for relevant, helpful references - don't overuse
+
+EXAMPLES:
+- get_note_by_id(note_id='abc-123', snippet='Meeting notes from the team standup')
+- get_note_by_id(note_id='xyz-456', snippet='Recipe for homemade pasta sauce')
+
+Use for: referencing specific notes, showing relevant saved information, citing user data.""",
+        parameters = ToolParameters(
+            properties = mapOf(
+                "note_id" to ToolProperty("string", "The unique ID of the note to retrieve"),
+                "snippet" to ToolProperty("string", "Brief summary or excerpt from the note (1-2 sentences)")
+            ),
+            required = listOf("note_id", "snippet")
+        )
+    )
     
     /**
      * Get all standard tools.
@@ -282,6 +313,7 @@ Use for: clarification, preference gathering, scoping research, multi-choice dec
         searchTool,
         navigateTool,
         generateImageTool,
-        askUserTool
+        askUserTool,
+        getNoteByIdTool
     )
 }

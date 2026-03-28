@@ -150,4 +150,19 @@ sealed class AgentEvent {
         val options: List<String> = emptyList(),
         @SerialName("allow_custom") val allowCustom: Boolean = false
     ) : AgentEvent()
+
+    /**
+     * Agent embeds a clickable note card within the response.
+     * Client renders as an interactive note block; tapping opens note details.
+     */
+    @Serializable
+    @SerialName("note_block")
+    data class NoteBlock(
+        override val eventId: String,
+        override val timestamp: Long,
+        @SerialName("note_id") val noteId: String,
+        val title: String,
+        val snippet: String,
+        val category: String? = null
+    ) : AgentEvent()
 }

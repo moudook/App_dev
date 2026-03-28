@@ -629,10 +629,12 @@ fun sendQueryWithContext(
                 Log.d(TAG, "Received question: ${event.question}")
                 false
             }
+            is AgentEvent.NoteBlock -> {
+                Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
+                false
+            }
         }
     }
-
-    /**
      * Handles events streaming from the SSE endpoint and emits whole AgentEvents
      */
     private suspend fun handleEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>): Boolean {
@@ -677,6 +679,11 @@ fun sendQueryWithContext(
             }
             is AgentEvent.Question -> {
                 Log.d(TAG, "Received question: ${event.question}")
+                flowCollector.emit(event)
+                false
+            }
+            is AgentEvent.NoteBlock -> {
+                Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
                 flowCollector.emit(event)
                 false
             }

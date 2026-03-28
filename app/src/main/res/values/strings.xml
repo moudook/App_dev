@@ -1188,4 +1188,7 @@ Thank you for using Friday.</string>
 
     <!-- Firebase Auth Config -->
     <string name="default_web_client_id">1056730951768-39d0p38cguf1ialdnfaqvrqtmrsp25ih.apps.googleusercontent.com</string>
+
+    <!-- Note Block -->
+    <string name="open_note">Open note</string>
 </resources>

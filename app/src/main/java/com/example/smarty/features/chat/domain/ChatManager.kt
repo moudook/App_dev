@@ -284,6 +284,18 @@ class ChatManager(
         }
     }
 
+    suspend fun updateMessageNoteReferences(messageId: String, noteReference: com.example.smarty.core.domain.model.NoteReference) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    val updatedRefs = msg.noteReferences.toMutableList()
+                    updatedRefs.add(noteReference)
+                    msg.copy(noteReferences = updatedRefs)
+                } else msg
+            }
+        }
+    }
+
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
         Log.d(TAG, "Entering replaceMessage. Target messageId: $messageId, New message ID: ${newMessage.id}")
         chatMutex.withLock {

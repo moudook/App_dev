@@ -1552,6 +1552,16 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             )
                             chatManager.updateMessageClarification(streamingMessageId, clarification)
                         }
+                        is AgentEvent.NoteBlock -> {
+                            // Create note reference and add to message
+                            val noteRef = com.example.smarty.core.domain.model.NoteReference(
+                                noteId = event.noteId,
+                                title = event.title,
+                                snippet = event.snippet,
+                                category = event.category
+                            )
+                            chatManager.updateMessageNoteReferences(streamingMessageId, noteRef)
+                        }
                     }
                 }
 

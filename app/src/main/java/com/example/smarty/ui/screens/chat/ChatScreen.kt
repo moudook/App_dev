@@ -38,6 +38,7 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     onNoteClick: (String) -> Unit = {},
     onAttachmentClick: (String) -> Unit = {},
+    onNoteClickById: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Collect global state - single source of truth
@@ -107,6 +108,7 @@ fun ChatScreen(
                         message = message,
                         groupPosition = groupPosition,
                         onNoteClick = { onNoteClick(it.id) },
+                        onNoteClickById = { noteId -> onNoteClickById(noteId) },
                         onCopyMessage = { content ->
                             viewModel.onEvent(ChatEvent.MessageCopied(message.id, content))
                         },
