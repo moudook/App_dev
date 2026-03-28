@@ -106,6 +106,10 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_PROVIDER_STRATEGY = "provider_strategy"
         private const val DEFAULT_PROVIDER_STRATEGY = "BALANCED"
 
+        // AI Personality
+        private const val KEY_PERSONALITY = "ai_personality"
+        private const val DEFAULT_PERSONALITY = "DEFAULT"
+
         // Security
         private const val KEY_DEVICE_ID = "device_id"
 
@@ -220,6 +224,10 @@ class SecurePreferences(private val context: Context) {
     // AI Provider Strategy
     fun getProviderStrategy(): String = encryptedPrefs.getString(KEY_PROVIDER_STRATEGY, DEFAULT_PROVIDER_STRATEGY) ?: DEFAULT_PROVIDER_STRATEGY
     fun setProviderStrategy(strategy: String) = encryptedPrefs.edit().putString(KEY_PROVIDER_STRATEGY, strategy).apply()
+
+    // AI Personality
+    fun getPersonality(): String = encryptedPrefs.getString(KEY_PERSONALITY, DEFAULT_PERSONALITY) ?: DEFAULT_PERSONALITY
+    fun setPersonality(personality: String) = encryptedPrefs.edit().putString(KEY_PERSONALITY, personality).apply()
 
     /**
      * Get or create a unique, persistent Device ID.

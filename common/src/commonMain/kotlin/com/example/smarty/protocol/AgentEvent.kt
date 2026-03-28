@@ -78,7 +78,9 @@ sealed class AgentEvent {
         val content: String,
         val thinking: String? = null,
         val citations: List<Citation> = emptyList(),
-        @SerialName("is_final") val isFinal: Boolean = false
+        @SerialName("is_final") val isFinal: Boolean = false,
+        val confidence: String? = null,
+        @SerialName("source_type") val sourceType: String? = null
     ) : AgentEvent()
 
     /**
@@ -133,5 +135,19 @@ sealed class AgentEvent {
         @SerialName("tool_name") val toolName: String,
         val reason: String,
         val code: String? = null
+    ) : AgentEvent()
+
+    /**
+     * Agent asks the user a structured question (multiple choice or free text).
+     * Client renders as interactive question cards.
+     */
+    @Serializable
+    @SerialName("question")
+    data class Question(
+        override val eventId: String,
+        override val timestamp: Long,
+        val question: String,
+        val options: List<String> = emptyList(),
+        @SerialName("allow_custom") val allowCustom: Boolean = false
     ) : AgentEvent()
 }

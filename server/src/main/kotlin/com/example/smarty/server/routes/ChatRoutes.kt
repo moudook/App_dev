@@ -66,7 +66,8 @@ data class ChatRequest(
     val fileContext: String? = null,  // Extracted text from uploaded files
     val attachments: List<AttachmentInfo>? = null,  // Metadata about attachments
     val timezone: String? = null,  // User's timezone (e.g., "America/New_York")
-    val clientTime: Long? = null   // User's current time in epoch millis
+    val clientTime: Long? = null,   // User's current time in epoch millis
+    val personality: String? = null  // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
 )
 
 @Serializable
@@ -269,6 +270,7 @@ fun Application.configureChatRoutes() {
                 val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
                 val timezoneParam = call.request.queryParameters["timezone"]
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
+                val personalityParam = call.request.queryParameters["personality"]
 
                 // Log the incoming request
                 call.application.log.info("SSE stream started for query: $query (Session: $sessionId, User: $userId, Provider: $providerParam, Model: $modelParam, URL: $providerUrlParam)")
@@ -380,6 +382,7 @@ fun Application.configureChatRoutes() {
                                 is AgentEvent.Error -> "error"
                                 is AgentEvent.StateSync -> "state_sync"
                                 is AgentEvent.ToolBlocked -> "tool_blocked"
+                                is AgentEvent.Question -> "question"
                             }
                             call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
                             send(ServerSentEvent(
@@ -402,7 +405,8 @@ fun Application.configureChatRoutes() {
                         history = history,
                         modelOverride = modelParam,
                         clientTimezone = timezoneParam,
-                        clientTimeMillis = clientTimeParam
+                        clientTimeMillis = clientTimeParam,
+                        personality = personalityParam
                     )
 
                     // Save Smarty Response if persistence is enabled
@@ -557,14 +561,15 @@ fun Application.configureChatRoutes() {
                     com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat_query")
 
                     try {
-                        val assistantResponse = agent.run(
-                            query = fullQuery,
-                            sessionId = activeSessionId,
-                            history = history,
-                            modelOverride = request.model,
-                            clientTimezone = request.timezone,
-                            clientTimeMillis = request.clientTime
-                        )
+                    val assistantResponse = agent.run(
+                        query = fullQuery,
+                        sessionId = activeSessionId,
+                        history = history,
+                        modelOverride = request.model,
+                        clientTimezone = request.timezone,
+                        clientTimeMillis = request.clientTime,
+                        personality = request.personality
+                    )
 
                         // Save response with citations
                         if (chatRepository != null && assistantResponse.isNotEmpty()) {

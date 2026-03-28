@@ -80,7 +80,7 @@ private const val TAG = "SettingsScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
-    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory
+    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory, Personality
 }
 
 /**
@@ -109,6 +109,9 @@ fun SettingsScreen(
     // AI Provider Strategy
     providerStrategy: String = "BALANCED",
     onSetProviderStrategy: (String) -> Unit = {},
+    // AI Personality
+    personality: String = "DEFAULT",
+    onSetPersonality: (String) -> Unit = {},
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit = {},
@@ -257,6 +260,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Analytics,
                                         subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                         onClick = { currentView = SettingsView.ProviderStrategy }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "AI Personality",
+                                        icon = SmartyIcons.Psychology,
+                                        subtitle = personality.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        onClick = { currentView = SettingsView.Personality }
                                     )
                                     SmartySettingsRow(
                                         label = "Smarty Server",
@@ -429,6 +438,16 @@ fun SettingsScreen(
                             currentStrategy = providerStrategy,
                             onSelect = {
                                 onSetProviderStrategy(it)
+                                currentView = SettingsView.Main
+                            },
+                            onBack = { currentView = SettingsView.Main }
+                        )
+                    }
+                    SettingsView.Personality -> {
+                        PersonalityView(
+                            currentPersonality = personality,
+                            onSelect = {
+                                onSetPersonality(it)
                                 currentView = SettingsView.Main
                             },
                             onBack = { currentView = SettingsView.Main }
@@ -978,6 +997,101 @@ private fun ProviderStrategyView(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = strategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = LocalAccentColor.current,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonalityView(
+    currentPersonality: String,
+    onSelect: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        SettingsHeader(
+            title = "AI Personality",
+            subtitle = "Choose how Smarty responds to you",
+            onBack = onBack
+        )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 180.dp)
+        ) {
+            val personalities = listOf(
+                "DEFAULT" to "Default" to "The original Smarty - sharp, warm, and genuinely useful",
+                "PROFESSIONAL" to "Professional" to "Formal, precise, and business-like",
+                "CASUAL" to "Casual" to "Relaxed, friendly, and conversational",
+                "CONCISE" to "Concise" to "Extremely brief, gets to the point fast",
+                "DETAILED" to "Detailed" to "Thorough and comprehensive with examples"
+            )
+
+            items(personalities.size) { index ->
+                val (pair, description) = personalities[index]
+                val (key, label) = pair
+                val isSelected = currentPersonality == key
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(key) },
+                    shape = LocalShapes.current.button,
+                    color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) LocalAccentColor.current
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = when (key) {
+                                    "PROFESSIONAL" -> Icons.Default.Business
+                                    "CASUAL" -> Icons.Default.Mood
+                                    "CONCISE" -> Icons.Default.Bolt
+                                    "DETAILED" -> Icons.Default.MenuBook
+                                    else -> Icons.Default.Psychology
+                                },
+                                contentDescription = null,
+                                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = label,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
                             )

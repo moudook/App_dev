@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.AgentToolCallEntry
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.markdown.MarkdownRenderer
 import kotlinx.coroutines.delay
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +88,11 @@ private object SanitisePatterns {
 internal fun sanitizeThinking(text: String): String {
     if (text.isBlank()) return text
     var s = text
+
+    // Strip SMARTY_TRACE_V2: prefix if present (belt-and-suspenders for live streaming)
+    if (s.startsWith("SMARTY_TRACE_V2:")) {
+        s = s.removePrefix("SMARTY_TRACE_V2:").trim()
+    }
 
     // Remove XML tool blocks first (they contain everything)
     s = s.replace(SanitisePatterns.xmlToolBlocks, "")
@@ -310,28 +316,37 @@ private fun ReasoningBlock(
         if (displayLen >= text.length) text else text.substring(0, displayLen)
     }
 
-    Row(
-        modifier = Modifier.padding(start = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Accent bar
-        Spacer(
-            modifier = Modifier
-                .width(2.dp)
-                .heightIn(min = 16.dp)
-                .fillMaxHeight()
-                .background(accentColor.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
-        )
+        Column(
+            modifier = Modifier.padding(start = 4.dp)
+        ) {
+            // Accent bar + markdown content
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Accent bar
+                Spacer(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .heightIn(min = 16.dp)
+                        .fillMaxHeight()
+                        .background(accentColor.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+                )
 
-        Text(
-            text = visible,
-            style = MaterialTheme.typography.bodySmall.copy(
-                lineHeight = 20.sp,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-            )
-        )
-    }
+                Column(modifier = Modifier.weight(1f)) {
+                    MarkdownRenderer(
+                        content = visible,
+                        isUser = false,
+                        normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                        boldColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        linkColor = accentColor.copy(alpha = 0.8f),
+                        codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        isStreaming = isStreaming && displayLen < text.length
+                    )
+                }
+            }
+        }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

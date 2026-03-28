@@ -90,7 +90,8 @@ class RemoteAgentService(
         provider: String? = null,
         providerUrl: String? = null,
         model: String? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        personality: String? = null
     ): Flow<AgentEvent> = flow {
         val baseUrl = serverUrlProvider()
         val token = getFirebaseToken()
@@ -105,6 +106,7 @@ class RemoteAgentService(
             if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
             if (model != null) append("&model=${model.encodeURLParameter()}")
             if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
+            if (personality != null) append("&personality=${personality.encodeURLParameter()}")
             append("&timezone=${timezone.encodeURLParameter()}")
             append("&clientTime=$clientTime")
         }
@@ -596,6 +598,10 @@ fun sendQueryWithContext(
                 // Don't stop stream, just log and continue
                 false
             }
+            is AgentEvent.Question -> {
+                Log.d(TAG, "Received question: ${event.question}")
+                false
+            }
         }
     }
 
@@ -639,6 +645,11 @@ fun sendQueryWithContext(
             }
             is AgentEvent.ToolBlocked -> {
                 Log.w(TAG, "Tool blocked: ${event.toolName} - ${event.reason}")
+                flowCollector.emit(event)
+                false
+            }
+            is AgentEvent.Question -> {
+                Log.d(TAG, "Received question: ${event.question}")
                 flowCollector.emit(event)
                 false
             }

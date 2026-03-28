@@ -1479,10 +1479,12 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
             val sessionId = currentSessionId.value
+            val personality = securePreferences.getPersonality()
 
             remoteAgentService.sendQuery(
                 query = content,
-                sessionId = sessionId
+                sessionId = sessionId,
+                personality = personality
             )
                 .collect { event ->
                     when (event) {
@@ -1491,7 +1493,8 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             // Handle thinking from server - replace, not append (server sends full accumulated thinking)
                             event.thinking?.let { thinking ->
                                 thinkingBuilder.clear()
-                                thinkingBuilder.append(thinking)
+                                val cleanThinking = if (thinking.startsWith("SMARTY_TRACE_V2:")) thinking.removePrefix("SMARTY_TRACE_V2:").trim() else thinking
+                                thinkingBuilder.append(cleanThinking)
                             }
                             chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().ifEmpty { null })
                         }
@@ -1503,7 +1506,8 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             event.thinking?.let { thinking ->
                                 // Final thinking - replace to ensure clean content
                                 thinkingBuilder.clear()
-                                thinkingBuilder.append(thinking)
+                                val cleanThinking = if (thinking.startsWith("SMARTY_TRACE_V2:")) thinking.removePrefix("SMARTY_TRACE_V2:").trim() else thinking
+                                thinkingBuilder.append(cleanThinking)
                             }
                             chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().ifEmpty { null })
                         }
@@ -1532,6 +1536,9 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             // Tool blocked - append message to response so AI knows to try different approach
                             responseBuilder.append("\n[System: ${event.reason}]")
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                        }
+                        is AgentEvent.Question -> {
+                            // Interactive question - will be handled in Feature 2
                         }
                     }
                 }
