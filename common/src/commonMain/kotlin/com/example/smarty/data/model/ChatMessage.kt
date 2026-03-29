@@ -100,6 +100,7 @@ data class ChatMessage(
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
     val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
     val noteReferences: List<NoteReference> = emptyList(),  // Clickable note cards in AI response
+    val eventReferences: List<EventReference> = emptyList(), // Clickable event cards in AI response
     val confidence: String? = null,  // Server-computed confidence: verified, moderate, model_knowledge
     val sourceType: String? = null   // Source type: web_search, user_data, model_knowledge
 ) {

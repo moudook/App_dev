@@ -269,6 +269,7 @@ fun ChatMessageItem(
     getNote: (String) -> Note? = { null },
     onNoteClick: (Note) -> Unit = {},
     onNoteClickById: (String) -> Unit = {},
+    onEventClickById: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
     onClarificationSubmit: (String) -> Unit = {},
     onCopyMessage: (String) -> Unit = {},
@@ -544,6 +545,20 @@ fun ChatMessageItem(
                                 NoteBlockCard(
                                     noteReference = noteRef,
                                     onClick = { onNoteClickById(noteRef.noteId) },
+                                    accentColor = accentColor
+                                )
+                            }
+                        }
+                    }
+
+                    // Event references (clickable event cards)
+                    if (message.eventReferences.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            message.eventReferences.forEach { eventRef ->
+                                EventBlockCard(
+                                    eventReference = eventRef,
+                                    onClick = { onEventClickById(eventRef.eventId) },
                                     accentColor = accentColor
                                 )
                             }
@@ -1329,6 +1344,53 @@ private fun NoteBlockCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = noteReference.snippet,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Launch,
+                contentDescription = stringResource(R.string.open_note),
+                tint = accentColor.copy(alpha = 0.6f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EventBlockCard(
+    eventReference: com.example.smarty.core.domain.model.EventReference,
+    onClick: () -> Unit,
+    accentColor: Color
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = accentColor.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = eventReference.title,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = accentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = eventReference.timeSnippet,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,

@@ -98,6 +98,7 @@ fun ChatModeContent(
     notes: List<Note>,
     onNoteClick: (Note) -> Unit,
     onNoteClickById: (String) -> Unit = {},
+    onEventClickById: (String) -> Unit = {},
     onSendChatMessage: (String, List<Attachment>) -> Unit,
     contentPadding: PaddingValues,
     isChatProcessing: Boolean = false,
@@ -199,6 +200,7 @@ fun ChatModeContent(
                             getNote = stableGetNote,
                             onNoteClick = onNoteClick,
                             onNoteClickById = onNoteClickById,
+                            onEventClickById = onEventClickById,
                             onSuggestionClick = { suggestion ->
                                 onSendChatMessage(suggestion, emptyList())
                             },

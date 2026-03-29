@@ -133,19 +133,22 @@ fun SmartySettingsRow(
         SmartySettingsDefaults.RowCompactMinHeight
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = minHeight)
-            .clip(SmartySettingsDefaults.ItemShape)
-            .background(itemBackground)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(
-                horizontal = SmartySettingsDefaults.RowHorizontalPadding,
-                vertical = SmartySettingsDefaults.RowVerticalPadding
-            ),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth().heightIn(min = minHeight),
+        shape = SmartySettingsDefaults.ItemShape,
+        color = itemBackground,
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    horizontal = SmartySettingsDefaults.RowHorizontalPadding,
+                    vertical = SmartySettingsDefaults.RowVerticalPadding
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         if (leadingContent != null) {
             leadingContent()
         } else if (icon != null) {
@@ -194,6 +197,7 @@ fun SmartySettingsRow(
             )
         }
     }
+}
 }
 
 /**

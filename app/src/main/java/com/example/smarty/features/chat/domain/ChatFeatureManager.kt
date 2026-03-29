@@ -1447,6 +1447,60 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         }
     }
 
+    private val noteTagRegex = "<note_([a-zA-Z0-9-]+)>".toRegex()
+    private val eventTagRegex = "<event_([a-zA-Z0-9-]+)>".toRegex()
+
+    private suspend fun extractAndStripInlineTags(builder: StringBuilder, messageId: String) {
+        val content = builder.toString()
+        var newContent = content
+        var hasChanges = false
+
+        noteTagRegex.findAll(content).forEach { matchResult ->
+            val noteId = matchResult.groupValues[1]
+            newContent = newContent.replace(matchResult.value, "")
+            hasChanges = true
+            
+            // Asynchronously fetch and map note to UI reference
+            scope.launch {
+                val dbNote = repository.getNoteById(noteId)
+                if (dbNote != null) {
+                    val noteRef = com.example.smarty.core.domain.model.NoteReference(
+                        noteId = dbNote.id,
+                        title = dbNote.title,
+                        snippet = dbNote.summary ?: dbNote.content.take(100),
+                        category = dbNote.categoryName
+                    )
+                    chatManager.updateMessageNoteReferences(messageId, noteRef)
+                }
+            }
+        }
+
+        eventTagRegex.findAll(content).forEach { matchResult ->
+            val eventId = matchResult.groupValues[1]
+            newContent = newContent.replace(matchResult.value, "")
+            hasChanges = true
+            
+            // Asynchronously fetch and map event to UI reference
+            scope.launch {
+                val dbEvent = repository.getCalendarEventById(eventId)
+                if (dbEvent != null) {
+                    val eventRef = com.example.smarty.core.domain.model.EventReference(
+                        eventId = dbEvent.id,
+                        title = dbEvent.title,
+                        timeSnippet = "Planned Event", // Simplified for now
+                        description = dbEvent.description
+                    )
+                    chatManager.updateMessageEventReferences(messageId, eventRef)
+                }
+            }
+        }
+
+        if (hasChanges) {
+            builder.clear()
+            builder.append(newContent)
+        }
+    }
+
     private suspend fun processRemoteQuery(content: String, userMessage: ChatMessage) {
         // Clear previous state
         pendingCitations.clear()
@@ -1495,6 +1549,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                     when (event) {
                         is AgentEvent.Processing -> {
                             responseBuilder.append(event.content)
+                            extractAndStripInlineTags(responseBuilder, streamingMessageId)
                             // Handle thinking from server - replace, not append (server sends full accumulated thinking)
                             event.thinking?.let { thinking ->
                                 thinkingBuilder.clear()
@@ -1507,6 +1562,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             // Only append content if it's new (not already in builder), some servers send full result at end
                             if (event.content.isNotEmpty() && !responseBuilder.toString().contains(event.content)) {
                                 responseBuilder.append(event.content)
+                                extractAndStripInlineTags(responseBuilder, streamingMessageId)
                             }
                             event.thinking?.let { thinking ->
                                 // Final thinking - replace to ensure clean content
@@ -1740,6 +1796,26 @@ fun dismissSuggestion() {
         chatManager.saveDraft(text)
     }
 
+    /**
+     * Submit user's answer to an interactive question.
+     */
+    fun submitClarification(messageId: String, response: String) {
+        if (response.isBlank()) return
+        
+        // Remove the clarification UI from the message
+        val messages = chatMessages.value
+        val msg = messages.find { it.id == messageId }
+        if (msg != null) {
+            val updatedMsg = msg.copy(clarificationRequest = null)
+            scope.launch {
+                chatManager.replaceMessage(messageId, updatedMsg)
+            }
+        }
+        
+        // Send the clarification response back to the agent
+        sendChatMessage(response, emptyList())
+    }
+
     fun getDraft(): String? = chatManager.getDraft()
 
     fun clearDraft() {
@@ -1811,4 +1887,3 @@ fun dismissSuggestion() {
         }
     }
 }
-

@@ -1647,6 +1647,13 @@ class SmartyViewModel(
     }
 
     /**
+     * Submit user's answer to an interactive question.
+     */
+    fun submitClarification(messageId: String, response: String) {
+        chatFeatureManager.submitClarification(messageId, response)
+    }
+
+    /**
      * Direct image generation via Krea API (delegated to ChatFeatureManager).
      */
     fun generateImageDirect(prompt: String, aspectRatio: String = "1:1") {

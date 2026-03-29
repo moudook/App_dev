@@ -289,8 +289,24 @@ class ChatManager(
             _chatMessages.value = _chatMessages.value.map { msg ->
                 if (msg.id == messageId) {
                     val updatedRefs = msg.noteReferences.toMutableList()
-                    updatedRefs.add(noteReference)
+                    if (!updatedRefs.any { it.noteId == noteReference.noteId }) {
+                        updatedRefs.add(noteReference)
+                    }
                     msg.copy(noteReferences = updatedRefs)
+                } else msg
+            }
+        }
+    }
+
+    suspend fun updateMessageEventReferences(messageId: String, eventReference: com.example.smarty.core.domain.model.EventReference) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    val updatedRefs = msg.eventReferences.toMutableList()
+                    if (!updatedRefs.any { it.eventId == eventReference.eventId }) {
+                        updatedRefs.add(eventReference)
+                    }
+                    msg.copy(eventReferences = updatedRefs)
                 } else msg
             }
         }

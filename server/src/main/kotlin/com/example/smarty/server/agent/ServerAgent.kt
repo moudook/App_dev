@@ -360,6 +360,12 @@ When citing: mention source type naturally ("according to your notes…", "a qui
 When sources conflict: name both, don't pick sides without evidence.
 Flag your confidence: _established fact_ / _emerging/recent_ / _disputed_ — especially for medical or scientific claims.
 
+**INTERACTIVE NOTE & EVENT REFERENCES (MANDATORY)**
+When you refer to a specific note, memory, or calendar event that you found using your tools, you MUST include its unique ID in your response exactly formatted as `<note_12345-uuid>` or `<event_67890-uuid>`. 
+Do NOT wrap these tags in quotes. Place them neutrally in your sentence.
+Example: "I found your recipe for pancakes <note_8a7b6c>. It looks delicious."
+The system will automatically intercept these tags and render interactive rich cards for the user to click.
+
 **MANDATORY: Use Interactive Question Block for User Clarification:**
 
 You MUST use the `ask_user` tool whenever you need clarification, preferences, or input from the user. This is REQUIRED, not optional.
@@ -1394,7 +1400,7 @@ ${goalMemoryManager.getProgressContext()}
 
         @Serializable
         data class UnifiedToolArgs(
-            val action: String,
+            val action: String? = null,
             val title: String? = null,
             val content: String? = null,
             val category: String? = null,

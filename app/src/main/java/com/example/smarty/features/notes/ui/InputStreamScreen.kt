@@ -182,6 +182,7 @@ fun InputStreamScreen(
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when clicking AI tab
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
+    onClarificationSubmit: (String, String) -> Unit = { _, _ -> },
     onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
     onStopGeneration: () -> Unit = {},
     // Chat history parameters
@@ -192,6 +193,7 @@ fun InputStreamScreen(
     onDeleteChatSession: (String) -> Unit = {},
     onDeleteChatMessage: (String) -> Unit = {},
     onNoteClickById: (String) -> Unit = {},  // For NoteBlock cards in chat
+
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
@@ -257,6 +259,7 @@ onPlayYouTube: (String) -> Unit = {},
     onAddCalendarEvent: () -> Unit = {},
     onCreateCalendarEvent: ((title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit)? = null,
     onEventClick: (CalendarEvent) -> Unit = {},
+    onEventClickById: (String) -> Unit = {},
     onDeleteCalendarEvent: (CalendarEvent) -> Unit = {},
 
     // Category management for Stacks sheet
@@ -1458,6 +1461,7 @@ onPlayYouTube: (String) -> Unit = {},
                                         notes = notes,
                                         onNoteClick = onNoteClick,
                                         onNoteClickById = onNoteClickById,
+                                        onEventClickById = onEventClickById,
                                         onSendChatMessage = onSendChatMessage,
                                         onDeleteMessage = onDeleteChatMessage,
                                         contentPadding = contentPaddingWithTop,
@@ -1662,8 +1666,26 @@ onPlayYouTube: (String) -> Unit = {},
                         )
                     }
 
+                    // Check for clarification block!
+                    val activeClarificationMessage = if (isChatMode) {
+                        chatMessages.find { it.role == com.example.smarty.core.domain.model.ChatRole.SMARTY && it.clarificationRequest != null && !it.isStreaming }
+                    } else null
+
+                    val showClarificationBlock = activeClarificationMessage != null
+
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
-                    if (!showSelectionPill) {
+                    if (showClarificationBlock) {
+                        com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
+                            request = activeClarificationMessage!!.clarificationRequest!!,
+                            onSubmit = { response ->
+                                onClarificationSubmit(activeClarificationMessage.id, response)
+                            },
+                            onSkip = {
+                                onClarificationSubmit(activeClarificationMessage.id, "Skip")
+                            },
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else if (!showSelectionPill) {
                         Box(contentAlignment = Alignment.BottomCenter) {
                         // The Actual Input Field with halftone shimmer inside
                         SmartyInputField(

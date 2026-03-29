@@ -376,6 +376,7 @@ fun SmartyNavHost(
                 onStopGeneration = viewModel::stopGeneration,
                 onExitChatMode = onExitChatMode,
                 onEnterChatMode = onEnterChatMode,
+                onClarificationSubmit = viewModel::submitClarification,
                 // Chat history
                 chatSessions = chatSessions,
                 currentSessionId = currentSessionId,
@@ -387,6 +388,20 @@ fun SmartyNavHost(
                     // Navigate to note detail - for now just select it
                     notes.find { it.id == noteId }?.let { note ->
                         onSelectNote(note)
+                    }
+                },
+                onEventClickById = { eventId ->
+                    // Reuse Note detail sheet for Calendar Event as requested
+                    calendarEvents.find { it.id == eventId }?.let { event ->
+                        val tempNote = com.example.smarty.core.domain.model.Note(
+                            id = event.id,
+                            title = "Event: ${event.title}",
+                            content = "Time: ${java.util.Date(event.startTime)}\n\n${event.description ?: "No description provided."}",
+                            createdAt = event.startTime,
+                            updatedAt = event.startTime,
+                            type = com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP
+                        )
+                        onSelectNote(tempNote)
                     }
                 },
                 // @Mention autocomplete
