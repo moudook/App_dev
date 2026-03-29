@@ -93,6 +93,9 @@ class SettingsFeatureManager(
     private val _providerStrategy = MutableStateFlow(securePreferences.getProviderStrategy())
     val providerStrategy: StateFlow<String> = _providerStrategy.asStateFlow()
 
+    private val _personality = MutableStateFlow(securePreferences.getPersonality())
+    val personality: StateFlow<String> = _personality.asStateFlow()
+
     // --- UI/System Preferences ---
     val isDarkTheme: StateFlow<Boolean> = securePreferences.isDarkTheme
 
@@ -115,6 +118,11 @@ class SettingsFeatureManager(
     fun setProviderStrategy(strategy: String) {
         securePreferences.setProviderStrategy(strategy)
         _providerStrategy.value = strategy
+    }
+
+    fun setPersonality(personality: String) {
+        securePreferences.setPersonality(personality)
+        _personality.value = personality
     }
 
     fun getSmartyServerUrl(): String {

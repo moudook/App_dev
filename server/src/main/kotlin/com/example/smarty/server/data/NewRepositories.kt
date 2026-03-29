@@ -504,3 +504,366 @@ class ChatFolderRepository(private val dataSource: DataSource) {
         }
     }
 }
+
+/**
+ * Search History Repository (v6.0.0 schema)
+ * Handles: search_history table
+ */
+class SearchHistoryRepository(private val dataSource: DataSource) {
+    private val logger = LoggerFactory.getLogger(SearchHistoryRepository::class.java)
+
+    suspend fun addSearch(search: SearchHistory): String = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                INSERT INTO search_history (id, user_id, query, search_scope, result_count, created_at)
+                VALUES (?, ?, ?, ?, ?, now())
+                ON CONFLICT DO NOTHING
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(search.id))
+                stmt.setObject(2, UUID.fromString(search.userId))
+                stmt.setString(3, search.query)
+                stmt.setString(4, search.searchScope)
+                stmt.setInt(5, search.resultCount)
+                stmt.executeUpdate()
+            }
+        }
+        search.id
+    }
+
+    suspend fun getSearchHistory(userId: String, limit: Int = 20): List<SearchHistory> = withContext(Dispatchers.IO) {
+        val history = mutableListOf<SearchHistory>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT * FROM search_history
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        history.add(SearchHistory(
+                            id = rs.getObject("id").toString(),
+                            userId = rs.getObject("user_id").toString(),
+                            query = rs.getString("query"),
+                            searchScope = rs.getString("search_scope"),
+                            resultCount = rs.getInt("result_count"),
+                            createdAt = rs.getTimestamp("created_at")?.toString()
+                        ))
+                    }
+                }
+            }
+        }
+        history
+    }
+
+    suspend fun deleteSearch(searchId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "DELETE FROM search_history WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(searchId))
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    suspend fun clearUserSearchHistory(userId: String): Int = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "DELETE FROM search_history WHERE user_id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.executeUpdate()
+            }
+        }
+    }
+}
+
+/**
+ * User Device Repository (v6.0.0 schema)
+ * Handles: user_devices table
+ */
+class UserDeviceRepository(private val dataSource: DataSource) {
+    private val logger = LoggerFactory.getLogger(UserDeviceRepository::class.java)
+
+    suspend fun registerDevice(device: UserDevice): String = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                INSERT INTO user_devices (id, user_id, device_name, device_type, push_token, last_active_at, app_version, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, now(), ?, ?::jsonb, now(), now())
+                ON CONFLICT (user_id, device_name) DO UPDATE SET
+                    push_token = EXCLUDED.push_token,
+                    last_active_at = now(),
+                    app_version = EXCLUDED.app_version,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = now()
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(device.id))
+                stmt.setObject(2, UUID.fromString(device.userId))
+                stmt.setString(3, device.deviceName)
+                stmt.setString(4, device.deviceType)
+                stmt.setString(5, device.pushToken)
+                stmt.setString(6, device.appVersion)
+                stmt.setString(7, device.metadata)
+                stmt.executeUpdate()
+            }
+        }
+        device.id
+    }
+
+    suspend fun getDevicesForUser(userId: String): List<UserDevice> = withContext(Dispatchers.IO) {
+        val devices = mutableListOf<UserDevice>()
+        dataSource.connection.use { conn ->
+            val sql = "SELECT * FROM user_devices WHERE user_id = ? ORDER BY last_active_at DESC"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        devices.add(UserDevice(
+                            id = rs.getObject("id").toString(),
+                            userId = rs.getObject("user_id").toString(),
+                            deviceName = rs.getString("device_name"),
+                            deviceType = rs.getString("device_type"),
+                            pushToken = rs.getString("push_token"),
+                            lastActiveAt = rs.getTimestamp("last_active_at")?.toString(),
+                            appVersion = rs.getString("app_version"),
+                            metadata = rs.getString("metadata") ?: "{}",
+                            createdAt = rs.getTimestamp("created_at")?.toString(),
+                            updatedAt = rs.getTimestamp("updated_at")?.toString()
+                        ))
+                    }
+                }
+            }
+        }
+        devices
+    }
+
+    suspend fun updatePushToken(deviceId: String, pushToken: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "UPDATE user_devices SET push_token = ?, updated_at = now() WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, pushToken)
+                stmt.setObject(2, UUID.fromString(deviceId))
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    suspend fun updateLastActive(deviceId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "UPDATE user_devices SET last_active_at = now() WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(deviceId))
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    suspend fun deleteDevice(deviceId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "DELETE FROM user_devices WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(deviceId))
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+}
+
+/**
+ * Note Version Repository (v6.0.0 schema)
+ * Handles: note_versions table for note version history
+ */
+class NoteVersionRepository(private val dataSource: DataSource) {
+    private val logger = LoggerFactory.getLogger(NoteVersionRepository::class.java)
+
+    suspend fun createVersion(version: NoteVersion): String = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                INSERT INTO note_versions (id, note_id, user_id, title, content, version_no, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, now())
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(version.id))
+                stmt.setObject(2, UUID.fromString(version.noteId))
+                stmt.setObject(3, UUID.fromString(version.userId))
+                stmt.setString(4, version.title)
+                stmt.setString(5, version.content)
+                stmt.setInt(6, version.versionNo)
+                stmt.executeUpdate()
+            }
+        }
+        version.id
+    }
+
+    suspend fun getVersionsForNote(noteId: String, limit: Int = 50): List<NoteVersion> = withContext(Dispatchers.IO) {
+        val versions = mutableListOf<NoteVersion>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT * FROM note_versions
+                WHERE note_id = ?
+                ORDER BY version_no DESC
+                LIMIT ?
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(noteId))
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        versions.add(NoteVersion(
+                            id = rs.getObject("id").toString(),
+                            noteId = rs.getObject("note_id").toString(),
+                            userId = rs.getObject("user_id").toString(),
+                            title = rs.getString("title"),
+                            content = rs.getString("content"),
+                            versionNo = rs.getInt("version_no"),
+                            createdAt = rs.getTimestamp("created_at")?.toString()
+                        ))
+                    }
+                }
+            }
+        }
+        versions
+    }
+
+    suspend fun getVersionById(versionId: String): NoteVersion? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "SELECT * FROM note_versions WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(versionId))
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) NoteVersion(
+                        id = rs.getObject("id").toString(),
+                        noteId = rs.getObject("note_id").toString(),
+                        userId = rs.getObject("user_id").toString(),
+                        title = rs.getString("title"),
+                        content = rs.getString("content"),
+                        versionNo = rs.getInt("version_no"),
+                        createdAt = rs.getTimestamp("created_at")?.toString()
+                    ) else null
+                }
+            }
+        }
+    }
+
+    suspend fun deleteOldVersions(noteId: String, keepCount: Int = 10): Int = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                DELETE FROM note_versions
+                WHERE note_id = ? AND id NOT IN (
+                    SELECT id FROM note_versions WHERE note_id = ?
+                    ORDER BY version_no DESC LIMIT ?
+                )
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(noteId))
+                stmt.setObject(2, UUID.fromString(noteId))
+                stmt.setInt(3, keepCount)
+                stmt.executeUpdate()
+            }
+        }
+    }
+}
+
+/**
+ * Shared Items Repository (v6.0.0 schema)
+ * Handles: shared_items table
+ */
+class SharedItemRepository(private val dataSource: DataSource) {
+    private val logger = LoggerFactory.getLogger(SharedItemRepository::class.java)
+
+    suspend fun createSharedItem(item: SharedItem): String = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                INSERT INTO shared_items (id, owner_id, shared_with_id, item_type, item_id, permission, share_token, expires_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, now())
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(item.id))
+                stmt.setObject(2, UUID.fromString(item.ownerId))
+                stmt.setObject(3, item.sharedWithId?.let { UUID.fromString(it) })
+                stmt.setString(4, item.itemType)
+                stmt.setObject(5, UUID.fromString(item.itemId))
+                stmt.setString(6, item.permission)
+                stmt.setString(7, item.shareToken)
+                stmt.setTimestamp(8, item.expiresAt?.let { java.sql.Timestamp.valueOf(it.replace("Z", "")) })
+                stmt.executeUpdate()
+            }
+        }
+        item.id
+    }
+
+    suspend fun getSharedItemsForUser(userId: String): List<SharedItem> = withContext(Dispatchers.IO) {
+        val items = mutableListOf<SharedItem>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT * FROM shared_items
+                WHERE owner_id = ? OR shared_with_id = ?
+                ORDER BY created_at DESC
+            """.trimIndent()
+            
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        items.add(SharedItem(
+                            id = rs.getObject("id").toString(),
+                            ownerId = rs.getObject("owner_id").toString(),
+                            sharedWithId = rs.getObject("shared_with_id")?.toString(),
+                            itemType = rs.getString("item_type"),
+                            itemId = rs.getObject("item_id").toString(),
+                            permission = rs.getString("permission"),
+                            shareToken = rs.getString("share_token"),
+                            expiresAt = rs.getTimestamp("expires_at")?.toString(),
+                            createdAt = rs.getTimestamp("created_at")?.toString()
+                        ))
+                    }
+                }
+            }
+        }
+        items
+    }
+
+    suspend fun getItemByShareToken(token: String): SharedItem? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "SELECT * FROM shared_items WHERE share_token = ? AND (expires_at IS NULL OR expires_at > now())"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, token)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) SharedItem(
+                        id = rs.getObject("id").toString(),
+                        ownerId = rs.getObject("owner_id").toString(),
+                        sharedWithId = rs.getObject("shared_with_id")?.toString(),
+                        itemType = rs.getString("item_type"),
+                        itemId = rs.getObject("item_id").toString(),
+                        permission = rs.getString("permission"),
+                        shareToken = rs.getString("share_token"),
+                        expiresAt = rs.getTimestamp("expires_at")?.toString(),
+                        createdAt = rs.getTimestamp("created_at")?.toString()
+                    ) else null
+                }
+            }
+        }
+    }
+
+    suspend fun deleteSharedItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "DELETE FROM shared_items WHERE id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(itemId))
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+}

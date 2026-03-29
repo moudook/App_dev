@@ -51,6 +51,7 @@ import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
+import com.example.smarty.ui.components.RelatedNotesSection
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import com.example.smarty.core.common.util.ContentTypeDetector
@@ -319,6 +320,18 @@ fun KnowledgeCardScreen(
                             contentDescription = null, // Decorative icon - note type indicator
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    
+                    // 6. Related Notes Section
+                    if (allNotes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        com.example.smarty.ui.components.RelatedNotesSection(
+                            currentNote = note,
+                            allNotes = allNotes,
+                            onNoteClick = { relatedNote -> onNavigateToNote(relatedNote) }
                         )
                     }
                 }

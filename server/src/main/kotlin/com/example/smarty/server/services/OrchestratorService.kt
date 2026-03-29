@@ -4,6 +4,7 @@ import com.example.smarty.server.llm.ProviderRouter
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.RoutingStrategy
 import com.example.smarty.server.llm.Capability
+import com.example.smarty.server.tools.KreaImageTool
 import com.example.smarty.protocol.AgentEvent
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -16,7 +17,8 @@ import java.util.UUID
  */
 class OrchestratorService(
     private val providerRouter: ProviderRouter,
-    private val visionService: VisionService
+    private val visionService: VisionService,
+    private val kreaImageTool: KreaImageTool
 ) {
     private val logger = LoggerFactory.getLogger(OrchestratorService::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -45,9 +47,6 @@ class OrchestratorService(
         logger.info("Orchestrator processing request: $query (Attachments: ${attachments.size})")
 
         // 1. Decision Step
-        // If attachments exist, default to UNDERSTAND_IMAGE unless explicitly asked to edit.
-        // If no attachments, check if user wants to generate an image.
-
         val action = decideAction(query, attachments.isNotEmpty())
         logger.info("Orchestrator decision: ${action.action} (${action.reasoning})")
 
@@ -57,44 +56,50 @@ class OrchestratorService(
                     "I need an image to analyze. Please upload one."
                 } else {
                     emitProcessing(eventEmitter, "Analyzing image...")
-                    // Analyze first image for now
                     val base64Image = java.util.Base64.getEncoder().encodeToString(attachments.first())
                     val analysisResult = visionService.analyzeImage(base64Image, "image/png", query)
-                    // Feed description back into chat context (this is returned to the caller to handle in chat flow)
                     analysisResult.description
                 }
             }
             ActionType.GENERATE_IMAGE -> {
                 emitProcessing(eventEmitter, "Generating image...")
-                // Placeholder for Image Generation Service
-                // val imageUrl = imageGenService.generate(query)
-                // "Here is your image: $imageUrl"
-                "Image generation is coming soon! (Capability: ${providerRouter.getModelForCapability(Capability.IMAGE_GENERATION)})"
+                try {
+                    val aspectRatio = extractAspectRatio(query)
+                    val jobId = kreaImageTool.generateImage(
+                        prompt = enhancePrompt(query),
+                        aspectRatio = aspectRatio
+                    )
+                    "IMAGE_GENERATION_STARTED:$jobId"
+                } catch (e: Exception) {
+                    logger.error("Image generation failed", e)
+                    "Failed to generate image: ${e.message}"
+                }
             }
             ActionType.EDIT_IMAGE -> {
-                "Image editing is coming soon!"
+                "Image editing will be available soon! For now, you can request new image generation."
             }
             ActionType.REPLY -> {
-                // Return null or special signal to let the standard ChatAgent handle it
-                // For now, we return a string that the caller (ChatRoutes) will interpret.
-                // Actually, Orchestrator might just return the "intent" or "context"
-                // and let ServerAgent do the final response.
-
-                // In this architecture, Orchestrator wraps the capabilities.
-                // If it's a simple reply, we pass through.
                 "CONTINUE_CHAT"
             }
         }
     }
 
-    private suspend fun decideAction(query: String, hasAttachments: Boolean): Decision {
+    /**
+     * Decide action based on query and attachments (public for routes)
+     */
+    fun decideAction(query: String, hasAttachments: Boolean): Decision {
         if (hasAttachments) {
             return Decision(ActionType.UNDERSTAND_IMAGE, "User uploaded an image.")
         }
 
-        // Simple keyword heuristic for speed (Flash model could be used here too)
         val lowerQuery = query.lowercase()
-        if (lowerQuery.contains("generate image") || lowerQuery.contains("create an image") || lowerQuery.contains("draw")) {
+        if (lowerQuery.contains("generate image") || 
+            lowerQuery.contains("create an image") || 
+            lowerQuery.contains("draw") ||
+            lowerQuery.contains("create image") ||
+            lowerQuery.contains("make an image") ||
+            lowerQuery.contains("image of") ||
+            lowerQuery.contains("picture of")) {
             return Decision(ActionType.GENERATE_IMAGE, "User requested image generation.")
         }
 
@@ -107,5 +112,37 @@ class OrchestratorService(
             timestamp = System.currentTimeMillis(),
             content = message
         ))
+    }
+
+    /**
+     * Extract aspect ratio from query if specified
+     */
+    private fun extractAspectRatio(query: String): String {
+        val ratios = listOf("16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21")
+        val lowerQuery = query.lowercase()
+        
+        for (ratio in ratios) {
+            if (lowerQuery.contains(ratio)) {
+                return ratio
+            }
+        }
+        
+        // Default to square
+        return "1:1"
+    }
+
+    /**
+     * Enhance prompt with artistic direction (Art Director-style)
+     */
+    private fun enhancePrompt(query: String): String {
+        // Basic prompt enhancement
+        val enhancements = listOf(
+            "highly detailed",
+            "professional quality",
+            "8k resolution",
+            "cinematic lighting"
+        )
+        
+        return "$query, ${enhancements.joinToString(", ")}"
     }
 }

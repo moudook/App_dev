@@ -438,7 +438,8 @@ fun sendQueryWithContext(
         fileContext: String? = null,
         attachments: List<ChatAttachment>? = null,
         provider: String? = null,
-        model: String? = null
+        model: String? = null,
+        personality: String? = null  // Fix: Add personality parameter
     ): Flow<String> = flow {
         val baseUrl = serverUrlProvider()
         val token = getFirebaseToken()
@@ -460,7 +461,8 @@ fun sendQueryWithContext(
                     ChatQueryAttachment(type = it.type, name = it.name, mimeType = it.mimeType)
                 },
                 timezone = timezone,
-                clientTime = clientTime
+                clientTime = clientTime,
+                personality = personality  // Fix: Include personality in POST request
             )
 
             val response = client.post("$baseUrl/chat/query") {
@@ -627,10 +629,14 @@ fun sendQueryWithContext(
             }
             is AgentEvent.Question -> {
                 Log.d(TAG, "Received question: ${event.question}")
+                // Question events from POST endpoint - notify via eventSink if possible
+                // Note: Full Question handling requires architectural changes to pass structured events
                 false
             }
             is AgentEvent.NoteBlock -> {
                 Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
+                // NoteBlock events from POST endpoint - notify via eventSink if possible
+                // Note: Full NoteBlock handling requires architectural changes to pass structured events
                 false
             }
         }
@@ -724,6 +730,31 @@ fun sendQueryWithContext(
         } catch (e: Exception) {
             Log.e(TAG, "Handshake error: ${e.message}", e)
             null
+        }
+    }
+
+    /**
+     * Interrupt ongoing agent execution for a session.
+     * Used to stop deep research or long-running tasks.
+     */
+    suspend fun interruptSession(sessionId: String): InterruptResponse {
+        val baseUrl = serverUrlProvider()
+        val token = getFirebaseToken()
+        
+        return try {
+            val response = client.post("$baseUrl/chat/interrupt") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(token ?: "")
+                setBody(InterruptRequest(sessionId))
+            }
+            if (response.status.isSuccess()) {
+                response.body<InterruptResponse>()
+            } else {
+                InterruptResponse(success = false, message = "Interrupt failed: ${response.status}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Interrupt error: ${e.message}")
+            InterruptResponse(success = false, message = e.message ?: "Unknown error")
         }
     }
 
@@ -831,7 +862,8 @@ data class ChatQueryRequest(
     val fileContext: String? = null,
     val attachments: List<ChatQueryAttachment>? = null,
     val timezone: String? = null,
-    val clientTime: Long? = null
+    val clientTime: Long? = null,
+    val personality: String? = null  // Fix: Add personality to POST endpoint
 )
 
 @Serializable
@@ -852,4 +884,15 @@ data class DirectImageGenerationResponse(
     val jobId: String,
     val success: Boolean,
     val message: String? = null
+)
+
+@Serializable
+data class InterruptRequest(
+    val sessionId: String
+)
+
+@Serializable
+data class InterruptResponse(
+    val success: Boolean,
+    val message: String
 )

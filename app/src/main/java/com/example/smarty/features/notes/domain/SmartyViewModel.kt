@@ -188,6 +188,14 @@ class SmartyViewModel(
         Log.d(TAG, "Provider strategy set to: $strategy")
     }
 
+    // AI Personality
+    val personality: StateFlow<String> = settingsFeatureManager.personality
+
+    fun setPersonality(personality: String) {
+        settingsFeatureManager.setPersonality(personality)
+        Log.d(TAG, "Personality set to: $personality")
+    }
+
     /**
      * UNFILTERED notes source for AI agent.
      * Delegated to NoteOperationsManager for centralized data flow.

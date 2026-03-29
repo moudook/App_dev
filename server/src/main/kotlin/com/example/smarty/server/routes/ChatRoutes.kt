@@ -20,6 +20,7 @@ import java.util.UUID
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.agent.ServerAgent
+import com.example.smarty.server.agent.AgentPersistenceManager
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.DatabaseFactory
@@ -814,5 +815,51 @@ fun Application.configureChatRoutes() {
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
             }
         }
+        
+        /**
+         * INTERRUPT endpoint - Cancel ongoing agent execution for a session
+         * Users can use this to stop deep research or long-running agent tasks
+         */
+        post("/chat/interrupt") {
+            val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            
+            val request = call.receive<InterruptRequest>()
+            val sessionId = request.sessionId
+            
+            try {
+                // Clear checkpoint to stop the agent
+                if (sessionId.isNotEmpty()) {
+                    val persistenceManager = AgentPersistenceManager(userId)
+                    persistenceManager.clearCheckpoint(sessionId)
+                    call.respond(HttpStatusCode.OK, InterruptResponse(
+                        success = true,
+                        message = "Agent interrupted for session $sessionId"
+                    ))
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, InterruptResponse(
+                        success = false,
+                        message = "Invalid session ID"
+                    ))
+                }
+            } catch (e: Exception) {
+                call.application.log.error("Interrupt error", e)
+                call.respond(HttpStatusCode.InternalServerError, InterruptResponse(
+                    success = false,
+                    message = e.message ?: "Unknown error"
+                ))
+            }
+        }
     }
 }
+
+@Serializable
+data class InterruptRequest(
+    val sessionId: String
+)
+
+@Serializable
+data class InterruptResponse(
+    val success: Boolean,
+    val message: String
+)

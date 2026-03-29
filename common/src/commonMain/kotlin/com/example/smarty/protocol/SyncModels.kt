@@ -14,6 +14,8 @@ data class NoteInfo(
     val isArchived: Boolean,
     val isPinned: Boolean,
     val isFavorite: Boolean,
+    val isFullPrivacy: Boolean = false,  // Privacy flag
+    val excludeFromAiChat: Boolean = false,  // Privacy flag
     val createdAt: Long,
     val updatedAt: Long
 )

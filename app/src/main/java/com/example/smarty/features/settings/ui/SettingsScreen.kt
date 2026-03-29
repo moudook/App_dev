@@ -13,6 +13,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,6 +73,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -80,7 +84,7 @@ private const val TAG = "SettingsScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
-    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory, Personality
+    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory, Personality, GuidedBreathing
 }
 
 /**
@@ -281,7 +285,7 @@ fun SettingsScreen(
                                     SmartySettingsRow(
                                         label = "Smarty Server",
                                         icon = SmartyIcons.Cloud,
-                                        subtitle = "Configure remote connection",
+                                        subtitle = "View connection info",
                                         onClick = { currentView = SettingsView.ServerConfig }
                                     )
                                     SmartySettingsRow(
@@ -355,7 +359,13 @@ fun SettingsScreen(
                                         label = stringResource(R.string.export_data),
                                         icon = SmartyIcons.Download,
                                         subtitle = stringResource(R.string.export_all_notes_and_settings),
-                                        onClick = onExportData
+                                        onClick = {
+                                            android.widget.Toast.makeText(
+                                                context, 
+                                                "Export feature coming soon!", 
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.clear_cache),
@@ -390,6 +400,12 @@ fun SettingsScreen(
                                             android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
                                             onNavigateToCoinToss()
                                         }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Guided Breathing",
+                                        icon = SmartyIcons.Games,
+                                        subtitle = "5-minute mental break",
+                                        onClick = { currentView = SettingsView.GuidedBreathing }
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.default_assistant),
@@ -441,8 +457,10 @@ fun SettingsScreen(
                 }
                 // SUB-VIEWS (Replaces Bottom Sheets)
                     SettingsView.ServerConfig -> {
-                        // Server config removed - URL is hardcoded
-                        currentView = SettingsView.Main
+                        ServerConfigView(
+                            serverUrl = securePrefs.getServerUrl(),
+                            onBack = { currentView = SettingsView.Main }
+                        )
                     }
                     SettingsView.ProviderStrategy -> {
                         ProviderStrategyView(
@@ -497,6 +515,11 @@ fun SettingsScreen(
                     }
                     SettingsView.AgentMemory -> {
                         AgentMemoryView(
+                            onBack = { currentView = SettingsView.Main }
+                        )
+                    }
+                    SettingsView.GuidedBreathing -> {
+                        GuidedBreathingView(
                             onBack = { currentView = SettingsView.Main }
                         )
                     }
@@ -601,6 +624,63 @@ private fun AboutView(onBack: () -> Unit) {
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(180.dp))
+        }
+    }
+}
+
+@Composable
+private fun ServerConfigView(
+    serverUrl: String,
+    onBack: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        SettingsHeader(
+            title = "Smarty Server",
+            subtitle = "Connection configuration",
+            onBack = onBack
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+        ) {
+            SmartySettingsCard {
+                SmartySettingsRow(
+                    label = "Server URL",
+                    icon = SmartyIcons.Cloud,
+                    subtitle = serverUrl,
+                    showChevron = false,
+                    enabled = false
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "The server URL is fixed and cannot be changed. This ensures consistent connectivity to the AI service.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Current Server:",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = serverUrl,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(modifier = Modifier.height(180.dp))
         }
     }
@@ -1351,6 +1431,143 @@ private fun MemoryCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GuidedBreathingView(
+    onBack: () -> Unit
+) {
+    var isRunning by remember { mutableStateOf(true) }
+    var cycleCount by remember { mutableIntStateOf(0) }
+    var phase by remember { mutableIntStateOf(0) } // 0=inhale, 1=hold, 2=exhale, 3=hold
+    var elapsedTime by remember { mutableLongStateOf(0L) }
+    
+    val phaseText = when (phase) {
+        0 -> "Breathe In"
+        1 -> "Hold"
+        2 -> "Breathe Out"
+        else -> "Rest"
+    }
+    
+    val totalCycleTime = 16000L // 4 phases * 4 seconds
+    
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            while (isRunning) {
+                delay(100)
+                elapsedTime += 100
+                val newPhase = ((elapsedTime / 4000) % 4).toInt()
+                if (newPhase != phase) {
+                    phase = newPhase
+                    if (phase == 0 && elapsedTime > 1000) cycleCount++
+                }
+                if (cycleCount >= 5) {
+                    isRunning = false
+                }
+            }
+        }
+    }
+    
+    // Calculate scale based on elapsed time in current cycle
+    val timeInPhase = (elapsedTime % 4000).toFloat() / 4000f
+    val targetScale = when (phase) {
+        0 -> 0.6f + (0.4f * timeInPhase) // Grow from 0.6 to 1.0
+        1 -> 1f // Hold at max
+        2 -> 1f - (0.4f * timeInPhase) // Shrink from 1.0 to 0.6
+        else -> 0.6f // Hold at min
+    }
+    
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isRunning) targetScale else 0.8f,
+        animationSpec = tween(100),
+        label = "breathing"
+    )
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        SettingsHeader(
+            title = "Guided Breathing",
+            subtitle = "Take a mental break",
+            onBack = onBack
+        )
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        // Breathing circle
+        Box(
+            modifier = Modifier
+                .size(200.dp)
+                .scale(animatedScale),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(200.dp),
+                shape = CircleShape,
+                color = LocalAccentColor.current.copy(alpha = 0.3f)
+            ) {}
+            Surface(
+                modifier = Modifier
+                    .size(160.dp)
+                    .scale(animatedScale * 0.8f),
+                shape = CircleShape,
+                color = LocalAccentColor.current.copy(alpha = 0.5f)
+            ) {}
+            Surface(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(animatedScale * 0.6f),
+                shape = CircleShape,
+                color = LocalAccentColor.current
+            ) {}
+        }
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        Text(
+            text = phaseText,
+            style = MaterialTheme.typography.headlineMedium,
+            color = LocalAccentColor.current
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Cycle ${cycleCount + 1} of 5",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedButton(
+                onClick = { 
+                    isRunning = !isRunning 
+                }
+            ) {
+                Text(if (isRunning) "Pause" else "Resume")
+            }
+            Button(
+                onClick = onBack
+            ) {
+                Text("Done")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Each cycle: 4s inhale, 4s hold, 4s exhale, 4s rest",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
     }
 }
 

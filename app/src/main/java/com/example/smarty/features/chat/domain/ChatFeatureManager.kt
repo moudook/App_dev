@@ -1134,6 +1134,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
     private val pendingCitations = CopyOnWriteArrayList<WebCitation>()
     private val pendingInlineImages = CopyOnWriteArrayList<InlineChatImage>()
     private val pendingActions = CopyOnWriteArrayList<AgentActionResult>()
+    private val pendingToolCalls = CopyOnWriteArrayList<com.example.smarty.core.domain.model.AgentToolCallEntry>()
 
     // Current streaming job for cancellation
     private var currentStreamingJob: Job? = null
@@ -1506,6 +1507,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         pendingCitations.clear()
         pendingInlineImages.clear()
         pendingActions.clear()
+        pendingToolCalls.clear()  // Fix #10: Clear tool calls for new message
         _mentionState.value = MentionState()
 
         // Prepare UI
@@ -1532,6 +1534,8 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             // Collect chunks from the remote stream and update UI live
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
+            var capturedConfidence: String? = null  // Fix #3: Capture confidence from Result events
+            var capturedSourceType: String? = null   // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
             val personality = securePreferences.getPersonality()
             val providerStrategy = securePreferences.getProviderStrategy()
@@ -1539,11 +1543,8 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
-                personality = personality
-                // NOTE: provider is intentionally omitted — the server resolves the LLM
-                // provider from its own ACTIVE_PROVIDER environment variable.
-                // Passing providerStrategy (BALANCED, FASTEST, etc.) here caused the server
-                // to treat it as an unknown provider name and fall back to mock.
+                personality = personality,
+                provider = providerStrategy  // Fix: Now passes provider strategy (BALANCED, FASTEST, etc.) to server
             )
                 .collect { event ->
                     when (event) {
@@ -1570,6 +1571,9 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                                 val cleanThinking = if (thinking.startsWith("SMARTY_TRACE_V2:")) thinking.removePrefix("SMARTY_TRACE_V2:").trim() else thinking
                                 thinkingBuilder.append(cleanThinking)
                             }
+                            // Fix #3: Capture confidence from Result event directly
+                            event.confidence?.let { capturedConfidence = it }
+                            event.sourceType?.let { capturedSourceType = it }
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId, 
                                 responseBuilder.toString(), 
@@ -1592,6 +1596,15 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             pendingActions.removeAll { it.action == event.displayName }
                             pendingActions.add(actionResult)
                             chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+                            
+                            // Also add to pendingToolCalls for ThinkingSection display
+                            val toolCallEntry = com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                toolName = event.toolName,
+                                displayName = event.displayName,
+                                status = event.status,
+                            )
+                            pendingToolCalls.removeAll { it.toolName == event.toolName }
+                            pendingToolCalls.add(toolCallEntry)
                         }
                         is AgentEvent.Command -> {
                             // Commands handled by eventSink
@@ -1666,12 +1679,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                 thinking = parsedResponse.thinking,
                 timestamp = System.currentTimeMillis(),
                 executedActions = pendingActions.toList(),
+                toolCalls = pendingToolCalls.toList(),  // Fix #10: Tools not visible - now populated
                 citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                 inlineImages = pendingInlineImages.toList(),
                 isStreaming = false,
-                // Feature 3: carry over server-computed confidence badge
-                confidence = streamingMsg?.confidence,
-                sourceType = streamingMsg?.sourceType,
+                // Fix #3: Use captured confidence from Result event (not from streamingMsg which may be stale)
+                confidence = capturedConfidence ?: streamingMsg?.confidence,
+                sourceType = capturedSourceType ?: streamingMsg?.sourceType,
                 // Feature 2: carry over interactive clarification request
                 clarificationRequest = streamingMsg?.clarificationRequest,
                 // Feature 5: carry over note reference cards
@@ -1802,9 +1816,12 @@ fun dismissSuggestion() {
     fun submitClarification(messageId: String, response: String) {
         if (response.isBlank()) return
         
-        // Remove the clarification UI from the message
+        // Get the original question for context
         val messages = chatMessages.value
         val msg = messages.find { it.id == messageId }
+        val originalQuestion = msg?.clarificationRequest?.question
+        
+        // Remove the clarification UI from the message
         if (msg != null) {
             val updatedMsg = msg.copy(clarificationRequest = null)
             scope.launch {
@@ -1812,8 +1829,14 @@ fun dismissSuggestion() {
             }
         }
         
-        // Send the clarification response back to the agent
-        sendChatMessage(response, emptyList())
+        // Send the clarification response back to the agent with context
+        // Prefix the response so the AI knows this is a clarification answer
+        val contextMessage = if (originalQuestion != null) {
+            "[User's response to clarification question \"$originalQuestion\"]: $response"
+        } else {
+            "[Clarification response]: $response"
+        }
+        sendChatMessage(contextMessage, emptyList())
     }
 
     fun getDraft(): String? = chatManager.getDraft()

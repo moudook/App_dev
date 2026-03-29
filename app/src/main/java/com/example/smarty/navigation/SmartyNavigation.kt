@@ -4,6 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -43,8 +46,18 @@ import com.example.smarty.features.notes.ui.StacksScreen
 import com.example.smarty.features.notes.ui.InputStreamScreen
 import com.example.smarty.features.games.ui.TicTacToeScreen
 import com.example.smarty.features.games.ui.CoinTossScreen
+import com.example.smarty.features.digest.ui.DigestScreen
+import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.features.auth.ui.LoginScreen
 import com.example.smarty.features.voice.SpeechToTextState
+import com.example.smarty.features.searchhistory.ui.SearchHistoryScreen
+import com.example.smarty.features.devices.ui.DeviceManagementScreen
+import com.example.smarty.features.digest.ui.DigestPreferencesScreen
+import com.example.smarty.features.devices.domain.DeviceItem
+import com.example.smarty.features.devices.domain.toUiModel
+import com.example.smarty.features.digest.domain.DigestPreferences
+import com.example.smarty.features.digest.domain.toDomainModel
+import com.example.smarty.features.digest.domain.toUiModel
 import com.example.smarty.features.notes.domain.SmartyViewModel
 
 /**
@@ -75,6 +88,11 @@ sealed class Screen(val route: String) {
     data object Login : Screen("login")
     data object TicTacToe : Screen("tic_tac_toe")
     data object CoinToss : Screen("coin_toss")
+    data object Digest : Screen("digest")
+    data object GuidedBreathing : Screen("guided_breathing")
+    data object SearchHistory : Screen("search_history")
+    data object DeviceManagement : Screen("device_management")
+    data object DigestPreferences : Screen("digest_preferences")
 }
 
 @Composable
@@ -585,6 +603,9 @@ fun SmartyNavHost(
         }
 
         composable(Screen.Settings.route) { _ ->
+            val personality by viewModel.personality.collectAsState()
+            val providerStrategy by viewModel.providerStrategy.collectAsState()
+            
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
@@ -599,6 +620,12 @@ fun SmartyNavHost(
                 // Shake sensitivity
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
+                // AI Strategy
+                providerStrategy = providerStrategy,
+                onSetProviderStrategy = { viewModel.setProviderStrategy(it) },
+                // AI Personality
+                personality = personality,
+                onSetPersonality = { viewModel.setPersonality(it) },
                 // Embedded Sheets
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
@@ -676,6 +703,73 @@ fun SmartyNavHost(
         composable(Screen.CoinToss.route) { _ ->
             CoinTossScreen(
                 onClose = { navController.safePopBackStack() }
+            )
+        }
+        
+        composable(Screen.Digest.route) { _ ->
+            DigestRoute(
+                onBackClick = { navController.safePopBackStack() },
+                onDigestClick = { digest ->
+                    navController.navigate("digest_detail/${digest.id}")
+                }
+            )
+        }
+        
+        // TODO: Add digest detail route when screen is implemented
+        // composable(
+        //     route = "digest_detail/{digestId}",
+        //     arguments = listOf(navArgument("digestId") { type = NavType.StringType })
+        // ) { backStackEntry ->
+        //     val digestId = backStackEntry.arguments?.getString("digestId") ?: ""
+        //     DigestDetailRoute(
+        //         digestId = digestId,
+        //         onBackClick = { navController.safePopBackStack() }
+        //     )
+        // }
+
+        composable(Screen.GuidedBreathing.route) { _ ->
+            GuidedBreathingScreen(
+                onDismiss = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.SearchHistory.route) { _ ->
+            val viewModel: com.example.smarty.features.searchhistory.domain.SearchHistoryViewModel = viewModel()
+            val searchHistory by viewModel.searchHistory.collectAsState()
+            val uiState by viewModel.uiState.collectAsState()
+            
+            SearchHistoryScreen(
+                searchHistory = searchHistory,
+                isLoading = uiState.isLoading,
+                onSearchItemClick = { query -> /* Handle search click */ },
+                onClearHistory = { viewModel.clearHistory() },
+                onDeleteItem = { itemId -> viewModel.deleteItem(itemId) },
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.DeviceManagement.route) { _ ->
+            val viewModel: com.example.smarty.features.devices.domain.DeviceViewModel = viewModel()
+            val devices by viewModel.devices.collectAsState()
+            val uiState by viewModel.uiState.collectAsState()
+            
+            DeviceManagementScreen(
+                devices = devices.map { it.toUiModel() },
+                isLoading = uiState.isLoading,
+                onRemoveDevice = { deviceId -> viewModel.removeDevice(deviceId) },
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.DigestPreferences.route) { _ ->
+            val viewModel: com.example.smarty.features.digest.domain.DigestViewModel = viewModel()
+            val preferences by viewModel.preferences.collectAsState()
+            val uiState by viewModel.uiState.collectAsState()
+            
+            DigestPreferencesScreen(
+                preferences = preferences?.toUiModel() ?: com.example.smarty.features.digest.ui.DigestPreferences(),
+                onSavePreferences = { newPrefs -> viewModel.savePreferences(newPrefs.toDomainModel()) },
+                onNavigateBack = { navController.safePopBackStack() }
             )
         }
     }
@@ -781,6 +875,81 @@ fun BackupSettingsRoute(
         isEmbedded = isEmbedded
     )
 }
+
+/**
+ * Digest screen wrapper with ViewModel and data fetching.
+ */
+@Composable
+fun DigestRoute(
+    onBackClick: () -> Unit,
+    onDigestClick: (com.example.smarty.features.digest.domain.DigestResult) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val application = context.applicationContext as? android.app.Application
+    
+    val digestFeatureManager = remember(application) {
+        application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
+    }
+    
+    val digests by digestFeatureManager?.digests?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+    val isLoading by digestFeatureManager?.isLoading?.collectAsState() ?: remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        digestFeatureManager?.fetchDigests()
+    }
+    
+    DigestScreen(
+        digests = digests,
+        isLoading = isLoading,
+        onNavigateBack = onBackClick,
+        onDigestClick = onDigestClick
+    )
+}
+
+// TODO: Implement DigestDetailScreen
+// @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+// @Composable
+// fun DigestDetailRoute(
+//     digestId: String,
+//     onBackClick: () -> Unit
+// ) {
+//     val context = androidx.compose.ui.platform.LocalContext.current
+//     val application = context.applicationContext as? android.app.Application
+//
+//     val digestFeatureManager = remember(application) {
+//         application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
+//     }
+//
+//     var digest by remember { mutableStateOf<com.example.smarty.features.digest.domain.DigestResult?>(null) }
+//     var isLoading by remember { mutableStateOf(true) }
+//
+//     LaunchedEffect(digestId) {
+//         isLoading = true
+//         digest = digestFeatureManager?.fetchDigestById(digestId)
+//         isLoading = false
+//     }
+//
+//     if (isLoading) {
+//         androidx.compose.foundation.layout.Box(
+//             modifier = Modifier.fillMaxSize(),
+//             contentAlignment = Alignment.Center
+//         ) {
+//             androidx.compose.material3.CircularProgressIndicator()
+//         }
+//     } else if (digest != null) {
+//         DigestDetailScreen(
+//             digest = digest!!,
+//             onNavigateBack = onBackClick
+//         )
+//     } else {
+//         androidx.compose.foundation.layout.Box(
+//             modifier = Modifier.fillMaxSize(),
+//             contentAlignment = Alignment.Center
+//         ) {
+//             androidx.compose.material3.Text("Digest not found")
+//         }
+//     }
+// }
 
 /**
  * Calendar screen wrapper with proper experimental API annotation for ModalBottomSheet.

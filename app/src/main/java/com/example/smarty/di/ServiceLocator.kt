@@ -20,6 +20,7 @@ import com.example.smarty.features.notes.domain.NoteOperationsManager
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.settings.domain.SettingsFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
+import com.example.smarty.features.digest.domain.DigestFeatureManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -513,6 +514,20 @@ object ServiceLocator {
     // Chat ViewModel Factory - provides ChatViewModel with all dependencies
     fun provideChatViewModel(application: Application): com.example.smarty.features.chat.domain.ChatViewModel {
         return com.example.smarty.features.chat.domain.ChatViewModel(application)
+    }
+
+    @Volatile
+    private var digestFeatureManager: DigestFeatureManager? = null
+
+    fun provideDigestFeatureManager(application: Application): DigestFeatureManager {
+        return digestFeatureManager ?: synchronized(this) {
+            val securePreferences = SecurePreferences.getInstance(application)
+            DigestFeatureManager(
+                application = application,
+                serverUrlProvider = { securePreferences.getSmartyServerUrl() },
+                deviceIdProvider = { securePreferences.getDeviceId() }
+            ).also { digestFeatureManager = it }
+        }
     }
 }
 

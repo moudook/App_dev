@@ -81,10 +81,12 @@ class NoteRepository(
         dataSource.connection.use { conn ->
             val sql = """
                 SELECT id, title, content, category_id, stack_id, parent_note_id,
-                       word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
+                       word_count, is_archived, is_pinned, is_favorite, 
+                       is_full_privacy, exclude_from_ai_chat, created_at, updated_at
                 FROM notes
-                WHERE user_id = ? AND is_pinned = true AND deleted_at IS NULL
-                ORDER BY updated_at DESC
+                WHERE user_id = ? AND deleted_at IS NULL 
+                AND (title ILIKE ? OR content ILIKE ?)
+                ORDER BY is_pinned DESC, updated_at DESC
                 LIMIT ?
             """.trimIndent()
 
@@ -200,7 +202,8 @@ class NoteRepository(
         dataSource.connection.use { conn ->
             val sql = """
                 SELECT id, title, content, category_id, stack_id, parent_note_id,
-                       word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
+                       word_count, is_archived, is_pinned, is_favorite, 
+                       is_full_privacy, exclude_from_ai_chat, created_at, updated_at
                 FROM notes
                 WHERE id = ? AND user_id = ? AND deleted_at IS NULL
             """.trimIndent()
@@ -220,6 +223,8 @@ class NoteRepository(
                             isArchived = rs.getBoolean("is_archived"),
                             isPinned = rs.getBoolean("is_pinned"),
                             isFavorite = rs.getBoolean("is_favorite"),
+                            isFullPrivacy = rs.getBoolean("is_full_privacy"),
+                            excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
                         )

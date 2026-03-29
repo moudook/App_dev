@@ -4,9 +4,11 @@ import com.example.smarty.server.data.ReasoningStepType
 import com.example.smarty.server.data.ReasoningTrace
 import com.example.smarty.server.data.ReasoningSummary
 import com.example.smarty.server.data.ReasoningTraceWithSummary
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.services.ReasoningService
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -17,7 +19,8 @@ import kotlinx.serialization.Serializable
  * API endpoints for reasoning traces and thinking logs
  */
 fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
-    route("/api/reasoning") {
+    authenticate("firebase") {
+        route("/api/reasoning") {
         
         // Get reasoning timeline for a session
         get("/session/{sessionId}") {
@@ -199,8 +202,9 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                 call.respond(HttpStatusCode.InternalServerError, "Error generating disclosure levels: ${e.message}")
             }
         }
-    }
-}
+        } // End route("/api/reasoning")
+    } // End authenticate("firebase")
+} // End configureReasoningRoutes
 
 // ==================== REQUEST/RESPONSE DATA CLASSES ====================
 

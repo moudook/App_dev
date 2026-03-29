@@ -172,11 +172,33 @@ fun Application.configureDataRoutes() {
                     delete("/{id}") {
                         val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
                         if (timerRepository == null) return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
-                        
+
                         val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                         val deleted = timerRepository.delete(user.userId, id)
                         if (deleted) call.respond(HttpStatusCode.OK)
                         else call.respond(HttpStatusCode.NotFound)
+                    }
+
+                    post("/{id}/deactivate") {
+                        val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                        if (timerRepository == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+
+                        try {
+                            val deactivated = timerRepository.deactivate(user.userId, id)
+                            if (deactivated) {
+                                call.respond(TimerDeactivateResponse(
+                                    success = true,
+                                    message = "Timer deactivated"
+                                ))
+                            } else {
+                                call.respond(HttpStatusCode.NotFound, "Timer not found")
+                            }
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to deactivate timer", e)
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to deactivate timer: ${e.message}")
+                        }
                     }
                 }
 
@@ -185,7 +207,7 @@ fun Application.configureDataRoutes() {
                     post("/register") {
                         val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                         if (fcmTokenRepository == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
-                        
+
                         try {
                             val request = call.receive<RegisterFcmTokenRequest>()
                             if (request.token.isBlank()) {
@@ -196,6 +218,46 @@ fun Application.configureDataRoutes() {
                         } catch (e: Exception) {
                             call.application.log.error("Failed to register FCM token", e)
                             call.respond(HttpStatusCode.BadRequest)
+                        }
+                    }
+
+                    get("/tokens") {
+                        val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                        if (fcmTokenRepository == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        try {
+                            val tokens = fcmTokenRepository.getTokensForUser(user.userId)
+                            call.respond(FcmTokensResponse(
+                                success = true,
+                                tokens = tokens,
+                                count = tokens.size
+                            ))
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to get FCM tokens", e)
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to get tokens: ${e.message}")
+                        }
+                    }
+
+                    delete("/token") {
+                        val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                        if (fcmTokenRepository == null) return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        val token = call.request.queryParameters["token"]
+                            ?: return@delete call.respond(HttpStatusCode.BadRequest, "Token parameter required")
+
+                        try {
+                            val deleted = fcmTokenRepository.deleteToken(user.userId, token)
+                            if (deleted) {
+                                call.respond(DeleteFcmTokenResponse(
+                                    success = true,
+                                    message = "Token removed"
+                                ))
+                            } else {
+                                call.respond(HttpStatusCode.NotFound, "Token not found")
+                            }
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to delete FCM token", e)
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to delete token: ${e.message}")
                         }
                     }
                 }
@@ -361,4 +423,23 @@ data class ExportAllDataResponse(
     val events: List<CalendarEventInfo>,
     val timers: List<TimerInfo>,
     val exportedAt: Long
+)
+
+@Serializable
+data class FcmTokensResponse(
+    val success: Boolean,
+    val tokens: List<String>,
+    val count: Int
+)
+
+@Serializable
+data class DeleteFcmTokenResponse(
+    val success: Boolean,
+    val message: String
+)
+
+@Serializable
+data class TimerDeactivateResponse(
+    val success: Boolean,
+    val message: String
 )

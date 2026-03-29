@@ -68,3 +68,44 @@ data class UpdatePreferencesRequest(
     val pushNotification: Boolean? = null,
     val calendarLogging: Boolean? = null
 )
+
+// Conversion to UI model
+fun DigestPreferences.toUiModel(): com.example.smarty.features.digest.ui.DigestPreferences {
+    return com.example.smarty.features.digest.ui.DigestPreferences(
+        dailyTime = dailyTime.split(":").let { it[0].toInt() * 100 + (it.getOrNull(1)?.toInt() ?: 0) },
+        weeklyDay = when (weeklyDay) {
+            0 -> "Sun"
+            1 -> "Mon"
+            2 -> "Tue"
+            3 -> "Wed"
+            4 -> "Thu"
+            5 -> "Fri"
+            6 -> "Sat"
+            else -> "Sun"
+        },
+        enableDaily = dailyEnabled,
+        enableWeekly = weeklyEnabled,
+        includeNotes = true,
+        includeTasks = true,
+        includeCalendar = calendarLogging
+    )
+}
+
+fun com.example.smarty.features.digest.ui.DigestPreferences.toDomainModel(): DigestPreferences {
+    return DigestPreferences(
+        dailyTime = String.format("%02d:%02d", dailyTime / 100, dailyTime % 100),
+        weeklyDay = when (weeklyDay) {
+            "Sun" -> 0
+            "Mon" -> 1
+            "Tue" -> 2
+            "Wed" -> 3
+            "Thu" -> 4
+            "Fri" -> 5
+            "Sat" -> 6
+            else -> 0
+        },
+        dailyEnabled = enableDaily,
+        weeklyEnabled = enableWeekly,
+        calendarLogging = includeCalendar
+    )
+}

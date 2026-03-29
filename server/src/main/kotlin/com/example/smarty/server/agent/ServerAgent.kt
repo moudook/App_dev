@@ -715,7 +715,7 @@ ${goalMemoryManager.getProgressContext()}
 
         // Bug 3 Fix: SSE event throttling - track last emit time to prevent spam
         var lastProcessingEventTime = 0L
-        val PROCESSING_EVENT_THROTTLE_MS = 1000L // 1 second throttle
+        val PROCESSING_EVENT_THROTTLE_MS = 300L // Reduced from 1000ms for more real-time streaming feel
 
         /**
          * Throttled emit for Processing events.
@@ -747,8 +747,13 @@ ${goalMemoryManager.getProgressContext()}
         // Raised to 5 (from 3) — deep research legitimately calls search many times.
         val toolCallHistory = mutableListOf<Pair<String, String>>()
         val maxSameToolCalls = 5
+        var awaitingUserResponse = false  // Flag for interactive questions
 
         while (agentIteration < maxAgentIterations) {
+            // Check if we need to exit due to user clarification
+            if (awaitingUserResponse) {
+                break
+            }
             agentIteration++
             var currentContent = ""
             var currentToolId = ""
@@ -1097,6 +1102,22 @@ ${goalMemoryManager.getProgressContext()}
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Result for $currentToolName]: $maskedToolResult"
                         )
+
+                        // Check if this was an ask_user tool - if so, emit final result with question and stop
+                        if (currentToolName == "ask_user" && maskedToolResult == "__WAITING_FOR_USER_RESPONSE__") {
+                            // Extract the question from thinking storage or emit with placeholder
+                            val finalThinking = thinkingStorage.finalizeAndGetThinking(sessionId)
+                            emit(AgentEvent.Result(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                content = "I'm waiting for your response to the question above.",
+                                thinking = finalThinking,
+                                isFinal = true
+                            ))
+                            thinkingStorage.clear(sessionId)
+                            awaitingUserResponse = true  // Set flag to break outer loop
+                            continue
+                        }
 
                         // Track progress in GoalMemoryManager
                         val stepDescription = "Executed $currentToolName"
@@ -1688,15 +1709,22 @@ ${goalMemoryManager.getProgressContext()}
                 if (noteRepository != null && args.noteId != null) {
                     val note = noteRepository.getById(userId, args.noteId)
                     if (note != null) {
-                        emit(AgentEvent.NoteBlock(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            noteId = note.id,
-                            title = note.title,
-                            snippet = args.snippet ?: note.content.take(100),
-                            category = note.categoryId
-                        ))
-                        "Note: ${note.title}"
+                        // SECURITY: Check privacy before returning note content
+                        val isPrivate = note.isFullPrivacy || note.excludeFromAiChat
+                        if (isPrivate) {
+                            "Note not found: ${args.noteId}"
+                        } else {
+                            // Note found - emit NoteBlock for UI rendering
+                            emit(AgentEvent.NoteBlock(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                noteId = note.id,
+                                title = note.title,
+                                snippet = args.snippet ?: note.content.take(100),
+                                category = note.categoryId
+                            ))
+                            "Note: ${note.title}"
+                        }
                     } else {
                         "Note not found: ${args.noteId}"
                     }

@@ -350,16 +350,16 @@ fun ChatMessageItem(
                             mutableIntStateOf(if (message.isStreaming) 0 else targetLength)
                         }
 
-                        // Run typewriter animation - keyed on message.id to prevent re-render on scroll
-                        LaunchedEffect(message.id, message.isStreaming) {
+                        // Run typewriter animation - keyed on message.id and current length to handle streaming updates
+                        LaunchedEffect(message.id, message.isStreaming, targetLength) {
                             if (message.isStreaming) {
-                                // Continue from current position, not restart
-                                val charsPerFrame = 2
+                                // Faster typewriter for more real-time feel (was 2 chars/33ms, now 4 chars/25ms)
+                                val charsPerFrame = 4
                                 while (displayPosition < targetLength) {
                                     val remaining = targetLength - displayPosition
                                     val step = minOf(charsPerFrame, remaining)
                                     displayPosition += step
-                                    delay(33)
+                                    delay(25)
                                 }
                             } else {
                                 displayPosition = targetLength

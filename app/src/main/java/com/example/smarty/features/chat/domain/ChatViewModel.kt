@@ -72,6 +72,11 @@ class ChatViewModel(
     private val sharedAppState: SharedAppState by lazy {
         ServiceLocator.provideSharedAppState()
     }
+    
+    // Remote Agent Service for AI processing
+    private val remoteAgentService: com.example.smarty.data.remote.RemoteAgentService by lazy {
+        ServiceLocator.provideRemoteAgentService(application)
+    }
 
     // Global state - immutable, updated via copy
     private val _chatState = MutableStateFlow(ChatState.initial())
@@ -153,7 +158,7 @@ class ChatViewModel(
     }
 
     /**
-     * Process message with AI agent.
+     * Process message with AI agent using RemoteAgentService.
      */
     private suspend fun processWithAI(content: String, userMessage: ChatMessage) {
         val sessionId = _chatState.value.currentSessionId ?: return
@@ -177,31 +182,48 @@ class ChatViewModel(
                 )
             }
 
-            // Simulate AI response (replace with actual AI service call)
+            // Actually call the AI service
             val responseBuilder = StringBuilder()
-            // In production: stream from AI service and update responseBuilder
-            
-            // Update message as content streams in
-            updateMessageUseCase.execute(
-                sessionId = sessionId,
-                messageId = streamingMessageId,
-                content = responseBuilder.toString(),
-                isStreaming = true
-            )
-
-            // Mark complete when done
-            _chatState.update { state ->
-                state.copy(
-                    messages = state.messages.map { msg ->
-                        if (msg.id == streamingMessageId) {
-                            msg.copy(isStreaming = false, content = responseBuilder.toString())
-                        } else {
-                            msg
+            remoteAgentService.sendQuery(
+                query = content,
+                sessionId = sessionId
+            ).collect { event ->
+                when (event) {
+                    is com.example.smarty.protocol.AgentEvent.Processing -> {
+                        responseBuilder.append(event.content)
+                        // Update message as content streams in
+                        _chatState.update { state ->
+                            state.copy(
+                                messages = state.messages.map { msg ->
+                                    if (msg.id == streamingMessageId) {
+                                        msg.copy(content = responseBuilder.toString())
+                                    } else msg
+                                },
+                                lastUpdated = System.currentTimeMillis()
+                            )
                         }
-                    },
-                    isProcessing = false,
-                    lastUpdated = System.currentTimeMillis()
-                )
+                    }
+                    is com.example.smarty.protocol.AgentEvent.Result -> {
+                        responseBuilder.append(event.content)
+                        // Mark complete
+                        _chatState.update { state ->
+                            state.copy(
+                                messages = state.messages.map { msg ->
+                                    if (msg.id == streamingMessageId) {
+                                        msg.copy(
+                                            isStreaming = false,
+                                            content = responseBuilder.toString(),
+                                            thinking = event.thinking
+                                        )
+                                    } else msg
+                                },
+                                isProcessing = false,
+                                lastUpdated = System.currentTimeMillis()
+                            )
+                        }
+                    }
+                    else -> { /* Handle other events */ }
+                }
             }
 
             // Save message pair

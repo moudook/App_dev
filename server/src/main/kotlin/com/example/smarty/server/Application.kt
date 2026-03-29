@@ -12,6 +12,7 @@ import com.example.smarty.server.routes.configureChatRoutes
 import com.example.smarty.server.routes.configureOptimizedSyncRoutes
 import com.example.smarty.server.routes.configureDataRoutes
 import com.example.smarty.server.routes.configureResearchRoutes
+import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
@@ -35,10 +36,22 @@ import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
 import com.example.smarty.server.routes.configureNewFeaturesRoutes
+import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.data.TaskRepository
 import com.example.smarty.server.data.TagRepository
 import com.example.smarty.server.data.NotificationRepository
 import com.example.smarty.server.data.ChatFolderRepository
+import com.example.smarty.server.data.ReasoningTraceRepository
+import com.example.smarty.server.services.ReasoningService
+import com.example.smarty.server.services.OrchestratorService
+import com.example.smarty.server.services.VisionService
+import com.example.smarty.server.routes.configureOrchestratorRoutes
+import com.example.smarty.server.services.UtilityService
+import com.example.smarty.server.routes.configureUtilityRoutes
+import com.example.smarty.server.data.SearchHistoryRepository
+import com.example.smarty.server.data.UserDeviceRepository
+import com.example.smarty.server.routes.configureSearchHistoryRoutes
+import com.example.smarty.server.routes.configureUserDeviceRoutes
 import javax.sql.DataSource
 
 /**
@@ -60,6 +73,7 @@ import io.ktor.server.plugins.callid.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.auth.*
 import io.ktor.server.metrics.micrometer.*
+import io.ktor.server.routing.*
 import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
@@ -216,13 +230,80 @@ fun Application.module() {
         configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
     }
     
-    configureResearchRoutes(com.example.smarty.server.agent.DeepResearchAgent(
+    val deepResearchAgent = com.example.smarty.server.agent.DeepResearchAgent(
         llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
         tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
         webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
         progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
-    ))
+    )
+    
+    val advancedDeepResearchAgent = com.example.smarty.server.agent.AdvancedDeepResearchAgent(
+        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
+        tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
+        webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+        progressTracker = com.example.smarty.server.agent.ResearchProgressTracker()
+    )
+    
+    configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
     configureOptimizedSyncRoutes()
+    configureSyncRoutes()
+
+    // Initialize Reasoning Service
+    val reasoningService = if (ds != null) {
+        val reasoningRepo = ReasoningTraceRepository(ds)
+        ReasoningService(reasoningRepo)
+    } else null
+
+    // Configure Reasoning Routes
+    if (reasoningService != null) {
+        routing {
+            configureReasoningRoutes(reasoningService)
+        }
+        log.info("ReasoningRoutes configured with ReasoningService")
+    }
+
+    // Initialize Utility Service
+    val utilityService = UtilityService(LlmProviderFactory.create(io.ktor.client.HttpClient()))
+
+    // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
+    val orchestratorService = if (ds != null) {
+        val httpClient = io.ktor.client.HttpClient()
+        val providerRouter = com.example.smarty.server.llm.ProviderRouter(httpClient)
+        OrchestratorService(
+            providerRouter = providerRouter,
+            visionService = VisionService(httpClient),
+            kreaImageTool = com.example.smarty.server.tools.KreaImageTool()
+        )
+    } else null
+
+    // Initialize Search History Repository
+    val searchHistoryRepository = if (ds != null) SearchHistoryRepository(ds) else null
+
+    // Initialize User Device Repository
+    val userDeviceRepository = if (ds != null) UserDeviceRepository(ds) else null
+
+    // Configure Utility Routes (ENABLED)
+    configureUtilityRoutes(utilityService)
+    log.info("UtilityRoutes configured")
+
+    // Configure Orchestrator Routes (ENABLED)
+    if (orchestratorService != null) {
+        configureOrchestratorRoutes(orchestratorService)
+        log.info("OrchestratorRoutes configured")
+    }
+
+    // Configure Search History Routes (ENABLED)
+    if (searchHistoryRepository != null) {
+        configureSearchHistoryRoutes(searchHistoryRepository)
+        log.info("SearchHistoryRoutes configured")
+    }
+
+    // Configure User Device Routes (ENABLED)
+    if (userDeviceRepository != null) {
+        configureUserDeviceRoutes(userDeviceRepository)
+        log.info("UserDeviceRoutes configured")
+    }
+
     if (digestService != null && digestScheduler != null && ds != null) {
         configureDigestRoutes(digestService, digestScheduler, ds!!)
     }

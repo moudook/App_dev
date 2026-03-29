@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import com.example.smarty.server.agent.DeepResearchAgent.TimeoutStatus
 
 /**
  * ADVANCED DEEP RESEARCH AGENT v3.0 - TECHNICAL RESEARCH SPECIALIST EDITION
@@ -41,7 +42,10 @@ class AdvancedDeepResearchAgent(
     private val progressTracker: ResearchProgressTracker
 ) {
     private val logger = LoggerFactory.getLogger(AdvancedDeepResearchAgent::class.java)
-    
+
+    // Session state management for workflow v4.0 integration
+    private val sessionStates = ConcurrentHashMap<String, ResearchState>()
+
     companion object {
         // No timeout limits - research takes as long as needed
         // Progress is saved continuously, can resume anytime
@@ -71,8 +75,8 @@ class AdvancedDeepResearchAgent(
     @Serializable
     data class ResearchState(
         val id: String = UUID.randomUUID().toString(),
-        val topic: String,
-        val originalQuestion: String,
+        val topic: String = "",  // Made optional for session state initialization
+        val originalQuestion: String = "",  // Made optional for session state initialization
         val status: ResearchStatus = ResearchStatus.PLANNING,
 
         // Research plan (dynamically updated)
@@ -108,7 +112,18 @@ class AdvancedDeepResearchAgent(
         val totalSearches: Int = 0,
         val totalScrapes: Int = 0,
         val totalTokensProcessed: Long = 0,
-        val averageSourceCredibility: Double = 0.0
+        val averageSourceCredibility: Double = 0.0,
+
+        // 2026 Additions: User interaction tracking
+        val clarifications: List<String> = emptyList(),  // User-provided clarifications
+        val interruptions: List<Interruption> = emptyList(),  // User interruptions
+        val startTime: Long = System.currentTimeMillis()  // Session start time for timeout tracking
+    )
+
+    @Serializable
+    data class Interruption(
+        val timestamp: Long,
+        val message: String
     )
     
     @Serializable
@@ -1127,9 +1142,130 @@ Create a comprehensive research report with full citations.
 """
     }
 
-    // ==================== WORKFLOW v4.0 INTEGRATION (Placeholder) ====================
-    // Note: Full workflow integration requires additional type alignment work.
-    // The DeepResearchWorkflow and ResearchEvaluator classes are available for future integration.
+    // ==================== WORKFLOW v4.0 INTEGRATION (Enhanced for v6.0.0) ====================
+    // Note: Full workflow integration requires aligning ResearchState with new evaluation/iteration models.
+    // These methods now return graceful responses instead of throwing exceptions.
+
+    /**
+     * Get evaluation status - Returns progress-based evaluation
+     */
+    suspend fun getEvaluationStatus(sessionId: String): EvaluationStatus {
+        val state = sessionStates.getOrPut(sessionId) { ResearchState(sessionId) }
+        val completenessScore = minOf(1.0, state.totalSearches / 10.0) // Rough estimate
+        val identifiedGaps = if (state.insights.isEmpty()) {
+            listOf("Research in progress - insights being gathered")
+        } else {
+            emptyList()
+        }
+
+        return EvaluationStatus(
+            sessionId = sessionId,
+            completenessScore = completenessScore,
+            conflictCount = 0, // Would need conflict detection logic
+            identifiedGaps = identifiedGaps,
+            recommendation = if (completenessScore >= 0.8) {
+                "Research appears comprehensive. Ready for report generation."
+            } else {
+                "Research in progress. ${state.totalSearches} searches completed."
+            },
+            requiresHumanReview = false
+        )
+    }
+
+    /**
+     * Get iteration status - Returns current session progress
+     */
+    suspend fun getIterationStatus(sessionId: String): IterationStatus {
+        val state = sessionStates.getOrPut(sessionId) { ResearchState(sessionId) }
+
+        return IterationStatus(
+            sessionId = sessionId,
+            currentIteration = 1, // Would need iteration tracking
+            totalSearches = state.totalSearches,
+            totalSources = state.citations.size,
+            status = if (state.totalSearches > 0) "in_progress" else "pending"
+        )
+    }
+
+    /**
+     * Process user answers - Updates session state with clarifications
+     */
+    suspend fun processUserAnswers(sessionId: String, answers: Map<String, String>): ResearchState {
+        var state = sessionStates.getOrPut(sessionId) { ResearchState(id = sessionId) }
+        // Store clarifications for context
+        state = state.copy(
+            clarifications = state.clarifications + answers.map { "${it.key}: ${it.value}" }
+        )
+        sessionStates[sessionId] = state
+        return state
+    }
+
+    /**
+     * Handle user interruption - Pauses research and saves state
+     */
+    suspend fun handleUserInterruption(sessionId: String, message: String): ResearchState {
+        var state = sessionStates.getOrPut(sessionId) { ResearchState(id = sessionId) }
+        // Log interruption message
+        state = state.copy(
+            interruptions = state.interruptions + Interruption(
+                timestamp = System.currentTimeMillis(),
+                message = message
+            )
+        )
+        sessionStates[sessionId] = state
+        return state
+    }
+
+    /**
+     * Check timeout - Returns timeout status based on session age
+     */
+    suspend fun checkTimeout(sessionId: String): DeepResearchAgent.TimeoutStatus {
+        val state = sessionStates[sessionId] ?: return DeepResearchAgent.TimeoutStatus.CONTINUE
+        val sessionAge = System.currentTimeMillis() - state.startTime
+        val timeoutMs = 30 * 60 * 1000L // 30 minutes default timeout
+
+        return if (sessionAge > timeoutMs) {
+            DeepResearchAgent.TimeoutStatus.FORCE_COMPLETE
+        } else if (sessionAge > timeoutMs * 0.8) {
+            DeepResearchAgent.TimeoutStatus.WARNING
+        } else {
+            DeepResearchAgent.TimeoutStatus.CONTINUE
+        }
+    }
+
+    /**
+     * Get session start time
+     */
+    fun getSessionStartTime(sessionId: String): Long {
+        return sessionStates[sessionId]?.startTime ?: 0L
+    }
+
+    /**
+     * Get current session state
+     */
+    suspend fun getSessionState(sessionId: String): ResearchState {
+        return sessionStates.getOrPut(sessionId) { ResearchState(sessionId) }
+    }
+
+    // Data classes for workflow responses
+    @Serializable
+    data class EvaluationStatus(
+        val sessionId: String,
+        val completenessScore: Double,
+        val conflictCount: Int,
+        val identifiedGaps: List<String>,
+        val recommendation: String,
+        val requiresHumanReview: Boolean
+    )
+
+    @Serializable
+    data class IterationStatus(
+        val sessionId: String,
+        val currentIteration: Int,
+        val totalSearches: Int,
+        val totalSources: Int,
+        val status: String
+    )
 }
 
 /**

@@ -321,21 +321,46 @@ private fun runMigrations(ds: DataSource) {
 
                         // v6: reasoning_traces table
                         """CREATE TABLE IF NOT EXISTS reasoning_traces (
-                            trace_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            session_id      UUID NOT NULL,
-                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                            step_index      INTEGER NOT NULL,
-                            step_type       TEXT,
-                            title           TEXT,
-                            content         TEXT,
-                            input_data      JSONB,
-                            output_data     JSONB,
-                            error_message   TEXT,
-                            duration_ms     BIGINT,
-                            token_usage     JSONB,
-                            metadata        JSONB NOT NULL DEFAULT '{}',
-                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+                            id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id        UUID NOT NULL,
+                            message_id        UUID,
+                            user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            step_index        INTEGER NOT NULL,
+                            step_type         TEXT,
+                            title             TEXT,
+                            content           TEXT,
+                            confidence_score  DOUBLE PRECISION DEFAULT 0.5,
+                            importance_score  DOUBLE PRECISION DEFAULT 0.5,
+                            is_final          BOOLEAN DEFAULT false,
+                            was_revised       BOOLEAN DEFAULT false,
+                            revised_by_trace_id UUID,
+                            token_count       INTEGER DEFAULT 0,
+                            duration_ms       BIGINT DEFAULT 0,
+                            metadata          JSONB NOT NULL DEFAULT '{}',
+                            created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
+                        "CREATE INDEX IF NOT EXISTS idx_reasoning_traces_session ON reasoning_traces(session_id, step_index ASC)",
+
+                        // v6: reasoning_summaries table
+                        """CREATE TABLE IF NOT EXISTS reasoning_summaries (
+                            summary_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id        UUID NOT NULL,
+                            message_id        UUID,
+                            user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            one_liner         TEXT,
+                            brief_summary     TEXT,
+                            detailed_summary  TEXT,
+                            total_steps       INTEGER DEFAULT 0,
+                            total_duration_ms BIGINT DEFAULT 0,
+                            total_tokens      INTEGER DEFAULT 0,
+                            confidence_score  DOUBLE PRECISION DEFAULT 0.5,
+                            complexity_score  DOUBLE PRECISION DEFAULT 0.5,
+                            reasoning_type    TEXT,
+                            tags              TEXT[] DEFAULT '{}',
+                            created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_session ON reasoning_summaries(session_id)",
 
                         // Agent checkpoints table
                         """CREATE TABLE IF NOT EXISTS agent_checkpoints (
@@ -377,7 +402,59 @@ private fun runMigrations(ds: DataSource) {
                         "CREATE INDEX IF NOT EXISTS idx_notes_user_pinned ON notes(user_id, updated_at DESC) WHERE is_pinned = true AND deleted_at IS NULL",
                         // Chat sessions indexes
                         "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_active ON chat_sessions(user_id, updated_at DESC) WHERE is_active = true AND is_archived = false",
-                        "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned ON chat_sessions(user_id) WHERE is_pinned = true"
+                        "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned ON chat_sessions(user_id) WHERE is_pinned = true",
+                        
+                        // v6: search_history table
+                        """CREATE TABLE IF NOT EXISTS search_history (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            query TEXT NOT NULL,
+                            search_scope TEXT DEFAULT 'all',
+                            result_count INTEGER DEFAULT 0,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_search_history_user ON search_history(user_id, created_at DESC)",
+                        
+                        // v6: user_devices table
+                        """CREATE TABLE IF NOT EXISTS user_devices (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            device_name TEXT,
+                            device_type TEXT DEFAULT 'android',
+                            push_token TEXT,
+                            last_active_at TIMESTAMPTZ,
+                            app_version TEXT,
+                            metadata JSONB DEFAULT '{}',
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            UNIQUE(user_id, device_name)
+                        )""",
+                        
+                        // v6: note_versions table
+                        """CREATE TABLE IF NOT EXISTS note_versions (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            title TEXT NOT NULL,
+                            content TEXT NOT NULL,
+                            version_no INTEGER NOT NULL,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions(note_id, version_no DESC)",
+                        
+                        // v6: shared_items table
+                        """CREATE TABLE IF NOT EXISTS shared_items (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            shared_with_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            item_type TEXT NOT NULL,
+                            item_id UUID NOT NULL,
+                            permission TEXT DEFAULT 'view',
+                            share_token TEXT UNIQUE,
+                            expires_at TIMESTAMPTZ,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_shared_items_token ON shared_items(share_token)"
                     )
 
                     for ((index, sql) in migrations.withIndex()) {
