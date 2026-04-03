@@ -49,10 +49,12 @@ import com.example.smarty.server.routes.configureOrchestratorRoutes
 import com.example.smarty.server.services.UtilityService
 import com.example.smarty.server.routes.configureUtilityRoutes
 import com.example.smarty.server.data.SearchHistoryRepository
+import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.data.UserDeviceRepository
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
 import javax.sql.DataSource
+import com.example.smarty.server.HttpClientSingleton
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -78,7 +80,7 @@ import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
-import com.example.smarty.server.monitoring.SecurityMonitor
+
 
 /**
  * Server port. Can be overridden via SERVER_PORT environment variable.
@@ -200,7 +202,7 @@ fun Application.module() {
             dataSource = ds,
             chatRepository = ChatRepository(ds, chatMessageNotesRepo),
             vectorStore = PostgresVectorStore(),
-            llmProvider = LlmProviderFactory.create(io.ktor.client.HttpClient())
+            llmProvider = LlmProviderFactory.create(HttpClientSingleton.client)
         )
 
         val fcmService = FcmNotificationService.fromEnvironment(ds)
@@ -220,6 +222,8 @@ fun Application.module() {
     configureProcessingRoutes()
     configureHandshakeRoutes()
     configureDataRoutes()
+
+
     
     // Configure v6.0.0 new features routes (Tasks, Tags, Notifications, Folders)
     if (ds != null) {
@@ -231,14 +235,14 @@ fun Application.module() {
     }
     
     val deepResearchAgent = com.example.smarty.server.agent.DeepResearchAgent(
-        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
+        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
         tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
         webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
         progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
     )
     
     val advancedDeepResearchAgent = com.example.smarty.server.agent.AdvancedDeepResearchAgent(
-        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
+        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
         tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
         webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
         progressTracker = com.example.smarty.server.agent.ResearchProgressTracker()
@@ -263,15 +267,14 @@ fun Application.module() {
     }
 
     // Initialize Utility Service
-    val utilityService = UtilityService(LlmProviderFactory.create(io.ktor.client.HttpClient()))
+    val utilityService = UtilityService(LlmProviderFactory.create(HttpClientSingleton.client))
 
     // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
     val orchestratorService = if (ds != null) {
-        val httpClient = io.ktor.client.HttpClient()
-        val providerRouter = com.example.smarty.server.llm.ProviderRouter(httpClient)
+        val providerRouter = com.example.smarty.server.llm.ProviderRouter(HttpClientSingleton.client)
         OrchestratorService(
             providerRouter = providerRouter,
-            visionService = VisionService(httpClient),
+            visionService = VisionService(HttpClientSingleton.client),
             kreaImageTool = com.example.smarty.server.tools.KreaImageTool()
         )
     } else null
@@ -304,6 +307,66 @@ fun Application.module() {
         log.info("UserDeviceRoutes configured")
     }
 
+    // Configure Image Serving Endpoint
+    routing {
+        get("/generated-images/{id}") {
+            val providedApiKey = call.parameters["apiKey"]
+            val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
+            
+            // Verify API key if provided, otherwise allow for development
+            if (providedApiKey != expectedApiKey && providedApiKey != null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid API key"))
+                return@get
+            }
+
+            val imageId = call.parameters["id"]
+            if (imageId.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Image ID required"))
+                return@get
+            }
+
+            val dataSource = DatabaseFactory.getDataSource()
+            if (dataSource == null) {
+                call.respond(HttpStatusCode.ServiceUnavailable, mapOf("error" to "Database not available"))
+                return@get
+            }
+
+            try {
+                val imageRepo = GeneratedImageRepository(dataSource)
+                val imageData = imageRepo.getImageBytes(imageId)
+                
+                if (imageData == null) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found"))
+                    return@get
+                }
+
+                // Verify image ownership when API key is not provided
+                if (providedApiKey == null) {
+                    val storedImage = imageRepo.getById(imageId)
+                    if (storedImage == null) {
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found"))
+                        return@get
+                    }
+                }
+
+                // Serve the image bytes with appropriate content type
+                val (bytes, contentType) = imageData
+                val mimeType = when {
+                    contentType.contains("png") -> ContentType.Image.PNG
+                    contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
+                    contentType.contains("gif") -> ContentType.Image.GIF
+                    contentType.contains("webp") -> ContentType.Image.WebP
+                    else -> ContentType.Image.Any
+                }
+                call.response.contentType(mimeType)
+                call.respondBytes(bytes)
+            } catch (e: Exception) {
+                call.application.log.error("Failed to serve image", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to serve image"))
+            }
+        }
+    }
+
     if (digestService != null && digestScheduler != null && ds != null) {
         configureDigestRoutes(digestService, digestScheduler, ds!!)
     }
@@ -313,6 +376,8 @@ fun Application.module() {
     
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
+
+
 
     // Log startup
     log.info("Friday Server started on port $serverPort")

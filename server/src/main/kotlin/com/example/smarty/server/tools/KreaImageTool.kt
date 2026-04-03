@@ -12,6 +12,8 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.GeneratedImageRepository
 import java.util.UUID
 
 /**
@@ -436,29 +438,18 @@ class KreaImageTool {
     }
 
     /**
-     * Downloads image bytes from a URL and uploads to Supabase Storage using REST API.
+     * Downloads image bytes from Krea and stores it directly in local database.
      * @param imageUrl The source image URL (from Krea)
-     * @param jobId The Krea job ID (used as filename)
-     * @param bucketName Supabase storage bucket name (default: "generated-images")
-     * @return The Supabase public URL if successful, null if upload fails
+     * @param jobId The Krea job ID
+     * @return Local server image URL that will serve the image
      */
-    suspend fun uploadToSupabase(
+    suspend fun storeImageLocally(
         imageUrl: String,
-        jobId: String,
-        bucketName: String = "generated-images"
-    ): String? {
-        logger.info("SUPABASE UPLOAD: Starting upload to Supabase Storage")
+        jobId: String
+    ): String {
+        logger.info("IMAGE STORE: Downloading image and storing in database")
         logger.info("   Source URL: $imageUrl")
-        logger.info("   Job ID (filename): $jobId")
-        logger.info("   Bucket: $bucketName")
-
-        val supabaseUrl = com.example.smarty.server.factory.SupabaseClientFactory.getSupabaseUrl()
-        val supabaseKey = com.example.smarty.server.factory.SupabaseClientFactory.getSupabaseKey()
-        
-        if (supabaseUrl.isNullOrBlank() || supabaseKey.isNullOrBlank()) {
-            logger.warn("SUPABASE UPLOAD: Supabase not configured - will return Krea URL")
-            return null
-        }
+        logger.info("   Job ID: $jobId")
 
         try {
             // Download image bytes from Krea
@@ -466,38 +457,31 @@ class KreaImageTool {
             val imageBytes = client.get(imageUrl).body<ByteArray>()
             logger.info("DOWNLOAD: Successfully downloaded ${imageBytes.size} bytes")
 
-            // Generate filename with extension
-            val fileExtension = imageUrl.substringAfterLast('.', "png")
-            val fileName = "$jobId.$fileExtension"
+            // Detect content type
+            val contentType = when (imageUrl.substringAfterLast('.', "png").lowercase()) {
+                "jpg", "jpeg" -> "image/jpeg"
+                "webp" -> "image/webp"
+                else -> "image/png"
+            }
 
-            // Upload to Supabase Storage using REST API
-            logger.info("UPLOAD: Uploading to Supabase bucket '$bucketName' as '$fileName'...")
-            
-            // Supabase Storage REST API endpoint
-            val uploadUrl = "$supabaseUrl/storage/v1/object/$bucketName/$fileName"
-            
-            val response = client.post(uploadUrl) {
-                header("Authorization", "Bearer $supabaseKey")
-                header("apikey", supabaseKey)
-                header("Content-Type", "image/$fileExtension")
-                setBody(imageBytes)
-            }
-            
-            if (response.status.isSuccess()) {
-                // Get public URL
-                val publicUrl = "$supabaseUrl/storage/v1/object/public/$bucketName/$fileName"
-                logger.info("UPLOAD: Successfully uploaded to Supabase!")
-                logger.info("   Public URL: $publicUrl")
-                return publicUrl
-            } else {
-                logger.error("SUPABASE UPLOAD: Upload failed with status ${response.status}")
-                logger.error("   Response: ${response.bodyAsText()}")
-                return null
-            }
+            // Store directly in database
+            GeneratedImageRepository(DatabaseFactory.getDataSource()!!).storeImageBytes(jobId, imageBytes, contentType)
+
+            // Get generated image id from database
+            val storedImage = GeneratedImageRepository(DatabaseFactory.getDataSource()!!).getByJobId(jobId)
+            val serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:7860"
+            val apiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
+            val localImageUrl = "$serverUrl/generated-images/${storedImage?.id}?apiKey=$apiKey"
+
+            logger.info("IMAGE STORED: Successfully saved to database")
+            logger.info("   Local URL: $localImageUrl")
+
+            return localImageUrl
+
         } catch (e: Exception) {
-            logger.error("SUPABASE UPLOAD: Failed to upload to Supabase: ${e.message}", e)
+            logger.error("IMAGE STORE: Failed to store image: ${e.message}", e)
             logger.warn("FALLBACK: Will use original Krea URL instead")
-            return null
+            return imageUrl
         }
     }
 }

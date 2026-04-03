@@ -12,6 +12,8 @@ data class GeneratedImage(
     val status: String,
     val imageUrl: String?,      // Original Krea URL
     val supabaseUrl: String?,    // Supabase Storage URL
+    val imageBytes: ByteArray?, // Stored image binary
+    val contentType: String?,   // Image MIME type
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -111,6 +113,22 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
     }
 
     /**
+     * Get image by ID.
+     */
+    suspend fun getById(id: String): GeneratedImage? = withConnection {
+        val sql = "SELECT * FROM generated_images WHERE id = ?::uuid"
+        it.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, id)
+            val rs = stmt.executeQuery()
+            if (rs.next()) {
+                mapRow(rs)
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
      * List all generated images for a user (for sync).
      */
     suspend fun listByUser(userId: String, limit: Int = 100): List<GeneratedImage> = withConnection {
@@ -134,6 +152,39 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
         images
     }
 
+    suspend fun storeImageBytes(kreaJobId: String, imageBytes: ByteArray, contentType: String) = withConnection {
+        val sql = """
+            UPDATE generated_images
+            SET image_bytes = ?,
+                content_type = ?,
+                updated_at = now()
+            WHERE krea_job_id = ?
+        """.trimIndent()
+
+        it.prepareStatement(sql).use { stmt ->
+            stmt.setBytes(1, imageBytes)
+            stmt.setString(2, contentType)
+            stmt.setString(3, kreaJobId)
+            stmt.executeUpdate()
+        }
+    }
+
+    suspend fun getImageBytes(id: String): Pair<ByteArray, String>? = withConnection {
+        val sql = "SELECT image_bytes, content_type FROM generated_images WHERE id = ?::uuid"
+
+        it.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, id)
+            val rs = stmt.executeQuery()
+            if (rs.next()) {
+                val bytes = rs.getBytes("image_bytes")
+                val contentType = rs.getString("content_type")
+                if (bytes != null && contentType != null) {
+                    Pair(bytes, contentType)
+                } else null
+            } else null
+        }
+    }
+
     private fun mapRow(rs: ResultSet): GeneratedImage {
         return GeneratedImage(
             id = rs.getString("id"),
@@ -144,6 +195,8 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             status = rs.getString("status"),
             imageUrl = rs.getString("image_url"),
             supabaseUrl = rs.getString("supabase_url"),
+            imageBytes = rs.getBytes("image_bytes"),
+            contentType = rs.getString("content_type"),
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at").time
         )
