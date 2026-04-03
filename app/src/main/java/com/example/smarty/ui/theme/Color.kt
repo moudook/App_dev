@@ -13,36 +13,36 @@ import androidx.compose.ui.graphics.Color
 // =============================================================================
 // MODERN SOFT MINIMALIST - LIGHT THEME (Comfort Edition)
 // =============================================================================
-val SoftBackground = Color(0xFFFDFDFD)       // Light theme background
-val CardWhite = Color(0xFFFFFFFF)            // Pure White cards for crispness
-val ElectricBlue = Color(0xFF0066FF)         // Primary Accent (Brand)
-val PaleBlueGrey = Color(0xFFEBEFF5)         // Secondary Accent - cool tint
-val TextNearBlack = Color(0xFF1A1A1C)        // Text Primary - softer black
-val TextCoolGrey = Color(0xFF58585E)         // Text Secondary
-val SubtleBorder = Color(0xFFE5E5EA)         // Borders - very subtle
-val InputBackground = Color(0xFFF2F2F7)      // Input field - standard iOS-like gray
+val SoftBackground = Color(0xFFFDFDFD) // Light theme background
+val CardWhite = Color(0xFFFFFFFF) // Pure White cards for crispness
+val ElectricBlue = Color(0xFF0066FF) // Primary Accent (Brand)
+val PaleBlueGrey = Color(0xFFEBEFF5) // Secondary Accent - cool tint
+val TextNearBlack = Color(0xFF1A1A1C) // Text Primary - softer black
+val TextCoolGrey = Color(0xFF58585E) // Text Secondary
+val SubtleBorder = Color(0xFFE5E5EA) // Borders - very subtle
+val InputBackground = Color(0xFFF2F2F7) // Input field - standard iOS-like gray
 val SecondaryButtonBg = Color(0xFFE5E5EA)
 val SmartyChipGrayLight = Color(0xFFEDEDED)
 val SmartyChipSeparatorLight = Color(0xFFFFFFFF)
 
 // Pink Theme Tokens
-val PinkAccent = Color(0xFFF49BE0)            // Main Pink accent
-val PinkLight = Color(0xFFFFF0F5)             // Light Pink background
+val PinkAccent = Color(0xFFF49BE0) // Main Pink accent
+val PinkLight = Color(0xFFFFF0F5) // Light Pink background
 val PinkMedium = Color(0xFFF49BE0).copy(alpha = 0.35f) // Stronger pink tint
-val PinkDark = Color(0xFFD2008C)              // Dark Pink for text/icons on pink backgrounds
-val PinkText = Color(0xFF1A1A1C)              // Text color for pink-themed elements (not pink)
+val PinkDark = Color(0xFFD2008C) // Dark Pink for text/icons on pink backgrounds
+val PinkText = Color(0xFF1A1A1C) // Text color for pink-themed elements (not pink)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
 // =============================================================================
-val DarkBackground = Color(0xFF000000)       // True black for AMOLED
-val DarkCard = Color(0xFF0A0A0A)             // Near-black card
-val DarkElectricBlue = Color(0xFF0A84FF)     // Brighter blue for dark mode
-val DarkPaleBlue = Color(0xFF0A0A0A)         // Secondary
+val DarkBackground = Color(0xFF000000) // True black for AMOLED
+val DarkCard = Color(0xFF0A0A0A) // Near-black card
+val DarkElectricBlue = Color(0xFF0A84FF) // Brighter blue for dark mode
+val DarkPaleBlue = Color(0xFF0A0A0A) // Secondary
 val DarkTextPrimary = Color(0xFFFFFFFF)
 val DarkTextSecondary = Color(0xFF8A8A8E)
 val DarkBorder = Color(0xFF1A1A1C)
-val DarkInputBackground = Color(0xFF252528)  // Lighter input block for better visibility
+val DarkInputBackground = Color(0xFF252528) // Lighter input block for better visibility
 val DarkSurfaceElevated = Color(0xFF141416)
 val SmartyChipGrayDark = Color(0xFF414141)
 val SmartyChipSeparatorDark = Color(0xFFFFFFFF).copy(alpha = 0.08f)
@@ -135,22 +135,22 @@ val FileGray = SystemGray
  * Optimized for the Calm Aesthetic.
  */
 object AssistantColors {
-    val Red = Color(0xFFEF9A9A)    // Soft Red
-    val Yellow = Color(0xFFFFE082) // Soft Yellow
-    val Green = Color(0xFFA5D6A7)  // Soft Green
-    val Blue = Color(0xFF90CAF9)   // Soft Blue
+ val Red = Color(0xFFEF9A9A) // Soft Red
+ val Yellow = Color(0xFFFFE082) // Soft Yellow
+ val Green = Color(0xFFA5D6A7) // Soft Green
+ val Blue = Color(0xFF90CAF9) // Soft Blue
 
-    /** Four-color gradient for glow animation */
-    val glowColors = listOf(Red, Yellow, Green, Blue)
+ /** Four-color gradient for glow animation */
+ val glowColors = listOf(Red, Yellow, Green, Blue)
 
-    /** Dominant color after initial glow animation */
-    val dominantBlue = Blue
+ /** Dominant color after initial glow animation */
+ val dominantBlue = Blue
 
-    // Surface colors (Material 3 style)
-    val SurfaceLight = Color(0xFFFEFBFF)
-    val SurfaceDark = Color(0xFF121212)  // True black for dark mode
-    val SurfaceContainer = Color(0xFFF3EDF7)
-    val SurfaceContainerDark = Color(0xFF1D1B20)
+ // Surface colors (Material 3 style)
+ val SurfaceLight = Color(0xFFFEFBFF)
+ val SurfaceDark = Color(0xFF121212) // True black for dark mode
+ val SurfaceContainer = Color(0xFFF3EDF7)
+ val SurfaceContainerDark = Color(0xFF1D1B20)
 }
 
 // =============================================================================
@@ -164,54 +164,54 @@ object AssistantColors {
  * the surface. Use MaterialTheme.colorScheme for surface-adaptive colors.
  *
  * Usage:
- *   import com.example.smarty.ui.theme.SemanticColors
- *   Icon(tint = SemanticColors.success)
+ * import com.example.smarty.ui.theme.SemanticColors
+ * Icon(tint = SemanticColors.success)
  */
 object SemanticColors {
-    // ─── Status Colors ────────────────────────────────────────────────
-    /** Success / Active / Positive (iOS Green) */
-    val success = Color(0xFF34C759)
-    /** Error / Destructive / Danger (iOS Red) */
-    val error = Color(0xFFFF3B30)
-    /** Info / Interactive / Link (iOS Blue) */
-    val info = Color(0xFF007AFF)
-    /** Warning / Caution (iOS Yellow/Amber) */
-    val warning = Color(0xFFEAB308)
+ // Status Colors 
+ /** Success / Active / Positive (iOS Green) */
+ val success = Color(0xFF34C759)
+ /** Error / Destructive / Danger (iOS Red) */
+ val error = Color(0xFFFF3B30)
+ /** Info / Interactive / Link (iOS Blue) */
+ val info = Color(0xFF007AFF)
+ /** Warning / Caution (iOS Yellow/Amber) */
+ val warning = Color(0xFFEAB308)
 
-    // ─── Content Type Colors ─────────────────────────────────────────
-    /** Neutral / General file / Media (System Gray) */
-    val neutral = Color(0xFF8E8E93)
+ // Content Type Colors 
+ /** Neutral / General file / Media (System Gray) */
+ val neutral = Color(0xFF8E8E93)
 
 
-    // ─── Bubble Colors ───────────────────────────────────────────────
-    /** User bubble background — inverted: light on dark, dark on light */
-    val userBubbleLight = Color(0xFFF5F5F5)
-    val userBubbleDark = Color(0xFF1A1A1A)
+ // Bubble Colors 
+ /** User bubble background — inverted: light on dark, dark on light */
+ val userBubbleLight = Color(0xFFF5F5F5)
+ val userBubbleDark = Color(0xFF1A1A1A)
 }
 
 /**
  * Component-specific color roles for consistent application-wide styling.
  */
 object ComponentColors {
-    /**
-     * Technical Surface (Glassy feel) Background.
-     * Used in overlays and floating panels.
-     * OPAQUE - No transparency for solid background
-     */
-    val technicalSurfaceLight = Color(0xFF1A1C1E)  // Opaque dark
-    val technicalSurfaceDark = Color(0xFF050E1E)    // Opaque darker blue
+ /**
+ * Technical Surface (Glassy feel) Background.
+ * Used in overlays and floating panels.
+ * OPAQUE - No transparency for solid background
+ */
+ val technicalSurfaceLight = Color(0xFF1A1C1E) // Opaque dark
+ val technicalSurfaceDark = Color(0xFF050E1E) // Opaque darker blue
 
-    /** Breath instruction/skipped button color */
-    val breathingAccent = Color(0xFF4FACFE)
+ /** Breath instruction/skipped button color */
+ val breathingAccent = Color(0xFF4FACFE)
 
-    /** AI/Assistant Accent Colors (HAL aesthetic) */
-    val assistantPurple = Color(0xFFB39DDB)
-    val assistantCyan = Color(0xFF00F2FE)
+ /** AI/Assistant Accent Colors (HAL aesthetic) */
+ val assistantPurple = Color(0xFFB39DDB)
+ val assistantCyan = Color(0xFF00F2FE)
 
-    /** Voice Input Accent Color - Active/Listening state */
-    val voiceAccent = ElectricBlue
+ /** Voice Input Accent Color - Active/Listening state */
+ val voiceAccent = ElectricBlue
 
-    /** Input Field Background Colors */
-    val inputPillBackgroundLight = Color(0xFFF2F2F7)
-    val inputPillBackgroundDark = Color(0xFF1A1A1E)  // Darker than default for better contrast
+ /** Input Field Background Colors */
+ val inputPillBackgroundLight = Color(0xFFF2F2F7)
+ val inputPillBackgroundDark = Color(0xFF1A1A1E) // Darker than default for better contrast
 }
