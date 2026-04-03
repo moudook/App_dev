@@ -25,23 +25,23 @@ import androidx.compose.ui.unit.dp
  * - Use `composed {}` for extensions that need `@Composable` context
  */
 
-// ═══════════════════════════════════════════════════════════════════
+// 
 // MODIFIER EXTENSIONS
-// ═══════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Clickable modifier that suppresses the default ripple/indication.
  * Useful for custom touch targets where a ripple would be distracting.
  *
  * Usage:
- *   Box(modifier = Modifier.noRippleClickable { doSomething() })
+ * Box(modifier = Modifier.noRippleClickable { doSomething() })
  */
 fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
-    clickable(
-        indication = null,
-        interactionSource = remember { MutableInteractionSource() },
-        onClick = onClick
-    )
+ clickable(
+ indication = null,
+ interactionSource = remember { MutableInteractionSource() },
+ onClick = onClick
+ )
 }
 
 /**
@@ -53,49 +53,49 @@ fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
  * @param startPadding Left padding before the bar (default 8.dp)
  *
  * Usage:
- *   Box(modifier = Modifier.leftAccentBar(accentColor))
+ * Box(modifier = Modifier.leftAccentBar(accentColor))
  */
 fun Modifier.leftAccentBar(
-    color: Color,
-    width: Dp = 2.dp,
-    startPadding: Dp = 8.dp
+ color: Color,
+ width: Dp = 2.dp,
+ startPadding: Dp = 8.dp
 ): Modifier = composed {
-    val density = LocalDensity.current
-    this.drawBehind {
-        val strokeWidthPx = with(density) { width.toPx() }
-        val startPx = with(density) { startPadding.toPx() }
-        drawLine(
-            color = color,
-            start = Offset(startPx, 0f),
-            end = Offset(startPx, size.height),
-            strokeWidth = strokeWidthPx
-        )
-    }
+ val density = LocalDensity.current
+ this.drawBehind {
+ val strokeWidthPx = with(density) { width.toPx() }
+ val startPx = with(density) { startPadding.toPx() }
+ drawLine(
+ color = color,
+ start = Offset(startPx, 0f),
+ end = Offset(startPx, size.height),
+ strokeWidth = strokeWidthPx
+ )
+ }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// 
 // CONDITIONAL MODIFIERS
-// ═══════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Conditionally applies a Modifier chain.
  * Avoids verbose `if/else Modifier` blocks in composable code.
  *
  * Usage:
- *   Modifier
- *     .conditionalModifier(isSelected) { background(selectedColor) }
- *     .conditionalModifier(hasBorder) { border(1.dp, borderColor) }
+ * Modifier
+ * .conditionalModifier(isSelected) { background(selectedColor) }
+ * .conditionalModifier(hasBorder) { border(1.dp, borderColor) }
  */
 inline fun Modifier.conditionalModifier(
-    condition: Boolean,
-    modifier: Modifier.() -> Modifier
+ condition: Boolean,
+ modifier: Modifier.() -> Modifier
 ): Modifier {
-    return if (condition) this.modifier() else this
+ return if (condition) this.modifier() else this
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// 
 // PIXEL / DP CONVERSIONS
-// ═══════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Converts Dp to pixels using the current density.
@@ -103,6 +103,6 @@ inline fun Modifier.conditionalModifier(
  */
 @Composable
 fun Dp.toPx(): Float {
-    val density = LocalDensity.current
-    return with(density) { this@toPx.toPx() }
+ val density = LocalDensity.current
+ return with(density) { this@toPx.toPx() }
 }
