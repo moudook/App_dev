@@ -315,19 +315,19 @@ fun Application.module() {
             
             // Verify API key if provided, otherwise allow for development
             if (providedApiKey != expectedApiKey && providedApiKey != null) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid API key"))
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid API key") as Any)
                 return@get
             }
 
             val imageId = call.parameters["id"]
             if (imageId.isNullOrBlank()) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Image ID required"))
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Image ID required") as Any)
                 return@get
             }
 
             val dataSource = DatabaseFactory.getDataSource()
             if (dataSource == null) {
-                call.respond(HttpStatusCode.ServiceUnavailable, mapOf("error" to "Database not available"))
+                call.respond(HttpStatusCode.ServiceUnavailable, mapOf("error" to "Database not available") as Any)
                 return@get
             }
 
@@ -336,7 +336,7 @@ fun Application.module() {
                 val imageData = imageRepo.getImageBytes(imageId)
                 
                 if (imageData == null) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found"))
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found") as Any)
                     return@get
                 }
 
@@ -344,7 +344,7 @@ fun Application.module() {
                 if (providedApiKey == null) {
                     val storedImage = imageRepo.getById(imageId)
                     if (storedImage == null) {
-                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found"))
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "Image not found") as Any)
                         return@get
                     }
                 }
@@ -355,14 +355,13 @@ fun Application.module() {
                     contentType.contains("png") -> ContentType.Image.PNG
                     contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
                     contentType.contains("gif") -> ContentType.Image.GIF
-                    contentType.contains("webp") -> ContentType.Image.WebP
+                    contentType.contains("webp") -> ContentType("image", "webp")
                     else -> ContentType.Image.Any
                 }
-                call.response.contentType(mimeType)
-                call.respondBytes(bytes)
+                call.respondBytes(bytes, mimeType)
             } catch (e: Exception) {
                 call.application.log.error("Failed to serve image", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to serve image"))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to serve image") as Any)
             }
         }
     }
