@@ -226,6 +226,23 @@ refrences/
 inspirations.md
 
 # ============================================
+# 12. REDUNDANT BUILD/SESSION FILES
+# ============================================
+# Build output logs
+build.log
+build_output.txt
+full_build_output.txt
+
+# Redundant schema files (use init-db.sql only)
+SUPABASE_FIXED_SCHEMA.sql
+FINAL_VERIFIED_SCHEMA.sql
+DATABASE_SCHEMA_UNIFIED_v7.0.0.sql
+ENVIRONMENT_SETUP.md
+FINAL_INTEGRATION_REPORT.md
+INTEGRATION_STATUS.md
+SECURITY_SETUP_COMPLETE.md
+
+# ============================================
 # 11. ALLOWLISTS (Must be at the bottom)
 # ============================================
 # Keep context directory (used for build context)
