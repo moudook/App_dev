@@ -122,18 +122,6 @@ class AgentStateManager(
                     "\n\n<personality_override>\n$personalityOverride\n</personality_override>"
                 } else {
                     ""
-                }}if (personality != null && personality.uppercase() in listOf("PROFESSIONAL", "CASUAL", "CONCISE", "DETAILED")) {
-                    val personalityOverride =
-                        when (personality.uppercase()) {
-                            "PROFESSIONAL" -> "- Be formal, precise, and business-like. Use complete sentences. Avoid slang.\n- Keep responses concise but thorough.\n- Focus on accuracy and completeness."
-                            "CASUAL" -> "- Be relaxed, friendly, and conversational. Use contractions.\n- Be playful and approachable.\n- Keep it light but helpful."
-                            "CONCISE" -> "- Be extremely brief. Maximum 2-3 sentences unless the user asks for detail.\n- No filler words. Get to the point.\n- Prioritize action items and key information."
-                            "DETAILED" -> "- Be thorough and comprehensive.\n- Explain your reasoning.\n- Include examples, context, and caveats.\n- Don't rush — give full answers."
-                            else -> ""
-                        }
-                    "\n\n<personality_override>\n$personalityOverride\n</personality_override>"
-                } else {
-                    ""
                 }}
                 </personality>
 
