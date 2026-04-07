@@ -275,9 +275,7 @@ fun Application.module() {
     // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
     val orchestratorService =
         if (ds != null) {
-            val providerRouter = com.example.smarty.server.llm.ProviderRouter(HttpClientSingleton.client)
             OrchestratorService(
-                providerRouter = providerRouter,
                 visionService = VisionService(HttpClientSingleton.client),
                 kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
             )

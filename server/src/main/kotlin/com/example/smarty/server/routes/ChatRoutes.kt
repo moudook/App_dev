@@ -17,8 +17,6 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
-import com.example.smarty.server.llm.ProviderRouter
-import com.example.smarty.server.llm.RoutingStrategy
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.server.tools.TavilySearchTool
 import io.ktor.http.*
@@ -100,7 +98,6 @@ fun Application.configureChatRoutes() {
     // In production, use Koin or Dagger
     val vectorStore = PostgresVectorStore()
     val tavilyTool = TavilySearchTool()
-    val providerRouter = ProviderRouter(httpClient)
 
     // Default provider - use cached instance for better performance
     val llmProvider = LlmProviderFactory.getOrCreateProvider(httpClient)
@@ -134,14 +131,13 @@ fun Application.configureChatRoutes() {
 
                     call.application.log.info("Generating daily briefing for user: $userId")
 
-                    // Use ProviderRouter to select the SMARTEST provider
-                    val briefingProvider = providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
-                    val briefingSummarizer = ConversationSummarizer(briefingProvider)
+                    // Use default provider
+                    val briefingSummarizer = ConversationSummarizer(llmProvider)
 
                     // Create agent for single run
                     val agent =
                         ServerAgent(
-                            llmProvider = briefingProvider,
+                            llmProvider = llmProvider,
                             tavilyTool = tavilyTool,
                             vectorStore = vectorStore,
                             summarizer = briefingSummarizer,
@@ -282,14 +278,7 @@ fun Application.configureChatRoutes() {
                 )
 
                 // Create provider and summarizer for this specific request
-                val streamProvider =
-                    when (providerParam?.uppercase()) {
-                        "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, tokenParam)
-                        "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, tokenParam)
-                        "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, tokenParam)
-                        "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, tokenParam)
-                        else -> LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
-                    }
+                val streamProvider = LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
 
                 val streamSummarizer = ConversationSummarizer(streamProvider)
 
@@ -515,14 +504,7 @@ fun Application.configureChatRoutes() {
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
                     // Create provider for this request
-                    val streamProvider =
-                        when (request.provider?.uppercase()) {
-                            "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, request.token)
-                            "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, request.token)
-                            "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
-                            "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, request.token)
-                            else -> LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
-                        }
+                val streamProvider = LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
 
                     val streamSummarizer = ConversationSummarizer(streamProvider)
 

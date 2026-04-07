@@ -28,7 +28,6 @@ object AppConfig {
 
     // Active Provider Selection
     val activeProvider: String = System.getenv("ACTIVE_PROVIDER") ?: "GEMINI"
-    val providerStrategy: String = System.getenv("PROVIDER_STRATEGY") ?: "BALANCED"
 
     // Firebase Configuration
     val fcmServerKey: String? = System.getenv("FCM_SERVER_KEY")

@@ -1,7 +1,6 @@
 package com.example.smarty.server.services
 
 import com.example.smarty.protocol.AgentEvent
-import com.example.smarty.server.llm.ProviderRouter
 import com.example.smarty.server.tools.KreaImageTool
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -13,7 +12,6 @@ import java.util.UUID
  * Decides whether to use Vision, Generation, or Standard Chat based on user input.
  */
 class OrchestratorService(
-    private val providerRouter: ProviderRouter,
     private val visionService: VisionService,
     private val kreaImageTool: KreaImageTool,
 ) {
