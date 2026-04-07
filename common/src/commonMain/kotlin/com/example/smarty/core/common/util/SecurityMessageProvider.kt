@@ -6,5 +6,6 @@ package com.example.smarty.core.common.util
  */
 interface SecurityMessageProvider {
     fun getViolationDetail(operation: String): String
+
     fun getViolationIds(operation: String): String
 }

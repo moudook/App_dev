@@ -1,7 +1,5 @@
 package com.example.smarty.core.common.util
 
-import android.content.Context
-
 /**
  * Centralized extension functions used across the Smarty codebase.
  *
@@ -14,9 +12,9 @@ import android.content.Context
  * - Prefer pure functions (no side effects)
  */
 
-// 
+//
 // STRING EXTENSIONS
-// 
+//
 
 /**
  * Truncates a string to [maxLength] characters, appending [suffix] if truncated.
@@ -25,9 +23,15 @@ import android.content.Context
  * "Hello World".truncate(5) → "Hello…"
  * "Hi".truncate(5) → "Hi"
  */
-fun String.truncate(maxLength: Int, suffix: String = "…"): String {
- return if (length <= maxLength) this
- else take(maxLength) + suffix
+fun String.truncate(
+    maxLength: Int,
+    suffix: String = "…",
+): String {
+    return if (length <= maxLength) {
+        this
+    } else {
+        take(maxLength) + suffix
+    }
 }
 
 /**
@@ -39,7 +43,7 @@ fun String.truncate(maxLength: Int, suffix: String = "…"): String {
  * "My Note".orDefault("Untitled") → "My Note"
  */
 fun String?.orDefault(default: String): String {
- return if (this.isNullOrBlank()) default else this
+    return if (this.isNullOrBlank()) default else this
 }
 
 /**
@@ -49,14 +53,14 @@ fun String?.orDefault(default: String): String {
  * "hello world".capitalizeWords() → "Hello World"
  */
 fun String.capitalizeWords(): String {
- return split(" ").joinToString(" ") { word ->
- word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
- }
+    return split(" ").joinToString(" ") { word ->
+        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
 }
 
-// 
+//
 // COLLECTION EXTENSIONS
-// 
+//
 
 /**
  * Returns a human-readable count string.
@@ -66,13 +70,16 @@ fun String.capitalizeWords(): String {
  * 1.countLabel("note", "notes") → "1 note"
  * 0.countLabel("note", "notes") → "0 notes"
  */
-fun Int.countLabel(singular: String, plural: String): String {
- return "$this ${if (this == 1) singular else plural}"
+fun Int.countLabel(
+    singular: String,
+    plural: String,
+): String {
+    return "$this ${if (this == 1) singular else plural}"
 }
 
-// 
+//
 // FILE SIZE FORMATTING
-// 
+//
 
 /**
  * Formats a byte count into a human-readable file size string.
@@ -83,10 +90,10 @@ fun Int.countLabel(singular: String, plural: String): String {
  * 500L.formatFileSize() → "500 B"
  */
 fun Long.formatFileSize(): String {
- return when {
- this < 1024 -> "$this B"
- this < 1024 * 1024 -> "%.1f KB".format(this / 1024.0)
- this < 1024 * 1024 * 1024 -> "%.1f MB".format(this / (1024.0 * 1024.0))
- else -> "%.2f GB".format(this / (1024.0 * 1024.0 * 1024.0))
- }
+    return when {
+        this < 1024 -> "$this B"
+        this < 1024 * 1024 -> "%.1f KB".format(this / 1024.0)
+        this < 1024 * 1024 * 1024 -> "%.1f MB".format(this / (1024.0 * 1024.0))
+        else -> "%.2f GB".format(this / (1024.0 * 1024.0 * 1024.0))
+    }
 }

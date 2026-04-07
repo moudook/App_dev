@@ -4,7 +4,7 @@ data class SharedFileInfo(
     val fileUri: String,
     val fileName: String?,
     val mimeType: String?,
-    val fileSize: Long?
+    val fileSize: Long?,
 )
 
 data class SharedContent(
@@ -13,7 +13,7 @@ data class SharedContent(
     val fileName: String? = null,
     val mimeType: String? = null,
     val fileSize: Long? = null,
-    val files: List<SharedFileInfo> = emptyList()
+    val files: List<SharedFileInfo> = emptyList(),
 ) {
     /** Get all files (combines legacy single + multiple) */
     fun getAllFiles(): List<SharedFileInfo> {

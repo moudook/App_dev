@@ -28,7 +28,6 @@ import kotlinx.coroutines.withContext
  * =============================================================================
  */
 object TitleCompressor {
-
     private const val TAG = "TitleCompressor"
 
     // Pre-compiled regex patterns for performance
@@ -74,38 +73,43 @@ object TitleCompressor {
      */
     suspend fun compressTitle(
         aiService: AIService,
-        title: String
-    ): String = withContext(Dispatchers.IO) {
-        // Skip if already short enough
-        val wordCount = title.trim().split(WHITESPACE_PATTERN).size
-        if (wordCount <= 3) {
-            Log.d(TAG, "Title already short: $title")
-            return@withContext title.trim()
+        title: String,
+    ): String =
+        withContext(Dispatchers.IO) {
+            // Skip if already short enough
+            val wordCount = title.trim().split(WHITESPACE_PATTERN).size
+            if (wordCount <= 3) {
+                Log.d(TAG, "Title already short: $title")
+                return@withContext title.trim()
+            }
+
+            try {
+                Log.d(TAG, "Compressing title with AI: $title")
+
+                val response =
+                    aiService.simpleChat(
+                        systemPrompt = COMPRESSION_SYSTEM_PROMPT,
+                        userPrompt = "Compress this title to 2-3 words: $title",
+                    )
+
+                // Extract just the compressed title from response
+                val compressed = extractCompressedTitle(response, title)
+                Log.d(TAG, "Compressed: '$title' -> '$compressed'")
+                compressed
+            } catch (e: Exception) {
+                Log.w(TAG, "AI compression failed, using fallback: ${e.message}")
+                fallbackCompress(title)
+            }
         }
-
-        try {
-            Log.d(TAG, "Compressing title with AI: $title")
-
-            val response = aiService.simpleChat(
-                systemPrompt = COMPRESSION_SYSTEM_PROMPT,
-                userPrompt = "Compress this title to 2-3 words: $title"
-            )
-
-            // Extract just the compressed title from response
-            val compressed = extractCompressedTitle(response, title)
-            Log.d(TAG, "Compressed: '$title' -> '$compressed'")
-            compressed
-        } catch (e: Exception) {
-            Log.w(TAG, "AI compression failed, using fallback: ${e.message}")
-            fallbackCompress(title)
-        }
-    }
 
     /**
      * Extract the compressed title from AI response.
      * Handles various response formats (JSON, plain text, etc.)
      */
-    private fun extractCompressedTitle(response: String, originalTitle: String): String {
+    private fun extractCompressedTitle(
+        response: String,
+        originalTitle: String,
+    ): String {
         // Try to extract from JSON response field
         val jsonMatch = JSON_RESPONSE_PATTERN.find(response)
         if (jsonMatch != null) {
@@ -139,7 +143,7 @@ object TitleCompressor {
     private fun cleanTitle(title: String): String {
         return title
             .replace(QUOTES_PATTERN, "") // Remove quotes at start/end
-            .replace(WHITESPACE_PATTERN, " ")              // Normalize whitespace
+            .replace(WHITESPACE_PATTERN, " ") // Normalize whitespace
             .trim()
     }
 
@@ -149,13 +153,14 @@ object TitleCompressor {
      */
     fun fallbackCompress(title: String): String {
         // Remove common patterns
-        val cleaned = title
-            .replace(PARENTHESES_PATTERN, "")           // Remove (parentheses)
-            .replace(BRACKETS_PATTERN, "")          // Remove [brackets]
-            .replace(SUFFIX_PATTERN, "")
-            .replace(FEAT_PATTERN, "")
-            .replace(WHITESPACE_PATTERN, " ")
-            .trim()
+        val cleaned =
+            title
+                .replace(PARENTHESES_PATTERN, "") // Remove (parentheses)
+                .replace(BRACKETS_PATTERN, "") // Remove [brackets]
+                .replace(SUFFIX_PATTERN, "")
+                .replace(FEAT_PATTERN, "")
+                .replace(WHITESPACE_PATTERN, " ")
+                .trim()
 
         // Take first 3 words
         val words = cleaned.split(WHITESPACE_PATTERN)
@@ -170,22 +175,26 @@ object TitleCompressor {
      */
     suspend fun compressTitles(
         aiService: AIService,
-        titles: List<String>
-    ): List<String> = withContext(Dispatchers.IO) {
-        val maxParallel = try {
-            ResourceManager.getMaxParallelOperations()
-        } catch (e: Exception) { 2 }
+        titles: List<String>,
+    ): List<String> =
+        withContext(Dispatchers.IO) {
+            val maxParallel =
+                try {
+                    ResourceManager.getMaxParallelOperations()
+                } catch (e: Exception) {
+                    2
+                }
 
-        if (maxParallel <= 1 || titles.size <= 2) {
-            // Sequential for edge devices
-            titles.map { compressTitle(aiService, it) }
-        } else {
-            // Parallel for capable devices using coroutineScope
-            coroutineScope {
-                titles.map { title ->
-                    async { compressTitle(aiService, title) }
-                }.awaitAll()
+            if (maxParallel <= 1 || titles.size <= 2) {
+                // Sequential for edge devices
+                titles.map { compressTitle(aiService, it) }
+            } else {
+                // Parallel for capable devices using coroutineScope
+                coroutineScope {
+                    titles.map { title ->
+                        async { compressTitle(aiService, title) }
+                    }.awaitAll()
+                }
             }
         }
-    }
 }

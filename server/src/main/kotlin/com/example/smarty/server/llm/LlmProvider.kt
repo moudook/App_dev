@@ -16,7 +16,7 @@ interface LlmProvider {
     suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition> = emptyList(),
-        model: String? = null
+        model: String? = null,
     ): LlmResponse
 
     /**
@@ -25,7 +25,7 @@ interface LlmProvider {
     suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition> = emptyList(),
-        model: String? = null
+        model: String? = null,
     ): Flow<LlmChunk>
 }
 
@@ -35,10 +35,13 @@ data class LlmMessage(
     val content: String,
     val thinking: String? = null,
     val name: String? = null,
-    val images: List<ByteArray>? = null // Optional image attachments
+    val images: List<ByteArray>? = null, // Optional image attachments
 ) {
     enum class Role {
-        SYSTEM, USER, ASSISTANT, TOOL
+        SYSTEM,
+        USER,
+        ASSISTANT,
+        TOOL,
     }
 }
 
@@ -46,7 +49,7 @@ data class LlmMessage(
 data class LlmResponse(
     val content: String?,
     val toolCalls: List<LlmToolCall> = emptyList(),
-    val usage: LlmUsage? = null
+    val usage: LlmUsage? = null,
 )
 
 @Serializable
@@ -54,21 +57,21 @@ data class LlmChunk(
     val content: String?, // Partial text
     val reasoning: String? = null, // Reasoning/thinking content (separate from content)
     val toolCall: LlmToolCall? = null, // Partial or complete tool call
-    val usage: LlmUsage? = null // Optional usage info (usually in the last chunk)
+    val usage: LlmUsage? = null, // Optional usage info (usually in the last chunk)
 )
 
 @Serializable
 data class LlmToolCall(
     val id: String,
     val functionName: String,
-    val arguments: String // JSON string
+    val arguments: String, // JSON string
 )
 
 @Serializable
 data class LlmUsage(
     val promptTokens: Int,
     val completionTokens: Int,
-    val totalTokens: Int
+    val totalTokens: Int,
 )
 
 /**
@@ -79,19 +82,19 @@ data class LlmUsage(
 data class ToolDefinition(
     val name: String,
     val description: String,
-    val parameters: ToolParameters // JSON Schema definition
+    val parameters: ToolParameters, // JSON Schema definition
 )
 
 @Serializable
 data class ToolParameters(
     val type: String = "object",
     val properties: Map<String, ToolProperty>,
-    val required: List<String> = emptyList()
+    val required: List<String> = emptyList(),
 )
 
 @Serializable
 data class ToolProperty(
     val type: String,
     val description: String? = null,
-    val enum: List<String>? = null
+    val enum: List<String>? = null,
 )

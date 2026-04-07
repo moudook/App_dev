@@ -1,25 +1,22 @@
 package com.example.smarty.data.repository
 
 import android.util.Log
-import com.example.smarty.BuildConfig
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.data.remote.RemoteDataSource
-import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.data.sync.OfflineQueue
+import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.protocol.NoteInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Repository for server synchronization operations.
- * 
+ *
  * IMPROVEMENTS:
  * - Removed redundant logging (consolidated to essential logs only)
  * - Proper Result.failure() usage instead of Result.success(Unit) for errors
@@ -31,22 +28,22 @@ class ServerSyncRepository(
     private val remoteDataSource: RemoteDataSource,
     private val eventSink: com.example.smarty.core.common.worker.BackgroundAgentEventSink,
     private val syncCoordinator: SyncCoordinator,
-    private val offlineQueue: OfflineQueue
+    private val offlineQueue: OfflineQueue,
 ) : SyncRepository {
     companion object {
         private const val TAG = "ServerSyncRepo"
         private const val MIN_SYNC_INTERVAL_MS = 30_000L
 
         // OPTIMIZATION: Log level control - set to false in production to reduce overhead
-        private val ENABLE_DEBUG_LOGS = false  // BuildConfig.DEBUG causes issues
+        private val ENABLE_DEBUG_LOGS = false // BuildConfig.DEBUG causes issues
     }
 
     private var currentUserId: String? = null
-    
+
     // OPTIMIZATION: Use volatile var instead of AtomicLong for simpler read/write
     @Volatile
     private var lastSyncTimeMs: Long = 0L
-    
+
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
     private val _remoteNotes = MutableStateFlow<List<Note>>(emptyList())
@@ -76,7 +73,7 @@ class ServerSyncRepository(
             }
 
             val success = performNoteSync(note)
-            
+
             if (success) {
                 logIfDebug { "Synced note ${note.id} to server" }
                 Result.success(Unit)
@@ -100,11 +97,12 @@ class ServerSyncRepository(
         return if (note.isArchived) {
             remoteDataSource.deleteNote(note.id)
         } else {
-            val existingId = remoteDataSource.createNote(
-                note.title,
-                note.content,
-                note.categoryName
-            )
+            val existingId =
+                remoteDataSource.createNote(
+                    note.title,
+                    note.content,
+                    note.categoryName,
+                )
             if (existingId == null) {
                 remoteDataSource.updateNote(note.id, note.title, note.content, note.categoryName)
             } else {
@@ -150,7 +148,7 @@ class ServerSyncRepository(
 
     suspend fun refreshData() {
         val now = System.currentTimeMillis()
-        
+
         // OPTIMIZATION: Early return with simpler time check
         if (now - lastSyncTimeMs < MIN_SYNC_INTERVAL_MS) {
             logIfDebug { "Sync interval too short, skipping refresh" }
@@ -215,7 +213,7 @@ class ServerSyncRepository(
             updatedAt = this.updatedAt,
             type = NoteType.BRAIN_DUMP,
             processingStatus = ProcessingStatus.COMPLETED,
-            isAiCreated = true
+            isAiCreated = true,
         )
     }
 
@@ -235,8 +233,11 @@ class ServerSyncRepository(
  */
 sealed class SyncResult<out T> {
     data class Success<out T>(val data: T) : SyncResult<T>()
+
     data class Error(val message: String, val exception: Throwable? = null) : SyncResult<Nothing>()
+
     object Offline : SyncResult<Nothing>()
+
     data class Skipped(val reason: String) : SyncResult<Nothing>()
 }
 
@@ -246,7 +247,7 @@ sealed class SyncResult<out T> {
 fun <T> Result<T>.toSyncResult(): SyncResult<T> {
     return fold(
         onSuccess = { SyncResult.Success(it) },
-        onFailure = { SyncResult.Error(it.message ?: "Unknown error", it) }
+        onFailure = { SyncResult.Error(it.message ?: "Unknown error", it) },
     )
 }
 
@@ -256,7 +257,7 @@ fun <T> Result<T>.toSyncResult(): SyncResult<T> {
  */
 suspend fun OfflineQueue.enqueueNoteOperation(
     note: Note,
-    operation: NoteOperation
+    operation: NoteOperation,
 ) {
     when (operation) {
         is NoteOperation.Create -> enqueueNoteUpdate(note)
@@ -270,6 +271,8 @@ suspend fun OfflineQueue.enqueueNoteOperation(
  */
 sealed class NoteOperation {
     data object Create : NoteOperation()
+
     data object Update : NoteOperation()
+
     data object Delete : NoteOperation()
 }

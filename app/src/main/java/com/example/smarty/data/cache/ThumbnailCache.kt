@@ -8,7 +8,7 @@ import java.io.File
  * Wrapper around CacheManager for type-safe thumbnail operations
  */
 class ThumbnailCache(
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
 ) {
     /**
      * Get cached thumbnail file if exists
@@ -21,7 +21,10 @@ class ThumbnailCache(
     /**
      * Cache a thumbnail bitmap
      */
-    suspend fun put(url: String, bitmap: Bitmap): File? {
+    suspend fun put(
+        url: String,
+        bitmap: Bitmap,
+    ): File? {
         return cacheManager.cacheThumbnail(url, bitmap)
     }
 

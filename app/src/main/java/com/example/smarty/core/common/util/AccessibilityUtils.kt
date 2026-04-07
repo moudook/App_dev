@@ -4,7 +4,6 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -20,14 +19,14 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Minimum touch target size for accessibility (WCAG 2.1 AA compliant).
- * 
+ *
  * All interactive elements MUST be at least 48dp x 48dp.
  */
 val MinTouchTargetSize = 48.dp
 
 /**
  * Creates an accessible clickable modifier with proper semantics.
- * 
+ *
  * This modifier ensures:
  * - Minimum 48dp touch target (WCAG compliant)
  * - Proper content description for screen readers
@@ -62,10 +61,10 @@ fun Modifier.accessibleClickable(
     contentDescription: String,
     enabled: Boolean = true,
     role: Role = Role.Button,
-    shape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    shape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
-    
+
     return this
         // Ensure minimum 48dp touch target
         .sizeIn(minWidth = MinTouchTargetSize, minHeight = MinTouchTargetSize)
@@ -75,7 +74,7 @@ fun Modifier.accessibleClickable(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interactionSource,
-            indication = LocalIndication.current
+            indication = LocalIndication.current,
         )
         // Add semantics for accessibility
         .semantics {
@@ -89,7 +88,7 @@ fun Modifier.accessibleClickable(
 
 /**
  * Creates an accessible clickable modifier for icon buttons.
- * 
+ *
  * Similar to accessibleClickable but optimized for icon-sized elements.
  * Ensures the touch target is 48dp even if the icon is smaller.
  *
@@ -107,7 +106,7 @@ fun Modifier.accessibleClickable(
 fun Modifier.iconButtonClickable(
     onClick: () -> Unit,
     contentDescription: String,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ): Modifier {
     return this
         .sizeIn(minWidth = MinTouchTargetSize, minHeight = MinTouchTargetSize)
@@ -115,13 +114,13 @@ fun Modifier.iconButtonClickable(
             onClick = onClick,
             contentDescription = contentDescription,
             enabled = enabled,
-            role = Role.Button
+            role = Role.Button,
         )
 }
 
 /**
  * Checks if a color has sufficient contrast against a background.
- * 
+ *
  * WCAG 2.1 AA requires:
  * - 4.5:1 for normal text (< 18pt or < 14pt bold)
  * - 3:1 for large text (≥ 18pt or ≥ 14pt bold)
@@ -142,20 +141,20 @@ fun Modifier.iconButtonClickable(
  */
 fun Color.hasSufficientContrast(
     backgroundColor: Color,
-    isLargeText: Boolean = false
+    isLargeText: Boolean = false,
 ): Boolean {
     val luminance1 = this.luminance()
     val luminance2 = backgroundColor.luminance()
-    
+
     val lighter = maxOf(luminance1, luminance2)
     val darker = minOf(luminance1, luminance2)
-    
+
     val contrastRatio = (lighter + 0.05f) / (darker + 0.05f)
-    
+
     return if (isLargeText) {
-        contrastRatio >= 3.0f  // 3:1 for large text
+        contrastRatio >= 3.0f // 3:1 for large text
     } else {
-        contrastRatio >= 4.5f  // 4.5:1 for normal text
+        contrastRatio >= 4.5f // 4.5:1 for normal text
     }
 }
 
@@ -173,13 +172,13 @@ private fun Color.luminance(): Float {
     }
 
     return 0.2126f * red.luminanceComponent() +
-           0.7152f * green.luminanceComponent() +
-           0.0722f * blue.luminanceComponent()
+        0.7152f * green.luminanceComponent() +
+        0.0722f * blue.luminanceComponent()
 }
 
 /**
  * Get a color with sufficient contrast against a background.
- * 
+ *
  * If the color doesn't have sufficient contrast, returns a modified version
  * that does have sufficient contrast.
  *
@@ -190,12 +189,12 @@ private fun Color.luminance(): Float {
  */
 fun Color.withContrastAgainst(
     backgroundColor: Color,
-    isLargeText: Boolean = false
+    isLargeText: Boolean = false,
 ): Color {
     if (hasSufficientContrast(backgroundColor, isLargeText)) {
         return this
     }
-    
+
     // Determine if we should lighten or darken
     val bgLuminance = backgroundColor.luminance()
     return if (bgLuminance > 0.5f) {

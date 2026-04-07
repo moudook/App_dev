@@ -17,7 +17,7 @@ import java.nio.channels.Channels
  */
 object FileUtil {
     private const val TAG = "FileUtil"
-    
+
     // Buffer sizes optimized for mobile storage
     private const val FAST_BUFFER_SIZE = 8192
     private const val BULK_BUFFER_SIZE = 65536
@@ -33,7 +33,11 @@ object FileUtil {
      * @param destFile Destination file
      * @return true if copy succeeded, false otherwise
      */
-    fun copyUriToFile(context: Context, uri: Uri, destFile: File): Boolean {
+    fun copyUriToFile(
+        context: Context,
+        uri: Uri,
+        destFile: File,
+    ): Boolean {
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val fileSize = getFileSizeFromUri(context, uri) ?: 0L
@@ -57,7 +61,10 @@ object FileUtil {
     /**
      * NIO-based file copy for large files.
      */
-    private fun copyWithNioChannel(input: java.io.InputStream, destFile: File) {
+    private fun copyWithNioChannel(
+        input: java.io.InputStream,
+        destFile: File,
+    ) {
         val readChannel = Channels.newChannel(BufferedInputStream(input, BULK_BUFFER_SIZE))
         FileOutputStream(destFile).channel.use { writeChannel ->
             readChannel.use { src ->
@@ -74,13 +81,18 @@ object FileUtil {
     /**
      * Get file size from URI.
      */
-    fun getFileSizeFromUri(context: Context, uri: Uri): Long? {
+    fun getFileSizeFromUri(
+        context: Context,
+        uri: Uri,
+    ): Long? {
         return try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
                     if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get file size for $uri", e)
@@ -91,13 +103,18 @@ object FileUtil {
     /**
      * Get file name from URI.
      */
-    fun getFileNameFromUri(context: Context, uri: Uri): String? {
+    fun getFileNameFromUri(
+        context: Context,
+        uri: Uri,
+    ): String? {
         return try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                     if (nameIndex >= 0) cursor.getString(nameIndex) else null
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get file name for $uri", e)
@@ -108,14 +125,21 @@ object FileUtil {
     /**
      * Get MIME type from URI.
      */
-    fun getMimeTypeFromUri(context: Context, uri: Uri): String {
+    fun getMimeTypeFromUri(
+        context: Context,
+        uri: Uri,
+    ): String {
         return context.contentResolver.getType(uri) ?: "application/octet-stream"
     }
 
     /**
      * Create a temporary file in app's cache directory.
      */
-    fun createTempFile(context: Context, prefix: String, suffix: String? = null): File {
+    fun createTempFile(
+        context: Context,
+        prefix: String,
+        suffix: String? = null,
+    ): File {
         val cacheDir = context.cacheDir
         return File.createTempFile(prefix, suffix, cacheDir)
     }
@@ -123,7 +147,10 @@ object FileUtil {
     /**
      * Create a file in app's files directory.
      */
-    fun createAppFile(context: Context, filename: String): File {
+    fun createAppFile(
+        context: Context,
+        filename: String,
+    ): File {
         return File(context.filesDir, filename)
     }
 

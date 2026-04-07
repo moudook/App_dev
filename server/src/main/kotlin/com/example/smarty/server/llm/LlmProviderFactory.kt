@@ -8,11 +8,11 @@ import org.slf4j.LoggerFactory
 
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
-    
+
     // Cached provider instance to avoid recreating on each request
     @Volatile
     private var cachedProvider: LlmProvider? = null
-    
+
     // Cached HTTP client for reuse
     @Volatile
     private var cachedHttpClient: HttpClient? = null
@@ -37,7 +37,7 @@ object LlmProviderFactory {
             else -> "${provider.uppercase()}_API_KEY"
         }
     }
-    
+
     /**
      * Get or create a cached HTTP client for reuse across requests
      */
@@ -57,14 +57,21 @@ object LlmProviderFactory {
         }
     }
 
-    fun create(client: HttpClient, providerOverride: String? = null, baseUrlOverride: String? = null, apiKeyOverride: String? = null, modelIdOverride: String? = null): LlmProvider {
-        val activeProvider = providerOverride?.uppercase()
-            ?: System.getenv("ACTIVE_PROVIDER")?.uppercase()
-            ?: "GEMINI"
-        
+    fun create(
+        client: HttpClient,
+        providerOverride: String? = null,
+        baseUrlOverride: String? = null,
+        apiKeyOverride: String? = null,
+        modelIdOverride: String? = null,
+    ): LlmProvider {
+        val activeProvider =
+            providerOverride?.uppercase()
+                ?: System.getenv("ACTIVE_PROVIDER")?.uppercase()
+                ?: "GEMINI"
+
         val envBaseUrl = System.getenv("LLM_BASE_URL")?.takeIf { it.isNotBlank() }
         val envModelId = System.getenv("LLM_MODEL_ID")?.takeIf { it.isNotBlank() }
-        
+
         val finalBaseUrl = baseUrlOverride ?: envBaseUrl
         val finalModelId = modelIdOverride ?: envModelId
 
@@ -81,49 +88,85 @@ object LlmProviderFactory {
 
         return when (activeProvider) {
             "GEMINI" -> {
-                if (keys.size > 1) KeyRotatingGeminiProvider(client, keys)
-                else createGemini(client, keys[0])
+                if (keys.size > 1) {
+                    KeyRotatingGeminiProvider(client, keys)
+                } else {
+                    createGemini(client, keys[0])
+                }
             }
             "OPENAI" -> {
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "OpenAI", finalBaseUrl ?: "https://api.openai.com/v1", keys, finalModelId ?: "gpt-4-turbo-preview")
-                else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(
+                        client,
+                        "OpenAI",
+                        finalBaseUrl ?: "https://api.openai.com/v1",
+                        keys,
+                        finalModelId ?: "gpt-4-turbo-preview",
+                    )
+                } else {
+                    createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "GROQ" -> {
                 val url = finalBaseUrl ?: "https://api.groq.com/openai/v1"
                 val model = finalModelId ?: "llama3-70b-8192"
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Groq", url, keys, model)
-                else createGroq(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(client, "Groq", url, keys, model)
+                } else {
+                    createGroq(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "DEEPSEEK" -> {
                 val url = finalBaseUrl ?: "https://api.deepseek.com"
                 val model = finalModelId ?: "deepseek-chat"
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "DeepSeek", url, keys, model)
-                else createDeepSeek(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(client, "DeepSeek", url, keys, model)
+                } else {
+                    createDeepSeek(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "OPENROUTER" -> {
                 val url = finalBaseUrl ?: "https://openrouter.ai/api/v1"
                 val model = finalModelId ?: "openai/gpt-4o"
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "OpenRouter", url, keys, model)
-                else createOpenRouter(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(client, "OpenRouter", url, keys, model)
+                } else {
+                    createOpenRouter(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "CEREBRAS" -> {
                 val url = finalBaseUrl ?: "https://api.cerebras.ai/v1"
                 val model = finalModelId ?: "llama3.1-70b"
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Cerebras", url, keys, model)
-                else createCerebras(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(client, "Cerebras", url, keys, model)
+                } else {
+                    createCerebras(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "GITHUB" -> {
                 val url = finalBaseUrl ?: "https://models.inference.ai.azure.com"
                 val model = finalModelId ?: "gpt-4o"
-                if (keys.size > 1) KeyRotatingOpenAiProvider(client, "GitHub Models", url, keys, model)
-                else createGitHub(client, keys[0], finalBaseUrl, finalModelId)
+                if (keys.size > 1) {
+                    KeyRotatingOpenAiProvider(client, "GitHub Models", url, keys, model)
+                } else {
+                    createGitHub(client, keys[0], finalBaseUrl, finalModelId)
+                }
             }
             "LOCAL", "LOCAL_PC" -> createLocal(client, finalBaseUrl, keys.firstOrNull(), finalModelId)
             "MOCK" -> createMock(client)
             "CUSTOM", "OPENAI_COMPATIBLE" -> {
                 if (keys.isNotEmpty()) {
-                    if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Custom", finalBaseUrl ?: "http://localhost:8000/v1", keys, finalModelId ?: "llama3")
-                    else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                    if (keys.size > 1) {
+                        KeyRotatingOpenAiProvider(
+                            client,
+                            "Custom",
+                            finalBaseUrl ?: "http://localhost:8000/v1",
+                            keys,
+                            finalModelId ?: "llama3",
+                        )
+                    } else {
+                        createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                    }
                 } else {
                     createLocal(client, finalBaseUrl, null, finalModelId)
                 }
@@ -133,16 +176,28 @@ object LlmProviderFactory {
                 if (finalBaseUrl != null) {
                     logger.info("Unknown provider: $activeProvider. Using as OpenAI-compatible with baseUrl: $finalBaseUrl")
                     if (keys.isNotEmpty()) {
-                        if (keys.size > 1) KeyRotatingOpenAiProvider(client, "Custom", finalBaseUrl, keys, finalModelId ?: "llama3")
-                        else createOpenAi(client, keys.first(), finalBaseUrl, finalModelId)
+                        if (keys.size > 1) {
+                            KeyRotatingOpenAiProvider(client, "Custom", finalBaseUrl, keys, finalModelId ?: "llama3")
+                        } else {
+                            createOpenAi(client, keys.first(), finalBaseUrl, finalModelId)
+                        }
                     } else {
                         createLocal(client, finalBaseUrl, null, finalModelId)
                     }
                 } else {
                     logger.warn("Unknown provider: $activeProvider with no LLM_BASE_URL. Falling back to OpenAI.")
                     if (keys.isNotEmpty()) {
-                        if (keys.size > 1) KeyRotatingOpenAiProvider(client, "OpenAI", finalBaseUrl ?: "https://api.openai.com/v1", keys, finalModelId ?: "gpt-4-turbo-preview")
-                        else createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                        if (keys.size > 1) {
+                            KeyRotatingOpenAiProvider(
+                                client,
+                                "OpenAI",
+                                finalBaseUrl ?: "https://api.openai.com/v1",
+                                keys,
+                                finalModelId ?: "gpt-4-turbo-preview",
+                            )
+                        } else {
+                            createOpenAi(client, keys[0], finalBaseUrl, finalModelId)
+                        }
                     } else {
                         createMock(client)
                     }
@@ -151,74 +206,113 @@ object LlmProviderFactory {
         }
     }
 
-    private fun createOpenAi(client: HttpClient, apiKey: String, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createOpenAi(
+        client: HttpClient,
+        apiKey: String,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "OpenAI",
         baseUrl = baseUrlOverride ?: "https://api.openai.com/v1",
         apiKey = apiKey,
-        defaultModel = modelIdOverride ?: "gpt-4-turbo-preview"
+        defaultModel = modelIdOverride ?: "gpt-4-turbo-preview",
     )
 
-    private fun createGroq(client: HttpClient, apiKey: String?, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createGroq(
+        client: HttpClient,
+        apiKey: String?,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Groq",
         baseUrl = baseUrlOverride ?: "https://api.groq.com/openai/v1",
         apiKey = apiKey ?: "",
-        defaultModel = modelIdOverride ?: "llama3-70b-8192"
+        defaultModel = modelIdOverride ?: "llama3-70b-8192",
     )
 
-    private fun createDeepSeek(client: HttpClient, apiKey: String?, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createDeepSeek(
+        client: HttpClient,
+        apiKey: String?,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "DeepSeek",
         baseUrl = baseUrlOverride ?: "https://api.deepseek.com",
         apiKey = apiKey ?: "",
-        defaultModel = modelIdOverride ?: "deepseek-chat"
+        defaultModel = modelIdOverride ?: "deepseek-chat",
     )
 
-    private fun createGemini(client: HttpClient, apiKey: String) = GeminiProvider(
+    private fun createGemini(
+        client: HttpClient,
+        apiKey: String,
+    ) = GeminiProvider(
         client = client,
-        apiKey = apiKey
+        apiKey = apiKey,
     )
 
-    private fun createOpenRouter(client: HttpClient, apiKey: String?, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createOpenRouter(
+        client: HttpClient,
+        apiKey: String?,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "OpenRouter",
         baseUrl = baseUrlOverride ?: "https://openrouter.ai/api/v1",
         apiKey = apiKey ?: "",
-        defaultModel = modelIdOverride ?: "openai/gpt-4o"
+        defaultModel = modelIdOverride ?: "openai/gpt-4o",
     )
 
-    private fun createCerebras(client: HttpClient, apiKey: String?, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createCerebras(
+        client: HttpClient,
+        apiKey: String?,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Cerebras",
         baseUrl = baseUrlOverride ?: "https://api.cerebras.ai/v1",
         apiKey = apiKey ?: "",
-        defaultModel = modelIdOverride ?: "llama3.1-70b"
+        defaultModel = modelIdOverride ?: "llama3.1-70b",
     )
 
-    private fun createGitHub(client: HttpClient, apiKey: String?, baseUrlOverride: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createGitHub(
+        client: HttpClient,
+        apiKey: String?,
+        baseUrlOverride: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "GitHub Models",
         baseUrl = baseUrlOverride ?: "https://models.inference.ai.azure.com",
         apiKey = apiKey ?: "",
-        defaultModel = modelIdOverride ?: "gpt-4o"
+        defaultModel = modelIdOverride ?: "gpt-4o",
     )
 
-    private fun createLocal(client: HttpClient, baseUrlOverride: String?, apiKey: String?, modelIdOverride: String?) = OpenAiCompatibleProvider(
+    private fun createLocal(
+        client: HttpClient,
+        baseUrlOverride: String?,
+        apiKey: String?,
+        modelIdOverride: String?,
+    ) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Local LLM",
         baseUrl = baseUrlOverride ?: System.getenv("LOCAL_LLM_URL") ?: "http://localhost:8000/v1",
         apiKey = apiKey ?: System.getenv("LOCAL_LLM_KEY") ?: "not-needed",
-        defaultModel = modelIdOverride ?: System.getenv("LOCAL_LLM_MODEL") ?: "chatglm3-6b"
+        defaultModel = modelIdOverride ?: System.getenv("LOCAL_LLM_MODEL") ?: "chatglm3-6b",
     )
 
-    private fun createMock(client: HttpClient) = OpenAiCompatibleProvider(
-        client = client,
-        providerName = "Mock",
-        baseUrl = "http://localhost:7860/mock",
-        apiKey = "mock-key",
-        defaultModel = "mock-model"
-    )
+    private fun createMock(client: HttpClient) =
+        OpenAiCompatibleProvider(
+            client = client,
+            providerName = "Mock",
+            baseUrl = "http://localhost:7860/mock",
+            apiKey = "mock-key",
+            defaultModel = "mock-model",
+        )
 }
 
 class KeyRotatingOpenAiProvider(
@@ -226,9 +320,8 @@ class KeyRotatingOpenAiProvider(
     private val baseProviderName: String,
     private val baseUrl: String,
     private val apiKeys: List<String>,
-    private val defaultModel: String
+    private val defaultModel: String,
 ) : LlmProvider {
-
     private val logger = LoggerFactory.getLogger(KeyRotatingOpenAiProvider::class.java)
 
     /**
@@ -241,7 +334,7 @@ class KeyRotatingOpenAiProvider(
     override val providerName: String
         get() {
             val invalidCount = kotlinx.coroutines.runBlocking { rotationManager.getInvalidKeys().size }
-            return "$baseProviderName (Rotating ${apiKeys.size} keys, ${invalidCount} invalid)"
+            return "$baseProviderName (Rotating ${apiKeys.size} keys, $invalidCount invalid)"
         }
 
     /**
@@ -281,7 +374,7 @@ class KeyRotatingOpenAiProvider(
         attempt: Int,
         baseDelay: Long = 500L,
         maxDelay: Long = 5000L,
-        jitter: Double = 0.1
+        jitter: Double = 0.1,
     ) {
         // Exponential backoff: baseDelay * 2^attempt
         val exponentialDelay = baseDelay * (1L shl attempt)
@@ -304,7 +397,7 @@ class KeyRotatingOpenAiProvider(
             providerName = baseProviderName,
             baseUrl = baseUrl,
             apiKey = apiKey,
-            defaultModel = defaultModel
+            defaultModel = defaultModel,
         )
     }
 
@@ -331,7 +424,7 @@ class KeyRotatingOpenAiProvider(
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
+        model: String?,
     ): LlmResponse {
         // Use a default session ID for generate calls (no session tracking needed for non-streaming)
         val sessionId = "generate-${System.currentTimeMillis()}"
@@ -343,25 +436,25 @@ class KeyRotatingOpenAiProvider(
 
         while (attempt < maxAttempts) {
             // Get current key index (session-affine, skips invalid keys)
-            val keyIndex = sessionContext.getCurrentKeyIndex()
-                ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
+            val keyIndex =
+                sessionContext.getCurrentKeyIndex()
+                    ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
 
             val apiKey = apiKeys[keyIndex]
             val provider = createProvider(apiKey)
 
             try {
                 logger.debug(
-                    "[$sessionId] Generate with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)"
+                    "[$sessionId] Generate with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)",
                 )
 
                 return provider.generate(messages, tools, model)
-
             } catch (e: Exception) {
                 // Bug 2 Fix: Check for permanent failures - don't retry these
                 if (isPermanentFailure(e)) {
                     logger.warn(
                         "[$sessionId] Permanent failure detected for $baseProviderName: ${e.message?.take(200)}. " +
-                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                            "Not retrying - schema/deserialization errors won't be fixed by retrying.",
                     )
                     throw e
                 }
@@ -376,7 +469,7 @@ class KeyRotatingOpenAiProvider(
                         sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
                             "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: InvalidKey. " +
-                            "Rotating to next key."
+                                "Rotating to next key.",
                         )
                         attempt++
                     }
@@ -386,19 +479,20 @@ class KeyRotatingOpenAiProvider(
                         sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
                             "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: RateLimited. " +
-                            "Rotating and retrying with backoff..."
+                                "Rotating and retrying with backoff...",
                         )
                         delayWithBackoff(attempt)
                         attempt++
                     }
 
                     is ApiKeyError.ServerError,
-                    is ApiKeyError.NetworkError -> {
+                    is ApiKeyError.NetworkError,
+                    -> {
                         // Transient error: retry same key with backoff first
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
                                 "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error::class.simpleName}. " +
-                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                                    "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)...",
                             )
                             delayWithBackoff(attempt)
                             attempt++
@@ -408,7 +502,7 @@ class KeyRotatingOpenAiProvider(
                             sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
                                 "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error::class.simpleName}. " +
-                                "Rotating to next key."
+                                    "Rotating to next key.",
                             )
                             attempt++
                         }
@@ -418,7 +512,7 @@ class KeyRotatingOpenAiProvider(
                         // Unknown error: fail fast, don't rotate
                         logger.error(
                             "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error::class.simpleName}. " +
-                            "Failing fast without rotation."
+                                "Failing fast without rotation.",
                         )
                         throw e
                     }
@@ -450,110 +544,112 @@ class KeyRotatingOpenAiProvider(
     override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
-    ): Flow<LlmChunk> = flow {
-        // Extract or generate session ID from messages for session affinity
-        // This ensures all stream calls within the same agent loop use the same key
-        val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
-        val sessionContext = rotationManager.createSessionContext(sessionId)
+        model: String?,
+    ): Flow<LlmChunk> =
+        flow {
+            // Extract or generate session ID from messages for session affinity
+            // This ensures all stream calls within the same agent loop use the same key
+            val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
+            val sessionContext = rotationManager.createSessionContext(sessionId)
 
-        var lastException: Exception? = null
-        var attempt = 0
-        val maxAttempts = apiKeys.size
+            var lastException: Exception? = null
+            var attempt = 0
+            val maxAttempts = apiKeys.size
 
-        while (attempt < maxAttempts) {
-            // Get current key index (session-affine, skips invalid keys)
-            val keyIndex = sessionContext.getCurrentKeyIndex()
-                ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
+            while (attempt < maxAttempts) {
+                // Get current key index (session-affine, skips invalid keys)
+                val keyIndex =
+                    sessionContext.getCurrentKeyIndex()
+                        ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
 
-            val apiKey = apiKeys[keyIndex]
-            val provider = createProvider(apiKey)
+                val apiKey = apiKeys[keyIndex]
+                val provider = createProvider(apiKey)
 
-            try {
-                logger.debug(
-                    "[$sessionId] Stream with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)"
-                )
-
-                // Stream with this key
-                provider.stream(messages, tools, model).collect { chunk ->
-                    emit(chunk)
-                }
-
-                // Stream completed successfully
-                return@flow
-
-            } catch (e: Exception) {
-                // Bug 2 Fix: Check for permanent failures - don't retry these
-                if (isPermanentFailure(e)) {
-                    logger.warn(
-                        "[$sessionId] Permanent failure detected for $baseProviderName: ${e.message?.take(200)}. " +
-                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                try {
+                    logger.debug(
+                        "[$sessionId] Stream with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)",
                     )
-                    throw e
-                }
 
-                lastException = e
-                val error = ApiKeyErrorClassifier.classify(e)
+                    // Stream with this key
+                    provider.stream(messages, tools, model).collect { chunk ->
+                        emit(chunk)
+                    }
 
-                when (error) {
-                    is ApiKeyError.InvalidKey -> {
-                        // Permanent failure: mark key invalid, rotate
-                        rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
+                    // Stream completed successfully
+                    return@flow
+                } catch (e: Exception) {
+                    // Bug 2 Fix: Check for permanent failures - don't retry these
+                    if (isPermanentFailure(e)) {
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: InvalidKey. " +
-                            "Rotating to next key."
-                        )
-                        attempt++
-                    }
-
-                    is ApiKeyError.RateLimited -> {
-                        // Rate limited: rotate to next key with backoff
-                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
-                        logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: RateLimited. " +
-                            "Rotating and retrying with backoff..."
-                        )
-                        delayWithBackoff(attempt)
-                        attempt++
-                    }
-
-                    is ApiKeyError.ServerError,
-                    is ApiKeyError.NetworkError -> {
-                        // Transient error: retry same key with backoff first
-                        if (attempt < maxAttempts - 1) {
-                            logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error::class.simpleName}. " +
-                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
-                            )
-                            delayWithBackoff(attempt)
-                            attempt++
-                            // Continue loop with same key index (don't rotate yet)
-                        } else {
-                            // Max retries reached: rotate to next key
-                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
-                            logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error::class.simpleName}. " +
-                                "Rotating to next key."
-                            )
-                            attempt++
-                        }
-                    }
-
-                    is ApiKeyError.UnknownError -> {
-                        // Unknown error: fail fast, don't rotate
-                        logger.error(
-                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error::class.simpleName}. " +
-                            "Failing fast without rotation."
+                            "[$sessionId] Permanent failure detected for $baseProviderName: ${e.message?.take(200)}. " +
+                                "Not retrying - schema/deserialization errors won't be fixed by retrying.",
                         )
                         throw e
                     }
+
+                    lastException = e
+                    val error = ApiKeyErrorClassifier.classify(e)
+
+                    when (error) {
+                        is ApiKeyError.InvalidKey -> {
+                            // Permanent failure: mark key invalid, rotate
+                            rotationManager.markKeyInvalid(keyIndex)
+                            sessionContext.rotateToNextKey("InvalidKey", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: InvalidKey. " +
+                                    "Rotating to next key.",
+                            )
+                            attempt++
+                        }
+
+                        is ApiKeyError.RateLimited -> {
+                            // Rate limited: rotate to next key with backoff
+                            sessionContext.rotateToNextKey("RateLimited", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: RateLimited. " +
+                                    "Rotating and retrying with backoff...",
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                        }
+
+                        is ApiKeyError.ServerError,
+                        is ApiKeyError.NetworkError,
+                        -> {
+                            // Transient error: retry same key with backoff first
+                            if (attempt < maxAttempts - 1) {
+                                logger.warn(
+                                    "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error::class.simpleName}. " +
+                                        "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)...",
+                                )
+                                delayWithBackoff(attempt)
+                                attempt++
+                                // Continue loop with same key index (don't rotate yet)
+                            } else {
+                                // Max retries reached: rotate to next key
+                                sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
+                                logger.warn(
+                                    "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error::class.simpleName}. " +
+                                        "Rotating to next key.",
+                                )
+                                attempt++
+                            }
+                        }
+
+                        is ApiKeyError.UnknownError -> {
+                            // Unknown error: fail fast, don't rotate
+                            logger.error(
+                                "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error::class.simpleName}. " +
+                                    "Failing fast without rotation.",
+                            )
+                            throw e
+                        }
+                    }
                 }
             }
-        }
 
-        throw lastException ?: IllegalStateException("[$baseProviderName] All API keys failed after $maxAttempts attempts")
-    }
+            throw lastException ?: IllegalStateException("[$baseProviderName] All API keys failed after $maxAttempts attempts")
+        }
 
     /**
      * Extracts session ID from messages for session affinity.
@@ -587,9 +683,8 @@ class KeyRotatingOpenAiProvider(
 
 class KeyRotatingGeminiProvider(
     private val client: HttpClient,
-    private val apiKeys: List<String>
+    private val apiKeys: List<String>,
 ) : LlmProvider {
-
     private val logger = LoggerFactory.getLogger(KeyRotatingGeminiProvider::class.java)
 
     /**
@@ -602,7 +697,7 @@ class KeyRotatingGeminiProvider(
     override val providerName: String
         get() {
             val invalidCount = kotlinx.coroutines.runBlocking { rotationManager.getInvalidKeys().size }
-            return "Gemini (Rotating ${apiKeys.size} keys, ${invalidCount} invalid)"
+            return "Gemini (Rotating ${apiKeys.size} keys, $invalidCount invalid)"
         }
 
     /**
@@ -635,7 +730,7 @@ class KeyRotatingGeminiProvider(
         attempt: Int,
         baseDelay: Long = 500L,
         maxDelay: Long = 5000L,
-        jitter: Double = 0.1
+        jitter: Double = 0.1,
     ) {
         val exponentialDelay = baseDelay * (1L shl attempt)
         val cappedDelay = minOf(exponentialDelay, maxDelay)
@@ -669,7 +764,7 @@ class KeyRotatingGeminiProvider(
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
+        model: String?,
     ): LlmResponse {
         val sessionId = "generate-${System.currentTimeMillis()}"
         val sessionContext = rotationManager.createSessionContext(sessionId)
@@ -679,25 +774,25 @@ class KeyRotatingGeminiProvider(
         val maxAttempts = apiKeys.size
 
         while (attempt < maxAttempts) {
-            val keyIndex = sessionContext.getCurrentKeyIndex()
-                ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
+            val keyIndex =
+                sessionContext.getCurrentKeyIndex()
+                    ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
 
             val apiKey = apiKeys[keyIndex]
             val provider = createProvider(apiKey)
 
             try {
                 logger.debug(
-                    "[$sessionId] Generate with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)"
+                    "[$sessionId] Generate with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)",
                 )
 
                 return provider.generate(messages, tools, model)
-
             } catch (e: Exception) {
                 // Bug 2 Fix: Check for permanent failures - don't retry these
                 if (isPermanentFailure(e)) {
                     logger.warn(
                         "[$sessionId] Permanent failure detected for Gemini: ${e.message?.take(200)}. " +
-                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                            "Not retrying - schema/deserialization errors won't be fixed by retrying.",
                     )
                     throw e
                 }
@@ -711,7 +806,7 @@ class KeyRotatingGeminiProvider(
                         sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
                             "[$sessionId] Key #$keyIndex INVALID for Gemini: InvalidKey. " +
-                            "Rotating to next key."
+                                "Rotating to next key.",
                         )
                         attempt++
                     }
@@ -720,18 +815,19 @@ class KeyRotatingGeminiProvider(
                         sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
                             "[$sessionId] Key #$keyIndex rate limited for Gemini: RateLimited. " +
-                            "Rotating and retrying with backoff..."
+                                "Rotating and retrying with backoff...",
                         )
                         delayWithBackoff(attempt)
                         attempt++
                     }
 
                     is ApiKeyError.ServerError,
-                    is ApiKeyError.NetworkError -> {
+                    is ApiKeyError.NetworkError,
+                    -> {
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
                                 "[$sessionId] Key #$keyIndex transient error for Gemini: ${error::class.simpleName}. " +
-                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                                    "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)...",
                             )
                             delayWithBackoff(attempt)
                             attempt++
@@ -739,7 +835,7 @@ class KeyRotatingGeminiProvider(
                             sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
                                 "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error::class.simpleName}. " +
-                                "Rotating to next key."
+                                    "Rotating to next key.",
                             )
                             attempt++
                         }
@@ -748,7 +844,7 @@ class KeyRotatingGeminiProvider(
                     is ApiKeyError.UnknownError -> {
                         logger.error(
                             "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error::class.simpleName}. " +
-                            "Failing fast without rotation."
+                                "Failing fast without rotation.",
                         )
                         throw e
                     }
@@ -776,99 +872,101 @@ class KeyRotatingGeminiProvider(
     override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
-    ): Flow<LlmChunk> = flow {
-        val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
-        val sessionContext = rotationManager.createSessionContext(sessionId)
+        model: String?,
+    ): Flow<LlmChunk> =
+        flow {
+            val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
+            val sessionContext = rotationManager.createSessionContext(sessionId)
 
-        var lastException: Exception? = null
-        var attempt = 0
-        val maxAttempts = apiKeys.size
+            var lastException: Exception? = null
+            var attempt = 0
+            val maxAttempts = apiKeys.size
 
-        while (attempt < maxAttempts) {
-            val keyIndex = sessionContext.getCurrentKeyIndex()
-                ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
+            while (attempt < maxAttempts) {
+                val keyIndex =
+                    sessionContext.getCurrentKeyIndex()
+                        ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
 
-            val apiKey = apiKeys[keyIndex]
-            val provider = createProvider(apiKey)
+                val apiKey = apiKeys[keyIndex]
+                val provider = createProvider(apiKey)
 
-            try {
-                logger.debug(
-                    "[$sessionId] Stream with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)"
-                )
-
-                provider.stream(messages, tools, model).collect { chunk ->
-                    emit(chunk)
-                }
-
-                return@flow
-
-            } catch (e: Exception) {
-                // Bug 2 Fix: Check for permanent failures - don't retry these
-                if (isPermanentFailure(e)) {
-                    logger.warn(
-                        "[$sessionId] Permanent failure detected for Gemini: ${e.message?.take(200)}. " +
-                        "Not retrying - schema/deserialization errors won't be fixed by retrying."
+                try {
+                    logger.debug(
+                        "[$sessionId] Stream with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)",
                     )
-                    throw e
-                }
 
-                lastException = e
-                val error = ApiKeyErrorClassifier.classify(e)
+                    provider.stream(messages, tools, model).collect { chunk ->
+                        emit(chunk)
+                    }
 
-                when (error) {
-                    is ApiKeyError.InvalidKey -> {
-                        rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
+                    return@flow
+                } catch (e: Exception) {
+                    // Bug 2 Fix: Check for permanent failures - don't retry these
+                    if (isPermanentFailure(e)) {
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for Gemini: InvalidKey. " +
-                            "Rotating to next key."
-                        )
-                        attempt++
-                    }
-
-                    is ApiKeyError.RateLimited -> {
-                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
-                        logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for Gemini: RateLimited. " +
-                            "Rotating and retrying with backoff..."
-                        )
-                        delayWithBackoff(attempt)
-                        attempt++
-                    }
-
-                    is ApiKeyError.ServerError,
-                    is ApiKeyError.NetworkError -> {
-                        if (attempt < maxAttempts - 1) {
-                            logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error::class.simpleName}. " +
-                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
-                            )
-                            delayWithBackoff(attempt)
-                            attempt++
-                        } else {
-                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
-                            logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error::class.simpleName}. " +
-                                "Rotating to next key."
-                            )
-                            attempt++
-                        }
-                    }
-
-                    is ApiKeyError.UnknownError -> {
-                        logger.error(
-                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error::class.simpleName}. " +
-                            "Failing fast without rotation."
+                            "[$sessionId] Permanent failure detected for Gemini: ${e.message?.take(200)}. " +
+                                "Not retrying - schema/deserialization errors won't be fixed by retrying.",
                         )
                         throw e
                     }
+
+                    lastException = e
+                    val error = ApiKeyErrorClassifier.classify(e)
+
+                    when (error) {
+                        is ApiKeyError.InvalidKey -> {
+                            rotationManager.markKeyInvalid(keyIndex)
+                            sessionContext.rotateToNextKey("InvalidKey", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex INVALID for Gemini: InvalidKey. " +
+                                    "Rotating to next key.",
+                            )
+                            attempt++
+                        }
+
+                        is ApiKeyError.RateLimited -> {
+                            sessionContext.rotateToNextKey("RateLimited", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex rate limited for Gemini: RateLimited. " +
+                                    "Rotating and retrying with backoff...",
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                        }
+
+                        is ApiKeyError.ServerError,
+                        is ApiKeyError.NetworkError,
+                        -> {
+                            if (attempt < maxAttempts - 1) {
+                                logger.warn(
+                                    "[$sessionId] Key #$keyIndex transient error for Gemini: ${error::class.simpleName}. " +
+                                        "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)...",
+                                )
+                                delayWithBackoff(attempt)
+                                attempt++
+                            } else {
+                                sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
+                                logger.warn(
+                                    "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error::class.simpleName}. " +
+                                        "Rotating to next key.",
+                                )
+                                attempt++
+                            }
+                        }
+
+                        is ApiKeyError.UnknownError -> {
+                            logger.error(
+                                "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error::class.simpleName}. " +
+                                    "Failing fast without rotation.",
+                            )
+                            throw e
+                        }
+                    }
                 }
             }
-        }
 
-        throw lastException ?: IllegalStateException("[Gemini] All API keys failed after $maxAttempts attempts")
-    }
+            throw lastException ?: IllegalStateException("[Gemini] All API keys failed after $maxAttempts attempts")
+        }
 
     /**
      * Extracts session ID from messages for session affinity.

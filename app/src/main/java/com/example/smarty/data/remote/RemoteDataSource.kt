@@ -18,7 +18,7 @@ import kotlinx.coroutines.tasks.await
 class RemoteDataSource(
     private val client: HttpClient,
     private val serverUrlProvider: () -> String,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
 ) {
     companion object {
         private const val TAG = "RemoteDataSource"
@@ -61,18 +61,21 @@ class RemoteDataSource(
      * @param lastSyncAt Timestamp of last sync (for delta-sync, null = full sync)
      * @param limit Maximum items to return per category
      */
-    suspend fun pullAllData(lastSyncAt: Long? = null, limit: Int = 1000): SyncPullResponse? {
+    suspend fun pullAllData(
+        lastSyncAt: Long? = null,
+        limit: Int = 1000,
+    ): SyncPullResponse? {
         Log.i(TAG, ">>> RemoteDataSource.pullAllData STARTING - lastSyncAt=$lastSyncAt")
         val serverUrl = serverUrlProvider()
         Log.d(TAG, "Server URL: $serverUrl")
-        
+
         val token = getFirebaseToken()
         if (token == null) {
             Log.e(TAG, "Cannot pull data - no Firebase authentication token available")
             return null
         }
         Log.d(TAG, "Firebase token obtained successfully")
-        
+
         return try {
             // Retry logic with exponential backoff
             val maxRetries = 3
@@ -81,22 +84,33 @@ class RemoteDataSource(
             for (attempt in 1..maxRetries) {
                 try {
                     Log.d(TAG, "Pull attempt $attempt/$maxRetries to $serverUrl/api/v1/sync/pull")
-                    val response = client.post("$serverUrl/api/v1/sync/pull") {
-                        addAuthHeaders(token)
-                        contentType(ContentType.Application.Json)
-                        // DELTA SYNC: Send lastSyncAt timestamp
-                        setBody(mapOf(
-                            "lastSyncAt" to (lastSyncAt ?: 0L),
-                            "limit" to limit
-                        ))
-                    }
+                    val response =
+                        client.post("$serverUrl/api/v1/sync/pull") {
+                            addAuthHeaders(token)
+                            contentType(ContentType.Application.Json)
+                            // DELTA SYNC: Send lastSyncAt timestamp
+                            setBody(
+                                mapOf(
+                                    "lastSyncAt" to (lastSyncAt ?: 0L),
+                                    "limit" to limit,
+                                ),
+                            )
+                        }
 
                     if (response.status.isSuccess()) {
                         val pullResponse: SyncPullResponse = response.body()
-                        Log.i(TAG, "Pull successful: ${pullResponse.notes.size} notes, ${pullResponse.sessions.size} sessions, ${pullResponse.events.size} events, ${pullResponse.generatedImages.size} images")
+                        Log.i(
+                            TAG,
+                            "Pull successful: ${pullResponse.notes.size} notes, ${pullResponse.sessions.size} sessions, ${pullResponse.events.size} events, ${pullResponse.generatedImages.size} images",
+                        )
                         return pullResponse
                     } else {
-                        val errorBody = try { response.body<String>() } catch (e: Exception) { "Unable to read error body" }
+                        val errorBody =
+                            try {
+                                response.body<String>()
+                            } catch (e: Exception) {
+                                "Unable to read error body"
+                            }
                         Log.e(TAG, "Failed to pull data: ${response.status} (attempt $attempt) - $errorBody")
                         if (attempt == maxRetries) {
                             Log.e(TAG, "Pull failed after $maxRetries attempts")
@@ -127,11 +141,12 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/v1/sync/push") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
+            val response =
+                client.post("$baseUrl/api/v1/sync/push") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -150,9 +165,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/v1/sync/status") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/v1/sync/status") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -172,23 +188,29 @@ class RemoteDataSource(
         return try {
             val baseUrl = serverUrlProvider()
             Log.d(TAG, "Fetching notes from: $baseUrl/api/v1/notes")
-            
+
             val token = getFirebaseToken()
             if (token == null) {
                 Log.e(TAG, "Cannot fetch notes - no Firebase authentication token")
                 return emptyList()
             }
 
-            val response = client.get("$baseUrl/api/v1/notes") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/v1/notes") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 val notes: List<NoteInfo> = response.body()
                 Log.i(TAG, "Successfully fetched ${notes.size} notes from server")
                 return notes
             } else {
-                val errorBody = try { response.body<String>() } catch (e: Exception) { "Unable to read error body" }
+                val errorBody =
+                    try {
+                        response.body<String>()
+                    } catch (e: Exception) {
+                        "Unable to read error body"
+                    }
                 Log.e(TAG, "Failed to fetch notes: ${response.status} - $errorBody")
                 emptyList()
             }
@@ -198,16 +220,21 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun createNote(title: String, content: String, category: String?): String? {
+    suspend fun createNote(
+        title: String,
+        content: String,
+        category: String?,
+    ): String? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/v1/notes") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("title" to title, "content" to content, "category" to category))
-            }
+            val response =
+                client.post("$baseUrl/api/v1/notes") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("title" to title, "content" to content, "category" to category))
+                }
 
             if (response.status.isSuccess()) {
                 val result: Map<String, String> = response.body()
@@ -222,16 +249,22 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun updateNote(id: String, title: String?, content: String?, category: String?): Boolean {
+    suspend fun updateNote(
+        id: String,
+        title: String?,
+        content: String?,
+        category: String?,
+    ): Boolean {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = client.put("$baseUrl/api/v1/notes/$id") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("title" to title, "content" to content, "category" to category))
-            }
+            val response =
+                client.put("$baseUrl/api/v1/notes/$id") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("title" to title, "content" to content, "category" to category))
+                }
 
             response.status.isSuccess()
         } catch (e: Exception) {
@@ -245,9 +278,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = client.delete("$baseUrl/api/v1/notes/$id") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/v1/notes/$id") {
+                    addAuthHeaders(token)
+                }
 
             response.status.isSuccess()
         } catch (e: Exception) {
@@ -263,9 +297,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return emptyList()
 
-            val response = client.get("$baseUrl/api/v1/calendar") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/v1/calendar") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -284,23 +319,26 @@ class RemoteDataSource(
         startTime: Long,
         endTime: Long,
         description: String?,
-        reminderMinutes: Int
+        reminderMinutes: Int,
     ): String? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/v1/calendar") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(mapOf(
-                    "title" to title,
-                    "startTime" to startTime,
-                    "endTime" to endTime,
-                    "description" to description,
-                    "reminderMinutes" to reminderMinutes
-                ))
-            }
+            val response =
+                client.post("$baseUrl/api/v1/calendar") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        mapOf(
+                            "title" to title,
+                            "startTime" to startTime,
+                            "endTime" to endTime,
+                            "description" to description,
+                            "reminderMinutes" to reminderMinutes,
+                        ),
+                    )
+                }
 
             if (response.status.isSuccess()) {
                 val result: Map<String, String> = response.body()
@@ -320,9 +358,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = client.delete("$baseUrl/api/v1/calendar/$id") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/v1/calendar/$id") {
+                    addAuthHeaders(token)
+                }
 
             response.status.isSuccess()
         } catch (e: Exception) {
@@ -338,9 +377,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return emptyList()
 
-            val response = client.get("$baseUrl/api/v1/timers") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/v1/timers") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -361,9 +401,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return emptyList()
 
-            val response = client.get("$baseUrl/api/v1/chat/sessions") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/v1/chat/sessions") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -382,11 +423,12 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/v1/chat/sessions") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("title" to title))
-            }
+            val response =
+                client.post("$baseUrl/api/v1/chat/sessions") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("title" to title))
+                }
 
             if (response.status.isSuccess()) {
                 val result: Map<String, String> = response.body()
@@ -403,7 +445,7 @@ class RemoteDataSource(
 
     /**
      * Save a chat message to the server.
-     * 
+     *
      * @param sessionId Chat session ID
      * @param role Message role (USER, ASSISTANT, SYSTEM)
      * @param content Message content
@@ -414,24 +456,25 @@ class RemoteDataSource(
         sessionId: String,
         role: String,
         content: String,
-        thinking: String? = null  // ✅ Added thinking parameter
+        thinking: String? = null, // ✅ Added thinking parameter
     ): Boolean {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = client.post("$baseUrl/api/v1/chat/messages") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    mapOf(
-                        "sessionId" to sessionId,
-                        "role" to role,
-                        "content" to content,
-                        "thinking" to thinking  // ✅ Send thinking to server
+            val response =
+                client.post("$baseUrl/api/v1/chat/messages") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        mapOf(
+                            "sessionId" to sessionId,
+                            "role" to role,
+                            "content" to content,
+                            "thinking" to thinking, // ✅ Send thinking to server
+                        ),
                     )
-                )
-            }
+                }
 
             response.status.isSuccess()
         } catch (e: Exception) {
@@ -445,9 +488,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
+                    addAuthHeaders(token)
+                }
 
             response.status.isSuccess()
         } catch (e: Exception) {
@@ -468,9 +512,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/reasoning/session/$sessionId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/reasoning/session/$sessionId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -492,22 +537,24 @@ class RemoteDataSource(
      */
     suspend fun getReasoningTraces(
         sessionId: String,
-        messageId: String? = null
+        messageId: String? = null,
     ): ReasoningTracesResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val url = buildString {
-                append("$baseUrl/api/reasoning/session/$sessionId/traces")
-                if (messageId != null) {
-                    append("?messageId=$messageId")
+            val url =
+                buildString {
+                    append("$baseUrl/api/reasoning/session/$sessionId/traces")
+                    if (messageId != null) {
+                        append("?messageId=$messageId")
+                    }
                 }
-            }
 
-            val response = client.get(url) {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get(url) {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -531,9 +578,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/reasoning/session/$sessionId/disclosure") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/reasoning/session/$sessionId/disclosure") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -557,11 +605,12 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/reasoning/log") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
+            val response =
+                client.post("$baseUrl/api/reasoning/log") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()

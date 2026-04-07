@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface SyncQueueDao {
-
     // ============================================================================
     // SYNC QUEUE OPERATIONS
     // ============================================================================
@@ -60,7 +59,10 @@ interface SyncQueueDao {
      * Delete all items for a specific entity (e.g., after entity is deleted).
      */
     @Query("DELETE FROM sync_queue WHERE entityId = :entityId AND entityType = :entityType")
-    suspend fun deleteForEntity(entityId: String, entityType: String)
+    suspend fun deleteForEntity(
+        entityId: String,
+        entityType: String,
+    )
 
     /**
      * Get a sync queue item by ID.
@@ -90,7 +92,10 @@ interface SyncQueueDao {
      * Get all items for a specific entity.
      */
     @Query("SELECT * FROM sync_queue WHERE entityId = :entityId AND entityType = :entityType ORDER BY createdAt ASC")
-    suspend fun getItemsForEntity(entityId: String, entityType: String): List<SyncQueueItem>
+    suspend fun getItemsForEntity(
+        entityId: String,
+        entityType: String,
+    ): List<SyncQueueItem>
 
     /**
      * Get count of pending items.
@@ -132,19 +137,28 @@ interface SyncQueueDao {
      * Mark an item as synced with server timestamp.
      */
     @Query("UPDATE sync_queue SET status = 'SYNCED', serverTimestamp = :serverTimestamp WHERE id = :id")
-    suspend fun markSynced(id: String, serverTimestamp: Long)
+    suspend fun markSynced(
+        id: String,
+        serverTimestamp: Long,
+    )
 
     /**
      * Mark an item as failed with error message.
      */
     @Query("UPDATE sync_queue SET status = 'FAILED', lastError = :error, retryCount = retryCount + 1 WHERE id = :id")
-    suspend fun markFailed(id: String, error: String)
+    suspend fun markFailed(
+        id: String,
+        error: String,
+    )
 
     /**
      * Mark an item as conflict.
      */
     @Query("UPDATE sync_queue SET status = 'CONFLICT', lastError = :error WHERE id = :id")
-    suspend fun markConflict(id: String, error: String)
+    suspend fun markConflict(
+        id: String,
+        error: String,
+    )
 
     /**
      * Reset failed items to pending (for manual retry).
@@ -205,7 +219,8 @@ interface SyncQueueDao {
     /**
      * Get sync status summary.
      */
-    @Query("""
+    @Query(
+        """
         SELECT 
             COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending,
             COUNT(CASE WHEN status = 'IN_FLIGHT' THEN 1 END) as inFlight,
@@ -213,13 +228,15 @@ interface SyncQueueDao {
             COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
             COUNT(CASE WHEN status = 'CONFLICT' THEN 1 END) as conflicted
         FROM sync_queue
-    """)
+    """,
+    )
     suspend fun getSyncStatusSummary(): SyncStatusSummary
 
     /**
      * Get sync status summary as Flow.
      */
-    @Query("""
+    @Query(
+        """
         SELECT 
             COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending,
             COUNT(CASE WHEN status = 'IN_FLIGHT' THEN 1 END) as inFlight,
@@ -227,7 +244,8 @@ interface SyncQueueDao {
             COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
             COUNT(CASE WHEN status = 'CONFLICT' THEN 1 END) as conflicted
         FROM sync_queue
-    """)
+    """,
+    )
     fun getSyncStatusSummaryFlow(): Flow<SyncStatusSummary>
 }
 
@@ -239,7 +257,7 @@ data class SyncStatusSummary(
     val inFlight: Int = 0,
     val synced: Int = 0,
     val failed: Int = 0,
-    val conflicted: Int = 0
+    val conflicted: Int = 0,
 ) {
     val total: Int get() = pending + inFlight + synced + failed + conflicted
     val hasPending: Boolean get() = pending > 0

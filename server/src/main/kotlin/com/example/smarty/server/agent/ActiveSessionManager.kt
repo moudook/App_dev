@@ -2,50 +2,55 @@ package com.example.smarty.server.agent
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.slf4j.LoggerFactory
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Tracks active agent sessions across the server.
  * Used to prevent digest scheduler from interrupting ongoing conversations.
- * 
+ *
  * Sessions are tracked per user with timestamps for automatic cleanup.
  */
 object ActiveSessionManager {
     private val logger = LoggerFactory.getLogger(ActiveSessionManager::class.java)
-    
+
     private val activeSessions = ConcurrentHashMap<String, SessionInfo>()
     private val mutex = Mutex()
-    
+
     private const val SESSION_TIMEOUT_MS = 30 * 60 * 1000L // 30 minutes
-    
+
     @Serializable
     data class SessionInfo(
         val sessionId: String,
         val userId: String? = null, // Added to identify user in advanced health
         val startedAt: Long,
         val lastActivity: Long,
-        val operation: String
+        val operation: String,
     )
-    
+
     /**
      * Register an active session for a user.
      */
-    suspend fun startSession(userId: String, sessionId: String, operation: String = "chat") {
+    suspend fun startSession(
+        userId: String,
+        sessionId: String,
+        operation: String = "chat",
+    ) {
         mutex.withLock {
             val now = System.currentTimeMillis()
-            activeSessions[userId] = SessionInfo(
-                sessionId = sessionId,
-                userId = userId,
-                startedAt = now,
-                lastActivity = now,
-                operation = operation
-            )
+            activeSessions[userId] =
+                SessionInfo(
+                    sessionId = sessionId,
+                    userId = userId,
+                    startedAt = now,
+                    lastActivity = now,
+                    operation = operation,
+                )
             logger.debug("Session started: userId=$userId, sessionId=$sessionId, operation=$operation")
         }
     }
-    
+
     /**
      * Update last activity timestamp for a session.
      */
@@ -56,11 +61,14 @@ object ActiveSessionManager {
             }
         }
     }
-    
+
     /**
      * End a session for a user.
      */
-    suspend fun endSession(userId: String, sessionId: String) {
+    suspend fun endSession(
+        userId: String,
+        sessionId: String,
+    ) {
         mutex.withLock {
             val info = activeSessions[userId]
             if (info?.sessionId == sessionId) {
@@ -69,7 +77,7 @@ object ActiveSessionManager {
             }
         }
     }
-    
+
     /**
      * Check if a user has an active session.
      */
@@ -77,7 +85,7 @@ object ActiveSessionManager {
         cleanupStaleSessions()
         return activeSessions.containsKey(userId)
     }
-    
+
     /**
      * Check if any user has an active session.
      */
@@ -85,7 +93,7 @@ object ActiveSessionManager {
         cleanupStaleSessions()
         return activeSessions.isNotEmpty()
     }
-    
+
     /**
      * Get all users with active sessions.
      */
@@ -93,7 +101,7 @@ object ActiveSessionManager {
         cleanupStaleSessions()
         return activeSessions.keys.toSet()
     }
-    
+
     /**
      * Get all active sessions.
      */
@@ -106,24 +114,25 @@ object ActiveSessionManager {
      * Get session info for a user.
      */
     fun getSessionInfo(userId: String): SessionInfo? = activeSessions[userId]
-    
+
     /**
      * Remove stale sessions that have timed out.
      */
     private suspend fun cleanupStaleSessions() {
         mutex.withLock {
             val now = System.currentTimeMillis()
-            val staleUsers = activeSessions.entries
-                .filter { now - it.value.lastActivity > SESSION_TIMEOUT_MS }
-                .map { it.key }
-            
+            val staleUsers =
+                activeSessions.entries
+                    .filter { now - it.value.lastActivity > SESSION_TIMEOUT_MS }
+                    .map { it.key }
+
             staleUsers.forEach { userId ->
                 val info = activeSessions.remove(userId)
                 logger.info("Removed stale session: userId=$userId, sessionId=${info?.sessionId}")
             }
         }
     }
-    
+
     /**
      * Clear all sessions (for testing or shutdown).
      */

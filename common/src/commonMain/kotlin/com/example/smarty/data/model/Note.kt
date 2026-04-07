@@ -1,7 +1,6 @@
 package com.example.smarty.core.domain.model
 
 import androidx.room.Entity
-import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.smarty.core.common.util.PrivacyAware
@@ -18,7 +17,7 @@ data class TodoItem(
     val id: String, // = UUID.randomUUID().toString(),
     val text: String,
     val isCompleted: Boolean = false,
-    val createdAt: Long = 0L // System.currentTimeMillis()
+    val createdAt: Long = 0L, // System.currentTimeMillis()
 )
 
 /**
@@ -27,10 +26,10 @@ data class TodoItem(
  */
 @Serializable
 data class ChunkAnalysis(
-    val index: Int,           // Chunk index (0-based)
-    val totalChunks: Int,     // Total number of chunks
-    val pageRange: String,    // e.g., "1-5", "6-10"
-    val summary: String       // Analysis/summary of this chunk
+    val index: Int, // Chunk index (0-based)
+    val totalChunks: Int, // Total number of chunks
+    val pageRange: String, // e.g., "1-5", "6-10"
+    val summary: String, // Analysis/summary of this chunk
 )
 
 /**
@@ -40,10 +39,10 @@ data class ChunkAnalysis(
 @Serializable
 data class NoteAttachment(
     val id: String, // = UUID.randomUUID().toString(),
-    val uri: String,  // File URI as string
+    val uri: String, // File URI as string
     val fileName: String,
     val mimeType: String,
-    val fileSize: Long = 0
+    val fileSize: Long = 0,
 )
 
 @Serializable
@@ -63,15 +62,18 @@ enum class NoteType {
     ARCHIVE,
     APK,
     FILE,
-    WEB_CLIPPING;
+    WEB_CLIPPING,
+    ;
 
     // Explicit type checking for analyzable types
     companion object {
-        fun isAnalyzable(type: NoteType): Boolean = when(type) {
-            BRAIN_DUMP, YOUTUBE, WEBSITE, IMAGE, TWITTER, INSTAGRAM,
-            DOCUMENT, SPREADSHEET, PRESENTATION, CODE, WEB_CLIPPING -> true  // CODE is now analyzable
-            VIDEO, AUDIO, ARCHIVE, APK, FILE -> false  // VIDEO is now NOT analyzable
-        }
+        fun isAnalyzable(type: NoteType): Boolean =
+            when (type) {
+                BRAIN_DUMP, YOUTUBE, WEBSITE, IMAGE, TWITTER, INSTAGRAM,
+                DOCUMENT, SPREADSHEET, PRESENTATION, CODE, WEB_CLIPPING,
+                -> true // CODE is now analyzable
+                VIDEO, AUDIO, ARCHIVE, APK, FILE -> false // VIDEO is now NOT analyzable
+            }
     }
 }
 
@@ -80,7 +82,7 @@ enum class ProcessingStatus {
     PENDING,
     PROCESSING,
     COMPLETED,
-    FAILED
+    FAILED,
 }
 
 // TODO: Remove Room annotations from this KMP common module.
@@ -101,17 +103,17 @@ enum class ProcessingStatus {
         Index(value = ["createdAt"]),
         Index(value = ["type"]),
         // Composite indices for common queries
-        Index(value = ["isArchived", "createdAt"]),  // Archived/active notes by date
-        Index(value = ["categoryId", "isArchived"]),  // Category notes filtering
-        Index(value = ["excludeFromAiChat"]),  // AI chat exclusion filtering
-        Index(value = ["isFullPrivacy"]),  // Full privacy mode filtering
+        Index(value = ["isArchived", "createdAt"]), // Archived/active notes by date
+        Index(value = ["categoryId", "isArchived"]), // Category notes filtering
+        Index(value = ["excludeFromAiChat"]), // AI chat exclusion filtering
+        Index(value = ["isFullPrivacy"]), // Full privacy mode filtering
         // PERFORMANCE: isPinned indices for efficient note list queries
-        Index(value = ["isPinned"]),  // Single column for pinned status
-        Index(value = ["isPinned", "createdAt"]),  // Composite for sorted queries (pinned first, then by date)
+        Index(value = ["isPinned"]), // Single column for pinned status
+        Index(value = ["isPinned", "createdAt"]), // Composite for sorted queries (pinned first, then by date)
         // PERFORMANCE (Sprint 3): processingStatus index for queue management
-        Index(value = ["processingStatus"]),  // Queue processing queries
-        Index(value = ["processingStatus", "updatedAt"])  // Stuck note detection with timeout
-    ]
+        Index(value = ["processingStatus"]), // Queue processing queries
+        Index(value = ["processingStatus", "updatedAt"]), // Stuck note detection with timeout
+    ],
 )
 data class Note(
     @PrimaryKey
@@ -133,17 +135,17 @@ data class Note(
     val createdAt: Long = 0L, // System.currentTimeMillis(),
     val updatedAt: Long = 0L, // System.currentTimeMillis(),
     val isArchived: Boolean = false,
-    val todoContent: String? = null,  // JSON string of List<TodoItem>
-    val excludeFromAiChat: Boolean = false,  // Exclude this note from AI chat context
-    val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
+    val todoContent: String? = null, // JSON string of List<TodoItem>
+    val excludeFromAiChat: Boolean = false, // Exclude this note from AI chat context
+    val isFullPrivacy: Boolean = false, // Full privacy mode - no AI processing at all
     val isAiCreated: Boolean = false, // Flag to indicate if note was created by AI
-    val attachmentsJson: String? = null,  // JSON string of List<NoteAttachment> for multiple files
-    val tagsJson: String? = null,  // JSON string of List<String> for AI-generated tags
+    val attachmentsJson: String? = null, // JSON string of List<NoteAttachment> for multiple files
+    val tagsJson: String? = null, // JSON string of List<String> for AI-generated tags
     val isViewed: Boolean = false, // Track if the note has been viewed by the user
     val isPinned: Boolean = false, // Pin note to top of list
     val reminderText: String? = null, // Smart reminder text to show on card
     val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
-    val chunkAnalysesJson: String? = null // JSON string of List<ChunkAnalysis> for per-page document analyses
+    val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses
 ) : PrivacyAware {
     /**
      * PrivacyAware implementation.

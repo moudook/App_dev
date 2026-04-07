@@ -1,13 +1,12 @@
 package com.example.smarty.core.domain.model
 
 import kotlinx.serialization.Serializable
-import com.example.smarty.core.domain.model.Note
 
 @Serializable
 data class SearchResultItem(
     val note: Note,
     val score: Float,
-    val highlight: String?
+    val highlight: String?,
 )
 
 @Serializable
@@ -16,7 +15,7 @@ data class SearchQueryAnalysis(
     val parsedKeywords: List<String>,
     val detectedIntent: String,
     val complexity: Int,
-    val suggestedStrategy: String
+    val suggestedStrategy: String,
 )
 
 @Serializable
@@ -25,5 +24,5 @@ data class RecallResult(
     val title: String,
     val content: String,
     val score: Double,
-    val reason: String
+    val reason: String,
 )

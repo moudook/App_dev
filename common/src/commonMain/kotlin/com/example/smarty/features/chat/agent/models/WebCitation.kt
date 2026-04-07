@@ -9,5 +9,5 @@ import kotlinx.serialization.Serializable
 data class WebCitation(
     val title: String,
     val url: String,
-    val snippet: String
+    val snippet: String,
 )

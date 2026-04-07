@@ -2,6 +2,8 @@ package com.example.smarty.core.common.util
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -9,15 +11,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-import com.google.firebase.crashlytics.FirebaseCrashlytics
-import com.google.firebase.auth.FirebaseAuth
-
 /**
  * Catches uncaught exceptions and writes them to a file in app-specific storage.
  * Also reports non-fatal exceptions and logs to Firebase Crashlytics.
  *
  * Location: /storage/emulated/0/Android/data/com.example.smarty/files/crash_log.txt
- * 
+ *
  * ENHANCED (v3.2.2):
  * - User context (userId, email)
  * - Device info (model, OS version)
@@ -25,13 +24,15 @@ import com.google.firebase.auth.FirebaseAuth
  * - Custom keys for filtering
  */
 class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandler {
-
     private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
 
-    override fun uncaughtException(t: Thread, e: Throwable) {
+    override fun uncaughtException(
+        t: Thread,
+        e: Throwable,
+    ) {
         try {
             val crashlytics = FirebaseCrashlytics.getInstance()
-            
+
             // Add user context
             try {
                 val user = FirebaseAuth.getInstance().currentUser
@@ -39,18 +40,19 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
                     crashlytics.setUserId(user.uid)
                     crashlytics.setCustomKey("user_email", user.email ?: "unknown")
                 }
-            } catch (ignored: Exception) {}
-            
+            } catch (ignored: Exception) {
+            }
+
             // Add device context
             crashlytics.setCustomKey("device_model", android.os.Build.MODEL)
             crashlytics.setCustomKey("device_os_version", android.os.Build.VERSION.RELEASE)
             crashlytics.setCustomKey("device_manufacturer", android.os.Build.MANUFACTURER)
-            
+
             // Add app context
             crashlytics.setCustomKey("app_version", getAppVersion(context))
             crashlytics.setCustomKey("thread_name", t.name)
             crashlytics.setCustomKey("thread_id", t.id)
-            
+
             // Report to Firebase Crashlytics
             crashlytics.recordException(e)
 
@@ -60,7 +62,8 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
             val stackTrace = sw.toString()
 
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            val logContent = "\n\n--- CRASH REPORT $timestamp ---\n" +
+            val logContent =
+                "\n\n--- CRASH REPORT $timestamp ---\n" +
                     "Thread: ${t.name}\n" +
                     "Exception: ${e.javaClass.simpleName}\n" +
                     "Message: ${e.message}\n" +
@@ -127,8 +130,11 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
             Thread.setDefaultUncaughtExceptionHandler(CrashLogger(context))
         }
 
-        fun log(context: Context, message: String) {
-             try {
+        fun log(
+            context: Context,
+            message: String,
+        ) {
+            try {
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
                 val logMessage = "[$timestamp] $message"
 
@@ -141,22 +147,28 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
                 // Ignore
             }
         }
-        
+
         /**
          * Set custom key for crash reporting
          */
-        fun setCustomKey(key: String, value: String) {
+        fun setCustomKey(
+            key: String,
+            value: String,
+        ) {
             try {
                 FirebaseCrashlytics.getInstance().setCustomKey(key, value)
             } catch (e: Exception) {
                 Log.e("CrashLogger", "Failed to set custom key", e)
             }
         }
-        
+
         /**
          * Set custom key for crash reporting (Int value)
          */
-        fun setCustomKey(key: String, value: Int) {
+        fun setCustomKey(
+            key: String,
+            value: Int,
+        ) {
             try {
                 FirebaseCrashlytics.getInstance().setCustomKey(key, value)
             } catch (e: Exception) {

@@ -1,14 +1,13 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.protocol.AgentCommand
+import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.monitoring.ServerActivityMonitor
+import com.example.smarty.server.serverStartTime
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import com.example.smarty.protocol.AgentCommand
-import com.example.smarty.server.serverStartTime
-import com.example.smarty.server.agent.ActiveSessionManager
-import com.example.smarty.server.monitoring.ServerActivityMonitor
-import java.lang.management.ManagementFactory
 
 /**
  * Health check response model.
@@ -20,7 +19,7 @@ data class HealthResponse(
     val timestamp: Long,
     val uptime: String,
     val protocolVersion: String,
-    val provider: String = "Unknown"
+    val provider: String = "Unknown",
 )
 
 /**
@@ -53,8 +52,8 @@ fun Application.configureHealthRoutes() {
                     module = "smarty-server",
                     timestamp = System.currentTimeMillis(),
                     uptime = uptimeStr,
-                    protocolVersion = "AgentCommand.$protocolCheck"
-                )
+                    protocolVersion = "AgentCommand.$protocolCheck",
+                ),
             )
         }
 
@@ -69,28 +68,32 @@ fun Application.configureHealthRoutes() {
             val uptimeHours = uptimeMinutes / 60
             val uptimeStr = String.format("%02d:%02d:%02d", uptimeHours, uptimeMinutes % 60, uptimeSeconds % 60)
 
-            val health = HealthResponse(
-                status = "ok",
-                module = "smarty-server",
-                timestamp = System.currentTimeMillis(),
-                uptime = uptimeStr,
-                protocolVersion = "AgentCommand.${AgentCommand::class.simpleName ?: "Unknown"}"
-            )
+            val health =
+                HealthResponse(
+                    status = "ok",
+                    module = "smarty-server",
+                    timestamp = System.currentTimeMillis(),
+                    uptime = uptimeStr,
+                    protocolVersion = "AgentCommand.${AgentCommand::class.simpleName ?: "Unknown"}",
+                )
 
             val activeSessions = ActiveSessionManager.getAllSessions()
             val recentActivities = ServerActivityMonitor.getRecentEvents()
 
-            call.respond(mapOf(
-                "server" to health,
-                "active_sessions" to activeSessions,
-                "recent_activities" to recentActivities,
-                "environment" to mapOf(
-                    "jvm_version" to System.getProperty("java.version"),
-                    "available_processors" to Runtime.getRuntime().availableProcessors(),
-                    "free_memory_mb" to Runtime.getRuntime().freeMemory() / (1024 * 1024),
-                    "total_memory_mb" to Runtime.getRuntime().totalMemory() / (1024 * 1024)
-                )
-            ))
+            call.respond(
+                mapOf(
+                    "server" to health,
+                    "active_sessions" to activeSessions,
+                    "recent_activities" to recentActivities,
+                    "environment" to
+                        mapOf(
+                            "jvm_version" to System.getProperty("java.version"),
+                            "available_processors" to Runtime.getRuntime().availableProcessors(),
+                            "free_memory_mb" to Runtime.getRuntime().freeMemory() / (1024 * 1024),
+                            "total_memory_mb" to Runtime.getRuntime().totalMemory() / (1024 * 1024),
+                        ),
+                ),
+            )
         }
 
         /**
@@ -98,17 +101,19 @@ fun Application.configureHealthRoutes() {
          * The app expects an OpenAI-compatible /v1/models endpoint to verify connectivity.
          */
         get("/v1/models") {
-            val response = mapOf(
-                "object" to "list",
-                "data" to listOf(
-                    mapOf(
-                        "id" to "smarty-server-agent",
-                        "object" to "model",
-                        "created" to System.currentTimeMillis() / 1000,
-                        "owned_by" to "smarty-server"
-                    )
+            val response =
+                mapOf(
+                    "object" to "list",
+                    "data" to
+                        listOf(
+                            mapOf(
+                                "id" to "smarty-server-agent",
+                                "object" to "model",
+                                "created" to System.currentTimeMillis() / 1000,
+                                "owned_by" to "smarty-server",
+                            ),
+                        ),
                 )
-            )
             call.respond(response)
         }
     }

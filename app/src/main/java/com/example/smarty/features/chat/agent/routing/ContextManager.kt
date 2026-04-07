@@ -1,7 +1,5 @@
 package com.example.smarty.features.chat.agent.routing
 
-import android.util.Log
-import com.example.smarty.data.local.AIConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,8 +15,8 @@ object ContextManager {
 
     suspend fun optimizeContextForModel(
         content: String,
-        currentExecutor: Any,  // ExecutorResult.Success
-        ingestionExecutor: Any? = null  // Optional ingestion executor
+        currentExecutor: Any, // ExecutorResult.Success
+        ingestionExecutor: Any? = null, // Optional ingestion executor
     ): String {
         // Thin Client: Context optimization is primarily handled server-side.
         // Locally we pass the content as is for the Local LLM.
@@ -26,9 +24,8 @@ object ContextManager {
     }
 
     // Unused but kept for structure
-    private suspend fun compressContext(
-        content: String
-    ): String = withContext(Dispatchers.Default) {
-        return@withContext "summary"
-    }
+    private suspend fun compressContext(content: String): String =
+        withContext(Dispatchers.Default) {
+            return@withContext "summary"
+        }
 }

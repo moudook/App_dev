@@ -1,5 +1,5 @@
 package com.example.smarty.data.model
- 
+
 import com.example.smarty.core.domain.model.Note
 
 data class ThinkingModeContext(
@@ -11,7 +11,7 @@ data class ThinkingModeContext(
     val documentFileName: String? = null,
     val documentChunks: List<DocumentChunk> = emptyList(),
     val totalChars: Int = 0,
-    val totalChunks: Int = 0
+    val totalChunks: Int = 0,
 ) {
     companion object {
         const val MAX_DOCUMENT_SIZE = 50000

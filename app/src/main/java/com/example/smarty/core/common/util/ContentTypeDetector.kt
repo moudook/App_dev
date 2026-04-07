@@ -1,8 +1,8 @@
 package com.example.smarty.core.common.util
 
-import com.example.smarty.core.domain.model.NoteType
 import android.content.Context
 import com.example.smarty.R
+import com.example.smarty.core.domain.model.NoteType
 
 /**
  * Utility object for detecting content types from text, URLs, and MIME types.
@@ -22,7 +22,6 @@ import com.example.smarty.R
  * @see NoteType for the list of supported content types
  */
 object ContentTypeDetector {
-
     // ==================== URL Detection Patterns ====================
 
     /**
@@ -47,9 +46,10 @@ object ContentTypeDetector {
      * - Live: youtube.com/live/VIDEO_ID
      * - With tracking params: ?si=xxx, &feature=share, etc.
      */
-    private val YOUTUBE_ID_PATTERN = Regex(
-        """(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|v/|live/)|youtu\.be/)([a-zA-Z0-9_-]{11})"""
-    )
+    private val YOUTUBE_ID_PATTERN =
+        Regex(
+            """(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|v/|live/)|youtu\.be/)([a-zA-Z0-9_-]{11})""",
+        )
 
     /**
      * Pattern to detect Twitter/X social media URLs.
@@ -111,90 +111,94 @@ object ContentTypeDetector {
      * Hash map for O(1) average lookup of MIME types to NoteType.
      * Covers documents, spreadsheets, presentations, code files, archives, and APKs.
      */
-    private val MIME_TYPE_MAP: Map<String, NoteType> = hashMapOf(
-        // Documents
-        "application/pdf" to NoteType.DOCUMENT,
-        "application/msword" to NoteType.DOCUMENT,
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" to NoteType.DOCUMENT,
-        "text/plain" to NoteType.DOCUMENT,
-        "application/rtf" to NoteType.DOCUMENT,
-        // Spreadsheets
-        "application/vnd.ms-excel" to NoteType.SPREADSHEET,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" to NoteType.SPREADSHEET,
-        "text/csv" to NoteType.SPREADSHEET,
-        // Presentations
-        "application/vnd.ms-powerpoint" to NoteType.PRESENTATION,
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation" to NoteType.PRESENTATION,
-        // Code
-        "application/javascript" to NoteType.CODE,
-        "application/json" to NoteType.CODE,
-        "application/xml" to NoteType.CODE,
-        "text/html" to NoteType.CODE,
-        "text/css" to NoteType.CODE,
-        // Archives
-        "application/zip" to NoteType.ARCHIVE,
-        "application/x-rar-compressed" to NoteType.ARCHIVE,
-        "application/x-7z-compressed" to NoteType.ARCHIVE,
-        "application/gzip" to NoteType.ARCHIVE,
-        "application/x-tar" to NoteType.ARCHIVE,
-        // APK
-        "application/vnd.android.package-archive" to NoteType.APK
-    )
+    private val MIME_TYPE_MAP: Map<String, NoteType> =
+        hashMapOf(
+            // Documents
+            "application/pdf" to NoteType.DOCUMENT,
+            "application/msword" to NoteType.DOCUMENT,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" to NoteType.DOCUMENT,
+            "text/plain" to NoteType.DOCUMENT,
+            "application/rtf" to NoteType.DOCUMENT,
+            // Spreadsheets
+            "application/vnd.ms-excel" to NoteType.SPREADSHEET,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" to NoteType.SPREADSHEET,
+            "text/csv" to NoteType.SPREADSHEET,
+            // Presentations
+            "application/vnd.ms-powerpoint" to NoteType.PRESENTATION,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" to NoteType.PRESENTATION,
+            // Code
+            "application/javascript" to NoteType.CODE,
+            "application/json" to NoteType.CODE,
+            "application/xml" to NoteType.CODE,
+            "text/html" to NoteType.CODE,
+            "text/css" to NoteType.CODE,
+            // Archives
+            "application/zip" to NoteType.ARCHIVE,
+            "application/x-rar-compressed" to NoteType.ARCHIVE,
+            "application/x-7z-compressed" to NoteType.ARCHIVE,
+            "application/gzip" to NoteType.ARCHIVE,
+            "application/x-tar" to NoteType.ARCHIVE,
+            // APK
+            "application/vnd.android.package-archive" to NoteType.APK,
+        )
 
     /**
      * Storage category resource IDs for non-analyzable file types.
      */
-    private val STORAGE_CATEGORY_RES_MAP: Map<NoteType, Int> = hashMapOf(
-        NoteType.APK to R.string.category_saved_apps,
-        NoteType.ARCHIVE to R.string.category_saved_archives,
-        NoteType.VIDEO to R.string.category_saved_videos,
-        NoteType.AUDIO to R.string.category_saved_audio,
-        NoteType.FILE to R.string.category_saved_files
-    )
+    private val STORAGE_CATEGORY_RES_MAP: Map<NoteType, Int> =
+        hashMapOf(
+            NoteType.APK to R.string.category_saved_apps,
+            NoteType.ARCHIVE to R.string.category_saved_archives,
+            NoteType.VIDEO to R.string.category_saved_videos,
+            NoteType.AUDIO to R.string.category_saved_audio,
+            NoteType.FILE to R.string.category_saved_files,
+        )
 
     /**
      * Note type title resource IDs.
      */
-    private val TYPE_TITLE_RES = arrayOf(
-        0,                             // BRAIN_DUMP
-        R.string.note_type_youtube,    // YOUTUBE
-        R.string.note_type_website,    // WEBSITE
-        R.string.note_type_image,      // IMAGE
-        R.string.note_type_twitter,    // TWITTER
-        R.string.note_type_instagram,  // INSTAGRAM
-        R.string.note_type_document,   // DOCUMENT
-        R.string.note_type_spreadsheet,// SPREADSHEET
-        R.string.note_type_presentation,// PRESENTATION
-        R.string.note_type_video,      // VIDEO
-        R.string.note_type_audio,      // AUDIO
-        R.string.note_type_code,       // CODE
-        R.string.note_type_archive,    // ARCHIVE
-        R.string.note_type_apk,        // APK
-        R.string.note_type_file,       // FILE
-        R.string.note_type_website     // WEB_CLIPPING (Using website string as fallback)
-    )
+    private val TYPE_TITLE_RES =
+        arrayOf(
+            0, // BRAIN_DUMP
+            R.string.note_type_youtube, // YOUTUBE
+            R.string.note_type_website, // WEBSITE
+            R.string.note_type_image, // IMAGE
+            R.string.note_type_twitter, // TWITTER
+            R.string.note_type_instagram, // INSTAGRAM
+            R.string.note_type_document, // DOCUMENT
+            R.string.note_type_spreadsheet, // SPREADSHEET
+            R.string.note_type_presentation, // PRESENTATION
+            R.string.note_type_video, // VIDEO
+            R.string.note_type_audio, // AUDIO
+            R.string.note_type_code, // CODE
+            R.string.note_type_archive, // ARCHIVE
+            R.string.note_type_apk, // APK
+            R.string.note_type_file, // FILE
+            R.string.note_type_website, // WEB_CLIPPING (Using website string as fallback)
+        )
 
     /**
      * Default title resource IDs for shared files.
      */
-    private val DEFAULT_TITLE_RES = arrayOf(
-        R.string.default_title_content,     // BRAIN_DUMP
-        R.string.default_title_content,     // YOUTUBE
-        R.string.default_title_content,     // WEBSITE
-        R.string.default_title_image,       // IMAGE
-        R.string.default_title_content,     // TWITTER
-        R.string.default_title_content,     // INSTAGRAM
-        R.string.default_title_document,    // DOCUMENT
-        R.string.default_title_spreadsheet, // SPREADSHEET
-        R.string.default_title_presentation,// PRESENTATION
-        R.string.default_title_video,       // VIDEO
-        R.string.default_title_audio,       // AUDIO
-        R.string.default_title_code,        // CODE
-        R.string.default_title_archive,     // ARCHIVE
-        R.string.default_title_apk,         // APK
-        R.string.default_title_file,        // FILE
-        R.string.default_title_content      // WEB_CLIPPING
-    )
+    private val DEFAULT_TITLE_RES =
+        arrayOf(
+            R.string.default_title_content, // BRAIN_DUMP
+            R.string.default_title_content, // YOUTUBE
+            R.string.default_title_content, // WEBSITE
+            R.string.default_title_image, // IMAGE
+            R.string.default_title_content, // TWITTER
+            R.string.default_title_content, // INSTAGRAM
+            R.string.default_title_document, // DOCUMENT
+            R.string.default_title_spreadsheet, // SPREADSHEET
+            R.string.default_title_presentation, // PRESENTATION
+            R.string.default_title_video, // VIDEO
+            R.string.default_title_audio, // AUDIO
+            R.string.default_title_code, // CODE
+            R.string.default_title_archive, // ARCHIVE
+            R.string.default_title_apk, // APK
+            R.string.default_title_file, // FILE
+            R.string.default_title_content, // WEB_CLIPPING
+        )
 
     /**
      * File size unit labels for formatting.
@@ -205,8 +209,6 @@ object ContentTypeDetector {
      * Threshold for file size unit conversion (1024 bytes = 1 KB).
      */
     private const val SIZE_THRESHOLD = 1024L
-
-
 
     // ==================== Public API ====================
 
@@ -257,7 +259,11 @@ object ContentTypeDetector {
     /**
      * Generates a title for a note based on its content and type.
      */
-    fun extractTitle(context: Context, content: String, type: NoteType): String {
+    fun extractTitle(
+        context: Context,
+        content: String,
+        type: NoteType,
+    ): String {
         val resId = TYPE_TITLE_RES.getOrNull(type.ordinal) ?: 0
         if (resId != 0) return context.getString(resId)
 
@@ -268,7 +274,10 @@ object ContentTypeDetector {
     /**
      * Gets the default title for a note type.
      */
-    fun getDefaultTitle(context: Context, type: NoteType): String {
+    fun getDefaultTitle(
+        context: Context,
+        type: NoteType,
+    ): String {
         val resId = DEFAULT_TITLE_RES.getOrNull(type.ordinal) ?: R.string.default_title_content
         return context.getString(resId)
     }
@@ -276,7 +285,10 @@ object ContentTypeDetector {
     /**
      * Gets the storage category name for a file type.
      */
-    fun getStorageCategoryName(context: Context, type: NoteType): String {
+    fun getStorageCategoryName(
+        context: Context,
+        type: NoteType,
+    ): String {
         val resId = STORAGE_CATEGORY_RES_MAP[type] ?: R.string.category_saved_files
         return context.getString(resId)
     }
@@ -284,34 +296,40 @@ object ContentTypeDetector {
     /**
      * Formats a file size in bytes to a human-readable string.
      */
-    fun formatFileSize(context: Context, bytes: Long): String {
+    fun formatFileSize(
+        context: Context,
+        bytes: Long,
+    ): String {
         if (bytes < SIZE_THRESHOLD) return "$bytes ${context.getString(R.string.size_unit_b)}"
-        val unitIndex = minOf(
-            (63 - java.lang.Long.numberOfLeadingZeros(bytes)) / 10,
-            SIZE_UNITS.size - 1
-        )
+        val unitIndex =
+            minOf(
+                (63 - java.lang.Long.numberOfLeadingZeros(bytes)) / 10,
+                SIZE_UNITS.size - 1,
+            )
         val divisor = 1L shl (unitIndex * 10)
-        val unitResId = when (unitIndex) {
-            1 -> R.string.size_unit_kb
-            2 -> R.string.size_unit_mb
-            3 -> R.string.size_unit_gb
-            else -> R.string.size_unit_b
-        }
+        val unitResId =
+            when (unitIndex) {
+                1 -> R.string.size_unit_kb
+                2 -> R.string.size_unit_mb
+                3 -> R.string.size_unit_gb
+                else -> R.string.size_unit_b
+            }
         return "${bytes / divisor} ${context.getString(unitResId)}"
     }
 
     /**
      * Formats a file size with decimal precision for larger sizes.
      */
-    fun formatSize(context: android.content.Context, bytes: Long): String {
+    fun formatSize(
+        context: android.content.Context,
+        bytes: Long,
+    ): String {
         return when {
             bytes < 1024 -> "$bytes ${context.getString(R.string.size_unit_b)}"
             bytes < 1024 * 1024 -> "${bytes / 1024} ${context.getString(R.string.size_unit_kb)}"
             else -> String.format("%.1f ${context.getString(R.string.size_unit_mb)}", bytes / (1024.0 * 1024.0))
         }
     }
-
-
 
     /**
      * Checks if content contains a URL.

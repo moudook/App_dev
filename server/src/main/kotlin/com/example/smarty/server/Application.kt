@@ -5,6 +5,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.sse.*
+import io.ktor.server.response.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import com.example.smarty.server.routes.configureHealthRoutes
@@ -16,7 +17,6 @@ import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
-import io.ktor.server.request.path
 import com.example.smarty.server.plugins.configureSecurity
 import com.example.smarty.server.plugins.configureFirewall
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
@@ -25,7 +25,6 @@ import com.example.smarty.server.plugins.configureMonitoring
 import com.example.smarty.server.plugins.installStructuredLogging
 import com.example.smarty.server.plugins.configureEnhancedHealthCheck
 import com.example.smarty.server.routes.configureHandshakeRoutes
-import com.example.smarty.server.routes.configureDataRoutes
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.FcmNotificationService
@@ -53,8 +52,6 @@ import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.data.UserDeviceRepository
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
-import javax.sql.DataSource
-import com.example.smarty.server.HttpClientSingleton
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -80,7 +77,6 @@ import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
-
 
 /**
  * Server port. Can be overridden via SERVER_PORT environment variable.
@@ -135,8 +131,8 @@ fun Application.module() {
         filter { call -> call.request.path().startsWith("/") }
         callIdMdc("trace_id")
     }
-    */
-    
+     */
+
     // Install Structured Logging (JSON format, correlation IDs, performance metrics)
     installStructuredLogging()
 
@@ -179,11 +175,13 @@ fun Application.module() {
 
     // Configure JSON serialization
     install(ContentNegotiation) {
-        json(Json {
-            prettyPrint = true
-            isLenient = true
-            ignoreUnknownKeys = true
-        })
+        json(
+            Json {
+                prettyPrint = true
+                isLenient = true
+                ignoreUnknownKeys = true
+            },
+        )
     }
 
     // Configure SSE plugin for streaming
@@ -193,26 +191,28 @@ fun Application.module() {
     val ds = DatabaseFactory.getDataSource()
     var digestService: DigestService? = null
     var digestScheduler: DigestScheduler? = null
-    
+
     if (ds != null) {
         val chatMessageNotesRepo = ChatMessageNotesRepository(ds)
         val calendarEventNotesRepo = CalendarEventNotesRepository(ds)
-        
-        digestService = DigestService(
-            dataSource = ds,
-            chatRepository = ChatRepository(ds, chatMessageNotesRepo),
-            vectorStore = PostgresVectorStore(),
-            llmProvider = LlmProviderFactory.create(HttpClientSingleton.client)
-        )
+
+        digestService =
+            DigestService(
+                dataSource = ds,
+                chatRepository = ChatRepository(ds, chatMessageNotesRepo),
+                vectorStore = PostgresVectorStore(),
+                llmProvider = LlmProviderFactory.create(HttpClientSingleton.client),
+            )
 
         val fcmService = FcmNotificationService.fromEnvironment(ds)
 
-        digestScheduler = DigestScheduler(
-            application = this,
-            dataSource = ds,
-            digestService = digestService,
-            fcmService = fcmService
-        )
+        digestScheduler =
+            DigestScheduler(
+                application = this,
+                dataSource = ds,
+                digestService = digestService,
+                fcmService = fcmService,
+            )
         digestScheduler.start()
     }
 
@@ -223,8 +223,6 @@ fun Application.module() {
     configureHandshakeRoutes()
     configureDataRoutes()
 
-
-    
     // Configure v6.0.0 new features routes (Tasks, Tags, Notifications, Folders)
     if (ds != null) {
         val taskRepo = TaskRepository(ds)
@@ -233,30 +231,35 @@ fun Application.module() {
         val chatFolderRepo = ChatFolderRepository(ds)
         configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
     }
-    
-    val deepResearchAgent = com.example.smarty.server.agent.DeepResearchAgent(
-        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
-        tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
-        webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
-        progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
-    )
-    
-    val advancedDeepResearchAgent = com.example.smarty.server.agent.AdvancedDeepResearchAgent(
-        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
-        tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
-        webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
-        progressTracker = com.example.smarty.server.agent.ResearchProgressTracker()
-    )
-    
+
+    val deepResearchAgent =
+        com.example.smarty.server.agent.DeepResearchAgent(
+            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
+            tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
+            webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+            progressFileManager = com.example.smarty.server.agent.ProgressFileManager(),
+        )
+
+    val advancedDeepResearchAgent =
+        com.example.smarty.server.agent.AdvancedDeepResearchAgent(
+            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
+            tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
+            webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+            progressTracker = com.example.smarty.server.agent.ResearchProgressTracker(),
+        )
+
     configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
     configureOptimizedSyncRoutes()
     configureSyncRoutes()
 
     // Initialize Reasoning Service
-    val reasoningService = if (ds != null) {
-        val reasoningRepo = ReasoningTraceRepository(ds)
-        ReasoningService(reasoningRepo)
-    } else null
+    val reasoningService =
+        if (ds != null) {
+            val reasoningRepo = ReasoningTraceRepository(ds)
+            ReasoningService(reasoningRepo)
+        } else {
+            null
+        }
 
     // Configure Reasoning Routes
     if (reasoningService != null) {
@@ -270,14 +273,17 @@ fun Application.module() {
     val utilityService = UtilityService(LlmProviderFactory.create(HttpClientSingleton.client))
 
     // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
-    val orchestratorService = if (ds != null) {
-        val providerRouter = com.example.smarty.server.llm.ProviderRouter(HttpClientSingleton.client)
-        OrchestratorService(
-            providerRouter = providerRouter,
-            visionService = VisionService(HttpClientSingleton.client),
-            kreaImageTool = com.example.smarty.server.tools.KreaImageTool()
-        )
-    } else null
+    val orchestratorService =
+        if (ds != null) {
+            val providerRouter = com.example.smarty.server.llm.ProviderRouter(HttpClientSingleton.client)
+            OrchestratorService(
+                providerRouter = providerRouter,
+                visionService = VisionService(HttpClientSingleton.client),
+                kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
+            )
+        } else {
+            null
+        }
 
     // Initialize Search History Repository
     val searchHistoryRepository = if (ds != null) SearchHistoryRepository(ds) else null
@@ -312,7 +318,7 @@ fun Application.module() {
         get("/generated-images/{id}") {
             val providedApiKey = call.parameters["apiKey"]
             val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
-            
+
             // Verify API key if provided, otherwise allow for development
             if (providedApiKey != expectedApiKey && providedApiKey != null) {
                 call.respondText("{\"error\": \"Invalid API key\"}", ContentType.Application.Json, HttpStatusCode.Unauthorized)
@@ -334,7 +340,7 @@ fun Application.module() {
             try {
                 val imageRepo = GeneratedImageRepository(dataSource)
                 val imageData = imageRepo.getImageBytes(imageId)
-                
+
                 if (imageData == null) {
                     call.respondText("{\"error\": \"Image not found\"}", ContentType.Application.Json, HttpStatusCode.NotFound)
                     return@get
@@ -351,14 +357,15 @@ fun Application.module() {
 
                 // Serve the image bytes with appropriate content type
                 val (bytes, contentType) = imageData
-                val mimeType = when {
-                    contentType.contains("png") -> ContentType.Image.PNG
-                    contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
-                    contentType.contains("gif") -> ContentType.Image.GIF
-                    contentType.contains("webp") -> ContentType("image", "webp")
-                    else -> ContentType.Image.Any
-                }
-                call.respond(mimeType, bytes)
+                val mimeType =
+                    when {
+                        contentType.contains("png") -> ContentType.Image.PNG
+                        contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
+                        contentType.contains("gif") -> ContentType.Image.GIF
+                        contentType.contains("webp") -> ContentType("image", "webp")
+                        else -> ContentType.Image.Any
+                    }
+                call.respondBytes(bytes, mimeType)
             } catch (e: Exception) {
                 call.application.log.error("Failed to serve image", e)
                 call.respondText("{\"error\": \"Failed to serve image\"}", ContentType.Application.Json, HttpStatusCode.InternalServerError)
@@ -372,11 +379,9 @@ fun Application.module() {
 
     // Configure Monitoring
     configureMonitoring()
-    
+
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
-
-
 
     // Log startup
     log.info("Friday Server started on port $serverPort")

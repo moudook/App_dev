@@ -10,20 +10,20 @@ import java.util.concurrent.atomic.AtomicLong
  * Strategy for selecting an LLM provider based on high-level goals.
  */
 enum class RoutingStrategy {
-    CHEAPEST,       // Prioritize lowest cost
-    FASTEST,        // Prioritize lowest latency
-    SMARTEST,       // Prioritize reasoning capability
-    BALANCED        // Mix of cost and performance
+    CHEAPEST, // Prioritize lowest cost
+    FASTEST, // Prioritize lowest latency
+    SMARTEST, // Prioritize reasoning capability
+    BALANCED, // Mix of cost and performance
 }
 
 /**
  * Specific capabilities required for a task.
  */
 enum class Capability {
-    FAST_CHAT,              // Low latency, standard reasoning (gemini-3-flash)
-    REASONING,              // Complex logic, deep thinking (gemini-3-pro-high)
-    VISION_UNDERSTANDING,   // Image analysis, OCR (gemini-3-pro-high)
-    IMAGE_GENERATION        // Creating images (gemini-3-image)
+    FAST_CHAT, // Low latency, standard reasoning (gemini-3-flash)
+    REASONING, // Complex logic, deep thinking (gemini-3-pro-high)
+    VISION_UNDERSTANDING, // Image analysis, OCR (gemini-3-pro-high)
+    IMAGE_GENERATION, // Creating images (gemini-3-image)
 }
 
 /**
@@ -34,12 +34,13 @@ class ProviderRouter(private val httpClient: HttpClient) {
     private val logger = LoggerFactory.getLogger(ProviderRouter::class.java)
 
     // Model mapping for capabilities (Gemini Production Stack)
-    private val capabilityMap = mapOf(
-        Capability.FAST_CHAT to "gemini-1.5-flash",
-        Capability.REASONING to "gemini-1.5-pro",
-        Capability.VISION_UNDERSTANDING to "gemini-1.5-flash",
-        Capability.IMAGE_GENERATION to "imagen-3.0-generate-001" // Placeholder or actual model
-    )
+    private val capabilityMap =
+        mapOf(
+            Capability.FAST_CHAT to "gemini-1.5-flash",
+            Capability.REASONING to "gemini-1.5-pro",
+            Capability.VISION_UNDERSTANDING to "gemini-1.5-flash",
+            Capability.IMAGE_GENERATION to "imagen-3.0-generate-001", // Placeholder or actual model
+        )
 
     // Health tracking (simple circuit breaker)
     private val failureCounts = ConcurrentHashMap<String, AtomicInteger>()
@@ -60,14 +61,20 @@ class ProviderRouter(private val httpClient: HttpClient) {
     /**
      * Get an LLM provider instance configured for the requested strategy.
      */
-    fun selectProvider(strategy: RoutingStrategy, apiKey: String? = null): LlmProvider {
+    fun selectProvider(
+        strategy: RoutingStrategy,
+        apiKey: String? = null,
+    ): LlmProvider {
         return LlmProviderFactory.create(httpClient, "GEMINI", apiKeyOverride = apiKey)
     }
 
     /**
      * Get a provider specifically for a capability.
      */
-    fun getProviderForCapability(capability: Capability, apiKey: String? = null): LlmProvider {
+    fun getProviderForCapability(
+        capability: Capability,
+        apiKey: String? = null,
+    ): LlmProvider {
         return LlmProviderFactory.create(httpClient, "GEMINI", apiKeyOverride = apiKey)
     }
 

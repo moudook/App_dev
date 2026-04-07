@@ -18,7 +18,10 @@ class BackgroundAgentEventSink : AgentEventSink {
     private val _syncEvents = kotlinx.coroutines.flow.MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 64)
     val syncEvents: kotlinx.coroutines.flow.Flow<String> = _syncEvents.asSharedFlow()
 
-    override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
+    override fun onToolExecutionStarted(
+        toolName: String,
+        toolDisplayName: String,
+    ) {
         Log.d(TAG, "Tool started: $toolName")
     }
 
@@ -42,7 +45,10 @@ class BackgroundAgentEventSink : AgentEventSink {
         Log.d(TAG, "Plan status: $status")
     }
 
-    override fun onStateSync(syncType: String, data: String) {
+    override fun onStateSync(
+        syncType: String,
+        data: String,
+    ) {
         Log.d(TAG, "State sync received: $syncType")
         _syncEvents.tryEmit(syncType)
     }

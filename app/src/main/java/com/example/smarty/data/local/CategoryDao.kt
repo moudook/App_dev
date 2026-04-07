@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  */
 data class CategoryWithAiCount(
     @Embedded val category: Category,
-    @ColumnInfo(name = "aiVisibleCount") val aiVisibleCount: Int
+    @ColumnInfo(name = "aiVisibleCount") val aiVisibleCount: Int,
 )
 
 @Dao
@@ -40,16 +40,27 @@ interface CategoryDao {
     suspend fun deleteCategory(category: Category)
 
     @Query("UPDATE categories SET noteCount = noteCount + 1, lastUpdated = :timestamp WHERE id = :categoryId")
-    suspend fun incrementNoteCount(categoryId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun incrementNoteCount(
+        categoryId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("UPDATE categories SET noteCount = MAX(noteCount - 1, 0), lastUpdated = :timestamp WHERE id = :categoryId")
-    suspend fun decrementNoteCount(categoryId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun decrementNoteCount(
+        categoryId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("UPDATE categories SET noteCount = MAX(noteCount + :delta, 0), lastUpdated = :timestamp WHERE id = :categoryId")
-    suspend fun updateNoteCount(categoryId: String, delta: Int, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateNoteCount(
+        categoryId: String,
+        delta: Int,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // Sync/Recalculation - fixes any count mismatches by counting actual notes
-    @Query("""
+    @Query(
+        """
         UPDATE categories
         SET noteCount = (
             SELECT COUNT(*) FROM notes
@@ -57,10 +68,12 @@ interface CategoryDao {
             AND notes.isArchived = 0
         ),
         lastUpdated = :timestamp
-    """)
+    """,
+    )
     suspend fun recalculateAllCounts(timestamp: Long = System.currentTimeMillis())
 
-    @Query("""
+    @Query(
+        """
         UPDATE categories
         SET noteCount = (
             SELECT COUNT(*) FROM notes
@@ -69,8 +82,12 @@ interface CategoryDao {
         ),
         lastUpdated = :timestamp
         WHERE id = :categoryId
-    """)
-    suspend fun recalculateCategoryCount(categoryId: String, timestamp: Long = System.currentTimeMillis())
+    """,
+    )
+    suspend fun recalculateCategoryCount(
+        categoryId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // Backup operations - one-shot queries
     @Query("SELECT * FROM categories ORDER BY noteCount DESC, lastUpdated DESC")
@@ -91,13 +108,15 @@ interface CategoryDao {
      * Excludes: archived, isFullPrivacy=true, excludeFromAiChat=true
      * Use when building AI context for a specific category.
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(*) FROM notes
         WHERE categoryId = :categoryId
         AND isArchived = 0
         AND isFullPrivacy = 0
         AND excludeFromAiChat = 0
-    """)
+    """,
+    )
     suspend fun getAiVisibleNoteCount(categoryId: String): Int
 
     /**
@@ -106,7 +125,8 @@ interface CategoryDao {
      * Private notes are COMPLETELY excluded from counts.
      * Use when providing category list to AI/Agent services.
      */
-    @Query("""
+    @Query(
+        """
         SELECT
             c.*,
             (SELECT COUNT(*) FROM notes n
@@ -117,18 +137,21 @@ interface CategoryDao {
             ) as aiVisibleCount
         FROM categories c
         ORDER BY aiVisibleCount DESC, c.lastUpdated DESC
-    """)
+    """,
+    )
     suspend fun getCategoriesWithAiVisibleCounts(): List<CategoryWithAiCount>
 
     /**
      * Get total AI-visible notes across all categories.
      * Use for AI context summary/statistics.
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(*) FROM notes
         WHERE isArchived = 0
         AND isFullPrivacy = 0
         AND excludeFromAiChat = 0
-    """)
+    """,
+    )
     suspend fun getTotalAiVisibleNoteCount(): Int
 }

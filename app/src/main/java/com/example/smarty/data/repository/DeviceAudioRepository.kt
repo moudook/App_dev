@@ -7,7 +7,6 @@ import android.provider.MediaStore
 import android.util.Log
 import com.example.smarty.core.domain.model.AudioSource
 import com.example.smarty.core.domain.model.AudioTrack
-
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -27,19 +26,19 @@ import kotlinx.coroutines.withContext
  * NOTE: Requires READ_MEDIA_AUDIO (Android 13+) or READ_EXTERNAL_STORAGE (older) permission.
  */
 class DeviceAudioRepository(
-    private val context: Context
+    private val context: Context,
 ) {
     companion object {
         private const val TAG = "DeviceAudioRepository"
 
         // Minimum duration in milliseconds to exclude notification sounds and short clips
-        private const val MIN_DURATION_MS = 3000L  // 3 seconds
+        private const val MIN_DURATION_MS = 3000L // 3 seconds
     }
 
     // Cache for faster subsequent searches (works offline)
     private var cachedAudio: List<AudioTrack>? = null
     private var lastCacheTime: Long = 0
-    private val cacheValidityMs = 60_000L  // 1 minute cache validity
+    private val cacheValidityMs = 60_000L // 1 minute cache validity
     private val cacheMutex = Mutex()
 
     /**
@@ -92,22 +91,24 @@ class DeviceAudioRepository(
         val audioList = mutableListOf<AudioTrack>()
 
         // Use appropriate URI based on Android version
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } else {
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        }
+        val collection =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            } else {
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            }
 
         // Projection: Fetch all needed columns including path for folder search
-        val projection = mutableListOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.DISPLAY_NAME,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.MIME_TYPE
-        )
+        val projection =
+            mutableListOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.MIME_TYPE,
+            )
 
         // Add path column based on Android version
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -130,7 +131,7 @@ class DeviceAudioRepository(
             projection.toTypedArray(),
             selection,
             selectionArgs,
-            sortOrder
+            sortOrder,
         )?.use { cursor ->
             // Cache column indices for performance
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -140,14 +141,15 @@ class DeviceAudioRepository(
             val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
-            
+
             // Path column for folder-based searching
-            val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
-            } else {
-                @Suppress("DEPRECATION")
-                cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
-            }
+            val pathColumn =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                } else {
+                    @Suppress("DEPRECATION")
+                    cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                }
 
             Log.d(TAG, "Found ${cursor.count} audio files across entire device storage")
 
@@ -159,7 +161,7 @@ class DeviceAudioRepository(
                 val displayName = cursor.getString(displayNameColumn)
                 val duration = cursor.getLong(durationColumn)
                 val mimeType = cursor.getString(mimeTypeColumn)
-                
+
                 // Get file path for folder-based searching
                 val filePath = if (pathColumn >= 0) cursor.getString(pathColumn) else null
 
@@ -168,7 +170,7 @@ class DeviceAudioRepository(
 
                 audioList.add(
                     AudioTrack(
-                        id = "device_$id",  // Prefix to avoid ID conflicts with note audio
+                        id = "device_$id", // Prefix to avoid ID conflicts with note audio
                         uri = contentUri.toString(),
                         title = title,
                         fileName = displayName,
@@ -181,9 +183,9 @@ class DeviceAudioRepository(
                         sourceAttachmentId = null,
                         // Store path in album field if album is empty (for folder search)
                         // This is a pragmatic approach without changing AudioTrack model
-                    )
+                    ),
                 )
-                
+
                 // Log sample paths for debugging (first 5 only)
                 if (audioList.size <= 5) {
                     Log.d(TAG, "  Audio: '$title' at path: $filePath")
@@ -206,9 +208,9 @@ class DeviceAudioRepository(
         val queryLower = query.lowercase().trim()
         return getAllAudio().filter { track ->
             track.title.lowercase().contains(queryLower) ||
-            track.artist?.lowercase()?.contains(queryLower) == true ||
-            track.album?.lowercase()?.contains(queryLower) == true ||
-            track.fileName?.lowercase()?.contains(queryLower) == true
+                track.artist?.lowercase()?.contains(queryLower) == true ||
+                track.album?.lowercase()?.contains(queryLower) == true ||
+                track.fileName?.lowercase()?.contains(queryLower) == true
         }
     }
 
@@ -222,15 +224,16 @@ class DeviceAudioRepository(
         val keywordLower = folderKeyword.lowercase().trim()
 
         // Common folder mappings
-        val folderPatterns = when {
-            keywordLower.contains("download") -> listOf("download", "downloads")
-            keywordLower.contains("whatsapp") -> listOf("whatsapp", "wa ")
-            keywordLower.contains("record") -> listOf("record", "voice", "memo")
-            keywordLower.contains("music") -> listOf("music")
-            keywordLower.contains("podcast") -> listOf("podcast")
-            keywordLower.contains("telegram") -> listOf("telegram")
-            else -> listOf(keywordLower)
-        }
+        val folderPatterns =
+            when {
+                keywordLower.contains("download") -> listOf("download", "downloads")
+                keywordLower.contains("whatsapp") -> listOf("whatsapp", "wa ")
+                keywordLower.contains("record") -> listOf("record", "voice", "memo")
+                keywordLower.contains("music") -> listOf("music")
+                keywordLower.contains("podcast") -> listOf("podcast")
+                keywordLower.contains("telegram") -> listOf("telegram")
+                else -> listOf(keywordLower)
+            }
 
         return getAllAudio().filter { track ->
             val fileName = track.fileName?.lowercase() ?: ""
@@ -241,4 +244,3 @@ class DeviceAudioRepository(
         }
     }
 }
-

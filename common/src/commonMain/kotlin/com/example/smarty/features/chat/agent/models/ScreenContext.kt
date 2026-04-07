@@ -11,5 +11,5 @@ data class ScreenContext(
     val selectedText: String? = null,
     val referringApp: String? = null,
     val capturedAt: Long = System.currentTimeMillis(),
-    val contextData: Map<String, String> = emptyMap()
+    val contextData: Map<String, String> = emptyMap(),
 )

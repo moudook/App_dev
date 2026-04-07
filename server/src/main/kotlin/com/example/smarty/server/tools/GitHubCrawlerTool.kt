@@ -42,14 +42,17 @@ class GitHubCrawlerTool {
     /**
      * Get repository information
      */
-    suspend fun getRepositoryInfo(owner: String, repo: String): GitHubRepository? {
+    suspend fun getRepositoryInfo(
+        owner: String,
+        repo: String,
+    ): GitHubRepository? {
         logger.info("Fetching repository info: $owner/$repo")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL("$GITHUB_API_BASE/repos/$owner/$repo")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     json.decodeFromString<GitHubRepository>(response.second)
                 } else {
@@ -70,27 +73,27 @@ class GitHubCrawlerTool {
         owner: String,
         repo: String,
         path: String,
-        ref: String = "main"
+        ref: String = "main",
     ): String? {
         logger.info("Fetching file content: $owner/$repo/$path")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 // First get file metadata
                 val apiUrl = URL("$GITHUB_API_BASE/repos/$owner/$repo/contents/$path?ref=$ref")
                 val response = makeRequest(apiUrl)
-                
+
                 if (response.first != 200) {
                     logger.warn("Failed to fetch file metadata: HTTP ${response.first}")
                     return@withContext null
                 }
-                
+
                 val fileResponse = json.decodeFromString<GitHubFileResponse>(response.second)
-                
+
                 // Download raw content
                 val rawUrl = URL("$GITHUB_RAW_BASE/$owner/$repo/$ref/$path")
                 val contentResponse = makeRequest(rawUrl)
-                
+
                 if (contentResponse.first == 200) {
                     contentResponse.second
                 } else {
@@ -107,15 +110,18 @@ class GitHubCrawlerTool {
     /**
      * Search GitHub repositories
      */
-    suspend fun searchRepositories(query: String, limit: Int = 10): List<GitHubRepository> {
+    suspend fun searchRepositories(
+        query: String,
+        limit: Int = 10,
+    ): List<GitHubRepository> {
         logger.info("Searching repositories: $query")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
                 val url = URL("$GITHUB_API_BASE/search/repositories?q=$encodedQuery&per_page=$limit")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     val searchResult = json.decodeFromString<GitHubSearchResult>(response.second)
                     searchResult.items
@@ -133,15 +139,18 @@ class GitHubCrawlerTool {
     /**
      * Search code within repositories
      */
-    suspend fun searchCode(query: String, limit: Int = 20): List<GitHubCodeResult> {
+    suspend fun searchCode(
+        query: String,
+        limit: Int = 20,
+    ): List<GitHubCodeResult> {
         logger.info("Searching code: $query")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
                 val url = URL("$GITHUB_API_BASE/search/code?q=$encodedQuery&per_page=$limit")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     val searchResult = json.decodeFromString<GitHubCodeSearchResult>(response.second)
                     searchResult.items
@@ -163,15 +172,15 @@ class GitHubCrawlerTool {
         owner: String,
         repo: String,
         state: String = "open",
-        limit: Int = 20
+        limit: Int = 20,
     ): List<GitHubIssue> {
         logger.info("Fetching issues: $owner/$repo (state: $state)")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL("$GITHUB_API_BASE/repos/$owner/$repo/issues?state=$state&per_page=$limit")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     json.decodeFromString<List<GitHubIssue>>(response.second)
                 } else {
@@ -188,15 +197,18 @@ class GitHubCrawlerTool {
     /**
      * Get repository security advisories
      */
-    suspend fun getSecurityAdvisories(owner: String, repo: String): List<GitHubSecurityAdvisory> {
+    suspend fun getSecurityAdvisories(
+        owner: String,
+        repo: String,
+    ): List<GitHubSecurityAdvisory> {
         logger.info("Fetching security advisories: $owner/$repo")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 // GitHub security advisories endpoint
                 val url = URL("$GITHUB_API_BASE/repos/$owner/$repo/security-advisories")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     val result = json.decodeFromString<GitHubSecurityAdvisoriesResponse>(response.second)
                     result.advisories
@@ -214,14 +226,18 @@ class GitHubCrawlerTool {
     /**
      * Get repository releases
      */
-    suspend fun getReleases(owner: String, repo: String, limit: Int = 10): List<GitHubRelease> {
+    suspend fun getReleases(
+        owner: String,
+        repo: String,
+        limit: Int = 10,
+    ): List<GitHubRelease> {
         logger.info("Fetching releases: $owner/$repo")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL("$GITHUB_API_BASE/repos/$owner/$repo/releases?per_page=$limit")
                 val response = makeRequest(url)
-                
+
                 if (response.first == 200) {
                     json.decodeFromString<List<GitHubRelease>>(response.second)
                 } else {
@@ -238,7 +254,11 @@ class GitHubCrawlerTool {
     /**
      * Get README content
      */
-    suspend fun getReadme(owner: String, repo: String, ref: String = "main"): String? {
+    suspend fun getReadme(
+        owner: String,
+        repo: String,
+        ref: String = "main",
+    ): String? {
         logger.info("Fetching README: $owner/$repo")
         return getFileContent(owner, repo, "README.md", ref)
     }
@@ -250,20 +270,21 @@ class GitHubCrawlerTool {
         owner: String,
         repo: String,
         path: String = "",
-        ref: String = "main"
+        ref: String = "main",
     ): List<GitHubFile> {
         logger.info("Fetching repository structure: $owner/$repo/$path")
-        
+
         return withContext(Dispatchers.IO) {
             try {
-                val apiUrl = if (path.isEmpty()) {
-                    URL("$GITHUB_API_BASE/repos/$owner/$repo/contents?ref=$ref")
-                } else {
-                    URL("$GITHUB_API_BASE/repos/$owner/$repo/contents/$path?ref=$ref")
-                }
-                
+                val apiUrl =
+                    if (path.isEmpty()) {
+                        URL("$GITHUB_API_BASE/repos/$owner/$repo/contents?ref=$ref")
+                    } else {
+                        URL("$GITHUB_API_BASE/repos/$owner/$repo/contents/$path?ref=$ref")
+                    }
+
                 val response = makeRequest(apiUrl)
-                
+
                 if (response.first == 200) {
                     json.decodeFromString<List<GitHubFile>>(response.second)
                 } else {
@@ -280,25 +301,27 @@ class GitHubCrawlerTool {
     /**
      * Make HTTP request to GitHub API
      */
-    private suspend fun makeRequest(url: URL): Pair<Int, String> = withContext(Dispatchers.IO) {
-        val connection = url.openConnection() as HttpURLConnection
-        connection.apply {
-            requestMethod = "GET"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-            setRequestProperty("Accept", "application/vnd.github.v3+json")
-            setRequestProperty("User-Agent", "Smarty-Research-Agent")
+    private suspend fun makeRequest(url: URL): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            val connection = url.openConnection() as HttpURLConnection
+            connection.apply {
+                requestMethod = "GET"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                setRequestProperty("Accept", "application/vnd.github.v3+json")
+                setRequestProperty("User-Agent", "Smarty-Research-Agent")
+            }
+
+            val responseCode = connection.responseCode
+            val responseBody =
+                if (responseCode == 200) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                }
+
+            Pair(responseCode, responseBody)
         }
-        
-        val responseCode = connection.responseCode
-        val responseBody = if (responseCode == 200) {
-            connection.inputStream.bufferedReader().use { it.readText() }
-        } else {
-            connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-        }
-        
-        Pair(responseCode, responseBody)
-    }
 }
 
 // ==================== GitHub API Response Models ====================
@@ -332,7 +355,7 @@ data class GitHubRepository(
     @SerialName("allow_forking") val allowForking: Boolean,
     @SerialName("is_template") val isTemplate: Boolean,
     @SerialName("visibility") val visibility: String,
-    val owner: GitHubUser
+    val owner: GitHubUser,
 )
 
 @Serializable
@@ -341,7 +364,7 @@ data class GitHubUser(
     val id: Long,
     @SerialName("avatar_url") val avatarUrl: String,
     @SerialName("html_url") val htmlUrl: String,
-    val type: String
+    val type: String,
 )
 
 @Serializable
@@ -349,7 +372,7 @@ data class GitHubLicense(
     val key: String,
     val name: String,
     val spdxId: String,
-    val url: String?
+    val url: String?,
 )
 
 @Serializable
@@ -364,7 +387,7 @@ data class GitHubFileResponse(
     @SerialName("download_url") val downloadUrl: String?,
     val type: String,
     val content: String?,
-    val encoding: String?
+    val encoding: String?,
 )
 
 @Serializable
@@ -378,28 +401,28 @@ data class GitHubFile(
     @SerialName("git_url") val gitUrl: String,
     @SerialName("download_url") val downloadUrl: String?,
     val type: String,
-    @SerialName("_links") val links: GitHubFileLinks
+    @SerialName("_links") val links: GitHubFileLinks,
 )
 
 @Serializable
 data class GitHubFileLinks(
     val self: String,
     val git: String,
-    val html: String
+    val html: String,
 )
 
 @Serializable
 data class GitHubSearchResult(
     @SerialName("total_count") val totalCount: Int,
     @SerialName("incomplete_results") val incompleteResults: Boolean,
-    val items: List<GitHubRepository>
+    val items: List<GitHubRepository>,
 )
 
 @Serializable
 data class GitHubCodeSearchResult(
     @SerialName("total_count") val totalCount: Int,
     @SerialName("incomplete_results") val incompleteResults: Boolean,
-    val items: List<GitHubCodeResult>
+    val items: List<GitHubCodeResult>,
 )
 
 @Serializable
@@ -411,7 +434,7 @@ data class GitHubCodeResult(
     @SerialName("git_url") val gitUrl: String,
     @SerialName("html_url") val htmlUrl: String,
     val repository: GitHubRepository,
-    @SerialName("score") val score: Double
+    @SerialName("score") val score: Double,
 )
 
 @Serializable
@@ -431,7 +454,7 @@ data class GitHubIssue(
     val user: GitHubUser,
     val assignees: List<GitHubUser>?,
     val comments: Int,
-    @SerialName("closed_by") val closedBy: GitHubUser?
+    @SerialName("closed_by") val closedBy: GitHubUser?,
 )
 
 @Serializable
@@ -440,12 +463,12 @@ data class GitHubLabel(
     val url: String,
     val name: String,
     val color: String,
-    val description: String?
+    val description: String?,
 )
 
 @Serializable
 data class GitHubSecurityAdvisoriesResponse(
-    val advisories: List<GitHubSecurityAdvisory>
+    val advisories: List<GitHubSecurityAdvisory>,
 )
 
 @Serializable
@@ -460,18 +483,18 @@ data class GitHubSecurityAdvisory(
     @SerialName("updated_at") val updatedAt: String,
     val identifiers: List<GitHubAdvisoryIdentifier>,
     val references: List<GitHubAdvisoryReference>,
-    val vulnerabilities: List<GitHubVulnerability>
+    val vulnerabilities: List<GitHubVulnerability>,
 )
 
 @Serializable
 data class GitHubAdvisoryIdentifier(
     val value: String,
-    val type: String
+    val type: String,
 )
 
 @Serializable
 data class GitHubAdvisoryReference(
-    val url: String
+    val url: String,
 )
 
 @Serializable
@@ -479,12 +502,12 @@ data class GitHubVulnerability(
     val packageName: String,
     val vulnerableVersionRange: String,
     @SerialName("first_patched_version") val firstPatchedVersion: GitHubPatchedVersion?,
-    val vulnerableFunctions: List<String>?
+    val vulnerableFunctions: List<String>?,
 )
 
 @Serializable
 data class GitHubPatchedVersion(
-    val identifier: String
+    val identifier: String,
 )
 
 @Serializable
@@ -503,7 +526,7 @@ data class GitHubRelease(
     @SerialName("published_at") val publishedAt: String,
     val body: String?,
     val author: GitHubUser,
-    val assets: List<GitHubReleaseAsset>
+    val assets: List<GitHubReleaseAsset>,
 )
 
 @Serializable
@@ -519,5 +542,5 @@ data class GitHubReleaseAsset(
     val size: Int,
     @SerialName("download_count") val downloadCount: Int,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String
+    @SerialName("updated_at") val updatedAt: String,
 )

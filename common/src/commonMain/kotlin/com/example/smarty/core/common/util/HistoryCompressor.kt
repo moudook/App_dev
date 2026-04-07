@@ -19,32 +19,32 @@ import com.example.smarty.core.domain.model.ChatRole
  * Expected impact: 50-70% token reduction for long conversations
  */
 class HistoryCompressor(private val logger: Logger) {
-
     companion object {
-        private const val DEFAULT_RECENT_EXCHANGES = 3  // Keep 3 most recent exchanges verbatim
-        private const val MAX_SUMMARY_CHARS = 300       // Max chars for summary section (reduced for small models)
-        private const val MAX_MESSAGE_EXCERPT = 80      // Max chars per message in summary
+        private const val DEFAULT_RECENT_EXCHANGES = 3 // Keep 3 most recent exchanges verbatim
+        private const val MAX_SUMMARY_CHARS = 300 // Max chars for summary section (reduced for small models)
+        private const val MAX_MESSAGE_EXCERPT = 80 // Max chars per message in summary
 
         // Compression trigger thresholds
-        private const val MESSAGE_COUNT_THRESHOLD = 10  // Compress when > 10 messages (reduced)
-        private const val TOKEN_COUNT_THRESHOLD = 2000  // Compress when > 2000 estimated tokens (reduced for small models)
+        private const val MESSAGE_COUNT_THRESHOLD = 10 // Compress when > 10 messages (reduced)
+        private const val TOKEN_COUNT_THRESHOLD = 2000 // Compress when > 2000 estimated tokens (reduced for small models)
 
         // CRITICAL: Hard limit for small model compatibility
         // Most free tier models have 4k-8k context windows
-        private const val MAX_TOTAL_TOKENS = 3000       // Absolute max tokens to return
-        private const val MAX_TOTAL_CHARS = 12000       // ~3000 tokens (4 chars per token)
+        private const val MAX_TOTAL_TOKENS = 3000 // Absolute max tokens to return
+        private const val MAX_TOTAL_CHARS = 12000 // ~3000 tokens (4 chars per token)
 
-        private const val MAX_COMPRESSION_ITERATIONS = 50  // Safety limit to prevent infinite loops
+        private const val MAX_COMPRESSION_ITERATIONS = 50 // Safety limit to prevent infinite loops
         private const val TAG = "HistoryCompressor"
     }
 
     // Pre-compiled patterns for extracting key information
-    private val ENTITY_PATTERNS = listOf(
-        Regex("\\b[A-Z][a-z]+ [A-Z][a-z]+\\b"),           // Names (e.g., "John Smith")
-        Regex("\\b\\d{1,2}[:/]\\d{2}\\s*(?:AM|PM|am|pm)?\\b"),  // Times
-        Regex("\\b(?:today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b", RegexOption.IGNORE_CASE),
-        Regex("\\b(?:create|delete|update|search|find|remind|schedule)\\b", RegexOption.IGNORE_CASE)  // Intent verbs
-    )
+    private val entityPatterns =
+        listOf(
+            Regex("\\b[A-Z][a-z]+ [A-Z][a-z]+\\b"), // Names (e.g., "John Smith")
+            Regex("\\b\\d{1,2}[:/]\\d{2}\\s*(?:AM|PM|am|pm)?\\b"), // Times
+            Regex("\\b(?:today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b", RegexOption.IGNORE_CASE),
+            Regex("\\b(?:create|delete|update|search|find|remind|schedule)\\b", RegexOption.IGNORE_CASE), // Intent verbs
+        )
 
     /**
      * Check if compression should be triggered based on thresholds.
@@ -73,7 +73,7 @@ class HistoryCompressor(private val logger: Logger) {
         messages: List<ChatMessage>,
         recentExchanges: Int = DEFAULT_RECENT_EXCHANGES,
         maxSummaryChars: Int = MAX_SUMMARY_CHARS,
-        forceCompress: Boolean = false
+        forceCompress: Boolean = false,
     ): List<ChatMessage> {
         if (messages.isEmpty()) return messages
 
@@ -101,22 +101,24 @@ class HistoryCompressor(private val logger: Logger) {
         val summary = summarize(older, maxSummaryChars)
 
         // Build context message with structured facts + summary
-        val contextContent = buildString {
-            if (facts.isNotEmpty()) {
-                appendLine("[FACTS:]")
-                facts.forEach { fact ->
-                    appendLine("- ${fact.category}: ${fact.value}")
+        val contextContent =
+            buildString {
+                if (facts.isNotEmpty()) {
+                    appendLine("[FACTS:]")
+                    facts.forEach { fact ->
+                        appendLine("- ${fact.category}: ${fact.value}")
+                    }
+                    appendLine()
                 }
-                appendLine()
+                appendLine("[SUMMARY: $summary]")
             }
-            appendLine("[SUMMARY: $summary]")
-        }
 
-        val contextMessage = ChatMessage(
-            id = "ctx_${System.currentTimeMillis()}", // Generated ID
-            role = ChatRole.SYSTEM,
-            content = contextContent.trim()
-        )
+        val contextMessage =
+            ChatMessage(
+                id = "ctx_${System.currentTimeMillis()}", // Generated ID
+                role = ChatRole.SYSTEM,
+                content = contextContent.trim(),
+            )
 
         val result = listOf(contextMessage) + recent
         return enforceSizeLimit(result)
@@ -137,8 +139,11 @@ class HistoryCompressor(private val logger: Logger) {
 
             // Safety: prevent infinite loop with iteration limit
             if (iterations > MAX_COMPRESSION_ITERATIONS) {
-                logger.w(TAG, "enforceSizeLimit: Hit max iterations ($MAX_COMPRESSION_ITERATIONS), " +
-                    "forcing truncation. Remaining messages: ${result.size}, totalChars: $totalChars")
+                logger.w(
+                    TAG,
+                    "enforceSizeLimit: Hit max iterations ($MAX_COMPRESSION_ITERATIONS), " +
+                        "forcing truncation. Remaining messages: ${result.size}, totalChars: $totalChars",
+                )
                 break
             }
 
@@ -146,8 +151,11 @@ class HistoryCompressor(private val logger: Logger) {
             val indexToDrop = result.indexOfFirst { it.role != ChatRole.SYSTEM }
             if (indexToDrop == -1) {
                 // Only system messages left - cannot drop any more non-system messages
-                logger.d(TAG, "enforceSizeLimit: All remaining ${result.size} messages are system messages, " +
-                    "truncating first message")
+                logger.d(
+                    TAG,
+                    "enforceSizeLimit: All remaining ${result.size} messages are system messages, " +
+                        "truncating first message",
+                )
                 val first = result.first()
                 val truncated = first.copy(content = first.content.take(MAX_TOTAL_CHARS / 2) + "...[truncated]")
                 result = listOf(truncated) + result.drop(1)
@@ -160,11 +168,14 @@ class HistoryCompressor(private val logger: Logger) {
         // Final safety: truncate individual messages if still too large
         if (totalChars > MAX_TOTAL_CHARS) {
             val budget = MAX_TOTAL_CHARS / result.size
-            result = result.map { msg ->
-                if (msg.content.length > budget) {
-                    msg.copy(content = msg.content.take(budget) + "...[truncated]")
-                } else msg
-            }
+            result =
+                result.map { msg ->
+                    if (msg.content.length > budget) {
+                        msg.copy(content = msg.content.take(budget) + "...[truncated]")
+                    } else {
+                        msg
+                    }
+                }
         }
 
         return result
@@ -174,9 +185,9 @@ class HistoryCompressor(private val logger: Logger) {
      * Structured fact extracted from conversation.
      */
     data class ExtractedFact(
-        val category: String,  // e.g., "user_preference", "mentioned_person", "task_outcome"
+        val category: String, // e.g., "user_preference", "mentioned_person", "task_outcome"
         val value: String,
-        val confidence: Float = 1.0f
+        val confidence: Float = 1.0f,
     )
 
     /**
@@ -190,15 +201,15 @@ class HistoryCompressor(private val logger: Logger) {
             val content = message.content
 
             // Extract mentioned people/names
-            ENTITY_PATTERNS[0].findAll(content).forEach { match ->
+            entityPatterns[0].findAll(content).forEach { match ->
                 facts.add(ExtractedFact("mentioned_person", match.value))
             }
 
             // Extract times/dates mentioned
-            ENTITY_PATTERNS[1].findAll(content).forEach { match ->
+            entityPatterns[1].findAll(content).forEach { match ->
                 facts.add(ExtractedFact("mentioned_time", match.value))
             }
-            ENTITY_PATTERNS[2].findAll(content).forEach { match ->
+            entityPatterns[2].findAll(content).forEach { match ->
                 facts.add(ExtractedFact("mentioned_day", match.value))
             }
 
@@ -214,7 +225,8 @@ class HistoryCompressor(private val logger: Logger) {
             if (message.role == ChatRole.USER) {
                 if (content.contains("prefer", ignoreCase = true) ||
                     content.contains("like to", ignoreCase = true) ||
-                    content.contains("always", ignoreCase = true)) {
+                    content.contains("always", ignoreCase = true)
+                ) {
                     val excerpt = content.take(80)
                     facts.add(ExtractedFact("user_preference", excerpt, 0.7f))
                 }
@@ -225,7 +237,7 @@ class HistoryCompressor(private val logger: Logger) {
         return facts
             .distinctBy { "${it.category}:${it.value}" }
             .sortedByDescending { it.confidence }
-            .take(10)  // Keep top 10 facts to limit tokens
+            .take(10) // Keep top 10 facts to limit tokens
     }
 
     /**
@@ -236,7 +248,10 @@ class HistoryCompressor(private val logger: Logger) {
      * - User intents (create, search, remind, etc.)
      * - Important decisions/outcomes
      */
-    private fun summarize(messages: List<ChatMessage>, maxChars: Int): String {
+    private fun summarize(
+        messages: List<ChatMessage>,
+        maxChars: Int,
+    ): String {
         if (messages.isEmpty()) return ""
 
         val summaryParts = mutableListOf<String>()
@@ -260,9 +275,11 @@ class HistoryCompressor(private val logger: Logger) {
             smartyMsg?.let {
                 // Prioritize executed actions if any
                 if (it.executedActions.isNotEmpty()) {
-                    val actions = it.executedActions.joinToString(", ") {
-                        action -> "${action.action}:${if (action.success) "ok" else "fail"}"
-                    }
+                    val actions =
+                        it.executedActions.joinToString(", ") {
+                                action ->
+                            "${action.action}:${if (action.success) "ok" else "fail"}"
+                        }
                     summaryParts.add("Actions: $actions")
                 } else {
                     val excerpt = extractKeyPoints(it.content)
@@ -289,16 +306,18 @@ class HistoryCompressor(private val logger: Logger) {
         if (text.isBlank()) return ""
 
         // Get first sentence
-        val firstSentence = text.split(Regex("[.!?]"))
-            .firstOrNull()
-            ?.trim()
-            ?.take(MAX_MESSAGE_EXCERPT)
-            ?: ""
+        val firstSentence =
+            text.split(Regex("[.!?]"))
+                .firstOrNull()
+                ?.trim()
+                ?.take(MAX_MESSAGE_EXCERPT)
+                ?: ""
 
         // Find entities in the full text
-        val entities = ENTITY_PATTERNS.flatMap { pattern ->
-            pattern.findAll(text).map { it.value }
-        }.distinct().take(3)
+        val entities =
+            entityPatterns.flatMap { pattern ->
+                pattern.findAll(text).map { it.value }
+            }.distinct().take(3)
 
         // Combine: first sentence + any additional entities not in it
         val missingEntities = entities.filter { !firstSentence.contains(it, ignoreCase = true) }
@@ -329,7 +348,10 @@ class HistoryCompressor(private val logger: Logger) {
      * @param compressed Compressed messages
      * @return Compression ratio (e.g., 0.3 means 70% reduction)
      */
-    fun compressionRatio(original: List<ChatMessage>, compressed: List<ChatMessage>): Float {
+    fun compressionRatio(
+        original: List<ChatMessage>,
+        compressed: List<ChatMessage>,
+    ): Float {
         val originalTokens = estimateTokens(original)
         val compressedTokens = estimateTokens(compressed)
         return if (originalTokens > 0) {

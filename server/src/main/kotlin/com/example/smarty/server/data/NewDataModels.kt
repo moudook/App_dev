@@ -15,17 +15,17 @@ data class Task(
     val noteId: String? = null,
     val title: String,
     val description: String? = null,
-    val status: String = "todo",  // todo, in_progress, done, cancelled
-    val priority: Int = 2,  // 0-4 scale
-    val dueDate: String? = null,  // TIMESTAMPTZ
-    val completedAt: String? = null,  // TIMESTAMPTZ
+    val status: String = "todo", // todo, in_progress, done, cancelled
+    val priority: Int = 2, // 0-4 scale
+    val dueDate: String? = null, // TIMESTAMPTZ
+    val completedAt: String? = null, // TIMESTAMPTZ
     val sortOrder: Int = 0,
     val isRecurring: Boolean = false,
     val recurrenceRule: String? = null,
-    val metadata: String = "{}",  // JSONB
-    val createdAt: String? = null,  // TIMESTAMPTZ
-    val updatedAt: String? = null,  // TIMESTAMPTZ
-    val deletedAt: String? = null   // TIMESTAMPTZ (soft delete)
+    val metadata: String = "{}", // JSONB
+    val createdAt: String? = null, // TIMESTAMPTZ
+    val updatedAt: String? = null, // TIMESTAMPTZ
+    val deletedAt: String? = null, // TIMESTAMPTZ (soft delete)
 )
 
 /**
@@ -39,7 +39,7 @@ data class Tag(
     val name: String,
     val color: String = "#6200EE",
     val usageCount: Int = 0,
-    val createdAt: String? = null  // TIMESTAMPTZ
+    val createdAt: String? = null, // TIMESTAMPTZ
 )
 
 /**
@@ -53,10 +53,10 @@ data class Notification(
     val type: String,
     val title: String,
     val body: String? = null,
-    val data: String = "{}",  // JSONB
+    val data: String = "{}", // JSONB
     val isRead: Boolean = false,
-    val readAt: String? = null,  // TIMESTAMPTZ
-    val createdAt: String? = null  // TIMESTAMPTZ
+    val readAt: String? = null, // TIMESTAMPTZ
+    val createdAt: String? = null, // TIMESTAMPTZ
 )
 
 /**
@@ -71,7 +71,7 @@ data class ChatFolder(
     val color: String = "#6200EE",
     val sortOrder: Int = 0,
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
 )
 
 /**
@@ -83,13 +83,13 @@ data class UserDevice(
     val id: String = UUID.randomUUID().toString(),
     val userId: String,
     val deviceName: String? = null,
-    val deviceType: String? = null,  // ios, android, web, desktop, other
+    val deviceType: String? = null, // ios, android, web, desktop, other
     val pushToken: String? = null,
     val lastActiveAt: String? = null,
     val appVersion: String? = null,
     val metadata: String = "{}",
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
 )
 
 /**
@@ -101,9 +101,9 @@ data class SearchHistory(
     val id: String = UUID.randomUUID().toString(),
     val userId: String,
     val query: String,
-    val searchScope: String = "all",  // all, notes, chat, research, tasks
+    val searchScope: String = "all", // all, notes, chat, research, tasks
     val resultCount: Int = 0,
-    val createdAt: String? = null
+    val createdAt: String? = null,
 )
 
 /**
@@ -115,12 +115,12 @@ data class SharedItem(
     val id: String = UUID.randomUUID().toString(),
     val ownerId: String,
     val sharedWithId: String? = null,
-    val itemType: String,  // note, chat_session, research_session, task
+    val itemType: String, // note, chat_session, research_session, task
     val itemId: String,
-    val permission: String = "view",  // view, comment, edit
+    val permission: String = "view", // view, comment, edit
     val shareToken: String? = null,
     val expiresAt: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
 )
 
 /**
@@ -130,7 +130,7 @@ data class SharedItem(
 @Serializable
 data class NoteTag(
     val noteId: String,
-    val tagId: String
+    val tagId: String,
 )
 
 /**
@@ -145,7 +145,7 @@ data class NoteVersion(
     val title: String,
     val content: String,
     val versionNo: Int,
-    val createdAt: String? = null
+    val createdAt: String? = null,
 )
 
 /**
@@ -158,7 +158,7 @@ data class ChatAttachment(
     val messageId: String,
     val fileId: String,
     val userId: String,
-    val createdAt: String? = null
+    val createdAt: String? = null,
 )
 
 /**
@@ -168,5 +168,5 @@ data class ChatAttachment(
 @Serializable
 data class NoteAttachment(
     val noteId: String,
-    val fileId: String
+    val fileId: String,
 )

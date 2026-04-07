@@ -3,10 +3,10 @@ package com.example.smarty.data.worker
 import android.content.Context
 import android.util.Log
 import androidx.work.*
-import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager
-import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.repository.SmartyRepository
+import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager
 import java.util.concurrent.TimeUnit
 
 /**
@@ -15,9 +15,8 @@ import java.util.concurrent.TimeUnit
  */
 class CalendarSyncWorker(
     private val context: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
 ) : CoroutineWorker(context, workerParams) {
-
     companion object {
         private const val TAG = "CalendarSyncWorker"
         private const val WORK_NAME = "periodic_calendar_sync_work"
@@ -27,21 +26,23 @@ class CalendarSyncWorker(
          * Default interval: 30 minutes
          */
         fun schedule(context: Context) {
-            val workRequest = PeriodicWorkRequestBuilder<CalendarSyncWorker>(
-                30, TimeUnit.MINUTES
-            )
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .setRequiresBatteryNotLow(true)
-                        .build()
+            val workRequest =
+                PeriodicWorkRequestBuilder<CalendarSyncWorker>(
+                    30,
+                    TimeUnit.MINUTES,
                 )
-                .build()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .setRequiresBatteryNotLow(true)
+                            .build(),
+                    )
+                    .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
-                workRequest
+                workRequest,
             )
 
             Log.d(TAG, "Periodic calendar sync scheduled every 30 minutes")
@@ -67,12 +68,13 @@ class CalendarSyncWorker(
 
         try {
             val database = SmartyDatabase.getDatabase(context)
-            val repository = SmartyRepository(
-                noteDao = database.noteDao(),
-                categoryDao = database.categoryDao(),
-                calendarDao = database.calendarDao(),
-                noteVersionDao = database.noteVersionDao()
-            )
+            val repository =
+                SmartyRepository(
+                    noteDao = database.noteDao(),
+                    categoryDao = database.categoryDao(),
+                    calendarDao = database.calendarDao(),
+                    noteVersionDao = database.noteVersionDao(),
+                )
 
             val syncManager = GoogleCalendarSyncManager(context, repository)
 
@@ -82,17 +84,17 @@ class CalendarSyncWorker(
             }
 
             val targetCalendarId = securePreferences.getTargetGoogleCalendarId()
-            val syncedCount = if (targetCalendarId != -1L) {
-                Log.d(TAG, "Syncing specific calendar: $targetCalendarId")
-                syncManager.syncCalendar(targetCalendarId)
-            } else {
-                Log.d(TAG, "Syncing all visible Google calendars")
-                syncManager.syncAllGoogleCalendars()
-            }
+            val syncedCount =
+                if (targetCalendarId != -1L) {
+                    Log.d(TAG, "Syncing specific calendar: $targetCalendarId")
+                    syncManager.syncCalendar(targetCalendarId)
+                } else {
+                    Log.d(TAG, "Syncing all visible Google calendars")
+                    syncManager.syncAllGoogleCalendars()
+                }
 
             Log.i(TAG, "Calendar sync completed. Synced $syncedCount events.")
             return Result.success()
-
         } catch (e: Exception) {
             Log.e(TAG, "Calendar sync failed: ${e.message}", e)
             return Result.retry()

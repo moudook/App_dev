@@ -3,9 +3,9 @@ package com.example.smarty.data.remote.providers
 import android.util.Log
 import com.example.smarty.data.remote.AIResponse
 import com.example.smarty.data.remote.AIResponseParser
-import com.example.smarty.data.remote.DocumentAnalysisResponse
 import com.example.smarty.data.remote.CompatibleAIMessage
 import com.example.smarty.data.remote.CompatibleAIRequest
+import com.example.smarty.data.remote.DocumentAnalysisResponse
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -30,9 +30,8 @@ class CompatibleAIConnection(
     private val client: OkHttpClient,
     private val gson: Gson,
     private val baseUrl: String,
-    private val name: String
+    private val name: String,
 ) : AIConnectionContract {
-
     override val connectionName: String = name
 
     companion object {
@@ -53,7 +52,9 @@ class CompatibleAIConnection(
         private fun sanitizeForLogging(responseBody: String?): String {
             if (responseBody.isNullOrBlank()) return "[empty response]"
             return responseBody
-                .replace(Regex(""""(api[_-]?key|token|authorization|secret|password|bearer)"\\s*:\\s*"[^"]+"""", RegexOption.IGNORE_CASE)) { match ->
+                .replace(
+                    Regex(""""(api[_-]?key|token|authorization|secret|password|bearer)"\\s*:\\s*"[^"]+"""", RegexOption.IGNORE_CASE),
+                ) { match ->
                     val keyName = match.groupValues.getOrNull(1) ?: "key"
                     """"$keyName": "****""""
                 }
@@ -66,8 +67,11 @@ class CompatibleAIConnection(
          * Create a server connection instance for the Smarty Server.
          * @param url Dynamic URL from SecurePreferences.getServerUrl()
          */
-        fun localPC(client: OkHttpClient, gson: Gson, url: String) =
-            CompatibleAIConnection(client, gson, url, "Smarty Server")
+        fun localPC(
+            client: OkHttpClient,
+            gson: Gson,
+            url: String,
+        ) = CompatibleAIConnection(client, gson, url, "Smarty Server")
     }
 
     /**
@@ -91,34 +95,38 @@ class CompatibleAIConnection(
         content: String,
         connectionToken: String,
         model: String,
-        systemPrompt: String
+        systemPrompt: String,
     ): AIResponse? {
-        val requestBody = CompatibleAIRequest(
-            model = model,
-            messages = listOf(
-                CompatibleAIMessage(role = "system", content = systemPrompt),
-                CompatibleAIMessage(role = "user", content = content)
-            ),
-            temperature = AIRequestConfig.ANALYSIS.temperature,
-            maxTokens = AIRequestConfig.ANALYSIS.maxTokens
-        )
+        val requestBody =
+            CompatibleAIRequest(
+                model = model,
+                messages =
+                    listOf(
+                        CompatibleAIMessage(role = "system", content = systemPrompt),
+                        CompatibleAIMessage(role = "user", content = content),
+                    ),
+                temperature = AIRequestConfig.ANALYSIS.temperature,
+                maxTokens = AIRequestConfig.ANALYSIS.maxTokens,
+            )
 
         val jsonBody = gson.toJson(requestBody)
 
         Log.d(TAG, "$name URL: $baseUrl")
 
-        val request = Request.Builder()
-            .url(baseUrl)
-            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $connectionToken")
-            .addHeader("Content-Type", "application/json")
-            .build()
+        val request =
+            Request.Builder()
+                .url(baseUrl)
+                .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                .addHeader("Authorization", "Bearer $connectionToken")
+                .addHeader("Content-Type", "application/json")
+                .build()
 
         return try {
             // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
-            val response = withContext(Dispatchers.IO) {
-                client.newCall(request).execute()
-            }
+            val response =
+                withContext(Dispatchers.IO) {
+                    client.newCall(request).execute()
+                }
             val responseBody = response.body?.string()
 
             Log.d(TAG, "$name HTTP ${response.code}")
@@ -131,7 +139,7 @@ class CompatibleAIConnection(
                     summary = "Processing failed",
                     whySaved = "Error",
                     success = false,
-                    error = "HTTP ${response.code}"
+                    error = "HTTP ${response.code}",
                 )
             }
 
@@ -150,32 +158,36 @@ class CompatibleAIConnection(
         content: String,
         connectionToken: String,
         model: String,
-        systemPrompt: String
+        systemPrompt: String,
     ): DocumentAnalysisResponse? {
-        val requestBody = CompatibleAIRequest(
-            model = model,
-            messages = listOf(
-                CompatibleAIMessage(role = "system", content = systemPrompt),
-                CompatibleAIMessage(role = "user", content = content)
-            ),
-            temperature = AIRequestConfig.DOCUMENT.temperature,
-            maxTokens = AIRequestConfig.DOCUMENT.maxTokens
-        )
+        val requestBody =
+            CompatibleAIRequest(
+                model = model,
+                messages =
+                    listOf(
+                        CompatibleAIMessage(role = "system", content = systemPrompt),
+                        CompatibleAIMessage(role = "user", content = content),
+                    ),
+                temperature = AIRequestConfig.DOCUMENT.temperature,
+                maxTokens = AIRequestConfig.DOCUMENT.maxTokens,
+            )
 
         val jsonBody = gson.toJson(requestBody)
 
-        val request = Request.Builder()
-            .url(baseUrl)
-            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $connectionToken")
-            .addHeader("Content-Type", "application/json")
-            .build()
+        val request =
+            Request.Builder()
+                .url(baseUrl)
+                .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                .addHeader("Authorization", "Bearer $connectionToken")
+                .addHeader("Content-Type", "application/json")
+                .build()
 
         return try {
             // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
-            val response = withContext(Dispatchers.IO) {
-                client.newCall(request).execute()
-            }
+            val response =
+                withContext(Dispatchers.IO) {
+                    client.newCall(request).execute()
+                }
             val responseBody = response.body?.string()
 
             if (!response.isSuccessful) {
@@ -200,34 +212,38 @@ class CompatibleAIConnection(
         systemPrompt: String,
         userPrompt: String,
         connectionToken: String,
-        model: String
+        model: String,
     ): String? {
-        val requestBody = CompatibleAIRequest(
-            model = model,
-            messages = listOf(
-                CompatibleAIMessage(role = "system", content = systemPrompt),
-                CompatibleAIMessage(role = "user", content = userPrompt)
-            ),
-            temperature = AIRequestConfig.CHAT.temperature,
-            maxTokens = AIRequestConfig.CHAT.maxTokens
-        )
+        val requestBody =
+            CompatibleAIRequest(
+                model = model,
+                messages =
+                    listOf(
+                        CompatibleAIMessage(role = "system", content = systemPrompt),
+                        CompatibleAIMessage(role = "user", content = userPrompt),
+                    ),
+                temperature = AIRequestConfig.CHAT.temperature,
+                maxTokens = AIRequestConfig.CHAT.maxTokens,
+            )
 
         val jsonBody = gson.toJson(requestBody)
 
         Log.d(TAG, "$name chat URL: $baseUrl")
 
-        val request = Request.Builder()
-            .url(baseUrl)
-            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $connectionToken")
-            .addHeader("Content-Type", "application/json")
-            .build()
+        val request =
+            Request.Builder()
+                .url(baseUrl)
+                .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                .addHeader("Authorization", "Bearer $connectionToken")
+                .addHeader("Content-Type", "application/json")
+                .build()
 
         return try {
             // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
-            val response = withContext(Dispatchers.IO) {
-                client.newCall(request).execute()
-            }
+            val response =
+                withContext(Dispatchers.IO) {
+                    client.newCall(request).execute()
+                }
             val responseBody = response.body?.string()
 
             Log.d(TAG, "$name chat HTTP ${response.code}")

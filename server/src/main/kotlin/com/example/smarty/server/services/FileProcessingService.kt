@@ -10,7 +10,6 @@ import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.text.PDFTextStripper
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.util.Base64
 import javax.imageio.ImageIO
 
@@ -21,7 +20,7 @@ import javax.imageio.ImageIO
  */
 class FileProcessingService(
     private val visionService: VisionService,
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
 ) {
     private val logger = LoggerFactory.getLogger(FileProcessingService::class.java)
 
@@ -43,69 +42,71 @@ class FileProcessingService(
     suspend fun processPdf(
         pdfBytes: ByteArray,
         fileName: String? = null,
-        useOcrForImages: Boolean = true
-    ): PdfProcessingResult = withContext(Dispatchers.IO) {
-        logger.info("Processing PDF: $fileName (${pdfBytes.size / 1024} KB)")
+        useOcrForImages: Boolean = true,
+    ): PdfProcessingResult =
+        withContext(Dispatchers.IO) {
+            logger.info("Processing PDF: $fileName (${pdfBytes.size / 1024} KB)")
 
-        if (pdfBytes.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-            return@withContext PdfProcessingResult(
-                text = "",
-                pageCount = 0,
-                hasImages = false,
-                success = false,
-                error = "File too large (max ${MAX_FILE_SIZE_MB}MB)"
-            )
-        }
-
-        try {
-            val document = Loader.loadPDF(pdfBytes)
-            document.use { pdf ->
-                val pageCount = minOf(pdf.getNumberOfPages(), MAX_PDF_PAGES)
-                val textStripper = PDFTextStripper()
-
-                // Extract text from all pages
-                textStripper.startPage = 1
-                textStripper.endPage = pageCount
-                var extractedText = textStripper.getText(pdf)
-
-                // Check if text extraction yielded meaningful content
-                val hasMinimalText = extractedText.replace(Regex("\\s+"), "").length < 100 && pageCount > 0
-                val hasImages = detectImages(pdf)
-
-                // If minimal text and has images, use OCR on rendered pages
-                if (hasMinimalText && hasImages && useOcrForImages) {
-                    logger.info("PDF appears image-heavy, using OCR for $pageCount pages")
-                    val ocrText = ocrPdfPages(pdf, minOf(pageCount, 10)) // Limit OCR to first 10 pages
-                    if (ocrText.isNotBlank()) {
-                        extractedText = ocrText
-                    }
-                }
-
-                // Truncate if too long
-                val finalText = if (extractedText.length > MAX_TEXT_LENGTH) {
-                    extractedText.take(MAX_TEXT_LENGTH) + "\n\n[... content truncated ...]"
-                } else {
-                    extractedText
-                }
-
-                PdfProcessingResult(
-                    text = finalText.trim(),
-                    pageCount = pageCount,
-                    hasImages = hasImages,
-                    success = true
+            if (pdfBytes.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                return@withContext PdfProcessingResult(
+                    text = "",
+                    pageCount = 0,
+                    hasImages = false,
+                    success = false,
+                    error = "File too large (max ${MAX_FILE_SIZE_MB}MB)",
                 )
             }
-        } catch (e: Exception) {
-            logger.error("PDF processing failed: ${e.message}", e)
-            PdfProcessingResult(
-                text = "",
-                pageCount = 0,
-                hasImages = false,
-                success = false,
-                error = "PDF processing failed: ${e.message}"
-            )
+
+            try {
+                val document = Loader.loadPDF(pdfBytes)
+                document.use { pdf ->
+                    val pageCount = minOf(pdf.getNumberOfPages(), MAX_PDF_PAGES)
+                    val textStripper = PDFTextStripper()
+
+                    // Extract text from all pages
+                    textStripper.startPage = 1
+                    textStripper.endPage = pageCount
+                    var extractedText = textStripper.getText(pdf)
+
+                    // Check if text extraction yielded meaningful content
+                    val hasMinimalText = extractedText.replace(Regex("\\s+"), "").length < 100 && pageCount > 0
+                    val hasImages = detectImages(pdf)
+
+                    // If minimal text and has images, use OCR on rendered pages
+                    if (hasMinimalText && hasImages && useOcrForImages) {
+                        logger.info("PDF appears image-heavy, using OCR for $pageCount pages")
+                        val ocrText = ocrPdfPages(pdf, minOf(pageCount, 10)) // Limit OCR to first 10 pages
+                        if (ocrText.isNotBlank()) {
+                            extractedText = ocrText
+                        }
+                    }
+
+                    // Truncate if too long
+                    val finalText =
+                        if (extractedText.length > MAX_TEXT_LENGTH) {
+                            extractedText.take(MAX_TEXT_LENGTH) + "\n\n[... content truncated ...]"
+                        } else {
+                            extractedText
+                        }
+
+                    PdfProcessingResult(
+                        text = finalText.trim(),
+                        pageCount = pageCount,
+                        hasImages = hasImages,
+                        success = true,
+                    )
+                }
+            } catch (e: Exception) {
+                logger.error("PDF processing failed: ${e.message}", e)
+                PdfProcessingResult(
+                    text = "",
+                    pageCount = 0,
+                    hasImages = false,
+                    success = false,
+                    error = "PDF processing failed: ${e.message}",
+                )
+            }
         }
-    }
 
     /**
      * Process an image file and extract text via OCR.
@@ -118,7 +119,7 @@ class FileProcessingService(
     suspend fun processImage(
         imageBytes: ByteArray,
         mimeType: String,
-        fileName: String? = null
+        fileName: String? = null,
     ): ImageProcessingResult {
         logger.info("Processing image: $fileName (${imageBytes.size / 1024} KB, type: $mimeType)")
 
@@ -129,7 +130,7 @@ class FileProcessingService(
             text = ocrResult.extractedText,
             contentType = ocrResult.contentType,
             success = ocrResult.success,
-            error = ocrResult.error
+            error = ocrResult.error,
         )
     }
 
@@ -141,12 +142,13 @@ class FileProcessingService(
             for (page in document.pages) {
                 val resources = page.resources
                 if (resources.xObjectNames.any { name ->
-                    try {
-                        resources.isImageXObject(name)
-                    } catch (e: Exception) {
-                        false
+                        try {
+                            resources.isImageXObject(name)
+                        } catch (e: Exception) {
+                            false
+                        }
                     }
-                }) {
+                ) {
                     return true
                 }
             }
@@ -160,7 +162,10 @@ class FileProcessingService(
     /**
      * Render PDF pages to images and OCR them.
      */
-    private suspend fun ocrPdfPages(document: PDDocument, maxPages: Int): String {
+    private suspend fun ocrPdfPages(
+        document: PDDocument,
+        maxPages: Int,
+    ): String {
         val renderer = PDFRenderer(document)
         val texts = mutableListOf<String>()
 
@@ -197,7 +202,7 @@ data class PdfProcessingResult(
     val pageCount: Int,
     val hasImages: Boolean,
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -208,5 +213,5 @@ data class ImageProcessingResult(
     val text: String,
     val contentType: String,
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )

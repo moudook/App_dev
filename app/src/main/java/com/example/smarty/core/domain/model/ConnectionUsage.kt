@@ -1,7 +1,6 @@
 package com.example.smarty.core.domain.model
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /**
  * Represents usage statistics for an AI provider connection.
@@ -21,5 +20,5 @@ data class ConnectionUsage(
     val rateLimitHits: Int = 0,
     val toolCalls: Int = 0,
     val avgLatencyMs: Int = 0,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
 )

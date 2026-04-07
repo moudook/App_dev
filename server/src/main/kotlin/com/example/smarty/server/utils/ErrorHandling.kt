@@ -5,7 +5,6 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
@@ -15,10 +14,10 @@ class UnauthorizedException(message: String) : Exception(message)
 
 /**
  * Error handling wrapper for consistent error responses across routes.
- * 
+ *
  * This utility eliminates duplication of try-catch blocks by providing
  * a standardized way to handle errors with consistent logging and responses.
- * 
+ *
  * Usage:
  * ```
  * handleRouteErrors(call, "Operation failed") {
@@ -30,7 +29,7 @@ class UnauthorizedException(message: String) : Exception(message)
 
 /**
  * Handle errors in a route handler with consistent logging and response.
- * 
+ *
  * @param call The application call
  * @param errorMessage Base error message for logging
  * @param statusCode HTTP status code for errors (default: 500)
@@ -42,16 +41,16 @@ suspend fun <T> handleRouteErrors(
     errorMessage: String,
     statusCode: HttpStatusCode = HttpStatusCode.InternalServerError,
     includeStackTrace: Boolean = false,
-    block: suspend () -> T
+    block: suspend () -> T,
 ): T? {
     val logger = LoggerFactory.getLogger("ErrorHandler")
     val requestId = call.request.headers["X-Request-ID"] ?: java.util.UUID.randomUUID().toString()
-    
+
     try {
         logger.info(
             "Request started: {} (ID: {})",
             call.request.uri,
-            requestId
+            requestId,
         )
 
         val result = block()
@@ -59,73 +58,70 @@ suspend fun <T> handleRouteErrors(
         logger.info(
             "Request completed: {} (ID: {}, Status: OK)",
             call.request.uri,
-            requestId
+            requestId,
         )
-        
+
         return result
-        
     } catch (e: UnauthorizedException) {
         logger.warn("Authentication failed: {} (ID: {})", e.message, requestId)
-        
+
         call.respond(
             HttpStatusCode.Unauthorized,
-            ErrorResponse.unauthorized(e.message ?: "Authentication required")
+            ErrorResponse.unauthorized(e.message ?: "Authentication required"),
         )
         return null
-        
     } catch (e: IllegalArgumentException) {
         logger.warn("Bad request: {} (ID: {})", e.message, requestId)
-        
+
         call.respond(
             HttpStatusCode.BadRequest,
-            ErrorResponse.badRequest(e.message ?: "Invalid request")
+            ErrorResponse.badRequest(e.message ?: "Invalid request"),
         )
         return null
-        
     } catch (e: IllegalAccessException) {
         logger.warn("Access denied: {} (ID: {})", e.message, requestId)
-        
+
         call.respond(
             HttpStatusCode.Forbidden,
-            ErrorResponse(error = e.message ?: "Access denied", code = "FORBIDDEN")
+            ErrorResponse(error = e.message ?: "Access denied", code = "FORBIDDEN"),
         )
         return null
-        
     } catch (e: ResourceNotFoundException) {
         logger.debug("Resource not found: {} (ID: {})", e.message, requestId)
-        
+
         call.respond(
             HttpStatusCode.NotFound,
-            ErrorResponse.notFound(e.message ?: "Resource not found")
+            ErrorResponse.notFound(e.message ?: "Resource not found"),
         )
         return null
-        
     } catch (e: Exception) {
         logger.error(
             "{}: {} (ID: {})",
             errorMessage,
             e.message,
             requestId,
-            e
+            e,
         )
-        
-        val errorResponse = if (includeStackTrace) {
-            ErrorResponse(
-                error = errorMessage,
-                code = "INTERNAL_ERROR",
-                details = mapOf(
-                    "stackTrace" to e.stackTraceToString(),
-                    "requestId" to requestId
+
+        val errorResponse =
+            if (includeStackTrace) {
+                ErrorResponse(
+                    error = errorMessage,
+                    code = "INTERNAL_ERROR",
+                    details =
+                        mapOf(
+                            "stackTrace" to e.stackTraceToString(),
+                            "requestId" to requestId,
+                        ),
                 )
-            )
-        } else {
-            ErrorResponse(
-                error = "An internal error occurred",
-                code = "INTERNAL_ERROR",
-                details = mapOf("requestId" to requestId)
-            )
-        }
-        
+            } else {
+                ErrorResponse(
+                    error = "An internal error occurred",
+                    code = "INTERNAL_ERROR",
+                    details = mapOf("requestId" to requestId),
+                )
+            }
+
         call.respond(statusCode, errorResponse)
         return null
     }
@@ -138,7 +134,7 @@ suspend fun <T> handleRouteErrors(
 suspend fun <T> safeExecute(
     logger: org.slf4j.Logger,
     errorMessage: String,
-    block: suspend () -> T
+    block: suspend () -> T,
 ): T? {
     return try {
         block()
@@ -168,7 +164,10 @@ class ResourceNotFoundException(message: String) : Exception(message)
 /**
  * Validate a condition and throw IllegalArgumentException if false.
  */
-fun requireValid(condition: Boolean, message: String) {
+fun requireValid(
+    condition: Boolean,
+    message: String,
+) {
     if (!condition) {
         throw IllegalArgumentException(message)
     }
@@ -177,7 +176,10 @@ fun requireValid(condition: Boolean, message: String) {
 /**
  * Validate a condition and throw ResourceNotFoundException if false.
  */
-fun requireResource(condition: Boolean, message: String) {
+fun requireResource(
+    condition: Boolean,
+    message: String,
+) {
     if (!condition) {
         throw ResourceNotFoundException(message)
     }
@@ -186,7 +188,10 @@ fun requireResource(condition: Boolean, message: String) {
 /**
  * Validate a condition and throw UnauthorizedException if false.
  */
-fun requireAuth(condition: Boolean, message: String) {
+fun requireAuth(
+    condition: Boolean,
+    message: String,
+) {
     if (!condition) {
         throw UnauthorizedException(message)
     }
@@ -200,13 +205,11 @@ data class ApiResponse<T>(
     val success: Boolean,
     val data: T? = null,
     val error: ErrorResponse? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 ) {
     companion object {
-        fun <T> ok(data: T): ApiResponse<T> =
-            ApiResponse(success = true, data = data)
-        
-        fun <T> error(error: ErrorResponse): ApiResponse<T> =
-            ApiResponse(success = false, error = error)
+        fun <T> ok(data: T): ApiResponse<T> = ApiResponse(success = true, data = data)
+
+        fun <T> error(error: ErrorResponse): ApiResponse<T> = ApiResponse(success = false, error = error)
     }
 }

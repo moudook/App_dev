@@ -25,49 +25,51 @@ import java.util.concurrent.TimeUnit
  */
 class DailyDigestWorker(
     private val context: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
 ) : CoroutineWorker(context, workerParams) {
-
     companion object {
         private const val TAG = "DailyDigestWorker"
         private const val WORK_NAME = "daily_digest_work"
         private const val CHANNEL_ID = "daily_digest_channel"
-        private const val NOTIFICATION_ID = 1003  // Unique ID to avoid conflicts with other services
+        private const val NOTIFICATION_ID = 1003 // Unique ID to avoid conflicts with other services
 
         /**
          * Schedule the daily digest to run at 6:30 AM every day.
          */
         fun schedule(context: Context) {
             val currentTime = Calendar.getInstance()
-            val targetTime = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 6)
-                set(Calendar.MINUTE, 30)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
+            val targetTime =
+                Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 6)
+                    set(Calendar.MINUTE, 30)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
 
-                // If it's already past 6:30 AM, schedule for tomorrow
-                if (before(currentTime)) {
-                    add(Calendar.DAY_OF_YEAR, 1)
+                    // If it's already past 6:30 AM, schedule for tomorrow
+                    if (before(currentTime)) {
+                        add(Calendar.DAY_OF_YEAR, 1)
+                    }
                 }
-            }
 
             val initialDelay = targetTime.timeInMillis - currentTime.timeInMillis
 
-            val workRequest = PeriodicWorkRequestBuilder<DailyDigestWorker>(
-                1, TimeUnit.DAYS
-            )
-                .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiresBatteryNotLow(true)
-                        .build()
+            val workRequest =
+                PeriodicWorkRequestBuilder<DailyDigestWorker>(
+                    1,
+                    TimeUnit.DAYS,
                 )
-                .build()
+                    .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiresBatteryNotLow(true)
+                            .build(),
+                    )
+                    .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP, // Don't replace if already scheduled
-                workRequest
+                workRequest,
             )
 
             Log.d(TAG, "Daily digest scheduled. First run in ${initialDelay / 1000 / 60} minutes")
@@ -87,13 +89,14 @@ class DailyDigestWorker(
          */
         fun createNotificationChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.daily_digest_channel_name),
-                    NotificationManager.IMPORTANCE_DEFAULT
-                ).apply {
-                    description = context.getString(R.string.daily_digest_channel_description)
-                }
+                val channel =
+                    NotificationChannel(
+                        CHANNEL_ID,
+                        context.getString(R.string.daily_digest_channel_name),
+                        NotificationManager.IMPORTANCE_DEFAULT,
+                    ).apply {
+                        description = context.getString(R.string.daily_digest_channel_description)
+                    }
 
                 val notificationManager = context.getSystemService(NotificationManager::class.java)
                 notificationManager.createNotificationChannel(channel)
@@ -144,9 +147,10 @@ class DailyDigestWorker(
         // INPUT-002: Cap notes fetched to prevent memory issues
         // WORKER-002/MED-001: Exclude private notes from digest to protect user privacy
         val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-        val recentNotes = noteDao.getNotesCreatedAfter(oneDayAgo)
-            .filter { !it.isFullPrivacy }  // Exclude private notes
-            .take(100)
+        val recentNotes =
+            noteDao.getNotesCreatedAfter(oneDayAgo)
+                .filter { !it.isFullPrivacy } // Exclude private notes
+                .take(100)
 
         // Get total note count
         val totalNotes = noteDao.getNoteCount()
@@ -155,29 +159,32 @@ class DailyDigestWorker(
         val pinnedNotes = noteDao.getPinnedNotesCount()
 
         // Build digest
-        val title = when {
-            recentNotes.isEmpty() -> appContext.getString(R.string.digest_title_empty)
-            recentNotes.size == 1 -> appContext.getString(R.string.digest_title_single)
-            else -> appContext.getString(R.string.digest_title_plural, recentNotes.size)
-        }
+        val title =
+            when {
+                recentNotes.isEmpty() -> appContext.getString(R.string.digest_title_empty)
+                recentNotes.size == 1 -> appContext.getString(R.string.digest_title_single)
+                else -> appContext.getString(R.string.digest_title_plural, recentNotes.size)
+            }
 
-        val body = buildString {
-            if (recentNotes.isNotEmpty()) {
-                val latestTitle = if (recentNotes.first().title.length > 40) {
-                    appContext.getString(R.string.share_note_truncated_format, recentNotes.first().title.take(40))
-                } else {
-                    recentNotes.first().title
+        val body =
+            buildString {
+                if (recentNotes.isNotEmpty()) {
+                    val latestTitle =
+                        if (recentNotes.first().title.length > 40) {
+                            appContext.getString(R.string.share_note_truncated_format, recentNotes.first().title.take(40))
+                        } else {
+                            recentNotes.first().title
+                        }
+                    append(appContext.getString(R.string.digest_body_latest, latestTitle))
+                    append("\n")
                 }
-                append(appContext.getString(R.string.digest_body_latest, latestTitle))
-                append("\n")
-            }
 
-            append(appContext.getString(R.string.digest_body_total, totalNotes))
+                append(appContext.getString(R.string.digest_body_total, totalNotes))
 
-            if (pinnedNotes > 0) {
-                append(appContext.getString(R.string.digest_body_pinned, pinnedNotes))
+                if (pinnedNotes > 0) {
+                    append(appContext.getString(R.string.digest_body_pinned, pinnedNotes))
+                }
             }
-        }
 
         return DigestContent(title, body)
     }
@@ -189,32 +196,36 @@ class DailyDigestWorker(
         // Check notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 Log.w(TAG, "Notification permission not granted")
                 return
             }
         }
 
         // Create intent to open app
-        val intent = Intent(appContext, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            appContext,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val intent =
+            Intent(appContext, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                appContext,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_shortcut_note)
-            .setContentTitle(digest.title)
-            .setContentText(digest.body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(digest.body))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
+        val notification =
+            NotificationCompat.Builder(appContext, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_shortcut_note)
+                .setContentTitle(digest.title)
+                .setContentText(digest.body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(digest.body))
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .build()
 
         NotificationManagerCompat.from(appContext).notify(NOTIFICATION_ID, notification)
         Log.d(TAG, "Daily digest notification shown")
@@ -222,6 +233,6 @@ class DailyDigestWorker(
 
     data class DigestContent(
         val title: String,
-        val body: String
+        val body: String,
     )
 }

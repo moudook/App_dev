@@ -1,7 +1,7 @@
 package com.example.smarty.server.agent
 
-import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.tools.TavilySearchTool
 import com.example.smarty.server.tools.WebScrapeTool
 import kotlinx.serialization.Serializable
@@ -20,19 +20,19 @@ class DeepResearchAgent(
     private val llmProvider: LlmProvider,
     private val tavilyTool: TavilySearchTool,
     private val webScrapeTool: WebScrapeTool,
-    private val progressFileManager: ProgressFileManager
+    private val progressFileManager: ProgressFileManager,
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(DeepResearchAgent::class.java)
-        
+
         // Timeout thresholds (milliseconds)
-        private const val TIMEOUT_WARNING_MS = 12 * 60 * 1000L  // 12 minutes - warning
-        private const val TIMEOUT_FORCE_COMPLETE_MS = 15 * 60 * 1000L  // 15 minutes - forced completion
-        
+        private const val TIMEOUT_WARNING_MS = 12 * 60 * 1000L // 12 minutes - warning
+        private const val TIMEOUT_FORCE_COMPLETE_MS = 15 * 60 * 1000L // 15 minutes - forced completion
+
         // Context overflow threshold (tokens)
         private const val CONTEXT_THRESHOLD = 8000
     }
-    
+
     @Serializable
     data class ResearchSession(
         val id: String = UUID.randomUUID().toString(),
@@ -50,147 +50,155 @@ class DeepResearchAgent(
         val startTime: Long = System.currentTimeMillis(),
         val userInterruptions: List<UserInterruption> = emptyList(),
         val timeoutWarningSent: Boolean = false,
-        val createdAt: Long = System.currentTimeMillis()
+        val createdAt: Long = System.currentTimeMillis(),
     )
-    
+
     @Serializable
     data class UserInterruption(
         val message: String,
         val timestamp: Long = System.currentTimeMillis(),
-        val addressed: Boolean = false
+        val addressed: Boolean = false,
     )
-    
+
     @Serializable
     data class SearchQuery(
         val query: String,
         val results: List<SearchResult> = emptyList(),
         val timestamp: Long = System.currentTimeMillis(),
-        val purpose: String = ""
+        val purpose: String = "",
     )
-    
+
     @Serializable
     data class SearchResult(
         val url: String,
         val title: String,
         val snippet: String,
-        val position: Int
+        val position: Int,
     )
-    
+
     @Serializable
     data class Citation(
         val url: String,
         val title: String,
         val snippet: String,
         val dateAccessed: Long = System.currentTimeMillis(),
-        val keyFindings: List<String> = emptyList()
+        val keyFindings: List<String> = emptyList(),
     )
-    
+
     @Serializable
     data class ResearchLogEntry(
         val timestamp: Long = System.currentTimeMillis(),
         val action: String,
         val details: String,
-        val metadata: Map<String, String> = emptyMap()
+        val metadata: Map<String, String> = emptyMap(),
     )
-    
+
     /**
      * Start research with clarification questions
      */
     suspend fun startResearch(topic: String): ResearchSession {
         logger.info("Starting research on: $topic")
-        
-        val questions = listOf(
-            "What specific aspects of \"$topic\" are you most interested in?",
-            "Are there any particular time periods or regions to focus on?",
-            "What type of information do you need? (academic, news, technical, general)",
-            "Are there any specific questions you want answered?",
-            "Do you need current information or historical context?"
-        )
-        
+
+        val questions =
+            listOf(
+                "What specific aspects of \"$topic\" are you most interested in?",
+                "Are there any particular time periods or regions to focus on?",
+                "What type of information do you need? (academic, news, technical, general)",
+                "Are there any specific questions you want answered?",
+                "Do you need current information or historical context?",
+            )
+
         return ResearchSession(
             topic = topic,
             status = "asking_questions",
             clarificationQuestions = questions,
-            researchLog = listOf(
-                ResearchLogEntry(
-                    action = "asked_question",
-                    details = "Asked ${questions.size} clarification questions",
-                    metadata = mapOf("topic" to topic)
-                )
-            )
+            researchLog =
+                listOf(
+                    ResearchLogEntry(
+                        action = "asked_question",
+                        details = "Asked ${questions.size} clarification questions",
+                        metadata = mapOf("topic" to topic),
+                    ),
+                ),
         )
     }
-    
+
     /**
      * Process user answers
      */
     suspend fun processUserAnswers(
         session: ResearchSession,
-        answers: Map<String, String>
+        answers: Map<String, String>,
     ): ResearchSession {
         logger.info("Processing ${answers.size} answers")
-        
-        val updatedSession = session.copy(
-            userAnswers = session.userAnswers + answers,
-            status = "researching",
-            researchPlan = "Research plan for: ${session.topic}",
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "received_answer",
-                details = "Received ${answers.size} answers"
+
+        val updatedSession =
+            session.copy(
+                userAnswers = session.userAnswers + answers,
+                status = "researching",
+                researchPlan = "Research plan for: ${session.topic}",
+                researchLog =
+                    session.researchLog +
+                        ResearchLogEntry(
+                            action = "received_answer",
+                            details = "Received ${answers.size} answers",
+                        ),
             )
-        )
-        
+
         // Perform initial search
         return performSearch(updatedSession, session.topic, "Initial research")
     }
-    
+
     /**
      * Perform web search with progress tracking
      */
     suspend fun performSearch(
         session: ResearchSession,
         query: String,
-        purpose: String = ""
+        purpose: String = "",
     ): ResearchSession {
         logger.info("Searching: $query")
-        
+
         // Use Tavily API for search
         val searchResultString = tavilyTool.search(query)
-        
+
         // Parse Tavily results (format: "Title: ...\nURL: ...\nSnippet: ...\n\n")
         val searchResults = parseTavilyResults(searchResultString)
 
-        val searchQuery = SearchQuery(
-            query = query,
-            results = searchResults.map { result ->
-                SearchResult(
+        val searchQuery =
+            SearchQuery(
+                query = query,
+                results =
+                    searchResults.map { result ->
+                        SearchResult(
+                            url = result.url,
+                            title = result.title,
+                            snippet = result.snippet,
+                            position = result.position,
+                        )
+                    },
+                purpose = purpose,
+            )
+
+        // Add citations from top results
+        val newCitations =
+            searchResults.take(5).map { result ->
+                Citation(
                     url = result.url,
                     title = result.title,
                     snippet = result.snippet,
-                    position = result.position
+                    keyFindings = listOf(result.snippet.take(200)),
                 )
-            },
-            purpose = purpose
-        )
+            }
 
-        // Add citations from top results
-        val newCitations = searchResults.take(5).map { result ->
-            Citation(
-                url = result.url,
-                title = result.title,
-                snippet = result.snippet,
-                keyFindings = listOf(result.snippet.take(200))
-            )
-        }
-        
         // Check if context is getting too large
         val newContextCount = session.contextTokenCount + estimateTokens(searchResults.size * 500)
         val shouldOffload = progressFileManager.shouldOffloadToProgress(session.citations.size + newCitations.size)
-        
+
         // If context exceeded, save to progress file and continue
         if (shouldOffload && newContextCount > CONTEXT_THRESHOLD) {
             logger.info("Context threshold reached, offloading to progress file")
-            
+
             // Save key findings to progress file
             newCitations.forEach { citation ->
                 progressFileManager.saveFinding(
@@ -198,44 +206,47 @@ class DeepResearchAgent(
                     topic = session.topic,
                     finding = citation.snippet,
                     source = citation.url,
-                    category = "web_search"
+                    category = "web_search",
                 )
             }
         }
-        
+
         return session.copy(
             searchQueries = session.searchQueries + searchQuery,
             citations = session.citations + newCitations,
             contextTokenCount = newContextCount,
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "performed_search",
-                details = "Searched: $query",
-                metadata = mapOf(
-                    "query" to query,
-                    "results" to searchResults.size.toString(),
-                    "offloaded" to shouldOffload.toString()
-                )
-            )
+            researchLog =
+                session.researchLog +
+                    ResearchLogEntry(
+                        action = "performed_search",
+                        details = "Searched: $query",
+                        metadata =
+                            mapOf(
+                                "query" to query,
+                                "results" to searchResults.size.toString(),
+                                "offloaded" to shouldOffload.toString(),
+                            ),
+                    ),
         )
     }
-    
+
     /**
      * Parse Tavily search results string into structured data
      */
     private fun parseTavilyResults(resultString: String): List<SearchResult> {
         val results = mutableListOf<SearchResult>()
         val blocks = resultString.split("\n\n").filter { it.isNotBlank() }
-        
+
         blocks.forEachIndexed { index, block ->
             val title = block.lines().find { it.startsWith("Title:") }?.substringAfter("Title:")?.trim() ?: ""
             val url = block.lines().find { it.startsWith("URL:") }?.substringAfter("URL:")?.trim() ?: ""
             val snippet = block.lines().find { it.startsWith("Snippet:") }?.substringAfter("Snippet:")?.trim() ?: ""
-            
+
             if (url.isNotBlank()) {
                 results.add(SearchResult(url = url, title = title, snippet = snippet, position = index + 1))
             }
         }
-        
+
         return results
     }
 
@@ -244,145 +255,169 @@ class DeepResearchAgent(
      */
     suspend fun changeDirection(
         session: ResearchSession,
-        newDirection: String
+        newDirection: String,
     ): ResearchSession {
         logger.info("Changing direction: $newDirection")
-        
+
         return session.copy(
             researchPlan = "${session.researchPlan}\n\nDirection change: $newDirection",
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "changed_direction",
-                details = "User redirected: $newDirection"
-            )
+            researchLog =
+                session.researchLog +
+                    ResearchLogEntry(
+                        action = "changed_direction",
+                        details = "User redirected: $newDirection",
+                    ),
         )
     }
-    
+
     /**
      * Check timeout status and return appropriate message
      */
     fun checkTimeout(session: ResearchSession): TimeoutStatus {
         val elapsed = System.currentTimeMillis() - session.startTime
-        
+
         return when {
             elapsed >= TIMEOUT_FORCE_COMPLETE_MS -> TimeoutStatus.FORCE_COMPLETE
             elapsed >= TIMEOUT_WARNING_MS && !session.timeoutWarningSent -> TimeoutStatus.WARNING
             else -> TimeoutStatus.CONTINUE
         }
     }
-    
+
     /**
      * Handle user interruption during research
      */
     suspend fun handleUserInterruption(
         session: ResearchSession,
-        interruptionMessage: String
+        interruptionMessage: String,
     ): ResearchSession {
         logger.info("User interrupted research: $interruptionMessage")
-        
-        val updatedSession = session.copy(
-            userInterruptions = session.userInterruptions + UserInterruption(
-                message = interruptionMessage,
-                addressed = false
-            ),
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "user_interruption",
-                details = "User interrupted: $interruptionMessage"
+
+        val updatedSession =
+            session.copy(
+                userInterruptions =
+                    session.userInterruptions +
+                        UserInterruption(
+                            message = interruptionMessage,
+                            addressed = false,
+                        ),
+                researchLog =
+                    session.researchLog +
+                        ResearchLogEntry(
+                            action = "user_interruption",
+                            details = "User interrupted: $interruptionMessage",
+                        ),
             )
-        )
-        
+
         // Send interruption to agent context for next iteration
         return updatedSession
     }
-    
+
     /**
      * Send timeout warning to agent
      */
     suspend fun sendTimeoutWarning(session: ResearchSession): ResearchSession {
         logger.info("Sending timeout warning to research agent")
-        
+
         return session.copy(
             timeoutWarningSent = true,
-            userInterruptions = session.userInterruptions + UserInterruption(
-                message = "⚠️ TIME WARNING: You have only 3 minutes left. Wrap up your research quickly and prepare to synthesize findings.",
-                addressed = false
-            ),
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "timeout_warning",
-                details = "12-minute warning sent to agent"
-            )
+            userInterruptions =
+                session.userInterruptions +
+                    UserInterruption(
+                        message = "⚠️ TIME WARNING: You have only 3 minutes left. Wrap up your research quickly and prepare to synthesize findings.",
+                        addressed = false,
+                    ),
+            researchLog =
+                session.researchLog +
+                    ResearchLogEntry(
+                        action = "timeout_warning",
+                        details = "12-minute warning sent to agent",
+                    ),
         )
     }
-    
+
     /**
      * Force complete research due to timeout
      */
     suspend fun forceComplete(session: ResearchSession): ResearchSession {
         logger.info("Forcing research completion due to 15-minute timeout")
-        
+
         // Synthesize with whatever findings we have
         val forcedCompletionSession = synthesizeReport(session)
-        
+
         return forcedCompletionSession.copy(
-            researchLog = forcedCompletionSession.researchLog + ResearchLogEntry(
-                action = "forced_completion",
-                details = "Research forced to complete at 15-minute timeout",
-                metadata = mapOf(
-                    "finalCitations" to forcedCompletionSession.citations.size.toString(),
-                    "finalSearches" to forcedCompletionSession.searchQueries.size.toString()
-                )
-            )
+            researchLog =
+                forcedCompletionSession.researchLog +
+                    ResearchLogEntry(
+                        action = "forced_completion",
+                        details = "Research forced to complete at 15-minute timeout",
+                        metadata =
+                            mapOf(
+                                "finalCitations" to forcedCompletionSession.citations.size.toString(),
+                                "finalSearches" to forcedCompletionSession.searchQueries.size.toString(),
+                            ),
+                    ),
         )
     }
-    
+
     enum class TimeoutStatus {
         CONTINUE,
         WARNING,
-        FORCE_COMPLETE
+        FORCE_COMPLETE,
     }
-    
+
     /**
      * Read from progress file (for context recovery)
      */
-    fun readProgress(session: ResearchSession, category: String? = null): String {
+    fun readProgress(
+        session: ResearchSession,
+        category: String? = null,
+    ): String {
         return progressFileManager.getProgressText(session.id, session.topic)
     }
-    
+
     /**
      * Synthesize final report and create note card
      */
     suspend fun synthesizeReport(session: ResearchSession): ResearchSession {
         logger.info("Synthesizing report")
-        
+
         // Read progress file if exists
-        val progressText = if (session.citations.size > 10) {
-            "\n\n=== PROGRESS FILE FINDINGS ===\n" + 
-            progressFileManager.getProgressText(session.id, session.topic)
-        } else ""
-        
-        val messages = listOf(
-            LlmMessage(role = LlmMessage.Role.SYSTEM, content = buildSystemPrompt()),
-            LlmMessage(role = LlmMessage.Role.USER, content = buildReportPrompt(session) + progressText)
-        )
-        
+        val progressText =
+            if (session.citations.size > 10) {
+                "\n\n=== PROGRESS FILE FINDINGS ===\n" +
+                    progressFileManager.getProgressText(session.id, session.topic)
+            } else {
+                ""
+            }
+
+        val messages =
+            listOf(
+                LlmMessage(role = LlmMessage.Role.SYSTEM, content = buildSystemPrompt()),
+                LlmMessage(role = LlmMessage.Role.USER, content = buildReportPrompt(session) + progressText),
+            )
+
         val response = llmProvider.generate(messages)
-        
+
         // Clear progress file after completion
         progressFileManager.clearProgress(session.id)
-        
+
         return session.copy(
             finalReport = response.content,
             status = "completed",
-            researchLog = session.researchLog + ResearchLogEntry(
-                action = "completed_research",
-                details = "Research completed",
-                metadata = mapOf(
-                    "citations" to session.citations.size.toString(),
-                    "searches" to session.searchQueries.size.toString()
-                )
-            )
+            researchLog =
+                session.researchLog +
+                    ResearchLogEntry(
+                        action = "completed_research",
+                        details = "Research completed",
+                        metadata =
+                            mapOf(
+                                "citations" to session.citations.size.toString(),
+                                "searches" to session.searchQueries.size.toString(),
+                            ),
+                    ),
         )
     }
-    
+
     /**
      * Build system prompt for research agent
      */
@@ -409,7 +444,7 @@ TOOLS AVAILABLE:
 Your goal is comprehensive research with full transparency and citations.
 """
     }
-    
+
     private fun buildReportPrompt(session: ResearchSession): String {
         return """
 Topic: ${session.topic}
@@ -423,11 +458,11 @@ ${session.citations.joinToString("\n") { "- ${it.title} (${it.url})" }}
 Create a comprehensive research report with citations.
 """
     }
-    
+
     /**
      * Estimate token count (rough approximation)
      */
     private fun estimateTokens(charCount: Int): Int {
-        return charCount / 4  // Rough estimate: 1 token ≈ 4 characters
+        return charCount / 4 // Rough estimate: 1 token ≈ 4 characters
     }
 }

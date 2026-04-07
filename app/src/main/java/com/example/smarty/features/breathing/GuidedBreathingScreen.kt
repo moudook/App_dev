@@ -17,15 +17,18 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.ui.theme.SmartyBrushes
 import com.example.smarty.ui.theme.ComponentColors
+import com.example.smarty.ui.theme.SmartyBrushes
 import kotlinx.coroutines.delay
 
 /**
  * Breathing phases for the guided breathing exercise.
  */
 enum class BreathPhase {
-    INHALE, HOLD, EXHALE, REST
+    INHALE,
+    HOLD,
+    EXHALE,
+    REST,
 }
 
 /**
@@ -34,35 +37,38 @@ enum class BreathPhase {
 @Composable
 fun GuidedBreathingScreen(
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
-    
+
     var phase by remember { mutableStateOf(BreathPhase.INHALE) }
     var cycleCount by remember { mutableStateOf(0) }
     var isRunning by remember { mutableStateOf(true) }
-    
+
     // Animation for the breathing circle
     val infiniteTransition = rememberInfiniteTransition(label = "breathing")
-    
+
     val scale by infiniteTransition.animateFloat(
         initialValue = 0.6f,
         targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = when (phase) {
-                    BreathPhase.INHALE -> 4000
-                    BreathPhase.HOLD -> 0 
-                    BreathPhase.EXHALE -> 6000
-                    BreathPhase.REST -> 0
-                },
-                easing = LinearEasing
+        animationSpec =
+            infiniteRepeatable(
+                animation =
+                    tween(
+                        durationMillis =
+                            when (phase) {
+                                BreathPhase.INHALE -> 4000
+                                BreathPhase.HOLD -> 0
+                                BreathPhase.EXHALE -> 6000
+                                BreathPhase.REST -> 0
+                            },
+                        easing = LinearEasing,
+                    ),
+                repeatMode = if (phase == BreathPhase.INHALE) RepeatMode.Reverse else RepeatMode.Restart,
             ),
-            repeatMode = if (phase == BreathPhase.INHALE) RepeatMode.Reverse else RepeatMode.Restart
-        ),
-        label = "scale"
+        label = "scale",
     )
-    
+
     // Phase timing
     LaunchedEffect(isRunning) {
         while (isRunning) {
@@ -94,7 +100,7 @@ fun GuidedBreathingScreen(
             }
         }
     }
-    
+
     // Completion dialog
     if (!isRunning && cycleCount >= 3) {
         AlertDialog(
@@ -114,78 +120,94 @@ fun GuidedBreathingScreen(
                 }) {
                     Text("Do More")
                 }
-            }
+            },
         )
     }
-    
+
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SmartyBrushes.zenBackground),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(SmartyBrushes.zenBackground),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = when (phase) {
-                    BreathPhase.INHALE -> "Breathe In"
-                    BreathPhase.HOLD -> "Hold"
-                    BreathPhase.EXHALE -> "Breathe Out"
-                    BreathPhase.REST -> "Rest"
-                },
+                text =
+                    when (phase) {
+                        BreathPhase.INHALE -> "Breathe In"
+                        BreathPhase.HOLD -> "Hold"
+                        BreathPhase.EXHALE -> "Breathe Out"
+                        BreathPhase.REST -> "Rest"
+                    },
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
-                fontSize = 28.sp
+                fontSize = 28.sp,
             )
-            
+
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .scale(if (phase == BreathPhase.INHALE) scale else if (phase == BreathPhase.EXHALE) 1.4f - (scale - 0.6f) * 2 else 1f)
-                    .clip(CircleShape)
-                    .background(SmartyBrushes.breathingCircle),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(200.dp)
+                        .scale(
+                            if (phase == BreathPhase.INHALE) {
+                                scale
+                            } else if (phase == BreathPhase.EXHALE) {
+                                1.4f - (scale - 0.6f) * 2
+                            } else {
+                                1f
+                            },
+                        )
+                        .clip(CircleShape)
+                        .background(SmartyBrushes.breathingCircle),
+                contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(SmartyBrushes.innerGlow)
+                    modifier =
+                        Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .background(SmartyBrushes.innerGlow),
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             Text(
                 text = "Cycle $cycleCount of 3",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White.copy(alpha = 0.7f)
+                color = Color.White.copy(alpha = 0.7f),
             )
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 repeat(3) { index ->
                     Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (index < cycleCount) ComponentColors.breathingAccent
-                                else Color.White.copy(alpha = 0.3f)
-                            )
+                        modifier =
+                            Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (index < cycleCount) {
+                                        ComponentColors.breathingAccent
+                                    } else {
+                                        Color.White.copy(alpha = 0.3f)
+                                    },
+                                ),
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             TextButton(onClick = onDismiss) {
                 Text("Skip", color = Color.White.copy(alpha = 0.5f))
             }
@@ -196,19 +218,20 @@ fun GuidedBreathingScreen(
 @Composable
 fun BreathingExerciseButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = ComponentColors.breathingAccent
-        )
+        colors =
+            ButtonDefaults.outlinedButtonColors(
+                contentColor = ComponentColors.breathingAccent,
+            ),
     ) {
         Icon(
             imageVector = Icons.Default.Favorite,
             contentDescription = "Breathing Exercise",
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(24.dp),
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text("Breathing Exercise")

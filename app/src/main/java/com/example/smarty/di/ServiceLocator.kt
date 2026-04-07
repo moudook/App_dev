@@ -1,40 +1,39 @@
 package com.example.smarty.di
 
 import android.app.Application
+import com.example.smarty.core.common.util.NetworkMonitor
+import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
-import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.remote.RemoteDataSource
+import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.repository.SyncRepository
-import com.example.smarty.data.repository.DeviceAudioRepository
-import com.example.smarty.data.sync.SyncCoordinator
-import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.data.sync.OfflineQueue
+import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.audio.domain.AudioPlaybackManager
 import com.example.smarty.features.calendar.domain.CalendarFeatureManager
 import com.example.smarty.features.chat.domain.ChatFeatureManager
+import com.example.smarty.features.digest.domain.DigestFeatureManager
 import com.example.smarty.features.notes.domain.NoteOperationsManager
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.settings.domain.SettingsFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
-import com.example.smarty.features.digest.domain.DigestFeatureManager
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 
 /**
  * Simple Service Locator to manage singletons and dependencies.
  * Helps decouple ViewModels by providing shared instances of managers.
  */
 object ServiceLocator {
-
     @Volatile
     private var repository: SmartyRepository? = null
 
@@ -72,7 +71,7 @@ object ServiceLocator {
                 remoteDataSource = remoteDataSource,
                 eventSink = eventSink,
                 syncCoordinator = syncCoordinator,
-                offlineQueue = offlineQueue
+                offlineQueue = offlineQueue,
             ).also { syncRepository = it }
         }
     }
@@ -83,7 +82,7 @@ object ServiceLocator {
             RemoteDataSource(
                 client = provideHttpClient(),
                 serverUrlProvider = { securePreferences.getSmartyServerUrl() },
-                deviceIdProvider = { securePreferences.getDeviceId() }
+                deviceIdProvider = { securePreferences.getDeviceId() },
             ).also { remoteDataSource = it }
         }
     }
@@ -106,7 +105,7 @@ object ServiceLocator {
                 calendarDao = database.calendarDao(),
                 chatDao = database.chatDao(),
                 syncQueueDao = database.syncQueueDao(),
-                networkMonitor = networkMonitor
+                networkMonitor = networkMonitor,
             ).also { syncCoordinator = it }
         }
     }
@@ -128,7 +127,7 @@ object ServiceLocator {
                 calendarDao = database.calendarDao(),
                 noteVersionDao = database.noteVersionDao(),
                 context = application,
-                syncRepository = syncRepo
+                syncRepository = syncRepo,
             ).also { repository = it }
         }
     }
@@ -143,7 +142,7 @@ object ServiceLocator {
                 repository = repository,
                 aiService = aiService,
                 context = application,
-                scope = applicationScope // Use app scope for singleton manager
+                scope = applicationScope, // Use app scope for singleton manager
             ).also { noteOperationsManager = it }
         }
     }
@@ -160,7 +159,7 @@ object ServiceLocator {
                 googleCalendarSyncManager = googleCalendarSyncManager,
                 securePreferences = securePreferences,
                 alarmScheduler = alarmScheduler,
-                scope = applicationScope
+                scope = applicationScope,
             ).also { calendarFeatureManager = it }
         }
     }
@@ -196,7 +195,7 @@ object ServiceLocator {
         return audioPlaybackManager ?: synchronized(this) {
             AudioPlaybackManager(
                 context = application,
-                scope = applicationScope
+                scope = applicationScope,
             ).also { audioPlaybackManager = it }
         }
     }
@@ -209,7 +208,7 @@ object ServiceLocator {
             AudioFeatureManager(
                 audioPlaybackManager = playbackManager,
                 deviceAudioRepository = repo,
-                scope = applicationScope
+                scope = applicationScope,
             ).also { audioFeatureManager = it }
         }
     }
@@ -220,7 +219,7 @@ object ServiceLocator {
 
             SettingsFeatureManager(
                 securePreferences = securePreferences,
-                scope = applicationScope
+                scope = applicationScope,
             ).also { settingsFeatureManager = it }
         }
     }
@@ -244,7 +243,7 @@ object ServiceLocator {
                 deviceAudioRepository = repo,
                 onNavigateRequest = { screen ->
                     provideSharedAppState().setNavigationRequest(screen)
-                }
+                },
             ).also { systemFeatureManager = it }
         }
     }
@@ -257,7 +256,7 @@ object ServiceLocator {
             val database = SmartyDatabase.getDatabase(application)
             com.example.smarty.data.repository.ChatRepository(
                 chatDao = database.chatDao(),
-                chatMessageNotesDao = database.chatMessageNotesDao()
+                chatMessageNotesDao = database.chatMessageNotesDao(),
             ).also { chatRepository = it }
         }
     }
@@ -288,7 +287,7 @@ object ServiceLocator {
                         kotlinx.serialization.json.Json {
                             ignoreUnknownKeys = true
                             isLenient = true
-                        }
+                        },
                     )
                 }
             }.also { httpClient = it }
@@ -311,7 +310,7 @@ object ServiceLocator {
             client = provideHttpClient(),
             eventSink = provideEventSink(),
             serverUrlProvider = { securePreferences.getSmartyServerUrl() },
-            deviceIdProvider = { securePreferences.getDeviceId() }
+            deviceIdProvider = { securePreferences.getDeviceId() },
         )
     }
 
@@ -344,7 +343,7 @@ object ServiceLocator {
             val database = SmartyDatabase.getDatabase(application)
             AIResponseCache(
                 cacheDao = database.aiCacheDao(),
-                scope = applicationScope
+                scope = applicationScope,
             ).also { aiResponseCache = it }
         }
     }
@@ -373,7 +372,7 @@ object ServiceLocator {
             com.example.smarty.features.chat.domain.WorkflowManager(
                 repository = repo,
                 scope = applicationScope,
-                onStatusUpdate = { /* Callback handling to be improved */ }
+                onStatusUpdate = { /* Callback handling to be improved */ },
             ).also { workflowManager = it }
         }
     }
@@ -388,7 +387,7 @@ object ServiceLocator {
             com.example.smarty.features.notes.domain.NoteProcessingQueueManager(
                 repository = repo,
                 aiService = aiService,
-                scope = applicationScope
+                scope = applicationScope,
             ).also { noteProcessingQueueManager = it }
         }
     }
@@ -404,7 +403,10 @@ object ServiceLocator {
 
     // ChatFeatureManager requires a lot of dependencies and ViewModelScope usually
     // We might need to factory it per ViewModel or keep it shared if it holds state
-    fun provideChatFeatureManager(application: Application, scope: CoroutineScope): ChatFeatureManager {
+    fun provideChatFeatureManager(
+        application: Application,
+        scope: CoroutineScope,
+    ): ChatFeatureManager {
         return chatFeatureManager ?: synchronized(this) {
             val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
@@ -449,7 +451,7 @@ object ServiceLocator {
                 isDarkTheme = settingsFM.isDarkTheme,
                 connectionStatus = sharedState.connectionStatus,
                 cacheSizeBytes = settingsFM.cacheSizeBytes,
-                onNavigate = { screen -> sharedState.setNavigationRequest(screen) }
+                onNavigate = { screen -> sharedState.setNavigationRequest(screen) },
             ).also { chatFeatureManager = it }
         }
     }
@@ -460,8 +462,9 @@ object ServiceLocator {
             val noteOps = provideNoteOperationsManager(application)
             // Get notes flow from NoteOperationsManager (which gets it from Repo)
             // We need a StateFlow for SearchFeatureManager
-            val allNotesFlow = noteOps.getAllNotes()
-                .stateIn(applicationScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            val allNotesFlow =
+                noteOps.getAllNotes()
+                    .stateIn(applicationScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
             val searchHistory = com.example.smarty.data.local.SearchHistoryManager(application)
             val securePreferences = SecurePreferences.getInstance(application)
@@ -470,7 +473,7 @@ object ServiceLocator {
                 repository = repo,
                 allNotes = allNotesFlow,
                 searchHistoryManager = searchHistory,
-                securePreferences = securePreferences
+                securePreferences = securePreferences,
             ).also { searchFeatureManager = it }
         }
     }
@@ -490,6 +493,7 @@ object ServiceLocator {
         searchFeatureManager = null
         aiResponseCache = null
     }
+
     @Volatile
     private var memoryFeatureManager: com.example.smarty.viewmodel.managers.MemoryFeatureManager? = null
 
@@ -525,9 +529,8 @@ object ServiceLocator {
             DigestFeatureManager(
                 application = application,
                 serverUrlProvider = { securePreferences.getSmartyServerUrl() },
-                deviceIdProvider = { securePreferences.getDeviceId() }
+                deviceIdProvider = { securePreferences.getDeviceId() },
             ).also { digestFeatureManager = it }
         }
     }
 }
-

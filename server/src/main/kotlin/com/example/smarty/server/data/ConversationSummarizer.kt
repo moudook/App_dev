@@ -18,44 +18,44 @@ import org.slf4j.LoggerFactory
  * - Summaries should be safe to include in any context
  */
 class ConversationSummarizer(private val llmProvider: LlmProvider) {
-
     private val logger = LoggerFactory.getLogger(ConversationSummarizer::class.java)
 
-companion object {
+    companion object {
         private const val MIN_MESSAGES_FOR_SUMMARY = 3
         private const val MAX_MESSAGES_FOR_SUMMARY = 20
         private const val MAX_MESSAGE_LENGTH = 200
 
-        private val SUMMARY_SYSTEM_PROMPT = """
-<identity>
-You are Friday's Conversation Summarizer. Create brief, useful summaries for future context.
-</identity>
+        private val SUMMARY_SYSTEM_PROMPT =
+            """
+            <identity>
+            You are Friday's Conversation Summarizer. Create brief, useful summaries for future context.
+            </identity>
 
-<task>
-Summarize the conversation in 2-3 sentences max. Focus on what matters for future interactions.
-</task>
+            <task>
+            Summarize the conversation in 2-3 sentences max. Focus on what matters for future interactions.
+            </task>
 
-<content_focus>
-- Main topics discussed
-- Actions taken (notes created, todos added, searches performed)
-- Key user preferences revealed
-</content_focus>
+            <content_focus>
+            - Main topics discussed
+            - Actions taken (notes created, todos added, searches performed)
+            - Key user preferences revealed
+            </content_focus>
 
-<privacy_rules>
-- NO specific private info (passwords, financial details)
-- Abstract sensitive names unless critical
-- Use "discussed work project" not "discussed Project Alpha details"
-</privacy_rules>
+            <privacy_rules>
+            - NO specific private info (passwords, financial details)
+            - Abstract sensitive names unless critical
+            - Use "discussed work project" not "discussed Project Alpha details"
+            </privacy_rules>
 
-<output_format>
-Return ONLY the summary text. No labels, no markdown, no quotes.
-</output_format>
+            <output_format>
+            Return ONLY the summary text. No labels, no markdown, no quotes.
+            </output_format>
 
-<example>
-Input: Long conversation about setting up a React Native project
-Output: User set up React Native project with Expo. Created notes about environment setup. Prefers TypeScript over JavaScript.
-</example>
-        """.trimIndent()
+            <example>
+            Input: Long conversation about setting up a React Native project
+            Output: User set up React Native project with Expo. Created notes about environment setup. Prefers TypeScript over JavaScript.
+            </example>
+            """.trimIndent()
     }
 
     /**
@@ -78,10 +78,11 @@ Output: User set up React Native project with Expo. Created notes about environm
             val conversationText = buildConversationText(messages)
 
             // Generate summary via AI
-            val promptMessages = listOf(
-                LlmMessage(LlmMessage.Role.SYSTEM, SUMMARY_SYSTEM_PROMPT),
-                LlmMessage(LlmMessage.Role.USER, "Summarize this conversation:\n\n$conversationText")
-            )
+            val promptMessages =
+                listOf(
+                    LlmMessage(LlmMessage.Role.SYSTEM, SUMMARY_SYSTEM_PROMPT),
+                    LlmMessage(LlmMessage.Role.USER, "Summarize this conversation:\n\n$conversationText"),
+                )
 
             val response = llmProvider.generate(promptMessages)
             val summary = response.content ?: return null
@@ -96,7 +97,6 @@ Output: User set up React Native project with Expo. Created notes about environm
 
             logger.debug("Generated summary: ${cleanSummary.take(100)}...")
             return cleanSummary
-
         } catch (e: Exception) {
             logger.error("Failed to generate summary", e)
             return null
@@ -126,12 +126,16 @@ Output: User set up React Native project with Expo. Created notes about environm
         var clean = summary.trim()
 
         // Remove common prefixes
-        val prefixes = listOf(
-            "Summary:", "summary:",
-            "Here is the summary:", "Here's the summary:",
-            "The conversation summary:",
-            "**Summary:**", "**Summary**"
-        )
+        val prefixes =
+            listOf(
+                "Summary:",
+                "summary:",
+                "Here is the summary:",
+                "Here's the summary:",
+                "The conversation summary:",
+                "**Summary:**",
+                "**Summary**",
+            )
         for (prefix in prefixes) {
             if (clean.startsWith(prefix)) {
                 clean = clean.removePrefix(prefix).trim()
@@ -139,10 +143,11 @@ Output: User set up React Native project with Expo. Created notes about environm
         }
 
         // Remove markdown formatting
-        clean = clean
-            .replace("**", "")
-            .replace("*", "")
-            .replace("`", "")
+        clean =
+            clean
+                .replace("**", "")
+                .replace("*", "")
+                .replace("`", "")
 
         // Remove quotes if the entire text is quoted
         if (clean.startsWith("\"") && clean.endsWith("\"")) {
@@ -170,43 +175,46 @@ Output: User set up React Native project with Expo. Created notes about environm
         }
 
         try {
-            val firstUserMessage = messages
-                .filter { it.role == LlmMessage.Role.USER }
-                .firstOrNull()
-                ?.content
-                ?.take(100)
-                ?: return "New Chat"
+            val firstUserMessage =
+                messages
+                    .filter { it.role == LlmMessage.Role.USER }
+                    .firstOrNull()
+                    ?.content
+                    ?.take(100)
+                    ?: return "New Chat"
 
-val titlePrompt = """
-<task>
-Generate a 2-5 word title for a conversation starting with: "$firstUserMessage"
-</task>
+            val titlePrompt =
+                """
+                <task>
+                Generate a 2-5 word title for a conversation starting with: "$firstUserMessage"
+                </task>
 
-<rules>
-- Maximum 5 words
-- No quotes or punctuation
-- Capture the main topic
-- Be specific but not private
-- Output ONLY the title
-</rules>
-            """.trimIndent()
+                <rules>
+                - Maximum 5 words
+                - No quotes or punctuation
+                - Capture the main topic
+                - Be specific but not private
+                - Output ONLY the title
+                </rules>
+                """.trimIndent()
 
-            val promptMessages = listOf(
-                LlmMessage(LlmMessage.Role.SYSTEM, "You are a title generator. Output only the title."),
-                LlmMessage(LlmMessage.Role.USER, titlePrompt)
-            )
+            val promptMessages =
+                listOf(
+                    LlmMessage(LlmMessage.Role.SYSTEM, "You are a title generator. Output only the title."),
+                    LlmMessage(LlmMessage.Role.USER, titlePrompt),
+                )
 
             val response = llmProvider.generate(promptMessages)
             val title = response.content ?: return "New Chat"
 
-            val cleanTitle = title
-                .trim()
-                .replace("\"", "")
-                .replace("'", "")
-                .take(50)
+            val cleanTitle =
+                title
+                    .trim()
+                    .replace("\"", "")
+                    .replace("'", "")
+                    .take(50)
 
             return if (cleanTitle.isNotBlank()) cleanTitle else "New Chat"
-
         } catch (e: Exception) {
             logger.error("Failed to generate title", e)
             return "New Chat"

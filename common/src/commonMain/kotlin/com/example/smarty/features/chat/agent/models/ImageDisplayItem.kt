@@ -10,5 +10,5 @@ import kotlinx.serialization.Serializable
 data class ImageDisplayItem(
     val uri: String,
     val fileName: String,
-    val noteTitle: String
+    val noteTitle: String,
 )

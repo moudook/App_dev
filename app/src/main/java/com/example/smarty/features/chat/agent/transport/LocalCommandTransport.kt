@@ -1,11 +1,9 @@
 package com.example.smarty.features.chat.agent.transport
 
+import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.chat.agent.ClientCommandExecutor
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.ClientEvent
-import com.example.smarty.features.audio.domain.AudioFeatureManager
-import com.example.smarty.core.domain.model.RecallResult
-import com.example.smarty.core.domain.model.CalendarEvent
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -24,9 +22,8 @@ import kotlinx.coroutines.CoroutineScope
  */
 class LocalCommandTransport(
     private val executor: ClientCommandExecutor,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) : CommandTransport {
-
     override suspend fun dispatch(command: AgentCommand): ClientEvent? {
         return try {
             when (command) {
@@ -36,27 +33,29 @@ class LocalCommandTransport(
                     ClientEvent.ActiveNotesResponse(
                         commandId = command.commandId,
                         notes = notes,
-                        timestamp = System.currentTimeMillis()
+                        timestamp = System.currentTimeMillis(),
                     )
                 }
                 is AgentCommand.SearchNotes -> {
-                    val results = executor.searchNotes(
-                        command.query,
-                        command.category,
-                        timeRange = command.timeRange,
-                        limit = command.limit
-                    )
+                    val results =
+                        executor.searchNotes(
+                            command.query,
+                            command.category,
+                            timeRange = command.timeRange,
+                            limit = command.limit,
+                        )
                     ClientEvent.SearchResultsResponse(
                         commandId = command.commandId,
-                        results = results.map {
-                            com.example.smarty.protocol.ProtocolSearchResult(
-                                id = it.note.id,
-                                title = it.note.title,
-                                content = it.note.content,
-                                score = it.score.toDouble()
-                            )
-                        },
-                        timestamp = System.currentTimeMillis()
+                        results =
+                            results.map {
+                                com.example.smarty.protocol.ProtocolSearchResult(
+                                    id = it.note.id,
+                                    title = it.note.title,
+                                    content = it.note.content,
+                                    score = it.score.toDouble(),
+                                )
+                            },
+                        timestamp = System.currentTimeMillis(),
                     )
                 }
                 is AgentCommand.GetSystemStatus -> {
@@ -64,7 +63,7 @@ class LocalCommandTransport(
                     ClientEvent.SystemStatusResponse(
                         commandId = command.commandId,
                         status = status,
-                        timestamp = System.currentTimeMillis()
+                        timestamp = System.currentTimeMillis(),
                     )
                 }
                 is AgentCommand.GetScreenContext -> {
@@ -72,7 +71,7 @@ class LocalCommandTransport(
                     ClientEvent.ScreenContextResponse(
                         commandId = command.commandId,
                         context = context,
-                        timestamp = System.currentTimeMillis()
+                        timestamp = System.currentTimeMillis(),
                     )
                 }
 
@@ -84,7 +83,7 @@ class LocalCommandTransport(
                             commandId = command.commandId,
                             result = resultString,
                             isError = false,
-                            timestamp = System.currentTimeMillis()
+                            timestamp = System.currentTimeMillis(),
                         )
                     } else {
                         null
@@ -96,7 +95,7 @@ class LocalCommandTransport(
                 commandId = command.commandId,
                 result = "Error: ${e.message}",
                 isError = true,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
             )
         }
     }
@@ -213,7 +212,7 @@ class LocalCommandTransport(
                     endTimeStr = command.end,
                     description = command.description,
                     location = command.location,
-                    isPrivate = false
+                    isPrivate = false,
                 )
                 "Calendar event added: ${command.title}"
             }

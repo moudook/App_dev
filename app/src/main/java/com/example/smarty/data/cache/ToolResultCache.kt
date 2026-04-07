@@ -15,16 +15,19 @@ import android.util.LruCache
 object ToolResultCache {
     private const val TAG = "ToolResultCache"
     private const val MAX_CACHE_SIZE = 50
-    private const val TTL_MS = 30_000L  // 30 seconds
+    private const val TTL_MS = 30_000L // 30 seconds
 
     private data class CacheEntry(
         val result: String,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = System.currentTimeMillis(),
     )
 
     private val cache = LruCache<String, CacheEntry>(MAX_CACHE_SIZE)
 
-    fun generateKey(toolName: String, args: String): String {
+    fun generateKey(
+        toolName: String,
+        args: String,
+    ): String {
         return "$toolName:${args.hashCode()}"
     }
 
@@ -37,7 +40,10 @@ object ToolResultCache {
         return entry.result
     }
 
-    fun put(key: String, result: String) {
+    fun put(
+        key: String,
+        result: String,
+    ) {
         cache.put(key, CacheEntry(result))
     }
 

@@ -21,7 +21,7 @@ data class ParsedMention(
     /** Start index in original text (position of @) */
     val startIndex: Int,
     /** End index in original text (after mention ends) */
-    val endIndex: Int
+    val endIndex: Int,
 )
 
 /**
@@ -30,14 +30,18 @@ data class ParsedMention(
 enum class MentionType {
     /** Reference to a specific note by title, e.g., @"My Shopping List" */
     SINGLE_NOTE,
+
     /** Filter by note type, e.g., @audios, @documents */
     TYPE_FILTER,
+
     /** Filter by category, e.g., @Work, @Personal */
     CATEGORY,
+
     /** Special filter like @recent or @pinned */
     SPECIAL_FILTER,
+
     /** Command like @analyze */
-    COMMAND
+    COMMAND,
 }
 
 /**
@@ -55,7 +59,7 @@ data class ResolvedMention(
     /** For CATEGORY: which Category was requested */
     val category: Category? = null,
     /** For SPECIAL_FILTER: filter name (recent, pinned, all) */
-    val specialFilter: String? = null
+    val specialFilter: String? = null,
 )
 
 /**
@@ -70,7 +74,7 @@ sealed class MentionSuggestion {
      */
     data class NoteSuggestion(
         val note: Note,
-        val score: Double
+        val score: Double,
     ) : MentionSuggestion()
 
     /**
@@ -80,7 +84,7 @@ sealed class MentionSuggestion {
      */
     data class CategorySuggestion(
         val category: Category,
-        val score: Double
+        val score: Double,
     ) : MentionSuggestion()
 
     /**
@@ -94,7 +98,7 @@ sealed class MentionSuggestion {
         val type: NoteType?,
         val displayName: String,
         val keyword: String,
-        val count: Int
+        val count: Int,
     ) : MentionSuggestion()
 
     /**
@@ -108,7 +112,7 @@ sealed class MentionSuggestion {
         val filterName: String,
         val displayName: String,
         val description: String,
-        val count: Int
+        val count: Int,
     ) : MentionSuggestion()
 
     /**
@@ -122,7 +126,7 @@ sealed class MentionSuggestion {
         val commandName: String,
         val displayName: String,
         val description: String,
-        val icon: String = "analytics"
+        val icon: String = "analytics",
     ) : MentionSuggestion()
 }
 
@@ -140,7 +144,7 @@ data class MentionState(
     /** Current suggestions to display (max 4) */
     val suggestions: List<MentionSuggestion> = emptyList(),
     /** Currently highlighted suggestion index (-1 for none) */
-    val highlightedIndex: Int = 0
+    val highlightedIndex: Int = 0,
 )
 
 /**
@@ -159,7 +163,7 @@ data class NoteChunk(
     /** Character count in this chunk */
     val charCount: Int,
     /** Total chunks for this note */
-    val totalChunksInNote: Int = 1
+    val totalChunksInNote: Int = 1,
 )
 
 /**
@@ -184,7 +188,7 @@ data class TaggedNoteContext(
      */
     val chunks: List<NoteChunk> = emptyList(),
     /** Number of unique notes referenced */
-    val noteCount: Int = resolvedMentions.flatMap { it.notes }.distinctBy { it.id }.size
+    val noteCount: Int = resolvedMentions.flatMap { it.notes }.distinctBy { it.id }.size,
 ) {
     companion object {
         /** Maximum characters before chunking is required (~3000 tokens) */
@@ -213,5 +217,5 @@ data class MentionDetectionResult(
     /** Position of @ in text */
     val triggerIndex: Int,
     /** Whether this looks like an email (should NOT trigger mention) */
-    val isEmailPattern: Boolean = false
+    val isEmailPattern: Boolean = false,
 )

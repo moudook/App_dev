@@ -1,7 +1,6 @@
 package com.example.smarty.features.chat.agent.tools.base
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 /**
  * Common result types for Smarty AI Agent tools.
@@ -16,7 +15,7 @@ data class NoteOperationResult(
     val noteId: String? = null,
     val noteTitle: String? = null,
     val message: String,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -27,7 +26,7 @@ data class NoteSearchResult(
     val success: Boolean,
     val notes: List<NoteInfo>,
     val totalCount: Int,
-    val message: String
+    val message: String,
 )
 
 /**
@@ -41,7 +40,7 @@ data class NoteInfo(
     val summary: String?,
     val category: String?,
     val type: String,
-    val createdAt: Long
+    val createdAt: Long,
 )
 
 /**
@@ -55,14 +54,14 @@ data class WebSearchResult(
     val aiSummary: String? = null,
     val results: List<WebResult> = emptyList(),
     val totalResults: Int = 0,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @Serializable
 data class WebResult(
     val title: String,
     val url: String,
-    val snippet: String
+    val snippet: String,
 )
 
 /**
@@ -76,7 +75,7 @@ data class AudioPlaybackResult(
     val message: String,
     val error: String? = null,
     val availableAudio: List<String>? = null,
-    val shouldFallbackToAI: Boolean = false
+    val shouldFallbackToAI: Boolean = false,
 )
 
 /**
@@ -88,7 +87,7 @@ data class TodoOperationResult(
     val noteId: String? = null,
     val todoId: String? = null,
     val message: String,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -98,13 +97,13 @@ data class TodoOperationResult(
 data class CategoryResult(
     val success: Boolean,
     val categories: List<CategoryInfo> = emptyList(),
-    val message: String
+    val message: String,
 )
 
 @Serializable
 data class CategoryInfo(
     val name: String,
-    val noteCount: Int
+    val noteCount: Int,
 )
 
 /**
@@ -117,7 +116,7 @@ data class SummarizeResult(
     val title: String,
     val summary: String?,
     val content: String,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -129,5 +128,5 @@ data class ImageDisplayResult(
     val noteTitle: String? = null,
     val imageCount: Int = 0,
     val message: String,
-    val error: String? = null
+    val error: String? = null,
 )

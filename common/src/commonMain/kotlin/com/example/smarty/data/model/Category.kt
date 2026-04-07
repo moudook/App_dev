@@ -18,8 +18,8 @@ import kotlinx.serialization.Serializable
 @Entity(
     tableName = "categories",
     indices = [
-        Index(value = ["name"], unique = true)
-    ]
+        Index(value = ["name"], unique = true),
+    ],
 )
 data class Category(
     @PrimaryKey
@@ -29,5 +29,5 @@ data class Category(
     val noteCount: Int = 0,
     val isAiGenerated: Boolean = true,
     val createdAt: Long = 0L, // System.currentTimeMillis() replacement
-    val lastUpdated: Long = 0L
+    val lastUpdated: Long = 0L,
 )

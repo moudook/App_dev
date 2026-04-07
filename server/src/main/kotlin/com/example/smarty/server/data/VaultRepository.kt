@@ -11,7 +11,7 @@ data class E2EVaultData(
     val userId: String,
     val encryptedBlob: String,
     val version: Int,
-    val updatedAt: Long
+    val updatedAt: Long,
 )
 
 object UserVaults : Table("user_vaults") {
@@ -24,47 +24,52 @@ object UserVaults : Table("user_vaults") {
 }
 
 class VaultRepository(private val database: Database) {
-    
     // Note: Table creation is handled by DatabaseFactory.runMigrations()
     // SchemaUtils.createMissingTablesAndColumns() was removed to prevent
     // "prepared statement already exists" errors on server restart with connection pooling
 
-    suspend fun get(userId: String): E2EVaultData? = dbQuery {
-        UserVaults.selectAll().where { UserVaults.userId eq userId }
-            .map { row ->
-                E2EVaultData(
-                    userId = row[UserVaults.userId],
-                    encryptedBlob = row[UserVaults.encryptedBlob],
-                    version = row[UserVaults.version],
-                    updatedAt = row[UserVaults.updatedAt]
-                )
-            }
-            .singleOrNull()
-    }
-
-    suspend fun store(userId: String, encryptedBlob: String, version: Int): Boolean = dbQuery {
-        val existing = UserVaults.selectAll().where { UserVaults.userId eq userId }.count() > 0
-        if (existing) {
-            UserVaults.update({ UserVaults.userId eq userId }) {
-                it[UserVaults.encryptedBlob] = encryptedBlob
-                it[UserVaults.version] = version
-                it[UserVaults.updatedAt] = System.currentTimeMillis()
-            } > 0
-        } else {
-            UserVaults.insert {
-                it[UserVaults.userId] = userId
-                it[UserVaults.encryptedBlob] = encryptedBlob
-                it[UserVaults.version] = version
-                it[UserVaults.updatedAt] = System.currentTimeMillis()
-            }
-            true
+    suspend fun get(userId: String): E2EVaultData? =
+        dbQuery {
+            UserVaults.selectAll().where { UserVaults.userId eq userId }
+                .map { row ->
+                    E2EVaultData(
+                        userId = row[UserVaults.userId],
+                        encryptedBlob = row[UserVaults.encryptedBlob],
+                        version = row[UserVaults.version],
+                        updatedAt = row[UserVaults.updatedAt],
+                    )
+                }
+                .singleOrNull()
         }
-    }
 
-    suspend fun delete(userId: String): Boolean = dbQuery {
-        UserVaults.deleteWhere { UserVaults.userId eq userId } > 0
-    }
+    suspend fun store(
+        userId: String,
+        encryptedBlob: String,
+        version: Int,
+    ): Boolean =
+        dbQuery {
+            val existing = UserVaults.selectAll().where { UserVaults.userId eq userId }.count() > 0
+            if (existing) {
+                UserVaults.update({ UserVaults.userId eq userId }) {
+                    it[UserVaults.encryptedBlob] = encryptedBlob
+                    it[UserVaults.version] = version
+                    it[UserVaults.updatedAt] = System.currentTimeMillis()
+                } > 0
+            } else {
+                UserVaults.insert {
+                    it[UserVaults.userId] = userId
+                    it[UserVaults.encryptedBlob] = encryptedBlob
+                    it[UserVaults.version] = version
+                    it[UserVaults.updatedAt] = System.currentTimeMillis()
+                }
+                true
+            }
+        }
 
-    private suspend fun <T> dbQuery(block: suspend () -> T): T =
-        newSuspendedTransaction(Dispatchers.IO, database) { block() }
+    suspend fun delete(userId: String): Boolean =
+        dbQuery {
+            UserVaults.deleteWhere { UserVaults.userId eq userId } > 0
+        }
+
+    private suspend fun <T> dbQuery(block: suspend () -> T): T = newSuspendedTransaction(Dispatchers.IO, database) { block() }
 }

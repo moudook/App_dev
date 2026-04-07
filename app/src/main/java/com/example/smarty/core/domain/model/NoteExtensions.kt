@@ -31,7 +31,7 @@ fun Note.withTodos(todos: List<TodoItem>): Note {
     val json = if (todos.isEmpty()) null else GsonHolder.instance.toJson(todos)
     return copy(
         todoContent = json,
-        updatedAt = System.currentTimeMillis()
+        updatedAt = System.currentTimeMillis(),
     )
 }
 
@@ -57,7 +57,7 @@ fun Note.withAttachments(attachments: List<NoteAttachment>): Note {
     val json = if (attachments.isEmpty()) null else GsonHolder.instance.toJson(attachments)
     return copy(
         attachmentsJson = json,
-        updatedAt = System.currentTimeMillis()
+        updatedAt = System.currentTimeMillis(),
     )
 }
 
@@ -100,7 +100,7 @@ fun Note.withTags(tags: List<String>): Note {
     val json = if (tags.isEmpty()) null else GsonHolder.instance.toJson(tags)
     return copy(
         tagsJson = json,
-        updatedAt = System.currentTimeMillis()
+        updatedAt = System.currentTimeMillis(),
     )
 }
 
@@ -123,7 +123,7 @@ fun Note.withChunkAnalyses(analyses: List<ChunkAnalysis>): Note {
     val json = if (analyses.isEmpty()) null else GsonHolder.instance.toJson(analyses)
     return copy(
         chunkAnalysesJson = json,
-        updatedAt = System.currentTimeMillis()
+        updatedAt = System.currentTimeMillis(),
     )
 }
 

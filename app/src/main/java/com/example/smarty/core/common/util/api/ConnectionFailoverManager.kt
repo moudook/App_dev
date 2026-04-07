@@ -12,18 +12,24 @@ import kotlin.math.min
 enum class ApiErrorCategory {
     /** Authentication failed (invalid token, expired) - don't retry with same token */
     AUTH_ERROR,
+
     /** Rate limit exceeded - temporary, retry after cooldown */
     RATE_LIMIT,
+
     /** Network/connection error - retry with exponential backoff */
     NETWORK_ERROR,
+
     /** Server error (5xx) - retry with backoff */
     SERVER_ERROR,
+
     /** Model not available/invalid - try different model or provider */
     MODEL_ERROR,
+
     /** Request too large (context window) - skip this provider */
     CONTEXT_OVERFLOW,
+
     /** Unknown error - generic retry */
-    UNKNOWN
+    UNKNOWN,
 }
 
 /**
@@ -32,12 +38,15 @@ enum class ApiErrorCategory {
 enum class ConnectionHealthStatus {
     /** Connection is healthy and accepting requests */
     HEALTHY,
+
     /** Connection has some failures, still trying */
     DEGRADED,
+
     /** Connection is temporarily disabled (circuit open) */
     CIRCUIT_OPEN,
+
     /** Connection is in recovery phase (half-open circuit) */
-    RECOVERING
+    RECOVERING,
 }
 
 /**
@@ -56,7 +65,7 @@ data class ConnectionHealthState(
     @Volatile var lastErrorCategory: ApiErrorCategory? = null,
     @Volatile var totalFailures: Int = 0,
     @Volatile var totalSuccesses: Int = 0,
-    @Volatile var circuitOpenUntil: Long = 0
+    @Volatile var circuitOpenUntil: Long = 0,
 )
 
 /**
@@ -90,7 +99,6 @@ data class ConnectionHealthState(
  * ```
  */
 class ConnectionFailoverManager private constructor() {
-
     companion object {
         private const val TAG = "ConnectionFailover"
 
@@ -99,15 +107,16 @@ class ConnectionFailoverManager private constructor() {
         private const val FAILURE_THRESHOLD_OPEN = 5
 
         // Cooldown periods (in milliseconds)
-        private const val BASE_COOLDOWN_MS = 30_000L        // 30 seconds base
-        private const val MAX_COOLDOWN_MS = 300_000L        // 5 minutes max
-        private const val RATE_LIMIT_COOLDOWN_MS = 60_000L  // 1 minute for rate limits
+        private const val BASE_COOLDOWN_MS = 30_000L // 30 seconds base
+        private const val MAX_COOLDOWN_MS = 300_000L // 5 minutes max
+        private const val RATE_LIMIT_COOLDOWN_MS = 60_000L // 1 minute for rate limits
         private const val AUTH_ERROR_COOLDOWN_MS = 600_000L // 10 minutes for auth errors
 
         // Connection-specific rate limit cooldowns
-        private val CONNECTION_RATE_LIMIT_COOLDOWNS = mapOf(
-            AIConnection.LOCAL_PC to 5_000L       // Server connection - short cooldown
-        )
+        private val CONNECTION_RATE_LIMIT_COOLDOWNS =
+            mapOf(
+                AIConnection.LOCAL_PC to 5_000L, // Server connection - short cooldown
+            )
 
         /**
          * Parse retry-after duration from error message.
@@ -115,13 +124,14 @@ class ConnectionFailoverManager private constructor() {
          */
         fun parseRetryAfterFromMessage(message: String): Long? {
             val lowerMessage = message.lowercase()
-            
+
             // Pattern: "retry in X.Xs" or "retry in X seconds"
-            val secondsPatterns = listOf(
-                Regex("""retry.*?(\d+\.?\d*)\s*s(?:econds?)?""", RegexOption.IGNORE_CASE),
-                Regex("""(\d+\.?\d*)\s*seconds?""", RegexOption.IGNORE_CASE)
-            )
-            
+            val secondsPatterns =
+                listOf(
+                    Regex("""retry.*?(\d+\.?\d*)\s*s(?:econds?)?""", RegexOption.IGNORE_CASE),
+                    Regex("""(\d+\.?\d*)\s*seconds?""", RegexOption.IGNORE_CASE),
+                )
+
             for (pattern in secondsPatterns) {
                 pattern.find(lowerMessage)?.let { match ->
                     val seconds = match.groupValues[1].toDoubleOrNull()
@@ -130,7 +140,7 @@ class ConnectionFailoverManager private constructor() {
                     }
                 }
             }
-            
+
             // Pattern: "X minutes"
             val minutesPattern = Regex("""(\d+)\s*minutes?""", RegexOption.IGNORE_CASE)
             minutesPattern.find(lowerMessage)?.let { match ->
@@ -139,12 +149,12 @@ class ConnectionFailoverManager private constructor() {
                     return (minutes * 60 * 1000).coerceIn(1000L, MAX_COOLDOWN_MS)
                 }
             }
-            
+
             return null
         }
 
         // Recovery settings
-        private const val RECOVERY_SUCCESS_THRESHOLD = 2  // Successes needed to fully recover
+        private const val RECOVERY_SUCCESS_THRESHOLD = 2 // Successes needed to fully recover
 
         @Volatile
         private var instance: ConnectionFailoverManager? = null
@@ -175,46 +185,46 @@ class ConnectionFailoverManager private constructor() {
         return when {
             // Authentication errors (including 400 bad request - often means invalid key/params)
             message.contains("400") ||
-            message.contains("401") ||
-            message.contains("403") ||
-            message.contains("bad request") ||
-            message.contains("unauthorized") ||
-            message.contains("invalid connection key") ||
-            message.contains("authentication") -> ApiErrorCategory.AUTH_ERROR
+                message.contains("401") ||
+                message.contains("403") ||
+                message.contains("bad request") ||
+                message.contains("unauthorized") ||
+                message.contains("invalid connection key") ||
+                message.contains("authentication") -> ApiErrorCategory.AUTH_ERROR
 
             // Rate limiting
             message.contains("429") ||
-            message.contains("rate limit") ||
-            message.contains("too many requests") ||
-            message.contains("quota") -> ApiErrorCategory.RATE_LIMIT
+                message.contains("rate limit") ||
+                message.contains("too many requests") ||
+                message.contains("quota") -> ApiErrorCategory.RATE_LIMIT
 
             // Network errors
             message.contains("timeout") ||
-            message.contains("connection") ||
-            message.contains("network") ||
-            message.contains("socket") ||
-            message.contains("unreachable") ||
-            message.contains("econnrefused") -> ApiErrorCategory.NETWORK_ERROR
+                message.contains("connection") ||
+                message.contains("network") ||
+                message.contains("socket") ||
+                message.contains("unreachable") ||
+                message.contains("econnrefused") -> ApiErrorCategory.NETWORK_ERROR
 
             // Server errors
             message.contains("500") ||
-            message.contains("502") ||
-            message.contains("503") ||
-            message.contains("504") ||
-            message.contains("internal server error") ||
-            message.contains("service unavailable") -> ApiErrorCategory.SERVER_ERROR
+                message.contains("502") ||
+                message.contains("503") ||
+                message.contains("504") ||
+                message.contains("internal server error") ||
+                message.contains("service unavailable") -> ApiErrorCategory.SERVER_ERROR
 
             // Model errors
             message.contains("model") ||
-            message.contains("not found") ||
-            message.contains("not available") ||
-            message.contains("invalid model") -> ApiErrorCategory.MODEL_ERROR
+                message.contains("not found") ||
+                message.contains("not available") ||
+                message.contains("invalid model") -> ApiErrorCategory.MODEL_ERROR
 
             // Context/token overflow
             message.contains("context") ||
-            message.contains("token") ||
-            message.contains("too long") ||
-            message.contains("maximum") -> ApiErrorCategory.CONTEXT_OVERFLOW
+                message.contains("token") ||
+                message.contains("too long") ||
+                message.contains("maximum") -> ApiErrorCategory.CONTEXT_OVERFLOW
 
             else -> ApiErrorCategory.UNKNOWN
         }
@@ -274,7 +284,10 @@ class ConnectionFailoverManager private constructor() {
     /**
      * Record a failed API call.
      */
-    fun recordFailure(connection: AIConnection, exception: Exception) {
+    fun recordFailure(
+        connection: AIConnection,
+        exception: Exception,
+    ) {
         val category = categorizeError(exception)
         recordFailure(connection, category)
     }
@@ -282,7 +295,10 @@ class ConnectionFailoverManager private constructor() {
     /**
      * Record a failed API call with known error category.
      */
-    fun recordFailure(connection: AIConnection, category: ApiErrorCategory) {
+    fun recordFailure(
+        connection: AIConnection,
+        category: ApiErrorCategory,
+    ) {
         val state = getOrCreateState(connection)
         val now = System.currentTimeMillis()
 
@@ -296,31 +312,36 @@ class ConnectionFailoverManager private constructor() {
             val cooldown = calculateCooldown(category, failureCount)
 
             // Update status based on failure count
-            state.status = when {
-                failureCount >= FAILURE_THRESHOLD_OPEN -> {
-                    state.circuitOpenUntil = now + cooldown
-                    Log.w(TAG, " $connection circuit OPEN until ${cooldown/1000}s (${category.name})")
-                    ConnectionHealthStatus.CIRCUIT_OPEN
+            state.status =
+                when {
+                    failureCount >= FAILURE_THRESHOLD_OPEN -> {
+                        state.circuitOpenUntil = now + cooldown
+                        Log.w(TAG, " $connection circuit OPEN until ${cooldown / 1000}s (${category.name})")
+                        ConnectionHealthStatus.CIRCUIT_OPEN
+                    }
+                    failureCount >= FAILURE_THRESHOLD_DEGRADED -> {
+                        Log.w(TAG, " $connection DEGRADED ($failureCount failures)")
+                        ConnectionHealthStatus.DEGRADED
+                    }
+                    else -> state.status
                 }
-                failureCount >= FAILURE_THRESHOLD_DEGRADED -> {
-                    Log.w(TAG, " $connection DEGRADED ($failureCount failures)")
-                    ConnectionHealthStatus.DEGRADED
-                }
-                else -> state.status
-            }
         }
     }
 
     /**
      * Calculate cooldown period based on error type and failure count.
      */
-    private fun calculateCooldown(category: ApiErrorCategory, failureCount: Int): Long {
-        val baseCooldown = when (category) {
-            ApiErrorCategory.RATE_LIMIT -> RATE_LIMIT_COOLDOWN_MS
-            ApiErrorCategory.AUTH_ERROR -> AUTH_ERROR_COOLDOWN_MS
-            ApiErrorCategory.CONTEXT_OVERFLOW -> BASE_COOLDOWN_MS / 2
-            else -> BASE_COOLDOWN_MS
-        }
+    private fun calculateCooldown(
+        category: ApiErrorCategory,
+        failureCount: Int,
+    ): Long {
+        val baseCooldown =
+            when (category) {
+                ApiErrorCategory.RATE_LIMIT -> RATE_LIMIT_COOLDOWN_MS
+                ApiErrorCategory.AUTH_ERROR -> AUTH_ERROR_COOLDOWN_MS
+                ApiErrorCategory.CONTEXT_OVERFLOW -> BASE_COOLDOWN_MS / 2
+                else -> BASE_COOLDOWN_MS
+            }
 
         // Exponential backoff capped at max
         val multiplier = min(failureCount, 5)
@@ -337,7 +358,8 @@ class ConnectionFailoverManager private constructor() {
         return synchronized(state) {
             when (state.status) {
                 ConnectionHealthStatus.HEALTHY,
-                ConnectionHealthStatus.DEGRADED -> true
+                ConnectionHealthStatus.DEGRADED,
+                -> true
 
                 ConnectionHealthStatus.RECOVERING -> true
 

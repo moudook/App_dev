@@ -4,5 +4,5 @@ data class SyncResult(
     val notesProcessed: Int,
     val memoriesCreated: Int,
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
 )

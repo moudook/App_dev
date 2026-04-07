@@ -34,7 +34,7 @@ class RemoteAgentService(
     private val client: HttpClient,
     private val eventSink: AgentEventSink,
     private val serverUrlProvider: () -> String,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
 ) {
     // Secondary constructor for fixed URL (Legacy/Test)
     constructor(client: HttpClient, eventSink: AgentEventSink, serverUrl: String) :
@@ -91,91 +91,99 @@ class RemoteAgentService(
         providerUrl: String? = null,
         model: String? = null,
         sessionId: String? = null,
-        personality: String? = null
-    ): Flow<AgentEvent> = flow {
-        val baseUrl = serverUrlProvider()
-        val token = getFirebaseToken()
+        personality: String? = null,
+    ): Flow<AgentEvent> =
+        flow {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
 
-        val timezone = java.util.TimeZone.getDefault().id
-        val clientTime = System.currentTimeMillis()
+            val timezone = java.util.TimeZone.getDefault().id
+            val clientTime = System.currentTimeMillis()
 
-        val url = buildString {
-            append("$baseUrl/chat/stream")
-            append("?query=${query.encodeURLParameter()}")
-            if (provider != null) append("&provider=${provider.encodeURLParameter()}")
-            if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
-            if (model != null) append("&model=${model.encodeURLParameter()}")
-            if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
-            if (personality != null) append("&personality=${personality.encodeURLParameter()}")
-            append("&timezone=${timezone.encodeURLParameter()}")
-            append("&clientTime=$clientTime")
-        }
-
-        Log.d(TAG, "Connecting to Remote Agent: $url")
-        _connectionState.value = ConnectionStatus.CONNECTING
-
-        try {
-            client.sse(
-                urlString = url,
-                request = {
-                    if (token != null) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                    header("X-Smarty-Device-Id", getDeviceId())
+            val url =
+                buildString {
+                    append("$baseUrl/chat/stream")
+                    append("?query=${query.encodeURLParameter()}")
+                    if (provider != null) append("&provider=${provider.encodeURLParameter()}")
+                    if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
+                    if (model != null) append("&model=${model.encodeURLParameter()}")
+                    if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
+                    if (personality != null) append("&personality=${personality.encodeURLParameter()}")
+                    append("&timezone=${timezone.encodeURLParameter()}")
+                    append("&clientTime=$clientTime")
                 }
-            ) {
-                _connectionState.value = ConnectionStatus.CONNECTED
-                try {
-                    incoming.collect { event ->
-                        val data = event.data ?: return@collect
-                        try {
-                            val agentEvent = json.decodeFromString<AgentEvent>(data)
-                            val shouldStop = handleEvent(agentEvent, this@flow)
-                            if (shouldStop) {
-                                throw EndStreamException()
-                            }
-                        } catch (e: Exception) {
-                            if (e is EndStreamException) throw e
-                            Log.e(TAG, "Failed to parse SSE event: $data", e)
+
+            Log.d(TAG, "Connecting to Remote Agent: $url")
+            _connectionState.value = ConnectionStatus.CONNECTING
+
+            try {
+                client.sse(
+                    urlString = url,
+                    request = {
+                        if (token != null) {
+                            header(HttpHeaders.Authorization, "Bearer $token")
                         }
+                        header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                        header("X-Smarty-Device-Id", getDeviceId())
+                    },
+                ) {
+                    _connectionState.value = ConnectionStatus.CONNECTED
+                    try {
+                        incoming.collect { event ->
+                            val data = event.data ?: return@collect
+                            try {
+                                val agentEvent = json.decodeFromString<AgentEvent>(data)
+                                val shouldStop = handleEvent(agentEvent, this@flow)
+                                if (shouldStop) {
+                                    throw EndStreamException()
+                                }
+                            } catch (e: Exception) {
+                                if (e is EndStreamException) throw e
+                                Log.e(TAG, "Failed to parse SSE event: $data", e)
+                            }
+                        }
+                    } catch (e: EndStreamException) {
+                        Log.d(TAG, "Stream completed normally")
                     }
-                } catch (e: EndStreamException) {
-                    Log.d(TAG, "Stream completed normally")
                 }
+                if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                    _connectionState.value = ConnectionStatus.DISCONNECTED
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "SSE connection failed: ${e.message}", e)
+                _connectionState.value = ConnectionStatus.OFFLINE
+                emit(
+                    AgentEvent.Error(
+                        eventId = java.util.UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        message = "[Connection Error: ${e.message}]",
+                        code = "CONNECTION_ERROR",
+                    ),
+                )
             }
-            if (_connectionState.value != ConnectionStatus.OFFLINE) {
-                _connectionState.value = ConnectionStatus.DISCONNECTED
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "SSE connection failed: ${e.message}", e)
-            _connectionState.value = ConnectionStatus.OFFLINE
-            emit(AgentEvent.Error(
-                eventId = java.util.UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                message = "[Connection Error: ${e.message}]",
-                code = "CONNECTION_ERROR"
-            ))
         }
-    }
 
     /**
      * Send a client event (e.g., tool result, app state) back to the remote agent.
      */
-    suspend fun sendEvent(sessionId: String, event: ClientEvent) {
+    suspend fun sendEvent(
+        sessionId: String,
+        event: ClientEvent,
+    ) {
         try {
             Log.d(TAG, "Sending client event: $event")
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.post("$baseUrl/chat/events") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/chat/events") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    parameter("sessionId", sessionId)
+                    contentType(ContentType.Application.Json)
+                    setBody(event)
                 }
-                parameter("sessionId", sessionId)
-                contentType(ContentType.Application.Json)
-                setBody(event)
-            }
             Log.d(TAG, "Event sent successfully: ${response.status}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send client event", e)
@@ -189,10 +197,11 @@ class RemoteAgentService(
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
-            
-            val response = client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
+
+            val response =
+                client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
             response.status.isSuccess()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete remote chat session", e)
@@ -208,10 +217,11 @@ class RemoteAgentService(
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return 0
-            
-            val response = client.delete("$baseUrl/chat/messages/$messageId/and-after") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
+
+            val response =
+                client.delete("$baseUrl/chat/messages/$messageId/and-after") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
             if (response.status.isSuccess()) {
                 val body = response.bodyAsText()
                 try {
@@ -220,7 +230,9 @@ class RemoteAgentService(
                 } catch (e: Exception) {
                     0
                 }
-            } else 0
+            } else {
+                0
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete messages", e)
             0
@@ -232,19 +244,20 @@ class RemoteAgentService(
      */
     suspend fun analyzeContent(
         content: String,
-        attachments: List<AttachmentInfo>? = null
+        attachments: List<AttachmentInfo>? = null,
     ): AIResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.post("$baseUrl/analyze/content") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/analyze/content") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(ContentAnalysisRequest(content, attachments))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(ContentAnalysisRequest(content, attachments))
-            }
 
             if (response.status.isSuccess()) {
                 response.body<AIResponse>()
@@ -264,19 +277,20 @@ class RemoteAgentService(
     suspend fun analyzeDocument(
         text: String,
         fileName: String? = null,
-        userContext: String? = null
+        userContext: String? = null,
     ): DocumentAnalysisResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.post("$baseUrl/analyze/document") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/analyze/document") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(DocumentAnalysisRequest(text, fileName, userContext))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(DocumentAnalysisRequest(text, fileName, userContext))
-            }
 
             if (response.status.isSuccess()) {
                 response.body<DocumentAnalysisResponse>()
@@ -296,20 +310,21 @@ class RemoteAgentService(
     suspend fun processImage(
         imageBytes: ByteArray,
         mimeType: String,
-        analysisType: String = "ocr"
+        analysisType: String = "ocr",
     ): ImageProcessingResult? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
             val base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
 
-            val response = client.post("$baseUrl/process/image") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/process/image") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(ImageProcessingRequest(base64Image, mimeType, analysisType))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(ImageProcessingRequest(base64Image, mimeType, analysisType))
-            }
 
             if (response.status.isSuccess()) {
                 response.body<ImageProcessingResult>()
@@ -329,20 +344,21 @@ class RemoteAgentService(
     suspend fun processPdf(
         pdfBytes: ByteArray,
         fileName: String? = null,
-        useOcr: Boolean = true
+        useOcr: Boolean = true,
     ): PdfProcessingResult? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
             val base64Pdf = Base64.encodeToString(pdfBytes, Base64.NO_WRAP)
 
-            val response = client.post("$baseUrl/process/pdf") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/process/pdf") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(PdfProcessingRequest(base64Pdf, fileName, useOcr))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(PdfProcessingRequest(base64Pdf, fileName, useOcr))
-            }
 
             if (response.status.isSuccess()) {
                 response.body<PdfProcessingResult>()
@@ -363,26 +379,32 @@ class RemoteAgentService(
         fileBytes: ByteArray,
         fileName: String,
         contentType: String,
-        analysisType: String = "content"
+        analysisType: String = "content",
     ): Any? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.submitFormWithBinaryData(
-                url = "$baseUrl/upload",
-                formData = formData {
-                    append("file", fileBytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        append(HttpHeaders.ContentType, contentType)
-                    })
-                    append("analysisType", analysisType)
+            val response =
+                client.submitFormWithBinaryData(
+                    url = "$baseUrl/upload",
+                    formData =
+                        formData {
+                            append(
+                                "file",
+                                fileBytes,
+                                Headers.build {
+                                    append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                                    append(HttpHeaders.ContentType, contentType)
+                                },
+                            )
+                            append("analysisType", analysisType)
+                        },
+                ) {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
                 }
-            ) {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
-            }
 
             if (response.status.isSuccess()) {
                 response.bodyAsText()
@@ -404,11 +426,12 @@ class RemoteAgentService(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.get("$baseUrl/health") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.get("$baseUrl/health") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
                 }
-            }
 
             val success = response.status.isSuccess()
             Log.i(TAG, "Connection test: ${if (success) "SUCCESS" else "FAILED"}")
@@ -432,83 +455,87 @@ class RemoteAgentService(
      *
      * @return Flow of response content chunks
      */
-fun sendQueryWithContext(
+    fun sendQueryWithContext(
         query: String,
         sessionId: String? = null,
         fileContext: String? = null,
         attachments: List<ChatAttachment>? = null,
         provider: String? = null,
         model: String? = null,
-        personality: String? = null  // Fix: Add personality parameter
-    ): Flow<String> = flow {
-        val baseUrl = serverUrlProvider()
-        val token = getFirebaseToken()
+        personality: String? = null, // Fix: Add personality parameter
+    ): Flow<String> =
+        flow {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
 
-        Log.d(TAG, "Sending query with context: hasFileContext=${!fileContext.isNullOrBlank()}, attachments=${attachments?.size ?: 0}")
-        _connectionState.value = ConnectionStatus.CONNECTING
+            Log.d(TAG, "Sending query with context: hasFileContext=${!fileContext.isNullOrBlank()}, attachments=${attachments?.size ?: 0}")
+            _connectionState.value = ConnectionStatus.CONNECTING
 
-        try {
-            val timezone = java.util.TimeZone.getDefault().id
-            val clientTime = System.currentTimeMillis()
+            try {
+                val timezone = java.util.TimeZone.getDefault().id
+                val clientTime = System.currentTimeMillis()
 
-            val request = ChatQueryRequest(
-                query = query,
-                sessionId = sessionId,
-                provider = provider,
-                model = model,
-                fileContext = fileContext,
-                attachments = attachments?.map {
-                    ChatQueryAttachment(type = it.type, name = it.name, mimeType = it.mimeType)
-                },
-                timezone = timezone,
-                clientTime = clientTime,
-                personality = personality  // Fix: Include personality in POST request
-            )
+                val request =
+                    ChatQueryRequest(
+                        query = query,
+                        sessionId = sessionId,
+                        provider = provider,
+                        model = model,
+                        fileContext = fileContext,
+                        attachments =
+                            attachments?.map {
+                                ChatQueryAttachment(type = it.type, name = it.name, mimeType = it.mimeType)
+                            },
+                        timezone = timezone,
+                        clientTime = clientTime,
+                        personality = personality, // Fix: Include personality in POST request
+                    )
 
-            val response = client.post("$baseUrl/chat/query") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
-
-            _connectionState.value = ConnectionStatus.CONNECTED
-
-            if (response.status.isSuccess()) {
-                val result = response.body<ChatQueryResponse>()
-
-                result.events.forEach { eventJson ->
-                    try {
-                        val event = json.decodeFromString<AgentEvent>(eventJson)
-                        val shouldStop = handleStringEvent(event, this@flow)
-                        if (shouldStop) {
-                            // Do nothing for non flow-collecting stream
+                val response =
+                    client.post("$baseUrl/chat/query") {
+                        if (token != null) {
+                            header(HttpHeaders.Authorization, "Bearer $token")
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to parse event: $eventJson", e)
+                        header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                        header("X-Smarty-Device-Id", getDeviceId())
+                        contentType(ContentType.Application.Json)
+                        setBody(request)
                     }
-                }
 
-                if (result.response.isNotBlank()) {
-                    emit(result.response)
+                _connectionState.value = ConnectionStatus.CONNECTED
+
+                if (response.status.isSuccess()) {
+                    val result = response.body<ChatQueryResponse>()
+
+                    result.events.forEach { eventJson ->
+                        try {
+                            val event = json.decodeFromString<AgentEvent>(eventJson)
+                            val shouldStop = handleStringEvent(event, this@flow)
+                            if (shouldStop) {
+                                // Do nothing for non flow-collecting stream
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to parse event: $eventJson", e)
+                        }
+                    }
+
+                    if (result.response.isNotBlank()) {
+                        emit(result.response)
+                    }
+                } else {
+                    val errorBody = response.bodyAsText()
+                    Log.e(TAG, "Chat query failed: ${response.status} - $errorBody")
+                    emit("\n[Error: ${response.status}]")
                 }
-            } else {
-                val errorBody = response.bodyAsText()
-                Log.e(TAG, "Chat query failed: ${response.status} - $errorBody")
-                emit("\n[Error: ${response.status}]")
+                if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                    _connectionState.value = ConnectionStatus.DISCONNECTED
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Chat query error: ${e.message}", e)
+                _connectionState.value = ConnectionStatus.OFFLINE
+                emit("\n[Connection Error: ${e.message}]")
             }
-            if (_connectionState.value != ConnectionStatus.OFFLINE) {
-                _connectionState.value = ConnectionStatus.DISCONNECTED
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Chat query error: ${e.message}", e)
-            _connectionState.value = ConnectionStatus.OFFLINE
-            emit("\n[Connection Error: ${e.message}]")
         }
-    }
 
     /**
      * Generate a daily briefing.
@@ -518,13 +545,14 @@ fun sendQueryWithContext(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.post("$baseUrl/briefing/generate") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/briefing/generate") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(BriefingRequest(prompt))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(BriefingRequest(prompt))
-            }
 
             if (response.status.isSuccess()) {
                 val result = response.body<BriefingResponse>()
@@ -545,19 +573,20 @@ fun sendQueryWithContext(
      */
     suspend fun generateImageDirect(
         prompt: String,
-        aspectRatio: String = "1:1"
+        aspectRatio: String = "1:1",
     ): DirectImageGenerationResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response = client.post("$baseUrl/api/v1/image/direct") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response =
+                client.post("$baseUrl/api/v1/image/direct") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(DirectImageGenerationRequest(prompt, aspectRatio))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(DirectImageGenerationRequest(prompt, aspectRatio))
-            }
 
             if (response.status.isSuccess()) {
                 response.body<DirectImageGenerationResponse>()
@@ -579,14 +608,17 @@ fun sendQueryWithContext(
         return UserInfo(
             userId = user.uid,
             email = user.email,
-            displayName = user.displayName
+            displayName = user.displayName,
         )
     }
 
     /**
      * Handles events streaming from the SSE endpoint and emits raw string chunks
      */
-    private suspend fun handleStringEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<String>): Boolean {
+    private suspend fun handleStringEvent(
+        event: AgentEvent,
+        flowCollector: kotlinx.coroutines.flow.FlowCollector<String>,
+    ): Boolean {
         return when (event) {
             is AgentEvent.Processing -> {
                 if (!event.content.isNullOrEmpty()) {
@@ -645,7 +677,10 @@ fun sendQueryWithContext(
     /**
      * Handles events streaming from the SSE endpoint and emits whole AgentEvents
      */
-    private suspend fun handleEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>): Boolean {
+    private suspend fun handleEvent(
+        event: AgentEvent,
+        flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>,
+    ): Boolean {
         return when (event) {
             is AgentEvent.Processing -> {
                 flowCollector.emit(event)
@@ -707,17 +742,18 @@ fun sendQueryWithContext(
             val token = getFirebaseToken()
 
             Log.d(TAG, "Initiating handshake with Cloud Agent: $baseUrl")
-            
-            val response = client.post("$baseUrl/api/v1/session/init") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+
+            val response =
+                client.post("$baseUrl/api/v1/session/init") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    // Add security handshake headers
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
                 }
-                // Add security handshake headers
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
 
             if (response.status.isSuccess()) {
                 val handshakeResponse = response.body<com.example.smarty.protocol.HandshakeResponse>()
@@ -740,13 +776,14 @@ fun sendQueryWithContext(
     suspend fun interruptSession(sessionId: String): InterruptResponse {
         val baseUrl = serverUrlProvider()
         val token = getFirebaseToken()
-        
+
         return try {
-            val response = client.post("$baseUrl/chat/interrupt") {
-                contentType(ContentType.Application.Json)
-                bearerAuth(token ?: "")
-                setBody(InterruptRequest(sessionId))
-            }
+            val response =
+                client.post("$baseUrl/chat/interrupt") {
+                    contentType(ContentType.Application.Json)
+                    bearerAuth(token ?: "")
+                    setBody(InterruptRequest(sessionId))
+                }
             if (response.status.isSuccess()) {
                 response.body<InterruptResponse>()
             } else {
@@ -767,39 +804,39 @@ fun sendQueryWithContext(
 
 @Serializable
 data class BriefingRequest(
-    val prompt: String
+    val prompt: String,
 )
 
 @Serializable
 data class BriefingResponse(
     val briefing: String,
-    val success: Boolean = true
+    val success: Boolean = true,
 )
 
 @Serializable
 data class AttachmentInfo(
     val fileName: String,
-    val fileType: String
+    val fileType: String,
 )
 
 @Serializable
 data class ContentAnalysisRequest(
     val content: String,
-    val attachments: List<AttachmentInfo>? = null
+    val attachments: List<AttachmentInfo>? = null,
 )
 
 @Serializable
 data class DocumentAnalysisRequest(
     val text: String,
     val fileName: String? = null,
-    val userContext: String? = null
+    val userContext: String? = null,
 )
 
 @Serializable
 data class ImageProcessingRequest(
     val base64Image: String,
     val mimeType: String? = null,
-    val analysisType: String? = "ocr"
+    val analysisType: String? = "ocr",
 )
 
 @Serializable
@@ -807,14 +844,14 @@ data class ImageProcessingResult(
     val text: String,
     val contentType: String,
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @Serializable
 data class PdfProcessingRequest(
     val base64Pdf: String,
     val fileName: String? = null,
-    val useOcr: Boolean? = true
+    val useOcr: Boolean? = true,
 )
 
 @Serializable
@@ -823,13 +860,13 @@ data class PdfProcessingResult(
     val pageCount: Int,
     val hasImages: Boolean,
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )
 
 data class UserInfo(
     val userId: String,
     val email: String?,
-    val displayName: String?
+    val displayName: String?,
 )
 
 // Chat with context DTOs
@@ -838,17 +875,17 @@ data class UserInfo(
  * Attachment info for chat messages.
  */
 data class ChatAttachment(
-    val type: String,  // "image", "pdf", "document"
+    val type: String, // "image", "pdf", "document"
     val name: String,
     val mimeType: String? = null,
-    val extractedText: String? = null  // Text extracted from the attachment
+    val extractedText: String? = null, // Text extracted from the attachment
 )
 
 @Serializable
 data class ChatQueryAttachment(
     val type: String,
     val name: String,
-    val mimeType: String? = null
+    val mimeType: String? = null,
 )
 
 @Serializable
@@ -863,36 +900,36 @@ data class ChatQueryRequest(
     val attachments: List<ChatQueryAttachment>? = null,
     val timezone: String? = null,
     val clientTime: Long? = null,
-    val personality: String? = null  // Fix: Add personality to POST endpoint
+    val personality: String? = null, // Fix: Add personality to POST endpoint
 )
 
 @Serializable
 data class ChatQueryResponse(
     val sessionId: String? = null,
     val response: String = "",
-    val events: List<String> = emptyList()
+    val events: List<String> = emptyList(),
 )
 
 @Serializable
 data class DirectImageGenerationRequest(
     val prompt: String,
-    val aspectRatio: String = "1:1"
+    val aspectRatio: String = "1:1",
 )
 
 @Serializable
 data class DirectImageGenerationResponse(
     val jobId: String,
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
 )
 
 @Serializable
 data class InterruptRequest(
-    val sessionId: String
+    val sessionId: String,
 )
 
 @Serializable
 data class InterruptResponse(
     val success: Boolean,
-    val message: String
+    val message: String,
 )

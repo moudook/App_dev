@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
 class HashBasedCache(
     private val maxEntries: Int = 100,
     private val ttlMs: Long = 2 * 60 * 60 * 1000, // 2 hours
-    private val normalizeQueries: Boolean = true
+    private val normalizeQueries: Boolean = true,
 ) {
     companion object {
         private const val TAG = "HashBasedCache"
@@ -39,10 +39,12 @@ class HashBasedCache(
         val response: String,
         val timestamp: Long,
         var accessCount: Int = 0,
-        val containsNoteData: Boolean = false
+        val containsNoteData: Boolean = false,
     ) {
-        fun isExpired(currentTime: Long, ttlMs: Long): Boolean =
-            currentTime - timestamp > ttlMs
+        fun isExpired(
+            currentTime: Long,
+            ttlMs: Long,
+        ): Boolean = currentTime - timestamp > ttlMs
     }
 
     // Cache storage using normalized query hash as key
@@ -50,6 +52,7 @@ class HashBasedCache(
 
     // Statistics
     @Volatile private var hits = 0
+
     @Volatile private var misses = 0
 
     /**
@@ -64,8 +67,8 @@ class HashBasedCache(
         return query
             .lowercase()
             .trim()
-            .replace(Regex("\\s+"), " ")  // Normalize whitespace
-            .replace(Regex("[.!?,;:]+$"), "")  // Remove trailing punctuation
+            .replace(Regex("\\s+"), " ") // Normalize whitespace
+            .replace(Regex("[.!?,;:]+$"), "") // Remove trailing punctuation
     }
 
     /**
@@ -104,15 +107,16 @@ class HashBasedCache(
 
     // Action keywords that should NOT be cached (depend on dynamic data)
     // These queries involve operations on user data that can change at any time
-    private val ACTION_KEYWORDS = setOf(
-        "play", "pause", "stop", "resume",
-        "search", "find", "look", "check",
-        "show", "display", "tell", "give", "list",
-        "get", "fetch", "read", "open",
-        "archive", "unarchive", "delete", "update", "create", "add", "remove", "edit", "modify",
-        "count", "how many", "total", "number of",
-        "notes", "note", "audio", "document", "image", "file"
-    )
+    private val ACTION_KEYWORDS =
+        setOf(
+            "play", "pause", "stop", "resume",
+            "search", "find", "look", "check",
+            "show", "display", "tell", "give", "list",
+            "get", "fetch", "read", "open",
+            "archive", "unarchive", "delete", "update", "create", "add", "remove", "edit", "modify",
+            "count", "how many", "total", "number of",
+            "notes", "note", "audio", "document", "image", "file",
+        )
 
     /**
      * Check if a query is action-oriented (should not be cached).
@@ -122,20 +126,22 @@ class HashBasedCache(
         val normalizedQuery = query.lowercase().trim()
 
         // Check for any action keyword
-        val hasActionKeyword = ACTION_KEYWORDS.any { keyword ->
-            normalizedQuery.startsWith(keyword) ||
-            normalizedQuery.contains(" $keyword ") ||
-            normalizedQuery.contains("$keyword ") ||
-            normalizedQuery.contains(" $keyword") ||
-            normalizedQuery.endsWith(keyword)
-        }
+        val hasActionKeyword =
+            ACTION_KEYWORDS.any { keyword ->
+                normalizedQuery.startsWith(keyword) ||
+                    normalizedQuery.contains(" $keyword ") ||
+                    normalizedQuery.contains("$keyword ") ||
+                    normalizedQuery.contains(" $keyword") ||
+                    normalizedQuery.endsWith(keyword)
+            }
 
         // Also check for question patterns about user data
-        val isDataQuestion = normalizedQuery.contains("my ") ||
-            normalizedQuery.contains("i have") ||
-            normalizedQuery.contains("do i have") ||
-            normalizedQuery.contains("what's in my") ||
-            normalizedQuery.contains("what is in my")
+        val isDataQuestion =
+            normalizedQuery.contains("my ") ||
+                normalizedQuery.contains("i have") ||
+                normalizedQuery.contains("do i have") ||
+                normalizedQuery.contains("what's in my") ||
+                normalizedQuery.contains("what is in my")
 
         return hasActionKeyword || isDataQuestion
     }
@@ -147,7 +153,11 @@ class HashBasedCache(
      * @param response The AI response to cache
      * @param containsNoteData Whether the response contains user note data
      */
-    fun put(query: String, response: String, containsNoteData: Boolean = false) {
+    fun put(
+        query: String,
+        response: String,
+        containsNoteData: Boolean = false,
+    ) {
         if (query.isBlank() || response.isBlank()) return
 
         // CRITICAL FIX: Don't cache action-oriented queries that depend on dynamic data
@@ -163,12 +173,13 @@ class HashBasedCache(
         }
 
         val normalizedKey = normalizeQuery(query)
-        val entry = CacheEntry(
-            originalQuery = query,
-            response = response,
-            timestamp = System.currentTimeMillis(),
-            containsNoteData = containsNoteData
-        )
+        val entry =
+            CacheEntry(
+                originalQuery = query,
+                response = response,
+                timestamp = System.currentTimeMillis(),
+                containsNoteData = containsNoteData,
+            )
         cache[normalizedKey] = entry
         Log.d(TAG, "Cached response for: ${query.take(30)}...")
     }
@@ -196,12 +207,13 @@ class HashBasedCache(
     /**
      * Get cache statistics.
      */
-    fun getStats(): CacheStats = CacheStats(
-        size = cache.size,
-        hits = hits,
-        misses = misses,
-        hitRate = if (hits + misses > 0) hits.toFloat() / (hits + misses) else 0f
-    )
+    fun getStats(): CacheStats =
+        CacheStats(
+            size = cache.size,
+            hits = hits,
+            misses = misses,
+            hitRate = if (hits + misses > 0) hits.toFloat() / (hits + misses) else 0f,
+        )
 
     /**
      * Evict expired entries from cache.
@@ -221,10 +233,11 @@ class HashBasedCache(
         // Remove bottom 10% by access count
         val toRemove = (maxEntries * 0.1).toInt().coerceAtLeast(1)
 
-        val keysToRemove = cache.entries
-            .sortedBy { it.value.accessCount }
-            .take(toRemove)
-            .map { it.key }
+        val keysToRemove =
+            cache.entries
+                .sortedBy { it.value.accessCount }
+                .take(toRemove)
+                .map { it.key }
 
         keysToRemove.forEach { cache.remove(it) }
         Log.d(TAG, "Evicted $toRemove least used entries")
@@ -237,6 +250,6 @@ class HashBasedCache(
         val size: Int,
         val hits: Int,
         val misses: Int,
-        val hitRate: Float
+        val hitRate: Float,
     )
 }

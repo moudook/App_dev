@@ -33,16 +33,36 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
         private const val TAG = "PrivacyGuard"
 
         // Default no-op implementations for static access
-        private val noOpLogger = object : Logger {
-            override fun d(tag: String, message: String) {}
-            override fun i(tag: String, message: String) {}
-            override fun w(tag: String, message: String, throwable: Throwable?) {}
-            override fun e(tag: String, message: String, throwable: Throwable?) {}
-        }
-        private val noOpSecurityMessageProvider = object : SecurityMessageProvider {
-            override fun getViolationDetail(operation: String): String = "Security violation: $operation"
-            override fun getViolationIds(operation: String): String = "Security violation with IDs: $operation"
-        }
+        private val noOpLogger =
+            object : Logger {
+                override fun d(
+                    tag: String,
+                    message: String,
+                ) {}
+
+                override fun i(
+                    tag: String,
+                    message: String,
+                ) {}
+
+                override fun w(
+                    tag: String,
+                    message: String,
+                    throwable: Throwable?,
+                ) {}
+
+                override fun e(
+                    tag: String,
+                    message: String,
+                    throwable: Throwable?,
+                ) {}
+            }
+        private val noOpSecurityMessageProvider =
+            object : SecurityMessageProvider {
+                override fun getViolationDetail(operation: String): String = "Security violation: $operation"
+
+                override fun getViolationIds(operation: String): String = "Security violation with IDs: $operation"
+            }
 
         // Singleton instance for static access
         private val defaultInstance = PrivacyGuard(noOpLogger, noOpSecurityMessageProvider)
@@ -55,8 +75,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
         /**
          * Static convenience method - sanitizes note IDs for chat persistence
          */
-        fun sanitizeForChatPersistence(noteIds: List<String>, allNotes: List<Note>): List<String> =
-            defaultInstance.sanitizeForChatPersistence(noteIds, allNotes)
+        fun sanitizeForChatPersistence(
+            noteIds: List<String>,
+            allNotes: List<Note>,
+        ): List<String> = defaultInstance.sanitizeForChatPersistence(noteIds, allNotes)
 
         /**
          * Static convenience method - check if AI can process a note
@@ -66,8 +88,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
         /**
          * Static convenience method - log security event
          */
-        fun logSecurityEvent(noteId: String, operation: String) =
-            defaultInstance.logSecurityEvent(noteId, operation)
+        fun logSecurityEvent(
+            noteId: String,
+            operation: String,
+        ) = defaultInstance.logSecurityEvent(noteId, operation)
     }
 
     /**
@@ -136,7 +160,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Find a note by ID - returns null if note is private
      * AI cannot access private notes even if it knows the ID
      */
-    fun findByIdForAi(notes: List<Note>, noteId: String): Note? {
+    fun findByIdForAi(
+        notes: List<Note>,
+        noteId: String,
+    ): Note? {
         val note = notes.find { it.id == noteId }
         if (note != null && isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage via logcat
@@ -163,7 +190,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Security check before any AI operation on a note
      * Throws SecurityException if note is private
      */
-    fun requireAiAccess(note: Note, operation: String) {
+    fun requireAiAccess(
+        note: Note,
+        operation: String,
+    ) {
         if (isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't include note IDs in exception messages
             val message = messageProvider.getViolationDetail(operation)
@@ -178,7 +208,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage
      */
     @Suppress("UNUSED_PARAMETER")
-    fun logSecurityEvent(noteId: String, operation: String) {
+    fun logSecurityEvent(
+        noteId: String,
+        operation: String,
+    ) {
         logger.w(TAG, "SECURITY EVENT: Blocked AI $operation for private note")
     }
 
@@ -216,7 +249,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * @param allNotes All notes to check against
      * @return Only IDs of notes that are AI-accessible
      */
-    fun filterNoteIds(noteIds: List<String>, allNotes: List<Note>): List<String> {
+    fun filterNoteIds(
+        noteIds: List<String>,
+        allNotes: List<Note>,
+    ): List<String> {
         return noteIds.filter { noteId ->
             val note = allNotes.find { it.id == noteId }
             note != null && isAiAccessible(note)
@@ -230,7 +266,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * @param allNotes All notes to search
      * @return true if the note exists and is private
      */
-    fun isPrivateNoteId(noteId: String, allNotes: List<Note>): Boolean {
+    fun isPrivateNoteId(
+        noteId: String,
+        allNotes: List<Note>,
+    ): Boolean {
         val note = allNotes.find { it.id == noteId } ?: return false
         return isPrivate(note)
     }
@@ -312,14 +351,18 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * @param allNotes All notes to check against (should be current state)
      * @return Only IDs of notes that are currently AI-accessible
      */
-    fun sanitizeReferencedNoteIds(noteIds: List<String>, allNotes: List<Note>): List<String> {
+    fun sanitizeReferencedNoteIds(
+        noteIds: List<String>,
+        allNotes: List<Note>,
+    ): List<String> {
         if (noteIds.isEmpty()) return emptyList()
 
-        val sanitized = noteIds.filter { noteId ->
-            val note = allNotes.find { it.id == noteId }
-            // Only include if note exists AND is AI-accessible
-            note != null && isAiAccessible(note)
-        }
+        val sanitized =
+            noteIds.filter { noteId ->
+                val note = allNotes.find { it.id == noteId }
+                // Only include if note exists AND is AI-accessible
+                note != null && isAiAccessible(note)
+            }
 
         val removed = noteIds.size - sanitized.size
         if (removed > 0) {
@@ -339,7 +382,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      */
     fun sanitizeForChatPersistence(
         referencedNoteIds: List<String>,
-        allNotes: List<Note>
+        allNotes: List<Note>,
     ): List<String> {
         return sanitizeReferencedNoteIds(referencedNoteIds, allNotes)
     }
@@ -348,7 +391,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Check if any note in a list of IDs refers to a private note.
      * Used for validation and logging.
      */
-    fun containsPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>): Boolean {
+    fun containsPrivateNoteIds(
+        noteIds: List<String>,
+        allNotes: List<Note>,
+    ): Boolean {
         return noteIds.any { noteId ->
             val note = allNotes.find { it.id == noteId }
             note != null && isPrivate(note)
@@ -360,7 +406,11 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Throws Exception if validation fails.
      * Use for critical security checkpoints.
      */
-    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String) {
+    fun assertNoPrivateNoteIds(
+        noteIds: List<String>,
+        allNotes: List<Note>,
+        operation: String,
+    ) {
         if (containsPrivateNoteIds(noteIds, allNotes)) {
             val message = messageProvider.getViolationIds(operation)
             logger.e(TAG, message)
@@ -382,7 +432,10 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * @param privateNotes List of private notes to check against
      * @return Sanitized response text
      */
-    fun sanitizeResponseText(responseText: String, privateNotes: List<Note>): String {
+    fun sanitizeResponseText(
+        responseText: String,
+        privateNotes: List<Note>,
+    ): String {
         if (privateNotes.isEmpty()) return responseText
 
         var sanitized = responseText
@@ -426,7 +479,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      */
     fun getAiSafeCategoryCounts(
         categories: List<com.example.smarty.core.domain.model.Category>,
-        allNotes: List<Note>
+        allNotes: List<Note>,
     ): Map<String, Int> {
         val aiVisibleNotes = getAiVisibleNotes(allNotes)
 

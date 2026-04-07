@@ -4,10 +4,10 @@ import java.util.UUID
 
 /**
  * UUID extension functions for consistent and safe UUID conversion.
- * 
+ *
  * This utility eliminates duplication of UUID parsing and validation
  * across repositories and services.
- * 
+ *
  * Usage:
  * ```
  * val uuid = userId.toUuid()
@@ -19,11 +19,12 @@ import java.util.UUID
 /**
  * Convert string to UUID with descriptive error.
  */
-fun String.toUuid(): UUID = try {
-    UUID.fromString(this)
-} catch (e: IllegalArgumentException) {
-    throw IllegalArgumentException("Invalid UUID format: '$this'", e)
-}
+fun String.toUuid(): UUID =
+    try {
+        UUID.fromString(this)
+    } catch (e: IllegalArgumentException) {
+        throw IllegalArgumentException("Invalid UUID format: '$this'", e)
+    }
 
 /**
  * Convert nullable string to nullable UUID.
@@ -54,12 +55,13 @@ fun List<UUID>.toStringList(): List<String> = map { it.toString() }
  * Validate UUID format without throwing exception.
  * @return true if valid UUID format, false otherwise
  */
-fun String.isValidUuid(): Boolean = try {
-    UUID.fromString(this)
-    true
-} catch (e: IllegalArgumentException) {
-    false
-}
+fun String.isValidUuid(): Boolean =
+    try {
+        UUID.fromString(this)
+        true
+    } catch (e: IllegalArgumentException) {
+        false
+    }
 
 /**
  * Generate a random UUID string.
@@ -72,10 +74,11 @@ fun randomUuidString(): String = UUID.randomUUID().toString()
 data class UuidValidation(
     val isValid: Boolean,
     val uuid: UUID? = null,
-    val error: String? = null
+    val error: String? = null,
 ) {
     companion object {
         fun valid(uuid: UUID): UuidValidation = UuidValidation(isValid = true, uuid = uuid)
+
         fun invalid(error: String): UuidValidation = UuidValidation(isValid = false, error = error)
     }
 }
@@ -84,8 +87,9 @@ data class UuidValidation(
  * Validate and parse a UUID string.
  * @return UuidValidation with parsed UUID or error
  */
-fun String.validateUuid(): UuidValidation = try {
-    UuidValidation.valid(UUID.fromString(this))
-} catch (e: IllegalArgumentException) {
-    UuidValidation.invalid("Invalid UUID format: '$this'")
-}
+fun String.validateUuid(): UuidValidation =
+    try {
+        UuidValidation.valid(UUID.fromString(this))
+    } catch (e: IllegalArgumentException) {
+        UuidValidation.invalid("Invalid UUID format: '$this'")
+    }

@@ -36,28 +36,27 @@ import java.util.zip.GZIPInputStream
  * - MEMORY AWARE: Adapts to device capabilities and memory pressure
  *
  * Architecture:
- * 
- *                     LazyDecompressor                         
- * 
- *   Request Queue (Channel)                                    
- *                                        
- *    Req → Req → Req → ... (priority ordered)           
- *                                        
- * 
- *   Worker (SLEEPING until request arrives)                    
- *   • Wakes on request                                        
- *   • Processes one item                                      
- *   • Returns to SLEEP                                        
- * 
- *   LRU Cache (memory-aware)                                  
- *   • Evicts oldest when full                                 
- *   • Adjusts size based on device class                      
- * 
+ *
+ *                     LazyDecompressor
+ *
+ *   Request Queue (Channel)
+ *
+ *    Req → Req → Req → ... (priority ordered)
+ *
+ *
+ *   Worker (SLEEPING until request arrives)
+ *   • Wakes on request
+ *   • Processes one item
+ *   • Returns to SLEEP
+ *
+ *   LRU Cache (memory-aware)
+ *   • Evicts oldest when full
+ *   • Adjusts size based on device class
+ *
  *
  * =============================================================================
  */
 object LazyDecompressor {
-
     private const val TAG = "LazyDecompressor"
 
     // =========================================================================
@@ -65,8 +64,8 @@ object LazyDecompressor {
     // =========================================================================
 
     private var maxCacheEntries = 20
-    private var maxCacheSizeBytes = 50 * 1024 * 1024L  // 50MB default
-    private var bufferSize = 65536  // 64KB default
+    private var maxCacheSizeBytes = 50 * 1024 * 1024L // 50MB default
+    private var bufferSize = 65536 // 64KB default
 
     // =========================================================================
     // STATE
@@ -115,13 +114,14 @@ object LazyDecompressor {
 
         // Adapt to device capabilities
         try {
-            maxCacheEntries = when (ResourceManager.getDeviceClass()) {
-                ResourceManager.DeviceClass.EDGE -> 5
-                ResourceManager.DeviceClass.LOW -> 10
-                ResourceManager.DeviceClass.MEDIUM -> 15
-                ResourceManager.DeviceClass.HIGH -> 20
-                ResourceManager.DeviceClass.FLAGSHIP -> 30
-            }
+            maxCacheEntries =
+                when (ResourceManager.getDeviceClass()) {
+                    ResourceManager.DeviceClass.EDGE -> 5
+                    ResourceManager.DeviceClass.LOW -> 10
+                    ResourceManager.DeviceClass.MEDIUM -> 15
+                    ResourceManager.DeviceClass.HIGH -> 20
+                    ResourceManager.DeviceClass.FLAGSHIP -> 30
+                }
             maxCacheSizeBytes = ResourceManager.getMaxCacheSize()
             bufferSize = ResourceManager.getOptimalBufferSize()
         } catch (e: Exception) {
@@ -130,25 +130,26 @@ object LazyDecompressor {
         }
 
         // Initialize cache
-        decompressedCache = object : LruCache<String, CachedFile>(maxCacheEntries) {
-            override fun entryRemoved(
-                evicted: Boolean,
-                key: String?,
-                oldValue: CachedFile?,
-                newValue: CachedFile?
-            ) {
-                if (evicted && oldValue != null) {
-                    currentCacheSize -= oldValue.size
-                    // Delete the cached file
-                    try {
-                        oldValue.file.delete()
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to delete evicted cache file: ${oldValue.file.name}")
+        decompressedCache =
+            object : LruCache<String, CachedFile>(maxCacheEntries) {
+                override fun entryRemoved(
+                    evicted: Boolean,
+                    key: String?,
+                    oldValue: CachedFile?,
+                    newValue: CachedFile?,
+                ) {
+                    if (evicted && oldValue != null) {
+                        currentCacheSize -= oldValue.size
+                        // Delete the cached file
+                        try {
+                            oldValue.file.delete()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to delete evicted cache file: ${oldValue.file.name}")
+                        }
+                        Log.d(TAG, "Evicted: ${oldValue.file.name}, cache size: ${currentCacheSize / 1024}KB")
                     }
-                    Log.d(TAG, "Evicted: ${oldValue.file.name}, cache size: ${currentCacheSize / 1024}KB")
                 }
             }
-        }
 
         // Start worker (but it will sleep immediately)
         startWorker()
@@ -208,7 +209,7 @@ object LazyDecompressor {
         compressionType: CompressionType,
         cacheDir: File,
         priority: Priority = Priority.NORMAL,
-        onComplete: ((DecompressionResult) -> Unit)? = null
+        onComplete: ((DecompressionResult) -> Unit)? = null,
     ) {
         // Check cache first using async instead of runBlocking to avoid ANR
         ensureScopesActive()
@@ -218,12 +219,13 @@ object LazyDecompressor {
                 decompressedCache?.get(fileId)?.let { cached ->
                     if (cached.file.exists()) {
                         updateState(fileId, DecompState.READY)
-                        val result = DecompressionResult(
-                            fileId = fileId,
-                            success = true,
-                            decompressedFile = cached.file,
-                            fromCache = true
-                        )
+                        val result =
+                            DecompressionResult(
+                                fileId = fileId,
+                                success = true,
+                                decompressedFile = cached.file,
+                                fromCache = true,
+                            )
                         onComplete?.invoke(result)
                         cacheHit = true
                     }
@@ -234,15 +236,16 @@ object LazyDecompressor {
             if (cacheHit) return@launch
 
             // Not in cache, queue for decompression
-            val request = DecompressionRequest(
-                id = fileId,
-                compressedFile = compressedFile,
-                compressionType = compressionType,
-                cacheDir = cacheDir,
-                priority = priority,
-                callback = onComplete,
-                requestTime = System.currentTimeMillis()
-            )
+            val request =
+                DecompressionRequest(
+                    id = fileId,
+                    compressedFile = compressedFile,
+                    compressionType = compressionType,
+                    cacheDir = cacheDir,
+                    priority = priority,
+                    callback = onComplete,
+                    requestTime = System.currentTimeMillis(),
+                )
 
             pendingRequests[fileId] = request
             updateState(fileId, DecompState.QUEUED)
@@ -262,49 +265,51 @@ object LazyDecompressor {
         fileId: String,
         compressedFile: File,
         compressionType: CompressionType,
-        cacheDir: File
-    ): DecompressionResult = withContext(Dispatchers.IO) {
-        // Check cache first
-        cacheMutex.withLock {
-            decompressedCache?.get(fileId)?.let { cached ->
-                if (cached.file.exists()) {
-                    updateState(fileId, DecompState.READY)
-                    return@withContext DecompressionResult(
-                        fileId = fileId,
-                        success = true,
-                        decompressedFile = cached.file,
-                        fromCache = true
-                    )
+        cacheDir: File,
+    ): DecompressionResult =
+        withContext(Dispatchers.IO) {
+            // Check cache first
+            cacheMutex.withLock {
+                decompressedCache?.get(fileId)?.let { cached ->
+                    if (cached.file.exists()) {
+                        updateState(fileId, DecompState.READY)
+                        return@withContext DecompressionResult(
+                            fileId = fileId,
+                            success = true,
+                            decompressedFile = cached.file,
+                            fromCache = true,
+                        )
+                    }
                 }
             }
-        }
 
-        // Not in cache - decompress directly (bypass queue for immediate need)
-        updateState(fileId, DecompState.DECOMPRESSING)
+            // Not in cache - decompress directly (bypass queue for immediate need)
+            updateState(fileId, DecompState.DECOMPRESSING)
 
-        try {
-            val result = decompressFile(
-                DecompressionRequest(
-                    id = fileId,
-                    compressedFile = compressedFile,
-                    compressionType = compressionType,
-                    cacheDir = cacheDir,
-                    priority = Priority.HIGH,
-                    callback = null,
-                    requestTime = System.currentTimeMillis()
+            try {
+                val result =
+                    decompressFile(
+                        DecompressionRequest(
+                            id = fileId,
+                            compressedFile = compressedFile,
+                            compressionType = compressionType,
+                            cacheDir = cacheDir,
+                            priority = Priority.HIGH,
+                            callback = null,
+                            requestTime = System.currentTimeMillis(),
+                        ),
+                    )
+                updateState(fileId, if (result.success) DecompState.READY else DecompState.ERROR)
+                result
+            } catch (e: Exception) {
+                updateState(fileId, DecompState.ERROR)
+                DecompressionResult(
+                    fileId = fileId,
+                    success = false,
+                    error = e.message,
                 )
-            )
-            updateState(fileId, if (result.success) DecompState.READY else DecompState.ERROR)
-            result
-        } catch (e: Exception) {
-            updateState(fileId, DecompState.ERROR)
-            DecompressionResult(
-                fileId = fileId,
-                success = false,
-                error = e.message
-            )
+            }
         }
-    }
 
     /**
      * Cancel a pending decompression request
@@ -329,11 +334,12 @@ object LazyDecompressor {
     /**
      * Get cached decompressed file if available
      */
-    suspend fun getCached(fileId: String): File? = cacheMutex.withLock {
-        decompressedCache?.get(fileId)?.let { cached ->
-            if (cached.file.exists()) cached.file else null
+    suspend fun getCached(fileId: String): File? =
+        cacheMutex.withLock {
+            decompressedCache?.get(fileId)?.let { cached ->
+                if (cached.file.exists()) cached.file else null
+            }
         }
-    }
 
     /**
      * Clear the entire cache.
@@ -369,7 +375,7 @@ object LazyDecompressor {
             entries = decompressedCache?.size() ?: 0,
             maxEntries = maxCacheEntries,
             currentSizeBytes = currentCacheSize,
-            maxSizeBytes = maxCacheSizeBytes
+            maxSizeBytes = maxCacheSizeBytes,
         )
     }
 
@@ -389,70 +395,70 @@ object LazyDecompressor {
         if (workerJob?.isActive == true) return
 
         ensureScopesActive()
-        workerJob = workerScope.launch {
-            Log.d(TAG, "Worker starting...")
+        workerJob =
+            workerScope.launch {
+                Log.d(TAG, "Worker starting...")
 
-            for (request in requestChannel) {
-                // Worker wakes up
-                _workerState.value = WorkerState.PROCESSING
+                for (request in requestChannel) {
+                    // Worker wakes up
+                    _workerState.value = WorkerState.PROCESSING
 
-                // Check if request was cancelled
-                if (!pendingRequests.containsKey(request.id)) {
-                    Log.d(TAG, "Skipping cancelled request: ${request.id}")
-                    continue
-                }
+                    // Check if request was cancelled
+                    if (!pendingRequests.containsKey(request.id)) {
+                        Log.d(TAG, "Skipping cancelled request: ${request.id}")
+                        continue
+                    }
 
-                // Check memory pressure
-                if (shouldThrottle()) {
-                    delay(getThrottleDelay())
-                }
+                    // Check memory pressure
+                    if (shouldThrottle()) {
+                        delay(getThrottleDelay())
+                    }
 
-                try {
-                    updateState(request.id, DecompState.DECOMPRESSING)
+                    try {
+                        updateState(request.id, DecompState.DECOMPRESSING)
 
-                    val result = decompressFile(request)
+                        val result = decompressFile(request)
 
-                    // Store result
-                    completedResults[request.id] = result
-                    pendingRequests.remove(request.id)
+                        // Store result
+                        completedResults[request.id] = result
+                        pendingRequests.remove(request.id)
 
-                    // Update state
-                    updateState(
-                        request.id,
-                        if (result.success) DecompState.READY else DecompState.ERROR
-                    )
-
-                    // Invoke callback
-                    request.callback?.invoke(result)
-
-                    Log.d(TAG, "Completed: ${request.id}, success=${result.success}")
-
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed: ${request.id}", e)
-                    pendingRequests.remove(request.id)
-                    updateState(request.id, DecompState.ERROR)
-
-                    request.callback?.invoke(
-                        DecompressionResult(
-                            fileId = request.id,
-                            success = false,
-                            error = e.message
+                        // Update state
+                        updateState(
+                            request.id,
+                            if (result.success) DecompState.READY else DecompState.ERROR,
                         )
-                    )
-                }
 
-                // Brief pause between operations
-                if (!requestChannel.isEmpty) {
-                    delay(10)
-                }
+                        // Invoke callback
+                        request.callback?.invoke(result)
 
-                // Return to sleep if no more requests
-                if (requestChannel.isEmpty) {
-                    _workerState.value = WorkerState.SLEEPING
-                    Log.d(TAG, "Worker sleeping...")
+                        Log.d(TAG, "Completed: ${request.id}, success=${result.success}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed: ${request.id}", e)
+                        pendingRequests.remove(request.id)
+                        updateState(request.id, DecompState.ERROR)
+
+                        request.callback?.invoke(
+                            DecompressionResult(
+                                fileId = request.id,
+                                success = false,
+                                error = e.message,
+                            ),
+                        )
+                    }
+
+                    // Brief pause between operations
+                    if (!requestChannel.isEmpty) {
+                        delay(10)
+                    }
+
+                    // Return to sleep if no more requests
+                    if (requestChannel.isEmpty) {
+                        _workerState.value = WorkerState.SLEEPING
+                        Log.d(TAG, "Worker sleeping...")
+                    }
                 }
             }
-        }
     }
 
     // =========================================================================
@@ -466,7 +472,7 @@ object LazyDecompressor {
                 DecompressionResult(
                     fileId = request.id,
                     success = true,
-                    decompressedFile = request.compressedFile
+                    decompressedFile = request.compressedFile,
                 )
             }
 
@@ -475,7 +481,7 @@ object LazyDecompressor {
                 DecompressionResult(
                     fileId = request.id,
                     success = true,
-                    decompressedFile = request.compressedFile
+                    decompressedFile = request.compressedFile,
                 )
             }
 
@@ -492,15 +498,16 @@ object LazyDecompressor {
 
             try {
                 // Use adaptive buffer size
-                val adaptiveBuffer = try {
-                    ResourceManager.getOptimalBufferSize()
-                } catch (e: Exception) {
-                    bufferSize
-                }
+                val adaptiveBuffer =
+                    try {
+                        ResourceManager.getOptimalBufferSize()
+                    } catch (e: Exception) {
+                        bufferSize
+                    }
 
                 GZIPInputStream(
                     BufferedInputStream(FileInputStream(request.compressedFile), adaptiveBuffer),
-                    adaptiveBuffer
+                    adaptiveBuffer,
                 ).use { gzipIn ->
                     BufferedOutputStream(FileOutputStream(decompressedFile), adaptiveBuffer).use { out ->
                         val buffer = ByteArray(adaptiveBuffer)
@@ -534,9 +541,8 @@ object LazyDecompressor {
                 DecompressionResult(
                     fileId = request.id,
                     success = true,
-                    decompressedFile = decompressedFile
+                    decompressedFile = decompressedFile,
                 )
-
             } catch (e: Exception) {
                 decompressedFile.delete()
                 throw e
@@ -547,10 +553,14 @@ object LazyDecompressor {
     // HELPERS
     // =========================================================================
 
-    private fun updateState(fileId: String, state: DecompState) {
-        _decompressionStates.value = _decompressionStates.value.toMutableMap().apply {
-            put(fileId, state)
-        }
+    private fun updateState(
+        fileId: String,
+        state: DecompState,
+    ) {
+        _decompressionStates.value =
+            _decompressionStates.value.toMutableMap().apply {
+                put(fileId, state)
+            }
     }
 
     private fun shouldThrottle(): Boolean {
@@ -574,23 +584,23 @@ object LazyDecompressor {
     // =========================================================================
 
     enum class WorkerState {
-        SLEEPING,    // Dormant, waiting for requests
-        PROCESSING   // Actively decompressing
+        SLEEPING, // Dormant, waiting for requests
+        PROCESSING, // Actively decompressing
     }
 
     enum class DecompState {
-        IDLE,           // No request
-        QUEUED,         // Waiting in queue
-        DECOMPRESSING,  // Currently processing
-        READY,          // Done, file available
-        ERROR           // Failed
+        IDLE, // No request
+        QUEUED, // Waiting in queue
+        DECOMPRESSING, // Currently processing
+        READY, // Done, file available
+        ERROR, // Failed
     }
 
     enum class Priority(val value: Int) {
         LOW(0),
         NORMAL(1),
         HIGH(2),
-        IMMEDIATE(3)
+        IMMEDIATE(3),
     }
 
     data class DecompressionRequest(
@@ -600,13 +610,16 @@ object LazyDecompressor {
         val cacheDir: File,
         val priority: Priority,
         val callback: ((DecompressionResult) -> Unit)?,
-        val requestTime: Long
+        val requestTime: Long,
     ) : Comparable<DecompressionRequest> {
         override fun compareTo(other: DecompressionRequest): Int {
             // Higher priority first, then older requests first
             val priorityDiff = other.priority.value - this.priority.value
-            return if (priorityDiff != 0) priorityDiff
-            else (this.requestTime - other.requestTime).toInt()
+            return if (priorityDiff != 0) {
+                priorityDiff
+            } else {
+                (this.requestTime - other.requestTime).toInt()
+            }
         }
     }
 
@@ -615,19 +628,19 @@ object LazyDecompressor {
         val success: Boolean,
         val decompressedFile: File? = null,
         val fromCache: Boolean = false,
-        val error: String? = null
+        val error: String? = null,
     )
 
     data class CachedFile(
         val file: File,
-        val size: Long
+        val size: Long,
     )
 
     data class CacheStats(
         val entries: Int,
         val maxEntries: Int,
         val currentSizeBytes: Long,
-        val maxSizeBytes: Long
+        val maxSizeBytes: Long,
     ) {
         val usagePercent: Float
             get() = if (maxSizeBytes > 0) (currentSizeBytes.toFloat() / maxSizeBytes) * 100 else 0f

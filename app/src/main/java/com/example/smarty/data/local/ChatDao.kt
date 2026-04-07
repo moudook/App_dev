@@ -51,21 +51,33 @@ interface ChatDao {
         activateSession(sessionId)
     }
 
-    @Query("""
+    @Query(
+        """
         UPDATE chat_sessions
         SET messageCount = messageCount + 1,
             updatedAt = :timestamp,
             lastMessagePreview = :preview
         WHERE id = :sessionId
-    """)
-    suspend fun incrementMessageCount(sessionId: String, preview: String, timestamp: Long = System.currentTimeMillis())
+    """,
+    )
+    suspend fun incrementMessageCount(
+        sessionId: String,
+        preview: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
-    @Query("""
+    @Query(
+        """
         UPDATE chat_sessions
         SET title = :title, updatedAt = :timestamp
         WHERE id = :sessionId
-    """)
-    suspend fun updateSessionTitle(sessionId: String, title: String, timestamp: Long = System.currentTimeMillis())
+    """,
+    )
+    suspend fun updateSessionTitle(
+        sessionId: String,
+        title: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // ==================== Summary Operations ====================
 
@@ -73,16 +85,18 @@ interface ChatDao {
      * Update session summary.
      * Called after ConversationSummarizer generates a summary.
      */
-    @Query("""
+    @Query(
+        """
         UPDATE chat_sessions
         SET summary = :summary,
             summaryGeneratedAt = :generatedAt
         WHERE id = :sessionId
-    """)
+    """,
+    )
     suspend fun updateSessionSummary(
         sessionId: String,
         summary: String,
-        generatedAt: Long = System.currentTimeMillis()
+        generatedAt: Long = System.currentTimeMillis(),
     )
 
     /**
@@ -93,15 +107,20 @@ interface ChatDao {
      * @param limit Maximum number of summaries to return
      * @param excludeSessionId Session ID to exclude (typically the active session)
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM chat_sessions
         WHERE summary IS NOT NULL
         AND summary != ''
         AND id != :excludeSessionId
         ORDER BY updatedAt DESC
         LIMIT :limit
-    """)
-    suspend fun getRecentSessionSummaries(limit: Int, excludeSessionId: String = ""): List<ChatSession>
+    """,
+    )
+    suspend fun getRecentSessionSummaries(
+        limit: Int,
+        excludeSessionId: String = "",
+    ): List<ChatSession>
 
     @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC LIMIT :limit")
     suspend fun getRecentSessions(limit: Int): List<ChatSession>
@@ -110,17 +129,19 @@ interface ChatDao {
      * Get sessions that need summary generation.
      * Returns sessions with enough messages but no summary, or outdated summaries.
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM chat_sessions
         WHERE messageCount >= :minMessages
         AND (summary IS NULL OR summaryGeneratedAt < :olderThan)
         ORDER BY updatedAt DESC
         LIMIT :limit
-    """)
+    """,
+    )
     suspend fun getSessionsNeedingSummary(
         minMessages: Int = 3,
-        olderThan: Long = System.currentTimeMillis() - 30 * 60 * 1000,  // 30 minutes
-        limit: Int = 5
+        olderThan: Long = System.currentTimeMillis() - 30 * 60 * 1000, // 30 minutes
+        limit: Int = 5,
     ): List<ChatSession>
 
     // ==================== Message Operations ====================
@@ -174,7 +195,8 @@ interface ChatDao {
      * Delete old sessions beyond a limit (keep most recent N sessions).
      * BUG-043 fix: Never delete the active session even if it's old.
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM chat_sessions
         WHERE isActive = 0
         AND id NOT IN (
@@ -182,7 +204,8 @@ interface ChatDao {
             ORDER BY updatedAt DESC
             LIMIT :keepCount
         )
-    """)
+    """,
+    )
     suspend fun pruneOldSessions(keepCount: Int = 20)
 
     /**

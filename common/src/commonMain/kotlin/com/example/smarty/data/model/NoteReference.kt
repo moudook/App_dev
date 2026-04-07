@@ -8,5 +8,5 @@ data class NoteReference(
     val noteId: String,
     val title: String,
     val snippet: String,
-    val category: String? = null
+    val category: String? = null,
 )

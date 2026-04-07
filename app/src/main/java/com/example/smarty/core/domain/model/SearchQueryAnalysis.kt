@@ -5,5 +5,5 @@ data class SearchQueryAnalysis(
     val parsedKeywords: List<String>,
     val detectedIntent: String,
     val complexity: Int,
-    val suggestedStrategy: String
+    val suggestedStrategy: String,
 )

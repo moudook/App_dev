@@ -3,13 +3,13 @@ package com.example.smarty.server.routes
 import com.example.smarty.server.data.DigestPreferences
 import com.example.smarty.server.data.DigestPreferencesRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
+import com.example.smarty.server.services.DigestService
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.server.request.*
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import javax.sql.DataSource
@@ -27,13 +27,13 @@ import javax.sql.DataSource
 fun Application.configureDigestRoutes(
     digestService: DigestService,
     digestScheduler: DigestScheduler,
-    dataSource: DataSource?
+    dataSource: DataSource?,
 ) {
     if (dataSource == null) {
         LoggerFactory.getLogger("DigestRoutes").warn("Database not configured - Digest routes disabled")
         return
     }
-    
+
     val logger = LoggerFactory.getLogger("DigestRoutes")
     val preferencesRepository = DigestPreferencesRepository(dataSource)
 
@@ -41,8 +41,9 @@ fun Application.configureDigestRoutes(
         authenticate("firebase") {
             // Get all digests for user
             get("/digests") {
-                val userId = call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: return@get call.respond(mapOf("error" to "Unauthorized"))
+                val userId =
+                    call.principal<FirebaseUserPrincipal>()?.userId
+                        ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 30
@@ -56,11 +57,13 @@ fun Application.configureDigestRoutes(
 
             // Get specific digest
             get("/digests/{id}") {
-                val userId = call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: return@get call.respond(mapOf("error" to "Unauthorized"))
+                val userId =
+                    call.principal<FirebaseUserPrincipal>()?.userId
+                        ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
-                val digestId = call.parameters["id"]
-                    ?: return@get call.respond(mapOf("error" to "Missing digest ID"))
+                val digestId =
+                    call.parameters["id"]
+                        ?: return@get call.respond(mapOf("error" to "Missing digest ID"))
 
                 try {
                     val digest = digestService.getDigestById(userId, digestId)
@@ -77,8 +80,9 @@ fun Application.configureDigestRoutes(
 
             // Manually trigger digest generation
             post("/digests/trigger") {
-                val userId = call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: return@post call.respond(mapOf("error" to "Unauthorized"))
+                val userId =
+                    call.principal<FirebaseUserPrincipal>()?.userId
+                        ?: return@post call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
                     val request = call.receive<TriggerDigestRequest>()
@@ -86,15 +90,19 @@ fun Application.configureDigestRoutes(
 
                     val result = digestScheduler.triggerDigestForUser(userId, type)
                     if (result != null) {
-                        call.respond(mapOf(
-                            "success" to true,
-                            "digest" to result
-                        ))
+                        call.respond(
+                            mapOf(
+                                "success" to true,
+                                "digest" to result,
+                            ),
+                        )
                     } else {
-                        call.respond(mapOf(
-                            "success" to false,
-                            "message" to "No activity found to generate digest"
-                        ))
+                        call.respond(
+                            mapOf(
+                                "success" to false,
+                                "message" to "No activity found to generate digest",
+                            ),
+                        )
                     }
                 } catch (e: Exception) {
                     logger.error("Failed to trigger digest: ${e.message}", e)
@@ -104,30 +112,34 @@ fun Application.configureDigestRoutes(
 
             // Get user preferences
             get("/digests/preferences") {
-                val userId = call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: return@get call.respond(mapOf("error" to "Unauthorized"))
+                val userId =
+                    call.principal<FirebaseUserPrincipal>()?.userId
+                        ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
-                    val prefs = preferencesRepository.getPreferences(userId)
-                        ?: DigestPreferences(
-                            userId = userId,
-                            dailyEnabled = true,
-                            dailyTime = "07:00",
-                            weeklyEnabled = true,
-                            weeklyDay = 0,
-                            weeklyTime = "08:00",
-                            pushNotification = true,
-                            calendarLogging = true
-                        )
-                    call.respond(DigestPreferencesResponse(
-                        dailyEnabled = prefs.dailyEnabled,
-                        dailyTime = prefs.dailyTime,
-                        weeklyEnabled = prefs.weeklyEnabled,
-                        weeklyDay = prefs.weeklyDay,
-                        weeklyTime = prefs.weeklyTime,
-                        pushNotification = prefs.pushNotification,
-                        calendarLogging = prefs.calendarLogging
-                    ))
+                    val prefs =
+                        preferencesRepository.getPreferences(userId)
+                            ?: DigestPreferences(
+                                userId = userId,
+                                dailyEnabled = true,
+                                dailyTime = "07:00",
+                                weeklyEnabled = true,
+                                weeklyDay = 0,
+                                weeklyTime = "08:00",
+                                pushNotification = true,
+                                calendarLogging = true,
+                            )
+                    call.respond(
+                        DigestPreferencesResponse(
+                            dailyEnabled = prefs.dailyEnabled,
+                            dailyTime = prefs.dailyTime,
+                            weeklyEnabled = prefs.weeklyEnabled,
+                            weeklyDay = prefs.weeklyDay,
+                            weeklyTime = prefs.weeklyTime,
+                            pushNotification = prefs.pushNotification,
+                            calendarLogging = prefs.calendarLogging,
+                        ),
+                    )
                 } catch (e: Exception) {
                     logger.error("Failed to get preferences: ${e.message}", e)
                     call.respond(mapOf("error" to "Failed to get preferences"))
@@ -136,8 +148,9 @@ fun Application.configureDigestRoutes(
 
             // Update user preferences
             put("/digests/preferences") {
-                val userId = call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: return@put call.respond(mapOf("error" to "Unauthorized"))
+                val userId =
+                    call.principal<FirebaseUserPrincipal>()?.userId
+                        ?: return@put call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
                     val request = call.receive<UpdatePreferencesRequest>()
@@ -149,7 +162,7 @@ fun Application.configureDigestRoutes(
                         weeklyDay = request.weeklyDay,
                         weeklyTime = request.weeklyTime,
                         pushNotification = request.pushNotification,
-                        calendarLogging = request.calendarLogging
+                        calendarLogging = request.calendarLogging,
                     )
                     call.respond(mapOf("success" to true))
                 } catch (e: Exception) {
@@ -163,18 +176,18 @@ fun Application.configureDigestRoutes(
 
 @Serializable
 data class TriggerDigestRequest(
-    val type: String? = null // "daily" or "weekly"
+    val type: String? = null, // "daily" or "weekly"
 )
 
 @Serializable
 data class UpdatePreferencesRequest(
     val dailyEnabled: Boolean? = null,
-    val dailyTime: String? = null,      // "HH:mm" format
+    val dailyTime: String? = null, // "HH:mm" format
     val weeklyEnabled: Boolean? = null,
-    val weeklyDay: Int? = null,          // 0=Sunday, 1=Monday, etc.
+    val weeklyDay: Int? = null, // 0=Sunday, 1=Monday, etc.
     val weeklyTime: String? = null,
     val pushNotification: Boolean? = null,
-    val calendarLogging: Boolean? = null
+    val calendarLogging: Boolean? = null,
 )
 
 @Serializable
@@ -185,5 +198,5 @@ data class DigestPreferencesResponse(
     val weeklyDay: Int,
     val weeklyTime: String,
     val pushNotification: Boolean,
-    val calendarLogging: Boolean
+    val calendarLogging: Boolean,
 )

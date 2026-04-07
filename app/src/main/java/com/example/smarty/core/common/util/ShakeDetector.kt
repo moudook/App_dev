@@ -23,9 +23,8 @@ import kotlin.math.sqrt
 class ShakeDetector(
     private val context: Context,
     private val onShakeDetected: () -> Unit,
-    private val getThreshold: (() -> Int)? = null
+    private val getThreshold: (() -> Int)? = null,
 ) : SensorEventListener {
-
     private var sensorManager: SensorManager? = null
     private var accelerometer: Sensor? = null
 
@@ -42,8 +41,8 @@ class ShakeDetector(
 
         // Default shake detection threshold (used if getThreshold not provided)
         private const val DEFAULT_SHAKE_THRESHOLD = 800
-        private const val SHAKE_COOLDOWN_MS = 250L    // Minimum time between shake triggers (quick switching)
-        private const val UPDATE_INTERVAL_MS = 100L   // Minimum time between sensor reads
+        private const val SHAKE_COOLDOWN_MS = 250L // Minimum time between shake triggers (quick switching)
+        private const val UPDATE_INTERVAL_MS = 100L // Minimum time between sensor reads
 
         // Haptic feedback duration
         private const val VIBRATE_DURATION_MS = 50L
@@ -68,11 +67,12 @@ class ShakeDetector(
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
         accelerometer?.let { sensor ->
-            val registered = sensorManager?.registerListener(
-                this,
-                sensor,
-                SensorManager.SENSOR_DELAY_UI
-            )
+            val registered =
+                sensorManager?.registerListener(
+                    this,
+                    sensor,
+                    SensorManager.SENSOR_DELAY_UI,
+                )
             isStarted = registered == true
             Log.d(TAG, "Shake detection started: $isStarted")
         } ?: run {
@@ -117,9 +117,10 @@ class ShakeDetector(
         val deltaY = y - lastY
         val deltaZ = z - lastZ
 
-        val speed = sqrt(
-            (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ).toDouble()
-        ) / timeDiff * 10000
+        val speed =
+            sqrt(
+                (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ).toDouble(),
+            ) / timeDiff * 10000
 
         // Check if shake threshold exceeded (using dynamic threshold from settings)
         if (speed > getCurrentThreshold()) {
@@ -140,7 +141,10 @@ class ShakeDetector(
         lastZ = z
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+    override fun onAccuracyChanged(
+        sensor: Sensor?,
+        accuracy: Int,
+    ) {
         // Not needed for shake detection
     }
 
@@ -151,21 +155,22 @@ class ShakeDetector(
      */
     fun triggerHapticFeedback() {
         try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                vibratorManager?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
+            val vibrator =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                    vibratorManager?.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                }
 
             vibrator?.let {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     it.vibrate(
                         VibrationEffect.createOneShot(
                             VIBRATE_DURATION_MS,
-                            VibrationEffect.DEFAULT_AMPLITUDE
-                        )
+                            VibrationEffect.DEFAULT_AMPLITUDE,
+                        ),
                     )
                 } else {
                     @Suppress("DEPRECATION")

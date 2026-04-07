@@ -14,13 +14,25 @@ import kotlinx.coroutines.tasks.await
  */
 interface AuthRepository {
     val currentUser: Flow<FirebaseUser?>
-    
-    suspend fun signIn(email: String, password: String): Result<AuthResult>
-    suspend fun signUp(email: String, password: String): Result<AuthResult>
+
+    suspend fun signIn(
+        email: String,
+        password: String,
+    ): Result<AuthResult>
+
+    suspend fun signUp(
+        email: String,
+        password: String,
+    ): Result<AuthResult>
+
     suspend fun signInWithGoogleCredential(idToken: String): Result<AuthResult>
+
     suspend fun signOut()
+
     suspend fun resetPassword(email: String): Result<Unit>
+
     fun isUserLoggedIn(): Boolean
+
     fun getCurrentUserUid(): String?
 }
 
@@ -30,7 +42,7 @@ interface AuthRepository {
 class FirebaseAuthRepository : AuthRepository {
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
     private val _currentUser = MutableStateFlow<FirebaseUser?>(firebaseAuth.currentUser)
-    
+
     override val currentUser: Flow<FirebaseUser?> = _currentUser
 
     init {
@@ -39,7 +51,10 @@ class FirebaseAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun signIn(email: String, password: String): Result<AuthResult> {
+    override suspend fun signIn(
+        email: String,
+        password: String,
+    ): Result<AuthResult> {
         return try {
             val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
             Result.success(result)
@@ -48,7 +63,10 @@ class FirebaseAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun signUp(email: String, password: String): Result<AuthResult> {
+    override suspend fun signUp(
+        email: String,
+        password: String,
+    ): Result<AuthResult> {
         return try {
             val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
             Result.success(result)

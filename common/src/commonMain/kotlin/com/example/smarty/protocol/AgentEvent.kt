@@ -1,9 +1,8 @@
 package com.example.smarty.protocol
 
+import com.example.smarty.core.domain.model.Citation
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import com.example.smarty.protocol.AgentCommand
-import com.example.smarty.core.domain.model.Citation
 
 /**
  * Events streamed from the Cloud Agent to the Android Client via SSE.
@@ -35,7 +34,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val content: String,
-        val thinking: String? = null
+        val thinking: String? = null,
     ) : AgentEvent()
 
     /**
@@ -53,17 +52,17 @@ sealed class AgentEvent {
         override val timestamp: Long,
         @SerialName("tool_name") val toolName: String,
         @SerialName("display_name") val displayName: String,
-        val status: String,  // "started", "completed", "failed"
+        val status: String, // "started", "completed", "failed"
         @SerialName("input_summary") val inputSummary: String? = null,
         @SerialName("output_summary") val outputSummary: String? = null,
-        @SerialName("search_queries") val searchQueries: List<SearchQueryResult> = emptyList()
+        @SerialName("search_queries") val searchQueries: List<SearchQueryResult> = emptyList(),
     ) : AgentEvent()
 
     /** Individual web-search query + its result (used inside a ToolCall event). */
     @Serializable
     data class SearchQueryResult(
         val query: String,
-        val result: String? = null   // null when status=="started"
+        val result: String? = null, // null when status=="started"
     )
 
     /**
@@ -80,7 +79,7 @@ sealed class AgentEvent {
         val citations: List<Citation> = emptyList(),
         @SerialName("is_final") val isFinal: Boolean = false,
         val confidence: String? = null,
-        @SerialName("source_type") val sourceType: String? = null
+        @SerialName("source_type") val sourceType: String? = null,
     ) : AgentEvent()
 
     /**
@@ -92,7 +91,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val message: String,
-        val code: String? = null
+        val code: String? = null,
     ) : AgentEvent()
 
     /**
@@ -104,7 +103,7 @@ sealed class AgentEvent {
     data class Command(
         override val eventId: String,
         override val timestamp: Long,
-        val command: AgentCommand
+        val command: AgentCommand,
     ) : AgentEvent()
 
     /**
@@ -119,7 +118,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         @SerialName("sync_type") val syncType: String,
-        val data: String
+        val data: String,
     ) : AgentEvent()
 
     /**
@@ -134,7 +133,7 @@ sealed class AgentEvent {
         override val timestamp: Long,
         @SerialName("tool_name") val toolName: String,
         val reason: String,
-        val code: String? = null
+        val code: String? = null,
     ) : AgentEvent()
 
     /**
@@ -148,7 +147,7 @@ sealed class AgentEvent {
         override val timestamp: Long,
         val question: String,
         val options: List<String> = emptyList(),
-        @SerialName("allow_custom") val allowCustom: Boolean = false
+        @SerialName("allow_custom") val allowCustom: Boolean = false,
     ) : AgentEvent()
 
     /**
@@ -163,6 +162,6 @@ sealed class AgentEvent {
         @SerialName("note_id") val noteId: String,
         val title: String,
         val snippet: String,
-        val category: String? = null
+        val category: String? = null,
     ) : AgentEvent()
 }

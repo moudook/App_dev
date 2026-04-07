@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
  * - Max 20 chunks safety limit
  */
 class NoteContextBuilder(
-    private val mentionManager: MentionFeatureManager
+    private val mentionManager: MentionFeatureManager,
 ) {
     companion object {
         private const val TAG = "NoteContextBuilder"
@@ -39,70 +39,75 @@ class NoteContextBuilder(
      * @param resolvedMentions List of resolved mentions
      * @return TaggedNoteContext ready for AI processing
      */
-    suspend fun buildContext(resolvedMentions: List<ResolvedMention>): TaggedNoteContext = withContext(Dispatchers.Default) {
-        if (resolvedMentions.isEmpty()) {
-            return@withContext TaggedNoteContext(
-                resolvedMentions = emptyList(),
-                totalChars = 0,
-                needsChunking = false,
-                contextString = ""
-            )
-        }
-
-        // Collect all unique notes with readable content
-        val uniqueNotes = resolvedMentions
-            .flatMap { it.notes }
-            .distinctBy { it.id }
-            .filter { mentionManager.hasReadableContent(it.type) }
-
-        Log.d(TAG, "Building context for ${uniqueNotes.size} unique notes")
-
-        // Build content for each note
-        val noteContents = uniqueNotes.mapNotNull { note ->
-            val content = extractReadableContent(note)
-            if (content.isNotBlank()) {
-                NoteContentEntry(
-                    note = note,
-                    content = content,
-                    charCount = content.length
+    suspend fun buildContext(resolvedMentions: List<ResolvedMention>): TaggedNoteContext =
+        withContext(Dispatchers.Default) {
+            if (resolvedMentions.isEmpty()) {
+                return@withContext TaggedNoteContext(
+                    resolvedMentions = emptyList(),
+                    totalChars = 0,
+                    needsChunking = false,
+                    contextString = "",
                 )
-            } else null
+            }
+
+            // Collect all unique notes with readable content
+            val uniqueNotes =
+                resolvedMentions
+                    .flatMap { it.notes }
+                    .distinctBy { it.id }
+                    .filter { mentionManager.hasReadableContent(it.type) }
+
+            Log.d(TAG, "Building context for ${uniqueNotes.size} unique notes")
+
+            // Build content for each note
+            val noteContents =
+                uniqueNotes.mapNotNull { note ->
+                    val content = extractReadableContent(note)
+                    if (content.isNotBlank()) {
+                        NoteContentEntry(
+                            note = note,
+                            content = content,
+                            charCount = content.length,
+                        )
+                    } else {
+                        null
+                    }
+                }
+
+            val totalChars = noteContents.sumOf { it.charCount }
+            Log.d(TAG, "Total content: $totalChars chars from ${noteContents.size} notes")
+
+            // Check if chunking is needed (ONLY when content exceeds limit)
+            val needsChunking = totalChars > TaggedNoteContext.MAX_TOTAL_CONTEXT
+
+            if (needsChunking) {
+                Log.d(TAG, "Content exceeds ${TaggedNoteContext.MAX_TOTAL_CONTEXT} chars - chunking required")
+                val chunks = createChunks(noteContents)
+                return@withContext TaggedNoteContext(
+                    resolvedMentions = resolvedMentions,
+                    totalChars = totalChars,
+                    needsChunking = true,
+                    contextString = "", // Empty when chunked
+                    chunks = chunks,
+                )
+            } else {
+                // Normal case: build single context string
+                val contextString = buildContextString(resolvedMentions, noteContents)
+                return@withContext TaggedNoteContext(
+                    resolvedMentions = resolvedMentions,
+                    totalChars = totalChars,
+                    needsChunking = false,
+                    contextString = contextString,
+                )
+            }
         }
-
-        val totalChars = noteContents.sumOf { it.charCount }
-        Log.d(TAG, "Total content: $totalChars chars from ${noteContents.size} notes")
-
-        // Check if chunking is needed (ONLY when content exceeds limit)
-        val needsChunking = totalChars > TaggedNoteContext.MAX_TOTAL_CONTEXT
-
-        if (needsChunking) {
-            Log.d(TAG, "Content exceeds ${TaggedNoteContext.MAX_TOTAL_CONTEXT} chars - chunking required")
-            val chunks = createChunks(noteContents)
-            return@withContext TaggedNoteContext(
-                resolvedMentions = resolvedMentions,
-                totalChars = totalChars,
-                needsChunking = true,
-                contextString = "", // Empty when chunked
-                chunks = chunks
-            )
-        } else {
-            // Normal case: build single context string
-            val contextString = buildContextString(resolvedMentions, noteContents)
-            return@withContext TaggedNoteContext(
-                resolvedMentions = resolvedMentions,
-                totalChars = totalChars,
-                needsChunking = false,
-                contextString = contextString
-            )
-        }
-    }
 
     /**
      * Build context string for single-request processing.
      */
     private fun buildContextString(
         resolvedMentions: List<ResolvedMention>,
-        noteContents: List<NoteContentEntry>
+        noteContents: List<NoteContentEntry>,
     ): String {
         if (noteContents.isEmpty()) return ""
         val context = mentionManager.getContext()
@@ -123,7 +128,13 @@ class NoteContextBuilder(
                     for (note in mention.notes) {
                         val content = noteContents.find { it.note.id == note.id }
                         if (content != null) {
-                            append(formatNoteForContext(content.note, content.content, context.getString(com.example.smarty.R.string.ai_context_label_referenced)))
+                            append(
+                                formatNoteForContext(
+                                    content.note,
+                                    content.content,
+                                    context.getString(com.example.smarty.R.string.ai_context_label_referenced),
+                                ),
+                            )
                         }
                     }
                 }
@@ -132,9 +143,10 @@ class NoteContextBuilder(
             // Type filter references
             if (typeFilters.isNotEmpty()) {
                 for (mention in typeFilters) {
-                    val typeName = mention.noteType?.let {
-                        MentionParser.getTypeFilterDisplayName(context, it)
-                    } ?: context.getString(com.example.smarty.R.string.ai_context_label_notes)
+                    val typeName =
+                        mention.noteType?.let {
+                            MentionParser.getTypeFilterDisplayName(context, it)
+                        } ?: context.getString(com.example.smarty.R.string.ai_context_label_notes)
 
                     append("[$typeName from @${mention.parsedMention.query}]\n\n")
 
@@ -167,12 +179,13 @@ class NoteContextBuilder(
             // Special filter references
             if (specialFilters.isNotEmpty()) {
                 for (mention in specialFilters) {
-                    val filterName = when (mention.specialFilter) {
-                        "recent" -> context.getString(com.example.smarty.R.string.ai_context_label_recent)
-                        "pinned" -> context.getString(com.example.smarty.R.string.ai_context_label_pinned)
-                        "all" -> context.getString(com.example.smarty.R.string.ai_context_label_all)
-                        else -> context.getString(com.example.smarty.R.string.ai_context_label_notes)
-                    }
+                    val filterName =
+                        when (mention.specialFilter) {
+                            "recent" -> context.getString(com.example.smarty.R.string.ai_context_label_recent)
+                            "pinned" -> context.getString(com.example.smarty.R.string.ai_context_label_pinned)
+                            "all" -> context.getString(com.example.smarty.R.string.ai_context_label_all)
+                            else -> context.getString(com.example.smarty.R.string.ai_context_label_notes)
+                        }
 
                     append("[$filterName from @${mention.parsedMention.query}]\n\n")
 
@@ -193,7 +206,11 @@ class NoteContextBuilder(
     /**
      * Format a single note for inclusion in context.
      */
-    private fun formatNoteForContext(note: Note, content: String, source: String): String {
+    private fun formatNoteForContext(
+        note: Note,
+        content: String,
+        source: String,
+    ): String {
         val context = mentionManager.getContext()
         return buildString {
             append("### ${note.title}\n")
@@ -237,7 +254,10 @@ class NoteContextBuilder(
     /**
      * Chunk a single note's content if it exceeds chunk size.
      */
-    private fun chunkNoteContent(entry: NoteContentEntry, startIndex: Int): List<NoteChunk> {
+    private fun chunkNoteContent(
+        entry: NoteContentEntry,
+        startIndex: Int,
+    ): List<NoteChunk> {
         val content = entry.content
         val chunkSize = TaggedNoteContext.CHARS_PER_CHUNK
         val overlap = TaggedNoteContext.OVERLAP_CHARS
@@ -251,8 +271,8 @@ class NoteContextBuilder(
                     noteId = entry.note.id,
                     content = formatChunkContent(entry.note, content, 1, 1),
                     charCount = content.length,
-                    totalChunksInNote = 1
-                )
+                    totalChunksInNote = 1,
+                ),
             )
         }
 
@@ -274,23 +294,25 @@ class NoteContextBuilder(
                     index = startIndex + localIndex,
                     noteTitle = entry.note.title,
                     noteId = entry.note.id,
-                    content = formatChunkContent(
-                        entry.note,
-                        chunkContent,
-                        localIndex + 1,
-                        totalChunks
-                    ),
+                    content =
+                        formatChunkContent(
+                            entry.note,
+                            chunkContent,
+                            localIndex + 1,
+                            totalChunks,
+                        ),
                     charCount = chunkContent.length,
-                    totalChunksInNote = totalChunks
-                )
+                    totalChunksInNote = totalChunks,
+                ),
             )
 
             // Move position with overlap (except for last chunk)
-            position = if (chunkEnd >= content.length) {
-                content.length
-            } else {
-                maxOf(chunkEnd - overlap, position + 1)
-            }
+            position =
+                if (chunkEnd >= content.length) {
+                    content.length
+                } else {
+                    maxOf(chunkEnd - overlap, position + 1)
+                }
             localIndex++
         }
 
@@ -304,7 +326,7 @@ class NoteContextBuilder(
         note: Note,
         content: String,
         chunkNum: Int,
-        totalChunks: Int
+        totalChunks: Int,
     ): String {
         return buildString {
             append("### ${note.title}")
@@ -320,7 +342,11 @@ class NoteContextBuilder(
     /**
      * Find a good break point (sentence/word boundary) near target position.
      */
-    private fun findGoodBreakPoint(text: String, start: Int, target: Int): Int {
+    private fun findGoodBreakPoint(
+        text: String,
+        start: Int,
+        target: Int,
+    ): Int {
         if (target >= text.length) return text.length
 
         // Look for sentence endings (.!?) within last 200 chars of target
@@ -344,7 +370,11 @@ class NoteContextBuilder(
     /**
      * Calculate expected number of chunks for content.
      */
-    private fun calculateChunkCount(contentLength: Int, chunkSize: Int, overlap: Int): Int {
+    private fun calculateChunkCount(
+        contentLength: Int,
+        chunkSize: Int,
+        overlap: Int,
+    ): Int {
         if (contentLength <= chunkSize) return 1
         val effectiveChunkSize = chunkSize - overlap
         return ((contentLength - chunkSize).toFloat() / effectiveChunkSize).toInt() + 2
@@ -373,9 +403,11 @@ class NoteContextBuilder(
             }
 
             // Include source URL for web content
-            if (!note.sourceUrl.isNullOrBlank() && note.type in listOf(
-                    NoteType.WEBSITE, NoteType.YOUTUBE, NoteType.TWITTER, NoteType.INSTAGRAM
-                )) {
+            if (!note.sourceUrl.isNullOrBlank() && note.type in
+                listOf(
+                    NoteType.WEBSITE, NoteType.YOUTUBE, NoteType.TWITTER, NoteType.INSTAGRAM,
+                )
+            ) {
                 if (isNotEmpty()) append("\n")
                 append("Source: ${note.sourceUrl}")
             }
@@ -394,6 +426,6 @@ class NoteContextBuilder(
     private data class NoteContentEntry(
         val note: Note,
         val content: String,
-        val charCount: Int
+        val charCount: Int,
     )
 }

@@ -24,28 +24,33 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
      * Get digest preferences for a user.
      * Returns null only if a genuine DB error occurs (not a missing row).
      */
-    suspend fun getPreferences(userId: String): DigestPreferences? = withContext(Dispatchers.IO) {
-        try {
-            dataSource.connection.use { conn ->
-                val sql = """
-                    SELECT enabled, frequency, delivery_hour, delivery_minute, timezone
-                    FROM digest_preferences
-                    WHERE user_id = ?
-                """.trimIndent()
+    suspend fun getPreferences(userId: String): DigestPreferences? =
+        withContext(Dispatchers.IO) {
+            try {
+                dataSource.connection.use { conn ->
+                    val sql =
+                        """
+                        SELECT enabled, frequency, delivery_hour, delivery_minute, timezone
+                        FROM digest_preferences
+                        WHERE user_id = ?
+                        """.trimIndent()
 
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(userId))
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) mapRowToPreferences(rs, userId)
-                        else getDefaultPreferences(userId)
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setObject(1, UUID.fromString(userId))
+                        stmt.executeQuery().use { rs ->
+                            if (rs.next()) {
+                                mapRowToPreferences(rs, userId)
+                            } else {
+                                getDefaultPreferences(userId)
+                            }
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                logger.error("Failed to get digest preferences for user $userId: ${e.message}")
+                getDefaultPreferences(userId)
             }
-        } catch (e: Exception) {
-            logger.error("Failed to get digest preferences for user $userId: ${e.message}")
-            getDefaultPreferences(userId)
         }
-    }
 
     /**
      * Update (or insert) digest preferences for a user.
@@ -61,23 +66,25 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
         weeklyEnabled: Boolean? = null,
         weeklyDay: Int? = null,
         weeklyTime: String? = null,
-        pushNotification: Boolean? = null,   // not in v6 schema, ignored silently
-        calendarLogging: Boolean? = null     // not in v6 schema, ignored silently
+        pushNotification: Boolean? = null, // not in v6 schema, ignored silently
+        calendarLogging: Boolean? = null, // not in v6 schema, ignored silently
     ) = withContext(Dispatchers.IO) {
         try {
             // Derive v6 columns from old-style API input
             val enabled = dailyEnabled ?: weeklyEnabled ?: true
-            val frequency = when {
-                weeklyEnabled == true -> "weekly"
-                dailyEnabled == true  -> "daily"
-                else -> "daily"
-            }
+            val frequency =
+                when {
+                    weeklyEnabled == true -> "weekly"
+                    dailyEnabled == true -> "daily"
+                    else -> "daily"
+                }
             // Pick whichever time was supplied (daily wins over weekly)
             val timeStr = dailyTime ?: weeklyTime
             val (hour, minute) = parseHHmm(timeStr ?: "07:00")
 
             dataSource.connection.use { conn ->
-                val upsertSql = """
+                val upsertSql =
+                    """
                     INSERT INTO digest_preferences (user_id, enabled, frequency, delivery_hour, delivery_minute)
                     VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT (user_id) DO UPDATE SET
@@ -86,7 +93,7 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
                         delivery_hour   = EXCLUDED.delivery_hour,
                         delivery_minute = EXCLUDED.delivery_minute,
                         updated_at      = now()
-                """.trimIndent()
+                    """.trimIndent()
 
                 conn.prepareStatement(upsertSql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
@@ -108,31 +115,35 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun getDefaultPreferences(userId: String): DigestPreferences = DigestPreferences(
-        userId          = userId,
-        dailyEnabled    = true,
-        dailyTime       = "07:00",
-        weeklyEnabled   = false,
-        weeklyDay       = 1,      // Monday
-        weeklyTime      = "08:00",
-        pushNotification = true,
-        calendarLogging  = false
-    )
+    private fun getDefaultPreferences(userId: String): DigestPreferences =
+        DigestPreferences(
+            userId = userId,
+            dailyEnabled = true,
+            dailyTime = "07:00",
+            weeklyEnabled = false,
+            weeklyDay = 1, // Monday
+            weeklyTime = "08:00",
+            pushNotification = true,
+            calendarLogging = false,
+        )
 
-    private fun mapRowToPreferences(rs: ResultSet, userId: String): DigestPreferences {
+    private fun mapRowToPreferences(
+        rs: ResultSet,
+        userId: String,
+    ): DigestPreferences {
         val frequency = rs.getString("frequency") ?: "daily"
-        val hour      = rs.getInt("delivery_hour").takeIf { !rs.wasNull() } ?: 7
-        val minute    = rs.getInt("delivery_minute").takeIf { !rs.wasNull() } ?: 0
-        val timeStr   = "%02d:%02d".format(hour, minute)
+        val hour = rs.getInt("delivery_hour").takeIf { !rs.wasNull() } ?: 7
+        val minute = rs.getInt("delivery_minute").takeIf { !rs.wasNull() } ?: 0
+        val timeStr = "%02d:%02d".format(hour, minute)
         return DigestPreferences(
-            userId           = userId,
-            dailyEnabled     = frequency == "daily" && rs.getBoolean("enabled"),
-            dailyTime        = timeStr,
-            weeklyEnabled    = frequency == "weekly" && rs.getBoolean("enabled"),
-            weeklyDay        = 1,  // v6 doesn't store preferred day; default Monday
-            weeklyTime       = timeStr,
+            userId = userId,
+            dailyEnabled = frequency == "daily" && rs.getBoolean("enabled"),
+            dailyTime = timeStr,
+            weeklyEnabled = frequency == "weekly" && rs.getBoolean("enabled"),
+            weeklyDay = 1, // v6 doesn't store preferred day; default Monday
+            weeklyTime = timeStr,
             pushNotification = false, // not in v6 schema
-            calendarLogging  = false  // not in v6 schema
+            calendarLogging = false, // not in v6 schema
         )
     }
 
@@ -154,10 +165,10 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
 data class DigestPreferences(
     val userId: String,
     val dailyEnabled: Boolean,
-    val dailyTime: String,        // "HH:mm" format
+    val dailyTime: String, // "HH:mm" format
     val weeklyEnabled: Boolean,
-    val weeklyDay: Int,           // 0=Sunday, 1=Monday, … (default only; not persisted in v6)
-    val weeklyTime: String,       // "HH:mm" format
+    val weeklyDay: Int, // 0=Sunday, 1=Monday, … (default only; not persisted in v6)
+    val weeklyTime: String, // "HH:mm" format
     val pushNotification: Boolean,
-    val calendarLogging: Boolean
+    val calendarLogging: Boolean,
 )

@@ -2,14 +2,14 @@ package com.example.smarty.data.repository
 
 import android.util.Log
 import androidx.room.Transaction
-import com.example.smarty.data.local.ChatDao
-import com.example.smarty.data.local.ChatMessageNotesDao
+import com.example.smarty.core.common.util.PrivacyGuard
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.common.util.PrivacyGuard
+import com.example.smarty.data.local.ChatDao
+import com.example.smarty.data.local.ChatMessageNotesDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -17,31 +17,29 @@ import kotlinx.coroutines.flow.map
 /**
  * Repository for managing chat sessions and messages.
  * Implements smart saving logic to avoid storing redundant data.
- * 
+ *
  * SINGLE RESPONSIBILITY: Only manages chat_sessions and chat_messages tables.
  * Delegates note relationship management to ChatMessageNotesDao.
  * GLOBAL STATE: All operations respect user isolation and cascade deletes.
  */
 class ChatRepository(
     private val chatDao: ChatDao,
-    private val chatMessageNotesDao: ChatMessageNotesDao
+    private val chatMessageNotesDao: ChatMessageNotesDao,
 ) {
-
     companion object {
         private const val TAG = "ChatRepository"
-        private const val MAX_SESSIONS = 20  // Maximum number of sessions to keep
-        private const val MIN_MESSAGES_TO_SAVE = 2  // Need at least user + smarty response
+        private const val MAX_SESSIONS = 20 // Maximum number of sessions to keep
+        private const val MIN_MESSAGES_TO_SAVE = 2 // Need at least user + smarty response
     }
-
-
 
     // ==================== Session Operations ====================
 
     /**
      * Get all chat sessions ordered by most recent
      */
-    fun getAllSessions(): Flow<List<ChatSession>> = chatDao.getAllSessions()
-        .distinctUntilChanged()
+    fun getAllSessions(): Flow<List<ChatSession>> =
+        chatDao.getAllSessions()
+            .distinctUntilChanged()
 
     /**
      * Get the currently active session
@@ -51,21 +49,26 @@ class ChatRepository(
     /**
      * Get active session as Flow for reactive updates
      */
-    fun getActiveSessionFlow(): Flow<ChatSession?> = chatDao.getActiveSessionFlow()
-        .distinctUntilChanged()
+    fun getActiveSessionFlow(): Flow<ChatSession?> =
+        chatDao.getActiveSessionFlow()
+            .distinctUntilChanged()
 
     /**
      * Create a new chat session and make it active
      */
     @Transaction
-    suspend fun createNewSession(context: android.content.Context, title: String? = null): ChatSession {
+    suspend fun createNewSession(
+        context: android.content.Context,
+        title: String? = null,
+    ): ChatSession {
         // Deactivate all existing sessions
         chatDao.deactivateAllSessions()
 
-        val session = ChatSession(
-            title = title ?: context.getString(com.example.smarty.R.string.title_new_chat),
-            isActive = true
-        )
+        val session =
+            ChatSession(
+                title = title ?: context.getString(com.example.smarty.R.string.title_new_chat),
+                isActive = true,
+            )
         chatDao.insertSession(session)
         Log.d(TAG, "Created new session: ${session.id}")
 
@@ -92,7 +95,7 @@ class ChatRepository(
         try {
             chatDao.deleteMessagesForSession(sessionId)
             Log.d(TAG, "deleteSession: Successfully executed chatDao.deleteMessagesForSession for $sessionId")
-            
+
             chatDao.deleteSessionById(sessionId)
             Log.d(TAG, "deleteSession: Successfully executed chatDao.deleteSessionById for $sessionId")
         } catch (e: Exception) {
@@ -104,7 +107,10 @@ class ChatRepository(
     /**
      * Update session title (auto-generated from first message or user-set)
      */
-    suspend fun updateSessionTitle(sessionId: String, title: String) {
+    suspend fun updateSessionTitle(
+        sessionId: String,
+        title: String,
+    ) {
         chatDao.updateSessionTitle(sessionId, title)
     }
 
@@ -119,7 +125,7 @@ class ChatRepository(
             .distinctUntilChanged()
     }
 
-suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
+    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         return chatDao.getMessagesForSessionOnce(sessionId).map { it.toChatMessage() }
     }
 
@@ -163,7 +169,7 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
     suspend fun saveMessage(
         sessionId: String,
         message: ChatMessage,
-        allNotes: List<Note>? = null
+        allNotes: List<Note>? = null,
     ): Boolean {
         Log.d(TAG, "Entering saveMessage for session: $sessionId, messageId: ${message.id}, role: ${message.role}")
         // Skip system messages - they're for internal use
@@ -179,18 +185,23 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         }
 
         // SECURITY: Final sanitization check if notes are provided
-        val sanitizedMessage = if (allNotes != null && message.referencedNoteIds.isNotEmpty()) {
-            val sanitizedIds = PrivacyGuard.sanitizeForChatPersistence(
-                message.referencedNoteIds,
-                allNotes
-            )
-            if (sanitizedIds.size != message.referencedNoteIds.size) {
-                Log.w(TAG, "SECURITY: Final sanitization removed ${message.referencedNoteIds.size - sanitizedIds.size} private note IDs")
+        val sanitizedMessage =
+            if (allNotes != null && message.referencedNoteIds.isNotEmpty()) {
+                val sanitizedIds =
+                    PrivacyGuard.sanitizeForChatPersistence(
+                        message.referencedNoteIds,
+                        allNotes,
+                    )
+                if (sanitizedIds.size != message.referencedNoteIds.size) {
+                    Log.w(
+                        TAG,
+                        "SECURITY: Final sanitization removed ${message.referencedNoteIds.size - sanitizedIds.size} private note IDs",
+                    )
+                }
+                message.copy(referencedNoteIds = sanitizedIds)
+            } else {
+                message
             }
-            message.copy(referencedNoteIds = sanitizedIds)
-        } else {
-            message
-        }
 
         val entity = ChatMessageEntity.fromChatMessage(sanitizedMessage, sessionId)
 
@@ -208,11 +219,12 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
             Log.d(TAG, "saveMessage: Successfully inserted ChatMessageEntity for message ID: ${message.id}")
 
             // Update session metadata
-            val preview = if (message.content.length > 50) {
-                message.content.take(50) + "..."
-            } else {
-                message.content
-            }
+            val preview =
+                if (message.content.length > 50) {
+                    message.content.take(50) + "..."
+                } else {
+                    message.content
+                }
             chatDao.incrementMessageCount(sessionId, preview)
 
             // Auto-generate title from first user message
@@ -246,7 +258,7 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         sessionId: String,
         userMessage: ChatMessage,
         smartyMessage: ChatMessage,
-        shouldSave: Boolean
+        shouldSave: Boolean,
     ): Boolean {
         if (!shouldSave) {
             Log.d(TAG, "Skipping save - saving disabled")
@@ -327,7 +339,10 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
      * Link a note to a chat message.
      */
     @Transaction
-    suspend fun linkNoteToMessage(messageId: String, noteId: String) {
+    suspend fun linkNoteToMessage(
+        messageId: String,
+        noteId: String,
+    ) {
         chatMessageNotesDao.linkMessageToNote(messageId, noteId)
         Log.d(TAG, "Linked note $noteId to message $messageId")
     }
@@ -335,7 +350,10 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
     /**
      * Unlink a note from a chat message.
      */
-    suspend fun unlinkNoteFromMessage(messageId: String, noteId: String) {
+    suspend fun unlinkNoteFromMessage(
+        messageId: String,
+        noteId: String,
+    ) {
         chatMessageNotesDao.unlinkMessageFromNote(messageId, noteId)
         Log.d(TAG, "Unlinked note $noteId from message $messageId")
     }
@@ -358,7 +376,10 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
      * Link multiple notes to a message.
      */
     @Transaction
-    suspend fun linkMultipleNotesToMessage(messageId: String, noteIds: List<String>) {
+    suspend fun linkMultipleNotesToMessage(
+        messageId: String,
+        noteIds: List<String>,
+    ) {
         chatMessageNotesDao.linkMultipleNotesToMessage(messageId, noteIds)
         Log.d(TAG, "Linked ${noteIds.size} notes to message $messageId")
     }
@@ -366,7 +387,10 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
     /**
      * Check if a message is linked to a specific note.
      */
-    suspend fun isMessageLinkedToNote(messageId: String, noteId: String): Boolean {
+    suspend fun isMessageLinkedToNote(
+        messageId: String,
+        noteId: String,
+    ): Boolean {
         return chatMessageNotesDao.isLinked(messageId, noteId)
     }
 
@@ -384,9 +408,10 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
      */
     private fun generateTitleFromContent(content: String): String {
         // Clean up the content
-        val cleaned = content
-            .replace(Regex("[\\n\\r]+"), " ")
-            .trim()
+        val cleaned =
+            content
+                .replace(Regex("[\\n\\r]+"), " ")
+                .trim()
 
         // Take first meaningful words (up to 30 chars)
         return if (cleaned.length <= 30) {

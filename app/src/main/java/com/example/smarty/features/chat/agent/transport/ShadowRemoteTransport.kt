@@ -22,16 +22,16 @@ import kotlinx.serialization.json.Json
  * before implementing actual remote transport.
  */
 class ShadowRemoteTransport : CommandTransport {
-
     companion object {
         private const val TAG = "ShadowRemote"
     }
 
     // Configure JSON for readable output (development only)
-    private val json = Json {
-        prettyPrint = true
-        encodeDefaults = true
-    }
+    private val json =
+        Json {
+            prettyPrint = true
+            encodeDefaults = true
+        }
 
     /**
      * Serialize command to JSON and log it.

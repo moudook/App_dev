@@ -12,7 +12,7 @@ data class Attachment(
     val uri: String, // Changed from Uri to String for KMP
     val fileName: String,
     val mimeType: String,
-    val fileSize: Long
+    val fileSize: Long,
 ) {
     /**
      * Get the attachment type based on MIME type
@@ -46,5 +46,5 @@ enum class AttachmentType {
     PRESENTATION,
     APK,
     ARCHIVE,
-    FILE
+    FILE,
 }

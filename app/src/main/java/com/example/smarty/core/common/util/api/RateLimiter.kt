@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * ```
  */
 class RateLimiter private constructor(context: Context) {
-
     companion object {
         private const val TAG = "RateLimiter"
         private const val PREFS_NAME = "rate_limiter_prefs"
@@ -64,7 +63,7 @@ class RateLimiter private constructor(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val mutex = Mutex()
-    private val lock = Any()  // For synchronizing non-suspend functions
+    private val lock = Any() // For synchronizing non-suspend functions
 
     // Sliding window queue for per-minute tracking (timestamps of recent calls)
     private val callTimestamps = ConcurrentLinkedQueue<Long>()
@@ -88,83 +87,91 @@ class RateLimiter private constructor(context: Context) {
      * Check if a call can be made right now.
      * @return null if allowed, or wait time in ms if rate limited
      */
-    suspend fun canMakeCall(): Long? = mutex.withLock {
-        checkDayReset()
-        cleanupOldTimestamps()
+    suspend fun canMakeCall(): Long? =
+        mutex.withLock {
+            checkDayReset()
+            cleanupOldTimestamps()
 
-        // Check daily budget first
-        if (dailyCallCount >= dailyBudget) {
-            val msUntilReset = getMsUntilDayReset()
-            Log.w(TAG, "Daily budget exhausted ($dailyCallCount/$dailyBudget). Resets in ${msUntilReset / 3600_000}h")
-            return@withLock msUntilReset
-        }
-
-        // Check per-minute limit
-        if (callTimestamps.size >= callsPerMinute) {
-            val oldestCall = callTimestamps.peek() ?: return@withLock null
-            val waitTime = oldestCall + WINDOW_SIZE_MS - System.currentTimeMillis()
-            if (waitTime > 0) {
-                Log.d(TAG, "Per-minute limit reached (${callTimestamps.size}/$callsPerMinute). Wait ${waitTime}ms")
-                return@withLock waitTime
+            // Check daily budget first
+            if (dailyCallCount >= dailyBudget) {
+                val msUntilReset = getMsUntilDayReset()
+                Log.w(TAG, "Daily budget exhausted ($dailyCallCount/$dailyBudget). Resets in ${msUntilReset / 3600_000}h")
+                return@withLock msUntilReset
             }
-        }
 
-        null // Can proceed
-    }
+            // Check per-minute limit
+            if (callTimestamps.size >= callsPerMinute) {
+                val oldestCall = callTimestamps.peek() ?: return@withLock null
+                val waitTime = oldestCall + WINDOW_SIZE_MS - System.currentTimeMillis()
+                if (waitTime > 0) {
+                    Log.d(TAG, "Per-minute limit reached (${callTimestamps.size}/$callsPerMinute). Wait ${waitTime}ms")
+                    return@withLock waitTime
+                }
+            }
+
+            null // Can proceed
+        }
 
     /**
      * Record a successful API call.
      * Call this AFTER the API call succeeds.
      */
-    suspend fun recordCall() = mutex.withLock {
-        checkDayReset()
+    suspend fun recordCall() =
+        mutex.withLock {
+            checkDayReset()
 
-        val now = System.currentTimeMillis()
-        callTimestamps.add(now)
-        dailyCallCount++
+            val now = System.currentTimeMillis()
+            callTimestamps.add(now)
+            dailyCallCount++
 
-        // Persist daily count
-        saveState()
+            // Persist daily count
+            saveState()
 
-        Log.d(TAG, "API call recorded. Minute: ${callTimestamps.size}/$callsPerMinute, Daily: $dailyCallCount/$dailyBudget")
-    }
+            Log.d(TAG, "API call recorded. Minute: ${callTimestamps.size}/$callsPerMinute, Daily: $dailyCallCount/$dailyBudget")
+        }
 
     /**
      * Get remaining calls available today.
      */
-    fun getRemainingDailyBudget(): Int = synchronized(lock) {
-        checkDayReset()
-        maxOf(0, dailyBudget - dailyCallCount)
-    }
+    fun getRemainingDailyBudget(): Int =
+        synchronized(lock) {
+            checkDayReset()
+            maxOf(0, dailyBudget - dailyCallCount)
+        }
 
     /**
      * Get remaining calls available this minute.
      */
-    fun getRemainingMinuteBudget(): Int = synchronized(lock) {
-        cleanupOldTimestamps()
-        maxOf(0, callsPerMinute - callTimestamps.size)
-    }
+    fun getRemainingMinuteBudget(): Int =
+        synchronized(lock) {
+            cleanupOldTimestamps()
+            maxOf(0, callsPerMinute - callTimestamps.size)
+        }
 
     /**
      * Get comprehensive usage statistics.
      */
-    fun getUsageStats(): RateLimitStats = synchronized(lock) {
-        checkDayReset()
-        cleanupOldTimestamps()
-        RateLimitStats(
-            dailyUsed = dailyCallCount,
-            dailyLimit = dailyBudget,
-            minuteUsed = callTimestamps.size,
-            minuteLimit = callsPerMinute,
-            msUntilMinuteReset = getOldestCallAge(),
-            msUntilDayReset = getMsUntilDayReset()
-        )
-    }
+    fun getUsageStats(): RateLimitStats =
+        synchronized(lock) {
+            checkDayReset()
+            cleanupOldTimestamps()
+            RateLimitStats(
+                dailyUsed = dailyCallCount,
+                dailyLimit = dailyBudget,
+                minuteUsed = callTimestamps.size,
+                minuteLimit = callsPerMinute,
+                msUntilMinuteReset = getOldestCallAge(),
+                msUntilDayReset = getMsUntilDayReset(),
+            )
+        }
 
     /**
      * Update rate limits (for dynamic configuration).
      */
-    fun updateLimits(callsPerMinute: Int? = null, dailyBudget: Int? = null) = synchronized(lock) {
+    fun updateLimits(
+        callsPerMinute: Int? = null,
+        dailyBudget: Int? = null,
+    ) = synchronized(lock) {
         callsPerMinute?.let {
             this.callsPerMinute = it.coerceIn(1, 100)
             Log.i(TAG, "Per-minute limit updated to ${this.callsPerMinute}")
@@ -178,12 +185,13 @@ class RateLimiter private constructor(context: Context) {
     /**
      * Reset daily counter (for testing or manual reset).
      */
-    suspend fun resetDailyCounter() = mutex.withLock {
-        dailyCallCount = 0
-        dayStartTimestamp = getTodayStartMs()
-        saveState()
-        Log.i(TAG, "Daily counter reset")
-    }
+    suspend fun resetDailyCounter() =
+        mutex.withLock {
+            dailyCallCount = 0
+            dayStartTimestamp = getTodayStartMs()
+            saveState()
+            Log.i(TAG, "Daily counter reset")
+        }
 
     /**
      * Check if new day started and reset counter if needed.
@@ -273,7 +281,7 @@ data class RateLimitStats(
     val minuteUsed: Int,
     val minuteLimit: Int,
     val msUntilMinuteReset: Long,
-    val msUntilDayReset: Long
+    val msUntilDayReset: Long,
 ) {
     /** Percentage of daily budget used (0.0 - 1.0) */
     val dailyPercentUsed: Float get() = dailyUsed.toFloat() / dailyLimit
@@ -303,7 +311,7 @@ data class RateLimitStats(
 
     override fun toString(): String {
         return "RateLimitStats(daily=$dailyUsed/$dailyLimit, minute=$minuteUsed/$minuteLimit, " +
-                "dailyRemaining=$dailyRemaining, minuteRemaining=$minuteRemaining, " +
-                "resetIn=$timeUntilDayReset)"
+            "dailyRemaining=$dailyRemaining, minuteRemaining=$minuteRemaining, " +
+            "resetIn=$timeUntilDayReset)"
     }
 }

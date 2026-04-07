@@ -45,7 +45,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             // Upload ProGuard mapping to Crashlytics
             configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
@@ -54,7 +54,11 @@ android {
             // Apply the release signing config
             signingConfig = signingConfigs.getByName("release")
             // Production Server URL - Configure via environment variable or update before build
-            buildConfigField("String", "SERVER_URL", System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"https://your-space-name.hf.space\"")
+            buildConfigField(
+                "String",
+                "SERVER_URL",
+                System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"https://your-space-name.hf.space\"",
+            )
         }
         debug {
             // Keep debug builds fast - no minification
@@ -208,7 +212,7 @@ dependencies {
     // implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Koog AI Agent Framework (Removed - Migrated to Server)
-    
+
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)

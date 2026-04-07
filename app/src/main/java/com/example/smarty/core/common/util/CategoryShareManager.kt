@@ -19,7 +19,7 @@ data class ShareableCategory(
     val id: String,
     val name: String,
     val description: String?,
-    val notes: List<ShareableNote>
+    val notes: List<ShareableNote>,
 )
 
 data class ShareableNote(
@@ -28,7 +28,7 @@ data class ShareableNote(
     val summary: String?,
     val sourceUrl: String?,
     val type: String,
-    val whySaved: String?
+    val whySaved: String?,
 )
 
 object CategoryShareManager {
@@ -37,24 +37,29 @@ object CategoryShareManager {
     /**
      * Create a shareable JSON representation of a category and its notes
      */
-    fun createShareableData(category: Category, notes: List<Note>): String {
-        val shareableNotes = notes.map { note ->
-            ShareableNote(
-                title = note.title,
-                content = note.content,
-                summary = note.summary,
-                sourceUrl = note.sourceUrl,
-                type = note.type.name,
-                whySaved = note.whySaved
-            )
-        }
+    fun createShareableData(
+        category: Category,
+        notes: List<Note>,
+    ): String {
+        val shareableNotes =
+            notes.map { note ->
+                ShareableNote(
+                    title = note.title,
+                    content = note.content,
+                    summary = note.summary,
+                    sourceUrl = note.sourceUrl,
+                    type = note.type.name,
+                    whySaved = note.whySaved,
+                )
+            }
 
-        val shareable = ShareableCategory(
-            id = category.id,
-            name = category.name,
-            description = category.description,
-            notes = shareableNotes
-        )
+        val shareable =
+            ShareableCategory(
+                id = category.id,
+                name = category.name,
+                description = category.description,
+                notes = shareableNotes,
+            )
 
         return gson.toJson(shareable)
     }
@@ -62,7 +67,10 @@ object CategoryShareManager {
     /**
      * Create a deep link for the category
      */
-    fun createDeepLink(category: Category, notes: List<Note>): String {
+    fun createDeepLink(
+        category: Category,
+        notes: List<Note>,
+    ): String {
         val data = createShareableData(category, notes)
         val encoded = Base64.getEncoder().encodeToString(data.toByteArray())
         return "smarty://import?data=$encoded"
@@ -74,21 +82,25 @@ object CategoryShareManager {
     suspend fun generateCategoryQRCode(
         category: Category,
         notes: List<Note>,
-        size: Int = 512
+        size: Int = 512,
     ): Bitmap? {
         val deepLink = createDeepLink(category, notes)
         return QRCodeGenerator.generateQRCode(
             content = deepLink,
             size = size,
             foregroundColor = android.graphics.Color.parseColor("#050505"),
-            backgroundColor = android.graphics.Color.parseColor("#FAFAFA")
+            backgroundColor = android.graphics.Color.parseColor("#FAFAFA"),
         )
     }
 
     /**
      * Save QR code to cache and get shareable URI
      */
-    fun saveQRCodeToCache(context: Context, bitmap: Bitmap, categoryName: String): Uri? {
+    fun saveQRCodeToCache(
+        context: Context,
+        bitmap: Bitmap,
+        categoryName: String,
+    ): Uri? {
         return try {
             val cachePath = File(context.cacheDir, "shared_qr")
             cachePath.mkdirs()
@@ -102,7 +114,7 @@ object CategoryShareManager {
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
-                file
+                file,
             )
         } catch (e: Exception) {
             Log.e("CategoryShareManager", "Failed to save QR code to cache", e)
@@ -118,36 +130,39 @@ object CategoryShareManager {
         context: Context,
         category: Category,
         notes: List<Note>,
-        includeQRCode: Boolean = true
+        includeQRCode: Boolean = true,
     ) {
-        val shareText = buildString {
-            appendLine("Smarty Category: ${category.name}")
-            appendLine("${notes.size} notes")
-            appendLine()
-            appendLine("Notes:")
-            notes.take(5).forEach { note ->
-                appendLine("- ${note.title}")
+        val shareText =
+            buildString {
+                appendLine("Smarty Category: ${category.name}")
+                appendLine("${notes.size} notes")
+                appendLine()
+                appendLine("Notes:")
+                notes.take(5).forEach { note ->
+                    appendLine("- ${note.title}")
+                }
+                if (notes.size > 5) {
+                    appendLine("... and ${notes.size - 5} more")
+                }
+                appendLine()
+                appendLine("Import link: ${createDeepLink(category, notes)}")
             }
-            if (notes.size > 5) {
-                appendLine("... and ${notes.size - 5} more")
-            }
-            appendLine()
-            appendLine("Import link: ${createDeepLink(category, notes)}")
-        }
 
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Smarty: ${category.name}")
-            putExtra(Intent.EXTRA_TEXT, shareText)
-        }
+        val intent =
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "Smarty: ${category.name}")
+                putExtra(Intent.EXTRA_TEXT, shareText)
+            }
 
         // If QR code should be included, generate and attach it (runs on background thread)
         if (includeQRCode) {
             val qrBitmap = generateCategoryQRCode(category, notes)
             qrBitmap?.let { bitmap ->
-                val uri = withContext(Dispatchers.IO) {
-                    saveQRCodeToCache(context, bitmap, category.name)
-                }
+                val uri =
+                    withContext(Dispatchers.IO) {
+                        saveQRCodeToCache(context, bitmap, category.name)
+                    }
                 uri?.let {
                     intent.type = "image/*"
                     intent.putExtra(Intent.EXTRA_STREAM, it)

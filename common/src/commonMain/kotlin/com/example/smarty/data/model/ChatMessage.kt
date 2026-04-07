@@ -12,10 +12,12 @@ import kotlinx.serialization.Serializable
 enum class ChatRole {
     @SerialName("user")
     USER,
+
     @SerialName("assistant")
     SMARTY,
+
     @SerialName("system")
-    SYSTEM
+    SYSTEM,
 }
 
 /**
@@ -25,7 +27,7 @@ data class AgentActionResult(
     val action: String,
     val success: Boolean,
     val resultSummary: String,
-    val affectedNoteIds: List<String> = emptyList()
+    val affectedNoteIds: List<String> = emptyList(),
 )
 
 /**
@@ -34,7 +36,7 @@ data class AgentActionResult(
  */
 data class SearchQueryEntry(
     val query: String,
-    val result: String? = null
+    val result: String? = null,
 )
 
 /**
@@ -56,7 +58,7 @@ data class AgentToolCallEntry(
     val inputSummary: String? = null,
     val outputSummary: String? = null,
     val searchQueries: List<SearchQueryEntry> = emptyList(),
-    val timestamp: Long = 0L
+    val timestamp: Long = 0L,
 )
 
 /**
@@ -66,7 +68,7 @@ data class AgentToolCallEntry(
 data class Citation(
     val title: String,
     val url: String,
-    val snippet: String
+    val snippet: String,
 )
 
 /**
@@ -76,7 +78,7 @@ data class Citation(
 data class InlineChatImage(
     val uri: String,
     val fileName: String,
-    val noteTitle: String
+    val noteTitle: String,
 )
 
 /**
@@ -86,36 +88,39 @@ data class ChatMessage(
     val id: String, // = UUID.randomUUID().toString(),
     val role: ChatRole,
     val content: String,
-    val thinking: String? = null,  // AI thinking/reasoning process (collapsible)
+    val thinking: String? = null, // AI thinking/reasoning process (collapsible)
     val toolCalls: List<AgentToolCallEntry> = emptyList(), // Structured action blocks
     val attachments: List<Attachment> = emptyList(),
     val timestamp: Long = 0L, // System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
     val referencedNoteIds: List<String> = emptyList(),
-    val isAudioRelated: Boolean = false,  // True when user asked about audio/music playback
-    val suggestions: List<String> = emptyList(),  // AI-provided suggestions (max 2)
-    val isError: Boolean = false,  // True when this message represents an API error
-    val isStreaming: Boolean = false,  // True when AI response is still being received
-    val citations: List<Citation> = emptyList(),  // Sources from web research
-    val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
-    val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
-    val noteReferences: List<NoteReference> = emptyList(),  // Clickable note cards in AI response
+    val isAudioRelated: Boolean = false, // True when user asked about audio/music playback
+    val suggestions: List<String> = emptyList(), // AI-provided suggestions (max 2)
+    val isError: Boolean = false, // True when this message represents an API error
+    val isStreaming: Boolean = false, // True when AI response is still being received
+    val citations: List<Citation> = emptyList(), // Sources from web research
+    val inlineImages: List<InlineChatImage> = emptyList(), // Images from ViewImageTool to display inline
+    val clarificationRequest: ClarificationRequest? = null, // Interactive clarification request
+    val noteReferences: List<NoteReference> = emptyList(), // Clickable note cards in AI response
     val eventReferences: List<EventReference> = emptyList(), // Clickable event cards in AI response
-    val confidence: String? = null,  // Server-computed confidence: verified, moderate, model_knowledge
-    val sourceType: String? = null   // Source type: web_search, user_data, model_knowledge
+    val confidence: String? = null, // Server-computed confidence: verified, moderate, model_knowledge
+    val sourceType: String? = null, // Source type: web_search, user_data, model_knowledge
 ) {
     /**
      * Check if this message has a thinking/reasoning section
      */
     val hasThinking: Boolean get() = thinking != null && thinking.isNotBlank()
+
     /**
      * Check if this message has agent action blocks to display
      */
     val hasToolCalls: Boolean get() = toolCalls.isNotEmpty()
+
     /**
      * Show the full Action Panel if there's thinking OR tool call blocks
      */
     val hasActionPanel: Boolean get() = hasThinking || hasToolCalls
+
     /**
      * Check if this is a user message
      */

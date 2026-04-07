@@ -4,15 +4,15 @@ package com.example.smarty.data.remote
 
 import android.content.Context
 import android.content.Intent
+import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.auth.UserRecoverableAuthException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
-import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.api.services.drive.DriveScopes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +26,6 @@ import kotlinx.coroutines.tasks.await
  * Uses DRIVE_FILE and DRIVE_APPDATA scopes for backup operations.
  */
 class GoogleAuthManager(private val context: Context) {
-
     private val _signedInAccount = MutableStateFlow<GoogleSignInAccount?>(null)
     val signedInAccount: StateFlow<GoogleSignInAccount?> = _signedInAccount.asStateFlow()
 
@@ -34,13 +33,14 @@ class GoogleAuthManager(private val context: Context) {
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
 
     private val googleSignInClient: GoogleSignInClient by lazy {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(
-                Scope(DriveScopes.DRIVE_FILE),
-                Scope(DriveScopes.DRIVE_APPDATA)
-            )
-            .build()
+        val gso =
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(
+                    Scope(DriveScopes.DRIVE_FILE),
+                    Scope(DriveScopes.DRIVE_APPDATA),
+                )
+                .build()
 
         GoogleSignIn.getClient(context, gso)
     }
@@ -96,12 +96,13 @@ class GoogleAuthManager(private val context: Context) {
      * Optionally pre-fill the account email if known.
      */
     fun getSignInIntent(userEmail: String? = null): Intent {
-        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(
-                Scope(DriveScopes.DRIVE_FILE),
-                Scope(DriveScopes.DRIVE_APPDATA)
-            )
+        val gsoBuilder =
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(
+                    Scope(DriveScopes.DRIVE_FILE),
+                    Scope(DriveScopes.DRIVE_APPDATA),
+                )
 
         if (!userEmail.isNullOrBlank()) {
             gsoBuilder.setAccountName(userEmail)
@@ -132,12 +133,13 @@ class GoogleAuthManager(private val context: Context) {
                 Result.failure(Exception("Sign-in failed: Account is null"))
             }
         } catch (e: ApiException) {
-            val message = when (e.statusCode) {
-                CommonStatusCodes.SIGN_IN_REQUIRED -> "Sign-in required"
-                CommonStatusCodes.NETWORK_ERROR -> "Network error, please check your connection"
-                CommonStatusCodes.INVALID_ACCOUNT -> "Invalid Google account"
-                else -> "Sign-in failed: ${e.message} (Status code: ${e.statusCode})"
-            }
+            val message =
+                when (e.statusCode) {
+                    CommonStatusCodes.SIGN_IN_REQUIRED -> "Sign-in required"
+                    CommonStatusCodes.NETWORK_ERROR -> "Network error, please check your connection"
+                    CommonStatusCodes.INVALID_ACCOUNT -> "Invalid Google account"
+                    else -> "Sign-in failed: ${e.message} (Status code: ${e.statusCode})"
+                }
             _signedInAccount.value = null
             _isSignedIn.value = false
             Result.failure(Exception(message, e))

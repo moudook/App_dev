@@ -1,6 +1,5 @@
 package com.example.smarty.server.monitoring
 
-import com.example.smarty.server.agent.AgentStepType
 import com.example.smarty.server.agent.AgentTraceEvent
 import kotlinx.serialization.Serializable
 import java.util.Collections
@@ -15,7 +14,7 @@ data class ActivityEvent(
     val sessionId: String,
     val type: String,
     val content: String,
-    val metadata: Map<String, String> = emptyMap()
+    val metadata: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -29,16 +28,20 @@ object ServerActivityMonitor {
     /**
      * Record a new activity event.
      */
-    fun recordEvent(userId: String, event: AgentTraceEvent) {
-        val activity = ActivityEvent(
-            timestamp = event.timestamp,
-            userId = userId,
-            sessionId = event.sessionId,
-            type = event.stepType.name,
-            content = event.content,
-            metadata = event.metadata
-        )
-        
+    fun recordEvent(
+        userId: String,
+        event: AgentTraceEvent,
+    ) {
+        val activity =
+            ActivityEvent(
+                timestamp = event.timestamp,
+                userId = userId,
+                sessionId = event.sessionId,
+                type = event.stepType.name,
+                content = event.content,
+                metadata = event.metadata,
+            )
+
         synchronized(events) {
             events.add(0, activity)
             if (events.size > MAX_EVENTS) {

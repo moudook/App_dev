@@ -2,16 +2,15 @@ package com.example.smarty.server.agent
 
 /**
  * Extended Agent Prompts for ServerAgent.
- * 
+ *
  * This object consolidates all system prompts used by the ServerAgent,
  * eliminating duplication and providing a single source of truth for
  * agent instructions.
- * 
+ *
  * Single Responsibility: Only handles prompt templates.
  * All prompts should be defined here, not inline in agents.
  */
 object ExtendedAgentPrompts {
-
     /**
      * Complete system prompt for ServerAgent with all capabilities.
      * This is the main prompt used for chat interactions.
@@ -332,6 +331,6 @@ You are a research specialist with advanced information gathering capabilities.
      */
     enum class AgentType {
         CHAT,
-        RESEARCH
+        RESEARCH,
     }
 }

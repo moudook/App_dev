@@ -4,17 +4,17 @@ import kotlinx.coroutines.delay
 
 /**
  * Retry Policy with exponential backoff.
- * 
+ *
  * Single Responsibility: Only handles retry logic.
  * DRY: Replaces repeated retry patterns across services.
- * 
+ *
  * Usage:
  * ```
  * // Simple retry
  * val result = withRetry {
  *     callExternalService()
  * }
- * 
+ *
  * // Retry with custom settings
  * val result = withRetry(
  *     maxRetries = 5,
@@ -23,7 +23,7 @@ import kotlinx.coroutines.delay
  * ) {
  *     callExternalService()
  * }
- * 
+ *
  * // Retry with specific exceptions
  * val result = withRetry(
  *     retryOn = listOf(IOException::class)
@@ -42,41 +42,43 @@ suspend fun <T> withRetry(
     maxDelayMs: Long = 5000,
     factor: Double = 2.0,
     retryOn: List<Class<out Throwable>> = emptyList(),
-    block: suspend () -> T
+    block: suspend () -> T,
 ): T {
     var lastException: Throwable? = null
-    
+
     repeat(maxRetries + 1) { attempt ->
         try {
             return block()
         } catch (e: Throwable) {
             lastException = e
-            
+
             // Check if we should retry this exception type
             if (retryOn.isNotEmpty()) {
-                val shouldRetry = retryOn.any { clazz ->
-                    clazz.isInstance(e)
-                }
+                val shouldRetry =
+                    retryOn.any { clazz ->
+                        clazz.isInstance(e)
+                    }
                 if (!shouldRetry) {
                     throw e
                 }
             }
-            
+
             // Don't retry if we've exhausted retries
             if (attempt == maxRetries) {
                 throw e
             }
-            
+
             // Calculate delay with exponential backoff
-            val delayMs = minOf(
-                initialDelayMs * (factor.toLong() shl attempt),
-                maxDelayMs
-            )
-            
+            val delayMs =
+                minOf(
+                    initialDelayMs * (factor.toLong() shl attempt),
+                    maxDelayMs,
+                )
+
             delay(delayMs)
         }
     }
-    
+
     throw lastException ?: IllegalStateException("Retry failed")
 }
 
@@ -88,7 +90,7 @@ suspend fun <T> withRetryAndFallback(
     initialDelayMs: Long = 500,
     maxDelayMs: Long = 5000,
     fallback: suspend () -> T,
-    block: suspend () -> T
+    block: suspend () -> T,
 ): T {
     return try {
         withRetry(maxRetries, initialDelayMs, maxDelayMs, block = block)
@@ -106,14 +108,15 @@ class RetryConfig {
     var maxDelayMs: Long = 5000
     var factor: Double = 2.0
     var retryOn: List<Class<out Throwable>> = emptyList()
-    
-    fun build(): RetryPolicy = RetryPolicy(
-        maxRetries,
-        initialDelayMs,
-        maxDelayMs,
-        factor,
-        retryOn
-    )
+
+    fun build(): RetryPolicy =
+        RetryPolicy(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            factor,
+            retryOn,
+        )
 }
 
 /**
@@ -124,9 +127,8 @@ class RetryPolicy(
     val initialDelayMs: Long = 500,
     val maxDelayMs: Long = 5000,
     val factor: Double = 2.0,
-    val retryOn: List<Class<out Throwable>> = emptyList()
+    val retryOn: List<Class<out Throwable>> = emptyList(),
 ) {
-    
     /**
      * Execute a block with this retry policy.
      */
@@ -137,23 +139,23 @@ class RetryPolicy(
             maxDelayMs,
             factor,
             retryOn,
-            block
+            block,
         )
     }
-    
+
     /**
      * Execute with fallback.
      */
     suspend fun <T> executeWithFallback(
         block: suspend () -> T,
-        fallback: suspend () -> T
+        fallback: suspend () -> T,
     ): T {
         return withRetryAndFallback(
             maxRetries,
             initialDelayMs,
             maxDelayMs,
             fallback,
-            block
+            block,
         )
     }
 }
@@ -172,7 +174,7 @@ fun retryPolicy(block: RetryConfig.() -> Unit): RetryPolicy {
  */
 suspend fun <T> retry(
     times: Int = 3,
-    block: suspend () -> T
+    block: suspend () -> T,
 ): T {
     return withRetry(maxRetries = times, block = block)
 }

@@ -22,9 +22,9 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Pattern:
  * ```
- * Request 1 
+ * Request 1
  * Request 2 > [Batch Window: 50ms] > Single Batch Execution > Individual Results
- * Request 3 
+ * Request 3
  * ```
  *
  * BUG FIX (TECH-001): Now requires an external scope to be passed in.
@@ -36,7 +36,7 @@ class RequestBatcher<K, V>(
     private val batchWindowMs: Long = 50,
     private val maxBatchSize: Int = 10,
     private val batchLoader: suspend (List<K>) -> Map<K, V>,
-    private val scope: CoroutineScope  // BUG FIX (TECH-001): No default scope - must be lifecycle-aware
+    private val scope: CoroutineScope, // BUG FIX (TECH-001): No default scope - must be lifecycle-aware
 ) {
     companion object {
         private const val TAG = "RequestBatcher"
@@ -95,9 +95,10 @@ class RequestBatcher<K, V>(
         totalRequests.addAndGet(keys.size.toLong())
 
         // Create deferreds for all keys
-        val deferreds = keys.associateWith { key ->
-            pendingRequests.getOrPut(key) { CompletableDeferred() }
-        }
+        val deferreds =
+            keys.associateWith { key ->
+                pendingRequests.getOrPut(key) { CompletableDeferred() }
+            }
 
         // Queue all for batching
         keys.forEach { requestQueue.send(it) }
@@ -110,18 +111,19 @@ class RequestBatcher<K, V>(
      * Start the batch processor coroutine.
      */
     private fun startBatchProcessor() {
-        batchJob = scope.launch {
-            while (isActive) {
-                try {
-                    processBatch()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Batch processing error: ${e.message}", e)
-                    delay(100) // Back off on error
+        batchJob =
+            scope.launch {
+                while (isActive) {
+                    try {
+                        processBatch()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Batch processing error: ${e.message}", e)
+                        delay(100) // Back off on error
+                    }
                 }
             }
-        }
     }
 
     /**
@@ -135,9 +137,10 @@ class RequestBatcher<K, V>(
         // Collect more requests within the window
         val deadline = System.currentTimeMillis() + batchWindowMs
         while (batch.size < maxBatchSize && System.currentTimeMillis() < deadline) {
-            val result = withTimeoutOrNull(deadline - System.currentTimeMillis()) {
-                requestQueue.receive()
-            }
+            val result =
+                withTimeoutOrNull(deadline - System.currentTimeMillis()) {
+                    requestQueue.receive()
+                }
             if (result != null) {
                 batch.add(result)
             } else {
@@ -173,7 +176,7 @@ class RequestBatcher<K, V>(
                     deferred?.complete(result)
                 } else {
                     deferred?.completeExceptionally(
-                        NoSuchElementException("No result for key: $key")
+                        NoSuchElementException("No result for key: $key"),
                     )
                 }
             }
@@ -189,19 +192,23 @@ class RequestBatcher<K, V>(
     /**
      * Prime the cache with a known value (useful for avoiding redundant loads).
      */
-    fun prime(key: K, value: V) {
+    fun prime(
+        key: K,
+        value: V,
+    ) {
         pendingRequests[key]?.complete(value)
     }
 
     /**
      * Clear all pending requests (useful for cleanup).
      */
-    suspend fun clear() = mutex.withLock {
-        pendingRequests.values.forEach {
-            it.completeExceptionally(CancellationException("Batcher cleared"))
+    suspend fun clear() =
+        mutex.withLock {
+            pendingRequests.values.forEach {
+                it.completeExceptionally(CancellationException("Batcher cleared"))
+            }
+            pendingRequests.clear()
         }
-        pendingRequests.clear()
-    }
 
     /**
      * Stop the batch processor.
@@ -217,24 +224,31 @@ class RequestBatcher<K, V>(
     /**
      * Get batching statistics.
      */
-    fun getStats(): BatcherStats = BatcherStats(
-        totalRequests = totalRequests.get(),
-        batchedRequests = batchedRequests.get(),
-        batchCount = batchCount.get(),
-        averageBatchSize = if (batchCount.get() > 0) {
-            batchedRequests.get().toFloat() / batchCount.get()
-        } else 0f,
-        batchingEfficiency = if (totalRequests.get() > 0) {
-            1f - (batchCount.get().toFloat() / totalRequests.get())
-        } else 0f
-    )
+    fun getStats(): BatcherStats =
+        BatcherStats(
+            totalRequests = totalRequests.get(),
+            batchedRequests = batchedRequests.get(),
+            batchCount = batchCount.get(),
+            averageBatchSize =
+                if (batchCount.get() > 0) {
+                    batchedRequests.get().toFloat() / batchCount.get()
+                } else {
+                    0f
+                },
+            batchingEfficiency =
+                if (totalRequests.get() > 0) {
+                    1f - (batchCount.get().toFloat() / totalRequests.get())
+                } else {
+                    0f
+                },
+        )
 
     data class BatcherStats(
         val totalRequests: Long,
         val batchedRequests: Long,
         val batchCount: Long,
         val averageBatchSize: Float,
-        val batchingEfficiency: Float  // 0 = no batching, 1 = perfect batching
+        val batchingEfficiency: Float, // 0 = no batching, 1 = perfect batching
     )
 }
 
@@ -248,14 +262,14 @@ object NoteBatcher {
     private var instance: RequestBatcher<String, Any?>? = null
 
     fun getInstance(
-        scope: CoroutineScope,  // BUG FIX (TECH-001): Required lifecycle-aware scope
-        noteLoader: suspend (List<String>) -> Map<String, Any?>
+        scope: CoroutineScope, // BUG FIX (TECH-001): Required lifecycle-aware scope
+        noteLoader: suspend (List<String>) -> Map<String, Any?>,
     ): RequestBatcher<String, Any?> {
         return instance ?: RequestBatcher(
             batchWindowMs = 30,
             maxBatchSize = 20,
             batchLoader = noteLoader,
-            scope = scope
+            scope = scope,
         ).also { instance = it }
     }
 

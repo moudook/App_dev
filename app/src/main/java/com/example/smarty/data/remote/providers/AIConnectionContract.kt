@@ -18,7 +18,6 @@ import com.example.smarty.data.remote.DocumentAnalysisResponse
  * @see CompatibleAIConnection
  */
 interface AIConnectionContract {
-
     /**
      * The display name of this connection.
      * Used for logging and debugging.
@@ -47,7 +46,7 @@ interface AIConnectionContract {
         content: String,
         connectionToken: String,
         model: String,
-        systemPrompt: String
+        systemPrompt: String,
     ): AIResponse?
 
     /**
@@ -70,7 +69,7 @@ interface AIConnectionContract {
         content: String,
         connectionToken: String,
         model: String,
-        systemPrompt: String
+        systemPrompt: String,
     ): DocumentAnalysisResponse?
 
     /**
@@ -93,7 +92,7 @@ interface AIConnectionContract {
         systemPrompt: String,
         userPrompt: String,
         connectionToken: String,
-        model: String
+        model: String,
     ): String?
 
     /**
@@ -104,15 +103,20 @@ interface AIConnectionContract {
      * @param model The model to use for testing
      * @return true if the connection is valid and the request succeeds
      */
-    suspend fun testConnection(context: android.content.Context, connectionToken: String, model: String): Boolean {
+    suspend fun testConnection(
+        context: android.content.Context,
+        connectionToken: String,
+        model: String,
+    ): Boolean {
         return try {
-            val result = analyzeContent(
-                context = context,
-                content = "Test: Remember to buy groceries tomorrow",
-                connectionToken = connectionToken,
-                model = model,
-                systemPrompt = "Respond with JSON: {\"category\":\"Todo\",\"summary\":\"Test\",\"whySaved\":\"Test\"}"
-            )
+            val result =
+                analyzeContent(
+                    context = context,
+                    content = "Test: Remember to buy groceries tomorrow",
+                    connectionToken = connectionToken,
+                    model = model,
+                    systemPrompt = "Respond with JSON: {\"category\":\"Todo\",\"summary\":\"Test\",\"whySaved\":\"Test\"}",
+                )
             result?.success == true
         } catch (e: Exception) {
             false
@@ -133,31 +137,34 @@ data class AIRequestConfig(
     /** Top-p nucleus sampling parameter */
     val topP: Float = 0.8f,
     /** Top-k sampling parameter */
-    val topK: Int = 40
+    val topK: Int = 40,
 ) {
     companion object {
         /** Default config for content analysis (more deterministic) */
-        val ANALYSIS = AIRequestConfig(
-            temperature = 0.4f,
-            maxTokens = 300,
-            topP = 0.8f,
-            topK = 40
-        )
+        val ANALYSIS =
+            AIRequestConfig(
+                temperature = 0.4f,
+                maxTokens = 300,
+                topP = 0.8f,
+                topK = 40,
+            )
 
         /** Config for document analysis (longer responses) */
-        val DOCUMENT = AIRequestConfig(
-            temperature = 0.3f,
-            maxTokens = 800,
-            topP = 0.8f,
-            topK = 40
-        )
+        val DOCUMENT =
+            AIRequestConfig(
+                temperature = 0.3f,
+                maxTokens = 800,
+                topP = 0.8f,
+                topK = 40,
+            )
 
         /** Config for chat/conversation (more creative) */
-        val CHAT = AIRequestConfig(
-            temperature = 0.7f,
-            maxTokens = 1024,
-            topP = 0.9f,
-            topK = 40
-        )
+        val CHAT =
+            AIRequestConfig(
+                temperature = 0.7f,
+                maxTokens = 1024,
+                topP = 0.9f,
+                topK = 40,
+            )
     }
 }

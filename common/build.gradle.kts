@@ -1,15 +1,16 @@
 // Detect if Android SDK is available (not available in Docker/CI server builds)
-val hasAndroidSdk = try {
-    val localProps = file("${rootProject.projectDir}/local.properties")
-    if (localProps.exists()) {
-        true
-    } else {
-        // Check if ANDROID_HOME or ANDROID_SDK_ROOT is set
-        System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null
+val hasAndroidSdk =
+    try {
+        val localProps = file("${rootProject.projectDir}/local.properties")
+        if (localProps.exists()) {
+            true
+        } else {
+            // Check if ANDROID_HOME or ANDROID_SDK_ROOT is set
+            System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null
+        }
+    } catch (_: Exception) {
+        false
     }
-} catch (_: Exception) {
-    false
-}
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)

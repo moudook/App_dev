@@ -37,7 +37,7 @@ import kotlinx.serialization.Serializable
 enum class SyncOperation {
     CREATE,
     UPDATE,
-    DELETE
+    DELETE,
 }
 
 /**
@@ -48,18 +48,18 @@ enum class SyncEntityType {
     CATEGORY,
     EVENT,
     MEMORY,
-    CHAT_SESSION
+    CHAT_SESSION,
 }
 
 /**
  * Status of a sync queue item.
  */
 enum class SyncStatus {
-    PENDING,      // Queued, waiting to be sent
-    IN_FLIGHT,    // Currently being sent to server
-    SYNCED,       // Successfully synced to server
-    FAILED,       // Failed after max retries
-    CONFLICT      // Conflict detected, needs resolution
+    PENDING, // Queued, waiting to be sent
+    IN_FLIGHT, // Currently being sent to server
+    SYNCED, // Successfully synced to server
+    FAILED, // Failed after max retries
+    CONFLICT, // Conflict detected, needs resolution
 }
 
 /**
@@ -82,33 +82,23 @@ enum class SyncStatus {
     indices = [
         Index(value = ["entityId", "entityType"], unique = false),
         Index(value = ["status"], unique = false),
-        Index(value = ["createdAt"], unique = false)
-    ]
+        Index(value = ["createdAt"], unique = false),
+    ],
 )
 @Serializable
 data class SyncQueueItem(
     @PrimaryKey
     val id: String,
-    
     val operation: String,
-    
     val entityType: String,
-    
     val entityId: String,
-    
     val payloadJson: String,
-    
     val baseVersion: Long = 0,
-    
     val createdAt: Long,
-    
     val retryCount: Int = 0,
-    
     val status: String = SyncStatus.PENDING.name,
-    
     val lastError: String? = null,
-    
-    val serverTimestamp: Long? = null
+    val serverTimestamp: Long? = null,
 ) {
     companion object {
         /**
@@ -119,7 +109,7 @@ data class SyncQueueItem(
             entityType: SyncEntityType,
             entityId: String,
             payloadJson: String,
-            baseVersion: Long = 0
+            baseVersion: Long = 0,
         ): SyncQueueItem {
             return SyncQueueItem(
                 id = java.util.UUID.randomUUID().toString(),
@@ -128,18 +118,18 @@ data class SyncQueueItem(
                 entityId = entityId,
                 payloadJson = payloadJson,
                 baseVersion = baseVersion,
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
             )
         }
     }
-    
+
     /**
      * Check if this item is ready to be retried.
      */
     fun canRetry(maxRetries: Int = 3): Boolean {
         return retryCount < maxRetries && status != SyncStatus.IN_FLIGHT.name
     }
-    
+
     /**
      * Create a copy with incremented retry count.
      */
@@ -147,34 +137,34 @@ data class SyncQueueItem(
         return copy(
             retryCount = retryCount + 1,
             status = if (retryCount + 1 >= 3) SyncStatus.FAILED.name else SyncStatus.PENDING.name,
-            lastError = error
+            lastError = error,
         )
     }
-    
+
     /**
      * Create a copy marked as in-flight.
      */
     fun markInFlight(): SyncQueueItem {
         return copy(status = SyncStatus.IN_FLIGHT.name)
     }
-    
+
     /**
      * Create a copy marked as synced.
      */
     fun markSynced(serverTs: Long): SyncQueueItem {
         return copy(
             status = SyncStatus.SYNCED.name,
-            serverTimestamp = serverTs
+            serverTimestamp = serverTs,
         )
     }
-    
+
     /**
      * Create a copy marked as conflict.
      */
     fun markConflict(error: String): SyncQueueItem {
         return copy(
             status = SyncStatus.CONFLICT.name,
-            lastError = error
+            lastError = error,
         )
     }
 }
@@ -187,29 +177,21 @@ data class SyncQueueItem(
     tableName = "conflict_archive",
     indices = [
         Index(value = ["entityId"], unique = false),
-        Index(value = ["resolvedAt"], unique = false)
-    ]
+        Index(value = ["resolvedAt"], unique = false),
+    ],
 )
 @Serializable
 data class ConflictRecord(
     @PrimaryKey
     val id: String,
-    
     val entityId: String,
-    
     val entityType: String,
-    
     val localPayloadJson: String,
-    
     val serverPayloadJson: String,
-    
     val localTimestamp: Long,
-    
     val serverTimestamp: Long,
-    
     val resolvedAt: Long,
-    
-    val resolution: String // "SERVER_WINS", "LOCAL_WINS", "MANUAL"
+    val resolution: String, // "SERVER_WINS", "LOCAL_WINS", "MANUAL"
 ) {
     companion object {
         fun create(
@@ -219,7 +201,7 @@ data class ConflictRecord(
             serverPayload: String,
             localTs: Long,
             serverTs: Long,
-            resolution: String = "SERVER_WINS"
+            resolution: String = "SERVER_WINS",
         ): ConflictRecord {
             return ConflictRecord(
                 id = java.util.UUID.randomUUID().toString(),
@@ -230,7 +212,7 @@ data class ConflictRecord(
                 localTimestamp = localTs,
                 serverTimestamp = serverTs,
                 resolvedAt = System.currentTimeMillis(),
-                resolution = resolution
+                resolution = resolution,
             )
         }
     }

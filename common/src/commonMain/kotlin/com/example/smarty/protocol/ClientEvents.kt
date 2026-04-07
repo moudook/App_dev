@@ -1,9 +1,8 @@
 package com.example.smarty.protocol
 
+import com.example.smarty.core.domain.model.Note
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.domain.model.Category
 
 /**
  * Events sent from the Android Client (Body) to the Cloud Agent (Brain).
@@ -23,7 +22,7 @@ sealed class ClientEvent {
         @SerialName("current_screen") val currentScreen: String,
         @SerialName("battery_level") val batteryLevel: Float, // 0.0 to 1.0
         @SerialName("is_wifi") val isWifi: Boolean,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     // ============================================================================================
@@ -36,7 +35,7 @@ sealed class ClientEvent {
         @SerialName("command_id") val commandId: String,
         val result: String,
         val isError: Boolean,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     // ============================================================================================
@@ -48,7 +47,7 @@ sealed class ClientEvent {
     data class ActiveNotesResponse(
         @SerialName("command_id") val commandId: String,
         val notes: List<Note>,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     @Serializable
@@ -56,7 +55,7 @@ sealed class ClientEvent {
     data class SearchResultsResponse(
         @SerialName("command_id") val commandId: String,
         val results: List<ProtocolSearchResult>,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     @Serializable
@@ -64,7 +63,7 @@ sealed class ClientEvent {
     data class SystemStatusResponse(
         @SerialName("command_id") val commandId: String,
         val status: Map<String, String>,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     @Serializable
@@ -72,7 +71,7 @@ sealed class ClientEvent {
     data class CalendarEventsResponse(
         @SerialName("command_id") val commandId: String,
         val events: List<com.example.smarty.core.domain.model.CalendarEvent>,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     @Serializable
@@ -80,7 +79,7 @@ sealed class ClientEvent {
     data class RecallResultsResponse(
         @SerialName("command_id") val commandId: String,
         val results: List<com.example.smarty.core.domain.model.RecallResult>,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 
     @Serializable
@@ -88,7 +87,7 @@ sealed class ClientEvent {
     data class ScreenContextResponse(
         @SerialName("command_id") val commandId: String,
         val context: com.example.smarty.features.chat.agent.models.ScreenContext?,
-        override val timestamp: Long = 0L
+        override val timestamp: Long = 0L,
     ) : ClientEvent()
 }
 
@@ -97,5 +96,5 @@ data class ProtocolSearchResult(
     val id: String,
     val title: String,
     val content: String,
-    val score: Double
+    val score: Double,
 )

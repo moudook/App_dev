@@ -36,14 +36,15 @@ object SemanticSearchEngine {
     private val MULTI_SPACE_REGEX = Regex("\\s+")
 
     // GLUT-047 FIX: Pre-compile soundex map to avoid creation on every call
-    private val SOUNDEX_MAP = mapOf(
-        'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
-        'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
-        'D' to '3', 'T' to '3',
-        'L' to '4',
-        'M' to '5', 'N' to '5',
-        'R' to '6'
-    )
+    private val SOUNDEX_MAP =
+        mapOf(
+            'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
+            'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
+            'D' to '3', 'T' to '3',
+            'L' to '4',
+            'M' to '5', 'N' to '5',
+            'R' to '6',
+        )
 
     /**
      * Search result with relevance score and match details.
@@ -52,18 +53,18 @@ object SemanticSearchEngine {
         val item: T,
         val score: Double,
         val matchType: MatchType,
-        val matchedTerms: List<String> = emptyList()
+        val matchedTerms: List<String> = emptyList(),
     )
 
     enum class MatchType {
-        EXACT,           // Exact string match
-        CONTAINS,        // Query contained in target
-        FUZZY_HIGH,      // High fuzzy similarity (>85%)
-        FUZZY_MEDIUM,    // Medium fuzzy similarity (65-85%)
-        FUZZY_LOW,       // Low fuzzy similarity (45-65%)
-        TOKEN_MATCH,     // Word-level token match
-        PHONETIC,        // Phonetic similarity (sounds like)
-        PARTIAL          // Partial/prefix match
+        EXACT, // Exact string match
+        CONTAINS, // Query contained in target
+        FUZZY_HIGH, // High fuzzy similarity (>85%)
+        FUZZY_MEDIUM, // Medium fuzzy similarity (65-85%)
+        FUZZY_LOW, // Low fuzzy similarity (45-65%)
+        TOKEN_MATCH, // Word-level token match
+        PHONETIC, // Phonetic similarity (sounds like)
+        PARTIAL, // Partial/prefix match
     }
 
     /**
@@ -79,7 +80,7 @@ object SemanticSearchEngine {
         query: String,
         items: List<T>,
         textExtractor: (T) -> List<String>,
-        minScore: Double = MINIMUM_MATCH_THRESHOLD
+        minScore: Double = MINIMUM_MATCH_THRESHOLD,
     ): List<SearchResult<T>> {
         if (query.isBlank()) return emptyList()
 
@@ -105,8 +106,8 @@ object SemanticSearchEngine {
                         item = item,
                         score = bestMatch.score,
                         matchType = bestMatch.matchType,
-                        matchedTerms = bestMatch.matchedTerms
-                    )
+                        matchedTerms = bestMatch.matchedTerms,
+                    ),
                 )
 
                 // Track exact matches for early termination
@@ -116,7 +117,8 @@ object SemanticSearchEngine {
 
                 // Early termination: stop after enough exact matches or max results
                 if (exactMatchCount >= EARLY_TERMINATION_EXACT_MATCHES ||
-                    results.size >= MAX_RESULTS_LIMIT) {
+                    results.size >= MAX_RESULTS_LIMIT
+                ) {
                     break
                 }
             }
@@ -128,7 +130,10 @@ object SemanticSearchEngine {
     /**
      * Calculate similarity between query and a single text field.
      */
-    fun calculateSimilarity(query: String, target: String): Double {
+    fun calculateSimilarity(
+        query: String,
+        target: String,
+    ): Double {
         val normalizedQuery = normalizeText(query)
         val normalizedTarget = normalizeText(target)
 
@@ -144,14 +149,14 @@ object SemanticSearchEngine {
     private data class MatchResult(
         val score: Double,
         val matchType: MatchType,
-        val matchedTerms: List<String>
+        val matchedTerms: List<String>,
     )
 
     private fun findBestMatch(
         query: String,
         queryTokens: List<String>,
         querySoundex: List<String>,
-        textFields: List<String>
+        textFields: List<String>,
     ): MatchResult {
         var bestScore = 0.0
         var bestMatchType = MatchType.PARTIAL
@@ -196,9 +201,10 @@ object SemanticSearchEngine {
             // Check if all significant query words appear in the text in any order
             val significantQueryTokens = queryTokens.filter { it.length >= 3 }
             if (significantQueryTokens.isNotEmpty()) {
-                val matchedWords = significantQueryTokens.count { qToken ->
-                    textTokens.any { tToken -> tToken == qToken || tToken.contains(qToken) || qToken.contains(tToken) }
-                }
+                val matchedWords =
+                    significantQueryTokens.count { qToken ->
+                        textTokens.any { tToken -> tToken == qToken || tToken.contains(qToken) || qToken.contains(tToken) }
+                    }
                 Log.d(TAG, " Phrase check: '$text' → matched $matchedWords/${significantQueryTokens.size} words")
                 if (matchedWords == significantQueryTokens.size) {
                     // All significant words found! This is a strong match
@@ -220,21 +226,24 @@ object SemanticSearchEngine {
                 bestScore = tokenOverlapScore
                 bestMatchType = MatchType.TOKEN_MATCH
                 matchedTerms.clear()
-                matchedTerms.addAll(textTokens.filter { token ->
-                    queryTokens.any { q -> token.contains(q) || q.contains(token) }
-                })
+                matchedTerms.addAll(
+                    textTokens.filter { token ->
+                        queryTokens.any { q -> token.contains(q) || q.contains(token) }
+                    },
+                )
             }
 
             // 4. Fuzzy similarity (combines multiple algorithms)
             val fuzzySimilarity = combinedSimilarity(query, normalizedText)
             if (fuzzySimilarity > bestScore) {
                 bestScore = fuzzySimilarity
-                bestMatchType = when {
-                    fuzzySimilarity >= HIGH_SIMILARITY_THRESHOLD -> MatchType.FUZZY_HIGH
-                    fuzzySimilarity >= MEDIUM_SIMILARITY_THRESHOLD -> MatchType.FUZZY_MEDIUM
-                    fuzzySimilarity >= LOW_SIMILARITY_THRESHOLD -> MatchType.FUZZY_LOW
-                    else -> MatchType.PARTIAL
-                }
+                bestMatchType =
+                    when {
+                        fuzzySimilarity >= HIGH_SIMILARITY_THRESHOLD -> MatchType.FUZZY_HIGH
+                        fuzzySimilarity >= MEDIUM_SIMILARITY_THRESHOLD -> MatchType.FUZZY_MEDIUM
+                        fuzzySimilarity >= LOW_SIMILARITY_THRESHOLD -> MatchType.FUZZY_LOW
+                        else -> MatchType.PARTIAL
+                    }
                 matchedTerms.clear()
                 matchedTerms.add(text)
             }
@@ -265,13 +274,16 @@ object SemanticSearchEngine {
     /**
      * Combined similarity using weighted average of multiple algorithms.
      */
-    private fun combinedSimilarity(s1: String, s2: String): Double {
+    private fun combinedSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
 
         val jaroWinkler = jaroWinklerSimilarity(s1, s2)
         val levenshtein = 1.0 - (levenshteinDistance(s1, s2).toDouble() / max(s1.length, s2.length))
-        val ngram = ngramSimilarity(s1, s2, 2)  // Bigrams
-        val trigram = ngramSimilarity(s1, s2, 3)  // Trigrams
+        val ngram = ngramSimilarity(s1, s2, 2) // Bigrams
+        val trigram = ngramSimilarity(s1, s2, 3) // Trigrams
 
         // Weighted combination - Jaro-Winkler is best for names/titles
         return (jaroWinkler * 0.35) + (levenshtein * 0.25) + (ngram * 0.25) + (trigram * 0.15)
@@ -282,7 +294,10 @@ object SemanticSearchEngine {
     /**
      * Levenshtein distance - minimum edits to transform s1 into s2.
      */
-    fun levenshteinDistance(s1: String, s2: String): Int {
+    fun levenshteinDistance(
+        s1: String,
+        s2: String,
+    ): Int {
         if (s1 == s2) return 0
         if (s1.isEmpty()) return s2.length
         if (s2.isEmpty()) return s1.length
@@ -295,11 +310,12 @@ object SemanticSearchEngine {
         for (i in 1..s1.length) {
             for (j in 1..s2.length) {
                 val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = minOf(
-                    dp[i - 1][j] + 1,      // Deletion
-                    dp[i][j - 1] + 1,      // Insertion
-                    dp[i - 1][j - 1] + cost // Substitution
-                )
+                dp[i][j] =
+                    minOf(
+                        dp[i - 1][j] + 1, // Deletion
+                        dp[i][j - 1] + 1, // Insertion
+                        dp[i - 1][j - 1] + cost, // Substitution
+                    )
             }
         }
 
@@ -310,7 +326,10 @@ object SemanticSearchEngine {
      * Jaro-Winkler similarity - good for short strings like names.
      * Returns value between 0.0 and 1.0.
      */
-    fun jaroWinklerSimilarity(s1: String, s2: String): Double {
+    fun jaroWinklerSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1 == s2) return 1.0
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
 
@@ -323,7 +342,10 @@ object SemanticSearchEngine {
         return jaro + (prefixLength * scalingFactor * (1 - jaro))
     }
 
-    private fun jaroSimilarity(s1: String, s2: String): Double {
+    private fun jaroSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1 == s2) return 1.0
 
         val matchWindow = max(s1.length, s2.length) / 2 - 1
@@ -358,15 +380,21 @@ object SemanticSearchEngine {
             k++
         }
 
-        return ((matches.toDouble() / s1.length) +
+        return (
+            (matches.toDouble() / s1.length) +
                 (matches.toDouble() / s2.length) +
-                ((matches - transpositions / 2.0) / matches)) / 3.0
+                ((matches - transpositions / 2.0) / matches)
+        ) / 3.0
     }
 
     /**
      * N-gram similarity using Jaccard index.
      */
-    fun ngramSimilarity(s1: String, s2: String, n: Int = 2): Double {
+    fun ngramSimilarity(
+        s1: String,
+        s2: String,
+        n: Int = 2,
+    ): Double {
         if (s1.length < n || s2.length < n) return 0.0
 
         val ngrams1 = s1.windowed(n).toSet()
@@ -382,12 +410,15 @@ object SemanticSearchEngine {
      * Token overlap score - how many query tokens match target tokens.
      * Enhanced with consecutive word bonus for better phrase matching.
      */
-    private fun tokenOverlapScore(queryTokens: List<String>, targetTokens: List<String>): Double {
+    private fun tokenOverlapScore(
+        queryTokens: List<String>,
+        targetTokens: List<String>,
+    ): Double {
         if (queryTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
 
         var matchedTokens = 0
         var partialMatches = 0.0
-        val matchedIndices = mutableListOf<Int>()  // Track indices for consecutive check
+        val matchedIndices = mutableListOf<Int>() // Track indices for consecutive check
 
         for (queryToken in queryTokens) {
             // Exact token match
@@ -399,9 +430,10 @@ object SemanticSearchEngine {
             }
 
             // Partial token match (contains)
-            val containsMatchIndex = targetTokens.indexOfFirst {
-                it.contains(queryToken) || queryToken.contains(it)
-            }
+            val containsMatchIndex =
+                targetTokens.indexOfFirst {
+                    it.contains(queryToken) || queryToken.contains(it)
+                }
             if (containsMatchIndex >= 0) {
                 partialMatches += 0.7
                 matchedIndices.add(containsMatchIndex)
@@ -443,7 +475,10 @@ object SemanticSearchEngine {
      * Calculate bonus for consecutive word matches.
      * If query "deep in your love" matches indices [0,1,2,3] in target, give max bonus.
      */
-    private fun calculateConsecutiveBonus(indices: List<Int>, querySize: Int): Double {
+    private fun calculateConsecutiveBonus(
+        indices: List<Int>,
+        querySize: Int,
+    ): Double {
         if (indices.size < 2) return 0.0
 
         val sorted = indices.sorted()
@@ -451,7 +486,7 @@ object SemanticSearchEngine {
         var maxConsecutive = 1
 
         for (i in 1 until sorted.size) {
-            if (sorted[i] == sorted[i-1] + 1) {
+            if (sorted[i] == sorted[i - 1] + 1) {
                 consecutiveCount++
                 maxConsecutive = max(maxConsecutive, consecutiveCount)
             } else {
@@ -467,15 +502,19 @@ object SemanticSearchEngine {
     /**
      * Fuzzy matching between individual tokens.
      */
-    private fun tokenFuzzyScore(queryTokens: List<String>, targetTokens: List<String>): Double {
+    private fun tokenFuzzyScore(
+        queryTokens: List<String>,
+        targetTokens: List<String>,
+    ): Double {
         if (queryTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
 
         var totalScore = 0.0
 
         for (queryToken in queryTokens) {
-            val bestMatch = targetTokens.maxOfOrNull { targetToken ->
-                combinedSimilarity(queryToken, targetToken)
-            } ?: 0.0
+            val bestMatch =
+                targetTokens.maxOfOrNull { targetToken ->
+                    combinedSimilarity(queryToken, targetToken)
+                } ?: 0.0
 
             totalScore += bestMatch
         }
@@ -486,14 +525,18 @@ object SemanticSearchEngine {
     /**
      * Phonetic match score using Soundex.
      */
-    private fun phoneticMatchScore(querySoundex: List<String>, targetSoundex: List<String>): Double {
+    private fun phoneticMatchScore(
+        querySoundex: List<String>,
+        targetSoundex: List<String>,
+    ): Double {
         if (querySoundex.isEmpty() || targetSoundex.isEmpty()) return 0.0
 
-        val matches = querySoundex.count { qs ->
-            targetSoundex.any { ts -> ts == qs }
-        }
+        val matches =
+            querySoundex.count { qs ->
+                targetSoundex.any { ts -> ts == qs }
+            }
 
-        return (matches.toDouble() / querySoundex.size) * 0.85  // Cap at 0.85 for phonetic
+        return (matches.toDouble() / querySoundex.size) * 0.85 // Cap at 0.85 for phonetic
     }
 
     /**
@@ -537,9 +580,9 @@ object SemanticSearchEngine {
      */
     fun normalizeText(text: String): String {
         return text.lowercase()
-            .replace(SEPARATOR_REGEX, " ")  // Replace separators with spaces
-            .replace(SPECIAL_CHAR_REGEX, "")  // Remove special chars
-            .replace(MULTI_SPACE_REGEX, " ")  // Collapse multiple spaces
+            .replace(SEPARATOR_REGEX, " ") // Replace separators with spaces
+            .replace(SPECIAL_CHAR_REGEX, "") // Remove special chars
+            .replace(MULTI_SPACE_REGEX, " ") // Collapse multiple spaces
             .trim()
     }
 
@@ -549,7 +592,7 @@ object SemanticSearchEngine {
     fun tokenize(text: String): List<String> {
         return normalizeText(text)
             .split(" ")
-            .filter { it.length >= 2 }  // Filter out very short tokens
+            .filter { it.length >= 2 } // Filter out very short tokens
             .distinct()
     }
 
@@ -557,14 +600,15 @@ object SemanticSearchEngine {
      * Extract meaningful keywords from text, filtering common words.
      */
     fun extractKeywords(text: String): List<String> {
-        val stopWords = setOf(
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-            "been", "being", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "must", "shall", "can",
-            "this", "that", "these", "those", "it", "its", "my", "your", "his",
-            "her", "our", "their", "me", "you", "him", "us", "them"
-        )
+        val stopWords =
+            setOf(
+                "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+                "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
+                "been", "being", "have", "has", "had", "do", "does", "did", "will",
+                "would", "could", "should", "may", "might", "must", "shall", "can",
+                "this", "that", "these", "those", "it", "its", "my", "your", "his",
+                "her", "our", "their", "me", "you", "him", "us", "them",
+            )
 
         return tokenize(text).filter { it !in stopWords && it.length >= 3 }
     }

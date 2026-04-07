@@ -8,6 +8,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ClarificationRequest(
     val question: String,
-    val options: List<String>,       // e.g. ["Vacation", "Business"]
-    val allowCustomInput: Boolean = true // e.g. "Other..."
+    val options: List<String>, // e.g. ["Vacation", "Business"]
+    val allowCustomInput: Boolean = true, // e.g. "Other..."
 )

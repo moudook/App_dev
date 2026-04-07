@@ -1,11 +1,8 @@
 package com.example.smarty.server.services
 
-import com.example.smarty.server.llm.ProviderRouter
-import com.example.smarty.server.llm.LlmMessage
-import com.example.smarty.server.llm.RoutingStrategy
-import com.example.smarty.server.llm.Capability
-import com.example.smarty.server.tools.KreaImageTool
 import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.server.llm.ProviderRouter
+import com.example.smarty.server.tools.KreaImageTool
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -18,22 +15,22 @@ import java.util.UUID
 class OrchestratorService(
     private val providerRouter: ProviderRouter,
     private val visionService: VisionService,
-    private val kreaImageTool: KreaImageTool
+    private val kreaImageTool: KreaImageTool,
 ) {
     private val logger = LoggerFactory.getLogger(OrchestratorService::class.java)
     private val json = Json { ignoreUnknownKeys = true }
 
     enum class ActionType {
-        REPLY,              // Standard text response
-        UNDERSTAND_IMAGE,   // Analyze attached image
-        GENERATE_IMAGE,     // Generate new image
-        EDIT_IMAGE          // Edit existing image
+        REPLY, // Standard text response
+        UNDERSTAND_IMAGE, // Analyze attached image
+        GENERATE_IMAGE, // Generate new image
+        EDIT_IMAGE, // Edit existing image
     }
 
     @Serializable
     data class Decision(
         val action: ActionType,
-        val reasoning: String
+        val reasoning: String,
     )
 
     /**
@@ -42,7 +39,7 @@ class OrchestratorService(
     suspend fun processRequest(
         query: String,
         attachments: List<ByteArray> = emptyList(),
-        eventEmitter: suspend (AgentEvent) -> Unit
+        eventEmitter: suspend (AgentEvent) -> Unit,
     ): String {
         logger.info("Orchestrator processing request: $query (Attachments: ${attachments.size})")
 
@@ -65,10 +62,11 @@ class OrchestratorService(
                 emitProcessing(eventEmitter, "Generating image...")
                 try {
                     val aspectRatio = extractAspectRatio(query)
-                    val jobId = kreaImageTool.generateImage(
-                        prompt = enhancePrompt(query),
-                        aspectRatio = aspectRatio
-                    )
+                    val jobId =
+                        kreaImageTool.generateImage(
+                            prompt = enhancePrompt(query),
+                            aspectRatio = aspectRatio,
+                        )
                     "IMAGE_GENERATION_STARTED:$jobId"
                 } catch (e: Exception) {
                     logger.error("Image generation failed", e)
@@ -87,31 +85,40 @@ class OrchestratorService(
     /**
      * Decide action based on query and attachments (public for routes)
      */
-    fun decideAction(query: String, hasAttachments: Boolean): Decision {
+    fun decideAction(
+        query: String,
+        hasAttachments: Boolean,
+    ): Decision {
         if (hasAttachments) {
             return Decision(ActionType.UNDERSTAND_IMAGE, "User uploaded an image.")
         }
 
         val lowerQuery = query.lowercase()
-        if (lowerQuery.contains("generate image") || 
-            lowerQuery.contains("create an image") || 
+        if (lowerQuery.contains("generate image") ||
+            lowerQuery.contains("create an image") ||
             lowerQuery.contains("draw") ||
             lowerQuery.contains("create image") ||
             lowerQuery.contains("make an image") ||
             lowerQuery.contains("image of") ||
-            lowerQuery.contains("picture of")) {
+            lowerQuery.contains("picture of")
+        ) {
             return Decision(ActionType.GENERATE_IMAGE, "User requested image generation.")
         }
 
         return Decision(ActionType.REPLY, "Standard text chat.")
     }
 
-    private suspend fun emitProcessing(emitter: suspend (AgentEvent) -> Unit, message: String) {
-        emitter(AgentEvent.Processing(
-            eventId = UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
-            content = message
-        ))
+    private suspend fun emitProcessing(
+        emitter: suspend (AgentEvent) -> Unit,
+        message: String,
+    ) {
+        emitter(
+            AgentEvent.Processing(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                content = message,
+            ),
+        )
     }
 
     /**
@@ -120,13 +127,13 @@ class OrchestratorService(
     private fun extractAspectRatio(query: String): String {
         val ratios = listOf("16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21")
         val lowerQuery = query.lowercase()
-        
+
         for (ratio in ratios) {
             if (lowerQuery.contains(ratio)) {
                 return ratio
             }
         }
-        
+
         // Default to square
         return "1:1"
     }
@@ -136,13 +143,14 @@ class OrchestratorService(
      */
     private fun enhancePrompt(query: String): String {
         // Basic prompt enhancement
-        val enhancements = listOf(
-            "highly detailed",
-            "professional quality",
-            "8k resolution",
-            "cinematic lighting"
-        )
-        
+        val enhancements =
+            listOf(
+                "highly detailed",
+                "professional quality",
+                "8k resolution",
+                "cinematic lighting",
+            )
+
         return "$query, ${enhancements.joinToString(", ")}"
     }
 }

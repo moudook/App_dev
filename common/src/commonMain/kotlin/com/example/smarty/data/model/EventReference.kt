@@ -8,5 +8,5 @@ data class EventReference(
     val eventId: String,
     val title: String,
     val timeSnippet: String,
-    val description: String? = null
+    val description: String? = null,
 )

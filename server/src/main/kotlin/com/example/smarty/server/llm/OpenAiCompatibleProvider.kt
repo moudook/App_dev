@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
@@ -28,20 +28,20 @@ class OpenAiCompatibleProvider(
     override val providerName: String,
     private val baseUrl: String,
     private val apiKey: String,
-    private val defaultModel: String
+    private val defaultModel: String,
 ) : LlmProvider {
-
     private val logger = LoggerFactory.getLogger(OpenAiCompatibleProvider::class.java)
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        explicitNulls = false
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+            explicitNulls = false
+        }
 
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
+        model: String?,
     ): LlmResponse {
         val requestBody = buildRequestBody(messages, tools, model, stream = false)
         // Manually serialize to JSON string — no ContentNegotiation plugin required
@@ -50,38 +50,41 @@ class OpenAiCompatibleProvider(
         val endpoint = resolveEndpoint(baseUrl)
 
         try {
-            val responseText = client.post(endpoint) {
-                header(HttpHeaders.Authorization, "Bearer $apiKey")
-                contentType(ContentType.Application.Json)
-                timeout {
-                    requestTimeoutMillis = 120_000
-                    connectTimeoutMillis = 30_000
-                }
-                setBody(requestBodyJson)
-            }.bodyAsText()
+            val responseText =
+                client.post(endpoint) {
+                    header(HttpHeaders.Authorization, "Bearer $apiKey")
+                    contentType(ContentType.Application.Json)
+                    timeout {
+                        requestTimeoutMillis = 120_000
+                        connectTimeoutMillis = 30_000
+                    }
+                    setBody(requestBodyJson)
+                }.bodyAsText()
 
             val response: OpenAiChatResponse = json.decodeFromString(responseText)
             val choice = response.choices.firstOrNull() ?: return LlmResponse(content = null)
 
             // Some providers (GLM-5, DeepSeek) return content=null with reasoning_content
-            val effectiveContent = choice.message.content
-                ?: choice.message.effectiveReasoning
+            val effectiveContent =
+                choice.message.content
+                    ?: choice.message.effectiveReasoning
 
             return LlmResponse(
                 content = effectiveContent,
                 toolCalls = choice.message.effectiveToolCalls?.map { it.toLlmToolCall() } ?: emptyList(),
-                usage = response.usage?.let { LlmUsage(it.promptTokens, it.completionTokens, it.totalTokens) }
+                usage = response.usage?.let { LlmUsage(it.promptTokens, it.completionTokens, it.totalTokens) },
             )
         } catch (e: Exception) {
             logger.error("Generate call failed for $providerName", e)
-            val errorMsg = when {
-                e.message?.contains("rate", ignoreCase = true) == true -> "Rate limit exceeded. Please try again in a moment."
-                e.message?.contains("401") == true || e.message?.contains("unauthorized", ignoreCase = true) == true -> "API authentication failed."
-                e.message?.contains("500") == true || e.message?.contains("502") == true -> "LLM provider is experiencing issues."
-                e.message?.contains("503") == true -> "LLM provider is temporarily unavailable."
-                e.message?.contains("timeout", ignoreCase = true) == true -> "Request timed out. Please try again."
-                else -> "$providerName API error: ${e.message?.take(100)}"
-            }
+            val errorMsg =
+                when {
+                    e.message?.contains("rate", ignoreCase = true) == true -> "Rate limit exceeded. Please try again in a moment."
+                    e.message?.contains("401") == true || e.message?.contains("unauthorized", ignoreCase = true) == true -> "API authentication failed."
+                    e.message?.contains("500") == true || e.message?.contains("502") == true -> "LLM provider is experiencing issues."
+                    e.message?.contains("503") == true -> "LLM provider is temporarily unavailable."
+                    e.message?.contains("timeout", ignoreCase = true) == true -> "Request timed out. Please try again."
+                    else -> "$providerName API error: ${e.message?.take(100)}"
+                }
             throw IllegalStateException(errorMsg, e)
         }
     }
@@ -89,83 +92,88 @@ class OpenAiCompatibleProvider(
     override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
-        model: String?
-    ): Flow<LlmChunk> = flow {
-        val requestBody = buildRequestBody(messages, tools, model, stream = true)
-        // Manually serialize to JSON string — no ContentNegotiation plugin required
-        val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
+        model: String?,
+    ): Flow<LlmChunk> =
+        flow {
+            val requestBody = buildRequestBody(messages, tools, model, stream = true)
+            // Manually serialize to JSON string — no ContentNegotiation plugin required
+            val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
 
-        val endpoint = resolveEndpoint(baseUrl)
+            val endpoint = resolveEndpoint(baseUrl)
 
-        try {
-            client.preparePost(endpoint) {
-                header(HttpHeaders.Authorization, "Bearer $apiKey")
-                contentType(ContentType.Application.Json)
-                header("Accept-Encoding", "identity")
-                header("Cache-Control", "no-cache")
-                timeout {
-                    requestTimeoutMillis = Long.MAX_VALUE
-                    connectTimeoutMillis = 60_000
-                    socketTimeoutMillis = Long.MAX_VALUE
-                }
-                setBody(requestBodyJson)
-            }.execute { httpResponse ->
-                if (!httpResponse.status.isSuccess()) {
-                    val errorBody = httpResponse.bodyAsText()
-                    logger.error("LLM API error for $providerName: ${httpResponse.status} - $errorBody")
-                    val errorMsg = when {
-                        errorBody.contains("rate", ignoreCase = true) -> "Rate limit exceeded. Please try again in a moment."
-                        errorBody.contains("invalid", ignoreCase = true) || errorBody.contains("unauthorized", ignoreCase = true) -> "API authentication failed."
-                        httpResponse.status.value == 500 -> "LLM provider is experiencing issues. Please try again."
-                        httpResponse.status.value == 502 || httpResponse.status.value == 503 -> "LLM provider is temporarily unavailable."
-                        else -> "$providerName API returned ${httpResponse.status}: ${errorBody.take(200)}"
+            try {
+                client.preparePost(endpoint) {
+                    header(HttpHeaders.Authorization, "Bearer $apiKey")
+                    contentType(ContentType.Application.Json)
+                    header("Accept-Encoding", "identity")
+                    header("Cache-Control", "no-cache")
+                    timeout {
+                        requestTimeoutMillis = Long.MAX_VALUE
+                        connectTimeoutMillis = 60_000
+                        socketTimeoutMillis = Long.MAX_VALUE
                     }
-                    throw IllegalStateException(errorMsg)
-                }
-
-                val channel: ByteReadChannel = httpResponse.bodyAsChannel()
-                while (!channel.isClosedForRead) {
-                    val line = channel.readUTF8Line() ?: continue
-
-                    if (line.startsWith("data: ")) {
-                        val data = line.removePrefix("data: ").trim()
-                        if (data == "[DONE]") break
-
-                        try {
-                            val chunk = json.decodeFromString<OpenAiStreamChunk>(data)
-                            val delta = chunk.choices.firstOrNull()?.delta
-
-                            if (delta != null) {
-                                val reasoning = delta.effectiveReasoning
-                                val content = delta.content
-                                val toolCall = delta.effectiveToolCalls?.firstOrNull()?.let { tc ->
-                                    LlmToolCall(
-                                        id = tc.id ?: "",
-                                        functionName = tc.function?.name ?: "",
-                                        arguments = tc.function?.arguments ?: ""
-                                    )
-                                }
-
-                                // Emit reasoning and content as separate fields
-                                if (!reasoning.isNullOrEmpty() || !content.isNullOrEmpty() || toolCall != null) {
-                                    emit(LlmChunk(
-                                        content = content,
-                                        reasoning = reasoning,
-                                        toolCall = toolCall
-                                    ))
-                                }
+                    setBody(requestBodyJson)
+                }.execute { httpResponse ->
+                    if (!httpResponse.status.isSuccess()) {
+                        val errorBody = httpResponse.bodyAsText()
+                        logger.error("LLM API error for $providerName: ${httpResponse.status} - $errorBody")
+                        val errorMsg =
+                            when {
+                                errorBody.contains("rate", ignoreCase = true) -> "Rate limit exceeded. Please try again in a moment."
+                                errorBody.contains("invalid", ignoreCase = true) || errorBody.contains("unauthorized", ignoreCase = true) -> "API authentication failed."
+                                httpResponse.status.value == 500 -> "LLM provider is experiencing issues. Please try again."
+                                httpResponse.status.value == 502 || httpResponse.status.value == 503 -> "LLM provider is temporarily unavailable."
+                                else -> "$providerName API returned ${httpResponse.status}: ${errorBody.take(200)}"
                             }
-                        } catch (e: Exception) {
-                            logger.debug("Failed to parse SSE chunk: ${e.message}")
+                        throw IllegalStateException(errorMsg)
+                    }
+
+                    val channel: ByteReadChannel = httpResponse.bodyAsChannel()
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readUTF8Line() ?: continue
+
+                        if (line.startsWith("data: ")) {
+                            val data = line.removePrefix("data: ").trim()
+                            if (data == "[DONE]") break
+
+                            try {
+                                val chunk = json.decodeFromString<OpenAiStreamChunk>(data)
+                                val delta = chunk.choices.firstOrNull()?.delta
+
+                                if (delta != null) {
+                                    val reasoning = delta.effectiveReasoning
+                                    val content = delta.content
+                                    val toolCall =
+                                        delta.effectiveToolCalls?.firstOrNull()?.let { tc ->
+                                            LlmToolCall(
+                                                id = tc.id ?: "",
+                                                functionName = tc.function?.name ?: "",
+                                                arguments = tc.function?.arguments ?: "",
+                                            )
+                                        }
+
+                                    // Emit reasoning and content as separate fields
+                                    if (!reasoning.isNullOrEmpty() || !content.isNullOrEmpty() || toolCall != null) {
+                                        emit(
+                                            LlmChunk(
+                                                content = content,
+                                                reasoning = reasoning,
+                                                toolCall = toolCall,
+                                            ),
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                logger.debug("Failed to parse SSE chunk: ${e.message}")
+                            }
                         }
                     }
                 }
+            } catch (e: Exception) {
+                logger.error("Stream call failed for $providerName", e)
+                throw e
             }
-        } catch (e: Exception) {
-            logger.error("Stream call failed for $providerName", e)
-            throw e
         }
-    }
 
     /**
      * Check if the provider supports function calling / tools.
@@ -192,64 +200,72 @@ class OpenAiCompatibleProvider(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?,
-        stream: Boolean
+        stream: Boolean,
     ): OpenAiChatRequest {
-        val toolsList = if (tools.isNotEmpty() && supportsTools()) {
-            tools.map { it.toOpenAiTool() }
-        } else null
+        val toolsList =
+            if (tools.isNotEmpty() && supportsTools()) {
+                tools.map { it.toOpenAiTool() }
+            } else {
+                null
+            }
 
         return OpenAiChatRequest(
             model = model ?: defaultModel,
             messages = messages.map { it.toOpenAiMessage() },
             tools = toolsList,
-            stream = stream
+            stream = stream,
         )
     }
 
     private fun LlmMessage.toOpenAiMessage(): OpenAiMessage {
-        val roleStr = when (role) {
-            LlmMessage.Role.TOOL -> "tool"
-            LlmMessage.Role.ASSISTANT -> "assistant"
-            LlmMessage.Role.SYSTEM -> "system"
-            LlmMessage.Role.USER -> "user"
-        }
+        val roleStr =
+            when (role) {
+                LlmMessage.Role.TOOL -> "tool"
+                LlmMessage.Role.ASSISTANT -> "assistant"
+                LlmMessage.Role.SYSTEM -> "system"
+                LlmMessage.Role.USER -> "user"
+            }
         return OpenAiMessage(
             role = roleStr,
             content = content,
             name = name,
-            toolCallId = if (role == LlmMessage.Role.TOOL) name else null
+            toolCallId = if (role == LlmMessage.Role.TOOL) name else null,
         )
     }
 
     private fun ToolDefinition.toOpenAiTool(): OpenAiTool {
         val propertiesMap = mutableMapOf<String, ToolPropertySchema>()
         parameters.properties.forEach { (name, prop) ->
-            propertiesMap[name] = ToolPropertySchema(
-                type = prop.type,
-                description = prop.description,
-                enum = prop.enum?.takeIf { it.isNotEmpty() }
-            )
+            propertiesMap[name] =
+                ToolPropertySchema(
+                    type = prop.type,
+                    description = prop.description,
+                    enum = prop.enum?.takeIf { it.isNotEmpty() },
+                )
         }
 
         return OpenAiTool(
             type = "function",
-            function = OpenAiFunctionDefinition(
-                name = name,
-                description = description,
-                parameters = ToolParametersSchema(
-                    type = parameters.type,
-                    properties = propertiesMap,
-                    required = parameters.required
-                )
-            )
+            function =
+                OpenAiFunctionDefinition(
+                    name = name,
+                    description = description,
+                    parameters =
+                        ToolParametersSchema(
+                            type = parameters.type,
+                            properties = propertiesMap,
+                            required = parameters.required,
+                        ),
+                ),
         )
     }
 
-    private fun OpenAiToolCall.toLlmToolCall(): LlmToolCall = LlmToolCall(
-        id = id ?: "",
-        functionName = function?.name ?: "",
-        arguments = function?.arguments ?: ""
-    )
+    private fun OpenAiToolCall.toLlmToolCall(): LlmToolCall =
+        LlmToolCall(
+            id = id ?: "",
+            functionName = function?.name ?: "",
+            arguments = function?.arguments ?: "",
+        )
 }
 
 // --- OpenAI DTOs ---
@@ -259,7 +275,7 @@ internal data class OpenAiChatRequest(
     val model: String,
     val messages: List<OpenAiMessage>,
     val tools: List<OpenAiTool>? = null,
-    val stream: Boolean = false
+    val stream: Boolean = false,
 )
 
 @Serializable
@@ -268,56 +284,56 @@ internal data class OpenAiMessage(
     val content: String?,
     val name: String? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
-    @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null
+    @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null,
 )
 
 @Serializable
 internal data class OpenAiTool(
     val type: String,
-    val function: OpenAiFunctionDefinition
+    val function: OpenAiFunctionDefinition,
 )
 
 @Serializable
 internal data class OpenAiFunctionDefinition(
     val name: String,
     val description: String,
-    val parameters: ToolParametersSchema
+    val parameters: ToolParametersSchema,
 )
 
 @Serializable
 internal data class ToolParametersSchema(
     val type: String = "object",
     val properties: Map<String, ToolPropertySchema>,
-    val required: List<String> = emptyList()
+    val required: List<String> = emptyList(),
 )
 
 @Serializable
 internal data class ToolPropertySchema(
     val type: String,
     val description: String? = null,
-    val enum: List<String>? = null
+    val enum: List<String>? = null,
 )
 
 @Serializable
 internal data class OpenAiChatResponse(
     val choices: List<OpenAiChoice>,
-    val usage: OpenAiUsage? = null
+    val usage: OpenAiUsage? = null,
 )
 
 @Serializable
 internal data class OpenAiChoice(
     val message: OpenAiMessageDelta, // Non-streaming response has full message structure
-    val finish_reason: String?
+    val finish_reason: String?,
 )
 
 @Serializable
 internal data class OpenAiStreamChunk(
-    val choices: List<OpenAiStreamChoice>
+    val choices: List<OpenAiStreamChoice>,
 )
 
 @Serializable
 internal data class OpenAiStreamChoice(
-    val delta: OpenAiMessageDelta
+    val delta: OpenAiMessageDelta,
 )
 
 @Serializable
@@ -327,7 +343,7 @@ internal data class OpenAiMessageDelta(
     @SerialName("reasoning_content") val reasoning_content: String? = null,
     val toolCalls: List<OpenAiToolCall>? = null,
     @SerialName("tool_calls") val tool_calls: List<OpenAiToolCall>? = null,
-    @SerialName("tool_call_id") val toolCallId: String? = null
+    @SerialName("tool_call_id") val toolCallId: String? = null,
 ) {
     val effectiveToolCalls: List<OpenAiToolCall>? get() = toolCalls ?: tool_calls
     val effectiveReasoning: String? get() = reasoningContent ?: reasoning_content
@@ -337,18 +353,18 @@ internal data class OpenAiMessageDelta(
 internal data class OpenAiToolCall(
     val id: String? = null,
     val type: String? = null,
-    val function: OpenAiFunctionCall? = null
+    val function: OpenAiFunctionCall? = null,
 )
 
 @Serializable
 internal data class OpenAiFunctionCall(
     val name: String? = null,
-    val arguments: String? = null
+    val arguments: String? = null,
 )
 
 @Serializable
 internal data class OpenAiUsage(
     @SerialName("prompt_tokens") val promptTokens: Int = 0,
     @SerialName("completion_tokens") val completionTokens: Int = 0,
-    @SerialName("total_tokens") val totalTokens: Int = 0
+    @SerialName("total_tokens") val totalTokens: Int = 0,
 )

@@ -7,18 +7,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -28,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -36,19 +29,18 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.SmartyTimer
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CalendarEmptyState
-import com.example.smarty.ui.components.CalendarEventCard
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.theme.softCardShadow
 import kotlinx.coroutines.launch
@@ -56,15 +48,15 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 
+ *
  * PREMIUM DARK CALENDAR SCREEN
- * 
+ *
  * Design: Always-dark theme with Electric Blue accent (matches app theme)
  * - Deep dark background for immersive experience
  * - Electric Blue accent for selections (consistent with Smarty design)
  * - Dashed circles for today/weekends
  * - Gradient event cards
- * 
+ *
  */
 
 // Design System Colors for Calendar
@@ -87,10 +79,10 @@ private fun calendarTextMuted() = MaterialTheme.colorScheme.onSurfaceVariant
  * Sync status for calendar synchronization indicator
  */
 enum class SyncStatus {
-    Idle,      // No sync in progress
-    Syncing,   // Sync in progress
-    Success,   // Last sync succeeded
-    Error      // Last sync failed
+    Idle, // No sync in progress
+    Syncing, // Sync in progress
+    Success, // Last sync succeeded
+    Error, // Last sync failed
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +98,7 @@ fun CalendarScreen(
     syncStatus: SyncStatus = SyncStatus.Idle,
     onSyncClick: () -> Unit = {},
     isLoading: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -115,25 +107,28 @@ fun CalendarScreen(
     val accentLight = accentColor.copy(alpha = 0.7f)
 
     // Check calendar permissions
-    val hasReadPermission = remember {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
-    }
-    val hasWritePermission = remember {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
-    }
+    val hasReadPermission =
+        remember {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        }
+    val hasWritePermission =
+        remember {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        }
     val hasCalendarPermission = hasReadPermission && hasWritePermission
 
     // Permission request launcher
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val readGranted = permissions[Manifest.permission.READ_CALENDAR] ?: false
-        val writeGranted = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
-        if (readGranted && writeGranted) {
-            // Permission granted, trigger sync
-            onSyncClick()
+    val permissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions(),
+        ) { permissions ->
+            val readGranted = permissions[Manifest.permission.READ_CALENDAR] ?: false
+            val writeGranted = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
+            if (readGranted && writeGranted) {
+                // Permission granted, trigger sync
+                onSyncClick()
+            }
         }
-    }
 
     // Calendar state
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
@@ -141,62 +136,66 @@ fun CalendarScreen(
     var showPermissionRationale by remember { mutableStateOf(false) }
 
     // Filter events for selected date
-    val selectedDateEvents = remember(events, selectedDate) {
-        val dayStart = selectedDate.clone() as Calendar
-        dayStart.set(Calendar.HOUR_OF_DAY, 0)
-        dayStart.set(Calendar.MINUTE, 0)
-        dayStart.set(Calendar.SECOND, 0)
-        dayStart.set(Calendar.MILLISECOND, 0)
+    val selectedDateEvents =
+        remember(events, selectedDate) {
+            val dayStart = selectedDate.clone() as Calendar
+            dayStart.set(Calendar.HOUR_OF_DAY, 0)
+            dayStart.set(Calendar.MINUTE, 0)
+            dayStart.set(Calendar.SECOND, 0)
+            dayStart.set(Calendar.MILLISECOND, 0)
 
-        val dayEnd = dayStart.clone() as Calendar
-        dayEnd.add(Calendar.DAY_OF_MONTH, 1)
+            val dayEnd = dayStart.clone() as Calendar
+            dayEnd.add(Calendar.DAY_OF_MONTH, 1)
 
-        events.filter { event ->
-            event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
-        }.sortedBy { it.startTime }
-    }
+            events.filter { event ->
+                event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
+            }.sortedBy { it.startTime }
+        }
 
     // Events for month (for indicators) - tracks both event days and recurring event days
-    val monthEventDays = remember(events, currentMonth) {
-        val start = currentMonth.clone() as Calendar
-        start.set(Calendar.DAY_OF_MONTH, 1)
-        start.set(Calendar.HOUR_OF_DAY, 0)
-        start.set(Calendar.MINUTE, 0)
+    val monthEventDays =
+        remember(events, currentMonth) {
+            val start = currentMonth.clone() as Calendar
+            start.set(Calendar.DAY_OF_MONTH, 1)
+            start.set(Calendar.HOUR_OF_DAY, 0)
+            start.set(Calendar.MINUTE, 0)
 
-        val end = start.clone() as Calendar
-        end.add(Calendar.MONTH, 1)
+            val end = start.clone() as Calendar
+            end.add(Calendar.MONTH, 1)
 
-        events.filter { it.startTime >= start.timeInMillis && it.startTime < end.timeInMillis }
-            .map { event ->
+            events.filter { it.startTime >= start.timeInMillis && it.startTime < end.timeInMillis }
+                .map { event ->
+                    val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
+                    cal.get(Calendar.DAY_OF_MONTH)
+                }.toSet()
+        }
+
+    // Recurring event days (for special indicator on day cells)
+    val recurringEventDays =
+        remember(events, currentMonth) {
+            val start = currentMonth.clone() as Calendar
+            start.set(Calendar.DAY_OF_MONTH, 1)
+            start.set(Calendar.HOUR_OF_DAY, 0)
+            start.set(Calendar.MINUTE, 0)
+
+            val end = start.clone() as Calendar
+            end.add(Calendar.MONTH, 1)
+
+            events.filter {
+                it.startTime >= start.timeInMillis &&
+                    it.startTime < end.timeInMillis &&
+                    it.isRecurring
+            }.map { event ->
                 val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
                 cal.get(Calendar.DAY_OF_MONTH)
             }.toSet()
-    }
-
-    // Recurring event days (for special indicator on day cells)
-    val recurringEventDays = remember(events, currentMonth) {
-        val start = currentMonth.clone() as Calendar
-        start.set(Calendar.DAY_OF_MONTH, 1)
-        start.set(Calendar.HOUR_OF_DAY, 0)
-        start.set(Calendar.MINUTE, 0)
-
-        val end = start.clone() as Calendar
-        end.add(Calendar.MONTH, 1)
-
-        events.filter {
-            it.startTime >= start.timeInMillis &&
-            it.startTime < end.timeInMillis &&
-            it.isRecurring
-        }.map { event ->
-            val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
-            cal.get(Calendar.DAY_OF_MONTH)
-        }.toSet()
-    }
+        }
 
     // Generate month days
-    val daysInMonth = remember(currentMonth) {
-        generateMonthDays(currentMonth)
-    }
+    val daysInMonth =
+        remember(currentMonth) {
+            generateMonthDays(currentMonth)
+        }
 
     // Theme-aware colors
     val surfaceColor = calendarSurface()
@@ -207,24 +206,27 @@ fun CalendarScreen(
     androidx.activity.compose.BackHandler(onBack = onBackClick)
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
         ) {
-            // 
+            //
             // TOP NAVIGATION BAR
-            // 
+            //
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Left side - Back button
                 FilledIconButton(
@@ -232,23 +234,24 @@ fun CalendarScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onBackClick()
                     },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = surfaceColor,
-                        contentColor = textPrimary
-                    ),
-                    modifier = Modifier.size(44.dp)
+                    colors =
+                        IconButtonDefaults.filledIconButtonColors(
+                            containerColor = surfaceColor,
+                            contentColor = textPrimary,
+                        ),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
                 }
 
                 // Right side buttons - Sync + Add
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Sync Button with status indicator
                     FilledIconButton(
@@ -259,51 +262,53 @@ fun CalendarScreen(
                                 permissionLauncher.launch(
                                     arrayOf(
                                         Manifest.permission.READ_CALENDAR,
-                                        Manifest.permission.WRITE_CALENDAR
-                                    )
+                                        Manifest.permission.WRITE_CALENDAR,
+                                    ),
                                 )
                             } else {
                                 onSyncClick()
                             }
                         },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = surfaceColor,
-                            contentColor = when (syncStatus) {
-                                SyncStatus.Success -> accentColor
-                                SyncStatus.Error -> MaterialTheme.colorScheme.error
-                                else -> textPrimary
-                            }
-                        ),
+                        colors =
+                            IconButtonDefaults.filledIconButtonColors(
+                                containerColor = surfaceColor,
+                                contentColor =
+                                    when (syncStatus) {
+                                        SyncStatus.Success -> accentColor
+                                        SyncStatus.Error -> MaterialTheme.colorScheme.error
+                                        else -> textPrimary
+                                    },
+                            ),
                         modifier = Modifier.size(44.dp),
-                        enabled = syncStatus != SyncStatus.Syncing
+                        enabled = syncStatus != SyncStatus.Syncing,
                     ) {
                         when (syncStatus) {
                             SyncStatus.Syncing -> {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     color = textPrimary,
-                                    strokeWidth = 2.dp
+                                    strokeWidth = 2.dp,
                                 )
                             }
                             SyncStatus.Success -> {
                                 Icon(
                                     imageVector = Icons.Default.Verified,
                                     contentDescription = stringResource(R.string.sync_completed),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                             SyncStatus.Error -> {
                                 Icon(
                                     imageVector = Icons.Default.ErrorOutline,
                                     contentDescription = stringResource(R.string.sync_failed),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                             SyncStatus.Idle -> {
                                 Icon(
                                     imageVector = Icons.Default.Sync,
                                     contentDescription = stringResource(R.string.sync_calendar),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }
@@ -315,80 +320,85 @@ fun CalendarScreen(
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onAddEvent(selectedDate)
                         },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = surfaceColor,
-                            contentColor = textPrimary
-                        ),
-                        modifier = Modifier.size(44.dp)
+                        colors =
+                            IconButtonDefaults.filledIconButtonColors(
+                                containerColor = surfaceColor,
+                                contentColor = textPrimary,
+                            ),
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             Icons.Default.Add,
                             contentDescription = stringResource(R.string.add_event),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
             }
 
-            // 
+            //
             // TITLE SECTION
-            // 
+            //
             Column(
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp),
             ) {
                 Text(
                     text = stringResource(R.string.my),
-                    style = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Light,
-                        letterSpacing = 1.sp
-                    ),
-                    color = textPrimary
+                    style =
+                        MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Light,
+                            letterSpacing = 1.sp,
+                        ),
+                    color = textPrimary,
                 )
                 Text(
                     text = stringResource(R.string.schedule_),
-                    style = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-1).sp
-                    ),
-                    color = textPrimary
+                    style =
+                        MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-1).sp,
+                        ),
+                    color = textPrimary,
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 
+            //
             // ACTIVE TIMERS SECTION
-            // 
+            //
             if (activeTimers.isNotEmpty()) {
                 ActiveTimersRow(
                     timers = activeTimers,
                     accentColor = accentColor,
                     surfaceColor = surfaceColor,
                     textPrimary = textPrimary,
-                    onCancelTimer = onCancelTimer
+                    onCancelTimer = onCancelTimer,
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // 
+            //
             // MONTH HEADER WITH NAVIGATION
-            // 
+            //
             val monthFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = monthFormat.format(currentMonth.time).lowercase(),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.5).sp
-                    ),
-                    color = textPrimary
+                    style =
+                        MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = (-0.5).sp,
+                        ),
+                    color = textPrimary,
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -396,21 +406,22 @@ fun CalendarScreen(
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            currentMonth = (currentMonth.clone() as Calendar).apply {
-                                add(Calendar.MONTH, -1)
-                            }
+                            currentMonth =
+                                (currentMonth.clone() as Calendar).apply {
+                                    add(Calendar.MONTH, -1)
+                                }
                         },
                         shape = CircleShape,
                         color = surfaceColor,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(36.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronLeft,
                                 contentDescription = stringResource(R.string.previous),
                                 tint = textPrimary,
-                                modifier = Modifier.size(20.dp)
-                              )
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                     }
 
@@ -418,20 +429,21 @@ fun CalendarScreen(
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            currentMonth = (currentMonth.clone() as Calendar).apply {
-                                add(Calendar.MONTH, 1)
-                            }
+                            currentMonth =
+                                (currentMonth.clone() as Calendar).apply {
+                                    add(Calendar.MONTH, 1)
+                                }
                         },
                         shape = CircleShape,
                         color = surfaceColor,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(36.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronRight,
                                 contentDescription = stringResource(R.string.next),
                                 tint = textPrimary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
@@ -440,14 +452,15 @@ fun CalendarScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 
+            //
             // DAY HEADERS (MON, TUE, etc.)
-            // 
+            //
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 listOf(
                     stringResource(R.string.mon),
@@ -456,53 +469,59 @@ fun CalendarScreen(
                     stringResource(R.string.thu),
                     stringResource(R.string.fri),
                     stringResource(R.string.sat),
-                    stringResource(R.string.sun)
+                    stringResource(R.string.sun),
                 ).forEach { day ->
                     Text(
                         text = day,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 0.5.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 0.5.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
                         color = textMuted.copy(alpha = 0.6f),
                         modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 
+            //
             // CALENDAR GRID
-            // 
+            //
             val today = remember { Calendar.getInstance() }
 
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 daysInMonth.chunked(7).forEach { week ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         week.forEach { day ->
-                            val cellModifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp)
+                            val cellModifier =
+                                Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .padding(2.dp)
 
                             if (day != null) {
-                                val isSelected = day.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH) &&
-                                               day.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
-                                               day.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
-                                val isToday = day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-                                             day.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-                                val isWeekend = day.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
-                                               day.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+                                val isSelected =
+                                    day.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH) &&
+                                        day.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
+                                        day.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
+                                val isToday =
+                                    day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
+                                        day.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+                                val isWeekend =
+                                    day.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
+                                        day.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
                                 val hasEvents = monthEventDays.contains(day.get(Calendar.DAY_OF_MONTH))
                                 val hasRecurringEvents = recurringEventDays.contains(day.get(Calendar.DAY_OF_MONTH))
                                 val isCurrentMonth = day.get(Calendar.MONTH) == currentMonth.get(Calendar.MONTH)
@@ -521,7 +540,7 @@ fun CalendarScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedDate = day
                                     },
-                                    modifier = cellModifier
+                                    modifier = cellModifier,
                                 )
                             } else {
                                 Spacer(modifier = cellModifier)
@@ -533,49 +552,52 @@ fun CalendarScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 
+            //
             // EVENT LIST (Bottom Section)
-            // 
+            //
             if (isLoading) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.TopCenter
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    contentAlignment = Alignment.TopCenter,
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.padding(top = 40.dp),
                         color = accentColor,
-                        strokeWidth = 2.dp
+                        strokeWidth = 2.dp,
                     )
                 }
             } else if (selectedDateEvents.isEmpty()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    contentAlignment = Alignment.Center,
                 ) {
                     CalendarEmptyState()
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(
                         items = selectedDateEvents,
-                        key = { it.id }
+                        key = { it.id },
                     ) { event ->
                         PremiumEventCard(
                             event = event,
                             accentColor = accentColor,
                             accentLight = accentLight,
                             onClick = { onEventClick(event) },
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -584,23 +606,23 @@ fun CalendarScreen(
     }
 }
 
-// 
+//
 // ACTIVE TIMERS COMPONENTS
-// 
+//
 @Composable
 private fun ActiveTimersRow(
     timers: List<SmartyTimer>,
     accentColor: Color,
     surfaceColor: Color,
     textPrimary: Color,
-    onCancelTimer: (SmartyTimer) -> Unit
+    onCancelTimer: (SmartyTimer) -> Unit,
 ) {
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
     // State to trigger recomposition every second for countdown
     var ticks by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(timers) {
-        while(true) {
+        while (true) {
             ticks = System.currentTimeMillis()
             kotlinx.coroutines.delay(1000)
         }
@@ -609,45 +631,48 @@ private fun ActiveTimersRow(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.active_timers).lowercase(),
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.5.sp
-            ),
+            style =
+                MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp,
+                ),
             color = textPrimary.copy(alpha = 0.6f),
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
         )
 
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(timers, key = { it.id }) { timer ->
                 // Calculate time remaining for timers
                 val now = ticks // use state to trigger recomposition
-                val timeRemaining = if (!timer.isAlarm) {
-                    (timer.triggerTime - now).coerceAtLeast(0)
-                } else {
-                    0L
-                }
+                val timeRemaining =
+                    if (!timer.isAlarm) {
+                        (timer.triggerTime - now).coerceAtLeast(0)
+                    } else {
+                        0L
+                    }
 
                 Surface(
                     shape = LocalShapes.current.pill,
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .widthIn(min = 140.dp)
-                        .softCardShadow(shape = LocalShapes.current.pill)
+                    modifier =
+                        Modifier
+                            .widthIn(min = 140.dp)
+                            .softCardShadow(shape = LocalShapes.current.pill),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(
                             imageVector = if (timer.isAlarm) Icons.Default.Alarm else Icons.Default.Timer,
                             contentDescription = null,
                             tint = accentColor,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
                         )
 
                         Column(modifier = Modifier.weight(1f)) {
@@ -656,7 +681,7 @@ private fun ActiveTimersRow(
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                 color = textPrimary,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
                             )
 
                             // Calculate time remaining for both timers and alarms
@@ -665,33 +690,35 @@ private fun ActiveTimersRow(
                             val minutes = (timeRemainingMillis % 3600000) / 60000
                             val seconds = (timeRemainingMillis % 60000) / 1000
 
-                            val statusText = if (timeRemainingMillis <= 0) {
-                                stringResource(R.string.expired)
-                            } else if (hours > 0) {
-                                String.format("%dh %dm %ds", hours, minutes, seconds)
-                            } else {
-                                String.format("%dm %ds", minutes, seconds)
-                            }
+                            val statusText =
+                                if (timeRemainingMillis <= 0) {
+                                    stringResource(R.string.expired)
+                                } else if (hours > 0) {
+                                    String.format("%dh %dm %ds", hours, minutes, seconds)
+                                } else {
+                                    String.format("%dm %ds", minutes, seconds)
+                                }
 
                             Text(
                                 text = statusText,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (timeRemainingMillis <= 0) MaterialTheme.colorScheme.error else accentColor
-                                )
+                                style =
+                                    MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (timeRemainingMillis <= 0) MaterialTheme.colorScheme.error else accentColor,
+                                    ),
                             )
                         }
 
                         // Cancel button
                         IconButton(
                             onClick = { onCancelTimer(timer) },
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.cancel),
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
@@ -701,9 +728,9 @@ private fun ActiveTimersRow(
     }
 }
 
-// 
+//
 // PREMIUM DAY CELL (Matching Reference Image)
-// 
+//
 @Composable
 private fun PremiumDayCell(
     day: Int,
@@ -716,77 +743,86 @@ private fun PremiumDayCell(
     accentColor: Color,
     accentLight: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val primaryText = MaterialTheme.colorScheme.onBackground
     val mutedText = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val textColor = when {
-        isSelected -> MaterialTheme.colorScheme.onPrimary
-        !isCurrentMonth -> mutedText.copy(alpha = 0.3f)
-        isToday -> accentColor
-        isWeekend -> mutedText
-        else -> primaryText.copy(alpha = 0.9f)
-    }
+    val textColor =
+        when {
+            isSelected -> MaterialTheme.colorScheme.onPrimary
+            !isCurrentMonth -> mutedText.copy(alpha = 0.3f)
+            isToday -> accentColor
+            isWeekend -> mutedText
+            else -> primaryText.copy(alpha = 0.9f)
+        }
 
     Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .then(
-                when {
-                    isSelected -> Modifier.background(accentColor)
-                    isToday -> Modifier.drawBehind {
-                        drawCircle(
-                            color = accentColor,
-                            style = Stroke(
-                                width = 1.5.dp.toPx()
-                            )
-                        )
-                    }
-                    isWeekend && isCurrentMonth -> Modifier.drawBehind {
-                        drawCircle(
-                            color = mutedText.copy(alpha = 0.5f),
-                            style = Stroke(
-                                width = 2f,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
-                            )
-                        )
-                    }
-                    else -> Modifier
-                }
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .clip(CircleShape)
+                .then(
+                    when {
+                        isSelected -> Modifier.background(accentColor)
+                        isToday ->
+                            Modifier.drawBehind {
+                                drawCircle(
+                                    color = accentColor,
+                                    style =
+                                        Stroke(
+                                            width = 1.5.dp.toPx(),
+                                        ),
+                                )
+                            }
+                        isWeekend && isCurrentMonth ->
+                            Modifier.drawBehind {
+                                drawCircle(
+                                    color = mutedText.copy(alpha = 0.5f),
+                                    style =
+                                        Stroke(
+                                            width = 2f,
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
+                                        ),
+                                )
+                            }
+                        else -> Modifier
+                    },
+                )
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = day.toString(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
-                ),
-                color = textColor
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                    ),
+                color = textColor,
             )
 
             // Event indicator - different style for recurring vs regular events
             if (hasEvents && !isSelected) {
                 Row(
                     modifier = Modifier.padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     // Primary event dot
                     Box(
-                        modifier = Modifier
-                            .size(4.dp)
-                            .clip(CircleShape)
-                            .background(accentColor)
+                        modifier =
+                            Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(accentColor),
                     )
                     // Recurring indicator (second dot for recurring events)
                     if (hasRecurringEvents) {
                         Box(
-                            modifier = Modifier
-                                .size(4.dp)
-                                .clip(CircleShape)
-                                .background(accentLight)
+                            modifier =
+                                Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(accentLight),
                         )
                     }
                 }
@@ -795,16 +831,16 @@ private fun PremiumDayCell(
     }
 }
 
-// 
+//
 // PREMIUM EVENT CARD (Gradient Style from Reference)
-// 
+//
 @Composable
 private fun PremiumEventCard(
     event: CalendarEvent,
     accentColor: Color,
     accentLight: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val isHappening = event.isHappeningNow()
@@ -815,108 +851,124 @@ private fun PremiumEventCard(
 
     Surface(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .softCardShadow(shape = LocalShapes.current.card),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .softCardShadow(shape = LocalShapes.current.card),
         shape = LocalShapes.current.card,
-        color = MaterialTheme.colorScheme.surface
+        color = MaterialTheme.colorScheme.surface,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    // Time Pill
-                    Surface(
-                        shape = LocalShapes.current.button,
-                        color = bgColor.copy(alpha = 0.6f)
-                    ) {
-                        val timeText = if (event.isAllDay) stringResource(R.string.all_day) else {
+            Column(modifier = Modifier.weight(1f)) {
+                // Time Pill
+                Surface(
+                    shape = LocalShapes.current.button,
+                    color = bgColor.copy(alpha = 0.6f),
+                ) {
+                    val timeText =
+                        if (event.isAllDay) {
+                            stringResource(R.string.all_day)
+                        } else {
                             "${timeFormat.format(Date(event.startTime))} - ${timeFormat.format(Date(event.endTime))}"
                         }.lowercase()
-                        Text(
-                            text = timeText,
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
-                            color = textPrimary.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = timeText,
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
+                        color = textPrimary.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                    // Title with recurring indicator
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = event.title.lowercase(),
-                            style = MaterialTheme.typography.titleMedium.copy(
+                // Title with recurring indicator
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = event.title.lowercase(),
+                        style =
+                            MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.2).sp
+                                letterSpacing = (-0.2).sp,
                             ),
-                            color = textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                        color = textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+
+                    // Recurring indicator
+                    if (event.isRecurring) {
+                        Icon(
+                            imageVector = Icons.Default.Repeat,
+                            contentDescription = stringResource(R.string.recurring_event),
+                            modifier = Modifier.size(14.dp),
+                            tint = accentColor,
                         )
-
-                        // Recurring indicator
-                        if (event.isRecurring) {
-                            Icon(
-                                imageVector = Icons.Default.Repeat,
-                                contentDescription = stringResource(R.string.recurring_event),
-                                modifier = Modifier.size(14.dp),
-                                tint = accentColor
-                            )
-                        }
-                    }
-
-                    event.location?.let { location ->
-                        if (location.isNotBlank()) {
-                            Text(
-                                text = location.lowercase(),
-                                style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
-                                color = textMuted.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
                 }
 
-                // Icon/Decoration on right
-                Box(
-                    modifier = Modifier
+                event.location?.let { location ->
+                    if (location.isNotBlank()) {
+                        Text(
+                            text = location.lowercase(),
+                            style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                            color = textMuted.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            // Icon/Decoration on right
+            Box(
+                modifier =
+                    Modifier
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    accentColor,
-                                    accentLight
-                                )
-                            )
+                            brush =
+                                Brush.verticalGradient(
+                                    colors =
+                                        listOf(
+                                            accentColor,
+                                            accentLight,
+                                        ),
+                                ),
                         ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isHappening) Icons.Default.PlayCircleFilled else if (event.isRecurring) Icons.Default.Repeat else Icons.Default.Event,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector =
+                        if (isHappening) {
+                            Icons.Default.PlayCircleFilled
+                        } else if (event.isRecurring) {
+                            Icons.Default.Repeat
+                        } else {
+                            Icons.Default.Event
+                        },
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
     }
+}
 
-// 
+//
 // HELPER FUNCTIONS
-// 
+//
 
 private fun generateMonthDays(month: Calendar): List<Calendar?> {
     val days = mutableListOf<Calendar?>()
@@ -924,11 +976,12 @@ private fun generateMonthDays(month: Calendar): List<Calendar?> {
     calendar.set(Calendar.DAY_OF_MONTH, 1)
 
     // Adjust for Monday start (1 = Monday, 7 = Sunday)
-    val firstDayOfWeek = when (calendar.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.SUNDAY -> 6
-        else -> calendar.get(Calendar.DAY_OF_WEEK) - 2
-    }
-    
+    val firstDayOfWeek =
+        when (calendar.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY -> 6
+            else -> calendar.get(Calendar.DAY_OF_WEEK) - 2
+        }
+
     repeat(firstDayOfWeek) {
         days.add(null)
     }

@@ -21,9 +21,8 @@ import com.example.smarty.protocol.ClientEvent
  */
 class CompositeTransport(
     private val primary: CommandTransport,
-    private val shadow: CommandTransport? = null
+    private val shadow: CommandTransport? = null,
 ) : CommandTransport {
-
     /**
      * Dispatch command to shadow (if enabled), then primary.
      *

@@ -1,10 +1,8 @@
 package com.example.smarty.server.agent
 
-import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.tools.TavilySearchTool
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -28,7 +26,7 @@ import java.util.UUID
  */
 class ResearchMethodologies(
     private val llmProvider: LlmProvider,
-    private val tavilyTool: TavilySearchTool
+    private val tavilyTool: TavilySearchTool,
 ) {
     private val logger = LoggerFactory.getLogger(ResearchMethodologies::class.java)
 
@@ -39,7 +37,7 @@ class ResearchMethodologies(
         private const val MIN_EVIDENCE_PER_HYPOTHESIS = 5
 
         // Source verification thresholds
-        private const val MIN_TIER1_SOURCES = 3  // Rule of Three
+        private const val MIN_TIER1_SOURCES = 3 // Rule of Three
         private const val MIN_INDEPENDENT_SOURCES = 3
 
         // RAG hallucination mitigation
@@ -63,7 +61,10 @@ class ResearchMethodologies(
     /**
      * Decompose research query into 5 analytical layers per 2026 methodology
      */
-    suspend fun decomposeQuery(topic: String, originalQuestion: String): QueryDecomposition {
+    suspend fun decomposeQuery(
+        topic: String,
+        originalQuestion: String,
+    ): QueryDecomposition {
         logger.info("Decomposing query into 5 analytical layers")
 
         val systemPrompt = """
@@ -93,10 +94,11 @@ For each layer, provide:
 Format as structured JSON.
 """
 
-        val messages = listOf(
-            LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
-            LlmMessage(LlmMessage.Role.USER, userPrompt)
-        )
+        val messages =
+            listOf(
+                LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
+                LlmMessage(LlmMessage.Role.USER, userPrompt),
+            )
 
         val response = llmProvider.generate(messages)
         return parseQueryDecomposition(response.content ?: "")
@@ -108,7 +110,7 @@ Format as structured JSON.
         val historicalContext: HistoricalContext = HistoricalContext(),
         val primaryAuthorities: List<Authority> = emptyList(),
         val gapAnalysis: GapAnalysis = GapAnalysis(),
-        val adversarialSurface: AdversarialSurface = AdversarialSurface()
+        val adversarialSurface: AdversarialSurface = AdversarialSurface(),
     )
 
     @Serializable
@@ -118,7 +120,7 @@ Format as structured JSON.
         val codePaths: List<String> = emptyList(),
         val modelNumbers: List<String> = emptyList(),
         val cveIdentifiers: List<String> = emptyList(),
-        val softwareVersions: List<String> = emptyList()
+        val softwareVersions: List<String> = emptyList(),
     )
 
     @Serializable
@@ -126,7 +128,7 @@ Format as structured JSON.
         val predecessorTechnologies: List<String> = emptyList(),
         val policyDecisions: List<String> = emptyList(),
         val timeline: List<TimelineEntry> = emptyList(),
-        val keyInventors: List<String> = emptyList()
+        val keyInventors: List<String> = emptyList(),
     )
 
     @Serializable
@@ -134,7 +136,7 @@ Format as structured JSON.
         val date: String,
         val event: String,
         val significance: String,
-        val sourceUrl: String? = null
+        val sourceUrl: String? = null,
     )
 
     @Serializable
@@ -143,16 +145,16 @@ Format as structured JSON.
         val type: AuthorityType,
         val canonicalUrl: String,
         val relevantDocuments: List<String> = emptyList(),
-        val contactPoints: List<String> = emptyList()
+        val contactPoints: List<String> = emptyList(),
     )
 
     @Serializable
     enum class AuthorityType {
-        STANDARDS_BODY,      // IETF, IEEE, ISO
-        GOVERNMENT,          // NIST, CISA, NSA, GAO
-        ACADEMIC,            // Universities, research labs
+        STANDARDS_BODY, // IETF, IEEE, ISO
+        GOVERNMENT, // NIST, CISA, NSA, GAO
+        ACADEMIC, // Universities, research labs
         INDUSTRY_CONSORTIUM, // W3C, OASIS, Cloud Security Alliance
-        VENDOR               // Microsoft, Google, Amazon (for their products)
+        VENDOR, // Microsoft, Google, Amazon (for their products)
     }
 
     @Serializable
@@ -160,7 +162,7 @@ Format as structured JSON.
         val missingData: List<String> = emptyList(),
         val ambiguousData: List<String> = emptyList(),
         val conflictingData: List<String> = emptyList(),
-        val openQuestionRegister: List<OpenQuestion> = emptyList()
+        val openQuestionRegister: List<OpenQuestion> = emptyList(),
     )
 
     @Serializable
@@ -168,7 +170,7 @@ Format as structured JSON.
         val question: String,
         val importance: LocalPriority = LocalPriority.MEDIUM,
         val relatedTopics: List<String> = emptyList(),
-        val attemptedAnswers: Int = 0
+        val attemptedAnswers: Int = 0,
     )
 
     @Serializable
@@ -177,7 +179,7 @@ Format as structured JSON.
         val attackVectors: List<String> = emptyList(),
         val exploitationScenarios: List<String> = emptyList(),
         val knownVulnerabilities: List<String> = emptyList(),
-        val mitigationStrategies: List<String> = emptyList()
+        val mitigationStrategies: List<String> = emptyList(),
     )
 
     // ==================== ANALYSIS OF COMPETING HYPOTHESES (ACH) ====================
@@ -190,7 +192,7 @@ Format as structured JSON.
      */
     suspend fun executeAchProcess(
         researchTopic: String,
-        initialEvidence: List<EvidenceItem> = emptyList()
+        initialEvidence: List<EvidenceItem> = emptyList(),
     ): AchMatrix {
         logger.info("Executing 7-stage ACH process")
 
@@ -230,12 +232,16 @@ Format as structured JSON.
         val inconsistencyCount: Int = 0,
         val consistencyCount: Int = 0,
         val rejectionReason: String? = null,
-        val probability: Double = 0.5
+        val probability: Double = 0.5,
     )
 
     @Serializable
     enum class HypothesisStatus {
-        ACTIVE, REJECTED, CONFIRMED, PENDING_REVIEW, ELIMINATED
+        ACTIVE,
+        REJECTED,
+        CONFIRMED,
+        PENDING_REVIEW,
+        ELIMINATED,
     }
 
     @Serializable
@@ -245,19 +251,19 @@ Format as structured JSON.
         val sourceUrl: String,
         val sourceTier: SourceTier = SourceTier.TIER_4_GENERAL,
         val credibilityScore: Double = 0.5,
-        val diagnosticity: Double = 0.5,  // How well this differentiates hypotheses
-        val isBaseRate: Boolean = false,  // CRITICAL: Track base rates explicitly
+        val diagnosticity: Double = 0.5, // How well this differentiates hypotheses
+        val isBaseRate: Boolean = false, // CRITICAL: Track base rates explicitly
         val timestamp: Long = System.currentTimeMillis(),
-        val alcoaVerified: Boolean = false
+        val alcoaVerified: Boolean = false,
     )
 
     @Serializable
     enum class SourceTier {
-        TIER_1_PRIMARY,      // Government, RFCs, peer-reviewed with DOI
-        TIER_2_VERIFIED,     // Major vendors, academic conferences
-        TIER_3_EXPERT,       // IETF lists, GitHub advisories, HackerOne
-        TIER_4_GENERAL,      // News, blogs, Stack Overflow
-        TIER_5_UNVERIFIED    // Anonymous forums, dark web
+        TIER_1_PRIMARY, // Government, RFCs, peer-reviewed with DOI
+        TIER_2_VERIFIED, // Major vendors, academic conferences
+        TIER_3_EXPERT, // IETF lists, GitHub advisories, HackerOne
+        TIER_4_GENERAL, // News, blogs, Stack Overflow
+        TIER_5_UNVERIFIED, // Anonymous forums, dark web
     }
 
     @Serializable
@@ -265,7 +271,7 @@ Format as structured JSON.
         CONSISTENT,
         INCONSISTENT,
         NOT_APPLICABLE,
-        LOW_DIAGNOSTICITY
+        LOW_DIAGNOSTICITY,
     }
 
     @Serializable
@@ -277,7 +283,7 @@ Format as structured JSON.
         val confidenceLevel: ConfidenceLevel = ConfidenceLevel.LOW,
         val sensitivityAnalysisPerformed: Boolean = false,
         val disconfirmingEvidencePriority: Boolean = false,
-        val stage: AchStage = AchStage.COMPLETE
+        val stage: AchStage = AchStage.COMPLETE,
     )
 
     @Serializable
@@ -289,14 +295,14 @@ Format as structured JSON.
         INCONSISTENCY_ANALYSIS,
         SENSITIVITY_ANALYSIS,
         CONCLUSION,
-        COMPLETE
+        COMPLETE,
     }
 
     @Serializable
     enum class ConfidenceLevel {
-        HIGH,      // 3+ independent Tier 1-2 sources, no significant inconsistencies
-        MODERATE,  // 2 independent sources, some inconsistencies
-        LOW        // Single source or significant unresolved gaps
+        HIGH, // 3+ independent Tier 1-2 sources, no significant inconsistencies
+        MODERATE, // 2 independent sources, some inconsistencies
+        LOW, // Single source or significant unresolved gaps
     }
 
     private suspend fun generateHypotheses(topic: String): List<AchHypothesis> {
@@ -312,26 +318,30 @@ CRITICAL REQUIREMENTS:
 Use Nominal Group Technique principles: generate diverse explanations from different perspectives.
 """
 
-        val response = llmProvider.generate(listOf(
-            LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
-            LlmMessage(LlmMessage.Role.USER, "Research topic: $topic")
-        ))
+        val response =
+            llmProvider.generate(
+                listOf(
+                    LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
+                    LlmMessage(LlmMessage.Role.USER, "Research topic: $topic"),
+                ),
+            )
 
         return parseHypotheses(response.content ?: "")
     }
 
     private suspend fun identifyEvidence(
         topic: String,
-        hypotheses: List<AchHypothesis>
+        hypotheses: List<AchHypothesis>,
     ): List<EvidenceItem> {
         // Use Tavily to search for evidence
-        val searchQueries = hypotheses.flatMap { h ->
-            listOf(
-                "${h.description} evidence",
-                "${h.description} proof",
-                "${topic} ${h.description}"
-            )
-        }
+        val searchQueries =
+            hypotheses.flatMap { h ->
+                listOf(
+                    "${h.description} evidence",
+                    "${h.description} proof",
+                    "$topic ${h.description}",
+                )
+            }
 
         val evidence = mutableListOf<EvidenceItem>()
 
@@ -349,14 +359,14 @@ Use Nominal Group Technique principles: generate diverse explanations from diffe
 
     private fun createDiagnosticMatrix(
         hypotheses: List<AchHypothesis>,
-        evidence: List<EvidenceItem>
+        evidence: List<EvidenceItem>,
     ): Map<String, Map<String, EvidenceJudgment>> {
         val matrix = mutableMapOf<String, Map<String, EvidenceJudgment>>()
 
         for (hypothesis in hypotheses) {
             val judgments = mutableMapOf<String, EvidenceJudgment>()
             for (item in evidence) {
-                judgments[item.id] = EvidenceJudgment.NOT_APPLICABLE  // Initial state
+                judgments[item.id] = EvidenceJudgment.NOT_APPLICABLE // Initial state
             }
             matrix[hypothesis.id] = judgments
         }
@@ -367,7 +377,7 @@ Use Nominal Group Technique principles: generate diverse explanations from diffe
     private suspend fun refineMatrix(
         matrix: Map<String, Map<String, EvidenceJudgment>>,
         hypotheses: List<AchHypothesis>,
-        evidence: List<EvidenceItem>
+        evidence: List<EvidenceItem>,
     ): Map<String, Map<String, EvidenceJudgment>> {
         // Use LLM to evaluate each evidence item against each hypothesis
         val refinedMatrix = matrix.toMutableMap()
@@ -390,7 +400,7 @@ Use Nominal Group Technique principles: generate diverse explanations from diffe
 
     private suspend fun evaluateEvidenceAgainstHypothesis(
         hypothesis: AchHypothesis,
-        evidence: EvidenceItem
+        evidence: EvidenceItem,
     ): EvidenceJudgment {
         val systemPrompt = """
 Evaluate whether this evidence is CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICITY
@@ -400,35 +410,42 @@ CRITICAL: Focus on diagnosticity - does this evidence actually help distinguish 
 Evidence that is consistent with ALL hypotheses has LOW_DIAGNOSTICITY.
 """
 
-        val response = llmProvider.generate(listOf(
-            LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
-            LlmMessage(LlmMessage.Role.USER, """
+        val response =
+            llmProvider.generate(
+                listOf(
+                    LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
+                    LlmMessage(
+                        LlmMessage.Role.USER,
+                        """
 Hypothesis: ${hypothesis.description}
 Evidence: ${evidence.description}
 Source: ${evidence.sourceUrl} (Tier: ${evidence.sourceTier}, Credibility: ${evidence.credibilityScore})
 
 Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICITY
-""")
-        ))
+""",
+                    ),
+                ),
+            )
 
         return parseEvidenceJudgment(response.content ?: "")
     }
 
     private fun analyzeInconsistencies(
         matrix: Map<String, Map<String, EvidenceJudgment>>,
-        hypotheses: List<AchHypothesis>
+        hypotheses: List<AchHypothesis>,
     ): AchHypothesis {
         // Count inconsistencies for each hypothesis
-        val hypothesisScores = hypotheses.map { hypothesis ->
-            val judgments = matrix[hypothesis.id] ?: emptyMap()
-            val inconsistentCount = judgments.count { it.value == EvidenceJudgment.INCONSISTENT }
-            val consistentCount = judgments.count { it.value == EvidenceJudgment.CONSISTENT }
+        val hypothesisScores =
+            hypotheses.map { hypothesis ->
+                val judgments = matrix[hypothesis.id] ?: emptyMap()
+                val inconsistentCount = judgments.count { it.value == EvidenceJudgment.INCONSISTENT }
+                val consistentCount = judgments.count { it.value == EvidenceJudgment.CONSISTENT }
 
-            hypothesis.copy(
-                inconsistencyCount = inconsistentCount,
-                consistencyCount = consistentCount
-            )
-        }
+                hypothesis.copy(
+                    inconsistencyCount = inconsistentCount,
+                    consistencyCount = consistentCount,
+                )
+            }
 
         // ACH: The hypothesis with FEWEST inconsistencies is the conclusion
         return hypothesisScores.minByOrNull { it.inconsistencyCount }
@@ -438,7 +455,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
     private suspend fun performSensitivityAnalysis(
         matrix: Map<String, Map<String, EvidenceJudgment>>,
         hypotheses: List<AchHypothesis>,
-        evidence: List<EvidenceItem>
+        evidence: List<EvidenceItem>,
     ): SensitivityAnalysisResult {
         // Test if removing key evidence changes the conclusion
         val currentConclusion = analyzeInconsistencies(matrix, hypotheses)
@@ -451,9 +468,10 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
 
         for (item in highDiagnosticityEvidence.take(3)) {
             // Simulate removing this evidence
-            val reducedMatrix = matrix.mapValues { (_, judgments) ->
-                judgments.filterKeys { it != item.id }
-            }
+            val reducedMatrix =
+                matrix.mapValues { (_, judgments) ->
+                    judgments.filterKeys { it != item.id }
+                }
 
             val newConclusion = analyzeInconsistencies(reducedMatrix, hypotheses)
             if (newConclusion.id != currentConclusion.id) {
@@ -466,7 +484,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         return SensitivityAnalysisResult(
             conclusionStable = !conclusionChanges,
             brittleFinding = brittleFinding,
-            confidenceImpact = if (conclusionChanges) "HIGH" else "LOW"
+            confidenceImpact = if (conclusionChanges) "HIGH" else "LOW",
         )
     }
 
@@ -474,7 +492,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
     data class SensitivityAnalysisResult(
         val conclusionStable: Boolean = true,
         val brittleFinding: String? = null,
-        val confidenceImpact: String = "LOW"
+        val confidenceImpact: String = "LOW",
     )
 
     private fun finalizeAchMatrix(
@@ -482,30 +500,32 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         hypotheses: List<AchHypothesis>,
         evidence: List<EvidenceItem>,
         conclusion: AchHypothesis,
-        sensitivityResult: SensitivityAnalysisResult
+        sensitivityResult: SensitivityAnalysisResult,
     ): AchMatrix {
         // Update hypothesis statuses
-        val updatedHypotheses = hypotheses.map { h ->
-            if (h.id == conclusion.id) {
-                h.copy(status = HypothesisStatus.CONFIRMED)
-            } else if (h.inconsistencyCount > h.consistencyCount * 2) {
-                h.copy(status = HypothesisStatus.ELIMINATED)
-            } else {
-                h
+        val updatedHypotheses =
+            hypotheses.map { h ->
+                if (h.id == conclusion.id) {
+                    h.copy(status = HypothesisStatus.CONFIRMED)
+                } else if (h.inconsistencyCount > h.consistencyCount * 2) {
+                    h.copy(status = HypothesisStatus.ELIMINATED)
+                } else {
+                    h
+                }
             }
-        }
 
         // Calculate confidence level
         val tier1Count = evidence.count { it.sourceTier == SourceTier.TIER_1_PRIMARY }
         val independentCount = evidence.map { it.sourceUrl }.toSet().size
 
-        val confidenceLevel = when {
-            tier1Count >= 3 && independentCount >= 3 && !sensitivityResult.conclusionStable ->
-                ConfidenceLevel.HIGH
-            tier1Count >= 2 || (tier1Count >= 1 && independentCount >= 2) ->
-                ConfidenceLevel.MODERATE
-            else -> ConfidenceLevel.LOW
-        }
+        val confidenceLevel =
+            when {
+                tier1Count >= 3 && independentCount >= 3 && !sensitivityResult.conclusionStable ->
+                    ConfidenceLevel.HIGH
+                tier1Count >= 2 || (tier1Count >= 1 && independentCount >= 2) ->
+                    ConfidenceLevel.MODERATE
+                else -> ConfidenceLevel.LOW
+            }
 
         return AchMatrix(
             hypotheses = updatedHypotheses,
@@ -515,7 +535,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
             confidenceLevel = confidenceLevel,
             sensitivityAnalysisPerformed = true,
             disconfirmingEvidencePriority = true,
-            stage = AchStage.COMPLETE
+            stage = AchStage.COMPLETE,
         )
     }
 
@@ -526,44 +546,67 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
      */
     fun detectCognitiveBiases(
         evidence: List<EvidenceItem>,
-        researchState: Map<String, Any>
+        researchState: Map<String, Any>,
     ): List<CognitiveBiasCheck> {
         val checks = mutableListOf<CognitiveBiasCheck>()
 
         // Confirmation Bias Check
         val allHighCredibility = evidence.all { it.credibilityScore > 0.7 }
-        checks.add(CognitiveBiasCheck(
-            biasType = CognitiveBiasType.CONFIRMATION_BIAS,
-            detected = allHighCredibility && evidence.size > 3,
-            mitigationApplied = if (allHighCredibility)
-                "Actively searching for contradictory sources" else "None required",
-            description = if (allHighCredibility)
-                "All sources have high credibility - may indicate cherry-picking" else ""
-        ))
+        checks.add(
+            CognitiveBiasCheck(
+                biasType = CognitiveBiasType.CONFIRMATION_BIAS,
+                detected = allHighCredibility && evidence.size > 3,
+                mitigationApplied =
+                    if (allHighCredibility) {
+                        "Actively searching for contradictory sources"
+                    } else {
+                        "None required"
+                    },
+                description =
+                    if (allHighCredibility) {
+                        "All sources have high credibility - may indicate cherry-picking"
+                    } else {
+                        ""
+                    },
+            ),
+        )
 
         // Anchoring Bias Check
         val firstSourceTier = evidence.firstOrNull()?.sourceTier
-        val anchoringRisk = firstSourceTier == SourceTier.TIER_4_GENERAL ||
-                           firstSourceTier == SourceTier.TIER_5_UNVERIFIED
-        checks.add(CognitiveBiasCheck(
-            biasType = CognitiveBiasType.ANCHORING,
-            detected = anchoringRisk,
-            mitigationApplied = if (anchoringRisk)
-                "Re-evaluating with Tier 1 sources" else "None required",
-            description = if (anchoringRisk)
-                "First source was low tier - risk of anchoring bias" else ""
-        ))
+        val anchoringRisk =
+            firstSourceTier == SourceTier.TIER_4_GENERAL ||
+                firstSourceTier == SourceTier.TIER_5_UNVERIFIED
+        checks.add(
+            CognitiveBiasCheck(
+                biasType = CognitiveBiasType.ANCHORING,
+                detected = anchoringRisk,
+                mitigationApplied =
+                    if (anchoringRisk) {
+                        "Re-evaluating with Tier 1 sources"
+                    } else {
+                        "None required"
+                    },
+                description =
+                    if (anchoringRisk) {
+                        "First source was low tier - risk of anchoring bias"
+                    } else {
+                        ""
+                    },
+            ),
+        )
 
         // Recency Bias Check
         // (Would need timestamp analysis)
 
         // Mirror Imaging Check
-        checks.add(CognitiveBiasCheck(
-            biasType = CognitiveBiasType.MIRROR_IMAGING,
-            detected = false,  // Requires LLM analysis
-            mitigationApplied = "Consider adversary capabilities and motivations separately from own",
-            description = ""
-        ))
+        checks.add(
+            CognitiveBiasCheck(
+                biasType = CognitiveBiasType.MIRROR_IMAGING,
+                detected = false, // Requires LLM analysis
+                mitigationApplied = "Consider adversary capabilities and motivations separately from own",
+                description = "",
+            ),
+        )
 
         return checks
     }
@@ -573,17 +616,17 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         val biasType: CognitiveBiasType,
         val detected: Boolean = false,
         val mitigationApplied: String = "",
-        val description: String = ""
+        val description: String = "",
     )
 
     @Serializable
     enum class CognitiveBiasType {
-        CONFIRMATION_BIAS,       // Seeking only confirming data
-        RECENCY_BIAS,            // Overweighting recent data
-        ANCHORING,               // Relying on first data point
-        MIRROR_IMAGING,          // Assuming adversaries think like us
-        GROUPTHINK,              // Converging without critique
-        AVAILABILITY_HEURISTIC   // Probability based on recall ease
+        CONFIRMATION_BIAS, // Seeking only confirming data
+        RECENCY_BIAS, // Overweighting recent data
+        ANCHORING, // Relying on first data point
+        MIRROR_IMAGING, // Assuming adversaries think like us
+        GROUPTHINK, // Converging without critique
+        AVAILABILITY_HEURISTIC, // Probability based on recall ease
     }
 
     // ==================== SOURCE VERIFICATION (RULE OF THREE + ALCOA) ====================
@@ -599,12 +642,14 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         val independentCount = citations.map { it.url }.toSet().size
 
         // Apply ALCOA standard
-        val alcoaResults = citations.map { citation ->
-            applyAlcoaStandard(citation)
-        }
+        val alcoaResults =
+            citations.map { citation ->
+                applyAlcoaStandard(citation)
+            }
 
-        val ruleOfThreeSatisfied = tier1Count >= MIN_TIER1_SOURCES ||
-                                  (tier1Count >= 2 && tier2Count >= 1)
+        val ruleOfThreeSatisfied =
+            tier1Count >= MIN_TIER1_SOURCES ||
+                (tier1Count >= 2 && tier2Count >= 1)
 
         return SourceVerificationResult(
             independentSourceCount = independentCount,
@@ -612,14 +657,15 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
             tier2SourceCount = tier2Count,
             alcoaResults = alcoaResults,
             ruleOfThreeSatisfied = ruleOfThreeSatisfied,
-            confidenceLevel = when {
-                ruleOfThreeSatisfied && independentCount >= MIN_INDEPENDENT_SOURCES ->
-                    ConfidenceLevel.HIGH
-                tier1Count >= 2 || (tier1Count >= 1 && tier2Count >= 1) ->
-                    ConfidenceLevel.MODERATE
-                else -> ConfidenceLevel.LOW
-            },
-            humanReviewRequired = !ruleOfThreeSatisfied
+            confidenceLevel =
+                when {
+                    ruleOfThreeSatisfied && independentCount >= MIN_INDEPENDENT_SOURCES ->
+                        ConfidenceLevel.HIGH
+                    tier1Count >= 2 || (tier1Count >= 1 && tier2Count >= 1) ->
+                        ConfidenceLevel.MODERATE
+                    else -> ConfidenceLevel.LOW
+                },
+            humanReviewRequired = !ruleOfThreeSatisfied,
         )
     }
 
@@ -631,7 +677,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         val alcoaResults: List<AlcoaResult> = emptyList(),
         val ruleOfThreeSatisfied: Boolean = false,
         val confidenceLevel: ConfidenceLevel = ConfidenceLevel.LOW,
-        val humanReviewRequired: Boolean = true
+        val humanReviewRequired: Boolean = true,
     )
 
     @Serializable
@@ -642,7 +688,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         val contemporaneous: Boolean = false,
         val original: Boolean = false,
         val accurate: Boolean = false,
-        val overallPass: Boolean = false
+        val overallPass: Boolean = false,
     )
 
     @Serializable
@@ -651,24 +697,26 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         val title: String,
         val snippet: String,
         val sourceTier: SourceTier = SourceTier.TIER_4_GENERAL,
-        val independentConfirmationCount: Int = 0
+        val independentConfirmationCount: Int = 0,
     )
 
     private suspend fun applyAlcoaStandard(citation: CitationData): AlcoaResult {
         // ALCOA: Attributable, Legible, Contemporaneous, Original, Accurate
 
-        val attributable = citation.url.endsWith(".gov") ||
-                          citation.url.endsWith(".mil") ||
-                          citation.url.contains("nist.gov") ||
-                          citation.url.contains("ieee.org")
+        val attributable =
+            citation.url.endsWith(".gov") ||
+                citation.url.endsWith(".mil") ||
+                citation.url.contains("nist.gov") ||
+                citation.url.contains("ieee.org")
 
         val legible = citation.snippet.isNotEmpty() && citation.snippet.length > 50
 
-        val contemporaneous = true  // Assume retrieved content is contemporaneous
+        val contemporaneous = true // Assume retrieved content is contemporaneous
 
-        val original = citation.url.endsWith(".gov") ||
-                      citation.url.contains("rfc-editor.org") ||
-                      citation.url.contains("ietf.org")
+        val original =
+            citation.url.endsWith(".gov") ||
+                citation.url.contains("rfc-editor.org") ||
+                citation.url.contains("ietf.org")
 
         // Accurate requires independent confirmation
         val accurate = citation.independentConfirmationCount >= 2
@@ -680,7 +728,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
             contemporaneous = contemporaneous,
             original = original,
             accurate = accurate,
-            overallPass = attributable && legible && contemporaneous && original && accurate
+            overallPass = attributable && legible && contemporaneous && original && accurate,
         )
     }
 
@@ -692,29 +740,32 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
     fun engineerQueries(
         baseQuery: String,
         queryType: QueryType,
-        decomposition: QueryDecomposition
+        decomposition: QueryDecomposition,
     ): List<String> {
         return when (queryType) {
-            QueryType.PRIMARY_DOCUMENTATION -> listOf(
-                """site:nist.gov filetype:pdf "$baseQuery"""",
-                """site:cisa.gov filetype:pdf "$baseQuery"""",
-                """site:rfc-editor.org "$baseQuery"""",
-                """site:ietf.org "$baseQuery""""
-            )
-
-            QueryType.VERSION_SPECIFIC -> decomposition.technicalComponents.modelNumbers.flatMap { model ->
+            QueryType.PRIMARY_DOCUMENTATION ->
                 listOf(
-                    """"$model" exploit -marketing -advertisement""",
-                    """"$model" vulnerability CVE""",
-                    """site:github.com/security-advisories "$model""""
+                    """site:nist.gov filetype:pdf "$baseQuery"""",
+                    """site:cisa.gov filetype:pdf "$baseQuery"""",
+                    """site:rfc-editor.org "$baseQuery"""",
+                    """site:ietf.org "$baseQuery"""",
                 )
-            }
 
-            QueryType.EXPERT_COMMUNITY -> listOf(
-                """site:lists.ietf.org "$baseQuery"""",
-                """site:seclists.org "$baseQuery"""",
-                """site:openwall.com "$baseQuery""""
-            )
+            QueryType.VERSION_SPECIFIC ->
+                decomposition.technicalComponents.modelNumbers.flatMap { model ->
+                    listOf(
+                        """"$model" exploit -marketing -advertisement""",
+                        """"$model" vulnerability CVE""",
+                        """site:github.com/security-advisories "$model"""",
+                    )
+                }
+
+            QueryType.EXPERT_COMMUNITY ->
+                listOf(
+                    """site:lists.ietf.org "$baseQuery"""",
+                    """site:seclists.org "$baseQuery"""",
+                    """site:openwall.com "$baseQuery"""",
+                )
 
             QueryType.CONFLICT_RESOLUTION -> {
                 val terms = baseQuery.split(" ")
@@ -722,18 +773,19 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
                     listOf(
                         """"${terms[0]}" vs "${terms.getOrElse(1) { "" }}" discrepancy comparison""",
                         """"${terms[0]}" "${terms.getOrElse(1) { "" }}" difference controversy""",
-                        """"${terms[0]}" "${terms.getOrElse(1) { "" }}" which better"""
+                        """"${terms[0]}" "${terms.getOrElse(1) { "" }}" which better""",
                     )
                 } else {
                     listOf("""$baseQuery controversy debate""")
                 }
             }
 
-            QueryType.TEMPORAL_PRECISION -> listOf(
-                """"$baseQuery" after:2024-01-01 errata corrigendum""",
-                """"$baseQuery" update revision 2024 2025""",
-                """"$baseQuery" latest version current"""
-            )
+            QueryType.TEMPORAL_PRECISION ->
+                listOf(
+                    """"$baseQuery" after:2024-01-01 errata corrigendum""",
+                    """"$baseQuery" update revision 2024 2025""",
+                    """"$baseQuery" latest version current""",
+                )
 
             else -> listOf(baseQuery)
         }
@@ -748,7 +800,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         CONFIG_DISCOVERY,
         CONFLICT_RESOLUTION,
         TEMPORAL_PRECISION,
-        RESEARCHER_LINEAGE
+        RESEARCHER_LINEAGE,
     }
 
     // ==================== BLUF REPORT GENERATION ====================
@@ -760,7 +812,7 @@ Respond with only: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, or LOW_DIAGNOSTICIT
         topic: String,
         achMatrix: AchMatrix,
         verificationResult: SourceVerificationResult,
-        biasChecks: List<CognitiveBiasCheck>
+        biasChecks: List<CognitiveBiasCheck>,
     ): IntelligenceReport {
         logger.info("Generating BLUF intelligence report")
 
@@ -799,10 +851,13 @@ Biases Detected: ${biasChecks.count { it.detected }}
 Generate a BLUF-style intelligence report.
 """
 
-        val response = llmProvider.generate(listOf(
-            LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
-            LlmMessage(LlmMessage.Role.USER, userPrompt)
-        ))
+        val response =
+            llmProvider.generate(
+                listOf(
+                    LlmMessage(LlmMessage.Role.SYSTEM, systemPrompt),
+                    LlmMessage(LlmMessage.Role.USER, userPrompt),
+                ),
+            )
 
         return parseBlufReport(response.content ?: "")
     }
@@ -816,7 +871,7 @@ Generate a BLUF-style intelligence report.
         val methodology: String = "Technical Research Specialist Advanced Edition 2026",
         val recommendations: List<Recommendation> = emptyList(),
         val caveatsAndLimitations: List<String> = emptyList(),
-        val fullReport: String = ""
+        val fullReport: String = "",
     )
 
     @Serializable
@@ -824,7 +879,7 @@ Generate a BLUF-style intelligence report.
         val statement: String,
         val confidenceLevel: ConfidenceLevel,
         val sourceCount: Int,
-        val businessImpact: String = ""
+        val businessImpact: String = "",
     )
 
     @Serializable
@@ -832,7 +887,7 @@ Generate a BLUF-style intelligence report.
         val description: String,
         val sourceTier: SourceTier,
         val independentConfirmations: Int,
-        val alcoaVerified: Boolean
+        val alcoaVerified: Boolean,
     )
 
     @Serializable
@@ -840,7 +895,7 @@ Generate a BLUF-style intelligence report.
         val action: String,
         val priority: LocalPriority = LocalPriority.MEDIUM,
         val timeBound: String,
-        val riskMitigated: String
+        val riskMitigated: String,
     )
 
     // ==================== RAG HALLUCINATION MITIGATION ====================
@@ -850,20 +905,22 @@ Generate a BLUF-style intelligence report.
      */
     suspend fun mitigateHallucination(
         claim: String,
-        retrievedContext: List<String>
+        retrievedContext: List<String>,
     ): HallucinationCheckResult {
         // Check if claim is grounded in retrieved context
-        val isGrounded = retrievedContext.any { context ->
-            context.contains(claim, ignoreCase = true) ||
-            context.split(" ").intersect(claim.split(" ")).size >= 3
-        }
+        val isGrounded =
+            retrievedContext.any { context ->
+                context.contains(claim, ignoreCase = true) ||
+                    context.split(" ").intersect(claim.split(" ")).size >= 3
+            }
 
         // Check for specific entities that require grounding
-        val requiresGrounding = claim.contains(Regex("""CVE-\d{4}-\d+""")) ||
-                               claim.contains(Regex("""RFC \d+""")) ||
-                               claim.contains(Regex("""\d+\.\d+\.\d+""")) ||  // Version numbers
-                               claim.contains(Regex("""\d+%""")) ||  // Statistics
-                               claim.contains(Regex("""\$[\d,]+"""))  // Monetary values
+        val requiresGrounding =
+            claim.contains(Regex("""CVE-\d{4}-\d+""")) ||
+                claim.contains(Regex("""RFC \d+""")) ||
+                claim.contains(Regex("""\d+\.\d+\.\d+""")) || // Version numbers
+                claim.contains(Regex("""\d+%""")) || // Statistics
+                claim.contains(Regex("""\$[\d,]+""")) // Monetary values
 
         val confidenceScore = if (isGrounded) 0.95 else 0.3
 
@@ -873,8 +930,12 @@ Generate a BLUF-style intelligence report.
             requiresGrounding = requiresGrounding,
             confidenceScore = confidenceScore,
             hallucinationRisk = if (!isGrounded && requiresGrounding) "HIGH" else "LOW",
-            recommendation = if (!isGrounded && requiresGrounding)
-                "Retrieve primary source before including this claim" else "Claim appears grounded"
+            recommendation =
+                if (!isGrounded && requiresGrounding) {
+                    "Retrieve primary source before including this claim"
+                } else {
+                    "Claim appears grounded"
+                },
         )
     }
 
@@ -885,7 +946,7 @@ Generate a BLUF-style intelligence report.
         val requiresGrounding: Boolean,
         val confidenceScore: Double,
         val hallucinationRisk: String,
-        val recommendation: String
+        val recommendation: String,
     )
 
     // ==================== PARSING HELPERS ====================
@@ -900,7 +961,10 @@ Generate a BLUF-style intelligence report.
         return emptyList()
     }
 
-    private fun parseEvidenceFromSearch(content: String, query: String): List<EvidenceItem> {
+    private fun parseEvidenceFromSearch(
+        content: String,
+        query: String,
+    ): List<EvidenceItem> {
         // Parse search results into evidence items
         return emptyList()
     }

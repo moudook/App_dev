@@ -34,7 +34,10 @@ class ThinkingStorageManager {
     // ─────────────────────────────────────────────────────────────────────────
 
     /** Append a chunk of reasoning text to the current session. */
-    suspend fun addReasoning(sessionId: String, reasoning: String) {
+    suspend fun addReasoning(
+        sessionId: String,
+        reasoning: String,
+    ) {
         mutex.withLock {
             val state = states.getOrPut(sessionId) { ThinkingState() }
             // Append to the last reasoning block if one is already open; else create new
@@ -66,7 +69,7 @@ class ThinkingStorageManager {
         status: String,
         inputSummary: String? = null,
         outputSummary: String? = null,
-        searchQueries: List<Pair<String, String?>> = emptyList()
+        searchQueries: List<Pair<String, String?>> = emptyList(),
     ) {
         mutex.withLock {
             val state = states.getOrPut(sessionId) { ThinkingState() }
@@ -76,8 +79,8 @@ class ThinkingStorageManager {
                     status = status,
                     inputSummary = inputSummary,
                     outputSummary = outputSummary,
-                    searchQueries = searchQueries
-                )
+                    searchQueries = searchQueries,
+                ),
             )
             state.lastUpdated = System.currentTimeMillis()
         }
@@ -114,13 +117,15 @@ class ThinkingStorageManager {
     /** Debugging helper. */
     suspend fun getStateInfo(sessionId: String): ThinkingStateInfo {
         return mutex.withLock {
-            val state = states[sessionId]
-                ?: return@withLock ThinkingStateInfo(0, 0, 0)
+            val state =
+                states[sessionId]
+                    ?: return@withLock ThinkingStateInfo(0, 0, 0)
             ThinkingStateInfo(
-                reasoningLength = state.blocks.filterIsInstance<ThinkingBlock.Reasoning>()
-                    .sumOf { it.text.length },
+                reasoningLength =
+                    state.blocks.filterIsInstance<ThinkingBlock.Reasoning>()
+                        .sumOf { it.text.length },
                 toolCallsCount = state.blocks.filterIsInstance<ThinkingBlock.ToolCall>().size,
-                lastUpdated = state.lastUpdated
+                lastUpdated = state.lastUpdated,
             )
         }
     }
@@ -129,8 +134,7 @@ class ThinkingStorageManager {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private suspend fun getBlockCount(sessionId: String): Int =
-        mutex.withLock { states[sessionId]?.blocks?.size ?: 0 }
+    private suspend fun getBlockCount(sessionId: String): Int = mutex.withLock { states[sessionId]?.blocks?.size ?: 0 }
 
     /**
      * Serialise blocks into the SMARTY_TRACE_V2 format.
@@ -152,20 +156,28 @@ class ThinkingStorageManager {
                 }
                 is ThinkingBlock.ToolCall -> {
                     sb.append("{\"type\":\"tool\"")
-                    sb.append(",\"name\":"); appendJsonString(sb, block.toolName)
-                    sb.append(",\"status\":"); appendJsonString(sb, block.status)
+                    sb.append(",\"name\":")
+                    appendJsonString(sb, block.toolName)
+                    sb.append(",\"status\":")
+                    appendJsonString(sb, block.status)
                     if (block.inputSummary != null) {
-                        sb.append(",\"input\":"); appendJsonString(sb, block.inputSummary)
+                        sb.append(",\"input\":")
+                        appendJsonString(sb, block.inputSummary)
                     }
                     if (block.outputSummary != null) {
-                        sb.append(",\"output\":"); appendJsonString(sb, block.outputSummary)
+                        sb.append(",\"output\":")
+                        appendJsonString(sb, block.outputSummary)
                     }
                     if (block.searchQueries.isNotEmpty()) {
                         sb.append(",\"queries\":[")
                         block.searchQueries.forEachIndexed { qi, (q, r) ->
                             if (qi > 0) sb.append(',')
-                            sb.append("{\"q\":"); appendJsonString(sb, q)
-                            if (r != null) { sb.append(",\"r\":"); appendJsonString(sb, r) }
+                            sb.append("{\"q\":")
+                            appendJsonString(sb, q)
+                            if (r != null) {
+                                sb.append(",\"r\":")
+                                appendJsonString(sb, r)
+                            }
                             sb.append('}')
                         }
                         sb.append(']')
@@ -179,17 +191,24 @@ class ThinkingStorageManager {
     }
 
     /** Append a JSON-safe quoted string to the StringBuilder. */
-    private fun appendJsonString(sb: StringBuilder, value: String) {
+    private fun appendJsonString(
+        sb: StringBuilder,
+        value: String,
+    ) {
         sb.append('"')
         for (c in value) {
             when (c) {
-                '"'  -> sb.append("\\\"")
+                '"' -> sb.append("\\\"")
                 '\\' -> sb.append("\\\\")
                 '\n' -> sb.append("\\n")
                 '\r' -> sb.append("\\r")
                 '\t' -> sb.append("\\t")
-                else -> if (c.code < 0x20) sb.append("\\u${c.code.toString(16).padStart(4, '0')}")
-                        else sb.append(c)
+                else ->
+                    if (c.code < 0x20) {
+                        sb.append("\\u${c.code.toString(16).padStart(4, '0')}")
+                    } else {
+                        sb.append(c)
+                    }
             }
         }
         sb.append('"')
@@ -201,17 +220,18 @@ class ThinkingStorageManager {
 
     private data class ThinkingState(
         val blocks: MutableList<ThinkingBlock> = mutableListOf(),
-        var lastUpdated: Long = 0L
+        var lastUpdated: Long = 0L,
     )
 
     private sealed class ThinkingBlock {
         data class Reasoning(val text: String) : ThinkingBlock()
+
         data class ToolCall(
             val toolName: String,
             val status: String,
             val inputSummary: String? = null,
             val outputSummary: String? = null,
-            val searchQueries: List<Pair<String, String?>> = emptyList()
+            val searchQueries: List<Pair<String, String?>> = emptyList(),
         ) : ThinkingBlock()
     }
 
@@ -219,7 +239,7 @@ class ThinkingStorageManager {
     data class ThinkingStateInfo(
         val reasoningLength: Int,
         val toolCallsCount: Int,
-        val lastUpdated: Long
+        val lastUpdated: Long,
     )
 }
 

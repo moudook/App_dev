@@ -14,7 +14,7 @@ enum class ReasoningStepType {
     VERIFICATION,
     SYNTHESIS,
     REFLECTION,
-    CORRECTION
+    CORRECTION,
 }
 
 /**
@@ -33,7 +33,7 @@ data class ReasoningTrace(
     @SerialName("importanceScore") val importanceScore: Double,
     @SerialName("isFinal") val isFinal: Boolean,
     @SerialName("wasRevised") val wasRevised: Boolean,
-    @SerialName("durationMs") val durationMs: Long
+    @SerialName("durationMs") val durationMs: Long,
 )
 
 /**
@@ -52,7 +52,7 @@ data class ReasoningTraceWithSummary(
     @SerialName("wasRevised") val wasRevised: Boolean,
     @SerialName("durationMs") val durationMs: Long,
     @SerialName("oneLiner") val oneLiner: String?,
-    @SerialName("briefSummary") val briefSummary: String?
+    @SerialName("briefSummary") val briefSummary: String?,
 )
 
 /**
@@ -62,7 +62,7 @@ data class ReasoningTraceWithSummary(
 data class ReasoningStatistics(
     @SerialName("totalSteps") val totalSteps: Int,
     @SerialName("finalSteps") val finalSteps: Int,
-    @SerialName("revisedSteps") val revisedSteps: Int
+    @SerialName("revisedSteps") val revisedSteps: Int,
 )
 
 /**
@@ -73,7 +73,7 @@ data class ProgressiveDisclosureResponse(
     @SerialName("oneLiner") val oneLiner: String,
     @SerialName("briefSteps") val briefSteps: List<String>,
     @SerialName("detailedSteps") val detailedSteps: List<String>,
-    @SerialName("statistics") val statistics: ReasoningStatistics
+    @SerialName("statistics") val statistics: ReasoningStatistics,
 )
 
 /**
@@ -84,7 +84,7 @@ data class ReasoningTimelineResponse(
     @SerialName("sessionId") val sessionId: String,
     @SerialName("traces") val traces: List<ReasoningTraceWithSummary>,
     @SerialName("totalSteps") val totalSteps: Int,
-    @SerialName("finalSteps") val finalSteps: Int
+    @SerialName("finalSteps") val finalSteps: Int,
 )
 
 /**
@@ -95,7 +95,7 @@ data class ReasoningTracesResponse(
     @SerialName("sessionId") val sessionId: String,
     @SerialName("messageId") val messageId: String?,
     @SerialName("traces") val traces: List<ReasoningTrace>,
-    @SerialName("totalSteps") val totalSteps: Int = 0
+    @SerialName("totalSteps") val totalSteps: Int = 0,
 )
 
 /**
@@ -113,7 +113,7 @@ data class LogReasoningRequest(
     @SerialName("importanceScore") val importanceScore: Double = 0.5,
     @SerialName("isFinal") val isFinal: Boolean = false,
     @SerialName("tokenCount") val tokenCount: Int = 0,
-    @SerialName("durationMs") val durationMs: Long = 0
+    @SerialName("durationMs") val durationMs: Long = 0,
 )
 
 /**
@@ -122,7 +122,7 @@ data class LogReasoningRequest(
 @Serializable
 data class LogReasoningResponse(
     @SerialName("success") val success: Boolean,
-    @SerialName("traceId") val traceId: String
+    @SerialName("traceId") val traceId: String,
 )
 
 /**
@@ -138,5 +138,5 @@ data class ReasoningSummaryResponse(
     @SerialName("detailedSummary") val detailedSummary: String?,
     @SerialName("totalSteps") val totalSteps: Int,
     @SerialName("totalDurationMs") val totalDurationMs: Long,
-    @SerialName("confidenceScore") val confidenceScore: Double
+    @SerialName("confidenceScore") val confidenceScore: Double,
 )

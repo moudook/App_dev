@@ -16,7 +16,6 @@ import org.json.JSONException
  * that access or modify shared state.
  */
 class SearchHistoryManager(context: Context) {
-
     companion object {
         private const val PREFS_NAME = "search_history_prefs"
         private const val KEY_SEARCHES = "recent_searches"
@@ -110,7 +109,10 @@ class SearchHistoryManager(context: Context) {
         }
     }
 
-    fun getFilteredSuggestions(query: String, limit: Int = 5): List<String> {
+    fun getFilteredSuggestions(
+        query: String,
+        limit: Int = 5,
+    ): List<String> {
         synchronized(lock) {
             val searches = _recentSearches.value
             return if (query.isBlank()) {

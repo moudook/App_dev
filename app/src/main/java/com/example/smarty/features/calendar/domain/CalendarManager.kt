@@ -1,9 +1,9 @@
 package com.example.smarty.features.calendar.domain
 
 import android.util.Log
-import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,9 +15,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Calendar
-
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 
 /**
@@ -36,7 +35,7 @@ import java.util.Locale
 class CalendarManager(
     private val repository: SmartyRepository,
     private val alarmScheduler: AlarmScheduler?,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "CalendarManager"
@@ -48,9 +47,10 @@ class CalendarManager(
      * All calendar events, ordered by start time.
      * Use for full calendar view.
      */
-    val calendarEvents: StateFlow<List<CalendarEvent>> = repository.getAllEvents()
-        .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val calendarEvents: StateFlow<List<CalendarEvent>> =
+        repository.getAllEvents()
+            .distinctUntilChanged()
+            .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * Upcoming events (from now onwards).
@@ -67,9 +67,10 @@ class CalendarManager(
     /**
      * Observable stream of active timers.
      */
-    val activeTimers: StateFlow<List<SmartyTimer>> = alarmScheduler?.activeTimers
-        ?.stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
-        ?: MutableStateFlow(emptyList<SmartyTimer>())
+    val activeTimers: StateFlow<List<SmartyTimer>> =
+        alarmScheduler?.activeTimers
+            ?.stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
+            ?: MutableStateFlow(emptyList<SmartyTimer>())
 
     // ==================== CRUD Operations ====================
 
@@ -98,7 +99,7 @@ class CalendarManager(
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false,
         linkedNoteId: String? = null,
-        googleEventId: String? = null
+        googleEventId: String? = null,
     ) {
         scope.launch(Dispatchers.IO) {
             try {
@@ -125,10 +126,11 @@ class CalendarManager(
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false,
         linkedNoteId: String? = null,
-        googleEventId: String? = null
-    ): CalendarEvent = withContext(Dispatchers.IO) {
-        addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
-    }
+        googleEventId: String? = null,
+    ): CalendarEvent =
+        withContext(Dispatchers.IO) {
+            addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
+        }
 
     /**
      * Internal method to create and insert a calendar event.
@@ -145,21 +147,22 @@ class CalendarManager(
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false,
         linkedNoteId: String? = null,
-        googleEventId: String? = null
+        googleEventId: String? = null,
     ): CalendarEvent {
-        val event = CalendarEvent(
-            title = title,
-            description = description,
-            startTime = startTime,
-            endTime = endTime,
-            isAllDay = isAllDay,
-            location = location,
-            color = color,
-            reminderMinutes = reminderMinutes,
-            isEventPrivate = isPrivate,
-            linkedNoteId = linkedNoteId,
-            googleEventId = googleEventId
-        )
+        val event =
+            CalendarEvent(
+                title = title,
+                description = description,
+                startTime = startTime,
+                endTime = endTime,
+                isAllDay = isAllDay,
+                location = location,
+                color = color,
+                reminderMinutes = reminderMinutes,
+                isEventPrivate = isPrivate,
+                linkedNoteId = linkedNoteId,
+                googleEventId = googleEventId,
+            )
 
         repository.insertEvent(event)
         Log.d(TAG, "Added calendar event: $title")
@@ -168,7 +171,7 @@ class CalendarManager(
         reminderMinutes?.let { minutes ->
             scheduleReminder(event, minutes)
         }
-        
+
         return event
     }
 
@@ -254,7 +257,10 @@ class CalendarManager(
      * @param startMillis Start of range (inclusive)
      * @param endMillis End of range (exclusive)
      */
-    fun getEventsInRange(startMillis: Long, endMillis: Long): Flow<List<CalendarEvent>> {
+    fun getEventsInRange(
+        startMillis: Long,
+        endMillis: Long,
+    ): Flow<List<CalendarEvent>> {
         return repository.getEventsInRange(startMillis, endMillis)
     }
 
@@ -405,12 +411,13 @@ class CalendarManager(
             return calendar.timeInMillis
         }
 
-        val formats = listOf(
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault()),
-            SimpleDateFormat("h:mm a", Locale.getDefault()),
-            SimpleDateFormat("HH:mm", Locale.getDefault())
-        )
+        val formats =
+            listOf(
+                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault()),
+                SimpleDateFormat("h:mm a", Locale.getDefault()),
+                SimpleDateFormat("HH:mm", Locale.getDefault()),
+            )
 
         for (format in formats) {
             try {
@@ -446,8 +453,11 @@ class CalendarManager(
         val minute = match.groupValues[2].toIntOrNull() ?: 0
         val period = match.groupValues[3].lowercase()
 
-        if (period == "pm" && hour != 12) hour += 12
-        else if (period == "am" && hour == 12) hour = 0
+        if (period == "pm" && hour != 12) {
+            hour += 12
+        } else if (period == "am" && hour == 12) {
+            hour = 0
+        }
 
         return Pair(hour, minute)
     }
@@ -457,14 +467,19 @@ class CalendarManager(
     /**
      * Schedule a timer or alarm.
      */
-    fun setTimer(name: String, triggerTime: Long, isAlarm: Boolean) {
+    fun setTimer(
+        name: String,
+        triggerTime: Long,
+        isAlarm: Boolean,
+    ) {
         alarmScheduler?.let { scheduler ->
-            val timer = SmartyTimer(
-                name = name,
-                triggerTime = triggerTime,
-                isAlarm = isAlarm,
-                isActive = true
-            )
+            val timer =
+                SmartyTimer(
+                    name = name,
+                    triggerTime = triggerTime,
+                    isAlarm = isAlarm,
+                    isActive = true,
+                )
             scheduler.scheduleTimer(timer)
             Log.d(TAG, "Scheduled ${if (isAlarm) "alarm" else "timer"}: $name at $triggerTime")
         }
@@ -499,17 +514,21 @@ class CalendarManager(
      * Schedule a reminder alarm for an event using SmartyTimer.
      * Creates a one-time timer that fires at the reminder time.
      */
-    private fun scheduleReminder(event: CalendarEvent, minutesBefore: Int) {
+    private fun scheduleReminder(
+        event: CalendarEvent,
+        minutesBefore: Int,
+    ) {
         alarmScheduler?.let { scheduler ->
             val reminderTime = event.startTime - (minutesBefore * 60 * 1000L)
             if (reminderTime > System.currentTimeMillis()) {
                 // Create a SmartyTimer for the event reminder
-                val timer = SmartyTimer(
-                    id = "event_reminder_${event.id}",
-                    name = "Reminder: ${event.title}",
-                    triggerTime = reminderTime,
-                    isAlarm = false // Use notification, not loud alarm
-                )
+                val timer =
+                    SmartyTimer(
+                        id = "event_reminder_${event.id}",
+                        name = "Reminder: ${event.title}",
+                        triggerTime = reminderTime,
+                        isAlarm = false, // Use notification, not loud alarm
+                    )
                 scheduler.scheduleTimer(timer)
                 Log.d(TAG, "Scheduled reminder for event ${event.id} at $reminderTime")
             }
@@ -531,8 +550,8 @@ class CalendarManager(
             val allEvents = repository.getAllEventsOnce()
             allEvents.filter {
                 it.title.contains(query, ignoreCase = true) ||
-                it.description?.contains(query, ignoreCase = true) == true ||
-                it.location?.contains(query, ignoreCase = true) == true
+                    it.description?.contains(query, ignoreCase = true) == true ||
+                    it.location?.contains(query, ignoreCase = true) == true
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error searching events: ${e.message}", e)
@@ -563,13 +582,14 @@ class CalendarManager(
      * Get the start and end timestamps for a day in local timezone.
      */
     private fun getDayBounds(millis: Long): Pair<Long, Long> {
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = millis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
+        val calendar =
+            Calendar.getInstance().apply {
+                timeInMillis = millis
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
         val dayStart = calendar.timeInMillis
 
         calendar.add(Calendar.DAY_OF_YEAR, 1)
@@ -603,4 +623,3 @@ class CalendarManager(
         }
     }
 }
-

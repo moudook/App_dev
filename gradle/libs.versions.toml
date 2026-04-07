@@ -41,6 +41,7 @@ kotlinxSerialization = "1.8.0"
 ktor = "3.1.0"
 # Code Quality
 detekt = "1.23.7"
+ktlint = "12.1.1"
 googleServices = "4.4.4"
 firebaseBom = "33.9.0"
 crashlyticsPlugin = "3.0.2"
@@ -162,6 +163,7 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlyticsPlugin" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }

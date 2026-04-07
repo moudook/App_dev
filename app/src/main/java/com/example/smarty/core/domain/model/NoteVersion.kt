@@ -17,13 +17,13 @@ import java.util.UUID
             entity = Note::class,
             parentColumns = ["id"],
             childColumns = ["noteId"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
     indices = [
         Index(value = ["noteId"]),
-        Index(value = ["createdAt"])
-    ]
+        Index(value = ["createdAt"]),
+    ],
 )
 data class NoteVersion(
     @PrimaryKey
@@ -34,5 +34,5 @@ data class NoteVersion(
     val summary: String? = null,
     val versionNumber: Int,
     val createdAt: Long = System.currentTimeMillis(),
-    val changeDescription: String? = null
+    val changeDescription: String? = null,
 )

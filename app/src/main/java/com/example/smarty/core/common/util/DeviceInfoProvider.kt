@@ -13,35 +13,39 @@ import com.example.smarty.protocol.MediaCapabilities
 import com.example.smarty.protocol.SystemCapabilities
 
 class DeviceInfoProvider(private val context: Context) {
-
     fun getDeviceCapabilities(): DeviceCapabilities {
         return DeviceCapabilities(
-            hardware = HardwareCapabilities(
-                flashlight = hasSystemFeature("android.hardware.camera.flash"),
-                camera = hasSystemFeature("android.hardware.camera"),
-                microphone = hasSystemFeature("android.hardware.microphone"),
-                haptics = true, // Android usually has haptics
-                screenCapture = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP,
-                biometric = hasSystemFeature("android.hardware.fingerprint") || 
-                           hasSystemFeature("android.hardware.biometrics.face")
-            ),
-            localProcessing = LocalProcessingCapabilities(
-                stt = true, // We have fallbacks
-                contentTypeDetection = true,
-                fts5Search = true,
-                localCommands = listOf("FLASHLIGHT", "VOLUME", "HAPTIC", "STATUS")
-            ),
-            media = MediaCapabilities(
-                audioPlayback = true,
-                localMusicLibrary = true,
-                visualizer = true
-            ),
-            system = SystemCapabilities(
-                osVersion = Build.VERSION.SDK_INT,
-                deviceClass = getDeviceClass(),
-                availableMemoryMb = getAvailableMemoryMb(),
-                storageFreeMb = getFreeStorageMb()
-            )
+            hardware =
+                HardwareCapabilities(
+                    flashlight = hasSystemFeature("android.hardware.camera.flash"),
+                    camera = hasSystemFeature("android.hardware.camera"),
+                    microphone = hasSystemFeature("android.hardware.microphone"),
+                    haptics = true, // Android usually has haptics
+                    screenCapture = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP,
+                    biometric =
+                        hasSystemFeature("android.hardware.fingerprint") ||
+                            hasSystemFeature("android.hardware.biometrics.face"),
+                ),
+            localProcessing =
+                LocalProcessingCapabilities(
+                    stt = true, // We have fallbacks
+                    contentTypeDetection = true,
+                    fts5Search = true,
+                    localCommands = listOf("FLASHLIGHT", "VOLUME", "HAPTIC", "STATUS"),
+                ),
+            media =
+                MediaCapabilities(
+                    audioPlayback = true,
+                    localMusicLibrary = true,
+                    visualizer = true,
+                ),
+            system =
+                SystemCapabilities(
+                    osVersion = Build.VERSION.SDK_INT,
+                    deviceClass = getDeviceClass(),
+                    availableMemoryMb = getAvailableMemoryMb(),
+                    storageFreeMb = getFreeStorageMb(),
+                ),
         )
     }
 
@@ -49,12 +53,12 @@ class DeviceInfoProvider(private val context: Context) {
         val batteryStatus = (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
         val level = batteryStatus.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val isCharging = batteryStatus.isCharging
-        
+
         return DeviceContext(
             batteryLevel = level,
             isCharging = isCharging,
             networkType = getNetworkType(),
-            isNetworkValidated = true // Simplified for now
+            isNetworkValidated = true, // Simplified for now
         )
     }
 

@@ -18,7 +18,7 @@ data class CachedAIResponse(
     val jsonResponse: String,
     val createdAt: Long = System.currentTimeMillis(),
     val expiresAt: Long,
-    val lastAccessedAt: Long = System.currentTimeMillis()
+    val lastAccessedAt: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -27,12 +27,14 @@ data class CachedAIResponse(
  */
 @Dao
 interface AICacheDao {
-
     /**
      * Get cached response if not expired.
      */
     @Query("SELECT * FROM ai_cache WHERE contentHash = :hash AND expiresAt > :now")
-    suspend fun get(hash: String, now: Long = System.currentTimeMillis()): CachedAIResponse?
+    suspend fun get(
+        hash: String,
+        now: Long = System.currentTimeMillis(),
+    ): CachedAIResponse?
 
     /**
      * Insert or update a cache entry.
@@ -44,7 +46,10 @@ interface AICacheDao {
      * Update last accessed time for LRU tracking.
      */
     @Query("UPDATE ai_cache SET lastAccessedAt = :accessTime WHERE contentHash = :hash")
-    suspend fun updateLastAccess(hash: String, accessTime: Long = System.currentTimeMillis())
+    suspend fun updateLastAccess(
+        hash: String,
+        accessTime: Long = System.currentTimeMillis(),
+    )
 
     /**
      * Delete expired entries.
@@ -68,13 +73,15 @@ interface AICacheDao {
      * Delete oldest entries to maintain max size.
      * Returns number of rows deleted.
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM ai_cache WHERE contentHash IN (
             SELECT contentHash FROM ai_cache
             ORDER BY lastAccessedAt ASC
             LIMIT :countToDelete
         )
-    """)
+    """,
+    )
     suspend fun evictOldest(countToDelete: Int): Int
 
     /**

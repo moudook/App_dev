@@ -15,46 +15,48 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * Provides real-time network status updates
  */
 object NetworkMonitorUtil {
-    
     /**
      * Observe network connectivity changes
      * Returns Flow<Boolean> indicating online/offline status
      */
-    fun observeConnectivity(context: Context): Flow<Boolean> = callbackFlow {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                trySend(true)
+    fun observeConnectivity(context: Context): Flow<Boolean> =
+        callbackFlow {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+            val callback =
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        trySend(true)
+                    }
+
+                    override fun onLost(network: Network) {
+                        trySend(false)
+                    }
+
+                    override fun onCapabilitiesChanged(
+                        network: Network,
+                        networkCapabilities: NetworkCapabilities,
+                    ) {
+                        val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        trySend(hasInternet)
+                    }
+                }
+
+            val request =
+                NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+
+            connectivityManager.registerNetworkCallback(request, callback)
+
+            // Send initial state
+            trySend(isOnlineUtil(context))
+
+            awaitClose {
+                connectivityManager.unregisterNetworkCallback(callback)
             }
-            
-            override fun onLost(network: Network) {
-                trySend(false)
-            }
-            
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities
-            ) {
-                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                trySend(hasInternet)
-            }
-        }
-        
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        
-        connectivityManager.registerNetworkCallback(request, callback)
-        
-        // Send initial state
-        trySend(isOnlineUtil(context))
-        
-        awaitClose {
-            connectivityManager.unregisterNetworkCallback(callback)
-        }
-    }.distinctUntilChanged()
-    
+        }.distinctUntilChanged()
+
     /**
      * Check if device is currently online
      */
@@ -62,11 +64,11 @@ object NetworkMonitorUtil {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        
+
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
-    
+
     /**
      * Check if connection is WiFi
      */
@@ -74,10 +76,10 @@ object NetworkMonitorUtil {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        
+
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
-    
+
     /**
      * Check if connection is cellular
      */
@@ -85,7 +87,7 @@ object NetworkMonitorUtil {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        
+
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
 }
@@ -95,7 +97,6 @@ object NetworkMonitorUtil {
  * Tracks app memory usage
  */
 object MemoryMonitor {
-    
     /**
      * Get current memory usage in MB
      */
@@ -103,28 +104,28 @@ object MemoryMonitor {
         val runtime = Runtime.getRuntime()
         return (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
     }
-    
+
     /**
      * Get max available memory in MB
      */
     fun getMaxMemory(): Long {
         return Runtime.getRuntime().maxMemory() / (1024 * 1024)
     }
-    
+
     /**
      * Get memory usage percentage
      */
     fun getMemoryUsagePercent(): Float {
         return getCurrentMemoryUsage().toFloat() / getMaxMemory() * 100
     }
-    
+
     /**
      * Check if memory usage is critical (>80%)
      */
     fun isMemoryCritical(): Boolean {
         return getMemoryUsagePercent() > 80f
     }
-    
+
     /**
      * Suggest garbage collection if memory is high
      */
@@ -140,7 +141,6 @@ object MemoryMonitor {
  * Provides battery status information
  */
 object BatteryMonitor {
-    
     /**
      * Check if device is in power save mode
      */
@@ -155,7 +155,6 @@ object BatteryMonitor {
  * Tracks available storage space
  */
 object StorageMonitor {
-    
     /**
      * Get available internal storage in MB
      */
@@ -163,7 +162,7 @@ object StorageMonitor {
         val statFs = android.os.StatFs(context.filesDir.path)
         return statFs.availableBytes / (1024 * 1024)
     }
-    
+
     /**
      * Get total internal storage in MB
      */
@@ -171,7 +170,7 @@ object StorageMonitor {
         val statFs = android.os.StatFs(context.filesDir.path)
         return statFs.totalBytes / (1024 * 1024)
     }
-    
+
     /**
      * Get storage usage percentage
      */
@@ -180,7 +179,7 @@ object StorageMonitor {
         val total = getTotalStorage(context)
         return ((total - available).toFloat() / total * 100)
     }
-    
+
     /**
      * Check if storage is critically low (<100MB)
      */
@@ -194,7 +193,6 @@ object StorageMonitor {
  * Provides app version information
  */
 object AppVersionUtil {
-    
     /**
      * Get app version name
      */
@@ -206,7 +204,7 @@ object AppVersionUtil {
             "unknown"
         }
     }
-    
+
     /**
      * Get app version code
      */
@@ -218,7 +216,7 @@ object AppVersionUtil {
             0
         }
     }
-    
+
     /**
      * Get formatted version string
      */

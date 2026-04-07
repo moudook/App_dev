@@ -7,11 +7,9 @@ import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.PlaybackState
 import com.example.smarty.service.AudioPlayerService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 /**
  * Manages audio playback coordination between ViewModel and AudioPlayerService.
@@ -30,7 +28,7 @@ import kotlinx.coroutines.launch
  */
 class AudioPlaybackManager(
     private val context: Context,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "AudioPlaybackManager"
@@ -212,7 +210,9 @@ class AudioPlaybackManager(
             val state = playerState.value
             return if (state.duration > 0) {
                 state.currentPosition.toFloat() / state.duration.toFloat()
-            } else 0f
+            } else {
+                0f
+            }
         }
 
     // ==================== Lifecycle Methods ====================

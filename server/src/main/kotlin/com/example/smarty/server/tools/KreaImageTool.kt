@@ -1,5 +1,7 @@
 package com.example.smarty.server.tools
 
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.GeneratedImageRepository
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
@@ -12,9 +14,6 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.GeneratedImageRepository
-import java.util.UUID
 
 /**
  * Request schema for Text-to-Image generation.
@@ -24,7 +23,7 @@ data class KreaTextToImageRequest(
     val prompt: String,
     val width: Int = 1024,
     val height: Int = 1024,
-    val steps: Int = 28
+    val steps: Int = 28,
 )
 
 /**
@@ -33,7 +32,7 @@ data class KreaTextToImageRequest(
 @Serializable
 data class KreaImageToImageRequest(
     val prompt: String,
-    val imageUrls: List<String>
+    val imageUrls: List<String>,
 )
 
 /**
@@ -43,7 +42,7 @@ data class KreaImageToImageRequest(
 data class KreaJobResponse(
     val job_id: String,
     val status: String,
-    val created_at: String? = null
+    val created_at: String? = null,
 )
 
 /**
@@ -54,7 +53,7 @@ data class KreaJobResult(
     val job_id: String,
     val status: String,
     val result: KreaImageResult? = null,
-    val completed_at: String? = null
+    val completed_at: String? = null,
 )
 
 /**
@@ -64,8 +63,8 @@ data class KreaJobResult(
  */
 @Serializable
 data class KreaImageResult(
-    val urls: List<String>? = null,  // Array of image URLs
-    val style_id: String? = null     // Optional, for LoRA training jobs
+    val urls: List<String>? = null, // Array of image URLs
+    val style_id: String? = null, // Optional, for LoRA training jobs
 )
 
 /**
@@ -76,9 +75,9 @@ data class KreaImageResult(
 data class ImageGenerationResult(
     val type: String = "image",
     val url: String,
-    val source: String = "krea",  // "krea" or "supabase"
+    val source: String = "krea", // "krea" or "supabase"
     val prompt: String? = null,
-    val jobId: String? = null
+    val jobId: String? = null,
 )
 
 /**
@@ -99,7 +98,7 @@ class KreaImageTool {
         logger.info("============================================================")
         logger.info("KreaImageTool Initialization")
         logger.info("============================================================")
-        
+
         if (kreaApiKey.isNullOrBlank()) {
             logger.error("X KREA_API_KEY environment variable is NOT SET")
             logger.error("   Hugging Face Spaces: Go to Settings -> Secrets -> Add secret named 'KREA_API_KEY'")
@@ -107,11 +106,12 @@ class KreaImageTool {
             logger.error("   Image generation will FAIL until this is configured.")
         } else {
             // Redact API key in logs - only show length and first/last 2 chars
-            val keyPreview = if (kreaApiKey.length > 4) {
-                "${kreaApiKey.take(2)}...${kreaApiKey.takeLast(2)}"
-            } else {
-                "***"
-            }
+            val keyPreview =
+                if (kreaApiKey.length > 4) {
+                    "${kreaApiKey.take(2)}...${kreaApiKey.takeLast(2)}"
+                } else {
+                    "***"
+                }
             logger.info("OK KREA_API_KEY is configured")
             logger.info("   Key length: ${kreaApiKey.length} chars")
             logger.info("   Key preview: $keyPreview")
@@ -119,24 +119,27 @@ class KreaImageTool {
             logger.info("   Text-to-Image Model: $textToImageModel")
             logger.info("   Image-to-Image Model: $imageToImageModel")
         }
-        
+
         logger.info("============================================================")
     }
 
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                encodeDefaults = true
-                explicitNulls = false
-            })
+    private val client =
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(
+                    Json {
+                        ignoreUnknownKeys = true
+                        encodeDefaults = true
+                        explicitNulls = false
+                    },
+                )
+            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 30000
+                connectTimeoutMillis = 10000
+                socketTimeoutMillis = 30000
+            }
         }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30000
-            connectTimeoutMillis = 10000
-            socketTimeoutMillis = 30000
-        }
-    }
 
     /**
      * Triggers Krea image generation asynchronously.
@@ -148,7 +151,7 @@ class KreaImageTool {
     suspend fun generateImage(
         prompt: String,
         aspectRatio: String = "1:1",
-        referenceImageUrl: String? = null
+        referenceImageUrl: String? = null,
     ): String {
         logger.info("------------------------------------------------------------")
         logger.info("IMAGE GEN: generateImage() called")
@@ -158,7 +161,7 @@ class KreaImageTool {
         val refInfo = referenceImageUrl ?: "none (text-to-image)"
         logger.info("   Reference Image: $refInfo")
         logger.info("------------------------------------------------------------")
-        
+
         // Fail fast if API key is missing - don't make HTTP request
         if (kreaApiKey.isNullOrBlank()) {
             logger.error("X ABORT: KREA_API_KEY is not set. Cannot proceed with image generation.")
@@ -168,62 +171,64 @@ class KreaImageTool {
             logger.error("   3. Check build logs to verify secret was loaded")
             throw IllegalStateException(
                 "KREA_API_KEY is not configured. Set this environment variable in your deployment " +
-                "environment before using image generation. Check Hugging Face Spaces secrets or " +
-                "GitHub repository secrets."
+                    "environment before using image generation. Check Hugging Face Spaces secrets or " +
+                    "GitHub repository secrets.",
             )
         }
 
         try {
             // Parse aspect ratio to dimensions
             val (width, height) = parseAspectRatio(aspectRatio)
-            logger.info("DIMENSIONS: ${width}x${height} from aspect ratio '$aspectRatio'")
+            logger.info("DIMENSIONS: ${width}x$height from aspect ratio '$aspectRatio'")
 
             // Choose endpoint based on whether we have a reference image
-            val endpoint = if (referenceImageUrl != null) {
-                logger.info("Using Image-to-Image endpoint: $imageToImageModel")
-                imageToImageModel
-            } else {
-                logger.info("Using Text-to-Image endpoint: $textToImageModel")
-                textToImageModel
-            }
+            val endpoint =
+                if (referenceImageUrl != null) {
+                    logger.info("Using Image-to-Image endpoint: $imageToImageModel")
+                    imageToImageModel
+                } else {
+                    logger.info("Using Text-to-Image endpoint: $textToImageModel")
+                    textToImageModel
+                }
 
             val fullUrl = "$baseUrl$endpoint"
             logger.info("REQUEST URL: $fullUrl")
             logger.info("AUTHORIZATION: Bearer [REDACTED] (key length: ${kreaApiKey.length} chars)")
 
-            val response: HttpResponse = if (referenceImageUrl != null) {
-                // Image-to-Image request
-                logger.info("SENDING: Image-to-Image request...")
-                val promptShort = prompt.take(50)
-                logger.info("   Request: { prompt: \"$promptShort...\", imageUrls: [\"$referenceImageUrl\"] }")
-                client.post("$baseUrl$endpoint") {
-                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        KreaImageToImageRequest(
-                            prompt = prompt,
-                            imageUrls = listOf(referenceImageUrl)
+            val response: HttpResponse =
+                if (referenceImageUrl != null) {
+                    // Image-to-Image request
+                    logger.info("SENDING: Image-to-Image request...")
+                    val promptShort = prompt.take(50)
+                    logger.info("   Request: { prompt: \"$promptShort...\", imageUrls: [\"$referenceImageUrl\"] }")
+                    client.post("$baseUrl$endpoint") {
+                        header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            KreaImageToImageRequest(
+                                prompt = prompt,
+                                imageUrls = listOf(referenceImageUrl),
+                            ),
                         )
-                    )
-                }
-            } else {
-                // Text-to-Image request
-                logger.info("SENDING: Text-to-Image request...")
-                val promptShort = prompt.take(50)
-                logger.info("   Request: { prompt: \"$promptShort...\", width: $width, height: $height, steps: 28 }")
-                client.post("$baseUrl$endpoint") {
-                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        KreaTextToImageRequest(
-                            prompt = prompt,
-                            width = width,
-                            height = height,
-                            steps = 28
+                    }
+                } else {
+                    // Text-to-Image request
+                    logger.info("SENDING: Text-to-Image request...")
+                    val promptShort = prompt.take(50)
+                    logger.info("   Request: { prompt: \"$promptShort...\", width: $width, height: $height, steps: 28 }")
+                    client.post("$baseUrl$endpoint") {
+                        header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            KreaTextToImageRequest(
+                                prompt = prompt,
+                                width = width,
+                                height = height,
+                                steps = 28,
+                            ),
                         )
-                    )
+                    }
                 }
-            }
 
             logger.info("RESPONSE: HTTP ${response.status}")
 
@@ -236,15 +241,16 @@ class KreaImageTool {
                 logger.info("OK Response status is SUCCESS (2xx)")
 
                 // Parse manually to expose exact response structure
-                val body = try {
-                    Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResponse>(rawBody)
-                } catch (e: Exception) {
-                    logger.error("X Failed to parse Krea response as KreaJobResponse")
-                    logger.error("   Error: ${e.message}")
-                    logger.error("   Raw body: $rawBody")
-                    logger.error("   Expected schema: { job_id: String, status: String, created_at: String? }")
-                    throw RuntimeException("Failed to parse Krea API response: ${e.message}", e)
-                }
+                val body =
+                    try {
+                        Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResponse>(rawBody)
+                    } catch (e: Exception) {
+                        logger.error("X Failed to parse Krea response as KreaJobResponse")
+                        logger.error("   Error: ${e.message}")
+                        logger.error("   Raw body: $rawBody")
+                        logger.error("   Expected schema: { job_id: String, status: String, created_at: String? }")
+                        throw RuntimeException("Failed to parse Krea API response: ${e.message}", e)
+                    }
 
                 logger.info("OK Successfully parsed response:")
                 logger.info("   Job ID: ${body.job_id}")
@@ -296,7 +302,7 @@ class KreaImageTool {
      */
     suspend fun pollJobStatus(jobId: String): KreaJobResult {
         logger.debug("POLL: Checking status for job: $jobId")
-        
+
         // Fail fast if API key is missing
         if (kreaApiKey.isNullOrBlank()) {
             logger.error("X ABORT: pollJobStatus() called but KREA_API_KEY is not set")
@@ -306,10 +312,11 @@ class KreaImageTool {
         try {
             val pollUrl = "$baseUrl/jobs/$jobId"
             logger.debug("POLL URL: $pollUrl")
-            
-            val response: HttpResponse = client.get("$baseUrl/jobs/$jobId") {
-                header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
-            }
+
+            val response: HttpResponse =
+                client.get("$baseUrl/jobs/$jobId") {
+                    header(HttpHeaders.Authorization, "Bearer $kreaApiKey")
+                }
 
             // Always read raw response body first for debugging
             val rawBody = response.bodyAsText()
@@ -352,14 +359,14 @@ class KreaImageTool {
      */
     suspend fun waitForCompletion(
         jobId: String,
-        maxAttempts: Int = 150,  // 5 minutes max (150 * 2000ms)
-        pollIntervalMs: Long = 2000L
+        maxAttempts: Int = 150, // 5 minutes max (150 * 2000ms)
+        pollIntervalMs: Long = 2000L,
     ): KreaJobResult {
         logger.info("WAIT: Starting waitForCompletion() for job: $jobId")
         logger.info("   Max attempts: $maxAttempts")
         logger.info("   Poll interval: ${pollIntervalMs}ms")
         logger.info("   Max wait time: ${maxAttempts * pollIntervalMs / 1000}s (${maxAttempts * pollIntervalMs / 60000} min)")
-        
+
         var attempts = 0
         val startTime = System.currentTimeMillis()
 
@@ -374,7 +381,7 @@ class KreaImageTool {
                 "completed" -> {
                     val elapsedTime = (System.currentTimeMillis() - startTime) / 1000
                     logger.info("OK Job COMPLETED after ${elapsedTime}s!")
-                    
+
                     // Validate result has URLs
                     val imageUrl = result.result?.urls?.firstOrNull()
                     if (imageUrl.isNullOrBlank()) {
@@ -445,7 +452,7 @@ class KreaImageTool {
      */
     suspend fun storeImageLocally(
         imageUrl: String,
-        jobId: String
+        jobId: String,
     ): String {
         logger.info("IMAGE STORE: Downloading image and storing in database")
         logger.info("   Source URL: $imageUrl")
@@ -458,11 +465,12 @@ class KreaImageTool {
             logger.info("DOWNLOAD: Successfully downloaded ${imageBytes.size} bytes")
 
             // Detect content type
-            val contentType = when (imageUrl.substringAfterLast('.', "png").lowercase()) {
-                "jpg", "jpeg" -> "image/jpeg"
-                "webp" -> "image/webp"
-                else -> "image/png"
-            }
+            val contentType =
+                when (imageUrl.substringAfterLast('.', "png").lowercase()) {
+                    "jpg", "jpeg" -> "image/jpeg"
+                    "webp" -> "image/webp"
+                    else -> "image/png"
+                }
 
             // Store directly in database
             GeneratedImageRepository(DatabaseFactory.getDataSource()!!).storeImageBytes(jobId, imageBytes, contentType)
@@ -477,11 +485,26 @@ class KreaImageTool {
             logger.info("   Local URL: $localImageUrl")
 
             return localImageUrl
-
         } catch (e: Exception) {
             logger.error("IMAGE STORE: Failed to store image: ${e.message}", e)
             logger.warn("FALLBACK: Will use original Krea URL instead")
             return imageUrl
         }
+    }
+
+    /**
+     * Uploads image to Supabase storage (dummy implementation - just returns Krea URL)
+     * @param imageUrl The source image URL (from Krea)
+     * @param jobId The Krea job ID
+     * @param bucketName Supabase bucket name
+     * @return Supabase URL or Krea URL as fallback
+     */
+    suspend fun uploadToSupabase(
+        imageUrl: String,
+        jobId: String,
+        bucketName: String,
+    ): String {
+        logger.warn("uploadToSupabase not implemented - using Krea URL directly")
+        return imageUrl
     }
 }

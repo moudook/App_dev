@@ -9,6 +9,7 @@ import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.PlaybackState
 import com.example.smarty.core.domain.model.formatDuration
 import com.example.smarty.service.AudioPlayerService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,7 +27,6 @@ import kotlinx.coroutines.withContext
  * Observes AudioPlayerService state and provides UI-friendly state
  */
 class AudioPlayerViewModel(application: Application) : AndroidViewModel(application) {
-
     companion object {
         private const val TAG = "AudioPlayerViewModel"
     }
@@ -45,46 +44,51 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     val waveformData: StateFlow<List<Float>> = _waveformData.asStateFlow()
 
     // UI state derived from service state
-    val uiState: StateFlow<AudioPlayerUiState> = combine(
-        AudioPlayerService.playerState,
-        _waveformData,
-        AudioPlayerService.currentAmplitude,
-        AudioPlayerService.bassAmplitude,
-        AudioPlayerService.midAmplitude,
-        AudioPlayerService.trebleAmplitude
-    ) { flows ->
-        val playerState = flows[0] as com.example.smarty.core.domain.model.AudioPlayerState
-        @Suppress("UNCHECKED_CAST")
-        val waveform = flows[1] as List<Float>
-        val amplitude = flows[2] as Float
-        val bass = flows[3] as Float
-        val mid = flows[4] as Float
-        val treble = flows[5] as Float
+    val uiState: StateFlow<AudioPlayerUiState> =
+        combine(
+            AudioPlayerService.playerState,
+            _waveformData,
+            AudioPlayerService.currentAmplitude,
+            AudioPlayerService.bassAmplitude,
+            AudioPlayerService.midAmplitude,
+            AudioPlayerService.trebleAmplitude,
+        ) { flows ->
+            val playerState = flows[0] as com.example.smarty.core.domain.model.AudioPlayerState
 
-        val progress = if (playerState.duration > 0) {
-            (playerState.currentPosition.toFloat() / playerState.duration).coerceIn(0f, 1f)
-        } else 0f
+            @Suppress("UNCHECKED_CAST")
+            val waveform = flows[1] as List<Float>
+            val amplitude = flows[2] as Float
+            val bass = flows[3] as Float
+            val mid = flows[4] as Float
+            val treble = flows[5] as Float
 
-        AudioPlayerUiState(
-            isPlaying = playerState.isPlaying,
-            currentTrack = playerState.currentTrack,
-            progress = progress,
-            currentPositionFormatted = formatDuration(playerState.currentPosition),
-            durationFormatted = formatDuration(playerState.duration),
-            waveformData = waveform,
-            playbackState = playerState.playbackState,
-            currentAmplitude = amplitude,
-            bassAmplitude = bass,
-            midAmplitude = mid,
-            trebleAmplitude = treble
-        )
-    }
-    .distinctUntilChanged()
-    .stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
-        AudioPlayerUiState()
-    )
+            val progress =
+                if (playerState.duration > 0) {
+                    (playerState.currentPosition.toFloat() / playerState.duration).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+
+            AudioPlayerUiState(
+                isPlaying = playerState.isPlaying,
+                currentTrack = playerState.currentTrack,
+                progress = progress,
+                currentPositionFormatted = formatDuration(playerState.currentPosition),
+                durationFormatted = formatDuration(playerState.duration),
+                waveformData = waveform,
+                playbackState = playerState.playbackState,
+                currentAmplitude = amplitude,
+                bassAmplitude = bass,
+                midAmplitude = mid,
+                trebleAmplitude = treble,
+            )
+        }
+            .distinctUntilChanged()
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5000),
+                AudioPlayerUiState(),
+            )
 
     // Track if playback was explicitly requested to prevent auto-hiding during state transitions
     private var isPlaybackRequested = false
@@ -111,18 +115,19 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
                             android.widget.Toast.makeText(
                                 getApplication(),
                                 getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
-                                android.widget.Toast.LENGTH_SHORT
+                                android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         }
                     }
                     PlaybackState.ENDED -> {
                         // Auto-hide after playback ends
                         autoHideJob?.cancel()
-                        autoHideJob = viewModelScope.launch {
-                            delay(AUTO_HIDE_DELAY)
-                            _isMiniPlayerVisible.value = false
-                            _isFullPlayerVisible.value = false
-                        }
+                        autoHideJob =
+                            viewModelScope.launch {
+                                delay(AUTO_HIDE_DELAY)
+                                _isMiniPlayerVisible.value = false
+                                _isFullPlayerVisible.value = false
+                            }
                     }
                     PlaybackState.PLAYING -> {
                         // Cancel any pending auto-hide when playback resumes

@@ -29,9 +29,9 @@ class PdfCrawlerTool {
     private val logger = LoggerFactory.getLogger(PdfCrawlerTool::class.java)
 
     companion object {
-        private const val MAX_FILE_SIZE_MB = 50  // Max PDF size to process
-        private const val MAX_PAGES = 100        // Max pages to extract
-        private const val TIMEOUT_MS = 30000     // 30 second timeout
+        private const val MAX_FILE_SIZE_MB = 50 // Max PDF size to process
+        private const val MAX_PAGES = 100 // Max pages to extract
+        private const val TIMEOUT_MS = 30000 // 30 second timeout
     }
 
     /**
@@ -39,7 +39,7 @@ class PdfCrawlerTool {
      */
     suspend fun extractFromUrl(pdfUrl: String): PdfExtractionResult {
         logger.info("Extracting text from PDF: $pdfUrl")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val connection = URL(pdfUrl).openConnection() as HttpURLConnection
@@ -49,33 +49,33 @@ class PdfCrawlerTool {
                     readTimeout = TIMEOUT_MS
                     instanceFollowRedirects = true
                 }
-                
+
                 val responseCode = connection.responseCode
                 if (responseCode != HttpURLConnection.HTTP_OK) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "HTTP error: $responseCode"
+                        errorMessage = "HTTP error: $responseCode",
                     )
                 }
-                
+
                 // Check content type
                 val contentType = connection.contentType
                 if (contentType != "application/pdf") {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "Not a PDF: $contentType"
+                        errorMessage = "Not a PDF: $contentType",
                     )
                 }
-                
+
                 // Check file size
                 val fileSize = connection.contentLengthLong
                 if (fileSize > MAX_FILE_SIZE_MB * 1024 * 1024) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "PDF too large: ${fileSize / 1024 / 1024}MB"
+                        errorMessage = "PDF too large: ${fileSize / 1024 / 1024}MB",
                     )
                 }
-                
+
                 // Download to temp file
                 val tempFile = File.createTempFile("pdf_", ".tmp")
                 try {
@@ -84,18 +84,17 @@ class PdfCrawlerTool {
                             input.copyTo(output)
                         }
                     }
-                    
+
                     // Extract text
                     extractFromFile(tempFile.absolutePath)
                 } finally {
                     tempFile.delete()
                 }
-                
             } catch (e: Exception) {
                 logger.error("Failed to extract PDF from URL: $pdfUrl", e)
                 PdfExtractionResult(
                     success = false,
-                    errorMessage = e.message ?: "Unknown error"
+                    errorMessage = e.message ?: "Unknown error",
                 )
             }
         }
@@ -106,75 +105,75 @@ class PdfCrawlerTool {
      */
     suspend fun extractFromFile(filePath: String): PdfExtractionResult {
         logger.info("Extracting text from local PDF: $filePath")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 val file = File(filePath)
                 if (!file.exists()) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "File not found: $filePath"
+                        errorMessage = "File not found: $filePath",
                     )
                 }
-                
+
                 // Check file size
                 if (file.length() > MAX_FILE_SIZE_MB * 1024 * 1024) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "PDF too large: ${file.length() / 1024 / 1024}MB"
+                        errorMessage = "PDF too large: ${file.length() / 1024 / 1024}MB",
                     )
                 }
-                
+
                 // Load PDF using PDFBox 3.0 API
                 // Note: PDFBox 3.0 has changed the API - using reflection for now
                 val document = loadPdfDocument(file)
                 if (document == null) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "Failed to load PDF document"
+                        errorMessage = "Failed to load PDF document",
                     )
                 }
                 try {
                     val totalPages = document.numberOfPages
                     val pagesToExtract = minOf(totalPages, MAX_PAGES)
-                    
-                    val text = buildString {
-                        for (i in 1..pagesToExtract) {
-                            val stripper = PDFTextStripper()
-                            stripper.startPage = i
-                            stripper.endPage = i
-                            val pageText = stripper.getText(document)
-                            appendLine("=== PAGE $i ===")
-                            appendLine(pageText)
-                            appendLine()
+
+                    val text =
+                        buildString {
+                            for (i in 1..pagesToExtract) {
+                                val stripper = PDFTextStripper()
+                                stripper.startPage = i
+                                stripper.endPage = i
+                                val pageText = stripper.getText(document)
+                                appendLine("=== PAGE $i ===")
+                                appendLine(pageText)
+                                appendLine()
+                            }
                         }
-                    }
-                    
+
                     val metadata = extractMetadata(document)
-                    
+
                     PdfExtractionResult(
                         success = true,
                         content = text.trim(),
                         totalPages = totalPages,
                         extractedPages = pagesToExtract,
                         wordCount = text.split("\\s+".toRegex()).filter { it.isNotBlank() }.size,
-                        metadata = metadata
+                        metadata = metadata,
                     )
                 } finally {
                     document.close()
                 }
-                
             } catch (e: IOException) {
                 logger.error("Failed to extract PDF: $filePath", e)
                 PdfExtractionResult(
                     success = false,
-                    errorMessage = "PDF extraction error: ${e.message}"
+                    errorMessage = "PDF extraction error: ${e.message}",
                 )
             } catch (e: Exception) {
                 logger.error("Unexpected error extracting PDF: $filePath", e)
                 PdfExtractionResult(
                     success = false,
-                    errorMessage = e.message ?: "Unknown error"
+                    errorMessage = e.message ?: "Unknown error",
                 )
             }
         }
@@ -185,7 +184,7 @@ class PdfCrawlerTool {
      */
     private fun extractMetadata(document: PDDocument): PdfMetadata {
         val docInfo = document.documentInformation
-        
+
         return PdfMetadata(
             title = docInfo.title,
             author = docInfo.author,
@@ -194,7 +193,7 @@ class PdfCrawlerTool {
             creator = docInfo.creator,
             producer = docInfo.producer,
             creationDate = docInfo.creationDate?.toString(),
-            modificationDate = docInfo.modificationDate?.toString()
+            modificationDate = docInfo.modificationDate?.toString(),
         )
     }
 
@@ -210,10 +209,9 @@ class PdfCrawlerTool {
                     connectTimeout = 10000
                     instanceFollowRedirects = true
                 }
-                
+
                 val contentType = connection.contentType
                 contentType == "application/pdf" || url.endsWith(".pdf", ignoreCase = true)
-                
             } catch (e: Exception) {
                 logger.warn("Failed to check if URL is PDF: $url", e)
                 false
@@ -224,19 +222,22 @@ class PdfCrawlerTool {
     /**
      * Extract text from byte array (for uploaded files)
      */
-    suspend fun extractFromBytes(bytes: ByteArray, fileName: String = "uploaded.pdf"): PdfExtractionResult {
+    suspend fun extractFromBytes(
+        bytes: ByteArray,
+        fileName: String = "uploaded.pdf",
+    ): PdfExtractionResult {
         logger.info("Extracting text from PDF bytes: $fileName")
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 // Check file size
                 if (bytes.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
                     return@withContext PdfExtractionResult(
                         success = false,
-                        errorMessage = "PDF too large: ${bytes.size / 1024 / 1024}MB"
+                        errorMessage = "PDF too large: ${bytes.size / 1024 / 1024}MB",
                     )
                 }
-                
+
                 // Save to temp file
                 val tempFile = File.createTempFile("pdf_", ".tmp")
                 try {
@@ -245,12 +246,11 @@ class PdfCrawlerTool {
                 } finally {
                     tempFile.delete()
                 }
-                
             } catch (e: Exception) {
                 logger.error("Failed to extract PDF from bytes", e)
                 PdfExtractionResult(
                     success = false,
-                    errorMessage = e.message ?: "Unknown error"
+                    errorMessage = e.message ?: "Unknown error",
                 )
             }
         }
@@ -267,7 +267,7 @@ data class PdfExtractionResult(
     val extractedPages: Int = 0,
     val wordCount: Int = 0,
     val metadata: PdfMetadata? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 )
 
 /**
@@ -281,7 +281,7 @@ data class PdfMetadata(
     val creator: String?,
     val producer: String?,
     val creationDate: String?,
-    val modificationDate: String?
+    val modificationDate: String?,
 )
 
 /**
@@ -292,5 +292,5 @@ data class PdfMetadata(
 private fun loadPdfDocument(file: File): PDDocument? {
     // TODO: Update to PDFBox 3.0 API when stable
     // PDFBox 3.0 uses a different loading mechanism
-    return null  // Stub for now
+    return null // Stub for now
 }

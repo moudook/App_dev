@@ -1,16 +1,17 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 // Detect if Android SDK is available (not available in Docker/CI server builds)
-val hasAndroidSdk = try {
-    val localProps = file("local.properties")
-    if (localProps.exists()) {
-        true
-    } else {
-        System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null
+val hasAndroidSdk =
+    try {
+        val localProps = file("local.properties")
+        if (localProps.exists()) {
+            true
+        } else {
+            System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null
+        }
+    } catch (_: Exception) {
+        false
     }
-} catch (_: Exception) {
-    false
-}
 
 plugins {
     alias(libs.plugins.android.application) apply false
@@ -20,6 +21,25 @@ plugins {
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.firebase.crashlytics) apply false
+    alias(libs.plugins.ktlint) apply false
+}
+
+allprojects {
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+
+    configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+        verbose.set(false)
+        android.set(true)
+        ignoreFailures.set(true)
+        enableExperimentalRules.set(false)
+        filter {
+            exclude("**/generated/**")
+            exclude("**/build/**")
+            exclude("**/test/**")
+            exclude("**/androidTest/**")
+        }
+        disabledRules.set(setOf("value-parameter-comment", "value-argument-comment"))
+    }
 }
 
 // Force Kotlin version across all dependencies to avoid version conflicts

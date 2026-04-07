@@ -26,7 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 class AudioFeatureManager(
     private val audioPlaybackManager: AudioPlaybackManager,
     private val deviceAudioRepository: DeviceAudioRepository,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "AudioFeatureManager"
@@ -191,26 +191,31 @@ class AudioFeatureManager(
      * @param tracks List of tracks to search within
      * @return AudioSearchResult with matching track or fallback tracks
      */
-    fun findMatchingAudio(query: String, tracks: List<AudioTrack>): AudioSearchResult {
+    fun findMatchingAudio(
+        query: String,
+        tracks: List<AudioTrack>,
+    ): AudioSearchResult {
         val queryLower = query.lowercase().trim()
         if (queryLower.isBlank()) return AudioSearchResult.NoMatch("Empty search query")
 
         // Try exact match first
-        val exactMatch = tracks.firstOrNull { track ->
-            track.title.lowercase() == queryLower ||
-            track.artist?.lowercase() == queryLower ||
-            track.album?.lowercase() == queryLower
-        }
+        val exactMatch =
+            tracks.firstOrNull { track ->
+                track.title.lowercase() == queryLower ||
+                    track.artist?.lowercase() == queryLower ||
+                    track.album?.lowercase() == queryLower
+            }
 
         if (exactMatch != null) return AudioSearchResult.ExactMatch(exactMatch)
 
         // Fallback to partial match (contains)
-        val partialMatch = tracks.firstOrNull { track ->
-            track.title.lowercase().contains(queryLower) ||
-            track.artist?.lowercase()?.contains(queryLower) == true ||
-            track.album?.lowercase()?.contains(queryLower) == true ||
-            track.fileName?.lowercase()?.contains(queryLower) == true
-        }
+        val partialMatch =
+            tracks.firstOrNull { track ->
+                track.title.lowercase().contains(queryLower) ||
+                    track.artist?.lowercase()?.contains(queryLower) == true ||
+                    track.album?.lowercase()?.contains(queryLower) == true ||
+                    track.fileName?.lowercase()?.contains(queryLower) == true
+            }
 
         if (partialMatch != null) return AudioSearchResult.ExactMatch(partialMatch)
 
@@ -219,35 +224,40 @@ class AudioFeatureManager(
         if (queryWords.isEmpty()) return AudioSearchResult.NoMatch("No match found for '$query'")
 
         // Score each track based on word overlap and similarity
-        val scoredTracks = tracks.mapNotNull { track ->
-            val trackWords = buildList {
-                addAll(track.title.lowercase().split(" "))
-                track.artist?.lowercase()?.split(" ")?.let { addAll(it) }
-                track.album?.lowercase()?.split(" ")?.let { addAll(it) }
-            }.filter { it.length > 2 }
+        val scoredTracks =
+            tracks.mapNotNull { track ->
+                val trackWords =
+                    buildList {
+                        addAll(track.title.lowercase().split(" "))
+                        track.artist?.lowercase()?.split(" ")?.let { addAll(it) }
+                        track.album?.lowercase()?.split(" ")?.let { addAll(it) }
+                    }.filter { it.length > 2 }
 
-            // Calculate similarity score
-            var score = 0.0
+                // Calculate similarity score
+                var score = 0.0
 
-            for (queryWord in queryWords) {
-                // Check for word contains
-                val containsBonus = trackWords.count { it.contains(queryWord) || queryWord.contains(it) }
-                score += containsBonus * 2.0
+                for (queryWord in queryWords) {
+                    // Check for word contains
+                    val containsBonus = trackWords.count { it.contains(queryWord) || queryWord.contains(it) }
+                    score += containsBonus * 2.0
 
-                // Check for similar words (Levenshtein-like)
-                val bestWordMatch = trackWords.maxOfOrNull { trackWord ->
-                    calculateSimilarity(queryWord, trackWord)
-                } ?: 0.0
-                score += bestWordMatch
-            }
+                    // Check for similar words (Levenshtein-like)
+                    val bestWordMatch =
+                        trackWords.maxOfOrNull { trackWord ->
+                            calculateSimilarity(queryWord, trackWord)
+                        } ?: 0.0
+                    score += bestWordMatch
+                }
 
-            // Normalize by query length
-            val normalizedScore = score / queryWords.size.coerceAtLeast(1)
+                // Normalize by query length
+                val normalizedScore = score / queryWords.size.coerceAtLeast(1)
 
-            if (normalizedScore > 0.5) {
-                Pair(track, normalizedScore)
-            } else null
-        }.sortedByDescending { it.second }
+                if (normalizedScore > 0.5) {
+                    Pair(track, normalizedScore)
+                } else {
+                    null
+                }
+            }.sortedByDescending { it.second }
 
         return when {
             scoredTracks.isNotEmpty() && scoredTracks.first().second >= 1.5 -> {
@@ -270,7 +280,10 @@ class AudioFeatureManager(
      * Calculate similarity between two strings (0.0 to 1.0).
      * Uses a simple character-based similarity metric.
      */
-    private fun calculateSimilarity(s1: String, s2: String): Double {
+    private fun calculateSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1 == s2) return 1.0
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
 
@@ -328,7 +341,7 @@ class AudioFeatureManager(
         return mapOf(
             "total_tracks" to tracks.size,
             "unique_artists" to artists,
-            "unique_albums" to albums
+            "unique_albums" to albums,
         )
     }
 
@@ -351,4 +364,3 @@ class AudioFeatureManager(
         audioPlaybackManager.clearPendingAudioPlayback()
     }
 }
-

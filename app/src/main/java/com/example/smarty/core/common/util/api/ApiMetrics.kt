@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Tracks API call metrics for monitoring and debugging.
@@ -42,7 +41,7 @@ object ApiMetrics {
         val cacheMisses: Int = 0,
         val successRate: Float = 0f,
         val cacheHitRate: Float = 0f,
-        val lastResetTime: Long = 0
+        val lastResetTime: Long = 0,
     )
 
     fun init(context: Context) {
@@ -76,16 +75,17 @@ object ApiMetrics {
         val successful = _successfulCalls.get()
         val cacheTotal = _cacheHits.get() + _cacheMisses.get()
 
-        _metricsFlow.value = MetricsSnapshot(
-            totalCalls = total,
-            successfulCalls = successful,
-            failedCalls = _failedCalls.get(),
-            cacheHits = _cacheHits.get(),
-            cacheMisses = _cacheMisses.get(),
-            successRate = if (total > 0) successful.toFloat() / total else 0f,
-            cacheHitRate = if (cacheTotal > 0) _cacheHits.get().toFloat() / cacheTotal else 0f,
-            lastResetTime = lastResetTime
-        )
+        _metricsFlow.value =
+            MetricsSnapshot(
+                totalCalls = total,
+                successfulCalls = successful,
+                failedCalls = _failedCalls.get(),
+                cacheHits = _cacheHits.get(),
+                cacheMisses = _cacheMisses.get(),
+                successRate = if (total > 0) successful.toFloat() / total else 0f,
+                cacheHitRate = if (cacheTotal > 0) _cacheHits.get().toFloat() / cacheTotal else 0f,
+                lastResetTime = lastResetTime,
+            )
     }
 
     fun recordApiCall(success: Boolean) {

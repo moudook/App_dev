@@ -2,8 +2,8 @@ package com.example.smarty.data.remote
 
 import android.content.Context
 import android.util.Log
-import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.core.domain.model.AttachmentMetadata
+import com.example.smarty.data.local.SecurePreferences
 
 /**
  * AI Service facade that coordinates AI operations.
@@ -13,9 +13,8 @@ class AIService(
     private val context: Context,
     private val securePreferences: SecurePreferences,
     private val remoteAgentService: RemoteAgentService,
-    private val aiResponseCache: com.example.smarty.data.cache.AIResponseCache
+    private val aiResponseCache: com.example.smarty.data.cache.AIResponseCache,
 ) {
-
     companion object {
         private const val TAG = "AIService"
     }
@@ -25,7 +24,7 @@ class AIService(
      */
     suspend fun analyzeContent(
         content: String,
-        attachmentMetadata: List<AttachmentMetadata>? = null
+        attachmentMetadata: List<AttachmentMetadata>? = null,
     ): AIResponse {
         // 1. Check Cache
         val cacheKey = aiResponseCache.generateKey(content)
@@ -36,9 +35,13 @@ class AIService(
         }
 
         // 2. Call Remote Service
-        val response = remoteAgentService.analyzeContent(content, attachmentMetadata?.map {
-            AttachmentInfo(it.fileName, it.fileType)
-        })
+        val response =
+            remoteAgentService.analyzeContent(
+                content,
+                attachmentMetadata?.map {
+                    AttachmentInfo(it.fileName, it.fileType)
+                },
+            )
 
         // 3. Cache and Return
         return if (response != null && response.success) {
@@ -51,7 +54,7 @@ class AIService(
                 summary = "Could not connect to server.",
                 whySaved = "Error",
                 success = false,
-                error = "Server unavailable"
+                error = "Server unavailable",
             )
         }
     }
@@ -62,7 +65,7 @@ class AIService(
     suspend fun analyzeDocument(
         documentText: String,
         fileName: String? = null,
-        userContext: String? = null
+        userContext: String? = null,
     ): DocumentAnalysisResponse {
         return remoteAgentService.analyzeDocument(documentText, fileName, userContext) ?: DocumentAnalysisResponse(
             title = fileName ?: "Document",
@@ -72,14 +75,17 @@ class AIService(
             actionItems = emptyList(),
             userRelevance = "Error",
             success = false,
-            error = "Server unavailable"
+            error = "Server unavailable",
         )
     }
 
     /**
      * Simple chat for non-agent AI interactions.
      */
-    suspend fun simpleChat(systemPrompt: String, userPrompt: String): String {
+    suspend fun simpleChat(
+        systemPrompt: String,
+        userPrompt: String,
+    ): String {
         // For thin client, we can treat this as a briefing or single-turn chat
         // using the remote service.
         // Or we can use sendQuery and collect the first result.
@@ -94,7 +100,10 @@ class AIService(
     /**
      * Process an image on the server (OCR/Description).
      */
-    suspend fun processImage(imageBytes: ByteArray, mimeType: String): String {
+    suspend fun processImage(
+        imageBytes: ByteArray,
+        mimeType: String,
+    ): String {
         return remoteAgentService.processImage(imageBytes, mimeType)?.text
             ?: "Image processing failed"
     }
@@ -102,7 +111,10 @@ class AIService(
     /**
      * Process a PDF on the server.
      */
-    suspend fun processPdf(pdfBytes: ByteArray, fileName: String?): String {
+    suspend fun processPdf(
+        pdfBytes: ByteArray,
+        fileName: String?,
+    ): String {
         return remoteAgentService.processPdf(pdfBytes, fileName)?.text
             ?: "PDF processing failed"
     }

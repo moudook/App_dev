@@ -7,28 +7,29 @@ package com.example.smarty.core.domain.model
 data class AttachmentMetadata(
     val fileName: String,
     val mimeType: String,
-    val fileType: String  // Human-readable type: "Image", "Video", "PDF", "Audio", etc.
+    val fileType: String, // Human-readable type: "Image", "Video", "PDF", "Audio", etc.
 ) {
     companion object {
         /**
          * Create metadata from an Attachment
          */
         fun fromAttachment(attachment: Attachment): AttachmentMetadata {
-            val fileType = when (attachment.getAttachmentType()) {
-                AttachmentType.IMAGE -> "Image"
-                AttachmentType.VIDEO -> "Video"
-                AttachmentType.AUDIO -> "Audio"
-                AttachmentType.DOCUMENT -> "Document"
-                AttachmentType.SPREADSHEET -> "Spreadsheet"
-                AttachmentType.PRESENTATION -> "Presentation"
-                AttachmentType.ARCHIVE -> "Archive"
-                AttachmentType.APK -> "App"
-                AttachmentType.FILE -> "File"
-            }
+            val fileType =
+                when (attachment.getAttachmentType()) {
+                    AttachmentType.IMAGE -> "Image"
+                    AttachmentType.VIDEO -> "Video"
+                    AttachmentType.AUDIO -> "Audio"
+                    AttachmentType.DOCUMENT -> "Document"
+                    AttachmentType.SPREADSHEET -> "Spreadsheet"
+                    AttachmentType.PRESENTATION -> "Presentation"
+                    AttachmentType.ARCHIVE -> "Archive"
+                    AttachmentType.APK -> "App"
+                    AttachmentType.FILE -> "File"
+                }
             return AttachmentMetadata(
                 fileName = attachment.fileName,
                 mimeType = attachment.mimeType,
-                fileType = fileType
+                fileType = fileType,
             )
         }
 
@@ -40,7 +41,7 @@ data class AttachmentMetadata(
             return AttachmentMetadata(
                 fileName = attachment.fileName,
                 mimeType = attachment.mimeType,
-                fileType = fileType
+                fileType = fileType,
             )
         }
 

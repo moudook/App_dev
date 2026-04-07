@@ -18,11 +18,13 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
 
         logger.info("Summarizing ${messages.size} messages")
 
-        val conversationText = messages.joinToString("\n") { message ->
-            "${message.role.name}: ${message.content}"
-        }
+        val conversationText =
+            messages.joinToString("\n") { message ->
+                "${message.role.name}: ${message.content}"
+            }
 
-        val prompt = """
+        val prompt =
+            """
             Summarize the following conversation concisely.
             Focus on facts, user preferences, and key decisions.
             Keep the summary under 300 words.
@@ -31,12 +33,13 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
             $conversationText
 
             SUMMARY:
-        """.trimIndent()
+            """.trimIndent()
 
-        val systemMessage = LlmMessage(
-            role = LlmMessage.Role.SYSTEM,
-            content = prompt
-        )
+        val systemMessage =
+            LlmMessage(
+                role = LlmMessage.Role.SYSTEM,
+                content = prompt,
+            )
 
         return try {
             // Use the non-streaming generate method for background summarization

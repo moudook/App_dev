@@ -3,14 +3,9 @@ package com.example.smarty.data.sync
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.example.smarty.core.domain.model.CalendarEvent
-import com.example.smarty.core.domain.model.ChatMessage
-import com.example.smarty.core.domain.model.ChatRole
-import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.*
 import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.protocol.*
-import kotlinx.coroutines.flow.first
 
 class MigrationManager(
     private val context: Context,
@@ -18,7 +13,7 @@ class MigrationManager(
     private val noteDao: NoteDao,
     private val calendarDao: CalendarDao,
     private val chatDao: ChatDao,
-    private val syncQueueDao: SyncQueueDao
+    private val syncQueueDao: SyncQueueDao,
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -37,43 +32,47 @@ class MigrationManager(
 
             Log.i(TAG, "Found ${notes.size} notes, ${sessions.size} sessions, ${events.size} events to migrate")
 
-            val noteItems = notes.map { note ->
-                NotePushItem(
-                    id = note.id,
-                    title = note.title,
-                    content = note.content,
-                    categoryId = null, // TODO: resolve category name to ID
-                    updatedAt = note.updatedAt
-                )
-            }
-
-            val sessionItems = sessions.map { session ->
-                val messages = chatDao.getMessagesForSessionOnce(session.id).map { msg ->
-                    MessagePushItem(
-                        id = msg.id,
-                        role = msg.role,
-                        content = msg.content,
-                        createdAt = msg.timestamp
+            val noteItems =
+                notes.map { note ->
+                    NotePushItem(
+                        id = note.id,
+                        title = note.title,
+                        content = note.content,
+                        categoryId = null, // TODO: resolve category name to ID
+                        updatedAt = note.updatedAt,
                     )
                 }
-                SessionPushItem(
-                    id = session.id,
-                    title = session.title,
-                    createdAt = session.createdAt,
-                    messages = messages
-                )
-            }
 
-            val eventItems = events.map { event ->
-                EventPushItem(
-                    id = event.id,
-                    title = event.title,
-                    startTime = event.startTime,
-                    endTime = event.endTime,
-                    description = event.description,
-                    reminderMinutes = event.reminderMinutes ?: 15
-                )
-            }
+            val sessionItems =
+                sessions.map { session ->
+                    val messages =
+                        chatDao.getMessagesForSessionOnce(session.id).map { msg ->
+                            MessagePushItem(
+                                id = msg.id,
+                                role = msg.role,
+                                content = msg.content,
+                                createdAt = msg.timestamp,
+                            )
+                        }
+                    SessionPushItem(
+                        id = session.id,
+                        title = session.title,
+                        createdAt = session.createdAt,
+                        messages = messages,
+                    )
+                }
+
+            val eventItems =
+                events.map { event ->
+                    EventPushItem(
+                        id = event.id,
+                        title = event.title,
+                        startTime = event.startTime,
+                        endTime = event.endTime,
+                        description = event.description,
+                        reminderMinutes = event.reminderMinutes ?: 15,
+                    )
+                }
 
             if (noteItems.isEmpty() && sessionItems.isEmpty() && eventItems.isEmpty()) {
                 markMigrationComplete()
@@ -81,11 +80,12 @@ class MigrationManager(
                 return MigrationResult.Success(0, 0, 0)
             }
 
-            val request = SyncPushRequest(
-                notes = noteItems.ifEmpty { null },
-                sessions = sessionItems.ifEmpty { null },
-                events = eventItems.ifEmpty { null }
-            )
+            val request =
+                SyncPushRequest(
+                    notes = noteItems.ifEmpty { null },
+                    sessions = sessionItems.ifEmpty { null },
+                    events = eventItems.ifEmpty { null },
+                )
 
             val response = remoteDataSource.pushChanges(request)
 
@@ -133,6 +133,8 @@ class MigrationManager(
 
 sealed class MigrationResult {
     data class Success(val notes: Int, val sessions: Int, val events: Int) : MigrationResult()
+
     object AlreadyMigrated : MigrationResult()
+
     data class Error(val message: String) : MigrationResult()
 }

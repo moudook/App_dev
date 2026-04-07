@@ -11,7 +11,7 @@ data class CacheEntry(
     val size: Long,
     val lastAccessTime: Long,
     val createdTime: Long,
-    val type: CacheType
+    val type: CacheType,
 )
 
 /**
@@ -21,5 +21,5 @@ enum class CacheType {
     THUMBNAIL,
     WAVEFORM,
     METADATA,
-    YOUTUBE
+    YOUTUBE,
 }

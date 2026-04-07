@@ -24,7 +24,7 @@ sealed class AgentCommand {
     data class AddNote(
         override val commandId: String,
         val content: String,
-        val category: String? = null
+        val category: String? = null,
     ) : AgentCommand()
 
     @Serializable
@@ -34,21 +34,21 @@ sealed class AgentCommand {
         @SerialName("note_id") val noteId: String,
         val title: String? = null,
         val content: String? = null,
-        val append: Boolean = false // Legacy support, usually false for full update
+        val append: Boolean = false, // Legacy support, usually false for full update
     ) : AgentCommand()
 
     @Serializable
     @SerialName("delete_note")
     data class DeleteNote(
         override val commandId: String,
-        @SerialName("note_id") val noteId: String
+        @SerialName("note_id") val noteId: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("archive_note")
     data class ArchiveNote(
         override val commandId: String,
-        @SerialName("note_id") val noteId: String
+        @SerialName("note_id") val noteId: String,
     ) : AgentCommand()
 
     @Serializable
@@ -58,13 +58,13 @@ sealed class AgentCommand {
         val query: String,
         val category: String? = null,
         @SerialName("time_range") val timeRange: String = "all",
-        val limit: Int = 10
+        val limit: Int = 10,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("get_active_notes")
     data class GetActiveNotes(
-        override val commandId: String
+        override val commandId: String,
     ) : AgentCommand()
 
     // ============================================================================================
@@ -75,14 +75,14 @@ sealed class AgentCommand {
     @SerialName("launch_app")
     data class LaunchApp(
         override val commandId: String,
-        @SerialName("package_name") val packageName: String
+        @SerialName("package_name") val packageName: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("take_screenshot")
     data class TakeScreenshot(
         override val commandId: String,
-        val save: Boolean = true
+        val save: Boolean = true,
     ) : AgentCommand()
 
     @Serializable
@@ -90,19 +90,19 @@ sealed class AgentCommand {
     data class ToggleSetting(
         override val commandId: String,
         val setting: String,
-        val enable: Boolean
+        val enable: Boolean,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("get_system_status")
     data class GetSystemStatus(
-        override val commandId: String
+        override val commandId: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("get_screen_context")
     data class GetScreenContext(
-        override val commandId: String
+        override val commandId: String,
     ) : AgentCommand()
 
     @Serializable
@@ -111,14 +111,14 @@ sealed class AgentCommand {
         override val commandId: String,
         val name: String,
         @SerialName("time_str") val timeStr: String,
-        @SerialName("is_alarm") val isAlarm: Boolean
+        @SerialName("is_alarm") val isAlarm: Boolean,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("navigate")
     data class Navigate(
         override val commandId: String,
-        val screen: String // "home", "calendar", "stacks", "archive", "settings"
+        val screen: String, // "home", "calendar", "stacks", "archive", "settings"
     ) : AgentCommand()
 
     @Serializable
@@ -126,7 +126,7 @@ sealed class AgentCommand {
     data class Share(
         override val commandId: String,
         val content: String,
-        val title: String? = null
+        val title: String? = null,
     ) : AgentCommand()
 
     // ============================================================================================
@@ -138,7 +138,7 @@ sealed class AgentCommand {
     data class StoreContext(
         override val commandId: String,
         val content: String,
-        val type: String // "factual", "preference", "episodic"
+        val type: String, // "factual", "preference", "episodic"
     ) : AgentCommand()
 
     @Serializable
@@ -147,14 +147,14 @@ sealed class AgentCommand {
         override val commandId: String,
         val id: String,
         val content: String,
-        val type: String
+        val type: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("delete_context")
     data class DeleteContext(
         override val commandId: String,
-        val id: String
+        val id: String,
     ) : AgentCommand()
 
     // ============================================================================================
@@ -166,21 +166,21 @@ sealed class AgentCommand {
     data class PlayAudio(
         override val commandId: String,
         val query: String,
-        val service: String? = null
+        val service: String? = null,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("control_audio")
     data class ControlAudio(
         override val commandId: String,
-        val action: String // "play", "pause", "resume", "stop", "next", "previous"
+        val action: String, // "play", "pause", "resume", "stop", "next", "previous"
     ) : AgentCommand()
 
     @Serializable
     @SerialName("seek_audio")
     data class SeekAudio(
         override val commandId: String,
-        @SerialName("position_ms") val positionMs: Long
+        @SerialName("position_ms") val positionMs: Long,
     ) : AgentCommand()
 
     // ============================================================================================
@@ -195,21 +195,21 @@ sealed class AgentCommand {
         @SerialName("start_time") val startTime: Long,
         @SerialName("end_time") val endTime: Long,
         val description: String? = null,
-        @SerialName("reminder_minutes") val reminderMinutes: Int? = 15 // Default 15 min reminder
+        @SerialName("reminder_minutes") val reminderMinutes: Int? = 15, // Default 15 min reminder
     ) : AgentCommand()
 
     @Serializable
     @SerialName("list_events")
     data class ListEvents(
         override val commandId: String,
-        val date: Long
+        val date: Long,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("delete_event")
     data class DeleteEvent(
         override val commandId: String,
-        @SerialName("event_id") val eventId: String
+        @SerialName("event_id") val eventId: String,
     ) : AgentCommand()
 
     @Serializable
@@ -220,21 +220,21 @@ sealed class AgentCommand {
         val start: String,
         val end: String?,
         val description: String?,
-        val location: String?
+        val location: String?,
     ) : AgentCommand()
 
-@Serializable
+    @Serializable
     @SerialName("query_calendar")
     data class QueryCalendar(
         override val commandId: String,
-        val query: String?
+        val query: String?,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("get_device_info")
     data class GetDeviceInfo(
         override val commandId: String,
-        @SerialName("info_type") val infoType: String
+        @SerialName("info_type") val infoType: String,
     ) : AgentCommand()
 
     // ============================================================================================
@@ -246,35 +246,34 @@ sealed class AgentCommand {
     data class NotifyToolStarted(
         override val commandId: String,
         @SerialName("tool_name") val toolName: String,
-        @SerialName("display_name") val displayName: String
+        @SerialName("display_name") val displayName: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("notify_tool_completed")
     data class NotifyToolCompleted(
         override val commandId: String,
-        @SerialName("tool_name") val toolName: String
+        @SerialName("tool_name") val toolName: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("notify_status")
     data class NotifyStatus(
         override val commandId: String,
-        val status: String
+        val status: String,
     ) : AgentCommand()
 
     @Serializable
     @SerialName("notify_citations")
     data class NotifyCitations(
         override val commandId: String,
-        val citations: List<ProtocolWebCitation>
+        val citations: List<ProtocolWebCitation>,
     ) : AgentCommand()
-
 }
 
 @Serializable
 data class ProtocolWebCitation(
     val title: String,
     val url: String,
-    val snippet: String
+    val snippet: String,
 )

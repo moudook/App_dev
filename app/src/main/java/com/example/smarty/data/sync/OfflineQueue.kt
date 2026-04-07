@@ -5,13 +5,12 @@ import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 class OfflineQueue(
-    private val syncQueueDao: SyncQueueDao
+    private val syncQueueDao: SyncQueueDao,
 ) {
     val pendingCount: Flow<Int> = syncQueueDao.getPendingCountFlow()
-    
+
     val pendingItems: Flow<List<SyncQueueItem>> = syncQueueDao.getPendingItemsFlow()
 
     suspend fun enqueueNoteCreate(note: Note) {
@@ -44,23 +43,24 @@ class OfflineQueue(
         operation: SyncOperation,
         entityType: SyncEntityType,
         entityId: String,
-        version: Long
+        version: Long,
     ) {
-        val item = SyncQueueItem.create(
-            operation = operation,
-            entityType = entityType,
-            entityId = entityId,
-            payloadJson = "{}",
-            baseVersion = version
-        )
+        val item =
+            SyncQueueItem.create(
+                operation = operation,
+                entityType = entityType,
+                entityId = entityId,
+                payloadJson = "{}",
+                baseVersion = version,
+            )
         syncQueueDao.insert(item)
         Log.d(TAG, "Enqueued ${operation.name} for ${entityType.name} $entityId")
     }
 
     suspend fun getPendingCount(): Int = syncQueueDao.getPendingCount()
-    
+
     suspend fun getFailedCount(): Int = syncQueueDao.getFailedCount()
-    
+
     suspend fun getConflictCount(): Int = syncQueueDao.getConflictCount()
 
     suspend fun retryFailed() {

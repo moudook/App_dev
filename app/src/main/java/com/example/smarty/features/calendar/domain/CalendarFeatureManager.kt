@@ -1,10 +1,9 @@
 package com.example.smarty.features.calendar.domain
 
 import android.util.Log
-import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager
-import com.example.smarty.data.repository.SmartyRepository
-import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +20,7 @@ class CalendarFeatureManager(
     private val googleCalendarSyncManager: GoogleCalendarSyncManager,
     private val securePreferences: SecurePreferences,
     private val alarmScheduler: AlarmScheduler,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     private val TAG = "CalendarFeatureManager"
 
@@ -76,7 +75,7 @@ class CalendarFeatureManager(
 
     /**
      * Add a new calendar event with optional Google Calendar sync.
-     * 
+     *
      * OPTIMIZED: Save to local database FIRST (instant), then sync to Google Calendar in background.
      * This eliminates UI latency during event creation.
      */
@@ -89,23 +88,24 @@ class CalendarFeatureManager(
         location: String? = null,
         color: Int? = null,
         reminderMinutes: Int? = null,
-        isPrivate: Boolean = false
+        isPrivate: Boolean = false,
     ) {
         scope.launch {
             // FIRST: Save to local database immediately (FAST - <10ms)
-            val localEvent = calendarManager.addCalendarEventAndReturn(
-                title = title,
-                description = description,
-                startTime = startTime,
-                endTime = endTime,
-                isAllDay = isAllDay,
-                location = location,
-                color = color,
-                reminderMinutes = reminderMinutes,
-                isPrivate = isPrivate,
-                googleEventId = null // Will be updated after Google sync
-            )
-            
+            val localEvent =
+                calendarManager.addCalendarEventAndReturn(
+                    title = title,
+                    description = description,
+                    startTime = startTime,
+                    endTime = endTime,
+                    isAllDay = isAllDay,
+                    location = location,
+                    color = color,
+                    reminderMinutes = reminderMinutes,
+                    isPrivate = isPrivate,
+                    googleEventId = null, // Will be updated after Google sync
+                )
+
             // THEN: Sync to Google Calendar in background (SLOW - 500-2000ms)
             // This happens AFTER local save, so UI is not blocked
             if (securePreferences.isSyncToGoogleCalendarEnabled()) {
@@ -113,19 +113,20 @@ class CalendarFeatureManager(
                 if (targetCalendarId != -1L) {
                     scope.launch {
                         try {
-                            val tempEvent = CalendarEvent(
-                                title = title,
-                                description = description,
-                                startTime = startTime,
-                                endTime = endTime,
-                                isAllDay = isAllDay,
-                                location = location,
-                                color = color,
-                                reminderMinutes = reminderMinutes,
-                                isEventPrivate = isPrivate
-                            )
+                            val tempEvent =
+                                CalendarEvent(
+                                    title = title,
+                                    description = description,
+                                    startTime = startTime,
+                                    endTime = endTime,
+                                    isAllDay = isAllDay,
+                                    location = location,
+                                    color = color,
+                                    reminderMinutes = reminderMinutes,
+                                    isEventPrivate = isPrivate,
+                                )
                             val googleEventId = googleCalendarSyncManager.exportEventToDeviceCalendar(tempEvent, targetCalendarId)
-                            
+
                             // Update local event with Google event ID (if sync was successful)
                             if (googleEventId != null) {
                                 val updatedEvent = localEvent.copy(googleEventId = googleEventId)
@@ -171,20 +172,17 @@ class CalendarFeatureManager(
     /**
      * Get events for a specific day.
      */
-    suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> =
-        calendarManager.getEventsForDay(dayMillis)
+    suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> = calendarManager.getEventsForDay(dayMillis)
 
     /**
      * Get today's events.
      */
-    suspend fun getTodayEvents(): List<CalendarEvent> =
-        calendarManager.getTodayEvents()
+    suspend fun getTodayEvents(): List<CalendarEvent> = calendarManager.getTodayEvents()
 
     /**
      * Get AI-visible upcoming events.
      */
-    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
-        calendarManager.getAiVisibleUpcomingEvents(limit)
+    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> = calendarManager.getAiVisibleUpcomingEvents(limit)
 
     /**
      * Parse natural language date/time strings.
@@ -194,7 +192,11 @@ class CalendarFeatureManager(
     /**
      * Set a timer or alarm.
      */
-    fun setTimer(name: String, triggerTime: Long, isAlarm: Boolean) {
+    fun setTimer(
+        name: String,
+        triggerTime: Long,
+        isAlarm: Boolean,
+    ) {
         calendarManager.setTimer(name, triggerTime, isAlarm)
     }
 
@@ -208,12 +210,10 @@ class CalendarFeatureManager(
     /**
      * Search for events by query text.
      */
-    suspend fun searchEvents(query: String): List<CalendarEvent> =
-        calendarManager.searchEvents(query)
+    suspend fun searchEvents(query: String): List<CalendarEvent> = calendarManager.searchEvents(query)
 
     /**
      * Get basic calendar manager for direct access if needed.
      */
     fun getCalendarManager(): CalendarManager = calendarManager
 }
-

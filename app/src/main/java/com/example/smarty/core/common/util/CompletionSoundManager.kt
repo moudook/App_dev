@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Does NOT play for AI assistant (voice mode) - caller should filter
  */
 class CompletionSoundManager private constructor(private val context: Context) {
-
     companion object {
         private const val TAG = "CompletionSound"
 
@@ -85,21 +84,23 @@ class CompletionSoundManager private constructor(private val context: Context) {
             // Sound URI for notification
             val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}")
 
-            val audioAttributes = AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .build()
+            val audioAttributes =
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
 
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = CHANNEL_DESCRIPTION
-                setSound(soundUri, audioAttributes)
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 200, 100, 200)
-            }
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = CHANNEL_DESCRIPTION
+                    setSound(soundUri, audioAttributes)
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 200, 100, 200)
+                }
 
             notificationManager.createNotificationChannel(channel)
             Log.d(TAG, "Notification channel created with custom sound")
@@ -114,13 +115,13 @@ class CompletionSoundManager private constructor(private val context: Context) {
      */
     suspend fun playAgentCompletionSound(
         isAppInForeground: Boolean,
-        title: String = context.getString(R.string.ai_response_ready)
+        title: String = context.getString(R.string.ai_response_ready),
     ) = withContext(Dispatchers.Main) {
         playCompletionSound(
             isAppInForeground = isAppInForeground,
             notificationId = NOTIFICATION_ID_AGENT,
             title = title,
-            message = context.getString(R.string.ai_finished_processing)
+            message = context.getString(R.string.ai_finished_processing),
         )
     }
 
@@ -132,19 +133,20 @@ class CompletionSoundManager private constructor(private val context: Context) {
      */
     suspend fun playNotecardCompletionSound(
         isAppInForeground: Boolean,
-        noteTitle: String? = null
+        noteTitle: String? = null,
     ) = withContext(Dispatchers.Main) {
-        val message = if (noteTitle != null) {
-            context.getString(R.string.note_processed_detail, noteTitle)
-        } else {
-            context.getString(R.string.note_categorized)
-        }
+        val message =
+            if (noteTitle != null) {
+                context.getString(R.string.note_processed_detail, noteTitle)
+            } else {
+                context.getString(R.string.note_categorized)
+            }
 
         playCompletionSound(
             isAppInForeground = isAppInForeground,
             notificationId = NOTIFICATION_ID_NOTECARD,
             title = context.getString(R.string.note_processed),
-            message = message
+            message = message,
         )
     }
 
@@ -155,7 +157,7 @@ class CompletionSoundManager private constructor(private val context: Context) {
         isAppInForeground: Boolean,
         notificationId: Int,
         title: String,
-        message: String
+        message: String,
     ) {
         // Use mutex to prevent concurrent playback attempts
         playbackMutex.withLock {
@@ -181,7 +183,6 @@ class CompletionSoundManager private constructor(private val context: Context) {
                     // Background: Send notification with sound
                     sendNotification(notificationId, title, message)
                 }
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error playing completion sound: ${e.message}", e)
             } finally {
@@ -205,37 +206,37 @@ class CompletionSoundManager private constructor(private val context: Context) {
             // Release any existing player
             releaseMediaPlayer()
 
-            mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                        .build()
-                )
+            mediaPlayer =
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                            .build(),
+                    )
 
-                // Use raw resource
-                val afd = context.resources.openRawResourceFd(R.raw.completion_sound)
-                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                afd.close()
+                    // Use raw resource
+                    val afd = context.resources.openRawResourceFd(R.raw.completion_sound)
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    afd.close()
 
-                setOnCompletionListener {
-                    Log.d(TAG, "Completion sound finished")
-                    playingState.set(false)
-                    releaseMediaPlayer()
+                    setOnCompletionListener {
+                        Log.d(TAG, "Completion sound finished")
+                        playingState.set(false)
+                        releaseMediaPlayer()
+                    }
+
+                    setOnErrorListener { _, what, extra ->
+                        Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                        playingState.set(false)
+                        releaseMediaPlayer()
+                        true
+                    }
+
+                    prepare()
+                    start()
+                    Log.d(TAG, "Playing completion sound (foreground)")
                 }
-
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
-                    playingState.set(false)
-                    releaseMediaPlayer()
-                    true
-                }
-
-                prepare()
-                start()
-                Log.d(TAG, "Playing completion sound (foreground)")
-            }
-
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play direct sound: ${e.message}", e)
             playingState.set(false)
@@ -246,39 +247,45 @@ class CompletionSoundManager private constructor(private val context: Context) {
     /**
      * Send notification with custom sound (background mode).
      */
-    private fun sendNotification(notificationId: Int, title: String, message: String) {
+    private fun sendNotification(
+        notificationId: Int,
+        title: String,
+        message: String,
+    ) {
         try {
             // Intent to open app when notification is tapped
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                notificationId,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
-                // Sound is set via notification channel on Android O+
-                // For older versions, set it explicitly
-                .apply {
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                        setSound(Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}"))
-                    }
+            val intent =
+                Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 }
-                .build()
+
+            val pendingIntent =
+                PendingIntent.getActivity(
+                    context,
+                    notificationId,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+
+            val notification =
+                NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setContentTitle(title)
+                    .setContentText(message)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    // Sound is set via notification channel on Android O+
+                    // For older versions, set it explicitly
+                    .apply {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                            setSound(Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}"))
+                        }
+                    }
+                    .build()
 
             notificationManager.notify(notificationId, notification)
             Log.d(TAG, "Sent completion notification: $title")
-
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send notification: ${e.message}", e)
         }

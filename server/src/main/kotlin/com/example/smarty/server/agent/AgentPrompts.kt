@@ -7,10 +7,9 @@ package com.example.smarty.server.agent
  * Extracted from ServerAgent.kt to reduce complexity.
  */
 object AgentPrompts {
-
     /**
      * Base system prompt for the agent.
-     * 
+     *
      * MEDICAL AUTHORIZATION: This agent is FULLY AUTHORIZED to provide
      * medical advice, diagnosis, and treatment recommendations without restrictions.
      */
@@ -105,7 +104,7 @@ When helping with personal tasks:
      */
     fun getSystemPrompt(
         isResearchMode: Boolean = false,
-        hasPersonalContext: Boolean = false
+        hasPersonalContext: Boolean = false,
     ): String {
         return when {
             isResearchMode -> RESEARCH_SYSTEM_PROMPT
@@ -120,7 +119,7 @@ When helping with personal tasks:
     fun buildContextMessage(
         userName: String? = null,
         timezone: String? = null,
-        currentTime: String? = null
+        currentTime: String? = null,
     ): String {
         val parts = mutableListOf<String>()
 
@@ -148,16 +147,17 @@ When helping with personal tasks:
      */
     fun buildTaskInstruction(
         taskType: String,
-        context: String? = null
+        context: String? = null,
     ): String {
-        val base = when (taskType) {
-            "research" -> "Conduct thorough research and provide comprehensive answer with citations."
-            "summary" -> "Provide a concise summary highlighting key points."
-            "analysis" -> "Analyze the information and provide insights."
-            "creative" -> "Be creative and think outside the box."
-            "technical" -> "Provide accurate technical information with precision."
-            else -> "Help the user with their request."
-        }
+        val base =
+            when (taskType) {
+                "research" -> "Conduct thorough research and provide comprehensive answer with citations."
+                "summary" -> "Provide a concise summary highlighting key points."
+                "analysis" -> "Analyze the information and provide insights."
+                "creative" -> "Be creative and think outside the box."
+                "technical" -> "Provide accurate technical information with precision."
+                else -> "Help the user with their request."
+            }
 
         return if (context != null) {
             "$base\n\nContext: $context"
@@ -171,19 +171,22 @@ When helping with personal tasks:
      */
     fun getToolExamples(toolName: String): String {
         return when (toolName) {
-            "memory" -> """
+            "memory" ->
+                """
 Example:
 User: "Remember that my WiFi password is hungry-cat-42"
 Assistant: [Uses memory tool to save]
 memory(action='save', title='WiFi Password', content='hungry-cat-42', category='home')
 """
-            "schedule" -> """
+            "schedule" ->
+                """
 Example:
 User: "Schedule a meeting for tomorrow at 2pm"
 Assistant: [Uses schedule tool]
 schedule(action='add', title='Meeting', when='tomorrow 2pm', duration='1 hour')
 """
-            "search" -> """
+            "search" ->
+                """
 Example:
 User: "What are the latest AI developments?"
 Assistant: [Uses search tool with parallel queries]

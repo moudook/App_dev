@@ -15,14 +15,17 @@ import java.io.File
  * Handles the FileUriExposedException on Android 7.0+ by using FileProvider.
  */
 object FileViewerHelper {
-
     private const val TAG = "FileViewerHelper"
 
     /**
      * Opens a file using the appropriate external application.
      * Handles both file:// and content:// URIs properly.
      */
-    fun openFile(context: Context, uriString: String, mimeType: String?): Boolean {
+    fun openFile(
+        context: Context,
+        uriString: String,
+        mimeType: String?,
+    ): Boolean {
         return try {
             val intent = createViewIntent(context, uriString, mimeType)
             context.startActivity(intent)
@@ -46,7 +49,11 @@ object FileViewerHelper {
      * Creates an Intent to view a file.
      * Automatically handles file:// to content:// conversion using FileProvider.
      */
-    fun createViewIntent(context: Context, uriString: String, mimeType: String?): Intent {
+    fun createViewIntent(
+        context: Context,
+        uriString: String,
+        mimeType: String?,
+    ): Intent {
         val uri = getContentUri(context, uriString)
         val effectiveMimeType = mimeType ?: getMimeTypeFromUri(context, uri) ?: "*/*"
 
@@ -60,7 +67,10 @@ object FileViewerHelper {
     /**
      * Converts a URI string to a content:// URI if necessary.
      */
-    fun getContentUri(context: Context, uriString: String): Uri {
+    fun getContentUri(
+        context: Context,
+        uriString: String,
+    ): Uri {
         return when {
             uriString.startsWith("content://") -> {
                 Uri.parse(uriString)
@@ -89,13 +99,16 @@ object FileViewerHelper {
     /**
      * Gets a content:// URI from FileProvider for a file.
      */
-    private fun getFileProviderUri(context: Context, file: File): Uri {
+    private fun getFileProviderUri(
+        context: Context,
+        file: File,
+    ): Uri {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
-                    file
+                    file,
                 )
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "FileProvider couldn't handle path: ${file.absolutePath}", e)
@@ -109,7 +122,10 @@ object FileViewerHelper {
     /**
      * Tries to determine the MIME type from a URI.
      */
-    private fun getMimeTypeFromUri(context: Context, uri: Uri): String? {
+    private fun getMimeTypeFromUri(
+        context: Context,
+        uri: Uri,
+    ): String? {
         return try {
             context.contentResolver.getType(uri)
         } catch (e: Exception) {
@@ -120,28 +136,44 @@ object FileViewerHelper {
     /**
      * Opens an image file with proper error handling.
      */
-    fun openImage(context: Context, uriString: String, mimeType: String? = null): Boolean {
+    fun openImage(
+        context: Context,
+        uriString: String,
+        mimeType: String? = null,
+    ): Boolean {
         return openFile(context, uriString, mimeType ?: "image/*")
     }
 
     /**
      * Opens a video file with proper error handling.
      */
-    fun openVideo(context: Context, uriString: String, mimeType: String? = null): Boolean {
+    fun openVideo(
+        context: Context,
+        uriString: String,
+        mimeType: String? = null,
+    ): Boolean {
         return openFile(context, uriString, mimeType ?: "video/*")
     }
 
     /**
      * Opens an audio file with proper error handling.
      */
-    fun openAudio(context: Context, uriString: String, mimeType: String? = null): Boolean {
+    fun openAudio(
+        context: Context,
+        uriString: String,
+        mimeType: String? = null,
+    ): Boolean {
         return openFile(context, uriString, mimeType ?: "audio/*")
     }
 
     /**
      * Opens a document/file with proper error handling.
      */
-    fun openDocument(context: Context, uriString: String, mimeType: String? = null): Boolean {
+    fun openDocument(
+        context: Context,
+        uriString: String,
+        mimeType: String? = null,
+    ): Boolean {
         return openFile(context, uriString, mimeType ?: "*/*")
     }
 }

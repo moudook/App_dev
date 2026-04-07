@@ -21,32 +21,38 @@ object UrlMetadataExtractor {
         get() = HttpClientProvider.quick
 
     // Regex patterns for extracting metadata
-    private val titlePattern = Pattern.compile(
-        "<title[^>]*>([^<]+)</title>",
-        Pattern.CASE_INSENSITIVE
-    )
-    private val ogTitlePattern = Pattern.compile(
-        "<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']",
-        Pattern.CASE_INSENSITIVE
-    )
-    private val ogDescriptionPattern = Pattern.compile(
-        "<meta[^>]+property=[\"']og:description[\"'][^>]+content=[\"']([^\"']+)[\"']",
-        Pattern.CASE_INSENSITIVE
-    )
-    private val metaDescriptionPattern = Pattern.compile(
-        "<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']+)[\"']",
-        Pattern.CASE_INSENSITIVE
-    )
-    private val ogImagePattern = Pattern.compile(
-        "<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"']",
-        Pattern.CASE_INSENSITIVE
-    )
+    private val titlePattern =
+        Pattern.compile(
+            "<title[^>]*>([^<]+)</title>",
+            Pattern.CASE_INSENSITIVE,
+        )
+    private val ogTitlePattern =
+        Pattern.compile(
+            "<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']",
+            Pattern.CASE_INSENSITIVE,
+        )
+    private val ogDescriptionPattern =
+        Pattern.compile(
+            "<meta[^>]+property=[\"']og:description[\"'][^>]+content=[\"']([^\"']+)[\"']",
+            Pattern.CASE_INSENSITIVE,
+        )
+    private val metaDescriptionPattern =
+        Pattern.compile(
+            "<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']+)[\"']",
+            Pattern.CASE_INSENSITIVE,
+        )
+    private val ogImagePattern =
+        Pattern.compile(
+            "<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"']",
+            Pattern.CASE_INSENSITIVE,
+        )
 
     // URL pattern for detection
-    private val urlPattern = Pattern.compile(
-        "(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)",
-        Pattern.CASE_INSENSITIVE
-    )
+    private val urlPattern =
+        Pattern.compile(
+            "(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)",
+            Pattern.CASE_INSENSITIVE,
+        )
 
     /**
      * Extract URL from text if present
@@ -66,65 +72,68 @@ object UrlMetadataExtractor {
     /**
      * Fetch metadata from a URL
      */
-    suspend fun fetchMetadata(url: String): UrlMetadata? = withContext(Dispatchers.IO) {
-        try {
-            withTimeoutOrNull(TIMEOUT_MS) {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (compatible; SmartyApp/1.0)")
-                    .header("Accept", "text/html")
-                    .build()
+    suspend fun fetchMetadata(url: String): UrlMetadata? =
+        withContext(Dispatchers.IO) {
+            try {
+                withTimeoutOrNull(TIMEOUT_MS) {
+                    val request =
+                        Request.Builder()
+                            .url(url)
+                            .header("User-Agent", "Mozilla/5.0 (compatible; SmartyApp/1.0)")
+                            .header("Accept", "text/html")
+                            .build()
 
-                // Use .use{} to ensure response is always closed (fixes memory leak)
-                val body = client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        Log.w(TAG, "Failed to fetch URL: $url, code: ${response.code}")
+                    // Use .use{} to ensure response is always closed (fixes memory leak)
+                    val body =
+                        client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                Log.w(TAG, "Failed to fetch URL: $url, code: ${response.code}")
+                                return@withTimeoutOrNull null
+                            }
+
+                            // Read up to 200KB for article extraction (increased from 50KB)
+                            response.body?.source()?.let { source ->
+                                val buffer = okio.Buffer()
+                                source.read(buffer, 200 * 1024)
+                                buffer.readUtf8()
+                            }
+                        }
+
+                    if (body.isNullOrBlank()) {
+                        Log.w(TAG, "Empty response body for URL: $url")
                         return@withTimeoutOrNull null
                     }
 
-                    // Read up to 200KB for article extraction (increased from 50KB)
-                    response.body?.source()?.let { source ->
-                        val buffer = okio.Buffer()
-                        source.read(buffer, 200 * 1024)
-                        buffer.readUtf8()
+                    // Extract metadata
+                    val title = extractTitle(body)
+                    val description = extractDescription(body)
+                    val imageUrl = extractImage(body)
+                    val domain = extractDomain(url)
+
+                    // READER MODE: Extract full article text for AI searchability
+                    val articleContent = extractArticleText(body)
+
+                    if (title == null && description == null && articleContent.isNullOrBlank()) {
+                        Log.w(TAG, "No metadata found for URL: $url")
+                        return@withTimeoutOrNull null
                     }
+
+                    Log.d(TAG, "Reader mode: Extracted ${articleContent?.length ?: 0} chars of article text")
+
+                    UrlMetadata(
+                        url = url,
+                        title = cleanHtmlEntities(title) ?: domain ?: url,
+                        description = cleanHtmlEntities(description),
+                        imageUrl = imageUrl,
+                        domain = domain,
+                        articleContent = articleContent, // NEW: Full article text for AI
+                    )
                 }
-
-                if (body.isNullOrBlank()) {
-                    Log.w(TAG, "Empty response body for URL: $url")
-                    return@withTimeoutOrNull null
-                }
-
-                // Extract metadata
-                val title = extractTitle(body)
-                val description = extractDescription(body)
-                val imageUrl = extractImage(body)
-                val domain = extractDomain(url)
-                
-                // READER MODE: Extract full article text for AI searchability
-                val articleContent = extractArticleText(body)
-
-                if (title == null && description == null && articleContent.isNullOrBlank()) {
-                    Log.w(TAG, "No metadata found for URL: $url")
-                    return@withTimeoutOrNull null
-                }
-                
-                Log.d(TAG, "Reader mode: Extracted ${articleContent?.length ?: 0} chars of article text")
-
-                UrlMetadata(
-                    url = url,
-                    title = cleanHtmlEntities(title) ?: domain ?: url,
-                    description = cleanHtmlEntities(description),
-                    imageUrl = imageUrl,
-                    domain = domain,
-                    articleContent = articleContent  // NEW: Full article text for AI
-                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching metadata for $url: ${e.message}")
+                null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching metadata for $url: ${e.message}")
-            null
         }
-    }
 
     private fun extractTitle(html: String): String? {
         // Try OG title first
@@ -180,31 +189,33 @@ object UrlMetadataExtractor {
     private fun extractArticleText(html: String): String? {
         try {
             var content = html
-            
+
             // Step 1: Remove non-content elements (scripts, styles, nav, footer, ads)
-            val removePatterns = listOf(
-                Pattern.compile("<script[^>]*>[\\s\\S]*?</script>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<style[^>]*>[\\s\\S]*?</style>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<nav[^>]*>[\\s\\S]*?</nav>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<footer[^>]*>[\\s\\S]*?</footer>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<header[^>]*>[\\s\\S]*?</header>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<aside[^>]*>[\\s\\S]*?</aside>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<form[^>]*>[\\s\\S]*?</form>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<iframe[^>]*>[\\s\\S]*?</iframe>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<noscript[^>]*>[\\s\\S]*?</noscript>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<!--[\\s\\S]*?-->", Pattern.CASE_INSENSITIVE)
-            )
-            
+            val removePatterns =
+                listOf(
+                    Pattern.compile("<script[^>]*>[\\s\\S]*?</script>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<style[^>]*>[\\s\\S]*?</style>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<nav[^>]*>[\\s\\S]*?</nav>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<footer[^>]*>[\\s\\S]*?</footer>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<header[^>]*>[\\s\\S]*?</header>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<aside[^>]*>[\\s\\S]*?</aside>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<form[^>]*>[\\s\\S]*?</form>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<iframe[^>]*>[\\s\\S]*?</iframe>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<noscript[^>]*>[\\s\\S]*?</noscript>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<!--[\\s\\S]*?-->", Pattern.CASE_INSENSITIVE),
+                )
+
             for (pattern in removePatterns) {
                 content = pattern.matcher(content).replaceAll(" ")
             }
-            
+
             // Step 2: Try to find main article content
-            val articlePatterns = listOf(
-                Pattern.compile("<article[^>]*>([\\s\\S]*?)</article>", Pattern.CASE_INSENSITIVE),
-                Pattern.compile("<main[^>]*>([\\s\\S]*?)</main>", Pattern.CASE_INSENSITIVE)
-            )
-            
+            val articlePatterns =
+                listOf(
+                    Pattern.compile("<article[^>]*>([\\s\\S]*?)</article>", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("<main[^>]*>([\\s\\S]*?)</main>", Pattern.CASE_INSENSITIVE),
+                )
+
             var articleHtml: String? = null
             for (pattern in articlePatterns) {
                 val matcher = pattern.matcher(content)
@@ -213,21 +224,21 @@ object UrlMetadataExtractor {
                     break
                 }
             }
-            
+
             // If no article container found, use cleaned body
             val bodyPattern = Pattern.compile("<body[^>]*>([\\s\\S]*?)</body>", Pattern.CASE_INSENSITIVE)
             val bodyMatcher = bodyPattern.matcher(content)
             if (articleHtml == null && bodyMatcher.find()) {
                 articleHtml = bodyMatcher.group(1)
             }
-            
+
             if (articleHtml == null) {
                 articleHtml = content
             }
-            
+
             // Step 3: Extract text from paragraphs and headings
             val textBuilder = StringBuilder()
-            
+
             // Extract headings
             val headingPattern = Pattern.compile("<h[1-6][^>]*>([^<]+)</h[1-6]>", Pattern.CASE_INSENSITIVE)
             val headingMatcher = headingPattern.matcher(articleHtml)
@@ -237,7 +248,7 @@ object UrlMetadataExtractor {
                     textBuilder.append("\n## ").append(heading).append("\n")
                 }
             }
-            
+
             // Extract paragraphs
             val paragraphPattern = Pattern.compile("<p[^>]*>([\\s\\S]*?)</p>", Pattern.CASE_INSENSITIVE)
             val paragraphMatcher = paragraphPattern.matcher(articleHtml)
@@ -247,26 +258,26 @@ object UrlMetadataExtractor {
                 paragraph = paragraph.replace(Regex("<[^>]+>"), " ")
                 paragraph = cleanHtmlEntities(paragraph) ?: continue
                 paragraph = paragraph.replace(Regex("\\s+"), " ").trim()
-                
-                if (paragraph.length > 20) {  // Skip tiny fragments
+
+                if (paragraph.length > 20) { // Skip tiny fragments
                     textBuilder.append(paragraph).append("\n\n")
                 }
             }
-            
+
             // Step 4: Clean up and limit size
-            var result = textBuilder.toString()
-                .replace(Regex("\n{3,}"), "\n\n")  // Max 2 newlines
-                .replace(Regex("[ \t]+"), " ")     // Normalize spaces
-                .trim()
-            
+            var result =
+                textBuilder.toString()
+                    .replace(Regex("\n{3,}"), "\n\n") // Max 2 newlines
+                    .replace(Regex("[ \t]+"), " ") // Normalize spaces
+                    .trim()
+
             // Limit to ~10KB of text (plenty for AI context)
             if (result.length > 10000) {
                 result = result.take(10000) + "\n\n[Article truncated...]"
             }
-            
+
             // Return null if we got very little content
             return if (result.length > 100) result else null
-            
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting article text: ${e.message}")
             return null
@@ -295,6 +306,6 @@ object UrlMetadataExtractor {
         val imageUrl: String?,
         val domain: String?,
         /** READER MODE: Full extracted article text for AI search/analysis */
-        val articleContent: String? = null
+        val articleContent: String? = null,
     )
 }

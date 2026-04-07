@@ -7,16 +7,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-@RunWith(RobolectricTestRunner::class)
-
 /**
  * Unit tests for ContentSecurityFilter.
  * Verifies detection and neutralization of prompt injection attacks.
  *
  * CRITICAL: These tests ensure AI safety and prevent manipulation attacks.
  */
+@RunWith(RobolectricTestRunner::class)
 class ContentSecurityFilterTest {
-
     // =========================================================================
     // DIRECT INSTRUCTION OVERRIDE TESTS
     // =========================================================================
@@ -310,8 +308,8 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `hasEmojis detects emojis`() {
-        assertTrue(ContentSecurityFilter.hasEmojis("Hello \uD83D\uDC4B")) // Hello 
-        assertTrue(ContentSecurityFilter.hasEmojis("Check this out \uD83D\uDE80")) // Check this out 
+        assertTrue(ContentSecurityFilter.hasEmojis("Hello \uD83D\uDC4B")) // Hello
+        assertTrue(ContentSecurityFilter.hasEmojis("Check this out \uD83D\uDE80")) // Check this out
     }
 
     @Test

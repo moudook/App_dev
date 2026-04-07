@@ -6,7 +6,7 @@ import androidx.room.Index
 
 /**
  * Junction table entity for calendar event to note relationships.
- * 
+ *
  * SINGLE RESPONSIBILITY: Represents ONLY the relationship between events and notes.
  * DRY: Same pattern as ChatMessageNote.
  * GLOBAL STATE: Foreign keys enforced at database level, not Room level.
@@ -16,10 +16,10 @@ import androidx.room.Index
     primaryKeys = ["event_id", "note_id"],
     indices = [
         Index(value = ["event_id"]),
-        Index(value = ["note_id"])
-    ]
+        Index(value = ["note_id"]),
+    ],
 )
 data class CalendarEventNote(
     @ColumnInfo(name = "event_id") val eventId: String,
-    @ColumnInfo(name = "note_id") val noteId: String
+    @ColumnInfo(name = "note_id") val noteId: String,
 )

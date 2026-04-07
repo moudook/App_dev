@@ -16,7 +16,6 @@ import kotlin.random.Random
  * ```
  */
 object RetryExecutor {
-
     private const val TAG = "RetryExecutor"
     private const val MAX_DELAY_MS = 30_000L
     private const val JITTER_FACTOR = 0.15 // +/- 15% jitter
@@ -34,7 +33,7 @@ object RetryExecutor {
         maxRetries: Int = 3,
         initialDelayMs: Long = 1000L,
         successCheck: (T?) -> Boolean = { it != null },
-        action: suspend () -> T?
+        action: suspend () -> T?,
     ): T? {
         var lastException: Exception? = null
 
@@ -73,13 +72,13 @@ object RetryExecutor {
     suspend fun withStringRetry(
         maxRetries: Int = 3,
         initialDelayMs: Long = 1000L,
-        action: suspend () -> String?
+        action: suspend () -> String?,
     ): String? {
         return withRetry(
             maxRetries = maxRetries,
             initialDelayMs = initialDelayMs,
             successCheck = { !it.isNullOrBlank() },
-            action = action
+            action = action,
         )
     }
 
@@ -90,7 +89,10 @@ object RetryExecutor {
      * @param attempt Current attempt number (1-indexed)
      * @return Delay in milliseconds with exponential backoff and jitter, capped at MAX_DELAY_MS
      */
-    private fun calculateExponentialBackoff(baseDelayMs: Long, attempt: Int): Long {
+    private fun calculateExponentialBackoff(
+        baseDelayMs: Long,
+        attempt: Int,
+    ): Long {
         // Exponential backoff: baseDelay * 2^(attempt-1)
         // attempt-1 because attempt is 1-indexed; first retry should use baseDelay * 2^0 = baseDelay
         val exponentialDelay = baseDelayMs * 2.0.pow(attempt - 1)

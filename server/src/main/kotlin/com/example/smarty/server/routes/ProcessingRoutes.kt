@@ -1,5 +1,7 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.models.*
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.server.services.*
@@ -16,10 +18,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.GeneratedImageRepository
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.util.*
 
 /**
@@ -35,17 +33,19 @@ import java.util.*
  * - POST /upload - File upload for processing
  */
 fun Application.configureProcessingRoutes() {
-    val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
     // Initialize HTTP client
-    val httpClient = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(json)
+    val httpClient =
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(json)
+            }
         }
-    }
 
     // Initialize services
     val visionService = VisionService(httpClient)
@@ -55,7 +55,6 @@ fun Application.configureProcessingRoutes() {
     routing {
         // All processing routes require authentication
         authenticate("firebase") {
-
             /**
              * Analyze text content and extract metadata.
              *
@@ -76,9 +75,10 @@ fun Application.configureProcessingRoutes() {
                     val request = call.receive<ContentAnalysisRequest>()
                     call.application.log.info("Content analysis request from user: ${user.userId}")
 
-                    val attachments = request.attachments?.map {
-                        com.example.smarty.server.models.AttachmentInfo(it.fileName, it.fileType)
-                    }
+                    val attachments =
+                        request.attachments?.map {
+                            com.example.smarty.server.models.AttachmentInfo(it.fileName, it.fileType)
+                        }
 
                     val result = contentAnalysisService.analyzeContent(request.content, attachments)
                     call.respond(HttpStatusCode.OK, result)
@@ -86,7 +86,7 @@ fun Application.configureProcessingRoutes() {
                     call.application.log.error("Content analysis failed", e)
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Analysis failed: ${e.message}")
+                        mapOf("error" to "Analysis failed: ${e.message}"),
                     )
                 }
             }
@@ -112,17 +112,18 @@ fun Application.configureProcessingRoutes() {
                     val request = call.receive<DocumentAnalysisRequest>()
                     call.application.log.info("Document analysis request from user: ${user.userId}")
 
-                    val result = contentAnalysisService.analyzeDocument(
-                        documentText = request.text,
-                        fileName = request.fileName,
-                        userContext = request.userContext
-                    )
+                    val result =
+                        contentAnalysisService.analyzeDocument(
+                            documentText = request.text,
+                            fileName = request.fileName,
+                            userContext = request.userContext,
+                        )
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("Document analysis failed", e)
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Analysis failed: ${e.message}")
+                        mapOf("error" to "Analysis failed: ${e.message}"),
                     )
                 }
             }
@@ -148,38 +149,41 @@ fun Application.configureProcessingRoutes() {
                     val request = call.receive<ImageProcessingRequest>()
                     call.application.log.info("Image processing request from user: ${user.userId}")
 
-                    val result = when (request.analysisType) {
-                        "analyze" -> {
-                            val analysis = visionService.analyzeImage(
-                                base64Image = request.base64Image,
-                                mimeType = request.mimeType ?: "image/png"
-                            )
-                            ImageProcessingResponse(
-                                text = analysis.description,
-                                contentType = "analysis",
-                                success = analysis.success,
-                                error = analysis.error
-                            )
+                    val result =
+                        when (request.analysisType) {
+                            "analyze" -> {
+                                val analysis =
+                                    visionService.analyzeImage(
+                                        base64Image = request.base64Image,
+                                        mimeType = request.mimeType ?: "image/png",
+                                    )
+                                ImageProcessingResponse(
+                                    text = analysis.description,
+                                    contentType = "analysis",
+                                    success = analysis.success,
+                                    error = analysis.error,
+                                )
+                            }
+                            else -> { // Default to OCR
+                                val ocr =
+                                    visionService.performOcr(
+                                        base64Image = request.base64Image,
+                                        mimeType = request.mimeType ?: "image/png",
+                                    )
+                                ImageProcessingResponse(
+                                    text = ocr.extractedText,
+                                    contentType = ocr.contentType,
+                                    success = ocr.success,
+                                    error = ocr.error,
+                                )
+                            }
                         }
-                        else -> { // Default to OCR
-                            val ocr = visionService.performOcr(
-                                base64Image = request.base64Image,
-                                mimeType = request.mimeType ?: "image/png"
-                            )
-                            ImageProcessingResponse(
-                                text = ocr.extractedText,
-                                contentType = ocr.contentType,
-                                success = ocr.success,
-                                error = ocr.error
-                            )
-                        }
-                    }
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("Image processing failed", e)
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Processing failed: ${e.message}")
+                        mapOf("error" to "Processing failed: ${e.message}"),
                     )
                 }
             }
@@ -206,18 +210,19 @@ fun Application.configureProcessingRoutes() {
                     call.application.log.info("PDF processing request from user: ${user.userId}")
 
                     val pdfBytes = Base64.getDecoder().decode(request.base64Pdf)
-                    val result = fileProcessingService.processPdf(
-                        pdfBytes = pdfBytes,
-                        fileName = request.fileName,
-                        useOcrForImages = request.useOcr ?: true
-                    )
+                    val result =
+                        fileProcessingService.processPdf(
+                            pdfBytes = pdfBytes,
+                            fileName = request.fileName,
+                            useOcrForImages = request.useOcr ?: true,
+                        )
 
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("PDF processing failed", e)
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Processing failed: ${e.message}")
+                        mapOf("error" to "Processing failed: ${e.message}"),
                     )
                 }
             }
@@ -250,9 +255,10 @@ fun Application.configureProcessingRoutes() {
                                 fileName = part.originalFileName
                                 contentType = part.contentType?.toString()
                                 @Suppress("DEPRECATION")
-                                fileBytes = part.streamProvider().use { stream ->
-                                    stream.readBytes()
-                                }
+                                fileBytes =
+                                    part.streamProvider().use { stream ->
+                                        stream.readBytes()
+                                    }
                             }
                             is PartData.FormItem -> {
                                 if (part.name == "analysisType") {
@@ -272,37 +278,38 @@ fun Application.configureProcessingRoutes() {
                     call.application.log.info("File upload: $fileName ($contentType) from user: ${user.userId}")
 
                     // Process based on content type
-                    val result: Any = when {
-                        contentType?.startsWith("application/pdf") == true -> {
-                            val pdfResult = fileProcessingService.processPdf(fileBytes!!, fileName)
-                            if (analysisType == "document") {
-                                contentAnalysisService.analyzeDocument(pdfResult.text, fileName)
-                            } else {
-                                pdfResult
+                    val result: Any =
+                        when {
+                            contentType?.startsWith("application/pdf") == true -> {
+                                val pdfResult = fileProcessingService.processPdf(fileBytes!!, fileName)
+                                if (analysisType == "document") {
+                                    contentAnalysisService.analyzeDocument(pdfResult.text, fileName)
+                                } else {
+                                    pdfResult
+                                }
+                            }
+                            contentType?.startsWith("image/") == true -> {
+                                val base64 = Base64.getEncoder().encodeToString(fileBytes!!)
+                                val ocrResult = visionService.performOcr(base64, contentType!!)
+                                if (analysisType == "content") {
+                                    contentAnalysisService.analyzeContent(ocrResult.extractedText)
+                                } else {
+                                    ocrResult
+                                }
+                            }
+                            else -> {
+                                // Treat as text
+                                val text = String(fileBytes!!, Charsets.UTF_8)
+                                contentAnalysisService.analyzeContent(text)
                             }
                         }
-                        contentType?.startsWith("image/") == true -> {
-                            val base64 = Base64.getEncoder().encodeToString(fileBytes!!)
-                            val ocrResult = visionService.performOcr(base64, contentType!!)
-                            if (analysisType == "content") {
-                                contentAnalysisService.analyzeContent(ocrResult.extractedText)
-                            } else {
-                                ocrResult
-                            }
-                        }
-                        else -> {
-                            // Treat as text
-                            val text = String(fileBytes!!, Charsets.UTF_8)
-                            contentAnalysisService.analyzeContent(text)
-                        }
-                    }
 
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("File upload processing failed", e)
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Upload processing failed: ${e.message}")
+                        mapOf("error" to "Upload processing failed: ${e.message}"),
                     )
                 }
             }
@@ -351,7 +358,7 @@ fun Application.configureProcessingRoutes() {
                                 userId = user.userId,
                                 sessionId = null,
                                 prompt = request.prompt,
-                                kreaJobId = jobId
+                                kreaJobId = jobId,
                             )
                             log.info("💾 Job ID saved to database")
                         } catch (e: Exception) {
@@ -377,11 +384,12 @@ fun Application.configureProcessingRoutes() {
                     var supabaseUrl: String? = null
                     try {
                         log.info("📤 Uploading image to Supabase Storage...")
-                        supabaseUrl = kreaTool.uploadToSupabase(
-                            imageUrl = kreaImageUrl,
-                            jobId = jobId,
-                            bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName()
-                        )
+                        supabaseUrl =
+                            kreaTool.uploadToSupabase(
+                                imageUrl = kreaImageUrl,
+                                jobId = jobId,
+                                bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName(),
+                            )
 
                         if (supabaseUrl != null) {
                             log.info("✅ Image uploaded to Supabase: $supabaseUrl")
@@ -399,7 +407,7 @@ fun Application.configureProcessingRoutes() {
                             repo.updateImageUrls(
                                 kreaJobId = jobId,
                                 imageUrl = kreaImageUrl,
-                                supabaseUrl = supabaseUrl
+                                supabaseUrl = supabaseUrl,
                             )
                             log.info("💾 Database updated with image URLs")
                         } catch (e: Exception) {
@@ -417,13 +425,16 @@ fun Application.configureProcessingRoutes() {
                     log.info("═".repeat(60))
 
                     // Return structured response for frontend Image Visualizer
-                    call.respond(HttpStatusCode.OK, ImageGenerationSuccessResponse(
-                        type = "image",
-                        url = finalImageUrl,
-                        source = imageSource,
-                        prompt = request.prompt,
-                        jobId = jobId
-                    ))
+                    call.respond(
+                        HttpStatusCode.OK,
+                        ImageGenerationSuccessResponse(
+                            type = "image",
+                            url = finalImageUrl,
+                            source = imageSource,
+                            prompt = request.prompt,
+                            jobId = jobId,
+                        ),
+                    )
                 } catch (e: IllegalStateException) {
                     // KREA_API_KEY not configured - return descriptive error
                     val elapsed = System.currentTimeMillis() - startTime
@@ -439,8 +450,8 @@ fun Application.configureProcessingRoutes() {
                             source = "error",
                             prompt = "",
                             jobId = "",
-                            error = "Image generation service is not configured. KREA_API_KEY is missing from server environment."
-                        )
+                            error = "Image generation service is not configured. KREA_API_KEY is missing from server environment.",
+                        ),
                     )
                 } catch (e: Exception) {
                     val elapsed = System.currentTimeMillis() - startTime
@@ -456,8 +467,8 @@ fun Application.configureProcessingRoutes() {
                             source = "error",
                             prompt = "",
                             jobId = "",
-                            error = e.message
-                        )
+                            error = e.message,
+                        ),
                     )
                 }
             }
@@ -470,34 +481,34 @@ fun Application.configureProcessingRoutes() {
 @Serializable
 data class ContentAnalysisRequest(
     val content: String,
-    val attachments: List<AttachmentDto>? = null
+    val attachments: List<AttachmentDto>? = null,
 )
 
 @Serializable
 data class AttachmentDto(
     val fileName: String,
-    val fileType: String
+    val fileType: String,
 )
 
 @Serializable
 data class DocumentAnalysisRequest(
     val text: String,
     val fileName: String? = null,
-    val userContext: String? = null
+    val userContext: String? = null,
 )
 
 @Serializable
 data class ImageProcessingRequest(
     val base64Image: String,
     val mimeType: String? = null,
-    val analysisType: String? = "ocr" // "ocr" or "analyze"
+    val analysisType: String? = "ocr", // "ocr" or "analyze"
 )
 
 @Serializable
 data class PdfProcessingRequest(
     val base64Pdf: String,
     val fileName: String? = null,
-    val useOcr: Boolean? = true
+    val useOcr: Boolean? = true,
 )
 
 // Response DTOs
@@ -507,20 +518,20 @@ data class ImageProcessingResponse(
     val text: String,
     val contentType: String,
     val success: Boolean,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @Serializable
 data class DirectImageGenerationRequest(
     val prompt: String,
-    val aspectRatio: String = "1:1"
+    val aspectRatio: String = "1:1",
 )
 
 @Serializable
 data class DirectImageGenerationResponse(
     val jobId: String,
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
 )
 
 /**
@@ -529,10 +540,10 @@ data class DirectImageGenerationResponse(
  */
 @Serializable
 data class ImageGenerationSuccessResponse(
-    val type: String,           // "image" or "error"
-    val url: String,            // Image URL (Supabase or Krea)
-    val source: String,         // "supabase", "krea", or "error"
-    val prompt: String,         // Original prompt
-    val jobId: String,          // Krea job ID
-    val error: String? = null   // Error message if type is "error"
+    val type: String, // "image" or "error"
+    val url: String, // Image URL (Supabase or Krea)
+    val source: String, // "supabase", "krea", or "error"
+    val prompt: String, // Original prompt
+    val jobId: String, // Krea job ID
+    val error: String? = null, // Error message if type is "error"
 )

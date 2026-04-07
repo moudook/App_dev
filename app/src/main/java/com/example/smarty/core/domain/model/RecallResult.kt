@@ -5,5 +5,5 @@ data class RecallResult(
     val title: String,
     val content: String,
     val score: Double,
-    val reason: String
+    val reason: String,
 )

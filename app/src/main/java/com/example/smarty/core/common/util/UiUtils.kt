@@ -25,9 +25,9 @@ import androidx.compose.ui.unit.dp
  * - Use `composed {}` for extensions that need `@Composable` context
  */
 
-// 
+//
 // MODIFIER EXTENSIONS
-// 
+//
 
 /**
  * Clickable modifier that suppresses the default ripple/indication.
@@ -36,13 +36,14 @@ import androidx.compose.ui.unit.dp
  * Usage:
  * Box(modifier = Modifier.noRippleClickable { doSomething() })
  */
-fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
- clickable(
- indication = null,
- interactionSource = remember { MutableInteractionSource() },
- onClick = onClick
- )
-}
+fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
+    composed {
+        clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() },
+            onClick = onClick,
+        )
+    }
 
 /**
  * Draws a left-side accent bar (vertical line) behind the composable.
@@ -56,26 +57,27 @@ fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
  * Box(modifier = Modifier.leftAccentBar(accentColor))
  */
 fun Modifier.leftAccentBar(
- color: Color,
- width: Dp = 2.dp,
- startPadding: Dp = 8.dp
-): Modifier = composed {
- val density = LocalDensity.current
- this.drawBehind {
- val strokeWidthPx = with(density) { width.toPx() }
- val startPx = with(density) { startPadding.toPx() }
- drawLine(
- color = color,
- start = Offset(startPx, 0f),
- end = Offset(startPx, size.height),
- strokeWidth = strokeWidthPx
- )
- }
-}
+    color: Color,
+    width: Dp = 2.dp,
+    startPadding: Dp = 8.dp,
+): Modifier =
+    composed {
+        val density = LocalDensity.current
+        this.drawBehind {
+            val strokeWidthPx = with(density) { width.toPx() }
+            val startPx = with(density) { startPadding.toPx() }
+            drawLine(
+                color = color,
+                start = Offset(startPx, 0f),
+                end = Offset(startPx, size.height),
+                strokeWidth = strokeWidthPx,
+            )
+        }
+    }
 
-// 
+//
 // CONDITIONAL MODIFIERS
-// 
+//
 
 /**
  * Conditionally applies a Modifier chain.
@@ -87,15 +89,15 @@ fun Modifier.leftAccentBar(
  * .conditionalModifier(hasBorder) { border(1.dp, borderColor) }
  */
 inline fun Modifier.conditionalModifier(
- condition: Boolean,
- modifier: Modifier.() -> Modifier
+    condition: Boolean,
+    modifier: Modifier.() -> Modifier,
 ): Modifier {
- return if (condition) this.modifier() else this
+    return if (condition) this.modifier() else this
 }
 
-// 
+//
 // PIXEL / DP CONVERSIONS
-// 
+//
 
 /**
  * Converts Dp to pixels using the current density.
@@ -103,6 +105,6 @@ inline fun Modifier.conditionalModifier(
  */
 @Composable
 fun Dp.toPx(): Float {
- val density = LocalDensity.current
- return with(density) { this@toPx.toPx() }
+    val density = LocalDensity.current
+    return with(density) { this@toPx.toPx() }
 }

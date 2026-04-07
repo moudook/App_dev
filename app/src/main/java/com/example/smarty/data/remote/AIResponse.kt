@@ -14,7 +14,7 @@ data class AIResponse(
     val whySaved: String,
     val todos: List<String> = emptyList(),
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -29,5 +29,5 @@ data class DocumentAnalysisResponse(
     val actionItems: List<String> = emptyList(),
     val userRelevance: String = "",
     val success: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
 )

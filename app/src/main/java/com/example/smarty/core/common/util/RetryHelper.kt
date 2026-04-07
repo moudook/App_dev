@@ -15,7 +15,7 @@ object RetryHelper {
         maxDelayMs: Long = 10000,
         factor: Double = 2.0,
         retryOn: (Exception) -> Boolean = { isTransientError(it) },
-        block: suspend () -> T
+        block: suspend () -> T,
     ): T {
         var currentDelay = initialDelayMs
         var lastException: Exception? = null
@@ -43,12 +43,12 @@ object RetryHelper {
     fun isTransientError(e: Exception): Boolean {
         val message = e.message?.lowercase() ?: ""
         return message.contains("timeout") ||
-               message.contains("connection") ||
-               message.contains("socket") ||
-               message.contains("502") ||
-               message.contains("503") ||
-               message.contains("504") ||
-               message.contains("rate limit") ||
-               message.contains("too many requests")
+            message.contains("connection") ||
+            message.contains("socket") ||
+            message.contains("502") ||
+            message.contains("503") ||
+            message.contains("504") ||
+            message.contains("rate limit") ||
+            message.contains("too many requests")
     }
 }

@@ -1,11 +1,12 @@
 package com.example.smarty.features.search.domain
 
-import com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note
-import com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.testing.TestBuilders
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -29,9 +30,9 @@ class SearchFeatureTest {
     @Test
     fun `search notes by title returns matching results`() = runTest {
         val notes = listOf(
-            TestBuilders.note { title = "Meeting notes" },
-            TestBuilders.note { title = "Project plan" },
-            TestBuilders.note { title = "Meeting agenda" }
+            TestBuilders.note { this.title = "Meeting notes" },
+            TestBuilders.note { this.title = "Project plan" },
+            TestBuilders.note { this.title = "Meeting agenda" }
         )
         val query = "Meeting"
 
@@ -177,7 +178,7 @@ class SearchFeatureTest {
         val publicItems = items.filter { 
             when (it) {
                 is Note -> !it.isPrivate
-                is CalendarEvent -> !it.isPrivate
+                is CalendarEvent -> !it.isEventPrivate
                 else -> true
             }
         }

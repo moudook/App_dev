@@ -6,12 +6,12 @@ package com.example.smarty.core.domain.model
  */
 enum class NavigationTab(
     val label: String,
-    val opensSheet: Boolean = false
+    val opensSheet: Boolean = false,
 ) {
     CHAT("ai"),
     NOTES("notes"),
     CALENDAR("calendar", opensSheet = true),
     STACKS("stacks", opensSheet = true),
     ARCHIVE("archive", opensSheet = true),
-    SETTINGS("settings", opensSheet = true)
+    SETTINGS("settings", opensSheet = true),
 }

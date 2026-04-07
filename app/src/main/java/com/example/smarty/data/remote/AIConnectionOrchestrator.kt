@@ -1,15 +1,15 @@
 package com.example.smarty.data.remote
 
 import android.util.Log
+import com.example.smarty.core.common.util.HttpClientProvider
+import com.example.smarty.core.common.util.api.ApiErrorCategory
+import com.example.smarty.core.common.util.api.ApiMetrics
+import com.example.smarty.core.common.util.api.ConnectionFailoverManager
+import com.example.smarty.core.common.util.retry.RetryExecutor
 import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.providers.AIConnectionContract
 import com.example.smarty.data.remote.providers.CompatibleAIConnection
-import com.example.smarty.core.common.util.api.ApiErrorCategory
-import com.example.smarty.core.common.util.api.ApiMetrics
-import com.example.smarty.core.common.util.api.ConnectionFailoverManager
-import com.example.smarty.core.common.util.HttpClientProvider
-import com.example.smarty.core.common.util.retry.RetryExecutor
 import com.google.gson.Gson
 
 /**
@@ -23,7 +23,6 @@ import com.google.gson.Gson
  * @property securePreferences Secure storage for settings
  */
 class AIConnectionOrchestrator(private val securePreferences: SecurePreferences) {
-
     companion object {
         private const val TAG = "AIConnectionOrchestrator"
         const val MAX_RETRIES = 3
@@ -97,14 +96,20 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
     /**
      * Record a failed API call for a connection.
      */
-    fun recordFailure(connection: AIConnection, exception: Exception) {
+    fun recordFailure(
+        connection: AIConnection,
+        exception: Exception,
+    ) {
         failoverManager.recordFailure(connection, exception)
     }
 
     /**
      * Record a failed API call with known error category.
      */
-    fun recordFailure(connection: AIConnection, category: ApiErrorCategory) {
+    fun recordFailure(
+        connection: AIConnection,
+        category: ApiErrorCategory,
+    ) {
         failoverManager.recordFailure(connection, category)
     }
 
@@ -128,7 +133,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
      */
     suspend fun executeWithContentAnalysisRetry(
         context: android.content.Context,
-        action: suspend (connectionToken: String) -> AIResponse?
+        action: suspend (connectionToken: String) -> AIResponse?,
     ): AIResponse? {
         val connection = AIConnection.LOCAL_PC
 
@@ -142,13 +147,14 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
         val connectionToken = "server_no_token_needed"
 
         try {
-            val result = RetryExecutor.withRetry(
-                maxRetries = MAX_RETRIES,
-                initialDelayMs = INITIAL_RETRY_DELAY_MS,
-                successCheck = { it?.success == true }
-            ) {
-                action(connectionToken)
-            }
+            val result =
+                RetryExecutor.withRetry(
+                    maxRetries = MAX_RETRIES,
+                    initialDelayMs = INITIAL_RETRY_DELAY_MS,
+                    successCheck = { it?.success == true },
+                ) {
+                    action(connectionToken)
+                }
 
             if (result != null && result.success) {
                 Log.i(TAG, " Server connection SUCCESS")
@@ -176,7 +182,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
      */
     suspend fun executeWithDocumentAnalysisRetry(
         context: android.content.Context,
-        action: suspend (connectionToken: String) -> DocumentAnalysisResponse?
+        action: suspend (connectionToken: String) -> DocumentAnalysisResponse?,
     ): DocumentAnalysisResponse? {
         val connection = AIConnection.LOCAL_PC
 
@@ -189,13 +195,14 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
         val connectionToken = "server_no_token_needed"
 
         try {
-            val result = RetryExecutor.withRetry(
-                maxRetries = MAX_RETRIES,
-                initialDelayMs = INITIAL_RETRY_DELAY_MS,
-                successCheck = { it?.success == true }
-            ) {
-                action(connectionToken)
-            }
+            val result =
+                RetryExecutor.withRetry(
+                    maxRetries = MAX_RETRIES,
+                    initialDelayMs = INITIAL_RETRY_DELAY_MS,
+                    successCheck = { it?.success == true },
+                ) {
+                    action(connectionToken)
+                }
 
             if (result != null && result.success) {
                 Log.i(TAG, " Document analysis SUCCESS via server")
@@ -221,7 +228,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
      */
     suspend fun executeChat(
         context: android.content.Context,
-        action: suspend (connectionToken: String) -> String?
+        action: suspend (connectionToken: String) -> String?,
     ): String? {
         val connection = AIConnection.LOCAL_PC
 
@@ -234,12 +241,13 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
         val connectionToken = "server_no_token_needed"
 
         try {
-            val result = RetryExecutor.withStringRetry(
-                maxRetries = MAX_RETRIES,
-                initialDelayMs = INITIAL_RETRY_DELAY_MS
-            ) {
-                action(connectionToken)
-            }
+            val result =
+                RetryExecutor.withStringRetry(
+                    maxRetries = MAX_RETRIES,
+                    initialDelayMs = INITIAL_RETRY_DELAY_MS,
+                ) {
+                    action(connectionToken)
+                }
 
             if (result != null) {
                 Log.i(TAG, " Chat SUCCESS via server")

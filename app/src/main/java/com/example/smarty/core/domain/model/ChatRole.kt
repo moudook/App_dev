@@ -4,5 +4,5 @@ enum class ChatRole {
     USER,
     ASSISTANT,
     SYSTEM,
-    SMARTY
+    SMARTY,
 }

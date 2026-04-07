@@ -28,13 +28,14 @@ dependencyResolutionManagement {
 rootProject.name = "Friday"
 
 // Detect if Android SDK is available
-val hasAndroidSdk: Boolean = run {
-    val localProps = file("local.properties")
-    if (localProps.exists()) return@run true
-    if (System.getenv("ANDROID_HOME") != null) return@run true
-    if (System.getenv("ANDROID_SDK_ROOT") != null) return@run true
-    false
-}
+val hasAndroidSdk: Boolean =
+    run {
+        val localProps = file("local.properties")
+        if (localProps.exists()) return@run true
+        if (System.getenv("ANDROID_HOME") != null) return@run true
+        if (System.getenv("ANDROID_SDK_ROOT") != null) return@run true
+        false
+    }
 
 // Only include Android app module when SDK is available
 if (hasAndroidSdk) {
@@ -43,4 +44,3 @@ if (hasAndroidSdk) {
 
 include(":common")
 include(":server")
- 

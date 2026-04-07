@@ -17,5 +17,5 @@ data class AIMemory(
     val usageCount: Int = 0,
     val confidence: Float = 1.0f,
     val scope: String? = null,
-    val relevance: Float = 1.0f
+    val relevance: Float = 1.0f,
 )

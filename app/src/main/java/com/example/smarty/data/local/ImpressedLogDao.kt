@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface ImpressedLogDao {
-
     // =========================================================================
     // CRUD OPERATIONS
     // =========================================================================
@@ -72,11 +71,13 @@ interface ImpressedLogDao {
      *
      * @param limit Maximum number of entries to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM impressed_log
         ORDER BY timestamp DESC
         LIMIT :limit
-    """)
+    """,
+    )
     suspend fun getRecentEntries(limit: Int): List<ImpressedEntry>
 
     /**
@@ -85,11 +86,13 @@ interface ImpressedLogDao {
      *
      * @param actionType Type of action to filter by
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM impressed_log
         WHERE actionType = :actionType
         ORDER BY timestamp DESC
-    """)
+    """,
+    )
     suspend fun getEntriesByActionType(actionType: String): List<ImpressedEntry>
 
     /**
@@ -98,11 +101,13 @@ interface ImpressedLogDao {
      *
      * @param userSignal Signal to filter by
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM impressed_log
         WHERE userSignal = :userSignal
         ORDER BY timestamp DESC
-    """)
+    """,
+    )
     suspend fun getEntriesBySignal(userSignal: String): List<ImpressedEntry>
 
     /**
@@ -111,13 +116,18 @@ interface ImpressedLogDao {
      * @param startTime Start of range (inclusive)
      * @param endTime End of range (exclusive)
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM impressed_log
         WHERE timestamp >= :startTime
         AND timestamp < :endTime
         ORDER BY timestamp DESC
-    """)
-    suspend fun getEntriesInRange(startTime: Long, endTime: Long): List<ImpressedEntry>
+    """,
+    )
+    suspend fun getEntriesInRange(
+        startTime: Long,
+        endTime: Long,
+    ): List<ImpressedEntry>
 
     // =========================================================================
     // ANALYTICS QUERIES
@@ -133,24 +143,28 @@ interface ImpressedLogDao {
      * Get count of entries by action type.
      * Returns action types sorted by frequency.
      */
-    @Query("""
+    @Query(
+        """
         SELECT actionType, COUNT(*) as count
         FROM impressed_log
         GROUP BY actionType
         ORDER BY count DESC
-    """)
+    """,
+    )
     suspend fun getActionTypeCounts(): List<ActionTypeCount>
 
     /**
      * Get count of entries by user signal.
      * Returns signals sorted by frequency.
      */
-    @Query("""
+    @Query(
+        """
         SELECT userSignal, COUNT(*) as count
         FROM impressed_log
         GROUP BY userSignal
         ORDER BY count DESC
-    """)
+    """,
+    )
     suspend fun getSignalCounts(): List<SignalCount>
 
     /**
@@ -158,13 +172,15 @@ interface ImpressedLogDao {
      *
      * @param limit Number of top action types to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT actionType, COUNT(*) as count
         FROM impressed_log
         GROUP BY actionType
         ORDER BY count DESC
         LIMIT :limit
-    """)
+    """,
+    )
     suspend fun getTopActionTypes(limit: Int): List<ActionTypeCount>
 
     /**
@@ -195,14 +211,16 @@ interface ImpressedLogDao {
      *
      * @param keepCount Number of recent entries to keep
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM impressed_log
         WHERE id NOT IN (
             SELECT id FROM impressed_log
             ORDER BY timestamp DESC
             LIMIT :keepCount
         )
-    """)
+    """,
+    )
     suspend fun keepRecentEntries(keepCount: Int)
 
     /**
@@ -218,7 +236,7 @@ interface ImpressedLogDao {
  */
 data class ActionTypeCount(
     val actionType: String,
-    val count: Int
+    val count: Int,
 )
 
 /**
@@ -226,5 +244,5 @@ data class ActionTypeCount(
  */
 data class SignalCount(
     val userSignal: String,
-    val count: Int
+    val count: Int,
 )

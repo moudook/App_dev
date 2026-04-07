@@ -5,7 +5,7 @@ package com.example.smarty.data.cache
  * Stores pre-computed amplitude arrays for quick visualization
  */
 class WaveformCache(
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
 ) {
     /**
      * Get cached waveform data for an audio URI
@@ -17,7 +17,10 @@ class WaveformCache(
     /**
      * Cache waveform data for an audio URI
      */
-    suspend fun put(audioUri: String, waveform: List<Float>) {
+    suspend fun put(
+        audioUri: String,
+        waveform: List<Float>,
+    ) {
         cacheManager.cacheWaveform(audioUri, waveform)
     }
 

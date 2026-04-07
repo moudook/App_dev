@@ -24,17 +24,17 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class AIResponseCache(
     private val cacheDao: AICacheDao,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
 ) {
     private val TAG = "AIResponseCache"
     private val MAX_SIZE = 100
-    private val DEFAULT_TTL_MS = 24 * 60 * 60 * 1000L  // 24 hours for persistent cache
+    private val DEFAULT_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours for persistent cache
 
     // In-memory cache for fast lookups
     private data class MemoryEntry(
         val response: AIResponse,
         val timestamp: Long = System.currentTimeMillis(),
-        var lastAccess: Long = System.currentTimeMillis()
+        var lastAccess: Long = System.currentTimeMillis(),
     ) {
         fun isExpired(ttlMs: Long = 30 * 60 * 1000L): Boolean {
             return System.currentTimeMillis() - timestamp > ttlMs
@@ -43,10 +43,11 @@ class AIResponseCache(
 
     private val memoryCache = ConcurrentHashMap<String, MemoryEntry>()
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
     init {
         // Prune expired entries on startup
@@ -68,9 +69,10 @@ class AIResponseCache(
      */
     fun generateKey(content: String): String {
         // Normalize content: trim, collapse whitespace
-        val normalized = content.trim()
-            .replace(Regex("\\s+"), " ")
-            .take(2000)  // Only hash first 2000 chars for performance
+        val normalized =
+            content.trim()
+                .replace(Regex("\\s+"), " ")
+                .take(2000) // Only hash first 2000 chars for performance
 
         return try {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -124,7 +126,10 @@ class AIResponseCache(
      * Cache a response in both memory and Room.
      * Evicts oldest entries if cache is full.
      */
-    suspend fun put(key: String, response: AIResponse) {
+    suspend fun put(
+        key: String,
+        response: AIResponse,
+    ) {
         // Evict memory cache if needed
         while (memoryCache.size >= MAX_SIZE / 2) {
             evictOldestFromMemory()
@@ -139,18 +144,19 @@ class AIResponseCache(
             // Check Room size and evict if needed
             val count = cacheDao.getCount()
             if (count >= MAX_SIZE) {
-                val toEvict = count - MAX_SIZE + 10  // Evict extra to avoid frequent evictions
+                val toEvict = count - MAX_SIZE + 10 // Evict extra to avoid frequent evictions
                 cacheDao.evictOldest(toEvict)
                 Log.d(TAG, "Evicted $toEvict entries from Room cache")
             }
 
-            val entry = CachedAIResponse(
-                contentHash = key,
-                jsonResponse = json.encodeToString(response),
-                createdAt = System.currentTimeMillis(),
-                expiresAt = System.currentTimeMillis() + DEFAULT_TTL_MS,
-                lastAccessedAt = System.currentTimeMillis()
-            )
+            val entry =
+                CachedAIResponse(
+                    contentHash = key,
+                    jsonResponse = json.encodeToString(response),
+                    createdAt = System.currentTimeMillis(),
+                    expiresAt = System.currentTimeMillis() + DEFAULT_TTL_MS,
+                    lastAccessedAt = System.currentTimeMillis(),
+                )
             cacheDao.put(entry)
             Log.d(TAG, "Persisted to Room cache: ${key.take(16)}...")
         } catch (e: Exception) {
@@ -212,7 +218,7 @@ class AIResponseCache(
                 memorySize = memorySize,
                 memoryValid = memoryValid,
                 roomSize = roomSize,
-                roomValid = roomValid
+                roomValid = roomValid,
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error getting cache stats", e)
@@ -220,7 +226,7 @@ class AIResponseCache(
                 memorySize = memorySize,
                 memoryValid = memoryValid,
                 roomSize = 0,
-                roomValid = 0
+                roomValid = 0,
             )
         }
     }
@@ -229,7 +235,7 @@ class AIResponseCache(
         val memorySize: Int,
         val memoryValid: Int,
         val roomSize: Int,
-        val roomValid: Int
+        val roomValid: Int,
     ) {
         val totalSize: Int get() = memorySize + roomSize
         val totalValid: Int get() = memoryValid + roomValid
@@ -244,12 +250,12 @@ class AIResponseCache(
         object Legacy {
             private const val TAG = "AIResponseCache.Legacy"
             private const val MAX_SIZE = 50
-            private const val DEFAULT_TTL_MS = 30 * 60 * 1000L  // 30 minutes
+            private const val DEFAULT_TTL_MS = 30 * 60 * 1000L // 30 minutes
 
             private data class CacheEntry(
                 val response: AIResponse,
                 val timestamp: Long = System.currentTimeMillis(),
-                var lastAccess: Long = System.currentTimeMillis()
+                var lastAccess: Long = System.currentTimeMillis(),
             ) {
                 fun isExpired(ttlMs: Long = DEFAULT_TTL_MS): Boolean {
                     return System.currentTimeMillis() - timestamp > ttlMs
@@ -259,9 +265,10 @@ class AIResponseCache(
             private val cache = ConcurrentHashMap<String, CacheEntry>()
 
             fun generateKey(content: String): String {
-                val normalized = content.trim()
-                    .replace(Regex("\\s+"), " ")
-                    .take(2000)
+                val normalized =
+                    content.trim()
+                        .replace(Regex("\\s+"), " ")
+                        .take(2000)
 
                 return try {
                     val digest = MessageDigest.getInstance("SHA-256")
@@ -285,7 +292,10 @@ class AIResponseCache(
                 return entry.response
             }
 
-            fun put(key: String, response: AIResponse) {
+            fun put(
+                key: String,
+                response: AIResponse,
+            ) {
                 while (cache.size >= MAX_SIZE) {
                     evictOldest()
                 }

@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CalendarDao {
-
     // =========================================================================
     // BASIC CRUD OPERATIONS
     // =========================================================================
@@ -40,46 +39,69 @@ interface CalendarDao {
      * Get events within a date range (inclusive)
      * Used for calendar view filtering
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE startTime >= :startMillis AND startTime < :endMillis
         ORDER BY startTime ASC
-    """)
-    fun getEventsInRange(startMillis: Long, endMillis: Long): Flow<List<CalendarEvent>>
+    """,
+    )
+    fun getEventsInRange(
+        startMillis: Long,
+        endMillis: Long,
+    ): Flow<List<CalendarEvent>>
 
     /**
      * Get events for a specific day
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE startTime >= :dayStartMillis AND startTime < :dayEndMillis
         ORDER BY startTime ASC
-    """)
-    suspend fun getEventsForDay(dayStartMillis: Long, dayEndMillis: Long): List<CalendarEvent>
+    """,
+    )
+    suspend fun getEventsForDay(
+        dayStartMillis: Long,
+        dayEndMillis: Long,
+    ): List<CalendarEvent>
 
     /**
      * Get upcoming events (from now onwards)
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE endTime >= :nowMillis
         ORDER BY startTime ASC
         LIMIT :limit
-    """)
-    fun getUpcomingEvents(nowMillis: Long = System.currentTimeMillis(), limit: Int = 20): Flow<List<CalendarEvent>>
+    """,
+    )
+    fun getUpcomingEvents(
+        nowMillis: Long = System.currentTimeMillis(),
+        limit: Int = 20,
+    ): Flow<List<CalendarEvent>>
 
     @Query("SELECT * FROM calendar_events WHERE startTime >= :startMillis AND startTime < :endMillis ORDER BY startTime ASC")
-    suspend fun getUpcomingEvents(startMillis: Long, endMillis: Long): List<CalendarEvent>
+    suspend fun getUpcomingEvents(
+        startMillis: Long,
+        endMillis: Long,
+    ): List<CalendarEvent>
 
     /**
      * Get today's events
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE startTime >= :dayStart AND startTime < :dayEnd
         ORDER BY startTime ASC
-    """)
-    suspend fun getTodayEvents(dayStart: Long, dayEnd: Long): List<CalendarEvent>
+    """,
+    )
+    suspend fun getTodayEvents(
+        dayStart: Long,
+        dayEnd: Long,
+    ): List<CalendarEvent>
 
     // =========================================================================
     // LINKED NOTE QUERIES
@@ -95,7 +117,10 @@ interface CalendarDao {
      * Clear note link when a note is deleted
      */
     @Query("UPDATE calendar_events SET linkedNoteId = NULL, updatedAt = :timestamp WHERE linkedNoteId = :noteId")
-    suspend fun clearNoteLinkForNote(noteId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun clearNoteLinkForNote(
+        noteId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // =========================================================================
     // AI-SAFE QUERIES (Private events excluded)
@@ -105,23 +130,30 @@ interface CalendarDao {
      * Get AI-visible events (excludes private events)
      * Use when building context for AI/Agent services
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE isEventPrivate = 0
         ORDER BY startTime ASC
-    """)
+    """,
+    )
     fun getAiVisibleEvents(): Flow<List<CalendarEvent>>
 
     /**
      * Get AI-visible upcoming events
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM calendar_events
         WHERE isEventPrivate = 0 AND endTime >= :nowMillis
         ORDER BY startTime ASC
         LIMIT :limit
-    """)
-    suspend fun getAiVisibleUpcomingEvents(nowMillis: Long = System.currentTimeMillis(), limit: Int = 10): List<CalendarEvent>
+    """,
+    )
+    suspend fun getAiVisibleUpcomingEvents(
+        nowMillis: Long = System.currentTimeMillis(),
+        limit: Int = 10,
+    ): List<CalendarEvent>
 
     // =========================================================================
     // UTILITY QUERIES
@@ -160,9 +192,14 @@ interface CalendarDao {
     /**
      * Check if there are events on a specific day
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(*) > 0 FROM calendar_events
         WHERE startTime >= :dayStart AND startTime < :dayEnd
-    """)
-    suspend fun hasEventsOnDay(dayStart: Long, dayEnd: Long): Boolean
+    """,
+    )
+    suspend fun hasEventsOnDay(
+        dayStart: Long,
+        dayEnd: Long,
+    ): Boolean
 }

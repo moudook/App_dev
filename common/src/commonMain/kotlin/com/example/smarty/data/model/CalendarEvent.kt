@@ -24,29 +24,28 @@ import java.util.UUID
         // DB-004: Composite index for efficient privacy-filtered time queries
         Index(value = ["isEventPrivate", "startTime"]),
         // PERFORMANCE: Index for Google Calendar sync lookups
-        Index(value = ["googleEventId"])
-    ]
+        Index(value = ["googleEventId"]),
+    ],
 )
 data class CalendarEvent(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val description: String? = null,
-    val startTime: Long,                    // Unix timestamp in milliseconds
-    val endTime: Long,                      // Unix timestamp in milliseconds
+    val startTime: Long, // Unix timestamp in milliseconds
+    val endTime: Long, // Unix timestamp in milliseconds
     val isAllDay: Boolean = false,
-    val color: Int? = null,                 // Optional color for visual distinction
+    val color: Int? = null, // Optional color for visual distinction
     val location: String? = null,
-    val reminderMinutes: Int? = null,       // Minutes before event to remind
+    val reminderMinutes: Int? = null, // Minutes before event to remind
     val isRecurring: Boolean = false,
-    val recurrenceRule: String? = null,     // iCal RRULE format for recurring events
-    val linkedNoteId: String? = null,       // Optional link to a note
-    val googleEventId: String? = null,      // Google Calendar Event ID for two-way sync
-    val isEventPrivate: Boolean = false,    // Privacy flag - hidden from AI
+    val recurrenceRule: String? = null, // iCal RRULE format for recurring events
+    val linkedNoteId: String? = null, // Optional link to a note
+    val googleEventId: String? = null, // Google Calendar Event ID for two-way sync
+    val isEventPrivate: Boolean = false, // Privacy flag - hidden from AI
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
 ) : PrivacyAware {
-
     /**
      * PrivacyAware implementation - private events are invisible to AI.
      * This is a computed property (no backing field) so Room ignores it automatically.

@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
-import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,27 +37,26 @@ import java.io.File
  * =============================================================================
  */
 object ResourceManager : ComponentCallbacks2 {
-
     private const val TAG = "ResourceManager"
 
     // Device classification thresholds
-    private const val LOW_RAM_THRESHOLD_MB = 2048      // 2GB
-    private const val MEDIUM_RAM_THRESHOLD_MB = 4096   // 4GB
+    private const val LOW_RAM_THRESHOLD_MB = 2048 // 2GB
+    private const val MEDIUM_RAM_THRESHOLD_MB = 4096 // 4GB
     private const val LOW_CORES_THRESHOLD = 4
 
     // Buffer sizes based on device class
-    private const val BUFFER_SIZE_LOW = 16384          // 16KB for edge devices
-    private const val BUFFER_SIZE_MEDIUM = 32768       // 32KB for medium devices
-    private const val BUFFER_SIZE_HIGH = 65536         // 64KB for high-end devices
-    private const val BUFFER_SIZE_ULTRA = 131072       // 128KB for flagship devices
+    private const val BUFFER_SIZE_LOW = 16384 // 16KB for edge devices
+    private const val BUFFER_SIZE_MEDIUM = 32768 // 32KB for medium devices
+    private const val BUFFER_SIZE_HIGH = 65536 // 64KB for high-end devices
+    private const val BUFFER_SIZE_ULTRA = 131072 // 128KB for flagship devices
 
     // Cache limits based on device class
-    private const val CACHE_LIMIT_LOW_MB = 25          // 25MB for edge devices
-    private const val CACHE_LIMIT_MEDIUM_MB = 50       // 50MB for medium devices
-    private const val CACHE_LIMIT_HIGH_MB = 100        // 100MB for high-end devices
+    private const val CACHE_LIMIT_LOW_MB = 25 // 25MB for edge devices
+    private const val CACHE_LIMIT_MEDIUM_MB = 50 // 50MB for medium devices
+    private const val CACHE_LIMIT_HIGH_MB = 100 // 100MB for high-end devices
 
     // Parallel operation limits
-    private const val PARALLEL_OPS_LOW = 1             // Sequential for edge devices
+    private const val PARALLEL_OPS_LOW = 1 // Sequential for edge devices
     private const val PARALLEL_OPS_MEDIUM = 2
     private const val PARALLEL_OPS_HIGH = 4
 
@@ -87,20 +85,20 @@ object ResourceManager : ComponentCallbacks2 {
      * Device classification based on hardware capabilities
      */
     enum class DeviceClass {
-        EDGE,       // Very low-end devices (< 2GB RAM, < 4 cores)
-        LOW,        // Low-end devices (2GB RAM)
-        MEDIUM,     // Mid-range devices (2-4GB RAM)
-        HIGH,       // High-end devices (4GB+ RAM)
-        FLAGSHIP    // Flagship devices (8GB+ RAM, 8+ cores)
+        EDGE, // Very low-end devices (< 2GB RAM, < 4 cores)
+        LOW, // Low-end devices (2GB RAM)
+        MEDIUM, // Mid-range devices (2-4GB RAM)
+        HIGH, // High-end devices (4GB+ RAM)
+        FLAGSHIP, // Flagship devices (8GB+ RAM, 8+ cores)
     }
 
     /**
      * Memory pressure levels
      */
     enum class MemoryPressure {
-        NORMAL,     // Plenty of memory available
-        MODERATE,   // Some memory pressure
-        CRITICAL    // Low memory, release caches
+        NORMAL, // Plenty of memory available
+        MODERATE, // Some memory pressure
+        CRITICAL, // Low memory, release caches
     }
 
     /**
@@ -136,13 +134,14 @@ object ResourceManager : ComponentCallbacks2 {
         // Check if device is considered low RAM by Android
         val isLowRamDevice = activityManager?.isLowRamDevice ?: false
 
-        deviceClass = when {
-            isLowRamDevice || totalRamMB < LOW_RAM_THRESHOLD_MB / 2 -> DeviceClass.EDGE
-            totalRamMB < LOW_RAM_THRESHOLD_MB -> DeviceClass.LOW
-            totalRamMB < MEDIUM_RAM_THRESHOLD_MB -> DeviceClass.MEDIUM
-            totalRamMB < 8192 || availableCores < 8 -> DeviceClass.HIGH
-            else -> DeviceClass.FLAGSHIP
-        }
+        deviceClass =
+            when {
+                isLowRamDevice || totalRamMB < LOW_RAM_THRESHOLD_MB / 2 -> DeviceClass.EDGE
+                totalRamMB < LOW_RAM_THRESHOLD_MB -> DeviceClass.LOW
+                totalRamMB < MEDIUM_RAM_THRESHOLD_MB -> DeviceClass.MEDIUM
+                totalRamMB < 8192 || availableCores < 8 -> DeviceClass.HIGH
+                else -> DeviceClass.FLAGSHIP
+            }
 
         Log.d(TAG, "Device class: $deviceClass (RAM: ${totalRamMB}MB, Cores: $availableCores)")
     }
@@ -155,13 +154,14 @@ object ResourceManager : ComponentCallbacks2 {
      * Get optimal buffer size based on device class and memory pressure
      */
     fun getOptimalBufferSize(): Int {
-        val baseSize = when (deviceClass) {
-            DeviceClass.EDGE -> BUFFER_SIZE_LOW
-            DeviceClass.LOW -> BUFFER_SIZE_LOW
-            DeviceClass.MEDIUM -> BUFFER_SIZE_MEDIUM
-            DeviceClass.HIGH -> BUFFER_SIZE_HIGH
-            DeviceClass.FLAGSHIP -> BUFFER_SIZE_ULTRA
-        }
+        val baseSize =
+            when (deviceClass) {
+                DeviceClass.EDGE -> BUFFER_SIZE_LOW
+                DeviceClass.LOW -> BUFFER_SIZE_LOW
+                DeviceClass.MEDIUM -> BUFFER_SIZE_MEDIUM
+                DeviceClass.HIGH -> BUFFER_SIZE_HIGH
+                DeviceClass.FLAGSHIP -> BUFFER_SIZE_ULTRA
+            }
 
         // Reduce buffer size under memory pressure
         return when (_memoryPressure.value) {
@@ -182,20 +182,22 @@ object ResourceManager : ComponentCallbacks2 {
      * Get maximum cache size in bytes
      */
     fun getMaxCacheSize(): Long {
-        val baseSizeMB = when (deviceClass) {
-            DeviceClass.EDGE -> CACHE_LIMIT_LOW_MB / 2
-            DeviceClass.LOW -> CACHE_LIMIT_LOW_MB
-            DeviceClass.MEDIUM -> CACHE_LIMIT_MEDIUM_MB
-            DeviceClass.HIGH -> CACHE_LIMIT_HIGH_MB
-            DeviceClass.FLAGSHIP -> CACHE_LIMIT_HIGH_MB * 2
-        }
+        val baseSizeMB =
+            when (deviceClass) {
+                DeviceClass.EDGE -> CACHE_LIMIT_LOW_MB / 2
+                DeviceClass.LOW -> CACHE_LIMIT_LOW_MB
+                DeviceClass.MEDIUM -> CACHE_LIMIT_MEDIUM_MB
+                DeviceClass.HIGH -> CACHE_LIMIT_HIGH_MB
+                DeviceClass.FLAGSHIP -> CACHE_LIMIT_HIGH_MB * 2
+            }
 
         // Reduce cache under memory pressure
-        val adjustedMB = when (_memoryPressure.value) {
-            MemoryPressure.CRITICAL -> baseSizeMB / 4
-            MemoryPressure.MODERATE -> baseSizeMB / 2
-            MemoryPressure.NORMAL -> baseSizeMB
-        }
+        val adjustedMB =
+            when (_memoryPressure.value) {
+                MemoryPressure.CRITICAL -> baseSizeMB / 4
+                MemoryPressure.MODERATE -> baseSizeMB / 2
+                MemoryPressure.NORMAL -> baseSizeMB
+            }
 
         return adjustedMB * 1024 * 1024L
     }
@@ -204,13 +206,14 @@ object ResourceManager : ComponentCallbacks2 {
      * Get maximum number of parallel operations
      */
     fun getMaxParallelOperations(): Int {
-        val baseOps = when (deviceClass) {
-            DeviceClass.EDGE -> PARALLEL_OPS_LOW
-            DeviceClass.LOW -> PARALLEL_OPS_LOW
-            DeviceClass.MEDIUM -> PARALLEL_OPS_MEDIUM
-            DeviceClass.HIGH -> PARALLEL_OPS_HIGH
-            DeviceClass.FLAGSHIP -> PARALLEL_OPS_HIGH * 2
-        }
+        val baseOps =
+            when (deviceClass) {
+                DeviceClass.EDGE -> PARALLEL_OPS_LOW
+                DeviceClass.LOW -> PARALLEL_OPS_LOW
+                DeviceClass.MEDIUM -> PARALLEL_OPS_MEDIUM
+                DeviceClass.HIGH -> PARALLEL_OPS_HIGH
+                DeviceClass.FLAGSHIP -> PARALLEL_OPS_HIGH * 2
+            }
 
         // Reduce under memory pressure
         return when (_memoryPressure.value) {
@@ -238,10 +241,10 @@ object ResourceManager : ComponentCallbacks2 {
      */
     fun getLargeFileThreshold(): Long {
         return when (deviceClass) {
-            DeviceClass.EDGE -> 1 * 1024 * 1024L      // 1MB
-            DeviceClass.LOW -> 2 * 1024 * 1024L       // 2MB
-            DeviceClass.MEDIUM -> 5 * 1024 * 1024L    // 5MB
-            DeviceClass.HIGH -> 10 * 1024 * 1024L     // 10MB
+            DeviceClass.EDGE -> 1 * 1024 * 1024L // 1MB
+            DeviceClass.LOW -> 2 * 1024 * 1024L // 2MB
+            DeviceClass.MEDIUM -> 5 * 1024 * 1024L // 5MB
+            DeviceClass.HIGH -> 10 * 1024 * 1024L // 10MB
             DeviceClass.FLAGSHIP -> 20 * 1024 * 1024L // 20MB
         }
     }
@@ -251,7 +254,7 @@ object ResourceManager : ComponentCallbacks2 {
      */
     fun shouldThrottle(): Boolean {
         return _memoryPressure.value == MemoryPressure.CRITICAL ||
-               deviceClass == DeviceClass.EDGE
+            deviceClass == DeviceClass.EDGE
     }
 
     /**
@@ -394,7 +397,10 @@ object ResourceManager : ComponentCallbacks2 {
     /**
      * Clear old files from cache directory
      */
-    private fun clearOldCacheFiles(cacheDir: File, maxAgeMs: Long) {
+    private fun clearOldCacheFiles(
+        cacheDir: File,
+        maxAgeMs: Long,
+    ) {
         val now = System.currentTimeMillis()
         cacheDir.listFiles()?.forEach { file ->
             if (file.isFile && (now - file.lastModified()) > maxAgeMs) {

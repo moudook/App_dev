@@ -40,13 +40,12 @@ import java.util.UUID
     indices = [
         Index(value = ["actionType"]),
         Index(value = ["timestamp"]),
-        Index(value = ["userSignal"])
-    ]
+        Index(value = ["userSignal"]),
+    ],
 )
 data class ImpressedEntry(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
-
     /**
      * What type of action was taken by the AI.
      * Abstract category, not specific content.
@@ -59,7 +58,6 @@ data class ImpressedEntry(
      * - "CATEGORY_ASSIGNMENT"
      */
     val actionType: String,
-
     /**
      * Abstract context without private data.
      * Describes the situation, not the content.
@@ -70,7 +68,6 @@ data class ImpressedEntry(
      * - "Suggested follow-up action"
      */
     val abstractContext: String,
-
     /**
      * How we detected user was impressed.
      * The signal that triggered this log entry.
@@ -82,11 +79,10 @@ data class ImpressedEntry(
      * - "POSITIVE_FEEDBACK" - Explicit positive statement
      */
     val userSignal: String,
-
     /**
      * When this entry was logged.
      */
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -94,7 +90,6 @@ data class ImpressedEntry(
  * Provides consistency in logging.
  */
 object ImpressedLogConstants {
-
     // Action Types
     const val ACTION_NOTE_CREATION = "NOTE_CREATION"
     const val ACTION_NOTE_UPDATE = "NOTE_UPDATE"
@@ -121,13 +116,14 @@ object ImpressedLogConstants {
      * Keywords that indicate user satisfaction.
      * Used for detecting EXPLICIT_THANKS signal.
      */
-    val POSITIVE_KEYWORDS = listOf(
-        "thanks", "thank you", "thx",
-        "great", "awesome", "amazing", "wonderful",
-        "perfect", "exactly", "that's it",
-        "nice", "good", "excellent",
-        "helpful", "love it", "brilliant"
-    )
+    val POSITIVE_KEYWORDS =
+        listOf(
+            "thanks", "thank you", "thx",
+            "great", "awesome", "amazing", "wonderful",
+            "perfect", "exactly", "that's it",
+            "nice", "good", "excellent",
+            "helpful", "love it", "brilliant",
+        )
 
     /**
      * Check if a message contains positive feedback.

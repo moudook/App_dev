@@ -3,12 +3,9 @@ package com.example.smarty.features.calendar.domain
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.example.smarty.core.domain.model.CalendarEvent
-import com.example.smarty.core.domain.model.SmartyTimer
 import com.example.smarty.di.ServiceLocator
-import kotlinx.coroutines.flow.StateFlow
 
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
-
     private val calendarFeatureManager = ServiceLocator.provideCalendarFeatureManager(application)
 
     // State
@@ -39,10 +36,10 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         location: String? = null,
         color: Int? = null,
         reminderMinutes: Int? = null,
-        isPrivate: Boolean = false
+        isPrivate: Boolean = false,
     ) {
         calendarFeatureManager.addCalendarEvent(
-            title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate
+            title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate,
         )
     }
 
@@ -58,4 +55,3 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         calendarFeatureManager.cancelTimer(timerId)
     }
 }
-

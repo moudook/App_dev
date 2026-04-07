@@ -22,8 +22,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 class DatabaseWriteBatcher(
     private val repository: SmartyRepository,
     private val scope: CoroutineScope,
-    private val flushIntervalMs: Long = 250L,  // Flush every 250ms
-    private val maxBatchSize: Int = 20         // Or when batch reaches 20 items
+    private val flushIntervalMs: Long = 250L, // Flush every 250ms
+    private val maxBatchSize: Int = 20, // Or when batch reaches 20 items
 ) {
     companion object {
         private const val TAG = "DatabaseWriteBatcher"
@@ -44,12 +44,13 @@ class DatabaseWriteBatcher(
         if (isRunning) return
         isRunning = true
 
-        flushJob = scope.launch(Dispatchers.IO) {
-            while (isActive && isRunning) {
-                delay(flushIntervalMs)
-                flushIfNeeded()
+        flushJob =
+            scope.launch(Dispatchers.IO) {
+                while (isActive && isRunning) {
+                    delay(flushIntervalMs)
+                    flushIfNeeded()
+                }
             }
-        }
         Log.d(TAG, "Write batcher started")
     }
 
@@ -194,4 +195,3 @@ class DatabaseWriteBatcher(
      */
     fun getPendingCount(): Int = insertQueue.size + updateQueue.size
 }
-

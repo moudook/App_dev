@@ -7,22 +7,21 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.RemoteDataSource
-import com.example.smarty.core.common.util.NetworkMonitor
-import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.data.sync.MigrationManager
+import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.ui.components.ConnectionStatus
-import kotlinx.coroutines.flow.first
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 class SyncWorker(
     context: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
 ) : CoroutineWorker(context, workerParams) {
-
     override suspend fun doWork(): Result {
         Log.i(TAG, "Starting sync worker...")
 
@@ -43,30 +42,33 @@ class SyncWorker(
             val database = SmartyDatabase.getDatabase(applicationContext)
             val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(applicationContext)
 
-            val remoteDataSource = RemoteDataSource(
-                client = createHttpClient(),
-                serverUrlProvider = { securePrefs.getSmartyServerUrl() },
-                deviceIdProvider = { securePrefs.getDeviceId() }
-            )
+            val remoteDataSource =
+                RemoteDataSource(
+                    client = createHttpClient(),
+                    serverUrlProvider = { securePrefs.getSmartyServerUrl() },
+                    deviceIdProvider = { securePrefs.getDeviceId() },
+                )
 
-            val syncCoordinator = SyncCoordinator(
-                context = applicationContext,
-                remoteDataSource = remoteDataSource,
-                noteDao = database.noteDao(),
-                calendarDao = database.calendarDao(),
-                chatDao = database.chatDao(),
-                syncQueueDao = database.syncQueueDao(),
-                networkMonitor = networkMonitor
-            )
+            val syncCoordinator =
+                SyncCoordinator(
+                    context = applicationContext,
+                    remoteDataSource = remoteDataSource,
+                    noteDao = database.noteDao(),
+                    calendarDao = database.calendarDao(),
+                    chatDao = database.chatDao(),
+                    syncQueueDao = database.syncQueueDao(),
+                    networkMonitor = networkMonitor,
+                )
 
-            val migrationManager = MigrationManager(
-                context = applicationContext,
-                remoteDataSource = remoteDataSource,
-                noteDao = database.noteDao(),
-                calendarDao = database.calendarDao(),
-                chatDao = database.chatDao(),
-                syncQueueDao = database.syncQueueDao()
-            )
+            val migrationManager =
+                MigrationManager(
+                    context = applicationContext,
+                    remoteDataSource = remoteDataSource,
+                    noteDao = database.noteDao(),
+                    calendarDao = database.calendarDao(),
+                    chatDao = database.chatDao(),
+                    syncQueueDao = database.syncQueueDao(),
+                )
 
             // Check for cancellation before migration
             if (isStopped) {
@@ -137,7 +139,7 @@ class SyncWorker(
     companion object {
         private const val TAG = "SyncWorker"
         private const val WORK_NAME = "sync_worker"
-        
+
         private fun createHttpClient(): io.ktor.client.HttpClient {
             return io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
                 engine {
@@ -148,58 +150,62 @@ class SyncWorker(
                         kotlinx.serialization.json.Json {
                             ignoreUnknownKeys = true
                             isLenient = true
-                        }
+                        },
                     )
                 }
             }
         }
 
         fun schedule(context: Context) {
-            val workRequest = PeriodicWorkRequestBuilder<SyncWorker>(
-                15, TimeUnit.MINUTES
-            )
-                .setConstraints(
-                    androidx.work.Constraints.Builder()
-                        .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
-                        .build()
+            val workRequest =
+                PeriodicWorkRequestBuilder<SyncWorker>(
+                    15,
+                    TimeUnit.MINUTES,
                 )
-                .build()
+                    .setConstraints(
+                        androidx.work.Constraints.Builder()
+                            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                            .build(),
+                    )
+                    .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
-                workRequest
+                workRequest,
             )
         }
 
         suspend fun syncNow(context: Context): Boolean {
             return try {
                 val networkMonitor = NetworkMonitor(context)
-                
-            if (networkMonitor.connectionStatus.first() != ConnectionStatus.CONNECTED) {
+
+                if (networkMonitor.connectionStatus.first() != ConnectionStatus.CONNECTED) {
                     Log.d(TAG, "Device offline, skipping sync")
                     return false
                 }
-                
+
                 val database = SmartyDatabase.getDatabase(context)
                 val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(context)
-                
-                val remoteDataSource = RemoteDataSource(
-                    client = createHttpClient(),
-                    serverUrlProvider = { securePrefs.getSmartyServerUrl() },
-                    deviceIdProvider = { securePrefs.getDeviceId() }
-                )
-                
-                val syncCoordinator = SyncCoordinator(
-                    context = context,
-                    remoteDataSource = remoteDataSource,
-                    noteDao = database.noteDao(),
-                    calendarDao = database.calendarDao(),
-                    chatDao = database.chatDao(),
-                    syncQueueDao = database.syncQueueDao(),
-                    networkMonitor = networkMonitor
-                )
-                
+
+                val remoteDataSource =
+                    RemoteDataSource(
+                        client = createHttpClient(),
+                        serverUrlProvider = { securePrefs.getSmartyServerUrl() },
+                        deviceIdProvider = { securePrefs.getDeviceId() },
+                    )
+
+                val syncCoordinator =
+                    SyncCoordinator(
+                        context = context,
+                        remoteDataSource = remoteDataSource,
+                        noteDao = database.noteDao(),
+                        calendarDao = database.calendarDao(),
+                        chatDao = database.chatDao(),
+                        syncQueueDao = database.syncQueueDao(),
+                        networkMonitor = networkMonitor,
+                    )
+
                 syncCoordinator.pullFromServer()
                 syncCoordinator.pushPendingChanges()
                 true

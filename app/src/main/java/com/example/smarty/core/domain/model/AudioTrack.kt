@@ -14,14 +14,14 @@ data class AudioTrack(
     val uri: String,
     val title: String,
     val fileName: String? = null,
-    val duration: Long = 0L,  // Duration in milliseconds
-    val sourceNoteId: String? = null,  // If from a Note
-    val sourceAttachmentId: String? = null,  // If from an Attachment
+    val duration: Long = 0L, // Duration in milliseconds
+    val sourceNoteId: String? = null, // If from a Note
+    val sourceAttachmentId: String? = null, // If from an Attachment
     val mimeType: String? = null,
     // NEW: Fields for device storage audio (all have defaults for backward compatibility)
     val source: com.example.smarty.core.domain.model.AudioSource = com.example.smarty.core.domain.model.AudioSource.NOTE_ATTACHMENT,
     val artist: String? = null,
-    val album: String? = null
+    val album: String? = null,
 ) : Parcelable
 
 /**
@@ -30,10 +30,10 @@ data class AudioTrack(
 data class AudioPlayerState(
     val isPlaying: Boolean = false,
     val currentTrack: AudioTrack? = null,
-    val currentPosition: Long = 0L,  // Current position in milliseconds
-    val duration: Long = 0L,  // Total duration in milliseconds
+    val currentPosition: Long = 0L, // Current position in milliseconds
+    val duration: Long = 0L, // Total duration in milliseconds
     val playbackState: PlaybackState = PlaybackState.IDLE,
-    val waveformData: List<Float> = emptyList()  // Normalized amplitudes (0-1)
+    val waveformData: List<Float> = emptyList(), // Normalized amplitudes (0-1)
 )
 
 /**
@@ -46,7 +46,7 @@ enum class PlaybackState {
     PLAYING,
     PAUSED,
     ENDED,
-    ERROR
+    ERROR,
 }
 
 /**
@@ -55,16 +55,16 @@ enum class PlaybackState {
 data class AudioPlayerUiState(
     val isPlaying: Boolean = false,
     val currentTrack: AudioTrack? = null,
-    val progress: Float = 0f,  // 0-1 progress
+    val progress: Float = 0f, // 0-1 progress
     val currentPositionFormatted: String = "0:00",
     val durationFormatted: String = "0:00",
     val waveformData: List<Float> = emptyList(),
     val playbackState: PlaybackState = PlaybackState.IDLE,
-    val currentAmplitude: Float = 0f,  // Real-time audio amplitude (0-1)
+    val currentAmplitude: Float = 0f, // Real-time audio amplitude (0-1)
     // Frequency band amplitudes for multi-band visualization
-    val bassAmplitude: Float = 0f,     // 20-250 Hz - Deep, punchy movements
-    val midAmplitude: Float = 0f,      // 250-2000 Hz - Melody, vocals
-    val trebleAmplitude: Float = 0f    // 2000-20000 Hz - Highs, sparkles
+    val bassAmplitude: Float = 0f, // 20-250 Hz - Deep, punchy movements
+    val midAmplitude: Float = 0f, // 250-2000 Hz - Melody, vocals
+    val trebleAmplitude: Float = 0f, // 2000-20000 Hz - Highs, sparkles
 ) {
     val hasTrack: Boolean get() = currentTrack != null
 }

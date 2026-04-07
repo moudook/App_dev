@@ -1,7 +1,7 @@
 package com.example.smarty.data.state
 
-import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.core.domain.model.NavigationTab
+import com.example.smarty.ui.components.ConnectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Singleton holder for shared app state to decouple ViewModels.
  * Now includes global error, loading, and navigation state.
- * 
+ *
  * Principles:
  * - Single source of truth for cross-feature state
  * - Separated concerns (domain state vs UI state)
@@ -36,7 +36,7 @@ class SharedAppState {
 
     private val _selectedTab = MutableStateFlow<NavigationTab>(NavigationTab.NOTES)
     val selectedTab: StateFlow<NavigationTab> = _selectedTab.asStateFlow()
-    
+
     // Global state managers - Single Responsibility for cross-cutting concerns
     val errorState = GlobalErrorState()
     val loadingState = LoadingState()

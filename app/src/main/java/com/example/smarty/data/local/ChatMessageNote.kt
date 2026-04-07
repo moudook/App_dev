@@ -16,10 +16,10 @@ import androidx.room.Index
     primaryKeys = ["message_id", "note_id"],
     indices = [
         Index(value = ["message_id"]),
-        Index(value = ["note_id"])
-    ]
+        Index(value = ["note_id"]),
+    ],
 )
 data class ChatMessageNote(
     @ColumnInfo(name = "message_id") val messageId: String,
-    @ColumnInfo(name = "note_id") val noteId: String
+    @ColumnInfo(name = "note_id") val noteId: String,
 )

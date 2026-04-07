@@ -31,8 +31,8 @@ import java.util.UUID
         // Composite index for active session queries (most common)
         Index(value = ["isActive", "updatedAt"]),
         // Composite index for recent sessions ordering
-        Index(value = ["updatedAt", "isActive"])
-    ]
+        Index(value = ["updatedAt", "isActive"]),
+    ],
 )
 data class ChatSession(
     @PrimaryKey
@@ -42,8 +42,7 @@ data class ChatSession(
     val updatedAt: Long = System.currentTimeMillis(),
     val messageCount: Int = 0,
     val lastMessagePreview: String = "",
-    val isActive: Boolean = true,  // Currently selected session
-
+    val isActive: Boolean = true, // Currently selected session
     /**
      * AI-generated summary of the conversation.
      * Contains abstract description of topics discussed and actions taken.
@@ -52,12 +51,11 @@ data class ChatSession(
      * PRIVACY: Never contains raw private note content.
      */
     val summary: String? = null,
-
     /**
      * When the summary was generated.
      * Used to determine if summary needs updating.
      */
-    val summaryGeneratedAt: Long? = null
+    val summaryGeneratedAt: Long? = null,
 )
 
 /**
@@ -81,78 +79,85 @@ data class ChatSession(
         // Individual column indices for common filters
         Index(value = ["sessionId"]),
         Index(value = ["timestamp"]),
-        Index(value = ["role"]),  // NEW: For filtering USER/SMARTY/SYSTEM messages
-        
+        Index(value = ["role"]), // NEW: For filtering USER/SMARTY/SYSTEM messages
+
         // Composite indices for common query patterns
-        Index(value = ["sessionId", "timestamp"]),  // Session messages in order
-        Index(value = ["sessionId", "role"]),  // NEW: Filter by role within session
-        Index(value = ["sessionId", "role", "timestamp"]),  // NEW: Ordered role filtering
-        Index(value = ["timestamp", "sessionId"])  // NEW: Time-based queries within session
-    ]
+        Index(value = ["sessionId", "timestamp"]), // Session messages in order
+        Index(value = ["sessionId", "role"]), // NEW: Filter by role within session
+        Index(value = ["sessionId", "role", "timestamp"]), // NEW: Ordered role filtering
+        Index(value = ["timestamp", "sessionId"]), // NEW: Time-based queries within session
+    ],
 )
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val sessionId: String,
-    val role: String,  // USER, ASSISTANT, SYSTEM
+    val role: String, // USER, ASSISTANT, SYSTEM
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val attachmentsJson: String = "[]",  // JSON serialized attachments
-    val executedActionsJson: String = "[]",  // JSON serialized actions
-    val referencedNoteIds: String = "",  // Comma-separated note IDs
-    val citationsJson: String = "[]",  // JSON serialized citations from web search
-    val inlineImagesJson: String = "[]",  // JSON serialized inline images from ViewImageTool
-    val thinking: String? = null,   // AI reasoning/thinking content (SMARTY_TRACE_V2 or plain)
-    val toolCallsJson: String = "[]" // JSON serialized AgentToolCallEntry list
+    val attachmentsJson: String = "[]", // JSON serialized attachments
+    val executedActionsJson: String = "[]", // JSON serialized actions
+    val referencedNoteIds: String = "", // Comma-separated note IDs
+    val citationsJson: String = "[]", // JSON serialized citations from web search
+    val inlineImagesJson: String = "[]", // JSON serialized inline images from ViewImageTool
+    val thinking: String? = null, // AI reasoning/thinking content (SMARTY_TRACE_V2 or plain)
+    val toolCallsJson: String = "[]", // JSON serialized AgentToolCallEntry list
 ) {
     /**
      * Convert to domain model ChatMessage
      */
-    fun toChatMessage(attachments: List<Attachment> = emptyList(), actions: List<AgentActionResult> = emptyList()): ChatMessage {
+    fun toChatMessage(
+        attachments: List<Attachment> = emptyList(),
+        actions: List<AgentActionResult> = emptyList(),
+    ): ChatMessage {
         // Debug log
         // Log.d("ChatMessageEntity", "toChatMessage: id=$id, role=$role, contentLen=${content.length}")
-        
+
         // Parse citations from JSON
-        val citations = try {
-            if (citationsJson.isNotBlank() && citationsJson != "[]") {
-                parseCitationsJson(citationsJson)
-            } else {
+        val citations =
+            try {
+                if (citationsJson.isNotBlank() && citationsJson != "[]") {
+                    parseCitationsJson(citationsJson)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
                 emptyList()
             }
-        } catch (e: Exception) {
-            emptyList()
-        }
 
         // Parse inline images from JSON
-        val inlineImages: List<InlineChatImage> = try {
-            if (inlineImagesJson.isNotBlank() && inlineImagesJson != "[]") {
-                Companion.parseInlineImagesJson(inlineImagesJson)
-            } else {
+        val inlineImages: List<InlineChatImage> =
+            try {
+                if (inlineImagesJson.isNotBlank() && inlineImagesJson != "[]") {
+                    Companion.parseInlineImagesJson(inlineImagesJson)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
                 emptyList()
             }
-        } catch (e: Exception) {
-            emptyList()
-        }
 
         // Parse tool calls from toolCallsJson OR from SMARTY_TRACE_V2 thinking payload
-        val toolCalls: List<AgentToolCallEntry> = try {
-            when {
-                toolCallsJson.isNotBlank() && toolCallsJson != "[]" ->
-                    parseToolCallsJson(toolCallsJson)
-                thinking != null && thinking.startsWith(TRACE_PREFIX) ->
-                    parseToolCallsFromTrace(thinking)
-                else -> emptyList()
+        val toolCalls: List<AgentToolCallEntry> =
+            try {
+                when {
+                    toolCallsJson.isNotBlank() && toolCallsJson != "[]" ->
+                        parseToolCallsJson(toolCallsJson)
+                    thinking != null && thinking.startsWith(TRACE_PREFIX) ->
+                        parseToolCallsFromTrace(thinking)
+                    else -> emptyList()
+                }
+            } catch (e: Exception) {
+                emptyList()
             }
-        } catch (e: Exception) {
-            emptyList()
-        }
 
         // Strip the SMARTY_TRACE_V2 prefix from the thinking field (UI gets clean reasoning)
-        val cleanThinking: String? = when {
-            thinking == null -> null
-            thinking.startsWith(TRACE_PREFIX) -> extractReasoningFromTrace(thinking)
-            else -> thinking
-        }
+        val cleanThinking: String? =
+            when {
+                thinking == null -> null
+                thinking.startsWith(TRACE_PREFIX) -> extractReasoningFromTrace(thinking)
+                else -> thinking
+            }
 
         return ChatMessage(
             id = id,
@@ -165,7 +170,7 @@ data class ChatMessageEntity(
             citations = citations,
             inlineImages = inlineImages,
             thinking = cleanThinking,
-            toolCalls = toolCalls
+            toolCalls = toolCalls,
         )
     }
 
@@ -173,27 +178,33 @@ data class ChatMessageEntity(
         /**
          * Create entity from domain model
          */
-        fun fromChatMessage(message: ChatMessage, sessionId: String): ChatMessageEntity {
+        fun fromChatMessage(
+            message: ChatMessage,
+            sessionId: String,
+        ): ChatMessageEntity {
             // Serialize citations to JSON
-            val citationsJson = if (message.citations.isNotEmpty()) {
-                serializeCitationsToJson(message.citations)
-            } else {
-                "[]"
-            }
+            val citationsJson =
+                if (message.citations.isNotEmpty()) {
+                    serializeCitationsToJson(message.citations)
+                } else {
+                    "[]"
+                }
 
             // Serialize inline images to JSON
-            val inlineImagesJson = if (message.inlineImages.isNotEmpty()) {
-                Companion.serializeInlineImagesToJson(message.inlineImages)
-            } else {
-                "[]"
-            }
+            val inlineImagesJson =
+                if (message.inlineImages.isNotEmpty()) {
+                    Companion.serializeInlineImagesToJson(message.inlineImages)
+                } else {
+                    "[]"
+                }
 
             // Serialize tool calls to JSON
-            val toolCallsJson = if (message.toolCalls.isNotEmpty()) {
-                serializeToolCallsToJson(message.toolCalls)
-            } else {
-                "[]"
-            }
+            val toolCallsJson =
+                if (message.toolCalls.isNotEmpty()) {
+                    serializeToolCallsToJson(message.toolCalls)
+                } else {
+                    "[]"
+                }
 
             return ChatMessageEntity(
                 id = message.id,
@@ -205,7 +216,7 @@ data class ChatMessageEntity(
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson,
                 thinking = message.thinking,
-                toolCallsJson = toolCallsJson
+                toolCallsJson = toolCallsJson,
             )
         }
 
@@ -271,12 +282,13 @@ data class ChatMessageEntity(
         private fun serializeCitationsToJson(citations: List<Citation>): String {
             if (citations.isEmpty()) return "[]"
 
-            val items = citations.map { citation ->
-                val title = citation.title.replace("\\", "\\\\").replace("\"", "\\\"")
-                val url = citation.url.replace("\\", "\\\\").replace("\"", "\\\"")
-                val snippet = citation.snippet.replace("\\", "\\\\").replace("\"", "\\\"")
-                """{"title":"$title","url":"$url","snippet":"$snippet"}"""
-            }
+            val items =
+                citations.map { citation ->
+                    val title = citation.title.replace("\\", "\\\\").replace("\"", "\\\"")
+                    val url = citation.url.replace("\\", "\\\\").replace("\"", "\\\"")
+                    val snippet = citation.snippet.replace("\\", "\\\\").replace("\"", "\\\"")
+                    """{"title":"$title","url":"$url","snippet":"$snippet"}"""
+                }
             return "[${items.joinToString(",")}]"
         }
 
@@ -339,12 +351,13 @@ data class ChatMessageEntity(
         private fun serializeInlineImagesToJson(images: List<InlineChatImage>): String {
             if (images.isEmpty()) return "[]"
 
-            val items = images.map { image ->
-                val uri = image.uri.replace("\\", "\\\\").replace("\"", "\\\"")
-                val fileName = image.fileName.replace("\\", "\\\\").replace("\"", "\\\"")
-                val noteTitle = image.noteTitle.replace("\\", "\\\\").replace("\"", "\\\"")
-                """{"uri":"$uri","fileName":"$fileName","noteTitle":"$noteTitle"}"""
-            }
+            val items =
+                images.map { image ->
+                    val uri = image.uri.replace("\\", "\\\\").replace("\"", "\\\"")
+                    val fileName = image.fileName.replace("\\", "\\\\").replace("\"", "\\\"")
+                    val noteTitle = image.noteTitle.replace("\\", "\\\\").replace("\"", "\\\"")
+                    """{"uri":"$uri","fileName":"$fileName","noteTitle":"$noteTitle"}"""
+                }
             return "[${items.joinToString(",")}]"
         }
 
@@ -367,16 +380,17 @@ data class ChatMessageEntity(
                     val queries = parseSearchQueriesFromField(fields["queries"] ?: "[]")
                     entries.add(
                         AgentToolCallEntry(
-                            toolName   = fields["toolName"]    ?: "",
-                            status     = fields["status"]      ?: "completed",
+                            toolName = fields["toolName"] ?: "",
+                            status = fields["status"] ?: "completed",
                             displayName = fields["displayName"] ?: (fields["toolName"] ?: ""),
-                            inputSummary  = fields["inputSummary"],
+                            inputSummary = fields["inputSummary"],
                             outputSummary = fields["outputSummary"],
-                            searchQueries = queries
-                        )
+                            searchQueries = queries,
+                        ),
                     )
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             return entries
         }
 
@@ -397,16 +411,17 @@ data class ChatMessageEntity(
                     val inputSummary = fields["input"]
                     entries.add(
                         AgentToolCallEntry(
-                            toolName      = toolName,
-                            status        = fields["status"]  ?: "completed",
-                            displayName   = buildDisplayName(toolName, inputSummary),
-                            inputSummary  = inputSummary,
+                            toolName = toolName,
+                            status = fields["status"] ?: "completed",
+                            displayName = buildDisplayName(toolName, inputSummary),
+                            inputSummary = inputSummary,
                             outputSummary = fields["output"],
-                            searchQueries = queries
-                        )
+                            searchQueries = queries,
+                        ),
                     )
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             return entries
         }
 
@@ -428,52 +443,60 @@ data class ChatMessageEntity(
                     }
                 }
                 sb.toString().takeIf { it.isNotBlank() }
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                null
+            }
         }
 
         /** Serialise AgentToolCallEntry list to JSON for the toolCallsJson column. */
         fun serializeToolCallsToJson(entries: List<AgentToolCallEntry>): String {
             if (entries.isEmpty()) return "[]"
-            val items = entries.map { e ->
-                val tn  = e.toolName.esc()
-                val st  = e.status.esc()
-                val dn  = e.displayName.esc()
-                val ins = e.inputSummary?.esc()
-                val out = e.outputSummary?.esc()
-                buildString {
-                    append("{\"toolName\":\"$tn\",\"status\":\"$st\",\"displayName\":\"$dn\"")
-                    if (ins != null) append(",\"inputSummary\":\"$ins\"")
-                    if (out != null) append(",\"outputSummary\":\"$out\"")
-                    if (e.searchQueries.isNotEmpty()) {
-                        val qs = e.searchQueries.joinToString(",") { sq ->
-                            val res = sq.result
-                            "{\"query\":\"${sq.query.esc()}\"" +
-                            (if (res != null) ",\"result\":\"${res.esc()}\"" else "") +
-                            "}"
+            val items =
+                entries.map { e ->
+                    val tn = e.toolName.esc()
+                    val st = e.status.esc()
+                    val dn = e.displayName.esc()
+                    val ins = e.inputSummary?.esc()
+                    val out = e.outputSummary?.esc()
+                    buildString {
+                        append("{\"toolName\":\"$tn\",\"status\":\"$st\",\"displayName\":\"$dn\"")
+                        if (ins != null) append(",\"inputSummary\":\"$ins\"")
+                        if (out != null) append(",\"outputSummary\":\"$out\"")
+                        if (e.searchQueries.isNotEmpty()) {
+                            val qs =
+                                e.searchQueries.joinToString(",") { sq ->
+                                    val res = sq.result
+                                    "{\"query\":\"${sq.query.esc()}\"" +
+                                        (if (res != null) ",\"result\":\"${res.esc()}\"" else "") +
+                                        "}"
+                                }
+                            append(",\"queries\":[$qs]")
                         }
-                        append(",\"queries\":[$qs]")
+                        append("}")
                     }
-                    append("}")
                 }
-            }
             return "[${items.joinToString(",")}]"
         }
 
         // ─── tiny JSON utilities ───────────────────────────────────────────────
 
-        private fun String.esc() = replace("\\", "\\\\").replace("\"", "\\\"")
-            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        private fun String.esc() =
+            replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 
-        private fun buildDisplayName(toolName: String, inputSummary: String?): String {
+        private fun buildDisplayName(
+            toolName: String,
+            inputSummary: String?,
+        ): String {
             return when {
                 toolName.contains("search", ignoreCase = true) ||
-                toolName.contains("web", ignoreCase = true) ->
+                    toolName.contains("web", ignoreCase = true) ->
                     if (inputSummary != null) "Searched: $inputSummary" else "Web Search"
                 toolName.contains("memory", ignoreCase = true) ||
-                toolName.contains("note", ignoreCase = true) ->
+                    toolName.contains("note", ignoreCase = true) ->
                     if (inputSummary != null) "Saved: $inputSummary" else "Memory Action"
                 toolName.contains("schedule", ignoreCase = true) ||
-                toolName.contains("calendar", ignoreCase = true) ->
+                    toolName.contains("calendar", ignoreCase = true) ->
                     if (inputSummary != null) "Scheduled: $inputSummary" else "Calendar Action"
                 toolName.contains("remind", ignoreCase = true) ->
                     if (inputSummary != null) "Reminder: $inputSummary" else "Reminder Set"
@@ -485,11 +508,18 @@ data class ChatMessageEntity(
         private fun splitJsonObjects(body: String): List<String> {
             if (body.isBlank()) return emptyList()
             val items = mutableListOf<String>()
-            var depth = 0; var start = 0
+            var depth = 0
+            var start = 0
             for (i in body.indices) {
                 when (body[i]) {
-                    '{' -> { if (depth == 0) start = i; depth++ }
-                    '}' -> { depth--; if (depth == 0) items.add(body.substring(start, i + 1)) }
+                    '{' -> {
+                        if (depth == 0) start = i
+                        depth++
+                    }
+                    '}' -> {
+                        depth--
+                        if (depth == 0) items.add(body.substring(start, i + 1))
+                    }
                 }
             }
             return items
@@ -500,11 +530,11 @@ data class ChatMessageEntity(
             val map = mutableMapOf<String, String?>()
             val fieldRe = Regex(""""(\w+)"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|(\{.*?\}|\[.*?\]|true|false|null|\d+))""")
             fieldRe.findAll(obj).forEach { m ->
-                val key   = m.groupValues[1]
+                val key = m.groupValues[1]
                 val strVal = m.groupValues[2].takeIf { it.isNotEmpty() }
                 val rawVal = m.groupValues[3].takeIf { it.isNotEmpty() }
                 map[key] = strVal?.replace("\\\"", "\"")?.replace("\\n", "\n")?.replace("\\\\", "\\")
-                            ?: rawVal
+                    ?: rawVal
             }
             return map
         }
@@ -518,7 +548,8 @@ data class ChatMessageEntity(
                         val q = f["q"] ?: f["query"] ?: return@forEach
                         list.add(SearchQueryEntry(query = q, result = f["r"] ?: f["result"]))
                     }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             return list
         }
     }
@@ -530,5 +561,5 @@ data class ChatMessageEntity(
 data class ChatSessionWithPreview(
     val session: ChatSession,
     val lastUserMessage: String?,
-    val lastAssistantMessage: String?
+    val lastAssistantMessage: String?,
 )

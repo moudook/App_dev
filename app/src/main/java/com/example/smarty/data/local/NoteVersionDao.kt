@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface NoteVersionDao {
-
     /**
      * Get all versions of a note, ordered by version number descending (newest first)
      */
@@ -53,7 +52,8 @@ interface NoteVersionDao {
      * Delete old versions, keeping only the most recent N versions
      * Useful for limiting storage usage
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM note_versions
         WHERE noteId = :noteId
         AND id NOT IN (
@@ -62,8 +62,12 @@ interface NoteVersionDao {
             ORDER BY versionNumber DESC
             LIMIT :keepCount
         )
-    """)
-    suspend fun pruneOldVersions(noteId: String, keepCount: Int = 10)
+    """,
+    )
+    suspend fun pruneOldVersions(
+        noteId: String,
+        keepCount: Int = 10,
+    )
 
     /**
      * Get the most recent version for a note

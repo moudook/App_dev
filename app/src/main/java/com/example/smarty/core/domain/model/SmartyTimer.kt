@@ -13,11 +13,11 @@ data class SmartyTimer(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val triggerTime: Long,  // Epoch milliseconds for one-time, or time of day for recurring
-    val repeatDays: String? = null,  // JSON array: ["monday", "friday"], null for one-time
-    val isAlarm: Boolean = false,  // true = alarm (louder, vibrate), false = timer (notification)
+    val triggerTime: Long, // Epoch milliseconds for one-time, or time of day for recurring
+    val repeatDays: String? = null, // JSON array: ["monday", "friday"], null for one-time
+    val isAlarm: Boolean = false, // true = alarm (louder, vibrate), false = timer (notification)
     val isActive: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
 ) {
     /**
      * Check if this is a recurring timer/alarm.

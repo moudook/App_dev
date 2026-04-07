@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * - Server-side AI: Requires validated internet (NET_CAPABILITY_VALIDATED)
  */
 class NetworkMonitor(context: Context) {
-
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
@@ -28,74 +27,88 @@ class NetworkMonitor(context: Context) {
         private const val TAG = "NetworkMonitor"
     }
 
-    val connectionStatus: Flow<ConnectionStatus> = callbackFlow {
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                Log.d(TAG, "onAvailable: network=$network")
-                // Check current network capabilities
-                val status = checkCurrentNetworkStatus()
-                trySend(status)
-            }
+    val connectionStatus: Flow<ConnectionStatus> =
+        callbackFlow {
+            val callback =
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        Log.d(TAG, "onAvailable: network=$network")
+                        // Check current network capabilities
+                        val status = checkCurrentNetworkStatus()
+                        trySend(status)
+                    }
 
-            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                Log.d(TAG, "onCapabilitiesChanged: network=$network, hasValidated=${networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)}")
-                val status = determineStatus(networkCapabilities)
-                trySend(status)
-            }
+                    override fun onCapabilitiesChanged(
+                        network: Network,
+                        networkCapabilities: NetworkCapabilities,
+                    ) {
+                        Log.d(
+                            TAG,
+                            "onCapabilitiesChanged: network=$network, hasValidated=${networkCapabilities.hasCapability(
+                                NetworkCapabilities.NET_CAPABILITY_VALIDATED,
+                            )}",
+                        )
+                        val status = determineStatus(networkCapabilities)
+                        trySend(status)
+                    }
 
-            override fun onLosing(network: Network, maxMsToLive: Int) {
-                Log.d(TAG, "onLosing: network=$network, maxMsToLive=$maxMsToLive")
-                trySend(ConnectionStatus.CONNECTING)
-            }
+                    override fun onLosing(
+                        network: Network,
+                        maxMsToLive: Int,
+                    ) {
+                        Log.d(TAG, "onLosing: network=$network, maxMsToLive=$maxMsToLive")
+                        trySend(ConnectionStatus.CONNECTING)
+                    }
 
-            override fun onLost(network: Network) {
-                Log.d(TAG, "onLost: network=$network")
-                // Check if there are other available networks before reporting disconnected
-                val status = checkCurrentNetworkStatus()
-                trySend(status)
-            }
+                    override fun onLost(network: Network) {
+                        Log.d(TAG, "onLost: network=$network")
+                        // Check if there are other available networks before reporting disconnected
+                        val status = checkCurrentNetworkStatus()
+                        trySend(status)
+                    }
 
-            override fun onUnavailable() {
-                Log.d(TAG, "onUnavailable")
-                trySend(ConnectionStatus.OFFLINE)
-            }
-        }
+                    override fun onUnavailable() {
+                        Log.d(TAG, "onUnavailable")
+                        trySend(ConnectionStatus.OFFLINE)
+                    }
+                }
 
-        // Use a broad network request that captures WiFi, USB, and Ethernet
-        // Don't require NET_CAPABILITY_INTERNET as local networks may not have it
-        val request = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
-            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
-            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
-            // Note: TRANSPORT_USB might not be directly available on all devices
-            .build()
+            // Use a broad network request that captures WiFi, USB, and Ethernet
+            // Don't require NET_CAPABILITY_INTERNET as local networks may not have it
+            val request =
+                NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                    .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+                    .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+                    // Note: TRANSPORT_USB might not be directly available on all devices
+                    .build()
 
-        try {
-            connectivityManager.registerNetworkCallback(request, callback)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to register network callback: ${e.message}")
-            // Fallback: try default network callback
             try {
-                connectivityManager.registerDefaultNetworkCallback(callback)
-            } catch (e2: Exception) {
-                Log.e(TAG, "Failed to register default network callback: ${e2.message}")
-            }
-        }
-
-        // Emit initial state
-        val initialStatus = checkCurrentNetworkStatus()
-        Log.d(TAG, "Initial status: $initialStatus")
-        trySend(initialStatus)
-
-        awaitClose {
-            try {
-                connectivityManager.unregisterNetworkCallback(callback)
+                connectivityManager.registerNetworkCallback(request, callback)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to unregister network callback: ${e.message}")
+                Log.e(TAG, "Failed to register network callback: ${e.message}")
+                // Fallback: try default network callback
+                try {
+                    connectivityManager.registerDefaultNetworkCallback(callback)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Failed to register default network callback: ${e2.message}")
+                }
             }
-        }
-    }.distinctUntilChanged()
+
+            // Emit initial state
+            val initialStatus = checkCurrentNetworkStatus()
+            Log.d(TAG, "Initial status: $initialStatus")
+            trySend(initialStatus)
+
+            awaitClose {
+                try {
+                    connectivityManager.unregisterNetworkCallback(callback)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to unregister network callback: ${e.message}")
+                }
+            }
+        }.distinctUntilChanged()
 
     /**
      * Check current network status using active network.
@@ -104,12 +117,15 @@ class NetworkMonitor(context: Context) {
     private fun checkCurrentNetworkStatus(): ConnectionStatus {
         val currentNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
-        
-        Log.d(TAG, "checkCurrentNetworkStatus: hasNetwork=${currentNetwork != null}, " +
+
+        Log.d(
+            TAG,
+            "checkCurrentNetworkStatus: hasNetwork=${currentNetwork != null}, " +
                 "hasWifi=${capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)}, " +
                 "hasVpn=${capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN)}, " +
-                "hasValidated=${capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)}")
-        
+                "hasValidated=${capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)}",
+        )
+
         return determineStatus(capabilities)
     }
 
@@ -120,23 +136,23 @@ class NetworkMonitor(context: Context) {
     private fun determineStatus(caps: NetworkCapabilities?): ConnectionStatus {
         return when {
             caps == null -> ConnectionStatus.OFFLINE
-            
+
             // Fully validated internet (for server-side AI processing)
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ->
                 ConnectionStatus.CONNECTED
-            
+
             // Local network scenarios: WiFi, USB tethering, or Ethernet without internet validation
             // This allows connections to local LLM servers (e.g., llama.cpp, Ollama)
             // Even without internet validation, these transports can reach local servers
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ->
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ->
                 ConnectionStatus.CONNECTED
-            
+
             // Cellular without validation - likely connecting
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ->
                 ConnectionStatus.CONNECTING
-            
+
             // Other network types without validation
             else -> ConnectionStatus.CONNECTING
         }

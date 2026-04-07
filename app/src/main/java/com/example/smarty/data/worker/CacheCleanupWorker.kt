@@ -17,9 +17,8 @@ import java.util.concurrent.TimeUnit
  */
 class CacheCleanupWorker(
     context: Context,
-    params: WorkerParameters
+    params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
-
     companion object {
         private const val TAG = "CacheCleanupWorker"
         const val WORK_NAME = "Smarty_cache_cleanup"
@@ -29,21 +28,24 @@ class CacheCleanupWorker(
          * Schedule the periodic cache cleanup worker
          */
         fun schedule(context: Context) {
-            val constraints = Constraints.Builder()
-                .setRequiresBatteryNotLow(true)
-                .build()
+            val constraints =
+                Constraints.Builder()
+                    .setRequiresBatteryNotLow(true)
+                    .build()
 
-            val request = PeriodicWorkRequestBuilder<CacheCleanupWorker>(
-                1, TimeUnit.DAYS
-            )
-                .setConstraints(constraints)
-                .setInitialDelay(1, TimeUnit.HOURS) // Don't run immediately on app start
-                .build()
+            val request =
+                PeriodicWorkRequestBuilder<CacheCleanupWorker>(
+                    1,
+                    TimeUnit.DAYS,
+                )
+                    .setConstraints(constraints)
+                    .setInitialDelay(1, TimeUnit.HOURS) // Don't run immediately on app start
+                    .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
-                request
+                request,
             )
 
             Log.i(TAG, "Cache cleanup worker scheduled")

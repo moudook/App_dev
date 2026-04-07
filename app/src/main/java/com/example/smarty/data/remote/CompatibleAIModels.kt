@@ -10,7 +10,7 @@ data class CompatibleAIRequest(
     @SerializedName("messages") val messages: List<CompatibleAIMessage>,
     @SerializedName("temperature") val temperature: Float = 0.7f,
     @SerializedName("max_tokens") val maxTokens: Int = 1000,
-    @SerializedName("stream") val stream: Boolean = false
+    @SerializedName("stream") val stream: Boolean = false,
 )
 
 /**
@@ -18,5 +18,5 @@ data class CompatibleAIRequest(
  */
 data class CompatibleAIMessage(
     @SerializedName("role") val role: String,
-    @SerializedName("content") val content: String
+    @SerializedName("content") val content: String,
 )

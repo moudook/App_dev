@@ -156,6 +156,7 @@ app/src/main/assets/tts_models/
 .windsurf/
 .copilot/
 .devbot/
+.kilo/
 
 # Kotlin/Gradle caches
 .kotlin/
@@ -216,6 +217,8 @@ SYNC_OPTIMIZATION.md
 FINAL_VERIFICATION_COMPLETE.md
 SERVER_FIXES_COMPLETE.md
 BUG_INVESTIGATION_REPORT.md
+*.plan
+*.state
 
 # Task tracking directories
 tasks/

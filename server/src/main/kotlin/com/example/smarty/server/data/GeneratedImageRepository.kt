@@ -10,59 +10,61 @@ data class GeneratedImage(
     val prompt: String,
     val kreaJobId: String,
     val status: String,
-    val imageUrl: String?,      // Original Krea URL
-    val supabaseUrl: String?,    // Supabase Storage URL
+    val imageUrl: String?, // Original Krea URL
+    val supabaseUrl: String?, // Supabase Storage URL
     val imageBytes: ByteArray?, // Stored image binary
-    val contentType: String?,   // Image MIME type
+    val contentType: String?, // Image MIME type
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
 )
 
 class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepository(dataSource) {
-
     suspend fun create(
         userId: String,
         sessionId: String?,
         prompt: String,
         kreaJobId: String,
-        status: String = "queued"
-    ): String = withConnection {
-        val id = UUID.randomUUID().toString()
-        val sql = """
-            INSERT INTO generated_images (id, user_id, session_id, prompt, krea_job_id, status)
-            VALUES (?::uuid, ?::uuid, ${if (sessionId != null) "?::uuid" else "NULL"}, ?, ?, ?)
-        """.trimIndent()
+        status: String = "queued",
+    ): String =
+        withConnection {
+            val id = UUID.randomUUID().toString()
+            val sql =
+                """
+                INSERT INTO generated_images (id, user_id, session_id, prompt, krea_job_id, status)
+                VALUES (?::uuid, ?::uuid, ${if (sessionId != null) "?::uuid" else "NULL"}, ?, ?, ?)
+                """.trimIndent()
 
-        it.prepareStatement(sql).use { stmt ->
-            stmt.setString(1, id)
-            stmt.setString(2, userId)
-            
-            var paramIdx = 3
-            if (sessionId != null) {
-                stmt.setString(paramIdx++, sessionId)
+            it.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, id)
+                stmt.setString(2, userId)
+
+                var paramIdx = 3
+                if (sessionId != null) {
+                    stmt.setString(paramIdx++, sessionId)
+                }
+
+                stmt.setString(paramIdx++, prompt)
+                stmt.setString(paramIdx++, kreaJobId)
+                stmt.setString(paramIdx++, status)
+
+                stmt.executeUpdate()
             }
-            
-            stmt.setString(paramIdx++, prompt)
-            stmt.setString(paramIdx++, kreaJobId)
-            stmt.setString(paramIdx++, status)
-            
-            stmt.executeUpdate()
+            id
         }
-        id
-    }
 
     suspend fun updateStatus(
         kreaJobId: String,
         status: String,
-        supabaseUrl: String? = null
+        supabaseUrl: String? = null,
     ) = withConnection {
-        val sql = """
+        val sql =
+            """
             UPDATE generated_images
             SET status = ?,
                 supabase_url = COALESCE(?, supabase_url),
                 updated_at = now()
             WHERE krea_job_id = ?
-        """.trimIndent()
+            """.trimIndent()
 
         it.prepareStatement(sql).use { stmt ->
             stmt.setString(1, status)
@@ -79,16 +81,17 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
     suspend fun updateImageUrls(
         kreaJobId: String,
         imageUrl: String?,
-        supabaseUrl: String? = null
+        supabaseUrl: String? = null,
     ) = withConnection {
-        val sql = """
+        val sql =
+            """
             UPDATE generated_images
             SET image_url = ?,
                 supabase_url = COALESCE(?, supabase_url),
                 status = 'completed',
                 updated_at = now()
             WHERE krea_job_id = ?
-        """.trimIndent()
+            """.trimIndent()
 
         it.prepareStatement(sql).use { stmt ->
             stmt.setString(1, imageUrl)
@@ -99,67 +102,79 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
         }
     }
 
-        suspend fun getByJobId(kreaJobId: String): GeneratedImage? = withConnection {
-        val sql = "SELECT * FROM generated_images WHERE krea_job_id = ?"
-        it.prepareStatement(sql).use { stmt ->
-            stmt.setString(1, kreaJobId)
-            val rs = stmt.executeQuery()
-            if (rs.next()) {
-                mapRow(rs)
-            } else {
-                null
+    suspend fun getByJobId(kreaJobId: String): GeneratedImage? =
+        withConnection {
+            val sql = "SELECT * FROM generated_images WHERE krea_job_id = ?"
+            it.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, kreaJobId)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    mapRow(rs)
+                } else {
+                    null
+                }
             }
         }
-    }
 
     /**
      * Get image by ID.
      */
-    suspend fun getById(id: String): GeneratedImage? = withConnection {
-        val sql = "SELECT * FROM generated_images WHERE id = ?::uuid"
-        it.prepareStatement(sql).use { stmt ->
-            stmt.setString(1, id)
-            val rs = stmt.executeQuery()
-            if (rs.next()) {
-                mapRow(rs)
-            } else {
-                null
+    suspend fun getById(id: String): GeneratedImage? =
+        withConnection {
+            val sql = "SELECT * FROM generated_images WHERE id = ?::uuid"
+            it.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, id)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    mapRow(rs)
+                } else {
+                    null
+                }
             }
         }
-    }
 
     /**
      * List all generated images for a user (for sync).
      */
-    suspend fun listByUser(userId: String, limit: Int = 100): List<GeneratedImage> = withConnection {
-        val sql = """
-            SELECT * FROM generated_images 
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-        """.trimIndent()
-        
-        val images = mutableListOf<GeneratedImage>()
-        it.prepareStatement(sql).use { stmt ->
-            stmt.setString(1, userId)
-            stmt.setInt(2, limit)
-            stmt.executeQuery().use { rs ->
-                while (rs.next()) {
-                    images.add(mapRow(rs))
+    suspend fun listByUser(
+        userId: String,
+        limit: Int = 100,
+    ): List<GeneratedImage> =
+        withConnection {
+            val sql =
+                """
+                SELECT * FROM generated_images 
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """.trimIndent()
+
+            val images = mutableListOf<GeneratedImage>()
+            it.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        images.add(mapRow(rs))
+                    }
                 }
             }
+            images
         }
-        images
-    }
 
-    suspend fun storeImageBytes(kreaJobId: String, imageBytes: ByteArray, contentType: String) = withConnection {
-        val sql = """
+    suspend fun storeImageBytes(
+        kreaJobId: String,
+        imageBytes: ByteArray,
+        contentType: String,
+    ) = withConnection {
+        val sql =
+            """
             UPDATE generated_images
             SET image_bytes = ?,
                 content_type = ?,
                 updated_at = now()
             WHERE krea_job_id = ?
-        """.trimIndent()
+            """.trimIndent()
 
         it.prepareStatement(sql).use { stmt ->
             stmt.setBytes(1, imageBytes)
@@ -169,21 +184,26 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
         }
     }
 
-    suspend fun getImageBytes(id: String): Pair<ByteArray, String>? = withConnection {
-        val sql = "SELECT image_bytes, content_type FROM generated_images WHERE id = ?::uuid"
+    suspend fun getImageBytes(id: String): Pair<ByteArray, String>? =
+        withConnection {
+            val sql = "SELECT image_bytes, content_type FROM generated_images WHERE id = ?::uuid"
 
-        it.prepareStatement(sql).use { stmt ->
-            stmt.setString(1, id)
-            val rs = stmt.executeQuery()
-            if (rs.next()) {
-                val bytes = rs.getBytes("image_bytes")
-                val contentType = rs.getString("content_type")
-                if (bytes != null && contentType != null) {
-                    Pair(bytes, contentType)
-                } else null
-            } else null
+            it.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, id)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val bytes = rs.getBytes("image_bytes")
+                    val contentType = rs.getString("content_type")
+                    if (bytes != null && contentType != null) {
+                        Pair(bytes, contentType)
+                    } else {
+                        null
+                    }
+                } else {
+                    null
+                }
+            }
         }
-    }
 
     private fun mapRow(rs: ResultSet): GeneratedImage {
         return GeneratedImage(
@@ -198,7 +218,7 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             imageBytes = rs.getBytes("image_bytes"),
             contentType = rs.getString("content_type"),
             createdAt = rs.getTimestamp("created_at").time,
-            updatedAt = rs.getTimestamp("updated_at").time
+            updatedAt = rs.getTimestamp("updated_at").time,
         )
     }
 }

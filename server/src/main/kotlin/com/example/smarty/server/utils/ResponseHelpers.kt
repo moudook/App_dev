@@ -6,18 +6,18 @@ import io.ktor.server.response.*
 
 /**
  * Response Helpers for standardized API responses.
- * 
+ *
  * Single Responsibility: Only handles response formatting.
  * DRY: Replaces repeated response patterns across all route files.
- * 
+ *
  * Usage:
  * ```
  * // Success response
  * call.respondSuccess(data)
- * 
+ *
  * // Error response
  * call.respondError(HttpStatusCode.BadRequest, "Invalid input")
- * 
+ *
  * // Specific error types
  * call.respondBadRequest("Missing required field")
  * call.respondNotFound("Resource not found")
@@ -42,14 +42,15 @@ suspend fun ApplicationCall.respondSuccess(data: Any? = null) {
 suspend fun ApplicationCall.respondError(
     statusCode: HttpStatusCode = HttpStatusCode.InternalServerError,
     message: String,
-    details: Map<String, Any?>? = null
+    details: Map<String, Any?>? = null,
 ) {
-    val response = buildMap {
-        put("error", message)
-        if (details != null) {
-            put("details", details)
+    val response =
+        buildMap {
+            put("error", message)
+            if (details != null) {
+                put("details", details)
+            }
         }
-    }
     respond(statusCode, response)
 }
 
@@ -98,7 +99,10 @@ suspend fun ApplicationCall.respondValidationErrors(errors: Map<String, String>)
 /**
  * Respond with a created resource (201).
  */
-suspend fun ApplicationCall.respondCreated(resource: Any, location: String? = null) {
+suspend fun ApplicationCall.respondCreated(
+    resource: Any,
+    location: String? = null,
+) {
     if (location != null) {
         response.headers.append(HttpHeaders.Location, location)
     }
@@ -108,13 +112,17 @@ suspend fun ApplicationCall.respondCreated(resource: Any, location: String? = nu
 /**
  * Respond with accepted for async operations (202).
  */
-suspend fun ApplicationCall.respondAccepted(message: String = "Request accepted", jobId: String? = null) {
-    val response = buildMap {
-        put("status", "accepted")
-        put("message", message)
-        if (jobId != null) {
-            put("job_id", jobId)
+suspend fun ApplicationCall.respondAccepted(
+    message: String = "Request accepted",
+    jobId: String? = null,
+) {
+    val response =
+        buildMap {
+            put("status", "accepted")
+            put("message", message)
+            if (jobId != null) {
+                put("job_id", jobId)
+            }
         }
-    }
     respond(HttpStatusCode.Accepted, response)
 }

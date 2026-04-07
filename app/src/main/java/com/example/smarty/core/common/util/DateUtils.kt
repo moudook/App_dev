@@ -15,7 +15,6 @@ import java.util.Locale
  * All callers should import from this single source.
  */
 object DateUtils {
-
     /**
      * Formats a timestamp into a relative or absolute human-readable string.
      *
@@ -27,7 +26,10 @@ object DateUtils {
      * @param timestamp Unix timestamp in milliseconds.
      * @param context   Context for resolving string resources.
      */
-    fun formatRelativeTimestamp(timestamp: Long, context: Context): String {
+    fun formatRelativeTimestamp(
+        timestamp: Long,
+        context: Context,
+    ): String {
         val now = System.currentTimeMillis()
         val diff = now - timestamp
 
@@ -45,7 +47,10 @@ object DateUtils {
     /**
      * Formats a timestamp into an absolute date string (e.g., "Mar 3, 2026").
      */
-    fun formatDate(timestamp: Long, pattern: String = "MMM d, yyyy"): String {
+    fun formatDate(
+        timestamp: Long,
+        pattern: String = "MMM d, yyyy",
+    ): String {
         val sdf = SimpleDateFormat(pattern, Locale.getDefault())
         return sdf.format(Date(timestamp))
     }
@@ -53,7 +58,10 @@ object DateUtils {
     /**
      * Formats a timestamp into a date-time string (e.g., "Mar 3, 8:45 PM").
      */
-    fun formatDateTime(timestamp: Long, pattern: String = "MMM d, h:mm a"): String {
+    fun formatDateTime(
+        timestamp: Long,
+        pattern: String = "MMM d, h:mm a",
+    ): String {
         val sdf = SimpleDateFormat(pattern, Locale.getDefault())
         return sdf.format(Date(timestamp))
     }

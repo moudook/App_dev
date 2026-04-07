@@ -11,7 +11,7 @@ sealed class AgentAction {
     data class CreateNote(
         val content: String,
         val title: String? = null,
-        val category: String? = null
+        val category: String? = null,
     ) : AgentAction()
 
     /**
@@ -20,7 +20,7 @@ sealed class AgentAction {
     data class SearchNotes(
         val query: String,
         val category: String? = null,
-        val limit: Int = 10
+        val limit: Int = 10,
     ) : AgentAction()
 
     /**
@@ -28,7 +28,7 @@ sealed class AgentAction {
      */
     data class DeleteNote(
         val noteId: String? = null,
-        val description: String? = null
+        val description: String? = null,
     ) : AgentAction()
 
     /**
@@ -36,7 +36,7 @@ sealed class AgentAction {
      */
     data class ArchiveNote(
         val noteId: String? = null,
-        val description: String? = null
+        val description: String? = null,
     ) : AgentAction()
 
     /**
@@ -44,7 +44,7 @@ sealed class AgentAction {
      */
     data class UnarchiveNote(
         val noteId: String? = null,
-        val description: String? = null
+        val description: String? = null,
     ) : AgentAction()
 
     /**
@@ -54,7 +54,7 @@ sealed class AgentAction {
         val noteId: String,
         val newContent: String? = null,
         val newTitle: String? = null,
-        val newCategory: String? = null
+        val newCategory: String? = null,
     ) : AgentAction()
 
     /**
@@ -66,7 +66,7 @@ sealed class AgentAction {
      * Get all notes in a specific category
      */
     data class GetCategoryNotes(
-        val categoryName: String
+        val categoryName: String,
     ) : AgentAction()
 
     /**
@@ -74,21 +74,21 @@ sealed class AgentAction {
      */
     data class AnswerQuestion(
         val question: String,
-        val contextNoteIds: List<String> = emptyList()
+        val contextNoteIds: List<String> = emptyList(),
     ) : AgentAction()
 
     /**
      * Generate a concise summary of a note
      */
     data class SummarizeNote(
-        val noteId: String
+        val noteId: String,
     ) : AgentAction()
 
     /**
      * Suggest actions the user might want to take based on context
      */
     data class SuggestActions(
-        val context: String
+        val context: String,
     ) : AgentAction()
 
     /**
@@ -96,7 +96,7 @@ sealed class AgentAction {
      */
     data class AddTodos(
         val noteId: String,
-        val todos: List<String>
+        val todos: List<String>,
     ) : AgentAction()
 
     /**
@@ -104,7 +104,7 @@ sealed class AgentAction {
      */
     data class ToggleTodo(
         val noteId: String,
-        val todoId: String
+        val todoId: String,
     ) : AgentAction()
 
     /**
@@ -112,7 +112,7 @@ sealed class AgentAction {
      */
     data class DeleteTodo(
         val noteId: String,
-        val todoId: String
+        val todoId: String,
     ) : AgentAction()
 
     /**
@@ -129,7 +129,7 @@ sealed class AgentAction {
         val query: String,
         val reason: String,
         val topic: String = "general",
-        val maxResults: Int = 5
+        val maxResults: Int = 5,
     ) : AgentAction()
 
     /**
@@ -145,39 +145,40 @@ sealed class AgentAction {
         val query: String,
         val noteId: String? = null,
         val attachmentIndex: Int = 0,
-        val source: String? = null
+        val source: String? = null,
     ) : AgentAction()
 
     /**
      * Execute multiple actions in sequence
      */
     data class BatchActions(
-        val actions: List<AgentAction>
+        val actions: List<AgentAction>,
     ) : AgentAction()
 
     companion object {
         /**
          * All valid action names for AI response parsing
          */
-        val ACTION_NAMES = listOf(
-            "CREATE_NOTE",
-            "SEARCH_NOTES",
-            "DELETE_NOTE",
-            "ARCHIVE_NOTE",
-            "UNARCHIVE_NOTE",
-            "UPDATE_NOTE",
-            "SUMMARIZE_NOTE",
-            "ADD_TODOS",
-            "TOGGLE_TODO",
-            "DELETE_TODO",
-            "LIST_CATEGORIES",
-            "GET_CATEGORY_NOTES",
-            "ANSWER_QUESTION",
-            "SUGGEST_ACTIONS",
-            "WEB_SEARCH",
-            "PLAY_AUDIO",
-            "BATCH_ACTIONS"
-        )
+        val ACTION_NAMES =
+            listOf(
+                "CREATE_NOTE",
+                "SEARCH_NOTES",
+                "DELETE_NOTE",
+                "ARCHIVE_NOTE",
+                "UNARCHIVE_NOTE",
+                "UPDATE_NOTE",
+                "SUMMARIZE_NOTE",
+                "ADD_TODOS",
+                "TOGGLE_TODO",
+                "DELETE_TODO",
+                "LIST_CATEGORIES",
+                "GET_CATEGORY_NOTES",
+                "ANSWER_QUESTION",
+                "SUGGEST_ACTIONS",
+                "WEB_SEARCH",
+                "PLAY_AUDIO",
+                "BATCH_ACTIONS",
+            )
 
         /**
          * JSON schema for AI response format
@@ -236,7 +237,7 @@ sealed class AgentAction {
 data class AgentResponse(
     val action: AgentAction?,
     val response: String,
-    val rawJson: String? = null
+    val rawJson: String? = null,
 )
 
 /**
@@ -254,7 +255,7 @@ sealed class AgentState {
      */
     data class Processing(
         val message: String = "processing",
-        val iteration: Int = 1
+        val iteration: Int = 1,
     ) : AgentState()
 
     /**
@@ -264,7 +265,7 @@ sealed class AgentState {
         val toolName: String,
         val toolDisplayName: String,
         val startTime: Long = System.currentTimeMillis(),
-        val timeoutMs: Long = 30000 // 30 second default timeout
+        val timeoutMs: Long = 30000, // 30 second default timeout
     ) : AgentState() {
         val elapsedMs: Long get() = System.currentTimeMillis() - startTime
         val progress: Float get() = (elapsedMs.toFloat() / timeoutMs).coerceIn(0f, 1f)
@@ -277,7 +278,7 @@ sealed class AgentState {
     data class WaitingForResult(
         val toolName: String,
         val toolDisplayName: String,
-        val startTime: Long = System.currentTimeMillis()
+        val startTime: Long = System.currentTimeMillis(),
     ) : AgentState() {
         val elapsedMs: Long get() = System.currentTimeMillis() - startTime
     }
@@ -287,7 +288,7 @@ sealed class AgentState {
      */
     data class ProcessingResult(
         val toolName: String,
-        val message: String = "Processing results..."
+        val message: String = "Processing results...",
     ) : AgentState()
 
     /**
@@ -296,7 +297,7 @@ sealed class AgentState {
     data class Completed(
         val message: String = "Done",
         val toolsUsed: List<String> = emptyList(),
-        val totalTime: Long = 0
+        val totalTime: Long = 0,
     ) : AgentState()
 
     /**
@@ -305,41 +306,43 @@ sealed class AgentState {
     data class Error(
         val message: String,
         val toolName: String? = null,
-        val canRetry: Boolean = true
+        val canRetry: Boolean = true,
     ) : AgentState()
 
     companion object {
         /**
          * Get user-friendly display name for a tool
          */
-        fun getToolDisplayName(action: AgentAction): String = when (action) {
-            is AgentAction.WebSearch -> "Web Search"
-            is AgentAction.CreateNote -> "Creating Note"
-            is AgentAction.SearchNotes -> "Searching Notes"
-            is AgentAction.DeleteNote -> "Deleting Note"
-            is AgentAction.ArchiveNote -> "Archiving Note"
-            is AgentAction.UnarchiveNote -> "Restoring Note"
-            is AgentAction.UpdateNote -> "Updating Note"
-            is AgentAction.SummarizeNote -> "Summarizing"
-            is AgentAction.AddTodos -> "Adding Todos"
-            is AgentAction.ToggleTodo -> "Toggling Todo"
-            is AgentAction.DeleteTodo -> "Removing Todo"
-            is AgentAction.ListCategories -> "Listing Categories"
-            is AgentAction.GetCategoryNotes -> "Getting Category"
-            is AgentAction.AnswerQuestion -> "Answering"
-            is AgentAction.SuggestActions -> "Suggesting"
-            is AgentAction.PlayAudio -> "Playing Audio"
-            is AgentAction.BatchActions -> "Batch Processing"
-        }
+        fun getToolDisplayName(action: AgentAction): String =
+            when (action) {
+                is AgentAction.WebSearch -> "Web Search"
+                is AgentAction.CreateNote -> "Creating Note"
+                is AgentAction.SearchNotes -> "Searching Notes"
+                is AgentAction.DeleteNote -> "Deleting Note"
+                is AgentAction.ArchiveNote -> "Archiving Note"
+                is AgentAction.UnarchiveNote -> "Restoring Note"
+                is AgentAction.UpdateNote -> "Updating Note"
+                is AgentAction.SummarizeNote -> "Summarizing"
+                is AgentAction.AddTodos -> "Adding Todos"
+                is AgentAction.ToggleTodo -> "Toggling Todo"
+                is AgentAction.DeleteTodo -> "Removing Todo"
+                is AgentAction.ListCategories -> "Listing Categories"
+                is AgentAction.GetCategoryNotes -> "Getting Category"
+                is AgentAction.AnswerQuestion -> "Answering"
+                is AgentAction.SuggestActions -> "Suggesting"
+                is AgentAction.PlayAudio -> "Playing Audio"
+                is AgentAction.BatchActions -> "Batch Processing"
+            }
 
         /**
          * Get timeout for a specific tool (some tools need longer)
          */
-        fun getToolTimeout(action: AgentAction): Long = when (action) {
-            is AgentAction.WebSearch -> 45000L // 45 seconds for web search
-            is AgentAction.SummarizeNote -> 30000L // 30 seconds for summarization
-            is AgentAction.BatchActions -> 60000L // 60 seconds for batch
-            else -> 15000L // 15 seconds default
-        }
+        fun getToolTimeout(action: AgentAction): Long =
+            when (action) {
+                is AgentAction.WebSearch -> 45000L // 45 seconds for web search
+                is AgentAction.SummarizeNote -> 30000L // 30 seconds for summarization
+                is AgentAction.BatchActions -> 60000L // 60 seconds for batch
+                else -> 15000L // 15 seconds default
+            }
     }
 }

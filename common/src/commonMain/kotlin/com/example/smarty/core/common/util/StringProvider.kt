@@ -6,5 +6,9 @@ package com.example.smarty.core.common.util
  */
 interface StringProvider {
     fun getString(resId: Int): String
-    fun getString(resId: Int, vararg formatArgs: Any): String
+
+    fun getString(
+        resId: Int,
+        vararg formatArgs: Any,
+    ): String
 }

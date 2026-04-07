@@ -1,4 +1,5 @@
 @file:Suppress("DEPRECATION")
+
 package com.example.smarty.features.auth.domain
 
 import android.app.Application
@@ -6,6 +7,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.activity.result.ActivityResult
 import com.example.smarty.R
+import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.repository.AuthRepository
 import com.example.smarty.data.repository.SmartyRepository
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -18,8 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
-import com.example.smarty.data.local.SecurePreferences
 
 /**
  * Centralized manager for Authentication operations.
@@ -37,7 +37,7 @@ class AuthFeatureManager(
     private val scope: CoroutineScope,
     private val authRepository: AuthRepository,
     private val securePreferences: SecurePreferences? = null,
-    private val repository: SmartyRepository? = null
+    private val repository: SmartyRepository? = null,
 ) {
     private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
@@ -54,29 +54,33 @@ class AuthFeatureManager(
     private val googleSignInClient: GoogleSignInClient
 
     enum class AuthState {
-        IDLE, SUCCESS, ERROR
+        IDLE,
+        SUCCESS,
+        ERROR,
     }
 
     init {
         // Configure Google Sign-In
-        val webClientId = try {
-            application.getString(R.string.default_web_client_id)
-        } catch (e: Exception) {
-            Log.w(TAG, application.getString(R.string.error_auth_not_configured))
-            null
-        }
+        val webClientId =
+            try {
+                application.getString(R.string.default_web_client_id)
+            } catch (e: Exception) {
+                Log.w(TAG, application.getString(R.string.error_auth_not_configured))
+                null
+            }
 
-        val gso = if (webClientId != null && webClientId != "YOUR_WEB_CLIENT_ID_HERE") {
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(webClientId)
-                .requestEmail()
-                .build()
-        } else {
-            Log.w(TAG, application.getString(R.string.error_google_auth_no_token))
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestEmail()
-                .build()
-        }
+        val gso =
+            if (webClientId != null && webClientId != "YOUR_WEB_CLIENT_ID_HERE") {
+                GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(webClientId)
+                    .requestEmail()
+                    .build()
+            } else {
+                Log.w(TAG, application.getString(R.string.error_google_auth_no_token))
+                GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestEmail()
+                    .build()
+            }
 
         googleSignInClient = GoogleSignIn.getClient(application, gso)
 
@@ -130,7 +134,10 @@ class AuthFeatureManager(
         }
     }
 
-    fun signIn(email: String, password: String) {
+    fun signIn(
+        email: String,
+        password: String,
+    ) {
         if (email.isBlank() || password.isBlank()) {
             _error.value = application.getString(R.string.error_credentials_required)
             return
@@ -152,7 +159,10 @@ class AuthFeatureManager(
         }
     }
 
-    fun signUp(email: String, password: String) {
+    fun signUp(
+        email: String,
+        password: String,
+    ) {
         if (email.isBlank() || password.isBlank()) {
             _error.value = application.getString(R.string.error_credentials_required)
             return

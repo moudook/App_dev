@@ -22,7 +22,6 @@ import com.google.gson.JsonParser
  * ```
  */
 object AIResponseParser {
-
     private const val TAG = "AIResponseParser"
 
     // BUG-035: Maximum response length to prevent memory issues
@@ -48,11 +47,12 @@ object AIResponseParser {
      * List of valid categories that AI should use.
      * Used for validation and fallback logic.
      */
-    val VALID_CATEGORIES = setOf(
-        "learn", "read", "watch", "idea", "todo", "buy", "meet",
-        "code", "quote", "inspo", "recipe", "health", "finance",
-        "work", "play", "note", "legal"
-    )
+    val VALID_CATEGORIES =
+        setOf(
+            "learn", "read", "watch", "idea", "todo", "buy", "meet",
+            "code", "quote", "inspo", "recipe", "health", "finance",
+            "work", "play", "note", "legal",
+        )
 
     // ==================== JSON Extraction ====================
 
@@ -84,17 +84,18 @@ object AIResponseParser {
      */
     private fun sanitizeJson(json: String): String {
         var sanitized = json
-        
+
         // Remove sensitive information patterns
-        val sensitivePatterns = listOf(
-            Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*"[^"]*"""") to """ "$1": "REDACTED" """,
-            Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*[^,"}]*""") to """ "$1": "REDACTED" """
-        )
-        
+        val sensitivePatterns =
+            listOf(
+                Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*"[^"]*"""") to """ "$1": "REDACTED" """,
+                Regex("""(?i)"(api|access|secret|token|key|password|credential)"\s*:\s*[^,"}]*""") to """ "$1": "REDACTED" """,
+            )
+
         sensitivePatterns.forEach { (pattern, replacement) ->
             sanitized = sanitized.replace(pattern, replacement)
         }
-        
+
         return sanitized
     }
 
@@ -110,19 +111,24 @@ object AIResponseParser {
      * @param text The raw AI response text
      * @return Parsed AIResponse or null if parsing fails
      */
-    fun extractAndParseJson(context: android.content.Context, text: String): AIResponse? {
+    fun extractAndParseJson(
+        context: android.content.Context,
+        text: String,
+    ): AIResponse? {
         // BUG-035: Truncate excessively long responses to prevent memory issues
-        val safeText = if (text.length > MAX_RESPONSE_LENGTH) {
-            Log.w(TAG, "Response truncated from ${text.length} to $MAX_RESPONSE_LENGTH chars")
-            text.take(MAX_RESPONSE_LENGTH)
-        } else {
-            text
-        }
+        val safeText =
+            if (text.length > MAX_RESPONSE_LENGTH) {
+                Log.w(TAG, "Response truncated from ${text.length} to $MAX_RESPONSE_LENGTH chars")
+                text.take(MAX_RESPONSE_LENGTH)
+            } else {
+                text
+            }
 
-        val jsonStr = extractJsonObject(safeText) ?: run {
-            Log.w(TAG, "No valid JSON found in: ${safeText.take(100)}")
-            return null
-        }
+        val jsonStr =
+            extractJsonObject(safeText) ?: run {
+                Log.w(TAG, "No valid JSON found in: ${safeText.take(100)}")
+                return null
+            }
 
         // Sanitize JSON to remove sensitive information
         val sanitizedJsonStr = sanitizeJson(jsonStr)
@@ -132,11 +138,12 @@ object AIResponseParser {
             val parsed = JsonParser.parseString(sanitizedJsonStr).asJsonObject
 
             // Extract todos array safely
-            val todos = try {
-                parsed.getAsJsonArray("todos")?.map { it.asString } ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
+            val todos =
+                try {
+                    parsed.getAsJsonArray("todos")?.map { it.asString } ?: emptyList()
+                } catch (e: Exception) {
+                    emptyList()
+                }
 
             AIResponse(
                 title = parsed.get("title")?.asString?.trim() ?: context.getString(com.example.smarty.R.string.untitled_note),
@@ -144,7 +151,7 @@ object AIResponseParser {
                 summary = cleanSummary(context, parsed.get("summary")?.asString?.trim()),
                 whySaved = parsed.get("whySaved")?.asString?.trim() ?: context.getString(com.example.smarty.R.string.mock_ai_intent_note),
                 success = true,
-                todos = todos
+                todos = todos,
             )
         } catch (e: Exception) {
             Log.e(TAG, "JSON parse error: ${e.message}")
@@ -173,7 +180,11 @@ object AIResponseParser {
      * @param providerName Name of the provider for logging
      * @return Parsed AIResponse or null if parsing fails
      */
-    fun parseCompatibleResponse(context: android.content.Context, responseBody: String?, providerName: String): AIResponse? {
+    fun parseCompatibleResponse(
+        context: android.content.Context,
+        responseBody: String?,
+        providerName: String,
+    ): AIResponse? {
         if (responseBody.isNullOrBlank()) {
             Log.e(TAG, "Empty $providerName response")
             return null
@@ -230,7 +241,10 @@ object AIResponseParser {
      * @param text The AI response text containing JSON
      * @return Parsed DocumentAnalysisResponse or null if parsing fails
      */
-    fun parseDocumentAnalysisFromText(context: android.content.Context, text: String?): DocumentAnalysisResponse? {
+    fun parseDocumentAnalysisFromText(
+        context: android.content.Context,
+        text: String?,
+    ): DocumentAnalysisResponse? {
         if (text.isNullOrBlank()) return null
 
         val jsonStr = extractJsonObject(text) ?: return null
@@ -248,7 +262,7 @@ object AIResponseParser {
                 category = parsed.get("category")?.asString?.trim() ?: "note",
                 actionItems = actionItems,
                 userRelevance = parsed.get("userRelevance")?.asString?.trim() ?: context.getString(com.example.smarty.R.string.mock_ai_intent_note),
-                success = true
+                success = true,
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse document analysis JSON: ${e.message}")
@@ -265,7 +279,10 @@ object AIResponseParser {
      * @param providerName Name of the provider for logging
      * @return Extracted text content or null
      */
-    fun extractCompatibleAgentText(responseBody: String?, providerName: String): String? {
+    fun extractCompatibleAgentText(
+        responseBody: String?,
+        providerName: String,
+    ): String? {
         if (responseBody.isNullOrBlank()) return null
 
         return try {
@@ -295,7 +312,10 @@ object AIResponseParser {
      * @param text The text to analyze
      * @return Inferred category name
      */
-    fun inferCategoryFromText(context: android.content.Context, text: String): String {
+    fun inferCategoryFromText(
+        context: android.content.Context,
+        text: String,
+    ): String {
         val lower = text.lowercase()
         val urlCat = categorizeByUrl(context, lower)
         if (urlCat != null) return urlCat.first
@@ -314,15 +334,19 @@ object AIResponseParser {
      * @param content The content to categorize
      * @return AIResponse with categorization and summary
      */
-    fun smartFallbackCategorization(context: android.content.Context, content: String): AIResponse {
+    fun smartFallbackCategorization(
+        context: android.content.Context,
+        content: String,
+    ): AIResponse {
         val lower = content.lowercase()
 
         // Generate a fallback title
-        val fallbackTitle = com.example.smarty.core.common.util.ContentTypeDetector.extractTitle(
-            context,
-            content,
-            com.example.smarty.core.common.util.ContentTypeDetector.detectContentType(content)
-        )
+        val fallbackTitle =
+            com.example.smarty.core.common.util.ContentTypeDetector.extractTitle(
+                context,
+                content,
+                com.example.smarty.core.common.util.ContentTypeDetector.detectContentType(content),
+            )
 
         // URL-based categorization
         val urlCategory = categorizeByUrl(context, lower)
@@ -332,7 +356,7 @@ object AIResponseParser {
                 category = urlCategory.first,
                 summary = urlCategory.second,
                 whySaved = urlCategory.third,
-                success = true
+                success = true,
             )
         }
 
@@ -343,7 +367,7 @@ object AIResponseParser {
             category = keywordCategory.first,
             summary = keywordCategory.second,
             whySaved = keywordCategory.third,
-            success = true
+            success = true,
         )
     }
 
@@ -354,67 +378,70 @@ object AIResponseParser {
      * @param lower Lowercase content string
      * @return Triple of (category, summary, whySaved) or null
      */
-    private fun categorizeByUrl(context: android.content.Context, lower: String): Triple<String, String, String>? {
+    private fun categorizeByUrl(
+        context: android.content.Context,
+        lower: String,
+    ): Triple<String, String, String>? {
         return when {
             lower.contains("youtube.com") || lower.contains("youtu.be") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_watch),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_watch),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_watch)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_watch),
                 )
             lower.contains("twitter.com") || lower.contains("x.com") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_tweet),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_tweet),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_tweet)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_tweet),
                 )
             lower.contains("instagram.com") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_inspo),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_inspo),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_inspo)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_inspo),
                 )
             lower.contains("github.com") || lower.contains("stackoverflow.com") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_code),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_code),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_code)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_code),
                 )
             lower.contains("reddit.com") || lower.contains("medium.com") || lower.contains("substack.com") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_read),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_read),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_read)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_read),
                 )
             lower.contains("amazon.") || lower.contains("ebay.") || lower.contains("flipkart.") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_buy),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_buy),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_buy)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_buy),
                 )
             lower.contains("linkedin.com") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_work),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_work),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_work)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_work),
                 )
             lower.contains("spotify.com") || lower.contains("music.") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_play),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_play),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_play)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_play),
                 )
             lower.contains("netflix.com") || lower.contains("primevideo.") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_watch),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_watch),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_watch)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_watch),
                 )
             lower.contains("http://") || lower.contains("https://") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_read),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_read),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_read)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_read),
                 )
             else -> null
         }
@@ -427,14 +454,17 @@ object AIResponseParser {
      * @param lower Lowercase content string
      * @return Triple of (category, summary, whySaved)
      */
-    private fun categorizeByKeywords(context: android.content.Context, lower: String): Triple<String, String, String> {
+    private fun categorizeByKeywords(
+        context: android.content.Context,
+        lower: String,
+    ): Triple<String, String, String> {
         return when {
             // Task/Todo patterns
             TODO_PATTERN.containsMatchIn(lower) ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_todo),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_todo),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_todo)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_todo),
                 )
 
             // Idea patterns
@@ -442,7 +472,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_idea),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_idea),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_idea)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_idea),
                 )
 
             // Learning patterns
@@ -450,7 +480,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_learn),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_learn),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_learn)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_learn),
                 )
 
             // Shopping patterns
@@ -458,7 +488,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_buy),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_buy),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_buy)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_buy),
                 )
 
             // Meeting patterns
@@ -466,7 +496,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_meet),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_meet),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_meet)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_meet),
                 )
 
             // Code patterns
@@ -474,7 +504,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_code),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_code),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_code)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_code),
                 )
 
             // Quote patterns
@@ -482,7 +512,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_quote),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_quote),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_quote)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_quote),
                 )
 
             // Health patterns
@@ -490,7 +520,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_health),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_health),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_health)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_health),
                 )
 
             // Finance patterns
@@ -498,7 +528,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_finance),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_finance),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_finance)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_finance),
                 )
 
             // Recipe patterns
@@ -506,7 +536,7 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_recipe),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_recipe),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_recipe)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_recipe),
                 )
 
             // Work patterns
@@ -514,14 +544,14 @@ object AIResponseParser {
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_work),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_work),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_work)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_work),
                 )
 
             else ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_note),
                     context.getString(com.example.smarty.R.string.mock_ai_summary_note),
-                    context.getString(com.example.smarty.R.string.mock_ai_intent_note)
+                    context.getString(com.example.smarty.R.string.mock_ai_intent_note),
                 )
         }
     }
@@ -547,10 +577,11 @@ object AIResponseParser {
         // 1. Remove special chars (keep spaces/hyphens for multi-word stacks like "side project")
         // 2. Limit length to prevent UI issues
         // 3. Lowercase (Consistent with Calm Aesthetic)
-        val clean = category.trim()
-            .replace(Regex("[^a-zA-Z0-9\\s\\-]"), "")
-            .take(20)
-            .lowercase()
+        val clean =
+            category.trim()
+                .replace(Regex("[^a-zA-Z0-9\\s\\-]"), "")
+                .take(20)
+                .lowercase()
 
         return if (clean.isNotEmpty()) {
             clean
@@ -568,7 +599,11 @@ object AIResponseParser {
      * @param maxLength Maximum length (default 500)
      * @return Cleaned summary
      */
-    fun cleanSummary(context: android.content.Context, summary: String?, maxLength: Int = 500): String {
+    fun cleanSummary(
+        context: android.content.Context,
+        summary: String?,
+        maxLength: Int = 500,
+    ): String {
         if (summary.isNullOrBlank()) return context.getString(com.example.smarty.R.string.mock_ai_summary_note)
         val cleaned = summary.trim().replace(WHITESPACE_PATTERN, " ").lowercase()
         return if (cleaned.length > maxLength) {

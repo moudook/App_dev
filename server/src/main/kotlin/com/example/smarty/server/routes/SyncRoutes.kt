@@ -1,25 +1,23 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.protocol.CalendarEventInfo
+import com.example.smarty.protocol.GeneratedImageInfo
+import com.example.smarty.protocol.NoteInfo
+import com.example.smarty.server.data.CalendarEventNotesRepository
+import com.example.smarty.server.data.CalendarRepository
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.NoteRepository
+import com.example.smarty.server.plugins.firebaseUser
+import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.NoteRepository
-import com.example.smarty.server.data.CalendarRepository
-import com.example.smarty.server.data.ChatRepository
-import com.example.smarty.server.data.ChatMessageNotesRepository
-import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.plugins.firebaseUser
-import com.example.smarty.protocol.NoteInfo
-import com.example.smarty.protocol.CalendarEventInfo
-import com.example.smarty.server.data.SessionInfo
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
-
-import com.example.smarty.protocol.GeneratedImageInfo
 
 @Serializable
 data class SyncPullResponse(
@@ -27,9 +25,8 @@ data class SyncPullResponse(
     val sessions: List<SessionInfoData>,
     val events: List<CalendarEventInfo>,
     val generatedImages: List<GeneratedImageInfo> = emptyList(),
-    val lastSyncAt: Long
+    val lastSyncAt: Long,
 )
-
 
 @Serializable
 data class SessionInfoData(
@@ -39,7 +36,7 @@ data class SessionInfoData(
     val updatedAt: Long,
     val messageCount: Int,
     val lastMessagePreview: String,
-    val messages: List<MessageInfoData>
+    val messages: List<MessageInfoData>,
 )
 
 @Serializable
@@ -48,14 +45,14 @@ data class MessageInfoData(
     val role: String,
     val content: String,
     val thinking: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
 )
 
 @Serializable
 data class SyncPushRequest(
     val notes: List<NotePushItem>? = null,
     val sessions: List<SessionPushItem>? = null,
-    val events: List<EventPushItem>? = null
+    val events: List<EventPushItem>? = null,
 )
 
 @Serializable
@@ -64,7 +61,7 @@ data class NotePushItem(
     val title: String,
     val content: String,
     val categoryId: String? = null,
-    val updatedAt: Long
+    val updatedAt: Long,
 )
 
 @Serializable
@@ -72,7 +69,7 @@ data class SessionPushItem(
     val id: String,
     val title: String?,
     val createdAt: Long,
-    val messages: List<MessagePushItem>? = null
+    val messages: List<MessagePushItem>? = null,
 )
 
 @Serializable
@@ -81,7 +78,7 @@ data class MessagePushItem(
     val role: String,
     val content: String,
     val thinking: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
 )
 
 @Serializable
@@ -91,7 +88,7 @@ data class EventPushItem(
     val startTime: Long,
     val endTime: Long,
     val description: String? = null,
-    val reminderMinutes: Int = 15
+    val reminderMinutes: Int = 15,
 )
 
 @Serializable
@@ -100,13 +97,13 @@ data class SyncPushResponse(
     val createdNotes: List<String> = emptyList(),
     val createdSessions: List<String> = emptyList(),
     val createdEvents: List<String> = emptyList(),
-    val errors: List<String> = emptyList()
+    val errors: List<String> = emptyList(),
 )
 
 @Serializable
 data class SyncStatusResponse(
     val lastSyncAt: Long?,
-    val lastPullAt: Long?
+    val lastPullAt: Long?,
 )
 
 fun Application.configureSyncRoutes() {
@@ -122,7 +119,6 @@ fun Application.configureSyncRoutes() {
     routing {
         authenticate("firebase") {
             route("/api/v1/sync") {
-                
                 post("/pull") {
                     val user = call.firebaseUser()
                     if (user == null) {
@@ -137,61 +133,68 @@ fun Application.configureSyncRoutes() {
                     try {
                         val userId = user.userId
                         logger.info(">>> SYNC PULL STARTED for user: $userId")
-                        
+
                         val notes = noteRepository.listByUser(userId, limit = 1000)
                         val sessions = chatRepository.listAllSessions(userId, limit = 100)
                         val events = calendarRepository.listAllEvents(userId, limit = 500)
-                        
+
                         // Get generated images for sync
                         val generatedImageRepo = dataSource?.let { com.example.smarty.server.data.GeneratedImageRepository(it) }
                         val generatedImages = generatedImageRepo?.listByUser(userId, limit = 100) ?: emptyList()
-                        val generatedImagesData = generatedImages.map { img ->
-                            com.example.smarty.protocol.GeneratedImageInfo(
-                                id = img.id,
-                                userId = img.userId,
-                                sessionId = img.sessionId,
-                                prompt = img.prompt,
-                                kreaJobId = img.kreaJobId,
-                                status = img.status,
-                                imageUrl = img.imageUrl,
-                                supabaseUrl = img.supabaseUrl,
-                                createdAt = img.createdAt,
-                                updatedAt = img.updatedAt
-                            )
-                        }
-                        
-                        logger.info(">>> SYNC PULL RESULT for user $userId: notes=${notes.size}, sessions=${sessions.size}, events=${events.size}, generatedImages=${generatedImages.size}")
-                        
-                        val sessionData = sessions.map { session ->
-                            val messages = chatRepository.getAllMessagesForSession(userId, session.id)
-                            SessionInfoData(
-                                id = session.id,
-                                title = session.title,
-                                createdAt = session.createdAt,
-                                updatedAt = session.updatedAt,
-                                messageCount = session.messageCount,
-                                lastMessagePreview = session.lastMessagePreview,
-                                messages = messages.map { msg ->
-                                    MessageInfoData(
-                                        id = msg.id.toString(),
-                                        role = msg.role,
-                                        content = msg.content,
-                                        thinking = msg.thinking,
-                                        createdAt = msg.createdAt
-                                    )
-                                }
-                            )
-                        }
+                        val generatedImagesData =
+                            generatedImages.map { img ->
+                                com.example.smarty.protocol.GeneratedImageInfo(
+                                    id = img.id,
+                                    userId = img.userId,
+                                    sessionId = img.sessionId,
+                                    prompt = img.prompt,
+                                    kreaJobId = img.kreaJobId,
+                                    status = img.status,
+                                    imageUrl = img.imageUrl,
+                                    supabaseUrl = img.supabaseUrl,
+                                    createdAt = img.createdAt,
+                                    updatedAt = img.updatedAt,
+                                )
+                            }
+
+                        logger.info(
+                            ">>> SYNC PULL RESULT for user $userId: notes=${notes.size}, sessions=${sessions.size}, events=${events.size}, generatedImages=${generatedImages.size}",
+                        )
+
+                        val sessionData =
+                            sessions.map { session ->
+                                val messages = chatRepository.getAllMessagesForSession(userId, session.id)
+                                SessionInfoData(
+                                    id = session.id,
+                                    title = session.title,
+                                    createdAt = session.createdAt,
+                                    updatedAt = session.updatedAt,
+                                    messageCount = session.messageCount,
+                                    lastMessagePreview = session.lastMessagePreview,
+                                    messages =
+                                        messages.map { msg ->
+                                            MessageInfoData(
+                                                id = msg.id.toString(),
+                                                role = msg.role,
+                                                content = msg.content,
+                                                thinking = msg.thinking,
+                                                createdAt = msg.createdAt,
+                                            )
+                                        },
+                                )
+                            }
 
                         val syncStatus = syncRepository.getSyncStatus(userId)
-                        
-                        call.respond(SyncPullResponse(
-                            notes = notes,
-                            sessions = sessionData,
-                            events = events,
-                            generatedImages = generatedImagesData,
-                            lastSyncAt = syncStatus?.lastPullAt ?: 0L
-                        ))
+
+                        call.respond(
+                            SyncPullResponse(
+                                notes = notes,
+                                sessions = sessionData,
+                                events = events,
+                                generatedImages = generatedImagesData,
+                                lastSyncAt = syncStatus?.lastPullAt ?: 0L,
+                            ),
+                        )
                     } catch (e: Exception) {
                         logger.error("Sync pull failed", e)
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Sync failed: ${e.message}"))
@@ -215,7 +218,14 @@ fun Application.configureSyncRoutes() {
                         request.notes?.forEach { noteItem ->
                             try {
                                 if (noteItem.id != null) {
-                                    val updated = noteRepository.update(userId, noteItem.id, noteItem.title, noteItem.content, noteItem.categoryId)
+                                    val updated =
+                                        noteRepository.update(
+                                            userId,
+                                            noteItem.id,
+                                            noteItem.title,
+                                            noteItem.content,
+                                            noteItem.categoryId,
+                                        )
                                     if (!updated) {
                                         val id = noteRepository.create(userId, noteItem.title, noteItem.content, noteItem.categoryId)
                                         createdNotes.add(id)
@@ -235,7 +245,7 @@ fun Application.configureSyncRoutes() {
                                 if (created) {
                                     createdSessions.add(sessionItem.id)
                                 }
-                                
+
                                 sessionItem.messages?.forEach { msg ->
                                     chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking)
                                 }
@@ -247,20 +257,28 @@ fun Application.configureSyncRoutes() {
                         request.events?.forEach { eventItem ->
                             try {
                                 if (eventItem.id != null) {
-                                    val id = calendarRepository.createWithId(
-                                        userId, eventItem.id, eventItem.title,
-                                        eventItem.startTime, eventItem.endTime,
-                                        eventItem.description
-                                    )
+                                    val id =
+                                        calendarRepository.createWithId(
+                                            userId,
+                                            eventItem.id,
+                                            eventItem.title,
+                                            eventItem.startTime,
+                                            eventItem.endTime,
+                                            eventItem.description,
+                                        )
                                     if (id == eventItem.id) {
                                         createdEvents.add(id)
                                     }
                                 } else {
-                                    val id = calendarRepository.create(
-                                        userId, eventItem.title, 
-                                        eventItem.startTime, eventItem.endTime,
-                                        eventItem.description, eventItem.reminderMinutes
-                                    )
+                                    val id =
+                                        calendarRepository.create(
+                                            userId,
+                                            eventItem.title,
+                                            eventItem.startTime,
+                                            eventItem.endTime,
+                                            eventItem.description,
+                                            eventItem.reminderMinutes,
+                                        )
                                     createdEvents.add(id)
                                 }
                             } catch (e: Exception) {
@@ -270,13 +288,15 @@ fun Application.configureSyncRoutes() {
 
                         syncRepository.updateSyncStatus(userId)
 
-                        call.respond(SyncPushResponse(
-                            success = errors.isEmpty(),
-                            createdNotes = createdNotes,
-                            createdSessions = createdSessions,
-                            createdEvents = createdEvents,
-                            errors = errors
-                        ))
+                        call.respond(
+                            SyncPushResponse(
+                                success = errors.isEmpty(),
+                                createdNotes = createdNotes,
+                                createdSessions = createdSessions,
+                                createdEvents = createdEvents,
+                                errors = errors,
+                            ),
+                        )
                     } catch (e: Exception) {
                         logger.error("Sync push failed", e)
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Push failed: ${e.message}"))
@@ -291,10 +311,12 @@ fun Application.configureSyncRoutes() {
 
                     try {
                         val status = syncRepository.getSyncStatus(user.userId)
-                        call.respond(SyncStatusResponse(
-                            lastSyncAt = status?.lastSyncAt,
-                            lastPullAt = status?.lastPullAt
-                        ))
+                        call.respond(
+                            SyncStatusResponse(
+                                lastSyncAt = status?.lastSyncAt,
+                                lastPullAt = status?.lastPullAt,
+                            ),
+                        )
                     } catch (e: Exception) {
                         logger.error("Failed to get sync status", e)
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to get status"))
@@ -303,7 +325,6 @@ fun Application.configureSyncRoutes() {
             }
 
             route("/api/v1/chat") {
-                
                 get("/sessions") {
                     val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
                     if (chatRepository == null) {
@@ -326,18 +347,20 @@ fun Application.configureSyncRoutes() {
                     }
 
                     val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                    
+
                     try {
                         val session = chatRepository.getSession(user.userId, sessionId)
                         if (session == null) {
                             return@get call.respond(HttpStatusCode.NotFound)
                         }
-                        
+
                         val messages = chatRepository.getAllMessagesForSession(user.userId, sessionId)
-                        call.respond(mapOf(
-                            "session" to session,
-                            "messages" to messages
-                        ))
+                        call.respond(
+                            mapOf(
+                                "session" to session,
+                                "messages" to messages,
+                            ),
+                        )
                     } catch (e: Exception) {
                         logger.error("Failed to get session", e)
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to get session"))
@@ -374,7 +397,7 @@ fun Application.configureSyncRoutes() {
                             request.sessionId,
                             request.role,
                             request.content,
-                            request.thinking
+                            request.thinking,
                         )
                         call.respond(HttpStatusCode.OK)
                     } catch (e: Exception) {
@@ -390,7 +413,7 @@ fun Application.configureSyncRoutes() {
                     }
 
                     val sessionId = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-                    
+
                     try {
                         val deleted = chatRepository.deleteSession(user.userId, sessionId)
                         if (deleted) {
@@ -413,7 +436,7 @@ data class CreateSessionRequest(val title: String? = null)
 
 /**
  * Request to save a chat message to the server.
- * 
+ *
  * @param sessionId Chat session ID
  * @param role Message role (USER, ASSISTANT, SYSTEM)
  * @param content Message content
@@ -424,5 +447,5 @@ data class SaveMessageRequest(
     val sessionId: String,
     val role: String,
     val content: String,
-    val thinking: String? = null  // ✅ Added thinking field for AI reasoning persistence
+    val thinking: String? = null, // ✅ Added thinking field for AI reasoning persistence
 )

@@ -3,11 +3,11 @@ package com.example.smarty.server.data
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.sql.ResultSet
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
 
 /**
  * PostgreSQL implementation of VectorStore using raw JDBC and full-text search.
@@ -16,7 +16,6 @@ import kotlinx.serialization.decodeFromString
  * All operations are isolated by userId for multi-tenant security.
  */
 class PostgresVectorStore : VectorStore {
-
     private val logger = LoggerFactory.getLogger(PostgresVectorStore::class.java)
     private val dataSource = DatabaseFactory.getDataSource() as? HikariDataSource
     private val json = Json { ignoreUnknownKeys = true }
@@ -29,7 +28,11 @@ class PostgresVectorStore : VectorStore {
      * @param content The text content to store
      * @param metadata Additional metadata (type, category, etc.)
      */
-    override suspend fun store(userId: String, content: String, metadata: Map<String, String>) {
+    override suspend fun store(
+        userId: String,
+        content: String,
+        metadata: Map<String, String>,
+    ) {
         if (dataSource == null) {
             logger.warn("VectorStore store operation skipped: DB not configured")
             return
@@ -38,12 +41,16 @@ class PostgresVectorStore : VectorStore {
             dataSource.connection.use { conn ->
                 // v6: store memories as notes - category is now stored in metadata
                 val title = metadata["title"] ?: content.take(50)
-                val metadataJson = json.encodeToString(metadata + mapOf("memory_type" to (metadata["type"] ?: metadata["category"] ?: "memory")))
-                val sql = """
+                val metadataJson =
+                    json.encodeToString(
+                        metadata + mapOf("memory_type" to (metadata["type"] ?: metadata["category"] ?: "memory")),
+                    )
+                val sql =
+                    """
                     INSERT INTO notes (user_id, title, content, metadata, created_at, updated_at)
                     VALUES (?::uuid, ?, ?, ?::jsonb, now(), now())
                     ON CONFLICT DO NOTHING
-                """.trimIndent()
+                    """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, userId)
@@ -59,7 +66,11 @@ class PostgresVectorStore : VectorStore {
     /**
      * Update existing note content by ID (v6 schema).
      */
-    suspend fun update(userId: String, contextId: String, content: String) {
+    suspend fun update(
+        userId: String,
+        contextId: String,
+        content: String,
+    ) {
         if (dataSource == null) return
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
@@ -77,7 +88,10 @@ class PostgresVectorStore : VectorStore {
     /**
      * Soft-delete a note by ID (v6 schema uses deleted_at).
      */
-    suspend fun delete(userId: String, contextId: String) {
+    suspend fun delete(
+        userId: String,
+        contextId: String,
+    ) {
         if (dataSource == null) return
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
@@ -98,23 +112,28 @@ class PostgresVectorStore : VectorStore {
      * @param query The text query to search for
      * @param limit Maximum results to return
      */
-    override suspend fun search(userId: String, query: String, limit: Int): List<ContextResult> {
+    override suspend fun search(
+        userId: String,
+        query: String,
+        limit: Int,
+    ): List<ContextResult> {
         if (dataSource == null) {
             logger.warn("VectorStore search operation skipped: DB not configured")
             return emptyList()
         }
-        
+
         // Skip empty or very short queries
         if (query.isBlank() || query.length < 2) {
             return getRecentContext(userId, limit)
         }
-        
+
         return withContext(Dispatchers.IO) {
             val results = mutableListOf<ContextResult>()
 
             dataSource.connection.use { conn ->
                 // Optimized FTS query - use simpler search for better performance
-                val sql = """
+                val sql =
+                    """
                     SELECT id::text, COALESCE(content, '') as content,
                         COALESCE(metadata, '{}') as metadata,
                         ts_rank(to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')),
@@ -126,13 +145,13 @@ class PostgresVectorStore : VectorStore {
                       AND to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')) @@ plainto_tsquery('english', ?)
                     ORDER BY rank DESC
                     LIMIT ?
-                """.trimIndent()
+                    """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, query)
                     stmt.setString(2, userId)
                     stmt.setString(3, query)
-                    stmt.setInt(4, limit.coerceIn(1, 20))  // Cap at 20 results
+                    stmt.setInt(4, limit.coerceIn(1, 20)) // Cap at 20 results
 
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
@@ -147,18 +166,19 @@ class PostgresVectorStore : VectorStore {
 
     private fun mapRow(rs: ResultSet): ContextResult {
         val metadataJson = rs.getString("metadata")
-        val metadata: Map<String, String> = try {
-            if (metadataJson != null) json.decodeFromString(metadataJson) else emptyMap()
-        } catch (e: Exception) {
-            logger.warn("Failed to parse metadata JSON", e)
-            emptyMap()
-        }
+        val metadata: Map<String, String> =
+            try {
+                if (metadataJson != null) json.decodeFromString(metadataJson) else emptyMap()
+            } catch (e: Exception) {
+                logger.warn("Failed to parse metadata JSON", e)
+                emptyMap()
+            }
 
         return ContextResult(
             id = rs.getString("id"),
             content = rs.getString("content"),
             metadata = metadata,
-            similarity = rs.getDouble("similarity")
+            similarity = rs.getDouble("similarity"),
         )
     }
 
@@ -166,7 +186,10 @@ class PostgresVectorStore : VectorStore {
      * Get recent user notes/memories for baseline agent context.
      * v6 schema: reads from `notes`, ordered by category priority then recency.
      */
-    override suspend fun getRecentContext(userId: String, limit: Int): List<ContextResult> {
+    override suspend fun getRecentContext(
+        userId: String,
+        limit: Int,
+    ): List<ContextResult> {
         if (dataSource == null) {
             logger.debug("VectorStore getRecentContext skipped: DB not configured")
             return emptyList()
@@ -174,7 +197,8 @@ class PostgresVectorStore : VectorStore {
         return withContext(Dispatchers.IO) {
             val results = mutableListOf<ContextResult>()
             dataSource.connection.use { conn ->
-                val sql = """
+                val sql =
+                    """
                     SELECT n.id::text,
                            COALESCE(n.content, '') as content,
                            COALESCE(n.metadata, '{}') as metadata,
@@ -191,7 +215,7 @@ class PostgresVectorStore : VectorStore {
                         END,
                         n.updated_at DESC
                     LIMIT ?
-                """.trimIndent()
+                    """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, userId)
@@ -217,8 +241,12 @@ class PostgresVectorStore : VectorStore {
             try {
                 dataSource.connection.use { conn ->
                     conn.createStatement().use { stmt ->
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at DESC) WHERE deleted_at IS NULL")
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_notes_content_fts ON notes USING GIN (to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,''))) WHERE deleted_at IS NULL")
+                        stmt.execute(
+                            "CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at DESC) WHERE deleted_at IS NULL",
+                        )
+                        stmt.execute(
+                            "CREATE INDEX IF NOT EXISTS idx_notes_content_fts ON notes USING GIN (to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,''))) WHERE deleted_at IS NULL",
+                        )
                     }
                 }
                 logger.info("notes FTS indexes verified successfully")

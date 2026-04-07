@@ -52,7 +52,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class KeyRotationManager(
     private val apiKeys: List<String>,
-    private val providerName: String
+    private val providerName: String,
 ) {
     private val logger = LoggerFactory.getLogger(KeyRotationManager::class.java)
 
@@ -89,7 +89,7 @@ class KeyRotationManager(
             KeyRotationState(
                 sessionId = key,
                 apiKeysSize = apiKeys.size,
-                invalidKeysProvider = { invalidKeys }
+                invalidKeysProvider = { invalidKeys },
             )
         }
     }
@@ -115,7 +115,7 @@ class KeyRotationManager(
             if (invalidKeys.add(keyIndex)) {
                 logger.error(
                     "[$providerName] Marked key #$keyIndex as PERMANENTLY INVALID. " +
-                    "Valid keys remaining: ${apiKeys.size - invalidKeys.size}/${apiKeys.size}"
+                        "Valid keys remaining: ${apiKeys.size - invalidKeys.size}/${apiKeys.size}",
                 )
             }
         }
@@ -197,7 +197,7 @@ class KeyRotationManager(
 class KeyRotationState(
     private val sessionId: String,
     private val apiKeysSize: Int,
-    private val invalidKeysProvider: () -> Set<Int>
+    private val invalidKeysProvider: () -> Set<Int>,
 ) {
     /**
      * Current key index for this session.
@@ -249,13 +249,16 @@ class KeyRotationState(
      * @param reason Reason for rotation (e.g., "401 Unauthorized", "429 Rate Limit")
      * @param previousKeyIndex The key index that failed
      */
-    fun rotateToNextKey(reason: String, previousKeyIndex: Int) {
+    fun rotateToNextKey(
+        reason: String,
+        previousKeyIndex: Int,
+    ) {
         val oldIndex = currentKeyIndex.getAndIncrement()
         val newIndex = currentKeyIndex.get() % apiKeysSize
 
         logger.warn(
             "[$sessionId] Rotating API key: #$oldIndex → #$newIndex. " +
-            "Reason: $reason"
+                "Reason: $reason",
         )
     }
 
@@ -313,33 +316,34 @@ sealed class ApiKeyError {
      *
      * @return true if retry is appropriate, false if rotation or immediate failure is better
      */
-    fun isRetryable(): Boolean = when (this) {
-        is InvalidKey -> false  // Don't retry invalid keys
-        is RateLimited -> true   // Retry may succeed with different key or after backoff
-        is ServerError -> true   // Server may recover
-        is NetworkError -> true  // Network may recover
-        is UnknownError -> false // Unknown errors should fail fast
-    }
+    fun isRetryable(): Boolean =
+        when (this) {
+            is InvalidKey -> false // Don't retry invalid keys
+            is RateLimited -> true // Retry may succeed with different key or after backoff
+            is ServerError -> true // Server may recover
+            is NetworkError -> true // Network may recover
+            is UnknownError -> false // Unknown errors should fail fast
+        }
 
     /**
      * Determines if this error type requires key rotation.
      *
      * @return true if key should be rotated, false if retry on same key is better
      */
-    fun requiresRotation(): Boolean = when (this) {
-        is InvalidKey -> true    // Key is permanently invalid
-        is RateLimited -> true   // Try different key with separate rate limit
-        is ServerError -> false  // Retry same key first (transient issue)
-        is NetworkError -> false // Retry same key first (transient issue)
-        is UnknownError -> false // Fail fast, no rotation
-    }
+    fun requiresRotation(): Boolean =
+        when (this) {
+            is InvalidKey -> true // Key is permanently invalid
+            is RateLimited -> true // Try different key with separate rate limit
+            is ServerError -> false // Retry same key first (transient issue)
+            is NetworkError -> false // Retry same key first (transient issue)
+            is UnknownError -> false // Fail fast, no rotation
+        }
 }
 
 /**
  * Utility functions for classifying API errors.
  */
 object ApiKeyErrorClassifier {
-
     /**
      * Classifies an exception into an [ApiKeyError] type.
      *
@@ -358,33 +362,33 @@ object ApiKeyErrorClassifier {
         return when {
             // Permanent authentication failures
             message.contains("401") ||
-            message.contains("unauthorized") ||
-            message.contains("invalid token") ||
-            message.contains("api key is not valid") ||
-            message.contains("authentication failed")
+                message.contains("unauthorized") ||
+                message.contains("invalid token") ||
+                message.contains("api key is not valid") ||
+                message.contains("authentication failed")
             -> ApiKeyError.InvalidKey(exception.message ?: "Authentication failed")
 
             // Rate limiting
             message.contains("429") ||
-            message.contains("rate limit") ||
-            message.contains("too many requests") ||
-            message.contains("quota exceeded")
+                message.contains("rate limit") ||
+                message.contains("too many requests") ||
+                message.contains("quota exceeded")
             -> ApiKeyError.RateLimited(exception.message ?: "Rate limited")
 
             // Server errors (may be transient)
             message.contains("500") ||
-            message.contains("502") ||
-            message.contains("503") ||
-            message.contains("504")
+                message.contains("502") ||
+                message.contains("503") ||
+                message.contains("504")
             -> ApiKeyError.ServerError(exception.message ?: "Server error")
 
             // Network/connectivity issues
             message.contains("timeout") ||
-            message.contains("connection") ||
-            message.contains("closed") ||
-            message.contains("broken") ||
-            message.contains("reset") ||
-            message.contains("network")
+                message.contains("connection") ||
+                message.contains("closed") ||
+                message.contains("broken") ||
+                message.contains("reset") ||
+                message.contains("network")
             -> ApiKeyError.NetworkError(exception.message ?: "Network error")
 
             // Unknown errors
@@ -399,7 +403,10 @@ object ApiKeyErrorClassifier {
      * @param statusText Optional status text for context
      * @return Classified error type
      */
-    fun classify(statusCode: Int, statusText: String? = null): ApiKeyError {
+    fun classify(
+        statusCode: Int,
+        statusText: String? = null,
+    ): ApiKeyError {
         val message = statusText ?: "HTTP $statusCode"
 
         return when (statusCode) {

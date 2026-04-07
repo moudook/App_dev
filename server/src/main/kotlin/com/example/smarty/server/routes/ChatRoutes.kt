@@ -1,9 +1,31 @@
 package com.example.smarty.server.routes
 
-import io.ktor.server.request.*
+import com.example.smarty.protocol.AgentCommand
+import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.ClientEvent
+import com.example.smarty.server.agent.AgentPersistenceManager
+import com.example.smarty.server.agent.ServerAgent
+import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
+import com.example.smarty.server.data.CalendarEventNotesRepository
+import com.example.smarty.server.data.CalendarRepository
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.ConversationSummarizer
+import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.NoteRepository
+import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.LlmProviderFactory
+import com.example.smarty.server.llm.ProviderRouter
+import com.example.smarty.server.llm.RoutingStrategy
+import com.example.smarty.server.plugins.firebaseUser
+import com.example.smarty.server.tools.TavilySearchTool
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
@@ -11,36 +33,7 @@ import io.ktor.sse.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.example.smarty.protocol.AgentEvent
-import com.example.smarty.protocol.ClientEvent
-import com.example.smarty.core.domain.model.CalendarEvent
-import com.example.smarty.core.domain.model.RecallResult
-import com.example.smarty.features.chat.agent.models.ScreenContext
 import java.util.UUID
-
-import com.example.smarty.protocol.AgentCommand
-import com.example.smarty.server.agent.ServerAgent
-import com.example.smarty.server.agent.AgentPersistenceManager
-import com.example.smarty.server.data.PostgresVectorStore
-import com.example.smarty.server.data.ChatRepository
-import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.NoteRepository
-import com.example.smarty.server.data.TimerRepository
-import com.example.smarty.server.data.CalendarRepository
-import com.example.smarty.server.data.ChatMessageNotesRepository
-import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.data.ConversationSummarizer
-import com.example.smarty.server.llm.LlmMessage
-import com.example.smarty.server.llm.LlmProviderFactory
-import com.example.smarty.server.llm.ProviderRouter
-import com.example.smarty.server.llm.RoutingStrategy
-import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import com.example.smarty.server.plugins.firebaseUser
-import com.example.smarty.server.tools.TavilySearchTool
-import io.ktor.client.HttpClient
-import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 
 /**
  * Configure chat streaming routes.
@@ -64,40 +57,41 @@ data class ChatRequest(
     val providerUrl: String? = null,
     val model: String? = null,
     val token: String? = null,
-    val fileContext: String? = null,  // Extracted text from uploaded files
-    val attachments: List<AttachmentInfo>? = null,  // Metadata about attachments
-    val timezone: String? = null,  // User's timezone (e.g., "America/New_York")
-    val clientTime: Long? = null,   // User's current time in epoch millis
-    val personality: String? = null  // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
+    val fileContext: String? = null, // Extracted text from uploaded files
+    val attachments: List<AttachmentInfo>? = null, // Metadata about attachments
+    val timezone: String? = null, // User's timezone (e.g., "America/New_York")
+    val clientTime: Long? = null, // User's current time in epoch millis
+    val personality: String? = null, // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
 )
 
 @Serializable
 data class AttachmentInfo(
-    val type: String,  // "image", "pdf", "document"
+    val type: String, // "image", "pdf", "document"
     val name: String,
-    val mimeType: String? = null
+    val mimeType: String? = null,
 )
 
 @Serializable
 data class BriefingRequest(
     val prompt: String,
-    val token: String? = null
+    val token: String? = null,
 )
 
 @Serializable
 data class BriefingResponse(
     val briefing: String,
-    val success: Boolean = true
+    val success: Boolean = true,
 )
 
 fun Application.configureChatRoutes() {
     // JSON encoder for events
-    val json = Json {
-        encodeDefaults = true
-        prettyPrint = false
-        classDiscriminator = "type"
-        ignoreUnknownKeys = true
-    }
+    val json =
+        Json {
+            encodeDefaults = true
+            prettyPrint = false
+            classDiscriminator = "type"
+            ignoreUnknownKeys = true
+        }
 
     // Initialize generic HTTP Client for LLM and Tools (reused from factory)
     val httpClient = LlmProviderFactory.getOrCreateHttpClient()
@@ -145,26 +139,27 @@ fun Application.configureChatRoutes() {
                     val briefingSummarizer = ConversationSummarizer(briefingProvider)
 
                     // Create agent for single run
-                    val agent = ServerAgent(
-                        llmProvider = briefingProvider,
-                        tavilyTool = tavilyTool,
-                        vectorStore = vectorStore,
-                        summarizer = briefingSummarizer,
-                        noteRepository = noteRepository,
-                        timerRepository = timerRepository,
-                        calendarRepository = calendarRepository,
-                        eventEmitter = { /* No streaming for briefing yet */ },
-                        userId = userId
-                    )
+                    val agent =
+                        ServerAgent(
+                            llmProvider = briefingProvider,
+                            tavilyTool = tavilyTool,
+                            vectorStore = vectorStore,
+                            summarizer = briefingSummarizer,
+                            noteRepository = noteRepository,
+                            timerRepository = timerRepository,
+                            calendarRepository = calendarRepository,
+                            eventEmitter = { /* No streaming for briefing yet */ },
+                            userId = userId,
+                        )
 
                     // Run the agent (no modelOverride - provider already selected)
-                    val briefing = agent.run(
-                        query = request.prompt,
-                        history = emptyList()
-                    )
+                    val briefing =
+                        agent.run(
+                            query = request.prompt,
+                            history = emptyList(),
+                        )
 
                     call.respond(HttpStatusCode.OK, BriefingResponse(briefing))
-
                 } catch (e: Exception) {
                     call.application.log.error("Briefing generation failed", e)
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
@@ -190,7 +185,9 @@ fun Application.configureChatRoutes() {
 
                 try {
                     val event = call.receive<ClientEvent>()
-                    call.application.log.info("Received client event: ${event::class.simpleName} for session: $sessionId (user: ${user.userId})")
+                    call.application.log.info(
+                        "Received client event: ${event::class.simpleName} for session: $sessionId (user: ${user.userId})",
+                    )
 
                     if (chatRepository != null) {
                         when (event) {
@@ -217,11 +214,12 @@ fun Application.configureChatRoutes() {
                             }
                             is ClientEvent.ScreenContextResponse -> {
                                 val ctx = event.context
-                                val content = if (ctx != null) {
-                                    "Current Screen Context:\nApp: ${ctx.referringApp}\nSelected Text: ${ctx.selectedText}\nData: ${ctx.contextData}"
-                                } else {
-                                    "Screen Context: No data available"
-                                }
+                                val content =
+                                    if (ctx != null) {
+                                        "Current Screen Context:\nApp: ${ctx.referringApp}\nSelected Text: ${ctx.selectedText}\nData: ${ctx.contextData}"
+                                    } else {
+                                        "Screen Context: No data available"
+                                    }
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                             }
                             else -> {
@@ -250,15 +248,20 @@ fun Application.configureChatRoutes() {
             sse("/chat/stream") {
                 val user = call.firebaseUser()
                 if (user == null) {
-                    send(ServerSentEvent(
-                        data = json.encodeToString(AgentEvent.Error(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            message = "Authentication required",
-                            code = "UNAUTHORIZED"
-                        )),
-                        event = "error"
-                    ))
+                    send(
+                        ServerSentEvent(
+                            data =
+                                json.encodeToString(
+                                    AgentEvent.Error(
+                                        eventId = UUID.randomUUID().toString(),
+                                        timestamp = System.currentTimeMillis(),
+                                        message = "Authentication required",
+                                        code = "UNAUTHORIZED",
+                                    ),
+                                ),
+                            event = "error",
+                        ),
+                    )
                     return@sse
                 }
 
@@ -274,56 +277,60 @@ fun Application.configureChatRoutes() {
                 val personalityParam = call.request.queryParameters["personality"]
 
                 // Log the incoming request
-                call.application.log.info("SSE stream started for query: $query (Session: $sessionId, User: $userId, Provider: $providerParam, Model: $modelParam, URL: $providerUrlParam)")
+                call.application.log.info(
+                    "SSE stream started for query: $query (Session: $sessionId, User: $userId, Provider: $providerParam, Model: $modelParam, URL: $providerUrlParam)",
+                )
 
                 // Create provider and summarizer for this specific request
-                val streamProvider = when (providerParam?.uppercase()) {
-                    "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, tokenParam)
-                    "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, tokenParam)
-                    "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, tokenParam)
-                    "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, tokenParam)
-                    else -> LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
-                }
+                val streamProvider =
+                    when (providerParam?.uppercase()) {
+                        "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, tokenParam)
+                        "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, tokenParam)
+                        "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, tokenParam)
+                        "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, tokenParam)
+                        else -> LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
+                    }
 
                 val streamSummarizer = ConversationSummarizer(streamProvider)
 
                 // Handle Session Persistence (non-fatal: DB errors won't kill chat)
-                val history = if (chatRepository != null) {
-                    try {
-                        if (sessionId.isNullOrBlank()) {
-                            // No session ID provided - create new session
-                            sessionId = chatRepository.createSession(userId, "New Chat")
-                            call.application.log.info("Created new session: $sessionId for user: $userId")
-                        } else {
-                            // Session ID provided - verify it exists and belongs to user
-                            val existingSession = chatRepository.getSession(userId, sessionId)
-                            if (existingSession == null) {
-                                // Session doesn't exist for this user - create it with the provided ID
-                                val created = chatRepository.createSessionWithId(userId, sessionId, "Continued Chat")
-                                if (created) {
-                                    call.application.log.info("Created session with client ID: $sessionId for user: $userId")
-                                } else {
-                                    // Session exists but belongs to another user - create new session
-                                    sessionId = chatRepository.createSession(userId, "New Chat")
-                                    call.application.log.warn("Session ID conflict - created new session: $sessionId for user: $userId")
+                val history =
+                    if (chatRepository != null) {
+                        try {
+                            if (sessionId.isNullOrBlank()) {
+                                // No session ID provided - create new session
+                                sessionId = chatRepository.createSession(userId, "New Chat")
+                                call.application.log.info("Created new session: $sessionId for user: $userId")
+                            } else {
+                                // Session ID provided - verify it exists and belongs to user
+                                val existingSession = chatRepository.getSession(userId, sessionId)
+                                if (existingSession == null) {
+                                    // Session doesn't exist for this user - create it with the provided ID
+                                    val created = chatRepository.createSessionWithId(userId, sessionId, "Continued Chat")
+                                    if (created) {
+                                        call.application.log.info("Created session with client ID: $sessionId for user: $userId")
+                                    } else {
+                                        // Session exists but belongs to another user - create new session
+                                        sessionId = chatRepository.createSession(userId, "New Chat")
+                                        call.application.log.warn("Session ID conflict - created new session: $sessionId for user: $userId")
+                                    }
                                 }
                             }
-                        }
 
-                        // Save User Message (only if not a continuation query)
-                        if (query.isNotBlank()) {
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, query)
-                        }
+                            // Save User Message (only if not a continuation query)
+                            if (query.isNotBlank()) {
+                                chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, query)
+                            }
 
-                        // Load History
-                        chatRepository.getHistory(userId, sessionId!!)
-                    } catch (e: Exception) {
-                        call.application.log.error("DB persistence failed (non-fatal), continuing without history", e)
+                            // Load History
+                            chatRepository.getHistory(userId, sessionId!!)
+                        } catch (e: Exception) {
+                            call.application.log.error("DB persistence failed (non-fatal), continuing without history", e)
+                            emptyList()
+                        }
+                    } else {
                         emptyList()
                     }
-                } else {
-                    emptyList()
-                }
 
                 // Register active session BEFORE creating agent (needed for progressive thinking save)
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
@@ -333,83 +340,90 @@ fun Application.configureChatRoutes() {
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
 
                 // Create agent instance for this request with userId for multi-tenant isolation
-                val agent = ServerAgent(
-                    llmProvider = streamProvider,
-                    tavilyTool = tavilyTool,
-                    vectorStore = vectorStore,
-                    summarizer = streamSummarizer,
-                    noteRepository = noteRepository,
-                    timerRepository = timerRepository,
-                    calendarRepository = calendarRepository,
-                    eventEmitter = { event ->
-                        try {
-                            // Collect citations from NotifyCitations command
-                            if (event is AgentEvent.Command) {
-                                val command = event.command
-                                if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
-                                    collectedCitations.addAll(command.citations)
+                val agent =
+                    ServerAgent(
+                        llmProvider = streamProvider,
+                        tavilyTool = tavilyTool,
+                        vectorStore = vectorStore,
+                        summarizer = streamSummarizer,
+                        noteRepository = noteRepository,
+                        timerRepository = timerRepository,
+                        calendarRepository = calendarRepository,
+                        eventEmitter = { event ->
+                            try {
+                                // Collect citations from NotifyCitations command
+                                if (event is AgentEvent.Command) {
+                                    val command = event.command
+                                    if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
+                                        collectedCitations.addAll(command.citations)
+                                    }
                                 }
-                            }
 
-                            // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
-                            // This ensures thinking and tools are persisted even if stream fails
-                            if (event is AgentEvent.Processing || event is AgentEvent.ToolCall) {
-                                val currentThinking = ThinkingStorageManagerSingleton.instance
-                                    .getCurrentThinking(activeSessionId)
-                                
-                                // Extract tool calls from thinking trace for progressive save
-                                val currentToolCalls = if (currentThinking.contains("SMARTY_TRACE_V2")) {
-                                    // Parse tool calls from thinking trace
-                                    currentThinking.substringAfter("SMARTY_TRACE_V2:")
-                                } else {
-                                    null
-                                }
-                                
-                                if (currentThinking.isNotBlank()) {
-                                    chatRepository?.updateMessageThinking(
-                                        userId = userId,
-                                        sessionId = activeSessionId,
-                                        thinking = currentThinking,
-                                        toolCalls = currentToolCalls
-                                    )
-                                }
-                            }
+                                // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
+                                // This ensures thinking and tools are persisted even if stream fails
+                                if (event is AgentEvent.Processing || event is AgentEvent.ToolCall) {
+                                    val currentThinking =
+                                        ThinkingStorageManagerSingleton.instance
+                                            .getCurrentThinking(activeSessionId)
 
-                            val eventType = when(event) {
-                                is AgentEvent.Processing -> "processing"
-                                is AgentEvent.ToolCall -> "tool_call"
-                                is AgentEvent.Command -> "command"
-                                is AgentEvent.Result -> "result"
-                                is AgentEvent.Error -> "error"
-                                is AgentEvent.StateSync -> "state_sync"
-                                is AgentEvent.ToolBlocked -> "tool_blocked"
-                                is AgentEvent.Question -> "question"
-                                is AgentEvent.NoteBlock -> "note_block"
+                                    // Extract tool calls from thinking trace for progressive save
+                                    val currentToolCalls =
+                                        if (currentThinking.contains("SMARTY_TRACE_V2")) {
+                                            // Parse tool calls from thinking trace
+                                            currentThinking.substringAfter("SMARTY_TRACE_V2:")
+                                        } else {
+                                            null
+                                        }
+
+                                    if (currentThinking.isNotBlank()) {
+                                        chatRepository?.updateMessageThinking(
+                                            userId = userId,
+                                            sessionId = activeSessionId,
+                                            thinking = currentThinking,
+                                            toolCalls = currentToolCalls,
+                                        )
+                                    }
+                                }
+
+                                val eventType =
+                                    when (event) {
+                                        is AgentEvent.Processing -> "processing"
+                                        is AgentEvent.ToolCall -> "tool_call"
+                                        is AgentEvent.Command -> "command"
+                                        is AgentEvent.Result -> "result"
+                                        is AgentEvent.Error -> "error"
+                                        is AgentEvent.StateSync -> "state_sync"
+                                        is AgentEvent.ToolBlocked -> "tool_blocked"
+                                        is AgentEvent.Question -> "question"
+                                        is AgentEvent.NoteBlock -> "note_block"
+                                    }
+                                call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
+                                send(
+                                    ServerSentEvent(
+                                        data = json.encodeToString(event),
+                                        event = eventType,
+                                    ),
+                                )
+                            } catch (e: Exception) {
+                                call.application.log.warn("Failed to send SSE event (client disconnected): ${e.message}")
                             }
-                            call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
-                            send(ServerSentEvent(
-                                data = json.encodeToString(event),
-                                event = eventType
-                            ))
-                        } catch (e: Exception) {
-                            call.application.log.warn("Failed to send SSE event (client disconnected): ${e.message}")
-                        }
-                    },
-                    userId = userId
-                )
+                        },
+                        userId = userId,
+                    )
 
                 try {
                     // Run the agent strategy with history, model override, and time context
                     // CRITICAL: Pass sessionId to preserve chat history continuity
-                    val assistantResponse = agent.run(
-                        query = query,
-                        sessionId = activeSessionId,
-                        history = history,
-                        modelOverride = modelParam,
-                        clientTimezone = timezoneParam,
-                        clientTimeMillis = clientTimeParam,
-                        personality = personalityParam
-                    )
+                    val assistantResponse =
+                        agent.run(
+                            query = query,
+                            sessionId = activeSessionId,
+                            history = history,
+                            modelOverride = modelParam,
+                            clientTimezone = timezoneParam,
+                            clientTimeMillis = clientTimeParam,
+                            personality = personalityParam,
+                        )
 
                     // Save Smarty Response if persistence is enabled
                     if (chatRepository == null) {
@@ -419,16 +433,18 @@ fun Application.configureChatRoutes() {
                             // Retrieve the rich SMARTY_TRACE_V2 thinking trace that was built during
                             // streaming. This is the correct source for the thinking field — the old
                             // <think>-tag extraction no longer works with the new trace format.
-                            val thinkingTrace = ThinkingStorageManagerSingleton.instance
-                                .finalizeAndGetThinking(activeSessionId)
-                                .ifBlank { null }
+                            val thinkingTrace =
+                                ThinkingStorageManagerSingleton.instance
+                                    .finalizeAndGetThinking(activeSessionId)
+                                    .ifBlank { null }
 
                             // Convert citations to JSON
-                            val citationsJson = if (collectedCitations.isNotEmpty()) {
-                                json.encodeToString(collectedCitations)
-                            } else {
-                                "[]"
-                            }
+                            val citationsJson =
+                                if (collectedCitations.isNotEmpty()) {
+                                    json.encodeToString(collectedCitations)
+                                } else {
+                                    "[]"
+                                }
 
                             chatRepository.saveMessage(
                                 userId = userId,
@@ -436,10 +452,10 @@ fun Application.configureChatRoutes() {
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
                                 thinking = thinkingTrace,
-                                toolCalls = citationsJson
+                                toolCalls = citationsJson,
                             )
                             call.application.log.info(
-                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}"
+                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}",
                             )
                         } catch (e: Exception) {
                             call.application.log.error("Failed to save assistant response: ${e.message}", e)
@@ -448,15 +464,20 @@ fun Application.configureChatRoutes() {
                 } catch (e: Exception) {
                     call.application.log.error("Agent execution failed", e)
                     try {
-                        send(ServerSentEvent(
-                            data = json.encodeToString(AgentEvent.Error(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                message = "An internal error occurred: ${e.message?.take(100) ?: "Unknown error"}",
-                                code = "INTERNAL_ERROR"
-                            )),
-                            event = "error"
-                        ))
+                        send(
+                            ServerSentEvent(
+                                data =
+                                    json.encodeToString(
+                                        AgentEvent.Error(
+                                            eventId = UUID.randomUUID().toString(),
+                                            timestamp = System.currentTimeMillis(),
+                                            message = "An internal error occurred: ${e.message?.take(100) ?: "Unknown error"}",
+                                            code = "INTERNAL_ERROR",
+                                        ),
+                                    ),
+                                event = "error",
+                            ),
+                        )
                     } catch (sendError: Exception) {
                         call.application.log.warn("Failed to send error SSE (client disconnected): ${sendError.message}")
                     }
@@ -494,101 +515,108 @@ fun Application.configureChatRoutes() {
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
                     // Create provider for this request
-                    val streamProvider = when (request.provider?.uppercase()) {
-                        "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, request.token)
-                        "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, request.token)
-                        "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
-                        "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, request.token)
-                        else -> LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
-                    }
+                    val streamProvider =
+                        when (request.provider?.uppercase()) {
+                            "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, request.token)
+                            "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, request.token)
+                            "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
+                            "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, request.token)
+                            else -> LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
+                        }
 
                     val streamSummarizer = ConversationSummarizer(streamProvider)
 
                     // Combine query with file context if present
-                    val fullQuery = if (!request.fileContext.isNullOrBlank()) {
-                        val attachmentDesc = request.attachments?.joinToString(", ") { "${it.type}: ${it.name}" } ?: "file"
-                        """
+                    val fullQuery =
+                        if (!request.fileContext.isNullOrBlank()) {
+                            val attachmentDesc = request.attachments?.joinToString(", ") { "${it.type}: ${it.name}" } ?: "file"
+                            """
                         |User uploaded: $attachmentDesc
                         |
                         |Extracted content:
                         |${request.fileContext}
                         |
                         |User's question: ${request.query}
-                        """.trimMargin()
-                    } else {
-                        request.query
-                    }
+                            """.trimMargin()
+                        } else {
+                            request.query
+                        }
 
                     // Handle Session Persistence
-                    val history = if (chatRepository != null) {
-                        if (sessionId.isNullOrBlank()) {
-                            sessionId = chatRepository.createSession(userId, "New Chat")
-                        }
+                    val history =
+                        if (chatRepository != null) {
+                            if (sessionId.isNullOrBlank()) {
+                                sessionId = chatRepository.createSession(userId, "New Chat")
+                            }
 
-                        // Save User Message
-                        if (request.query.isNotBlank()) {
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, fullQuery)
-                        }
+                            // Save User Message
+                            if (request.query.isNotBlank()) {
+                                chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, fullQuery)
+                            }
 
-                        chatRepository.getHistory(userId, sessionId!!)
-                    } else {
-                        emptyList()
-                    }
+                            chatRepository.getHistory(userId, sessionId!!)
+                        } else {
+                            emptyList()
+                        }
 
 // Collect events for response and citations
                     val events = mutableListOf<AgentEvent>()
                     val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
 
-                    val agent = ServerAgent(
-                        llmProvider = streamProvider,
-                        tavilyTool = tavilyTool,
-                        vectorStore = vectorStore,
-                        summarizer = streamSummarizer,
-                        noteRepository = noteRepository,
-                        timerRepository = timerRepository,
-                        calendarRepository = calendarRepository,
-                        eventEmitter = { event ->
-                            events.add(event)
-                            // Collect citations
-                            if (event is AgentEvent.Command) {
-                                val command = event.command
-                                if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
-                                    collectedCitations.addAll(command.citations)
+                    val agent =
+                        ServerAgent(
+                            llmProvider = streamProvider,
+                            tavilyTool = tavilyTool,
+                            vectorStore = vectorStore,
+                            summarizer = streamSummarizer,
+                            noteRepository = noteRepository,
+                            timerRepository = timerRepository,
+                            calendarRepository = calendarRepository,
+                            eventEmitter = { event ->
+                                events.add(event)
+                                // Collect citations
+                                if (event is AgentEvent.Command) {
+                                    val command = event.command
+                                    if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
+                                        collectedCitations.addAll(command.citations)
+                                    }
                                 }
-                            }
-                        },
-                        userId = userId
-                    )
+                            },
+                            userId = userId,
+                        )
 
                     // Register active session to prevent digest scheduler interference
                     val activeSessionId = sessionId ?: UUID.randomUUID().toString()
                     com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat_query")
 
                     try {
-                    val assistantResponse = agent.run(
-                        query = fullQuery,
-                        sessionId = activeSessionId,
-                        history = history,
-                        modelOverride = request.model,
-                        clientTimezone = request.timezone,
-                        clientTimeMillis = request.clientTime,
-                        personality = request.personality
-                    )
+                        val assistantResponse =
+                            agent.run(
+                                query = fullQuery,
+                                sessionId = activeSessionId,
+                                history = history,
+                                modelOverride = request.model,
+                                clientTimezone = request.timezone,
+                                clientTimeMillis = request.clientTime,
+                                personality = request.personality,
+                            )
 
                         // Save response with citations
                         if (chatRepository != null && assistantResponse.isNotEmpty()) {
                             // Retrieve the rich SMARTY_TRACE_V2 thinking trace persisted during
                             // streaming instead of regex-parsing deprecated <think> tags.
-                            val thinkingTrace = ThinkingStorageManagerSingleton.instance
-                                .finalizeAndGetThinking(activeSessionId)
-                                .ifBlank { null }
+                            val thinkingTrace =
+                                ThinkingStorageManagerSingleton.instance
+                                    .finalizeAndGetThinking(activeSessionId)
+                                    .ifBlank { null }
 
                             // Convert citations to JSON
-                            val citationsJson = if (collectedCitations.isNotEmpty()) {
-                                json.encodeToString(collectedCitations)
-                            } else {
-                                "[]"
-                            }
+                            val citationsJson =
+                                if (collectedCitations.isNotEmpty()) {
+                                    json.encodeToString(collectedCitations)
+                                } else {
+                                    "[]"
+                                }
 
                             chatRepository.saveMessage(
                                 userId = userId,
@@ -596,23 +624,25 @@ fun Application.configureChatRoutes() {
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
                                 thinking = thinkingTrace,
-                                toolCalls = citationsJson
+                                toolCalls = citationsJson,
                             )
                             call.application.log.info(
-                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}"
+                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}",
                             )
                         }
 
                         // Return all events
-                        call.respond(HttpStatusCode.OK, mapOf(
-                            "sessionId" to sessionId,
-                            "response" to assistantResponse,
-                            "events" to events.map { json.encodeToString(it) }
-                        ))
+                        call.respond(
+                            HttpStatusCode.OK,
+                            mapOf(
+                                "sessionId" to sessionId,
+                                "response" to assistantResponse,
+                                "events" to events.map { json.encodeToString(it) },
+                            ),
+                        )
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                     }
-
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
@@ -625,33 +655,35 @@ fun Application.configureChatRoutes() {
          * Returns all event types as JSON array.
          */
         get("/chat/events/test") {
-            val testEvents = listOf(
-                AgentEvent.Processing(
-                    eventId = "test-processing",
-                    timestamp = System.currentTimeMillis(),
-                    content = "Test processing content"
-                ),
-                AgentEvent.Command(
-                    eventId = "test-command",
-                    timestamp = System.currentTimeMillis(),
-                    command = AgentCommand.AddNote(
-                        commandId = "cmd-123",
-                        content = "Test Note Content",
-                        category = "Test"
-                    )
-                ),
-                AgentEvent.Result(
-                    eventId = "test-result",
-                    timestamp = System.currentTimeMillis(),
-                    content = "Test result content",
-                    isFinal = true
+            val testEvents =
+                listOf(
+                    AgentEvent.Processing(
+                        eventId = "test-processing",
+                        timestamp = System.currentTimeMillis(),
+                        content = "Test processing content",
+                    ),
+                    AgentEvent.Command(
+                        eventId = "test-command",
+                        timestamp = System.currentTimeMillis(),
+                        command =
+                            AgentCommand.AddNote(
+                                commandId = "cmd-123",
+                                content = "Test Note Content",
+                                category = "Test",
+                            ),
+                    ),
+                    AgentEvent.Result(
+                        eventId = "test-result",
+                        timestamp = System.currentTimeMillis(),
+                        content = "Test result content",
+                        isFinal = true,
+                    ),
                 )
-            )
 
             val json = Json { prettyPrint = true }
             call.respondText(
                 json.encodeToString(testEvents),
-                ContentType.Application.Json
+                ContentType.Application.Json,
             )
         }
 
@@ -671,11 +703,14 @@ fun Application.configureChatRoutes() {
 
             try {
                 chatRepository?.linkNoteToMessage(userId, messageId, noteId)
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "success" to true,
-                    "messageId" to messageId,
-                    "noteId" to noteId
-                ))
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "success" to true,
+                        "messageId" to messageId,
+                        "noteId" to noteId,
+                    ),
+                )
             } catch (e: IllegalAccessException) {
                 call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
             } catch (e: Exception) {
@@ -696,11 +731,14 @@ fun Application.configureChatRoutes() {
 
             try {
                 val success = chatRepository?.unlinkNoteFromMessage(userId, messageId, noteId) ?: false
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "success" to success,
-                    "messageId" to messageId,
-                    "noteId" to noteId
-                ))
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "success" to success,
+                        "messageId" to messageId,
+                        "noteId" to noteId,
+                    ),
+                )
             } catch (e: IllegalAccessException) {
                 call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
             } catch (e: Exception) {
@@ -720,11 +758,14 @@ fun Application.configureChatRoutes() {
 
             try {
                 val linkedNoteIds = chatRepository?.getLinkedNotes(userId, messageId) ?: emptyList()
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "messageId" to messageId,
-                    "linkedNoteIds" to linkedNoteIds,
-                    "count" to linkedNoteIds.size
-                ))
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "messageId" to messageId,
+                        "linkedNoteIds" to linkedNoteIds,
+                        "count" to linkedNoteIds.size,
+                    ),
+                )
             } catch (e: IllegalAccessException) {
                 call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
             } catch (e: Exception) {
@@ -745,11 +786,14 @@ fun Application.configureChatRoutes() {
 
             try {
                 val deletedCount = chatRepository?.deleteMessageAndAfter(userId, messageId) ?: 0
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "success" to true,
-                    "deletedCount" to deletedCount,
-                    "fromMessageId" to messageId
-                ))
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "success" to true,
+                        "deletedCount" to deletedCount,
+                        "fromMessageId" to messageId,
+                    ),
+                )
             } catch (e: IllegalAccessException) {
                 call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
             } catch (e: Exception) {
@@ -759,7 +803,7 @@ fun Application.configureChatRoutes() {
         }
 
         /**
-          * GET /chat/sessions/{sessionId}/summary
+         * GET /chat/sessions/{sessionId}/summary
          * Get a summary of the conversation in a session.
          */
         get("/chat/sessions/{sessionId}/summary") {
@@ -773,49 +817,55 @@ fun Application.configureChatRoutes() {
                     call.respond(HttpStatusCode.OK, mapOf("summary" to "No messages in this conversation yet."))
                     return@get
                 }
-                
+
                 val userMessages = messages.filter { it.role == com.example.smarty.server.llm.LlmMessage.Role.USER }
                 val assistantMessages = messages.filter { it.role == com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT }
-                
+
                 val summary = "Conversation with ${userMessages.size} messages from you and ${assistantMessages.size} responses."
-                
+
                 call.respond(HttpStatusCode.OK, mapOf("summary" to summary))
             } catch (e: Exception) {
                 call.application.log.error("Failed to generate summary", e)
                 call.respond(HttpStatusCode.InternalServerError, "Failed to generate summary")
             }
         }
-        
+
         /**
          * DEBUG endpoint - List all chat sessions for current user
          */
         get("/chat/debug/sessions") {
             val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
             val userId = user.userId
-            
+
             try {
                 if (chatRepository == null) {
                     call.respond(HttpStatusCode.OK, mapOf("error" to "chatRepository is null", "sessions" to emptyList<Any>()))
                     return@get
                 }
                 val sessions = chatRepository.listAllSessions(userId, limit = 100)
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "userId" to userId,
-                    "sessionCount" to sessions.size,
-                    "sessions" to sessions.map { mapOf(
-                        "id" to it.id.toString(),
-                        "title" to it.title,
-                        "messageCount" to it.messageCount,
-                        "createdAt" to it.createdAt.toString(),
-                        "updatedAt" to it.updatedAt.toString()
-                    )}
-                ))
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "userId" to userId,
+                        "sessionCount" to sessions.size,
+                        "sessions" to
+                            sessions.map {
+                                mapOf(
+                                    "id" to it.id.toString(),
+                                    "title" to it.title,
+                                    "messageCount" to it.messageCount,
+                                    "createdAt" to it.createdAt.toString(),
+                                    "updatedAt" to it.updatedAt.toString(),
+                                )
+                            },
+                    ),
+                )
             } catch (e: Exception) {
                 call.application.log.error("Debug sessions error", e)
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
             }
         }
-        
+
         /**
          * INTERRUPT endpoint - Cancel ongoing agent execution for a session
          * Users can use this to stop deep research or long-running agent tasks
@@ -823,31 +873,40 @@ fun Application.configureChatRoutes() {
         post("/chat/interrupt") {
             val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
             val userId = user.userId
-            
+
             val request = call.receive<InterruptRequest>()
             val sessionId = request.sessionId
-            
+
             try {
                 // Clear checkpoint to stop the agent
                 if (sessionId.isNotEmpty()) {
                     val persistenceManager = AgentPersistenceManager(userId)
                     persistenceManager.clearCheckpoint(sessionId)
-                    call.respond(HttpStatusCode.OK, InterruptResponse(
-                        success = true,
-                        message = "Agent interrupted for session $sessionId"
-                    ))
+                    call.respond(
+                        HttpStatusCode.OK,
+                        InterruptResponse(
+                            success = true,
+                            message = "Agent interrupted for session $sessionId",
+                        ),
+                    )
                 } else {
-                    call.respond(HttpStatusCode.BadRequest, InterruptResponse(
-                        success = false,
-                        message = "Invalid session ID"
-                    ))
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        InterruptResponse(
+                            success = false,
+                            message = "Invalid session ID",
+                        ),
+                    )
                 }
             } catch (e: Exception) {
                 call.application.log.error("Interrupt error", e)
-                call.respond(HttpStatusCode.InternalServerError, InterruptResponse(
-                    success = false,
-                    message = e.message ?: "Unknown error"
-                ))
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    InterruptResponse(
+                        success = false,
+                        message = e.message ?: "Unknown error",
+                    ),
+                )
             }
         }
     }
@@ -855,11 +914,11 @@ fun Application.configureChatRoutes() {
 
 @Serializable
 data class InterruptRequest(
-    val sessionId: String
+    val sessionId: String,
 )
 
 @Serializable
 data class InterruptResponse(
     val success: Boolean,
-    val message: String
+    val message: String,
 )

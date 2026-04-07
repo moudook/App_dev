@@ -1,11 +1,9 @@
 package com.example.smarty.core.common.util
 
 import okhttp3.CertificatePinner
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.MediaType
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -16,26 +14,25 @@ import javax.net.ssl.X509TrustManager
 
 /**
  * Singleton provider for shared OkHttpClient instances.
- * 
+ *
  * IMPROVEMENTS:
  * - Deduplicated trustAllCerts definition (single source of truth)
  * - Added FCM endpoint builder helper function
  * - Added extension functions for common HTTP operations
  * - Added request builder helpers for common API patterns
- * 
+ *
  * CRITICAL: Creating multiple OkHttpClient instances causes:
  * - Connection pool exhaustion
  * - Thread pool leaks
  * - Memory bloat
- * 
+ *
  * Always use these shared instances instead of creating new clients.
  */
 object HttpClientProvider {
-
     // ==================== Standardized Timeout Constants ====================
 
     const val CONNECT_TIMEOUT_SECONDS = 60L
-    const val READ_TIMEOUT_SECONDS = 300L  // 5 minutes for AI responses
+    const val READ_TIMEOUT_SECONDS = 300L // 5 minutes for AI responses
     const val WRITE_TIMEOUT_SECONDS = 120L
 
     const val QUICK_CONNECT_TIMEOUT_SECONDS = 3L
@@ -43,7 +40,7 @@ object HttpClientProvider {
     const val QUICK_WRITE_TIMEOUT_SECONDS = 5L
 
     const val LONG_CONNECT_TIMEOUT_SECONDS = 120L
-    const val LONG_READ_TIMEOUT_SECONDS = 600L  // 10 minutes
+    const val LONG_READ_TIMEOUT_SECONDS = 600L // 10 minutes
     const val LONG_WRITE_TIMEOUT_SECONDS = 300L
 
     // OPTIMIZATION: Pre-computed media types (internal visibility for extension functions)
@@ -53,25 +50,25 @@ object HttpClientProvider {
     /**
      * Certificate Pinner for key API domains.
      * Prevents Man-in-the-Middle (MITM) attacks by verifying the server's public key.
-     * 
+     *
      * SECURITY (v3.2.2): Production certificate pins enabled for all critical domains.
-     * 
+     *
      * PIN STRATEGY:
      * - Primary pin: Current production certificate
      * - Backup pin: Next certificate in rotation (prevents downtime during renewal)
      * - Algorithm: SHA-256 (industry standard)
-     * 
+     *
      * HOW TO UPDATE PINS:
      * 1. Extract pins using: openssl s_client -connect api.openai.com:443 -servername api.openai.com | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
      * 2. Add new pin BEFORE old pin expires
      * 3. Keep backup pin for 90 days after rotation
-     * 
+     *
      * DOMAINS PINNED:
      * - api.openai.com (OpenAI GPT API)
      * - api.anthropic.com (Anthropic Claude API)
      * - generativelanguage.googleapis.com (Google Gemini API)
      * - huggingface.co (Hugging Face Spaces deployment)
-     * 
+     *
      * VERIFICATION: Pins are verified on first connection and cached for 24 hours.
      */
     private val certificatePinner: CertificatePinner by lazy {
@@ -81,23 +78,18 @@ object HttpClientProvider {
             .add("api.openai.com", "sha256/1hMfHb750400D7X8qHxHbH5k5k5k5k5k5k5k5k5k5k5=")
             // Backup: Backup certificate for rotation
             .add("api.openai.com", "sha256/2iNgIc861511E8Y9rIyIcI6l6l6l6l6l6l6l6l6l6l6=")
-            
             // Anthropic (api.anthropic.com) - Production pins
             .add("api.anthropic.com", "sha256/3jOhJd972622F9Z0sJzJdJ7m7m7m7m7m7m7m7m7m7m7=")
             .add("api.anthropic.com", "sha256/4kPiKe083733G0A1tKaKeK8n8n8n8n8n8n8n8n8n8n8=")
-            
             // Google (generativelanguage.googleapis.com) - Production pins
             .add("generativelanguage.googleapis.com", "sha256/5lQjLf194844H1B2uLbLfL9o9o9o9o9o9o9o9o9o9o9=")
             .add("generativelanguage.googleapis.com", "sha256/6mRkMg205955I2C3vMcMgM0p0p0p0p0p0p0p0p0p0p0=")
-            
             // Hugging Face (huggingface.co) - Production pins
             .add("huggingface.co", "sha256/7nSlNh316066J3D4wNdNhN1q1q1q1q1q1q1q1q1q1q1=")
             .add("huggingface.co", "sha256/8oTmOi427177K4E5xOeOiO2r2r2r2r2r2r2r2r2r2r2=")
-            
             // Tavily API (api.tavily.com) - Production pins
             .add("api.tavily.com", "sha256/9pUnPj538288L5F6yPfPjP3s3s3s3s3s3s3s3s3s3s3=")
             .add("api.tavily.com", "sha256/0qVoQk649399M6G7zQgQkQ4t4t4t4t4t4t4t4t4t4t4=")
-            
             .build()
     }
 
@@ -161,10 +153,18 @@ object HttpClientProvider {
     private val trustAllCerts: Array<TrustManager> by lazy {
         arrayOf(
             object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkClientTrusted(
+                    chain: Array<X509Certificate>,
+                    authType: String,
+                ) {}
+
+                override fun checkServerTrusted(
+                    chain: Array<X509Certificate>,
+                    authType: String,
+                ) {}
+
                 override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            }
+            },
         )
     }
 
@@ -199,7 +199,7 @@ object HttpClientProvider {
     /**
      * OPTIMIZATION: Helper function to build FCM registration request.
      * Creates a properly configured POST request for FCM token registration.
-     * 
+     *
      * @param serverUrl Base server URL
      * @param token FCM token to register
      * @param userEmail User email for token association
@@ -215,20 +215,21 @@ object HttpClientProvider {
         deviceId: String,
         platform: String = "android",
         appVersion: String,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
     ): Request {
-        val jsonBody = buildString {
-            append("{")
-            append("\"fcmToken\":\"$token\"")
-            if (userEmail != null) {
-                append(",\"userEmail\":\"$userEmail\"")
+        val jsonBody =
+            buildString {
+                append("{")
+                append("\"fcmToken\":\"$token\"")
+                if (userEmail != null) {
+                    append(",\"userEmail\":\"$userEmail\"")
+                }
+                append(",\"deviceId\":\"$deviceId\"")
+                append(",\"platform\":\"$platform\"")
+                append(",\"appVersion\":\"$appVersion\"")
+                append(",\"timestamp\":$timestamp")
+                append("}")
             }
-            append(",\"deviceId\":\"$deviceId\"")
-            append(",\"platform\":\"$platform\"")
-            append(",\"appVersion\":\"$appVersion\"")
-            append(",\"timestamp\":$timestamp")
-            append("}")
-        }
 
         return Request.Builder()
             .url("$serverUrl/api/fcm/register")
@@ -242,7 +243,7 @@ object HttpClientProvider {
      */
     fun buildFcmUnregisterRequest(
         serverUrl: String,
-        token: String
+        token: String,
     ): Request {
         return Request.Builder()
             .url("$serverUrl/api/fcm/unregister?token=$token")
@@ -257,15 +258,16 @@ object HttpClientProvider {
         serverUrl: String,
         token: String,
         title: String,
-        body: String
+        body: String,
     ): Request {
-        val jsonBody = buildString {
-            append("{")
-            append("\"token\":\"$token\",")
-            append("\"title\":\"$title\",")
-            append("\"body\":\"$body\"")
-            append("}")
-        }
+        val jsonBody =
+            buildString {
+                append("{")
+                append("\"token\":\"$token\",")
+                append("\"title\":\"$title\",")
+                append("\"body\":\"$body\"")
+                append("}")
+            }
 
         return Request.Builder()
             .url("$serverUrl/api/fcm/test")
@@ -283,13 +285,14 @@ object HttpClientProvider {
  */
 suspend fun OkHttpClient.executeGet(
     url: String,
-    timeoutMs: Long = 30_000L
+    timeoutMs: Long = 30_000L,
 ): okhttp3.Response? {
     return kotlinx.coroutines.withTimeout(timeoutMs) {
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .get()
+                .build()
         newCall(request).execute()
     }
 }
@@ -300,13 +303,14 @@ suspend fun OkHttpClient.executeGet(
 suspend fun <T> OkHttpClient.executePostJson(
     url: String,
     body: String,
-    timeoutMs: Long = 30_000L
+    timeoutMs: Long = 30_000L,
 ): okhttp3.Response? {
     return kotlinx.coroutines.withTimeout(timeoutMs) {
-        val request = Request.Builder()
-            .url(url)
-            .post(body.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .post(body.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
+                .build()
         newCall(request).execute()
     }
 }
@@ -355,13 +359,25 @@ fun buildJsonBody(vararg pairs: Pair<String, Any?>): String {
 @JvmInline
 value class UrlBuilder(private val baseUrl: String) {
     fun appendPath(path: String): UrlBuilder = UrlBuilder("$baseUrl/$path")
-    fun appendQuery(key: String, value: String): UrlBuilder {
+
+    fun appendQuery(
+        key: String,
+        value: String,
+    ): UrlBuilder {
         val separator = if (baseUrl.contains("?")) "&" else "?"
         return UrlBuilder("$baseUrl$separator$key=${java.net.URLEncoder.encode(value, "UTF-8")}")
     }
-    fun appendQuery(key: String, value: Int): UrlBuilder = appendQuery(key, value.toString())
-    fun appendQuery(key: String, value: Long): UrlBuilder = appendQuery(key, value.toString())
-    
+
+    fun appendQuery(
+        key: String,
+        value: Int,
+    ): UrlBuilder = appendQuery(key, value.toString())
+
+    fun appendQuery(
+        key: String,
+        value: Long,
+    ): UrlBuilder = appendQuery(key, value.toString())
+
     fun build(): String = baseUrl
 }
 

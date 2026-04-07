@@ -11,11 +11,11 @@ import javax.sql.DataSource
 
 /**
  * Generic repository base class providing common CRUD operations.
- * 
+ *
  * This class eliminates duplication across NoteRepository, ChatRepository,
  * CalendarRepository, TimerRepository, and other repositories by providing
  * reusable database operation templates.
- * 
+ *
  * Usage:
  * ```
  * class NoteRepository(dataSource: DataSource) : GenericRepository<NoteEntity>(dataSource, "notes") {
@@ -26,7 +26,7 @@ import javax.sql.DataSource
  */
 abstract class GenericRepository<T : Entity>(
     protected val dataSource: DataSource,
-    protected val tableName: String
+    protected val tableName: String,
 ) {
     protected val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -47,20 +47,22 @@ abstract class GenericRepository<T : Entity>(
     protected fun <R> withStatement(
         conn: Connection,
         sql: String,
-        block: (PreparedStatement) -> R
-    ): R = conn.prepareStatement(sql).use { stmt ->
-        block(stmt)
-    }
+        block: (PreparedStatement) -> R,
+    ): R =
+        conn.prepareStatement(sql).use { stmt ->
+            block(stmt)
+        }
 
     /**
      * Execute a query and process the result set.
      */
     protected fun <R> withResultSet(
         stmt: PreparedStatement,
-        block: (ResultSet) -> R
-    ): R = stmt.executeQuery().use { rs ->
-        block(rs)
-    }
+        block: (ResultSet) -> R,
+    ): R =
+        stmt.executeQuery().use { rs ->
+            block(rs)
+        }
 
     /**
      * Get all entities for a user with pagination.
@@ -69,28 +71,30 @@ abstract class GenericRepository<T : Entity>(
         userId: String,
         limit: Int = 50,
         offset: Int = 0,
-        orderBy: String = "updated_at DESC"
-    ): List<T> = withConnection { conn ->
-        val sql = """
-            SELECT * FROM $tableName
-            WHERE user_id = ? AND deleted_at IS NULL
-            ORDER BY $orderBy
-            LIMIT ? OFFSET ?
-        """.trimIndent()
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(userId))
-            stmt.setInt(2, limit)
-            stmt.setInt(3, offset)
-            stmt.executeQuery().use { rs ->
-                val results = mutableListOf<T>()
-                while (rs.next()) {
-                    results.add(mapRow(rs))
+        orderBy: String = "updated_at DESC",
+    ): List<T> =
+        withConnection { conn ->
+            val sql =
+                """
+                SELECT * FROM $tableName
+                WHERE user_id = ? AND deleted_at IS NULL
+                ORDER BY $orderBy
+                LIMIT ? OFFSET ?
+                """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setInt(2, limit)
+                stmt.setInt(3, offset)
+                stmt.executeQuery().use { rs ->
+                    val results = mutableListOf<T>()
+                    while (rs.next()) {
+                        results.add(mapRow(rs))
+                    }
+                    results
                 }
-                results
             }
         }
-    }
 
     /**
      * Get entities updated after a timestamp (for delta sync).
@@ -98,87 +102,106 @@ abstract class GenericRepository<T : Entity>(
     suspend fun getUpdatedAfter(
         userId: String,
         timestamp: Long,
-        limit: Int = 50
-    ): List<T> = withConnection { conn ->
-        val sql = """
-            SELECT * FROM $tableName
-            WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0) AND deleted_at IS NULL
-            ORDER BY updated_at DESC
-            LIMIT ?
-        """.trimIndent()
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(userId))
-            stmt.setLong(2, timestamp)
-            stmt.setInt(3, limit)
-            stmt.executeQuery().use { rs ->
-                val results = mutableListOf<T>()
-                while (rs.next()) {
-                    results.add(mapRow(rs))
+        limit: Int = 50,
+    ): List<T> =
+        withConnection { conn ->
+            val sql =
+                """
+                SELECT * FROM $tableName
+                WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0) AND deleted_at IS NULL
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setLong(2, timestamp)
+                stmt.setInt(3, limit)
+                stmt.executeQuery().use { rs ->
+                    val results = mutableListOf<T>()
+                    while (rs.next()) {
+                        results.add(mapRow(rs))
+                    }
+                    results
                 }
-                results
             }
         }
-    }
 
     /**
      * Get a single entity by ID.
      */
-    suspend fun getById(userId: String, id: String): T? = withConnection { conn ->
-        val sql = """
-            SELECT * FROM $tableName
-            WHERE id = ? AND user_id = ? AND deleted_at IS NULL
-        """.trimIndent()
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(id))
-            stmt.setObject(2, UUID.fromString(userId))
-            stmt.executeQuery().use { rs ->
-                if (rs.next()) mapRow(rs) else null
+    suspend fun getById(
+        userId: String,
+        id: String,
+    ): T? =
+        withConnection { conn ->
+            val sql =
+                """
+                SELECT * FROM $tableName
+                WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+                """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(id))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) mapRow(rs) else null
+                }
             }
         }
-    }
 
     /**
      * Check if an entity exists.
      */
-    suspend fun exists(userId: String, id: String): Boolean = withConnection { conn ->
-        val sql = "SELECT 1 FROM $tableName WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(id))
-            stmt.setObject(2, UUID.fromString(userId))
-            stmt.executeQuery().use { rs ->
-                rs.next()
+    suspend fun exists(
+        userId: String,
+        id: String,
+    ): Boolean =
+        withConnection { conn ->
+            val sql = "SELECT 1 FROM $tableName WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(id))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.executeQuery().use { rs ->
+                    rs.next()
+                }
             }
         }
-    }
 
     /**
      * Soft delete an entity.
      */
-    suspend fun delete(userId: String, id: String): Boolean = withConnection { conn ->
-        val sql = "UPDATE $tableName SET deleted_at = now(), updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(id))
-            stmt.setObject(2, UUID.fromString(userId))
-            stmt.executeUpdate() > 0
+    suspend fun delete(
+        userId: String,
+        id: String,
+    ): Boolean =
+        withConnection { conn ->
+            val sql = "UPDATE $tableName SET deleted_at = now(), updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(id))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.executeUpdate() > 0
+            }
         }
-    }
 
     /**
      * Hard delete an entity (use with caution).
      */
-    suspend fun hardDelete(userId: String, id: String): Boolean = withConnection { conn ->
-        val sql = "DELETE FROM $tableName WHERE id = ? AND user_id = ?"
-        
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.setObject(1, UUID.fromString(id))
-            stmt.setObject(2, UUID.fromString(userId))
-            stmt.executeUpdate() > 0
+    suspend fun hardDelete(
+        userId: String,
+        id: String,
+    ): Boolean =
+        withConnection { conn ->
+            val sql = "DELETE FROM $tableName WHERE id = ? AND user_id = ?"
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(id))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.executeUpdate() > 0
+            }
         }
-    }
 
     /**
      * Execute a transaction.
@@ -220,11 +243,12 @@ interface Entity {
 /**
  * Extension function to safely convert string to UUID.
  */
-fun String.toUuid(): UUID = try {
-    UUID.fromString(this)
-} catch (e: IllegalArgumentException) {
-    throw IllegalArgumentException("Invalid UUID format: $this", e)
-}
+fun String.toUuid(): UUID =
+    try {
+        UUID.fromString(this)
+    } catch (e: IllegalArgumentException) {
+        throw IllegalArgumentException("Invalid UUID format: $this", e)
+    }
 
 /**
  * Extension function to safely convert string to UUID?, handling nulls.

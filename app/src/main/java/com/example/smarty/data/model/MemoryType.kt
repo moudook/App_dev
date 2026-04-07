@@ -11,5 +11,5 @@ enum class MemoryType {
     CONVERSATION_CONTEXT,
     TASK,
     SUMMARY,
-    OTHER
+    OTHER,
 }

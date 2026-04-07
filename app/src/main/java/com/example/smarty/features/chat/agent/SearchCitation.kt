@@ -7,5 +7,5 @@ package com.example.smarty.features.chat.agent
 data class SearchCitation(
     val title: String,
     val url: String,
-    val snippet: String
+    val snippet: String,
 )

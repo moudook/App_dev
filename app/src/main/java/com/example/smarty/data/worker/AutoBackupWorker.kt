@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.work.*
 import com.example.smarty.data.backup.AutoBackupConfig
 import com.example.smarty.data.backup.BackupManager
-import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.DriveService
 import com.example.smarty.data.remote.GoogleAuthManager
 import kotlinx.coroutines.Dispatchers
@@ -24,9 +24,8 @@ import java.util.concurrent.TimeUnit
  */
 class AutoBackupWorker(
     private val context: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
 ) : CoroutineWorker(context, workerParams) {
-
     companion object {
         private const val WORK_NAME = "Smarty_auto_backup"
         private const val TAG = "AutoBackupWorker"
@@ -37,29 +36,34 @@ class AutoBackupWorker(
          * @param context Application context
          * @param intervalDays Days between backups (default 100)
          */
-        fun schedule(context: Context, intervalDays: Int = AutoBackupConfig.DEFAULT_BACKUP_INTERVAL_DAYS) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .setRequiresBatteryNotLow(true)
-                .build()
+        fun schedule(
+            context: Context,
+            intervalDays: Int = AutoBackupConfig.DEFAULT_BACKUP_INTERVAL_DAYS,
+        ) {
+            val constraints =
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .setRequiresBatteryNotLow(true)
+                    .build()
 
-            val workRequest = PeriodicWorkRequestBuilder<AutoBackupWorker>(
-                intervalDays.toLong(),
-                TimeUnit.DAYS
-            )
-                .setConstraints(constraints)
-                .setBackoffCriteria(
-                    BackoffPolicy.EXPONENTIAL,
-                    WorkRequest.MIN_BACKOFF_MILLIS,
-                    TimeUnit.MILLISECONDS
+            val workRequest =
+                PeriodicWorkRequestBuilder<AutoBackupWorker>(
+                    intervalDays.toLong(),
+                    TimeUnit.DAYS,
                 )
-                .addTag(TAG)
-                .build()
+                    .setConstraints(constraints)
+                    .setBackoffCriteria(
+                        BackoffPolicy.EXPONENTIAL,
+                        WorkRequest.MIN_BACKOFF_MILLIS,
+                        TimeUnit.MILLISECONDS,
+                    )
+                    .addTag(TAG)
+                    .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
+                workRequest,
             )
         }
 
@@ -74,14 +78,16 @@ class AutoBackupWorker(
          * Run backup immediately (for testing or manual trigger).
          */
         fun runNow(context: Context) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
+            val constraints =
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
 
-            val workRequest = OneTimeWorkRequestBuilder<AutoBackupWorker>()
-                .setConstraints(constraints)
-                .addTag(TAG)
-                .build()
+            val workRequest =
+                OneTimeWorkRequestBuilder<AutoBackupWorker>()
+                    .setConstraints(constraints)
+                    .addTag(TAG)
+                    .build()
 
             WorkManager.getInstance(context).enqueue(workRequest)
         }
@@ -89,13 +95,15 @@ class AutoBackupWorker(
         /**
          * Check if auto-backup is currently scheduled.
          */
-        suspend fun isScheduled(context: Context): Boolean = withContext(Dispatchers.IO) {
-            val workInfos = WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWork(WORK_NAME)
-                .get()
+        suspend fun isScheduled(context: Context): Boolean =
+            withContext(Dispatchers.IO) {
+                val workInfos =
+                    WorkManager.getInstance(context)
+                        .getWorkInfosForUniqueWork(WORK_NAME)
+                        .get()
 
-            workInfos.any { !it.state.isFinished }
-        }
+                workInfos.any { !it.state.isFinished }
+            }
     }
 
     override suspend fun doWork(): Result {
@@ -124,13 +132,14 @@ class AutoBackupWorker(
 
             val database = SmartyDatabase.getDatabase(context)
             val driveService = DriveService(context, authManager)
-            val backupManager = BackupManager(
-                context = context,
-                database = database,
-                securePreferences = securePreferences,
-                driveService = driveService,
-                authManager = authManager
-            )
+            val backupManager =
+                BackupManager(
+                    context = context,
+                    database = database,
+                    securePreferences = securePreferences,
+                    driveService = driveService,
+                    authManager = authManager,
+                )
 
             // Perform backup
             val result = backupManager.createBackup()

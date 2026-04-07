@@ -6,5 +6,5 @@ data class DocumentChunk(
     val content: String,
     val charCount: Int,
     val startPosition: Int,
-    val endPosition: Int
+    val endPosition: Int,
 )

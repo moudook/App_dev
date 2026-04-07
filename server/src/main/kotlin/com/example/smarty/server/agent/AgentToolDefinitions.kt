@@ -6,18 +6,18 @@ import com.example.smarty.server.llm.ToolProperty
 
 /**
  * Tool Definitions for ServerAgent.
- * 
+ *
  * Single Responsibility: Only defines tool schemas.
  * Extracted from ServerAgent.kt to reduce complexity.
  */
 object AgentToolDefinitions {
-    
     /**
      * Memory tool for managing user's personal knowledge base.
      */
-    val memoryTool: ToolDefinition = ToolDefinition(
-        name = "memory",
-        description = """Manage user's personal knowledge base - notes, facts, and memories.
+    val memoryTool: ToolDefinition =
+        ToolDefinition(
+            name = "memory",
+            description = """Manage user's personal knowledge base - notes, facts, and memories.
 
 ACTIONS:
 - save: Store new information (title, content, category optional)
@@ -32,27 +32,30 @@ EXAMPLES:
 - memory(action='remember', fact='User prefers dark mode', type='preference')
 
 Use for: remembering, saving, searching, managing user's personal data.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: save|find|update|delete|remember", enum = listOf("save", "find", "update", "delete", "remember")),
-                "title" to ToolProperty("string", "Title for saved content (save action)"),
-                "content" to ToolProperty("string", "Content to save (save action)"),
-                "category" to ToolProperty("string", "Optional category (save/find actions)"),
-                "query" to ToolProperty("string", "Search query (find action)"),
-                "id" to ToolProperty("string", "Entry ID (update/delete actions)"),
-                "fact" to ToolProperty("string", "Fact to remember (remember action)"),
-                "type" to ToolProperty("string", "Fact type: preference|factual|episodic", enum = listOf("preference", "factual", "episodic"))
-            ),
-            required = listOf("action")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: save|find|update|delete|remember", enum = listOf("save", "find", "update", "delete", "remember")),
+                            "title" to ToolProperty("string", "Title for saved content (save action)"),
+                            "content" to ToolProperty("string", "Content to save (save action)"),
+                            "category" to ToolProperty("string", "Optional category (save/find actions)"),
+                            "query" to ToolProperty("string", "Search query (find action)"),
+                            "id" to ToolProperty("string", "Entry ID (update/delete actions)"),
+                            "fact" to ToolProperty("string", "Fact to remember (remember action)"),
+                            "type" to ToolProperty("string", "Fact type: preference|factual|episodic", enum = listOf("preference", "factual", "episodic")),
+                        ),
+                    required = listOf("action"),
+                ),
         )
-    )
-    
+
     /**
      * Schedule tool for managing calendar events.
      */
-    val scheduleTool: ToolDefinition = ToolDefinition(
-        name = "schedule",
-        description = """Manage calendar events - add, list, or remove events.
+    val scheduleTool: ToolDefinition =
+        ToolDefinition(
+            name = "schedule",
+            description = """Manage calendar events - add, list, or remove events.
 
 ACTIONS:
 - add: Create new event (title, when, duration optional, description optional)
@@ -65,25 +68,28 @@ EXAMPLES:
 - schedule(action='remove', id='abc123')
 
 Use for: scheduling, calendar, time management.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: add|list|remove", enum = listOf("add", "list", "remove")),
-                "title" to ToolProperty("string", "Event name (add action)"),
-                "when" to ToolProperty("string", "When: natural language like 'tomorrow 2pm', 'Friday', 'Dec 25'"),
-                "duration" to ToolProperty("string", "Duration: '1 hour', '30 min' (add action)"),
-                "description" to ToolProperty("string", "Extra details (add action)"),
-                "id" to ToolProperty("string", "Event ID (remove action)")
-            ),
-            required = listOf("action")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: add|list|remove", enum = listOf("add", "list", "remove")),
+                            "title" to ToolProperty("string", "Event name (add action)"),
+                            "when" to ToolProperty("string", "When: natural language like 'tomorrow 2pm', 'Friday', 'Dec 25'"),
+                            "duration" to ToolProperty("string", "Duration: '1 hour', '30 min' (add action)"),
+                            "description" to ToolProperty("string", "Extra details (add action)"),
+                            "id" to ToolProperty("string", "Event ID (remove action)"),
+                        ),
+                    required = listOf("action"),
+                ),
         )
-    )
-    
+
     /**
      * Remind tool for setting timers and alarms.
      */
-    val remindTool: ToolDefinition = ToolDefinition(
-        name = "remind",
-        description = """Set timers, alarms, and reminders.
+    val remindTool: ToolDefinition =
+        ToolDefinition(
+            name = "remind",
+            description = """Set timers, alarms, and reminders.
 
 ACTIONS:
 - set: Create reminder (what, when, repeat optional)
@@ -96,24 +102,27 @@ EXAMPLES:
 - remind(action='set', what='Take vitamins', when='every day 8am', repeat='daily')
 
 Use for: timers, alarms, recurring reminders.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: set|list|cancel", enum = listOf("set", "list", "cancel")),
-                "what" to ToolProperty("string", "What to remind about (set action)"),
-                "when" to ToolProperty("string", "When: 'in 10 min', 'at 7am', 'tomorrow 3pm'"),
-                "repeat" to ToolProperty("string", "Repeat: daily|weekdays|weekly|monthly (optional)"),
-                "id" to ToolProperty("string", "Reminder ID (cancel action)")
-            ),
-            required = listOf("action")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: set|list|cancel", enum = listOf("set", "list", "cancel")),
+                            "what" to ToolProperty("string", "What to remind about (set action)"),
+                            "when" to ToolProperty("string", "When: 'in 10 min', 'at 7am', 'tomorrow 3pm'"),
+                            "repeat" to ToolProperty("string", "Repeat: daily|weekdays|weekly|monthly (optional)"),
+                            "id" to ToolProperty("string", "Reminder ID (cancel action)"),
+                        ),
+                    required = listOf("action"),
+                ),
         )
-    )
-    
+
     /**
      * Device tool for controlling phone apps and settings.
      */
-    val deviceTool: ToolDefinition = ToolDefinition(
-        name = "device",
-        description = """Control phone - apps, media, settings, and device status.
+    val deviceTool: ToolDefinition =
+        ToolDefinition(
+            name = "device",
+            description = """Control phone - apps, media, settings, and device status.
 
 ACTIONS:
 - open: Launch app (app: name)
@@ -130,25 +139,28 @@ EXAMPLES:
 - device(action='capture')
 
 Use for: opening apps, media control, settings, device status.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: open|media|toggle|status|capture", enum = listOf("open", "media", "toggle", "status", "capture")),
-                "app" to ToolProperty("string", "App name to open (open action)"),
-                "actionType" to ToolProperty("string", "Media action: play|pause|stop|next|previous|volume_up|volume_down", enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")),
-                "setting" to ToolProperty("string", "Setting: wifi|bluetooth|flashlight|dnd|airplane", enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")),
-                "on" to ToolProperty("boolean", "true=ON, false=OFF (toggle action)"),
-                "info" to ToolProperty("string", "Info type: battery|storage|network|all", enum = listOf("battery", "storage", "network", "all"))
-            ),
-            required = listOf("action")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: open|media|toggle|status|capture", enum = listOf("open", "media", "toggle", "status", "capture")),
+                            "app" to ToolProperty("string", "App name to open (open action)"),
+                            "actionType" to ToolProperty("string", "Media action: play|pause|stop|next|previous|volume_up|volume_down", enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")),
+                            "setting" to ToolProperty("string", "Setting: wifi|bluetooth|flashlight|dnd|airplane", enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")),
+                            "on" to ToolProperty("boolean", "true=ON, false=OFF (toggle action)"),
+                            "info" to ToolProperty("string", "Info type: battery|storage|network|all", enum = listOf("battery", "storage", "network", "all")),
+                        ),
+                    required = listOf("action"),
+                ),
         )
-    )
-    
+
     /**
      * Search tool for web searches.
      */
-    val searchTool: ToolDefinition = ToolDefinition(
-        name = "search",
-        description = """Search the internet for information.
+    val searchTool: ToolDefinition =
+        ToolDefinition(
+            name = "search",
+            description = """Search the internet for information.
 
 ACTIONS:
 - web: Search for anything (query)
@@ -168,21 +180,24 @@ EXAMPLES:
 - search(action='web', query='SEARCH: best productivity apps\nSEARCH: note-taking apps comparison')
 
 Use for: web searches, weather, news, facts, current events, research.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
-                "query" to ToolProperty("string", "What to search for. For multiple parallel searches, use format:\nSEARCH: query 1\nSEARCH: query 2\nSEARCH: query 3")
-            ),
-            required = listOf("action", "query")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
+                            "query" to ToolProperty("string", "What to search for. For multiple parallel searches, use format:\nSEARCH: query 1\nSEARCH: query 2\nSEARCH: query 3"),
+                        ),
+                    required = listOf("action", "query"),
+                ),
         )
-    )
-    
+
     /**
      * Navigate tool for app navigation and sharing.
      */
-    val navigateTool: ToolDefinition = ToolDefinition(
-        name = "navigate",
-        description = """Navigate within app or share content externally.
+    val navigateTool: ToolDefinition =
+        ToolDefinition(
+            name = "navigate",
+            description = """Navigate within app or share content externally.
 
 ACTIONS:
 - go: Navigate to screen (screen: home|calendar|stacks|archive|settings)
@@ -193,23 +208,26 @@ EXAMPLES:
 - navigate(action='share', content='Check this out!', title='Interesting')
 
 Use for: screen navigation, sharing to other apps.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "action" to ToolProperty("string", "Action: go|share", enum = listOf("go", "share")),
-                "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings", enum = listOf("home", "calendar", "stacks", "archive", "settings")),
-                "content" to ToolProperty("string", "Content to share (share action)"),
-                "title" to ToolProperty("string", "Share title (share action, optional)")
-            ),
-            required = listOf("action")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "action" to ToolProperty("string", "Action: go|share", enum = listOf("go", "share")),
+                            "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings", enum = listOf("home", "calendar", "stacks", "archive", "settings")),
+                            "content" to ToolProperty("string", "Content to share (share action)"),
+                            "title" to ToolProperty("string", "Share title (share action, optional)"),
+                        ),
+                    required = listOf("action"),
+                ),
         )
-    )
-    
+
     /**
      * Tool for generating images based on text prompts.
      */
-    val generateImageTool: ToolDefinition = ToolDefinition(
-        name = "generate_image",
-        description = """Act as a Master Art Director to generate high-quality images using Krea AI.
+    val generateImageTool: ToolDefinition =
+        ToolDefinition(
+            name = "generate_image",
+            description = """Act as a Master Art Director to generate high-quality images using Krea AI.
             When the user asks for an image, imagine the scene, understand the story, and visualize the composition.
             Create a highly detailed, professional prompt specifying camera angles, lighting, realistic textures, and specific aesthetics to achieve a hyper-realistic, high-fashion, or candid look.
             
@@ -229,22 +247,25 @@ EXAMPLES:
 - generate_image(prompt='Caught in the cracked reflection of an old bedroom mirror, the freckled redhead girl leans in close, carefully applying a glossy lip gloss that gleams under the soft direct flash. Her velour pink tracksuit top is sprinkled with subtle rhinestone details... —casual candid early-2000s Y2K snapshot, grainy low-res softness', aspect_ratio='9:16')
 
 Use for: generating images, creating artwork, visualizing scenes, drawing, painting.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "prompt" to ToolProperty("string", "Detailed description of the image to generate"),
-                "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1|16:9|9:16|4:3|3:4", enum = listOf("1:1", "16:9", "9:16", "4:3", "3:4"))
-            ),
-            required = listOf("prompt")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "prompt" to ToolProperty("string", "Detailed description of the image to generate"),
+                            "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1|16:9|9:16|4:3|3:4", enum = listOf("1:1", "16:9", "9:16", "4:3", "3:4")),
+                        ),
+                    required = listOf("prompt"),
+                ),
         )
-    )
 
     /**
      * Ask user tool for structured questions (multiple choice).
      * Sends a Question event to the client which renders interactive cards.
      */
-    val askUserTool: ToolDefinition = ToolDefinition(
-        name = "ask_user",
-        description = """Ask the user a structured question with multiple choice options.
+    val askUserTool: ToolDefinition =
+        ToolDefinition(
+            name = "ask_user",
+            description = """Ask the user a structured question with multiple choice options.
 
 Use this when you need clarification, preferences, or choices from the user.
 The question will appear as interactive cards in the chat.
@@ -261,24 +282,27 @@ EXAMPLES:
 - ask_user(question='Which time works best?', options=['Morning (9am)', 'Afternoon (2pm)', 'Evening (6pm)'], allow_custom=false)
 
 Use for: clarification, preference gathering, scoping research, multi-choice decisions.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "question" to ToolProperty("string", "The question to ask the user"),
-                "options" to ToolProperty("array", "List of 2-5 multiple choice options"),
-                "allow_custom" to ToolProperty("boolean", "Whether to allow free-text input (default: false)")
-            ),
-            required = listOf("question", "options")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "question" to ToolProperty("string", "The question to ask the user"),
+                            "options" to ToolProperty("array", "List of 2-5 multiple choice options"),
+                            "allow_custom" to ToolProperty("boolean", "Whether to allow free-text input (default: false)"),
+                        ),
+                    required = listOf("question", "options"),
+                ),
         )
-    )
 
     /**
      * Get note by ID tool for embedding clickable note cards in AI responses.
      * Sends a NoteBlock event to the client which renders interactive note cards.
      * The note card can be tapped to open full note details in a bottom sheet.
      */
-    val getNoteByIdTool: ToolDefinition = ToolDefinition(
-        name = "get_note_by_id",
-        description = """Retrieve a specific note by its ID to embed as a clickable card in your response.
+    val getNoteByIdTool: ToolDefinition =
+        ToolDefinition(
+            name = "get_note_by_id",
+            description = """Retrieve a specific note by its ID to embed as a clickable card in your response.
 
 Use this when you want to reference a specific note in your response. The client will 
 display an interactive note card that users can tap to view full note details.
@@ -293,27 +317,67 @@ EXAMPLES:
 - get_note_by_id(note_id='xyz-456', snippet='Recipe for homemade pasta sauce')
 
 Use for: referencing specific notes, showing relevant saved information, citing user data.""",
-        parameters = ToolParameters(
-            properties = mapOf(
-                "note_id" to ToolProperty("string", "The unique ID of the note to retrieve"),
-                "snippet" to ToolProperty("string", "Brief summary or excerpt from the note (1-2 sentences)")
-            ),
-            required = listOf("note_id", "snippet")
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "note_id" to ToolProperty("string", "The unique ID of the note to retrieve"),
+                            "snippet" to ToolProperty("string", "Brief summary or excerpt from the note (1-2 sentences)"),
+                        ),
+                    required = listOf("note_id", "snippet"),
+                ),
         )
-    )
-    
+
+    /**
+     * Search chat history tool for finding previous conversations.
+     * Allows the agent to search through the user's entire chat history.
+     */
+    val searchHistoryTool: ToolDefinition =
+        ToolDefinition(
+            name = "search_history",
+            description = """Search through the user's chat history and previous conversations.
+
+Use this when you need to:
+- Find previous discussions or context from earlier chats
+- Look up something the user mentioned in a different conversation
+- Reference past decisions or information
+- Find notes, facts, or details the user previously shared
+
+EXAMPLES:
+- search_history(query='project deadline')
+- search_history(query='meeting notes from last week')
+- search_history(query='password')
+- search_history(query='doctor appointment')
+
+This tool searches across ALL chat sessions, not just the current one.
+Results are ranked by relevance.
+
+Use for: finding past context, recalling previous discussions, looking up user history.""",
+            parameters =
+                ToolParameters(
+                    properties =
+                        mapOf(
+                            "query" to ToolProperty("string", "Search query to find in chat history"),
+                            "limit" to ToolProperty("number", "Maximum number of results to return (default: 10)"),
+                        ),
+                    required = listOf("query"),
+                ),
+        )
+
     /**
      * Get all standard tools.
      */
-    fun getAllTools(): List<ToolDefinition> = listOf(
-        memoryTool,
-        scheduleTool,
-        remindTool,
-        deviceTool,
-        searchTool,
-        navigateTool,
-        generateImageTool,
-        askUserTool,
-        getNoteByIdTool
-    )
+    fun getAllTools(): List<ToolDefinition> =
+        listOf(
+            memoryTool,
+            scheduleTool,
+            remindTool,
+            deviceTool,
+            searchTool,
+            navigateTool,
+            generateImageTool,
+            askUserTool,
+            getNoteByIdTool,
+            searchHistoryTool,
+        )
 }

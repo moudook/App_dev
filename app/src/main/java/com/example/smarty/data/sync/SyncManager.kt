@@ -4,12 +4,10 @@ import android.util.Log
 import com.example.smarty.core.domain.model.getTags
 import com.example.smarty.data.local.*
 import com.example.smarty.data.remote.RemoteAgentService
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.util.concurrent.TimeUnit
 
 /**
  * =============================================================================
@@ -43,7 +41,9 @@ import java.util.concurrent.TimeUnit
  */
 sealed class SyncResult {
     data class Success(val serverTimestamp: Long) : SyncResult()
+
     data class Conflict(val serverData: String, val localData: String) : SyncResult()
+
     data class Error(val message: String, val retryable: Boolean) : SyncResult()
 }
 
@@ -56,7 +56,7 @@ data class SyncStatus(
     val failedCount: Int = 0,
     val conflictCount: Int = 0,
     val lastSyncTime: Long = 0,
-    val lastError: String? = null
+    val lastError: String? = null,
 ) {
     val isSynced: Boolean get() = pendingCount == 0 && failedCount == 0 && conflictCount == 0
     val hasIssues: Boolean get() = failedCount > 0 || conflictCount > 0
@@ -70,7 +70,7 @@ class SyncManager(
     private val noteDao: NoteDao,
     private val calendarDao: CalendarDao,
     private val remoteAgentService: RemoteAgentService,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
     companion object {
         private const val TAG = "SyncManager"
@@ -92,16 +92,17 @@ class SyncManager(
     fun startPeriodicSync() {
         if (syncJob?.isActive == true) return
 
-        syncJob = syncScope.launch {
-            while (isActive) {
-                try {
-                    processSyncQueue()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Sync error: ${e.message}", e)
+        syncJob =
+            syncScope.launch {
+                while (isActive) {
+                    try {
+                        processSyncQueue()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Sync error: ${e.message}", e)
+                    }
+                    delay(SYNC_INTERVAL_MS)
                 }
-                delay(SYNC_INTERVAL_MS)
             }
-        }
         Log.i(TAG, "Periodic sync started")
     }
 
@@ -132,20 +133,22 @@ class SyncManager(
      */
     suspend fun enqueueNoteOperation(
         operation: SyncOperation,
-        note: com.example.smarty.core.domain.model.Note
+        note: com.example.smarty.core.domain.model.Note,
     ) {
-        val payload = json.encodeToString(
-            kotlinx.serialization.serializer(),
-            NotePayload.fromNote(note)
-        )
+        val payload =
+            json.encodeToString(
+                kotlinx.serialization.serializer(),
+                NotePayload.fromNote(note),
+            )
 
-        val item = SyncQueueItem.create(
-            operation = operation,
-            entityType = SyncEntityType.NOTE,
-            entityId = note.id,
-            payloadJson = payload,
-            baseVersion = note.updatedAt
-        )
+        val item =
+            SyncQueueItem.create(
+                operation = operation,
+                entityType = SyncEntityType.NOTE,
+                entityId = note.id,
+                payloadJson = payload,
+                baseVersion = note.updatedAt,
+            )
 
         syncQueueDao.insert(item)
         updateStatus()
@@ -157,20 +160,22 @@ class SyncManager(
      */
     suspend fun enqueueEventOperation(
         operation: SyncOperation,
-        event: com.example.smarty.core.domain.model.CalendarEvent
+        event: com.example.smarty.core.domain.model.CalendarEvent,
     ) {
-        val payload = json.encodeToString(
-            kotlinx.serialization.serializer(),
-            EventPayload.fromEvent(event)
-        )
+        val payload =
+            json.encodeToString(
+                kotlinx.serialization.serializer(),
+                EventPayload.fromEvent(event),
+            )
 
-        val item = SyncQueueItem.create(
-            operation = operation,
-            entityType = SyncEntityType.EVENT,
-            entityId = event.id,
-            payloadJson = payload,
-            baseVersion = event.updatedAt
-        )
+        val item =
+            SyncQueueItem.create(
+                operation = operation,
+                entityType = SyncEntityType.EVENT,
+                entityId = event.id,
+                payloadJson = payload,
+                baseVersion = event.updatedAt,
+            )
 
         syncQueueDao.insert(item)
         updateStatus()
@@ -202,7 +207,6 @@ class SyncManager(
 
             // Clean up synced items older than 7 days
             syncQueueDao.deleteSyncedItems()
-
         } finally {
             updateStatus()
             _syncStatus.update { it.copy(isSyncing = false, lastSyncTime = System.currentTimeMillis()) }
@@ -217,14 +221,15 @@ class SyncManager(
         syncQueueDao.markInFlight(item.id)
 
         try {
-            val result = when (item.entityType) {
-                SyncEntityType.NOTE.name -> processNoteSync(item)
-                SyncEntityType.EVENT.name -> processEventSync(item)
-                else -> {
-                    Log.w(TAG, "Unknown entity type: ${item.entityType}")
-                    SyncResult.Error("Unknown entity type", false)
+            val result =
+                when (item.entityType) {
+                    SyncEntityType.NOTE.name -> processNoteSync(item)
+                    SyncEntityType.EVENT.name -> processEventSync(item)
+                    else -> {
+                        Log.w(TAG, "Unknown entity type: ${item.entityType}")
+                        SyncResult.Error("Unknown entity type", false)
+                    }
                 }
-            }
 
             when (result) {
                 is SyncResult.Success -> {
@@ -258,7 +263,7 @@ class SyncManager(
 
     /**
      * Process a note sync operation.
-     * 
+     *
      * Server Integration Required:
      * - POST /api/sync/notes - Send note updates to server
      * - Response: { serverTimestamp: Long, conflict: Boolean }
@@ -270,7 +275,7 @@ class SyncManager(
             // Server integration point: Send note to server and get server timestamp
             // val response = apiClient.syncNote(payload.toServerNote())
             // val serverTimestamp = response.serverTimestamp
-            
+
             // For now, simulate success with local timestamp
             val serverTimestamp = System.currentTimeMillis()
 
@@ -288,7 +293,7 @@ class SyncManager(
 
     /**
      * Process an event sync operation.
-     * 
+     *
      * Server Integration Required:
      * - POST /api/sync/events - Send calendar events to server
      * - Response: { serverTimestamp: Long, conflict: Boolean }
@@ -319,17 +324,18 @@ class SyncManager(
     private suspend fun archiveConflict(
         item: SyncQueueItem,
         serverData: String,
-        localData: String
+        localData: String,
     ) {
-        val record = ConflictRecord.create(
-            entityId = item.entityId,
-            entityType = item.entityType,
-            localPayload = localData,
-            serverPayload = serverData,
-            localTs = item.baseVersion,
-            serverTs = System.currentTimeMillis(),
-            resolution = "SERVER_WINS"
-        )
+        val record =
+            ConflictRecord.create(
+                entityId = item.entityId,
+                entityType = item.entityType,
+                localPayload = localData,
+                serverPayload = serverData,
+                localTs = item.baseVersion,
+                serverTs = System.currentTimeMillis(),
+                resolution = "SERVER_WINS",
+            )
         syncQueueDao.insertConflict(record)
     }
 
@@ -342,7 +348,7 @@ class SyncManager(
             it.copy(
                 pendingCount = summary.pending,
                 failedCount = summary.failed,
-                conflictCount = summary.conflicted
+                conflictCount = summary.conflicted,
             )
         }
     }
@@ -382,7 +388,7 @@ data class NotePayload(
     val isArchived: Boolean,
     val isFullPrivacy: Boolean,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
 ) {
     companion object {
         fun fromNote(note: com.example.smarty.core.domain.model.Note): NotePayload {
@@ -397,7 +403,7 @@ data class NotePayload(
                 isArchived = note.isArchived,
                 isFullPrivacy = note.isFullPrivacy,
                 createdAt = note.createdAt,
-                updatedAt = note.updatedAt
+                updatedAt = note.updatedAt,
             )
         }
     }
@@ -415,7 +421,7 @@ data class EventPayload(
     val reminderMinutes: Int?,
     val googleEventId: String?,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
 ) {
     companion object {
         fun fromEvent(event: com.example.smarty.core.domain.model.CalendarEvent): EventPayload {
@@ -430,7 +436,7 @@ data class EventPayload(
                 reminderMinutes = event.reminderMinutes,
                 googleEventId = event.googleEventId,
                 createdAt = event.createdAt,
-                updatedAt = event.updatedAt
+                updatedAt = event.updatedAt,
             )
         }
     }

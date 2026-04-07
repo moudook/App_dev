@@ -3,9 +3,9 @@ package com.example.smarty.core.common.worker
 import android.content.Context
 import android.util.Log
 import androidx.work.*
+import com.example.smarty.core.common.util.NotificationHelper
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.di.ServiceLocator
-import com.example.smarty.core.common.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -27,9 +27,8 @@ import java.util.concurrent.TimeUnit
  */
 class DailyBriefingWorker(
     context: Context,
-    params: WorkerParameters
+    params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
-
     companion object {
         private const val TAG = "DailyBriefing"
         private const val WORK_NAME = "daily_briefing"
@@ -37,161 +36,176 @@ class DailyBriefingWorker(
 
         fun schedule(context: Context) {
             // Schedule for 7:30 AM daily
-            val calendar = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 7)
-                set(Calendar.MINUTE, 30)
-                set(Calendar.SECOND, 0)
-            }
+            val calendar =
+                Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 7)
+                    set(Calendar.MINUTE, 30)
+                    set(Calendar.SECOND, 0)
+                }
 
             var delay = calendar.timeInMillis - System.currentTimeMillis()
             if (delay < 0) delay += TimeUnit.DAYS.toMillis(1) // Next day if past time
 
-            val request = PeriodicWorkRequestBuilder<DailyBriefingWorker>(
-                1, TimeUnit.DAYS
-            )
-                .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
+            val request =
+                PeriodicWorkRequestBuilder<DailyBriefingWorker>(
+                    1,
+                    TimeUnit.DAYS,
                 )
-                .addTag(WORK_NAME)
-                .build()
+                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build(),
+                    )
+                    .addTag(WORK_NAME)
+                    .build()
 
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(
                     WORK_NAME,
                     ExistingPeriodicWorkPolicy.UPDATE,
-                    request
+                    request,
                 )
             Log.i(TAG, "Daily briefing scheduled for 7:30 AM (delay: ${delay / 1000}s)")
         }
     }
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        return@withContext try {
-            // Check for cancellation at the start
-            if (isStopped) {
-                Log.w(TAG, "Daily briefing worker cancelled before starting")
-                return@withContext Result.failure()
-            }
-
-            Log.i(TAG, "Generating daily briefing...")
-
-            val db = SmartyDatabase.getDatabase(applicationContext)
-            val repository = ServiceLocator.provideRepository(applicationContext as android.app.Application)
-
-            // Gather 3 days of context
-            val threeDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(LOOKBACK_DAYS.toLong())
-
-            // Get recent notes
-            val recentNotes = db.noteDao().getNotesModifiedSince(threeDaysAgo)
-
-            // Check for cancellation
-            if (isStopped) {
-                Log.w(TAG, "Daily briefing worker cancelled after fetching notes")
-                return@withContext Result.failure()
-            }
-
-            // Get upcoming calendar events
-            val upcomingEvents = db.calendarDao().getUpcomingEvents(
-                System.currentTimeMillis(),
-                System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3)
-            )
-
-            // Get recent chat topics
-            val recentSessions = db.chatDao().getRecentSessions(5)
-
-            // =============================================================================
-            // EDGE CASE: Skip briefing for fresh/inactive users
-            // =============================================================================
-            // Don't trigger briefing if user has no activity:
-            // - No notes in the last 3 days
-            // - No upcoming events
-            // - No recent chat sessions
-            // This prevents "empty" briefings for new users or inactive accounts
-            val hasNotes = recentNotes.isNotEmpty()
-            val hasEvents = upcomingEvents.isNotEmpty()
-            val hasChats = recentSessions.isNotEmpty()
-
-            if (!hasNotes && !hasEvents && !hasChats) {
-                Log.i(TAG, "Skipping daily briefing - no user activity found (fresh/inactive user)")
-                // Return success but don't show notification
-                // This is not a failure - it's intentional behavior
-                return@withContext Result.success()
-            }
-
-            // Check for cancellation before building briefing
-            if (isStopped) {
-                Log.w(TAG, "Daily briefing worker cancelled before building briefing")
-                return@withContext Result.failure()
-            }
-
-            // Build summaries only if we have data
-            val notesSummary = if (hasNotes) {
-                recentNotes.take(20).joinToString("\n") { note ->
-                    "- [${note.categoryName ?: "Uncategorized"}] ${note.title}: ${note.content.take(100)}"
+    override suspend fun doWork(): Result =
+        withContext(Dispatchers.IO) {
+            return@withContext try {
+                // Check for cancellation at the start
+                if (isStopped) {
+                    Log.w(TAG, "Daily briefing worker cancelled before starting")
+                    return@withContext Result.failure()
                 }
-            } else {
-                "No recent notes"
-            }
 
-            val eventsSummary = if (hasEvents) {
-                upcomingEvents.take(10).joinToString("\n") { event ->
-                    "- ${event.title} at ${java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(event.startTime))}"
+                Log.i(TAG, "Generating daily briefing...")
+
+                val db = SmartyDatabase.getDatabase(applicationContext)
+                val repository = ServiceLocator.provideRepository(applicationContext as android.app.Application)
+
+                // Gather 3 days of context
+                val threeDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(LOOKBACK_DAYS.toLong())
+
+                // Get recent notes
+                val recentNotes = db.noteDao().getNotesModifiedSince(threeDaysAgo)
+
+                // Check for cancellation
+                if (isStopped) {
+                    Log.w(TAG, "Daily briefing worker cancelled after fetching notes")
+                    return@withContext Result.failure()
                 }
-            } else {
-                "No upcoming events"
-            }
 
-            val chatSummary = if (hasChats) {
-                recentSessions.joinToString("\n") { session ->
-                    "- ${session.title ?: "Untitled conversation"}"
+                // Get upcoming calendar events
+                val upcomingEvents =
+                    db.calendarDao().getUpcomingEvents(
+                        System.currentTimeMillis(),
+                        System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3),
+                    )
+
+                // Get recent chat topics
+                val recentSessions = db.chatDao().getRecentSessions(5)
+
+                // =============================================================================
+                // EDGE CASE: Skip briefing for fresh/inactive users
+                // =============================================================================
+                // Don't trigger briefing if user has no activity:
+                // - No notes in the last 3 days
+                // - No upcoming events
+                // - No recent chat sessions
+                // This prevents "empty" briefings for new users or inactive accounts
+                val hasNotes = recentNotes.isNotEmpty()
+                val hasEvents = upcomingEvents.isNotEmpty()
+                val hasChats = recentSessions.isNotEmpty()
+
+                if (!hasNotes && !hasEvents && !hasChats) {
+                    Log.i(TAG, "Skipping daily briefing - no user activity found (fresh/inactive user)")
+                    // Return success but don't show notification
+                    // This is not a failure - it's intentional behavior
+                    return@withContext Result.success()
                 }
-            } else {
-                "No recent conversations"
-            }
 
-            // Build the briefing prompt
-            val briefingPrompt = buildBriefingPrompt(notesSummary, eventsSummary, chatSummary)
+                // Check for cancellation before building briefing
+                if (isStopped) {
+                    Log.w(TAG, "Daily briefing worker cancelled before building briefing")
+                    return@withContext Result.failure()
+                }
 
-            // Check for cancellation before sending to server
-            if (isStopped) {
-                Log.w(TAG, "Daily briefing worker cancelled before sending to server")
-                return@withContext Result.failure()
-            }
+                // Build summaries only if we have data
+                val notesSummary =
+                    if (hasNotes) {
+                        recentNotes.take(20).joinToString("\n") { note ->
+                            "- [${note.categoryName ?: "Uncategorized"}] ${note.title}: ${note.content.take(100)}"
+                        }
+                    } else {
+                        "No recent notes"
+                    }
 
-            // Send to server for AI generation
-            val remoteService = ServiceLocator.provideRemoteAgentService(applicationContext as android.app.Application)
-            val briefingResponse = remoteService.generateBriefing(briefingPrompt)
+                val eventsSummary =
+                    if (hasEvents) {
+                        upcomingEvents.take(10).joinToString("\n") { event ->
+                            "- ${event.title} at ${java.text.SimpleDateFormat(
+                                "MMM d, h:mm a",
+                                java.util.Locale.getDefault(),
+                            ).format(java.util.Date(event.startTime))}"
+                        }
+                    } else {
+                        "No upcoming events"
+                    }
 
-            if (!briefingResponse.isNullOrBlank()) {
-                // Extract memory updates if present
-                extractAndSaveMemoryUpdates(briefingResponse)
+                val chatSummary =
+                    if (hasChats) {
+                        recentSessions.joinToString("\n") { session ->
+                            "- ${session.title ?: "Untitled conversation"}"
+                        }
+                    } else {
+                        "No recent conversations"
+                    }
 
-                // Show notification
-                NotificationHelper.showDailyBriefing(
-                    applicationContext,
-                    title = "Good morning! Here's your day",
-                    body = briefingResponse.take(300),
-                    fullContent = briefingResponse
-                )
-                Log.i(TAG, "Daily briefing generated and shown")
-                Result.success()
-            } else {
-                Log.e(TAG, "Empty briefing response")
+                // Build the briefing prompt
+                val briefingPrompt = buildBriefingPrompt(notesSummary, eventsSummary, chatSummary)
+
+                // Check for cancellation before sending to server
+                if (isStopped) {
+                    Log.w(TAG, "Daily briefing worker cancelled before sending to server")
+                    return@withContext Result.failure()
+                }
+
+                // Send to server for AI generation
+                val remoteService = ServiceLocator.provideRemoteAgentService(applicationContext as android.app.Application)
+                val briefingResponse = remoteService.generateBriefing(briefingPrompt)
+
+                if (!briefingResponse.isNullOrBlank()) {
+                    // Extract memory updates if present
+                    extractAndSaveMemoryUpdates(briefingResponse)
+
+                    // Show notification
+                    NotificationHelper.showDailyBriefing(
+                        applicationContext,
+                        title = "Good morning! Here's your day",
+                        body = briefingResponse.take(300),
+                        fullContent = briefingResponse,
+                    )
+                    Log.i(TAG, "Daily briefing generated and shown")
+                    Result.success()
+                } else {
+                    Log.e(TAG, "Empty briefing response")
+                    if (runAttemptCount < 3) Result.retry() else Result.failure()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Log.w(TAG, "Daily briefing worker cancelled", e)
+                Result.failure()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to generate briefing: ${e.message}", e)
                 if (runAttemptCount < 3) Result.retry() else Result.failure()
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            Log.w(TAG, "Daily briefing worker cancelled", e)
-            Result.failure()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate briefing: ${e.message}", e)
-            if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
-    }
 
-    private fun buildBriefingPrompt(notes: String, events: String, chats: String): String {
+    private fun buildBriefingPrompt(
+        notes: String,
+        events: String,
+        chats: String,
+    ): String {
         return """
             Generate my daily morning briefing. Here's my activity from the last 3 days:
 
@@ -221,7 +235,7 @@ class DailyBriefingWorker(
             Include any new insights about my preferences, habits, or priorities that should be remembered.
 
             Keep the briefing concise (under 200 words for the main content).
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private suspend fun extractAndSaveMemoryUpdates(response: String) {

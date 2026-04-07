@@ -7,12 +7,9 @@ import android.os.Build
 import android.os.StatFs
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.example.smarty.BuildConfig
-import com.example.smarty.core.common.util.DeviceInfoProvider
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.protocol.*
 import kotlinx.serialization.json.Json
-import java.io.File
 
 /**
  * =============================================================================
@@ -42,7 +39,7 @@ import java.io.File
 class CapabilityNegotiator(
     private val context: Context,
     private val securePreferences: SecurePreferences,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
     companion object {
         private const val TAG = "CapabilityNegotiator"
@@ -57,7 +54,7 @@ class CapabilityNegotiator(
             protocolVersion = PROTOCOL_VERSION,
             deviceId = securePreferences.getDeviceId(),
             capabilities = buildDeviceCapabilities(),
-            context = buildDeviceContext()
+            context = buildDeviceContext(),
         )
     }
 
@@ -69,7 +66,7 @@ class CapabilityNegotiator(
             hardware = buildHardwareCapabilities(),
             localProcessing = buildLocalProcessingCapabilities(),
             media = buildMediaCapabilities(),
-            system = buildSystemCapabilities()
+            system = buildSystemCapabilities(),
         )
     }
 
@@ -83,7 +80,7 @@ class CapabilityNegotiator(
             microphone = hasMicrophone(),
             haptics = hasHaptics(),
             screenCapture = false, // Requires MediaProjection, not available by default
-            biometric = hasBiometric()
+            biometric = hasBiometric(),
         )
     }
 
@@ -95,9 +92,14 @@ class CapabilityNegotiator(
             stt = false, // Vosk removed, using server-side Whisper
             contentTypeDetection = true, // ContentTypeDetector is always available
             fts5Search = true, // FTS5 is always available
-            localCommands = listOf(
-                "time", "date", "battery", "flashlight", "volume"
-            )
+            localCommands =
+                listOf(
+                    "time",
+                    "date",
+                    "battery",
+                    "flashlight",
+                    "volume",
+                ),
         )
     }
 
@@ -108,7 +110,7 @@ class CapabilityNegotiator(
         return MediaCapabilities(
             audioPlayback = true, // Media3 ExoPlayer available
             localMusicLibrary = hasExternalStoragePermission(),
-            visualizer = true // Audio visualizer available
+            visualizer = true, // Audio visualizer available
         )
     }
 
@@ -123,7 +125,7 @@ class CapabilityNegotiator(
             osVersion = Build.VERSION.SDK_INT,
             deviceClass = deviceClass,
             availableMemoryMb = availableMemory,
-            storageFreeMb = storageFree
+            storageFreeMb = storageFree,
         )
     }
 
@@ -138,7 +140,7 @@ class CapabilityNegotiator(
             batteryLevel = batteryInfo.first,
             isCharging = batteryInfo.second,
             networkType = networkInfo.first,
-            isNetworkValidated = networkInfo.second
+            isNetworkValidated = networkInfo.second,
         )
     }
 
@@ -166,7 +168,7 @@ class CapabilityNegotiator(
     private fun hasBiometric(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT) ||
-            context.packageManager.hasSystemFeature("android.hardware.biometrics.face")
+                context.packageManager.hasSystemFeature("android.hardware.biometrics.face")
         } else {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
         }
@@ -176,12 +178,12 @@ class CapabilityNegotiator(
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context,
-                Manifest.permission.READ_MEDIA_AUDIO
+                Manifest.permission.READ_MEDIA_AUDIO,
             ) == PackageManager.PERMISSION_GRANTED
         } else {
             ContextCompat.checkSelfPermission(
                 context,
-                Manifest.permission.READ_EXTERNAL_STORAGE
+                Manifest.permission.READ_EXTERNAL_STORAGE,
             ) == PackageManager.PERMISSION_GRANTED
         }
     }
@@ -219,21 +221,24 @@ class CapabilityNegotiator(
     // =============================================================================
 
     private fun getBatteryInfo(): Pair<Int, Boolean> {
-        val batteryIntent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-            ?: return Pair(0, false)
+        val batteryIntent =
+            context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                ?: return Pair(0, false)
 
         val level = batteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
         val scale = batteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
         val status = batteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
 
-        val batteryPercent = if (level >= 0 && scale > 0) {
-            (level * 100) / scale
-        } else {
-            0
-        }
+        val batteryPercent =
+            if (level >= 0 && scale > 0) {
+                (level * 100) / scale
+            } else {
+                0
+            }
 
-        val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
-                         status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        val isCharging =
+            status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == android.os.BatteryManager.BATTERY_STATUS_FULL
 
         return Pair(batteryPercent, isCharging)
     }
@@ -252,12 +257,13 @@ class CapabilityNegotiator(
             return Pair("none", false)
         }
 
-        val networkType = when {
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
-            else -> "unknown"
-        }
+        val networkType =
+            when {
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+                else -> "unknown"
+            }
 
         val isValidated = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
@@ -280,7 +286,7 @@ class CapabilityNegotiator(
             // Server integration point: POST /api/session/init
             // Expected request: HandshakeRequest(deviceId, protocolVersion, capabilities)
             // Expected response: HandshakeResponse(sessionId, executionPolicy)
-            // 
+            //
             // Example implementation:
             // val response = client.post("${serverUrl}/api/session/init") {
             //     contentType(ContentType.Application.Json)
@@ -290,31 +296,40 @@ class CapabilityNegotiator(
             // Mock response for development/testing
             HandshakeResponse(
                 sessionId = "session_${System.currentTimeMillis()}",
-                executionPolicy = ExecutionPolicy(
-                    serverSide = listOf(
-                        "CREATE_NOTE", "UPDATE_NOTE", "DELETE_NOTE", "SEARCH_NOTES",
-                        "SUMMARIZE_NOTE", "WEB_SEARCH", "BATCH_ACTIONS",
-                        "SCHEDULE_EVENT", "DEEP_RESEARCH", "MEMORY_STORE",
-                        "GENERATE_BRIEFING", "ANALYZE_DOCUMENT"
+                executionPolicy =
+                    ExecutionPolicy(
+                        serverSide =
+                            listOf(
+                                "CREATE_NOTE", "UPDATE_NOTE", "DELETE_NOTE", "SEARCH_NOTES",
+                                "SUMMARIZE_NOTE", "WEB_SEARCH", "BATCH_ACTIONS",
+                                "SCHEDULE_EVENT", "DEEP_RESEARCH", "MEMORY_STORE",
+                                "GENERATE_BRIEFING", "ANALYZE_DOCUMENT",
+                            ),
+                        deviceSide =
+                            listOf(
+                                "TOGGLE_FLASHLIGHT",
+                                "SET_VOLUME",
+                                "PLAY_AUDIO",
+                                "LAUNCH_APP",
+                                "TAKE_SCREENSHOT",
+                                "TRIGGER_HAPTIC",
+                                "CAPTURE_SCREEN_CONTEXT",
+                            ),
+                        hybrid =
+                            listOf(
+                                HybridActionPolicy(
+                                    action = "TRANSCRIBE_AUDIO",
+                                    prefer = "server",
+                                    fallback = "device",
+                                    condition = "network_validated == true",
+                                ),
+                            ),
                     ),
-                    deviceSide = listOf(
-                        "TOGGLE_FLASHLIGHT", "SET_VOLUME", "PLAY_AUDIO",
-                        "LAUNCH_APP", "TAKE_SCREENSHOT", "TRIGGER_HAPTIC",
-                        "CAPTURE_SCREEN_CONTEXT"
+                syncState =
+                    RemoteSyncState(
+                        lastServerTimestamp = java.time.Instant.now().toString(),
+                        pendingSyncCount = 0,
                     ),
-                    hybrid = listOf(
-                        HybridActionPolicy(
-                            action = "TRANSCRIBE_AUDIO",
-                            prefer = "server",
-                            fallback = "device",
-                            condition = "network_validated == true"
-                        )
-                    )
-                ),
-                syncState = RemoteSyncState(
-                    lastServerTimestamp = java.time.Instant.now().toString(),
-                    pendingSyncCount = 0
-                )
             )
         } catch (e: Exception) {
             Log.e(TAG, "Handshake failed: ${e.message}", e)

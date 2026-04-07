@@ -3,22 +3,23 @@ package com.example.smarty.protocol
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ProtocolSerializationTest {
-
-    private val json = Json {
-        prettyPrint = false
-        ignoreUnknownKeys = true
-    }
+    private val json =
+        Json {
+            prettyPrint = false
+            ignoreUnknownKeys = true
+        }
 
     @Test
     fun testLaunchAppCommandSerialization() {
-        val cmd: AgentCommand = AgentCommand.LaunchApp(
-            commandId = "cmd_123",
-            packageName = "com.spotify.music"
-        )
+        val cmd: AgentCommand =
+            AgentCommand.LaunchApp(
+                commandId = "cmd_123",
+                packageName = "com.spotify.music",
+            )
         val string = json.encodeToString(AgentCommand.serializer(), cmd)
 
         // Debug output
@@ -32,12 +33,13 @@ class ProtocolSerializationTest {
 
     @Test
     fun testAppStateEventSerialization() {
-        val event: ClientEvent = ClientEvent.AppState(
-            currentScreen = "Home",
-            batteryLevel = 0.85f,
-            isWifi = true,
-            timestamp = 1000L
-        )
+        val event: ClientEvent =
+            ClientEvent.AppState(
+                currentScreen = "Home",
+                batteryLevel = 0.85f,
+                isWifi = true,
+                timestamp = 1000L,
+            )
         val string = json.encodeToString(ClientEvent.serializer(), event)
 
         // Debug output

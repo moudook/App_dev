@@ -17,10 +17,9 @@ import java.security.MessageDigest
  * 100 MB limit with automatic cleanup
  */
 class CacheManager private constructor(private val context: Context) {
-
     companion object {
         private const val TAG = "CacheManager"
-        const val MAX_CACHE_SIZE_BYTES = 100L * 1024 * 1024  // 100 MB
+        const val MAX_CACHE_SIZE_BYTES = 100L * 1024 * 1024 // 100 MB
         const val CACHE_DIR_NAME = "Smarty_cache"
 
         // Sub-directories
@@ -71,9 +70,10 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Get current total cache size in bytes
      */
-    suspend fun getCacheSize(): Long = withContext(Dispatchers.IO) {
-        calculateDirectorySize(cacheDir)
-    }
+    suspend fun getCacheSize(): Long =
+        withContext(Dispatchers.IO) {
+            calculateDirectorySize(cacheDir)
+        }
 
     private fun calculateDirectorySize(dir: File): Long {
         if (!dir.exists()) return 0
@@ -83,103 +83,107 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Evict oldest entries if cache exceeds max size
      */
-    suspend fun evictIfNeeded() = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            var currentSize = getCacheSize()
+    suspend fun evictIfNeeded() =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                var currentSize = getCacheSize()
 
-            if (currentSize <= MAX_CACHE_SIZE_BYTES) {
-                Log.d(TAG, "Cache size OK: ${currentSize / 1024}KB / ${MAX_CACHE_SIZE_BYTES / 1024}KB")
-                return@withContext
-            }
-
-            Log.i(TAG, "Cache eviction needed. Current: ${currentSize / 1024}KB, Max: ${MAX_CACHE_SIZE_BYTES / 1024}KB")
-
-            // Get all cache entries sorted by last access time (oldest first)
-            val entries = getAllCacheEntries().sortedBy { it.lastAccessTime }
-
-            for (entry in entries) {
-                if (currentSize <= MAX_CACHE_SIZE_BYTES * 0.8) { // Target 80% of max
-                    break
+                if (currentSize <= MAX_CACHE_SIZE_BYTES) {
+                    Log.d(TAG, "Cache size OK: ${currentSize / 1024}KB / ${MAX_CACHE_SIZE_BYTES / 1024}KB")
+                    return@withContext
                 }
 
-                if (entry.file.delete()) {
-                    currentSize -= entry.size
-                    accessTimes.remove(entry.file.absolutePath)
-                    Log.d(TAG, "Evicted: ${entry.key} (${entry.size / 1024}KB)")
-                }
-            }
+                Log.i(TAG, "Cache eviction needed. Current: ${currentSize / 1024}KB, Max: ${MAX_CACHE_SIZE_BYTES / 1024}KB")
 
-            Log.i(TAG, "Cache eviction complete. New size: ${currentSize / 1024}KB")
+                // Get all cache entries sorted by last access time (oldest first)
+                val entries = getAllCacheEntries().sortedBy { it.lastAccessTime }
+
+                for (entry in entries) {
+                    if (currentSize <= MAX_CACHE_SIZE_BYTES * 0.8) { // Target 80% of max
+                        break
+                    }
+
+                    if (entry.file.delete()) {
+                        currentSize -= entry.size
+                        accessTimes.remove(entry.file.absolutePath)
+                        Log.d(TAG, "Evicted: ${entry.key} (${entry.size / 1024}KB)")
+                    }
+                }
+
+                Log.i(TAG, "Cache eviction complete. New size: ${currentSize / 1024}KB")
+            }
         }
-    }
 
     /**
      * Clear all cache
      */
-    suspend fun clearCache() = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            cacheDir.deleteRecursively()
-            cacheDir.mkdirs()
-            accessTimes.clear()
-            Log.i(TAG, "Cache cleared")
+    suspend fun clearCache() =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                cacheDir.deleteRecursively()
+                cacheDir.mkdirs()
+                accessTimes.clear()
+                Log.i(TAG, "Cache cleared")
+            }
         }
-    }
 
     /**
      * Trim cache to a target size (for memory optimization when app is backgrounded)
      */
-    suspend fun trimToSize(targetSizeBytes: Long) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            var currentSize = getCacheSize()
+    suspend fun trimToSize(targetSizeBytes: Long) =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                var currentSize = getCacheSize()
 
-            if (currentSize <= targetSizeBytes) {
-                Log.d(TAG, "Cache already under target size: ${currentSize / 1024}KB <= ${targetSizeBytes / 1024}KB")
-                return@withContext
-            }
-
-            Log.i(TAG, "Trimming cache from ${currentSize / 1024}KB to ${targetSizeBytes / 1024}KB")
-
-            // Get all cache entries sorted by last access time (oldest first)
-            val entries = getAllCacheEntries().sortedBy { it.lastAccessTime }
-
-            for (entry in entries) {
                 if (currentSize <= targetSizeBytes) {
-                    break
+                    Log.d(TAG, "Cache already under target size: ${currentSize / 1024}KB <= ${targetSizeBytes / 1024}KB")
+                    return@withContext
                 }
 
-                if (entry.file.delete()) {
-                    currentSize -= entry.size
-                    accessTimes.remove(entry.file.absolutePath)
-                    Log.d(TAG, "Trimmed: ${entry.key} (${entry.size / 1024}KB)")
+                Log.i(TAG, "Trimming cache from ${currentSize / 1024}KB to ${targetSizeBytes / 1024}KB")
+
+                // Get all cache entries sorted by last access time (oldest first)
+                val entries = getAllCacheEntries().sortedBy { it.lastAccessTime }
+
+                for (entry in entries) {
+                    if (currentSize <= targetSizeBytes) {
+                        break
+                    }
+
+                    if (entry.file.delete()) {
+                        currentSize -= entry.size
+                        accessTimes.remove(entry.file.absolutePath)
+                        Log.d(TAG, "Trimmed: ${entry.key} (${entry.size / 1024}KB)")
+                    }
                 }
+
+                Log.i(TAG, "Cache trim complete. New size: ${currentSize / 1024}KB")
             }
-
-            Log.i(TAG, "Cache trim complete. New size: ${currentSize / 1024}KB")
         }
-    }
 
     /**
      * Clear entries older than maxAgeMs
      */
-    suspend fun clearOldEntries(maxAgeMs: Long) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            val cutoffTime = System.currentTimeMillis() - maxAgeMs
-            var deletedCount = 0
-            var deletedSize = 0L
+    suspend fun clearOldEntries(maxAgeMs: Long) =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val cutoffTime = System.currentTimeMillis() - maxAgeMs
+                var deletedCount = 0
+                var deletedSize = 0L
 
-            getAllCacheEntries()
-                .filter { it.lastAccessTime < cutoffTime }
-                .forEach { entry ->
-                    if (entry.file.delete()) {
-                        deletedCount++
-                        deletedSize += entry.size
-                        accessTimes.remove(entry.file.absolutePath)
+                getAllCacheEntries()
+                    .filter { it.lastAccessTime < cutoffTime }
+                    .forEach { entry ->
+                        if (entry.file.delete()) {
+                            deletedCount++
+                            deletedSize += entry.size
+                            accessTimes.remove(entry.file.absolutePath)
+                        }
                     }
-                }
 
-            Log.i(TAG, "Cleared $deletedCount old entries (${deletedSize / 1024}KB)")
+                Log.i(TAG, "Cleared $deletedCount old entries (${deletedSize / 1024}KB)")
+            }
         }
-    }
 
     /**
      * Get all cache entries with metadata
@@ -187,7 +191,10 @@ class CacheManager private constructor(private val context: Context) {
     private fun getAllCacheEntries(): List<CacheEntry> {
         val entries = mutableListOf<CacheEntry>()
 
-        fun addEntriesFromDir(dir: File, type: CacheType) {
+        fun addEntriesFromDir(
+            dir: File,
+            type: CacheType,
+        ) {
             dir.listFiles()?.filter { it.isFile }?.forEach { file ->
                 entries.add(
                     CacheEntry(
@@ -196,8 +203,8 @@ class CacheManager private constructor(private val context: Context) {
                         size = file.length(),
                         lastAccessTime = accessTimes[file.absolutePath] ?: file.lastModified(),
                         createdTime = file.lastModified(),
-                        type = type
-                    )
+                        type = type,
+                    ),
                 )
             }
         }
@@ -215,45 +222,50 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Cache a thumbnail bitmap
      */
-    suspend fun cacheThumbnail(key: String, bitmap: Bitmap): File? = withContext(Dispatchers.IO) {
-        try {
-            val safeKey = hashKey(key)
-            val file = File(thumbnailsDir, "$safeKey.jpg")
+    suspend fun cacheThumbnail(
+        key: String,
+        bitmap: Bitmap,
+    ): File? =
+        withContext(Dispatchers.IO) {
+            try {
+                val safeKey = hashKey(key)
+                val file = File(thumbnailsDir, "$safeKey.jpg")
 
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                }
+
+                updateAccessTime(file)
+                evictIfNeeded()
+
+                Log.d(TAG, "Cached thumbnail: $key -> ${file.name}")
+                file
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to cache thumbnail: ${e.message}")
+                null
             }
-
-            updateAccessTime(file)
-            evictIfNeeded()
-
-            Log.d(TAG, "Cached thumbnail: $key -> ${file.name}")
-            file
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to cache thumbnail: ${e.message}")
-            null
         }
-    }
 
     /**
      * Get cached thumbnail
      */
-    suspend fun getThumbnail(key: String): Bitmap? = withContext(Dispatchers.IO) {
-        val safeKey = hashKey(key)
-        val file = File(thumbnailsDir, "$safeKey.jpg")
+    suspend fun getThumbnail(key: String): Bitmap? =
+        withContext(Dispatchers.IO) {
+            val safeKey = hashKey(key)
+            val file = File(thumbnailsDir, "$safeKey.jpg")
 
-        if (file.exists()) {
-            updateAccessTime(file)
-            try {
-                BitmapFactory.decodeFile(file.absolutePath)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to decode thumbnail: ${e.message}")
+            if (file.exists()) {
+                updateAccessTime(file)
+                try {
+                    BitmapFactory.decodeFile(file.absolutePath)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to decode thumbnail: ${e.message}")
+                    null
+                }
+            } else {
                 null
             }
-        } else {
-            null
         }
-    }
 
     /**
      * Get thumbnail file path (for Coil/image loaders)
@@ -268,7 +280,10 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Cache waveform data
      */
-    suspend fun cacheWaveform(audioId: String, data: List<Float>) = withContext(Dispatchers.IO) {
+    suspend fun cacheWaveform(
+        audioId: String,
+        data: List<Float>,
+    ) = withContext(Dispatchers.IO) {
         try {
             val safeKey = hashKey(audioId)
             val file = File(waveformsDir, "$safeKey.waveform")
@@ -286,29 +301,33 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Get cached waveform data
      */
-    suspend fun getWaveform(audioId: String): List<Float>? = withContext(Dispatchers.IO) {
-        val safeKey = hashKey(audioId)
-        val file = File(waveformsDir, "$safeKey.waveform")
+    suspend fun getWaveform(audioId: String): List<Float>? =
+        withContext(Dispatchers.IO) {
+            val safeKey = hashKey(audioId)
+            val file = File(waveformsDir, "$safeKey.waveform")
 
-        if (file.exists()) {
-            updateAccessTime(file)
-            try {
-                file.readText().split(",").mapNotNull { it.toFloatOrNull() }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to read waveform: ${e.message}")
+            if (file.exists()) {
+                updateAccessTime(file)
+                try {
+                    file.readText().split(",").mapNotNull { it.toFloatOrNull() }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to read waveform: ${e.message}")
+                    null
+                }
+            } else {
                 null
             }
-        } else {
-            null
         }
-    }
 
     // ========== Metadata Operations ==========
 
     /**
      * Cache JSON metadata
      */
-    suspend fun cacheMetadata(key: String, json: String) = withContext(Dispatchers.IO) {
+    suspend fun cacheMetadata(
+        key: String,
+        json: String,
+    ) = withContext(Dispatchers.IO) {
         try {
             val safeKey = hashKey(key)
             val file = File(metadataDir, "$safeKey.json")
@@ -326,29 +345,33 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Get cached metadata
      */
-    suspend fun getMetadata(key: String): String? = withContext(Dispatchers.IO) {
-        val safeKey = hashKey(key)
-        val file = File(metadataDir, "$safeKey.json")
+    suspend fun getMetadata(key: String): String? =
+        withContext(Dispatchers.IO) {
+            val safeKey = hashKey(key)
+            val file = File(metadataDir, "$safeKey.json")
 
-        if (file.exists()) {
-            updateAccessTime(file)
-            try {
-                file.readText()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to read metadata: ${e.message}")
+            if (file.exists()) {
+                updateAccessTime(file)
+                try {
+                    file.readText()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to read metadata: ${e.message}")
+                    null
+                }
+            } else {
                 null
             }
-        } else {
-            null
         }
-    }
 
     // ========== YouTube Operations ==========
 
     /**
      * Cache YouTube-related data
      */
-    suspend fun cacheYouTubeData(videoId: String, data: String) = withContext(Dispatchers.IO) {
+    suspend fun cacheYouTubeData(
+        videoId: String,
+        data: String,
+    ) = withContext(Dispatchers.IO) {
         try {
             val file = File(youtubeDir, "$videoId.json")
             file.writeText(data)
@@ -363,21 +386,22 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Get cached YouTube data
      */
-    suspend fun getYouTubeData(videoId: String): String? = withContext(Dispatchers.IO) {
-        val file = File(youtubeDir, "$videoId.json")
+    suspend fun getYouTubeData(videoId: String): String? =
+        withContext(Dispatchers.IO) {
+            val file = File(youtubeDir, "$videoId.json")
 
-        if (file.exists()) {
-            updateAccessTime(file)
-            try {
-                file.readText()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to read YouTube data: ${e.message}")
+            if (file.exists()) {
+                updateAccessTime(file)
+                try {
+                    file.readText()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to read YouTube data: ${e.message}")
+                    null
+                }
+            } else {
                 null
             }
-        } else {
-            null
         }
-    }
 
     // ========== Helper Methods ==========
 

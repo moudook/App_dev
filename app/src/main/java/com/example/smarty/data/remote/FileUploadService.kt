@@ -4,15 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import io.ktor.client.HttpClient
-import io.ktor.client.request.forms.MultiPartFormDataContent
-import io.ktor.client.request.forms.formData
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,10 +13,12 @@ import java.util.UUID
 class FileUploadService(
     private val client: HttpClient,
     private val remoteAgentService: RemoteAgentService, // To get token/url
-    private val context: Context
+    private val context: Context,
 ) {
-
-    suspend fun uploadFile(uri: Uri, mimeType: String): UploadResult {
+    suspend fun uploadFile(
+        uri: Uri,
+        mimeType: String,
+    ): UploadResult {
         return withContext(Dispatchers.IO) {
             try {
                 // 1. Resolve content from URI to a temp file
@@ -36,22 +29,22 @@ class FileUploadService(
                 val fileBytes = tempFile.readBytes()
 
                 // 3. Upload using RemoteAgentService which handles Auth & URL
-                val result = remoteAgentService.uploadFile(
-                    fileBytes = fileBytes,
-                    fileName = fileName,
-                    contentType = mimeType
-                )
+                val result =
+                    remoteAgentService.uploadFile(
+                        fileBytes = fileBytes,
+                        fileName = fileName,
+                        contentType = mimeType,
+                    )
 
                 if (result != null) {
                     UploadResult.Success(
                         url = result.toString(), // Assuming server returns URL string or JSON with URL
                         fileId = UUID.randomUUID().toString(), // Server should return this ideally
-                        fileName = fileName
+                        fileName = fileName,
                     )
                 } else {
                     UploadResult.Error("Upload failed")
                 }
-
             } catch (e: Exception) {
                 Log.e("FileUploadService", "Upload failed", e)
                 UploadResult.Error(e.message ?: "Unknown error")
@@ -76,6 +69,7 @@ class FileUploadService(
 
     sealed class UploadResult {
         data class Success(val url: String, val fileId: String, val fileName: String) : UploadResult()
+
         data class Error(val message: String) : UploadResult()
     }
 }

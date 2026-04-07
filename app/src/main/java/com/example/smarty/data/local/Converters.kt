@@ -13,7 +13,7 @@ class Converters {
         return try {
             value?.let { NoteType.valueOf(it) } ?: NoteType.BRAIN_DUMP
         } catch (e: IllegalArgumentException) {
-            NoteType.BRAIN_DUMP  // Fallback to default
+            NoteType.BRAIN_DUMP // Fallback to default
         }
     }
 
@@ -25,7 +25,7 @@ class Converters {
         return try {
             value?.let { ProcessingStatus.valueOf(it) } ?: ProcessingStatus.PENDING
         } catch (e: IllegalArgumentException) {
-            ProcessingStatus.PENDING  // Fallback to default
+            ProcessingStatus.PENDING // Fallback to default
         }
     }
 
@@ -37,7 +37,7 @@ class Converters {
         return try {
             value?.let { com.example.smarty.data.model.MemoryType.valueOf(it) } ?: com.example.smarty.data.model.MemoryType.OTHER
         } catch (e: IllegalArgumentException) {
-            com.example.smarty.data.model.MemoryType.OTHER  // Fallback to default
+            com.example.smarty.data.model.MemoryType.OTHER // Fallback to default
         }
     }
 }

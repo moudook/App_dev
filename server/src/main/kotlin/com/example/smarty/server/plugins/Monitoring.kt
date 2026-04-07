@@ -1,22 +1,21 @@
 package com.example.smarty.server.plugins
 
+import com.example.smarty.server.data.DatabaseFactory
+import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.principal
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.http.*
-import io.ktor.server.request.*
+import kotlinx.coroutines.*
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
-import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import io.ktor.server.auth.principal
-import com.example.smarty.server.data.DatabaseFactory
-import kotlinx.coroutines.*
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Enhanced server monitoring dashboard.
@@ -30,7 +29,7 @@ data class RequestLog(
     val sourceIp: String,
     val statusCode: Int,
     val durationMs: Long,
-    val userId: String? = null
+    val userId: String? = null,
 )
 
 data class LlmRequestLog(
@@ -38,7 +37,7 @@ data class LlmRequestLog(
     val model: String,
     val latencyMs: Long,
     val success: Boolean,
-    val errorMsg: String? = null
+    val errorMsg: String? = null,
 )
 
 object ServerMonitor {
@@ -60,8 +59,11 @@ object ServerMonitor {
 
     // --- Health Status (Volatile for thread visibility) ---
     @Volatile var isProxyReachable: Boolean = false
+
     @Volatile var proxyStatusMsg: String = "Checking..."
+
     @Volatile var isDbConnected: Boolean = false
+
     @Volatile var lastHealthCheck: Long = 0
 
     // --- Methods ---
@@ -82,18 +84,25 @@ object ServerMonitor {
         activeSseConnections.decrementAndGet()
     }
 
-    fun trackLlmRequest(model: String, latency: Long, success: Boolean, errorMsg: String? = null) {
+    fun trackLlmRequest(
+        model: String,
+        latency: Long,
+        success: Boolean,
+        errorMsg: String? = null,
+    ) {
         totalLlmRequests.incrementAndGet()
         if (!success) totalLlmErrors.incrementAndGet()
         totalLlmLatency.addAndGet(latency)
 
-        llmLogs.addFirst(LlmRequestLog(
-            timestamp = System.currentTimeMillis(),
-            model = model,
-            latencyMs = latency,
-            success = success,
-            errorMsg = errorMsg
-        ))
+        llmLogs.addFirst(
+            LlmRequestLog(
+                timestamp = System.currentTimeMillis(),
+                model = model,
+                latencyMs = latency,
+                success = success,
+                errorMsg = errorMsg,
+            ),
+        )
         while (llmLogs.size > MAX_LLM_LOGS) {
             llmLogs.removeLast()
         }
@@ -119,7 +128,6 @@ object ServerMonitor {
             "uptimeHours" to "%.1f".format(uptimeHours),
             "requestsPerMinute" to if (uptimeMs > 60000) "%.1f".format(totalRequests.get() * 60000.0 / uptimeMs) else "N/A",
             "uniqueIps" to requestLogs.map { it.sourceIp }.toSet().size,
-
             // Infrastructure
             "isProxyReachable" to isProxyReachable,
             "proxyStatusMsg" to proxyStatusMsg,
@@ -127,15 +135,15 @@ object ServerMonitor {
             "activeSse" to activeSseConnections.get(),
             "usedMemoryMb" to usedMem,
             "totalMemoryMb" to totalMem,
-
             // LLM
             "llmTotal" to llmCount,
             "llmErrors" to totalLlmErrors.get(),
-            "llmAvgLatency" to avgLlmLat
+            "llmAvgLatency" to avgLlmLat,
         )
     }
 
     fun getRecentLogs(): List<RequestLog> = requestLogs.toList()
+
     fun getLlmLogs(): List<LlmRequestLog> = llmLogs.toList()
 }
 
@@ -207,15 +215,17 @@ fun Application.configureMonitoring() {
             val statusCode = call.response.status()?.value ?: 0
             val userId = call.principal<FirebaseUserPrincipal>()?.userId
 
-            ServerMonitor.logRequest(RequestLog(
-                timestamp = System.currentTimeMillis(),
-                method = method,
-                path = path,
-                sourceIp = sourceIp,
-                statusCode = statusCode,
-                durationMs = duration,
-                userId = userId
-            ))
+            ServerMonitor.logRequest(
+                RequestLog(
+                    timestamp = System.currentTimeMillis(),
+                    method = method,
+                    path = path,
+                    sourceIp = sourceIp,
+                    statusCode = statusCode,
+                    durationMs = duration,
+                    userId = userId,
+                ),
+            )
         }
     }
 
@@ -230,14 +240,16 @@ fun Application.configureMonitoring() {
             // HTML Helpers
             fun statusColor(isGood: Boolean) = if (isGood) "#4CAF50" else "#f44336"
 
-            val logsHtml = logs.joinToString("\n") { log ->
-                val time = formatter.format(Instant.ofEpochMilli(log.timestamp))
-                val statusC = when {
-                    log.statusCode in 200..299 -> "#4CAF50"
-                    log.statusCode in 400..499 -> "#FF9800"
-                    else -> "#f44336"
-                }
-                """<tr>
+            val logsHtml =
+                logs.joinToString("\n") { log ->
+                    val time = formatter.format(Instant.ofEpochMilli(log.timestamp))
+                    val statusC =
+                        when {
+                            log.statusCode in 200..299 -> "#4CAF50"
+                            log.statusCode in 400..499 -> "#FF9800"
+                            else -> "#f44336"
+                        }
+                    """<tr>
                     <td>$time</td>
                     <td><span class="badge" style="background:#7c4dff22;color:#7c4dff">${log.method}</span></td>
                     <td class="truncate" title="${log.path}">${log.path}</td>
@@ -245,19 +257,20 @@ fun Application.configureMonitoring() {
                     <td>${log.durationMs}ms</td>
                     <td>${log.userId ?: "-"}</td>
                 </tr>"""
-            }
+                }
 
-            val llmHtml = llmLogs.joinToString("\n") { log ->
-                val time = formatter.format(Instant.ofEpochMilli(log.timestamp))
-                val statusC = if (log.success) "#4CAF50" else "#f44336"
-                """<tr>
+            val llmHtml =
+                llmLogs.joinToString("\n") { log ->
+                    val time = formatter.format(Instant.ofEpochMilli(log.timestamp))
+                    val statusC = if (log.success) "#4CAF50" else "#f44336"
+                    """<tr>
                     <td>$time</td>
                     <td>${log.model}</td>
                     <td>${log.latencyMs}ms</td>
-                    <td><span style="color:$statusC">${if(log.success) "OK" else "ERR"}</span></td>
+                    <td><span style="color:$statusC">${if (log.success) "OK" else "ERR"}</span></td>
                     <td class="error-msg">${log.errorMsg ?: "-"}</td>
                 </tr>"""
-            }
+                }
 
             call.respondText(ContentType.Text.Html) {
                 """
@@ -299,14 +312,14 @@ fun Application.configureMonitoring() {
                         <div class="card">
                             <h3>Proxy Status</h3>
                             <div class="val" style="color:${statusColor(stats["isProxyReachable"] as Boolean)}">
-                                ${if(stats["isProxyReachable"] as Boolean) "HEALTHY" else "DOWN"}
+                                ${if (stats["isProxyReachable"] as Boolean) "HEALTHY" else "DOWN"}
                             </div>
                             <div class="sub">${stats["proxyStatusMsg"]}</div>
                         </div>
                         <div class="card">
                             <h3>Database</h3>
                             <div class="val" style="color:${statusColor(stats["isDbConnected"] as Boolean)}">
-                                ${if(stats["isDbConnected"] as Boolean) "CONNECTED" else "DISCONNECTED"}
+                                ${if (stats["isDbConnected"] as Boolean) "CONNECTED" else "DISCONNECTED"}
                             </div>
                             <div class="sub">PostgreSQL</div>
                         </div>
@@ -341,7 +354,7 @@ fun Application.configureMonitoring() {
                         </div>
                          <div class="card">
                             <h3>LLM Errors</h3>
-                            <div class="val" style="color:${if((stats["llmErrors"] as Long) > 0) "#f44336" else "#4CAF50"}">
+                            <div class="val" style="color:${if ((stats["llmErrors"] as Long) > 0) "#f44336" else "#4CAF50"}">
                                 ${stats["llmErrors"]}
                             </div>
                         </div>

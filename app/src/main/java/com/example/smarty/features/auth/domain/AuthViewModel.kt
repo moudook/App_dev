@@ -1,4 +1,5 @@
 @file:Suppress("DEPRECATION")
+
 package com.example.smarty.features.auth.domain
 
 import android.app.Application
@@ -9,24 +10,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.smarty.R
+import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.repository.AuthRepository
 import com.example.smarty.data.repository.FirebaseAuthRepository
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.firebase.auth.FirebaseUser
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-
-import com.example.smarty.features.auth.domain.AuthFeatureManager
-
-import com.example.smarty.data.local.SecurePreferences
-
 import com.example.smarty.di.ServiceLocator
+import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * ViewModel for Authentication
@@ -35,16 +24,15 @@ import com.example.smarty.di.ServiceLocator
 @Suppress("DEPRECATION")
 class AuthViewModel(
     application: Application,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
 ) : AndroidViewModel(application) {
-
     private val authFeatureManager: AuthFeatureManager by lazy {
         AuthFeatureManager(
             application,
             viewModelScope,
             authRepository,
             SecurePreferences.getInstance(application),
-            ServiceLocator.provideRepository(application)
+            ServiceLocator.provideRepository(application),
         )
     }
 
@@ -59,11 +47,17 @@ class AuthViewModel(
         authFeatureManager.handleGoogleSignInResult(result)
     }
 
-    fun signIn(email: String, password: String) {
+    fun signIn(
+        email: String,
+        password: String,
+    ) {
         authFeatureManager.signIn(email, password)
     }
 
-    fun signUp(email: String, password: String) {
+    fun signUp(
+        email: String,
+        password: String,
+    ) {
         authFeatureManager.signUp(email, password)
     }
 
