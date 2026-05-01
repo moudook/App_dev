@@ -89,7 +89,7 @@ class SettingsFeatureManager(
         _serverUrl.value = url
     }
 
-    // --- AI Strategy ---
+    // AI mode
     private val _providerStrategy = MutableStateFlow(securePreferences.getProviderStrategy())
     val providerStrategy: StateFlow<String> = _providerStrategy.asStateFlow()
 
@@ -114,10 +114,10 @@ class SettingsFeatureManager(
     // Deprecated IP/Port actions removed
 
 
-    // --- AI Strategy Actions ---
+    // AI mode actions
     fun setProviderStrategy(strategy: String) {
         securePreferences.setProviderStrategy(strategy)
-        _providerStrategy.value = strategy
+        _providerStrategy.value = securePreferences.getProviderStrategy()
     }
 
     fun setPersonality(personality: String) {

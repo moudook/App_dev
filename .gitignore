@@ -91,6 +91,7 @@ credentials.json
 application-*.conf
 !application.conf
 ngrok.yml
+/.gradle-home
 
 # ============================================
 # 4. ML MODELS & LARGE BINARIES

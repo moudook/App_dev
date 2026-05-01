@@ -32,8 +32,11 @@ import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
+import com.example.smarty.server.llm.LlmCache
+import com.example.smarty.server.llm.LlmCacheKey
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
+import com.example.smarty.server.tools.WebScrapeTool
 import com.example.smarty.server.routes.configureNewFeaturesRoutes
 import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.data.TaskRepository
@@ -312,7 +315,7 @@ fun Application.module() {
     }
 
     // Configure Image Serving Endpoint
-    routing {
+     routing {
         get("/generated-images/{id}") {
             val providedApiKey = call.parameters["apiKey"]
             val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
@@ -326,6 +329,14 @@ fun Application.module() {
             val imageId = call.parameters["id"]
             if (imageId.isNullOrBlank()) {
                 call.respondText("{\"error\": \"Image ID required\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
+                return@get
+            }
+
+            // FIX: Validate imageId is a valid UUID to prevent path traversal
+            try {
+                java.util.UUID.fromString(imageId)
+            } catch (e: IllegalArgumentException) {
+                call.respondText("{\"error\": \"Invalid image ID format\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
                 return@get
             }
 

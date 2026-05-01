@@ -1,25 +1,3 @@
-package com.example.smarty.server.utils
-
-/**
- * Circuit Breaker pattern implementation.
- *
- * Single Responsibility: Only handles circuit breaker logic.
- * DRY: Replaces repeated retry/fallback logic across services.
- * Global State: Tracks failure counts and circuit state.
- *
- * Usage:
- * ```
- * val circuitBreaker = CircuitBreaker(failureThreshold = 5)
- *
- * try {
- *     val result = circuitBreaker.execute {
- *         callExternalService()
- *     }
- * } catch (e: CircuitOpenException) {
- *     // Use fallback
- * }
- * ```
- */
 class CircuitBreaker(
     private val failureThreshold: Int = 5,
     private val resetTimeoutMs: Long = 60_000,
@@ -40,36 +18,51 @@ class CircuitBreaker(
     @Volatile
     private var halfOpenCallCount: Int = 0
 
+    // FIXED: Added lock for atomic state transitions to prevent race conditions
+    private val lock = Any()
+
     enum class CircuitState {
         CLOSED,
         OPEN,
         HALF_OPEN,
     }
 
+    class CircuitOpenException(message: String) : Exception(message)
+
     /**
      * Execute a block with circuit breaker protection.
+     * 
+     * FIXED: Uses synchronized lock for atomic state check-and-update operations
+     * to prevent race conditions in concurrent environments.
      */
     suspend fun <T> execute(block: suspend () -> T): T {
-        val currentState = getState()
+        val (currentState, shouldProceed) = synchronized(lock) {
+            val cs = state
+            val proceed = when (cs) {
+                CircuitState.OPEN -> {
+                    if (shouldTryReset()) {
+                        state = CircuitState.HALF_OPEN
+                        halfOpenCallCount = 0
+                        true
+                    } else {
+                        false
+                    }
+                }
+                CircuitState.HALF_OPEN -> {
+                    if (halfOpenCallCount >= halfOpenMaxCalls) {
+                        false
+                    } else {
+                        halfOpenCallCount++
+                        true
+                    }
+                }
+                CircuitState.CLOSED -> true
+            }
+            cs to proceed
+        }
 
-        when (currentState) {
-            CircuitState.OPEN -> {
-                if (shouldTryReset()) {
-                    state = CircuitState.HALF_OPEN
-                    halfOpenCallCount = 0
-                } else {
-                    throw CircuitOpenException("Circuit breaker is open. Try again in ${resetTimeoutMs}ms")
-                }
-            }
-            CircuitState.HALF_OPEN -> {
-                if (halfOpenCallCount >= halfOpenMaxCalls) {
-                    throw CircuitOpenException("Circuit breaker is half-open. Max calls reached.")
-                }
-                halfOpenCallCount++
-            }
-            CircuitState.CLOSED -> {
-                // Allow request
-            }
+        if (!shouldProceed) {
+            throw CircuitOpenException("Circuit breaker is $currentState. Try again in ${resetTimeoutMs}ms")
         }
 
         return try {
@@ -102,13 +95,13 @@ class CircuitBreaker(
      * Get the current circuit state.
      */
     fun getState(): CircuitState {
-        return state
+        return synchronized(lock) { state }
     }
 
     /**
      * Get circuit breaker statistics.
      */
-    fun getStats(): Map<String, Any> =
+    fun getStats(): Map<String, Any> = synchronized(lock) {
         mapOf(
             "state" to state.name,
             "failure_count" to failureCount,
@@ -116,56 +109,48 @@ class CircuitBreaker(
             "last_failure_time" to lastFailureTime,
             "half_open_calls" to halfOpenCallCount,
         )
+    }
 
     /**
      * Reset the circuit breaker to closed state.
      */
     fun reset() {
-        failureCount = 0
-        successCount = 0
-        lastFailureTime = 0
-        state = CircuitState.CLOSED
-        halfOpenCallCount = 0
+        synchronized(lock) {
+            failureCount = 0
+            successCount = 0
+            lastFailureTime = 0
+            state = CircuitState.CLOSED
+            halfOpenCallCount = 0
+        }
     }
 
     private fun onSuccess() {
-        failureCount = 0
-        successCount++
+        synchronized(lock) {
+            failureCount = 0
+            successCount++
 
-        if (state == CircuitState.HALF_OPEN) {
-            if (successCount >= halfOpenMaxCalls) {
+            if (state == CircuitState.HALF_OPEN) {
+                if (successCount >= halfOpenMaxCalls) {
+                    state = CircuitState.CLOSED
+                }
+            } else {
                 state = CircuitState.CLOSED
             }
-        } else {
-            state = CircuitState.CLOSED
         }
     }
 
     private fun onFailure() {
-        failureCount++
-        lastFailureTime = System.currentTimeMillis()
+        synchronized(lock) {
+            failureCount++
+            lastFailureTime = System.currentTimeMillis()
 
-        if (failureCount >= failureThreshold) {
-            state = CircuitState.OPEN
+            if (failureCount >= failureThreshold) {
+                state = CircuitState.OPEN
+            }
         }
     }
 
     private fun shouldTryReset(): Boolean {
         return System.currentTimeMillis() - lastFailureTime >= resetTimeoutMs
     }
-}
-
-/**
- * Exception thrown when circuit breaker is open.
- */
-class CircuitOpenException(message: String) : Exception(message)
-
-/**
- * Create a circuit breaker with default settings.
- */
-fun circuitBreaker(
-    failureThreshold: Int = 5,
-    resetTimeoutMs: Long = 60_000,
-): CircuitBreaker {
-    return CircuitBreaker(failureThreshold, resetTimeoutMs)
 }

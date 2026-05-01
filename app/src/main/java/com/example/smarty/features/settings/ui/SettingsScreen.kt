@@ -111,7 +111,7 @@ fun SettingsScreen(
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
     // AI Provider Strategy
-    providerStrategy: String = "BALANCED",
+    providerStrategy: String = "AUTO",
     onSetProviderStrategy: (String) -> Unit = {},
     // AI Personality
     personality: String = "DEFAULT",
@@ -138,7 +138,7 @@ fun SettingsScreen(
         mutableStateOf(if (personality != "DEFAULT") personality else securePrefs.getPersonality()) 
     }
     var currentProviderStrategy by remember {
-        mutableStateOf(if (providerStrategy != "BALANCED") providerStrategy else securePrefs.getProviderStrategy())
+        mutableStateOf(securePrefs.getProviderStrategy())
     }
 
     // Navigation State
@@ -234,20 +234,43 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                val appName = stringResource(R.string.app_name)
+                                val badge = remember(appName) {
+                                    appName
+                                        .split(" ")
+                                        .filter { it.isNotBlank() }
+                                        .take(2)
+                                        .joinToString("") { it.first().uppercaseChar().toString() }
+                                        .ifBlank { "FR" }
+                                }
                                 Box(
                                     modifier = Modifier
                                         .size(80.dp)
                                         .background(SemanticColors.warning, CircleShape), // Yellow circle
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("CH", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Normal)
+                                    Text(
+                                        text = badge,
+                                        color = Color.White,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Normal
+                                    )
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text("chiu", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Medium)
-                                Text("forpblcusz@gmail.com", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), fontSize = 14.sp)
+                                Text(
+                                    text = appName,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Private workspace on this device",
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                    fontSize = 14.sp
+                                )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 OutlinedButton(
-                                    onClick = {},
+                                    onClick = { currentView = SettingsView.Backup },
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = MaterialTheme.colorScheme.onBackground,
@@ -257,7 +280,7 @@ fun SettingsScreen(
                                     modifier = Modifier.height(38.dp),
                                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
                                 ) {
-                                    Text("Edit profile", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text("Open backups", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
 
@@ -271,15 +294,15 @@ fun SettingsScreen(
                                 )
                                 SmartySettingsCard {
                                     SmartySettingsRow(
-                                        label = "AI Strategy",
+                                        label = "AI Mode",
                                         icon = SmartyIcons.Analytics,
-                                        subtitle = currentProviderStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        subtitle = PreferenceOptions.aiModeDescription(currentProviderStrategy),
                                         onClick = { currentView = SettingsView.ProviderStrategy }
                                     )
                                     SmartySettingsRow(
                                         label = "AI Personality",
                                         icon = SmartyIcons.Psychology,
-                                        subtitle = currentPersonality.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        subtitle = PreferenceOptions.personalityLabel(currentPersonality),
                                         onClick = { currentView = SettingsView.Personality }
                                     )
                                     SmartySettingsRow(
@@ -360,11 +383,8 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Download,
                                         subtitle = stringResource(R.string.export_all_notes_and_settings),
                                         onClick = {
-                                            android.widget.Toast.makeText(
-                                                context, 
-                                                "Export feature coming soon!", 
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
+                                            currentView = SettingsView.Backup
+                                            onExportData()
                                         }
                                     )
                                     SmartySettingsRow(
@@ -1033,8 +1053,8 @@ private fun ProviderStrategyView(
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SettingsHeader(
-            title = "AI Strategy",
-            subtitle = "Optimize for cost, speed, or intelligence",
+            title = "AI Mode",
+            subtitle = "One simple automatic mode",
             onBack = onBack
         )
         LazyColumn(
@@ -1044,21 +1064,16 @@ private fun ProviderStrategyView(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 180.dp)
         ) {
-            val strategies = listOf(
-                "BALANCED" to "Best mix of performance and cost (Default)",
-                "CHEAPEST" to "Prioritize lowest cost (e.g. Gemini Flash, Groq)",
-                "FASTEST" to "Prioritize lowest latency (e.g. Groq, Cerebras)",
-                "SMARTEST" to "Prioritize reasoning capability (e.g. Claude 3.5, GPT-4o)"
-            )
+            val strategies = PreferenceOptions.aiModes
 
             items(strategies.size) { index ->
-                val (strategy, description) = strategies[index]
-                val isSelected = currentStrategy == strategy
+                val option = strategies[index]
+                val isSelected = currentStrategy == option.key
 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelect(strategy) },
+                        .clickable { onSelect(option.key) },
                     shape = LocalShapes.current.button,
                     color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
@@ -1077,11 +1092,8 @@ private fun ProviderStrategyView(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = when (strategy) {
-                                    "CHEAPEST" -> Icons.Default.Savings
-                                    "FASTEST" -> Icons.Default.Speed
-                                    "SMARTEST" -> Icons.Default.School
-                                    else -> Icons.Default.Balance
+                                imageVector = when (option.key) {
+                                    else -> Icons.Default.AutoAwesome
                                 },
                                 contentDescription = null,
                                 tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1091,12 +1103,12 @@ private fun ProviderStrategyView(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = strategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                text = option.label,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = description,
+                                text = option.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1135,23 +1147,16 @@ private fun PersonalityView(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 180.dp)
         ) {
-            val personalities = listOf(
-                "DEFAULT" to "Default" to "The original Smarty - sharp, warm, and genuinely useful",
-                "PROFESSIONAL" to "Professional" to "Formal, precise, and business-like",
-                "CASUAL" to "Casual" to "Relaxed, friendly, and conversational",
-                "CONCISE" to "Concise" to "Extremely brief, gets to the point fast",
-                "DETAILED" to "Detailed" to "Thorough and comprehensive with examples"
-            )
+            val personalities = PreferenceOptions.personalities
 
             items(personalities.size) { index ->
-                val (pair, description) = personalities[index]
-                val (key, label) = pair
-                val isSelected = currentPersonality == key
+                val option = personalities[index]
+                val isSelected = currentPersonality == option.key
 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelect(key) },
+                        .clickable { onSelect(option.key) },
                     shape = LocalShapes.current.button,
                     color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
@@ -1171,11 +1176,11 @@ private fun PersonalityView(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = when (key) {
+                                imageVector = when (option.key) {
                                     "PROFESSIONAL" -> Icons.Default.Business
                                     "CASUAL" -> Icons.Default.Mood
                                     "CONCISE" -> Icons.Default.Bolt
-                                    "DETAILED" -> Icons.Default.MenuBook
+                                    "DETAILED" -> Icons.Default.Description
                                     else -> Icons.Default.Psychology
                                 },
                                 contentDescription = null,
@@ -1186,12 +1191,12 @@ private fun PersonalityView(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = label,
+                                text = option.label,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = description,
+                                text = option.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1570,6 +1575,3 @@ private fun GuidedBreathingView(
         )
     }
 }
-
-
-

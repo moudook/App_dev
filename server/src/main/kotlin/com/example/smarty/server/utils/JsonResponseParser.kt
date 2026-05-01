@@ -2,6 +2,8 @@ package com.example.smarty.server.utils
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import org.slf4j.LoggerFactory
 
 /**
  * JSON Response Parser for LLM responses.
@@ -19,6 +21,7 @@ import kotlinx.serialization.json.JsonElement
  * ```
  */
 object JsonResponseParser {
+    private val logger = LoggerFactory.getLogger(JsonResponseParser::class.java)
     /**
      * Shared JSON configuration for lenient parsing.
      */
@@ -80,6 +83,7 @@ object JsonResponseParser {
         return try {
             parseToJson(response, deserializer)
         } catch (e: Exception) {
+            logger.error("JSON parsing failed: ${e.message}")
             null
         }
     }
@@ -93,6 +97,7 @@ object JsonResponseParser {
             json.parseToJsonElement(cleaned)
             true
         } catch (e: Exception) {
+            logger.debug("Invalid JSON: ${e.message}")
             false
         }
     }
@@ -106,7 +111,9 @@ object JsonResponseParser {
     ): String? {
         return try {
             val jsonElement = parseToJsonElement(response)
-            jsonElement.toString()
+            jsonElement
+                .jsonObject[fieldName]
+                ?.toString()
         } catch (e: Exception) {
             null
         }

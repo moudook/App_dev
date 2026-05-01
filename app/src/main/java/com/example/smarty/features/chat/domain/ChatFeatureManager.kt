@@ -1660,13 +1660,10 @@ class ChatFeatureManager(
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
             val personality = securePreferences.getPersonality()
-            val providerStrategy = securePreferences.getProviderStrategy()
-
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
                 personality = personality,
-                provider = providerStrategy, // Fix: Now passes provider strategy (BALANCED, FASTEST, etc.) to server
             )
                 .collect { event ->
                     when (event) {

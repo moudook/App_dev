@@ -147,8 +147,16 @@ fun Application.configureOptimizedSyncRoutes() {
                         } catch (e: Exception) {
                             DeltaSyncRequest()
                         }
-                    val lastSyncAt = request.lastSyncAt ?: 0L
+                     val lastSyncAt = request.lastSyncAt ?: 0L
                     val limit = request.limit ?: 1000
+                    
+                    // Input validation
+                    if (lastSyncAt < 0) {
+                        return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid lastSyncAt"))
+                    }
+                    if (limit !in 1..5000) {
+                        return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid limit (must be 1-5000)"))
+                    }
 
                     // Get mutex for this user to prevent duplicate concurrent pulls
                     val mutex = syncCache.getMutex(userId)

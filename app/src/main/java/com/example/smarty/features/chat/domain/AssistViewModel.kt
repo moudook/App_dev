@@ -979,9 +979,6 @@ class AssistViewModel(
             // Collect chunks from the remote stream
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
-            // Use user-selected strategy (BALANCED, FASTEST, etc.)
-            // The server's ProviderRouter will handle the actual provider selection
-            val provider = settingsFeatureManager.providerStrategy.value
             val sessionId = chatManager.currentSessionId.value
 
             val streamingMessageId = java.util.UUID.randomUUID().toString()
@@ -995,7 +992,7 @@ class AssistViewModel(
                 )
             chatManager.addSmartyMessage(streamingMessage)
 
-            remoteAgentService.sendQuery(content, provider = provider, sessionId = sessionId)
+            remoteAgentService.sendQuery(content, sessionId = sessionId)
                 .collect { event ->
                     when (event) {
                         is com.example.smarty.protocol.AgentEvent.Processing -> {

@@ -81,6 +81,19 @@ data class BriefingResponse(
     val success: Boolean = true,
 )
 
+private fun normalizeProviderSelection(provider: String?): String? {
+    val normalized = provider?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: return null
+    return when (normalized) {
+        "AUTO",
+        "BALANCED",
+        "CHEAPEST",
+        "FASTEST",
+        "SMARTEST",
+        -> null
+        else -> normalized
+    }
+}
+
 fun Application.configureChatRoutes() {
     // JSON encoder for events
     val json =
@@ -129,6 +142,12 @@ fun Application.configureChatRoutes() {
                     val request = call.receive<BriefingRequest>()
                     val userId = user.userId
 
+                    // Input validation
+                    com.example.smarty.server.utils.InputValidation.validateQuery(request.prompt)
+                    request.token?.let { 
+                        if (it.length > 500) throw IllegalArgumentException("Token too long")
+                    }
+
                     call.application.log.info("Generating daily briefing for user: $userId")
 
                     // Use default provider
@@ -176,6 +195,14 @@ fun Application.configureChatRoutes() {
                 val sessionId = call.request.queryParameters["sessionId"]
                 if (sessionId.isNullOrBlank()) {
                     call.respond(HttpStatusCode.BadRequest, "Missing sessionId")
+                    return@post
+                }
+
+                // Input validation
+                try {
+                    com.example.smarty.server.utils.InputValidation.validateSessionId(sessionId)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid sessionId: ${e.message}"))
                     return@post
                 }
 
@@ -264,13 +291,44 @@ fun Application.configureChatRoutes() {
                 val userId = user.userId
                 val query = call.request.queryParameters["query"] ?: "default query"
                 var sessionId = call.request.queryParameters["sessionId"]
-                val providerParam = call.request.queryParameters["provider"]
+                val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
                 val providerUrlParam = call.request.queryParameters["providerUrl"]
                 val modelParam = call.request.queryParameters["model"]
                 val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
                 val timezoneParam = call.request.queryParameters["timezone"]
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
                 val personalityParam = call.request.queryParameters["personality"]
+
+                // Input validation
+                try {
+                    com.example.smarty.server.utils.InputValidation.validateQuery(query)
+                    sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
+                    providerUrlParam?.let { 
+                        if (it.length > 500) throw IllegalArgumentException("Provider URL too long")
+                    }
+                    modelParam?.let { 
+                        if (it.length > 100) throw IllegalArgumentException("Model name too long")
+                    }
+                    timezoneParam?.let { 
+                        if (it.length > 50) throw IllegalArgumentException("Timezone too long")
+                    }
+                } catch (e: IllegalArgumentException) {
+                    send(
+                        ServerSentEvent(
+                            data =
+                                json.encodeToString(
+                                    AgentEvent.Error(
+                                        eventId = UUID.randomUUID().toString(),
+                                        timestamp = System.currentTimeMillis(),
+                                        message = "Invalid input: ${e.message}",
+                                        code = "INVALID_INPUT",
+                                    ),
+                                ),
+                            event = "error",
+                        ),
+                    )
+                    return@sse
+                }
 
                 // Log the incoming request
                 call.application.log.info(
@@ -504,7 +562,13 @@ fun Application.configureChatRoutes() {
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
                     // Create provider for this request
-                val streamProvider = LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
+                val streamProvider =
+                    LlmProviderFactory.create(
+                        httpClient,
+                        normalizeProviderSelection(request.provider),
+                        request.providerUrl,
+                        request.token,
+                    )
 
                     val streamSummarizer = ConversationSummarizer(streamProvider)
 

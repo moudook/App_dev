@@ -39,7 +39,7 @@ fun Application.configureDigestRoutes(
 
     routing {
         authenticate("firebase") {
-            // Get all digests for user
+             // Get all digests for user
             get("/digests") {
                 val userId =
                     call.principal<FirebaseUserPrincipal>()?.userId
@@ -47,6 +47,9 @@ fun Application.configureDigestRoutes(
 
                 try {
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 30
+                    if (limit !in 1..100) {
+                        return@get call.respond(mapOf("error" to "Invalid limit (must be 1-100)"))
+                    }
                     val digests = digestService.getDigestsForUser(userId, limit)
                     call.respond(mapOf("digests" to digests))
                 } catch (e: Exception) {
@@ -78,7 +81,7 @@ fun Application.configureDigestRoutes(
                 }
             }
 
-            // Manually trigger digest generation
+             // Manually trigger digest generation
             post("/digests/trigger") {
                 val userId =
                     call.principal<FirebaseUserPrincipal>()?.userId
@@ -87,6 +90,11 @@ fun Application.configureDigestRoutes(
                 try {
                     val request = call.receive<TriggerDigestRequest>()
                     val type = request.type ?: "daily"
+                    
+                    // Input validation
+                    if (type !in listOf("daily", "weekly")) {
+                        return@post call.respond(mapOf("error" to "Invalid digest type (must be 'daily' or 'weekly')"))
+                    }
 
                     val result = digestScheduler.triggerDigestForUser(userId, type)
                     if (result != null) {

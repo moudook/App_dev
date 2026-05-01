@@ -47,8 +47,9 @@ import com.example.smarty.features.notes.ui.InputStreamScreen
 import com.example.smarty.features.games.ui.TicTacToeScreen
 import com.example.smarty.features.games.ui.CoinTossScreen
 import com.example.smarty.features.digest.ui.DigestScreen
+import com.example.smarty.features.digest.ui.DigestDetailScreen
 import com.example.smarty.features.breathing.GuidedBreathingScreen
-import com.example.smarty.features.auth.ui.LoginScreen
+import com.example.smarty.features.auth.ui.RefinedLoginScreen
 import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.features.searchhistory.ui.SearchHistoryScreen
 import com.example.smarty.features.devices.ui.DeviceManagementScreen
@@ -605,6 +606,7 @@ fun SmartyNavHost(
         composable(Screen.Settings.route) { _ ->
             val personality by viewModel.personality.collectAsState()
             val providerStrategy by viewModel.providerStrategy.collectAsState()
+            val backupViewModel: BackupViewModel = viewModel()
             
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
@@ -617,10 +619,11 @@ fun SmartyNavHost(
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
                 isClearingCache = isClearingCache,
+                onExportData = { backupViewModel.createLocalBackup() },
                 // Shake sensitivity
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
-                // AI Strategy
+                // AI mode
                 providerStrategy = providerStrategy,
                 onSetProviderStrategy = { viewModel.setProviderStrategy(it) },
                 // AI Personality
@@ -685,7 +688,7 @@ fun SmartyNavHost(
         }
 
         composable(Screen.Login.route) { _ ->
-            LoginScreen(
+            RefinedLoginScreen(
                 onLoginSuccess = {
                     navController.navigate(Screen.InputStream.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
@@ -714,18 +717,17 @@ fun SmartyNavHost(
                 }
             )
         }
-        
-        // TODO: Add digest detail route when screen is implemented
-        // composable(
-        //     route = "digest_detail/{digestId}",
-        //     arguments = listOf(navArgument("digestId") { type = NavType.StringType })
-        // ) { backStackEntry ->
-        //     val digestId = backStackEntry.arguments?.getString("digestId") ?: ""
-        //     DigestDetailRoute(
-        //         digestId = digestId,
-        //         onBackClick = { navController.safePopBackStack() }
-        //     )
-        // }
+
+        composable(
+            route = "digest_detail/{digestId}",
+            arguments = listOf(navArgument("digestId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val digestId = backStackEntry.arguments?.getString("digestId") ?: ""
+            DigestDetailRoute(
+                digestId = digestId,
+                onBackClick = { navController.safePopBackStack() }
+            )
+        }
 
         composable(Screen.GuidedBreathing.route) { _ ->
             GuidedBreathingScreen(
@@ -906,50 +908,49 @@ fun DigestRoute(
     )
 }
 
-// TODO: Implement DigestDetailScreen
-// @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-// @Composable
-// fun DigestDetailRoute(
-//     digestId: String,
-//     onBackClick: () -> Unit
-// ) {
-//     val context = androidx.compose.ui.platform.LocalContext.current
-//     val application = context.applicationContext as? android.app.Application
-//
-//     val digestFeatureManager = remember(application) {
-//         application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
-//     }
-//
-//     var digest by remember { mutableStateOf<com.example.smarty.features.digest.domain.DigestResult?>(null) }
-//     var isLoading by remember { mutableStateOf(true) }
-//
-//     LaunchedEffect(digestId) {
-//         isLoading = true
-//         digest = digestFeatureManager?.fetchDigestById(digestId)
-//         isLoading = false
-//     }
-//
-//     if (isLoading) {
-//         androidx.compose.foundation.layout.Box(
-//             modifier = Modifier.fillMaxSize(),
-//             contentAlignment = Alignment.Center
-//         ) {
-//             androidx.compose.material3.CircularProgressIndicator()
-//         }
-//     } else if (digest != null) {
-//         DigestDetailScreen(
-//             digest = digest!!,
-//             onNavigateBack = onBackClick
-//         )
-//     } else {
-//         androidx.compose.foundation.layout.Box(
-//             modifier = Modifier.fillMaxSize(),
-//             contentAlignment = Alignment.Center
-//         ) {
-//             androidx.compose.material3.Text("Digest not found")
-//         }
-//     }
-// }
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun DigestDetailRoute(
+    digestId: String,
+    onBackClick: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val application = context.applicationContext as? android.app.Application
+
+    val digestFeatureManager = remember(application) {
+        application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
+    }
+
+    var digest by remember { mutableStateOf<com.example.smarty.features.digest.domain.DigestResult?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(digestId) {
+        isLoading = true
+        digest = digestFeatureManager?.fetchDigestById(digestId)
+        isLoading = false
+    }
+
+    if (isLoading) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.material3.CircularProgressIndicator()
+        }
+    } else if (digest != null) {
+        DigestDetailScreen(
+            digest = digest!!,
+            onNavigateBack = onBackClick
+        )
+    } else {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.material3.Text("Digest not found")
+        }
+    }
+}
 
 /**
  * Calendar screen wrapper with proper experimental API annotation for ModalBottomSheet.
@@ -1050,5 +1051,3 @@ fun CalendarRoute(
         }
     }
 }
-
-

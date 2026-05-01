@@ -1,12 +1,12 @@
 package com.example.smarty.core.domain.model
 
-import androidx.room.Entity
-
 /**
  * Represents usage statistics for an AI provider connection.
- * Used for rate limiting and usage tracking.
+ *
+ * This is currently a plain model rather than a Room entity. The app no longer
+ * reads or writes this table through Room, and keeping it registered as an
+ * entity was tripping KSP during schema generation.
  */
-@Entity(tableName = "provider_usage", primaryKeys = ["date", "provider", "modelId"])
 data class ConnectionUsage(
     val date: Long,
     val provider: String,

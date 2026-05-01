@@ -102,7 +102,7 @@ class SecurePreferences(private val context: Context) {
 
         // AI Provider Strategy
         private const val KEY_PROVIDER_STRATEGY = "provider_strategy"
-        private const val DEFAULT_PROVIDER_STRATEGY = "BALANCED"
+        private const val DEFAULT_PROVIDER_STRATEGY = "AUTO"
 
         // AI Personality
         private const val KEY_PERSONALITY = "ai_personality"
@@ -244,10 +244,10 @@ class SecurePreferences(private val context: Context) {
     }
 
     // AI Provider Strategy
-    fun getProviderStrategy(): String =
-        encryptedPrefs.getString(KEY_PROVIDER_STRATEGY, DEFAULT_PROVIDER_STRATEGY) ?: DEFAULT_PROVIDER_STRATEGY
+    fun getProviderStrategy(): String = DEFAULT_PROVIDER_STRATEGY
 
-    fun setProviderStrategy(strategy: String) = encryptedPrefs.edit().putString(KEY_PROVIDER_STRATEGY, strategy).apply()
+    fun setProviderStrategy(strategy: String) =
+        encryptedPrefs.edit().putString(KEY_PROVIDER_STRATEGY, DEFAULT_PROVIDER_STRATEGY).apply()
 
     // AI Personality
     fun getPersonality(): String = encryptedPrefs.getString(KEY_PERSONALITY, DEFAULT_PERSONALITY) ?: DEFAULT_PERSONALITY

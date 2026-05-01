@@ -36,7 +36,7 @@ class ChatMessageNotesRepositoryTest {
         // Create in-memory test database (H2)
         val config =
             HikariConfig().apply {
-                jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false"
+                jdbcUrl = "jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false"
                 driverClassName = "org.h2.Driver"
                 username = "sa"
                 password = ""
@@ -314,7 +314,7 @@ class ChatMessageNotesRepositoryTest {
 
         dataSource.connection.use { conn ->
             conn.createStatement().executeUpdate(
-                "INSERT INTO users (firebase_uid) VALUES ('$userId') ON CONFLICT DO NOTHING",
+                "MERGE INTO users (firebase_uid) KEY(firebase_uid) VALUES ('$userId')",
             )
 
             conn.createStatement().executeUpdate(
@@ -333,7 +333,7 @@ class ChatMessageNotesRepositoryTest {
     private suspend fun createTestNote(userId: String): UUID {
         dataSource.connection.use { conn ->
             conn.createStatement().executeUpdate(
-                "INSERT INTO users (firebase_uid) VALUES ('$userId') ON CONFLICT DO NOTHING",
+                "MERGE INTO users (firebase_uid) KEY(firebase_uid) VALUES ('$userId')",
             )
 
             val noteId = UUID.randomUUID()

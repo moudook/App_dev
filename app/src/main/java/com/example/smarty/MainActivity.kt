@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.smarty.core.domain.model.PlaybackState
-import com.example.smarty.features.auth.ui.LoginScreen
+import com.example.smarty.features.auth.ui.RefinedLoginScreen
 import com.google.firebase.auth.FirebaseAuth
 import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
@@ -374,7 +374,7 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 // LOGIN FIRST - No splash before this
-                                LoginScreen(
+                                RefinedLoginScreen(
                                     shouldSkipSplash = shouldSkipSplash,
                                     onLoginSuccess = {
                                         // Login successful - state will recompose to voice_enrollment or main_app
@@ -895,19 +895,24 @@ class MainActivity : ComponentActivity() {
         val permissionsToRequest = mutableListOf<String>()
 
         // RECORD_AUDIO - Required for wake word detection and speech recognition
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        // FIX: Check version before calling checkSelfPermission to avoid crash on API < 23
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+            }
         }
 
         // Calendar permissions - Required for Google Calendar sync
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
-            != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.READ_CALENDAR)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
-            != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.WRITE_CALENDAR)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+                != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_CALENDAR)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+                != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.WRITE_CALENDAR)
+            }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

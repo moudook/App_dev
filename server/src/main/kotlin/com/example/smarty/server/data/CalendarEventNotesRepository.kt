@@ -3,6 +3,7 @@ package com.example.smarty.server.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.sql.Connection
 import java.util.UUID
 import javax.sql.DataSource
 
@@ -25,18 +26,7 @@ class CalendarEventNotesRepository(private val dataSource: DataSource) {
     ): Unit =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    INSERT INTO calendar_event_notes (event_id, note_id)
-                    VALUES (?, ?)
-                    ON CONFLICT (event_id, note_id) DO NOTHING
-                    """.trimIndent()
-
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, eventId)
-                    stmt.setObject(2, noteId)
-                    stmt.executeUpdate()
-                }
+                insertLink(conn, eventId, noteId)
             }
             logger.debug("Linked event {} to note {}", eventId, noteId)
         }
@@ -165,20 +155,8 @@ class CalendarEventNotesRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
-                    val sql =
-                        """
-                        INSERT INTO calendar_event_notes (event_id, note_id)
-                        VALUES (?, ?)
-                        ON CONFLICT (event_id, note_id) DO NOTHING
-                        """.trimIndent()
-
-                    conn.prepareStatement(sql).use { stmt ->
-                        noteIds.forEach { noteId ->
-                            stmt.setObject(1, eventId)
-                            stmt.setObject(2, noteId)
-                            stmt.addBatch()
-                        }
-                        stmt.executeBatch()
+                    noteIds.forEach { noteId ->
+                        insertLink(conn, eventId, noteId)
                     }
                     conn.commit()
                 } catch (e: Exception) {
@@ -258,4 +236,42 @@ class CalendarEventNotesRepository(private val dataSource: DataSource) {
                 }
             }
         }
+
+    private fun insertLink(
+        conn: Connection,
+        eventId: UUID,
+        noteId: UUID,
+    ) {
+        val sql = insertLinkSql(conn)
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.setObject(1, eventId)
+            stmt.setObject(2, noteId)
+            if (!isPostgres(conn)) {
+                stmt.setObject(3, eventId)
+                stmt.setObject(4, noteId)
+            }
+            stmt.executeUpdate()
+        }
+    }
+
+    private fun insertLinkSql(conn: Connection): String =
+        if (isPostgres(conn)) {
+            """
+            INSERT INTO calendar_event_notes (event_id, note_id)
+            VALUES (?, ?)
+            ON CONFLICT (event_id, note_id) DO NOTHING
+            """.trimIndent()
+        } else {
+            """
+            INSERT INTO calendar_event_notes (event_id, note_id)
+            SELECT ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM calendar_event_notes
+                WHERE event_id = ? AND note_id = ?
+            )
+            """.trimIndent()
+        }
+
+    private fun isPostgres(conn: Connection): Boolean =
+        conn.metaData.databaseProductName.contains("PostgreSQL", ignoreCase = true)
 }

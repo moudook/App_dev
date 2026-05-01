@@ -128,22 +128,33 @@ class DigestService(
                     targetDate = targetDate,
                 )
 
-            // Save to database
+            // Save to database - handle race condition with unique constraint
             val digestId =
-                saveDigest(
-                    userId = userId,
-                    digestDate = targetDate,
-                    digestType = "daily",
-                    content = digestContent,
-                    notesAnalyzed = notes.size,
-                    chatsAnalyzed = chats.size,
-                    memoriesAnalyzed = memories.size,
-                )
+                try {
+                    saveDigest(
+                        userId = userId,
+                        digestDate = targetDate,
+                        digestType = "daily",
+                        content = digestContent,
+                        notesAnalyzed = notes.size,
+                        chatsAnalyzed = chats.size,
+                        memoriesAnalyzed = memories.size,
+                    )
+                } catch (e: Exception) {
+                    // Check if this is a unique constraint violation (another process created the digest)
+                    logger.warn("Digest save failed, checking if already exists: ${e.message}")
+                    if (digestExists(userId, targetDate, "daily")) {
+                        logger.info("Digest was created by another process, retrieving existing")
+                        getDigestByDate(userId, targetDate, "daily")?.id
+                    } else {
+                        throw e
+                    }
+                }
 
             logger.info("Daily digest generated for user $userId: $digestId")
 
             DigestResult(
-                id = digestId,
+                id = digestId ?: throw IllegalStateException("Failed to save or retrieve digest"),
                 userId = userId,
                 digestDate = targetDate.toString(),
                 digestType = "daily",
@@ -203,22 +214,33 @@ class DigestService(
                     startDate = weekStartDate,
                 )
 
-            // Save to database
+            // Save to database - handle race condition with unique constraint
             val digestId =
-                saveDigest(
-                    userId = userId,
-                    digestDate = weekEndDate,
-                    digestType = "weekly",
-                    content = digestContent,
-                    notesAnalyzed = notes.size,
-                    chatsAnalyzed = chats.size,
-                    memoriesAnalyzed = memories.size,
-                )
+                try {
+                    saveDigest(
+                        userId = userId,
+                        digestDate = weekEndDate,
+                        digestType = "weekly",
+                        content = digestContent,
+                        notesAnalyzed = notes.size,
+                        chatsAnalyzed = chats.size,
+                        memoriesAnalyzed = memories.size,
+                    )
+                } catch (e: Exception) {
+                    // Check if this is a unique constraint violation (another process created the digest)
+                    logger.warn("Digest save failed, checking if already exists: ${e.message}")
+                    if (digestExists(userId, weekEndDate, "weekly")) {
+                        logger.info("Digest was created by another process, retrieving existing")
+                        getDigestByDate(userId, weekEndDate, "weekly")?.id
+                    } else {
+                        throw e
+                    }
+                }
 
             logger.info("Weekly digest generated for user $userId: $digestId")
 
             DigestResult(
-                id = digestId,
+                id = digestId ?: throw IllegalStateException("Failed to save or retrieve digest"),
                 userId = userId,
                 digestDate = weekEndDate.toString(),
                 digestType = "weekly",

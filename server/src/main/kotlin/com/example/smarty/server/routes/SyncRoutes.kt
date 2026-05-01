@@ -201,16 +201,28 @@ fun Application.configureSyncRoutes() {
                     }
                 }
 
-                post("/push") {
-                    val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                    if (noteRepository == null || chatRepository == null || calendarRepository == null || syncRepository == null) {
-                        return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
-                    }
+                 post("/push") {
+                     val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                     if (noteRepository == null || chatRepository == null || calendarRepository == null || syncRepository == null) {
+                         return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                     }
 
-                    try {
-                        val userId = user.userId
-                        val request = call.receive<SyncPushRequest>()
-                        val createdNotes = mutableListOf<String>()
+                     try {
+                         val userId = user.userId
+                         val request = call.receive<SyncPushRequest>()
+                         
+                         // Input validation - limit batch sizes
+                         if ((request.notes?.size ?: 0) > 1000) {
+                             return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Too many notes (max 1000)"))
+                         }
+                         if ((request.sessions?.size ?: 0) > 100) {
+                             return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Too many sessions (max 100)"))
+                         }
+                         if ((request.events?.size ?: 0) > 100) {
+                             return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Too many events (max 100)"))
+                         }
+
+                         val createdNotes = mutableListOf<String>()
                         val createdSessions = mutableListOf<String>()
                         val createdEvents = mutableListOf<String>()
                         val errors = mutableListOf<String>()

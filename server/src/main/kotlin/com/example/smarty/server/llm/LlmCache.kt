@@ -1,14 +1,15 @@
 package com.example.smarty.server.llm
 
+import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.ToolDefinition
 import org.slf4j.LoggerFactory
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 data class LlmCacheKey(
     val messages: List<LlmMessage>,
     val tools: List<ToolDefinition>,
-    val model: String?,
-    val isActionQuery: Boolean = false,
+    val modelOverride: String?,
+    val isActionQuery: Boolean,
 )
 
 object LlmCache {
@@ -48,43 +49,41 @@ object LlmCache {
             normalized.contains("what is in my")
     }
 
+    /**
+     * Get cached response for a key.
+     * Returns cached response if valid, null otherwise.
+     * 
+     * FIXED: Removed incorrect filtering that prevented caching of non-action queries.
+     * Cache should work for all query types to improve performance.
+     */
     fun get(key: LlmCacheKey): String? {
-        if (!key.isActionQuery) {
-            logger.debug("Skipping cache for non-action query")
-            return null
-        }
         val value = cache[key] ?: return null
         if (System.currentTimeMillis() - value.timestamp > TTL_MS) {
             cache.remove(key)
             return null
         }
-        if (!value.hadToolCalls) {
-            logger.debug("Cache entry had no tool calls, skipping")
-            return null
-        }
-        logger.info("LlmCache HIT for action query (history size: ${key.messages.size})")
+        // FIXED: Removed check for hadToolCalls - cache all valid responses
+        logger.info("LlmCache HIT for query (history size: ${key.messages.size})")
         return value.response
     }
 
+    /**
+     * Store response in cache.
+     * 
+     * FIXED: Removed incorrect filtering that prevented caching of non-action queries.
+     * Cache should work for all query types to improve performance.
+     */
     fun put(
         key: LlmCacheKey,
         response: String,
         hadToolCalls: Boolean = false,
     ) {
-        if (!key.isActionQuery) {
-            logger.debug("Not caching non-action query response")
-            return
-        }
-        if (!hadToolCalls) {
-            logger.debug("Not caching response without tool calls")
-            return
-        }
         if (cache.size > MAX_SIZE) {
             val oldest = cache.entries.minByOrNull { it.value.timestamp }
             oldest?.let { cache.remove(it.key) }
         }
         cache[key] = LlmCacheValue(response, hadToolCalls = hadToolCalls)
-        logger.debug("Cached action query response")
+        logger.debug("Cached query response (action query: ${key.isActionQuery})")
     }
 
     fun clear() {

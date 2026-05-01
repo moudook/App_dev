@@ -178,7 +178,8 @@ class PostgresVectorStore : VectorStore {
             id = rs.getString("id"),
             content = rs.getString("content"),
             metadata = metadata,
-            similarity = rs.getDouble("similarity"),
+            // FIXED: Column is named 'rank' in the SQL query, not 'similarity'
+            similarity = rs.getDouble("rank"),
         )
     }
 

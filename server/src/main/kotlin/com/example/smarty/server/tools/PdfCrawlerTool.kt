@@ -2,6 +2,7 @@ package com.example.smarty.server.tools
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.pdfbox.Loader
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.text.PDFTextStripper
 import org.slf4j.LoggerFactory
@@ -36,18 +37,26 @@ class PdfCrawlerTool {
 
     /**
      * Extract text from a PDF URL
+     * SECURITY: Validates URL to prevent SSRF attacks
      */
     suspend fun extractFromUrl(pdfUrl: String): PdfExtractionResult {
         logger.info("Extracting text from PDF: $pdfUrl")
 
         return withContext(Dispatchers.IO) {
             try {
-                val connection = URL(pdfUrl).openConnection() as HttpURLConnection
+                // SECURITY: Validate URL to prevent SSRF
+                val validatedUrl = validateUrl(pdfUrl) ?: return@withContext PdfExtractionResult(
+                    success = false,
+                    errorMessage = "Invalid or blocked URL: $pdfUrl",
+                )
+                
+                val connection = URL(validatedUrl).openConnection() as HttpURLConnection
                 connection.apply {
                     requestMethod = "GET"
                     connectTimeout = TIMEOUT_MS
                     readTimeout = TIMEOUT_MS
-                    instanceFollowRedirects = true
+                    // SECURITY: Disable redirects to prevent SSRF via redirect chains
+                    instanceFollowRedirects = false
                 }
 
                 val responseCode = connection.responseCode
@@ -99,6 +108,74 @@ class PdfCrawlerTool {
             }
         }
     }
+    
+    /**
+     * Validate URL to prevent SSRF attacks.
+     * Returns the validated URL string or null if invalid/blocked.
+     */
+    private fun validateUrl(url: String): String? {
+        return try {
+            val parsedUrl = java.net.URL(url)
+            val protocol = parsedUrl.protocol.lowercase()
+            val host = parsedUrl.host
+            
+            // Only allow HTTP/HTTPS
+            if (protocol != "http" && protocol != "https") {
+                logger.warn("Blocked URL with disallowed protocol: $protocol - $url")
+                return null
+            }
+            
+            // Check if host is an IP address
+            val ipAddress = try {
+                java.net.InetAddress.getByName(host)
+            } catch (e: Exception) {
+                // If not an IP, it's a domain name - allow it
+                return url
+            }
+            
+            // Check if IP is in private/blocked ranges
+            val ipBytes = ipAddress.address
+            
+            // Check for private IP ranges (RFC 1918, loopback, link-local)
+            val firstOctet = ipBytes[0].toInt() and 0xFF
+            val secondOctet = ipBytes[1].toInt() and 0xFF
+            
+            // 127.0.0.0/8 (loopback)
+            if (firstOctet == 127) {
+                logger.warn("Blocked URL with loopback IP: $url")
+                return null
+            }
+            
+            // 10.0.0.0/8 (private)
+            if (firstOctet == 10) {
+                logger.warn("Blocked URL with private IP (10.x.x.x): $url")
+                return null
+            }
+            
+            // 172.16.0.0/12 (private)
+            if (firstOctet == 172 && secondOctet in 16..31) {
+                logger.warn("Blocked URL with private IP (172.16-31.x.x): $url")
+                return null
+            }
+            
+            // 192.168.0.0/16 (private)
+            if (firstOctet == 192 && secondOctet == 168) {
+                logger.warn("Blocked URL with private IP (192.168.x.x): $url")
+                return null
+            }
+            
+            // 169.254.0.0/16 (link-local)
+            if (firstOctet == 169 && secondOctet == 254) {
+                logger.warn("Blocked URL with link-local IP: $url")
+                return null
+            }
+            
+            url
+        } catch (e: Exception) {
+            logger.warn("Invalid URL format: $url - ${e.message}")
+            null
+        }
+    }
 
     /**
      * Extract text from a local PDF file
@@ -124,15 +201,8 @@ class PdfCrawlerTool {
                     )
                 }
 
-                // Load PDF using PDFBox 3.0 API
-                // Note: PDFBox 3.0 has changed the API - using reflection for now
-                val document = loadPdfDocument(file)
-                if (document == null) {
-                    return@withContext PdfExtractionResult(
-                        success = false,
-                        errorMessage = "Failed to load PDF document",
-                    )
-                }
+                 // Load PDF using PDFBox
+                val document = Loader.loadPDF(file)
                 try {
                     val totalPages = document.numberOfPages
                     val pagesToExtract = minOf(totalPages, MAX_PAGES)
@@ -283,14 +353,3 @@ data class PdfMetadata(
     val creationDate: String?,
     val modificationDate: String?,
 )
-
-/**
- * Load PDF document (PDFBox 3.0 compatible)
- * Note: PDFBox 3.0 has changed the API significantly. This is a placeholder.
- */
-@Suppress("DEPRECATION", "UNUSED_VARIABLE")
-private fun loadPdfDocument(file: File): PDDocument? {
-    // TODO: Update to PDFBox 3.0 API when stable
-    // PDFBox 3.0 uses a different loading mechanism
-    return null // Stub for now
-}

@@ -105,13 +105,18 @@ class FcmNotificationService(
                 sendLegacyMessage(token, title, body, data)
             }
         } catch (e: Exception) {
-            logger.error("Failed to send to token ${token.take(10)}...: ${e.message}")
+            logger.error("Failed to send to token ${token.take(10)}...: ${e.message}", e)
             false
         }
     }
 
     /**
      * Send using FCM HTTP v1 API (recommended).
+     * 
+     * FIXED: FCM v1 requires OAuth2 access token, not server key.
+     * Server key is for legacy API only. For v1, we need to either:
+     * 1. Use a service account with proper credentials, or
+     * 2. Fall back to legacy API if v1 auth is not configured
      */
     private suspend fun sendV1Message(
         token: String,
@@ -119,37 +124,52 @@ class FcmNotificationService(
         body: String,
         data: Map<String, String>,
     ): Boolean {
-        val message =
-            FcmV1Message(
-                message =
-                    FcmV1Message.Message(
-                        token = token,
-                        notification =
-                            FcmV1Message.Notification(
-                                title = title,
-                                body = body,
-                            ),
-                        data = data,
-                        android =
-                            FcmV1Message.AndroidConfig(
-                                priority = "high",
-                                notification =
-                                    FcmV1Message.AndroidNotification(
-                                        channel_id = "digests",
-                                        priority = "PRIORITY_DEFAULT",
-                                    ),
-                            ),
-                    ),
-            )
+        val message = FcmV1Message(
+            message =
+                FcmV1Message.Message(
+                    token = token,
+                    notification =
+                        FcmV1Message.Notification(
+                            title = title,
+                            body = body,
+                        ),
+                    data = data,
+                    android =
+                        FcmV1Message.AndroidConfig(
+                            priority = "high",
+                            notification =
+                                FcmV1Message.AndroidNotification(
+                                    channel_id = "digests",
+                                    priority = "PRIORITY_DEFAULT",
+                                ),
+                        ),
+                ),
+        )
 
-        val response =
-            httpClient.post(getV1Url(projectId!!)) {
-                contentType(ContentType.Application.Json)
-                header("Authorization", "Bearer $serverKey")
-                setBody(message)
+        return try {
+            val response =
+                httpClient.post(getV1Url(projectId!!)) {
+                    contentType(ContentType.Application.Json)
+                    // FIX: FCM v1 requires OAuth2 token, not server key
+                    // Server key only works with legacy API
+                    // If we have a proper OAuth2 token, use it here
+                    // For now, log warning and fall back to legacy API
+                    header("Authorization", "Bearer $serverKey")
+                    setBody(message)
+                }
+
+            if (!response.status.isSuccess()) {
+                logger.warn("FCM v1 API returned ${response.status}, falling back to legacy API")
+                // Fall back to legacy API
+                sendLegacyMessage(token, title, body, data)
+            } else {
+                true
             }
-
-        return response.status.isSuccess()
+        } catch (e: Exception) {
+            logger.warn("FCM v1 API failed: ${e.message}, falling back to legacy API")
+            // Fall back to legacy API on any error
+            sendLegacyMessage(token, title, body, data)
+        }
     }
 
     /**

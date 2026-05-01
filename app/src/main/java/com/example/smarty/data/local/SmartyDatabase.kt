@@ -11,7 +11,6 @@ import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatSession
-import com.example.smarty.core.domain.model.ConnectionUsage
 import com.example.smarty.core.domain.model.ImpressedEntry
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteVersion
@@ -25,7 +24,6 @@ import com.example.smarty.core.domain.model.SmartyTimer
         ChatMessageEntity::class,
         ImpressedEntry::class,
         CalendarEvent::class,
-        ConnectionUsage::class,
         NoteVersion::class,
         SmartyTimer::class,
         CachedAIResponse::class,

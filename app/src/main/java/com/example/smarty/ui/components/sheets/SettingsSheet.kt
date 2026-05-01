@@ -10,16 +10,11 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.features.settings.ui.SettingsScreen
 
-/**
- * Settings as a full-page overlay.
- * Completely covers the main screen for focused settings access.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
-    sheetState: SheetState, // Keep for API compatibility, but not used
+    sheetState: SheetState,
     onDismiss: () -> Unit,
-    // All settings props
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
     cacheSizeBytes: Long,
@@ -28,7 +23,6 @@ fun SettingsSheet(
     shakeSensitivity: Float,
     onShakeSensitivityChange: (Float) -> Unit,
     onSignOut: () -> Unit,
-    // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
     deviceCalendars: List<DeviceCalendar> = emptyList(),
@@ -37,21 +31,17 @@ fun SettingsSheet(
     onLoadDeviceCalendars: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
-    // Embedded content for sub-sheets
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
-    // Handle back button
     BackHandler(enabled = true) {
         onDismiss()
     }
 
-    // Get personality from SecurePreferences directly
     val context = androidx.compose.ui.platform.LocalContext.current
     val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
     val personality = remember { securePrefs.getPersonality() }
     val providerStrategy = remember { securePrefs.getProviderStrategy() }
 
-    // Full-page overlay
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -72,7 +62,6 @@ fun SettingsSheet(
             providerStrategy = providerStrategy,
             onSetProviderStrategy = { securePrefs.setProviderStrategy(it) },
             backupContent = backupContent,
-            // Google Calendar Two-Way Sync
             isCalendarSyncEnabled = isCalendarSyncEnabled,
             onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
             deviceCalendars = deviceCalendars,

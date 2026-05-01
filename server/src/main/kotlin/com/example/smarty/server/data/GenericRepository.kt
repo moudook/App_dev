@@ -71,14 +71,21 @@ abstract class GenericRepository<T : Entity>(
         userId: String,
         limit: Int = 50,
         offset: Int = 0,
-        orderBy: String = "updated_at DESC",
+        orderBy: String = "updated_at",
+        orderDir: String = "DESC",
     ): List<T> =
         withConnection { conn ->
+            // Validate order direction to prevent SQL injection
+            val safeOrderDir = if (orderDir.equals("ASC", ignoreCase = true)) "ASC" else "DESC"
+            // Validate order column against allowed list
+            val allowedColumns = setOf("updated_at", "created_at", "title", "id")
+            val safeOrderBy = if (allowedColumns.contains(orderBy)) orderBy else "updated_at"
+            
             val sql =
                 """
                 SELECT * FROM $tableName
                 WHERE user_id = ? AND deleted_at IS NULL
-                ORDER BY $orderBy
+                ORDER BY $safeOrderBy $safeOrderDir
                 LIMIT ? OFFSET ?
                 """.trimIndent()
 
@@ -178,23 +185,6 @@ abstract class GenericRepository<T : Entity>(
     ): Boolean =
         withConnection { conn ->
             val sql = "UPDATE $tableName SET deleted_at = now(), updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
-
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setObject(1, UUID.fromString(id))
-                stmt.setObject(2, UUID.fromString(userId))
-                stmt.executeUpdate() > 0
-            }
-        }
-
-    /**
-     * Hard delete an entity (use with caution).
-     */
-    suspend fun hardDelete(
-        userId: String,
-        id: String,
-    ): Boolean =
-        withConnection { conn ->
-            val sql = "DELETE FROM $tableName WHERE id = ? AND user_id = ?"
 
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(id))

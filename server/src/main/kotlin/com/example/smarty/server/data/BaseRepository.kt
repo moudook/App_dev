@@ -8,6 +8,10 @@ import java.sql.ResultSet
 import javax.sql.DataSource
 
 /**
+ * DEPRECATED: Use GenericRepository instead.
+ * This class is kept for GeneratedImageRepository compatibility only.
+ * Remove when GeneratedImageRepository is refactored.
+ *
  * Base Repository for database operations.
  *
  * Single Responsibility: Only handles database connection management.
@@ -117,7 +121,10 @@ abstract class BaseRepository(protected val dataSource: DataSource) {
 }
 
 /**
- * Time range query helper for consistent time-based queries.
+ * DEPRECATED: Use GenericRepository with validation instead.
+ * Time range query helper - kept for reference only.
+ * WARNING: buildTimeRangeSql and buildBoundedQuery use string concatenation
+ * for table/column names - SQL injection risk if used with user input.
  */
 object TimeRangeQueryHelper {
     /**
@@ -127,6 +134,8 @@ object TimeRangeQueryHelper {
 
     /**
      * Build a time range SQL query.
+     * WARNING: Uses string concatenation for table/column names.
+     * Only use with hardcoded values, NEVER with user input.
      */
     fun buildTimeRangeSql(
         tableName: String,
@@ -151,6 +160,8 @@ object TimeRangeQueryHelper {
 
     /**
      * Build a simple time-bounded query.
+     * WARNING: Uses string concatenation for table/column names.
+     * Only use with hardcoded values, NEVER with user input.
      */
     fun buildBoundedQuery(
         tableName: String,

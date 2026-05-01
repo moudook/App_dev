@@ -212,8 +212,7 @@ fun InputStreamScreen(
     // HOISTED STATE: Selected Category Filter (Performance Fix)
     selectedCategory: Category? = null,
     onSelectCategory: (Category?) -> Unit = {},
-
-onPlayYouTube: (String) -> Unit = {},
+    onPlayYouTube: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     isMiniPlayerVisible: Boolean = false,
     bottomGradientVerticalOffset: androidx.compose.ui.unit.Dp = 60.dp,
@@ -2349,5 +2348,4 @@ fun SelectionPillBar(
         }
     }
 }
-
 

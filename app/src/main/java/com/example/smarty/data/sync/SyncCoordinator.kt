@@ -375,6 +375,10 @@ class SyncCoordinator(
         return try {
             val response = remoteDataSource.pushChanges(request)
             if (response == null) {
+                // Mark items as failed but preserve them for retry
+                pendingItems.forEach { item ->
+                    syncQueueDao.markFailed(item.id, "No response from server")
+                }
                 PushResult.Error("No response from server")
             } else if (response.success) {
                 // Mark items as synced
@@ -387,7 +391,7 @@ class SyncCoordinator(
                 Log.i(TAG, "Push complete: ${notesToPush.size} notes, ${sessionsToPush.size} sessions, ${eventsToPush.size} events")
                 PushResult.Success(notesToPush.size, sessionsToPush.size, eventsToPush.size)
             } else {
-                // Mark items as failed
+                // Mark items as failed but preserve them for retry
                 pendingItems.forEach { item ->
                     syncQueueDao.markFailed(item.id, response.errors.joinToString())
                 }
@@ -395,6 +399,10 @@ class SyncCoordinator(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Push failed", e)
+            // Mark items as failed but preserve them for retry
+            pendingItems.forEach { item ->
+                syncQueueDao.markFailed(item.id, e.message ?: "Unknown error")
+            }
             PushResult.Error(e.message ?: "Unknown error")
         }
     }
