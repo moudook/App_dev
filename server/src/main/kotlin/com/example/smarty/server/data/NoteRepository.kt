@@ -135,34 +135,36 @@ class NoteRepository(
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
-                    FROM notes
-                    WHERE user_id = ? AND NOT is_archived AND deleted_at IS NULL
-                    ORDER BY updated_at DESC
-                    LIMIT ?
-                    """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setInt(2, limit)
-                    stmt.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            results.add(
-                                NoteInfo(
-                                    id = rs.getString("id"),
-                                    title = rs.getString("title"),
-                                    content = rs.getString("content"),
-                                    categoryId = rs.getObject("category_id")?.toString(),
-                                    stackId = rs.getObject("stack_id")?.toString(),
-                                    parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                    wordCount = rs.getInt("word_count"),
-                                    isArchived = rs.getBoolean("is_archived"),
-                                    isPinned = rs.getBoolean("is_pinned"),
-                                    isFavorite = rs.getBoolean("is_favorite"),
-                                    createdAt = rs.getTimestamp("created_at").time,
-                                    updatedAt = rs.getTimestamp("updated_at").time,
-                                ),
-                            )
+                     SELECT id, title, content, category_id, stack_id, parent_note_id,
+                            word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
+                     FROM notes
+                     WHERE user_id = ? AND NOT is_archived AND deleted_at IS NULL
+                     ORDER BY updated_at DESC
+                     LIMIT ?
+                     """.trimIndent()
+                 conn.prepareStatement(sql).use { stmt ->
+                     stmt.setObject(1, UUID.fromString(userId))
+                     stmt.setInt(2, limit)
+                     stmt.executeQuery().use { rs ->
+                         while (rs.next()) {
+                             results.add(
+                                 NoteInfo(
+                                     id = rs.getString("id"),
+                                     title = rs.getString("title"),
+                                     content = rs.getString("content"),
+                                     categoryId = rs.getObject("category_id")?.toString(),
+                                     stackId = rs.getObject("stack_id")?.toString(),
+                                     parentNoteId = rs.getObject("parent_note_id")?.toString(),
+                                     wordCount = rs.getInt("word_count"),
+                                     isArchived = rs.getBoolean("is_archived"),
+                                     isPinned = rs.getBoolean("is_pinned"),
+                                     isFavorite = rs.getBoolean("is_favorite"),
+                                     isFullPrivacy = rs.getBoolean("is_full_privacy"),
+                                     excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
+                                     createdAt = rs.getTimestamp("created_at").time,
+                                     updatedAt = rs.getTimestamp("updated_at").time,
+                                 ),
+                             )
                         }
                     }
                 }
@@ -182,19 +184,20 @@ class NoteRepository(
         withContext(Dispatchers.IO) {
             val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql =
+                 val sql =
                     """
                     SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
+                           word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
                     FROM notes
-                    WHERE user_id = ? AND updated_at > to_timestamp(? / 1000.0) AND deleted_at IS NULL
-                    ORDER BY updated_at DESC
+                    WHERE user_id = ? AND deleted_at IS NULL 
+                    AND (title ILIKE ? OR content ILIKE ?)
+                    ORDER BY is_pinned DESC, updated_at DESC
                     LIMIT ?
                     """.trimIndent()
+
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setLong(2, timestamp)
-                    stmt.setInt(3, limit)
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             results.add(
@@ -209,6 +212,8 @@ class NoteRepository(
                                     isArchived = rs.getBoolean("is_archived"),
                                     isPinned = rs.getBoolean("is_pinned"),
                                     isFavorite = rs.getBoolean("is_favorite"),
+                                    isFullPrivacy = rs.getBoolean("is_full_privacy"),
+                                    excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
                                     createdAt = rs.getTimestamp("created_at").time,
                                     updatedAt = rs.getTimestamp("updated_at").time,
                                 ),
@@ -416,35 +421,37 @@ class NoteRepository(
     ): NoteInfo? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql =
+                 val sql =
                     """
                     SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, created_at, updated_at
+                           word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
                     FROM notes
                     WHERE id = ? AND user_id = ? AND deleted_at IS NULL
                     """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(userId))
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            NoteInfo(
-                                id = rs.getString("id"),
-                                title = rs.getString("title"),
-                                content = rs.getString("content"),
-                                categoryId = rs.getObject("category_id")?.toString(),
-                                stackId = rs.getObject("stack_id")?.toString(),
-                                parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                wordCount = rs.getInt("word_count"),
-                                isArchived = rs.getBoolean("is_archived"),
-                                isPinned = rs.getBoolean("is_pinned"),
-                                isFavorite = rs.getBoolean("is_favorite"),
-                                createdAt = rs.getTimestamp("created_at").time,
-                                updatedAt = rs.getTimestamp("updated_at").time,
-                            )
-                        } else {
-                            null
-                        }
+                 conn.prepareStatement(sql).use { stmt ->
+                     stmt.setObject(1, UUID.fromString(noteId))
+                     stmt.setObject(2, UUID.fromString(userId))
+                     stmt.executeQuery().use { rs ->
+                         if (rs.next()) {
+                              NoteInfo(
+                                  id = rs.getString("id"),
+                                  title = rs.getString("title"),
+                                  content = rs.getString("content"),
+                                  categoryId = rs.getObject("category_id")?.toString(),
+                                  stackId = rs.getObject("stack_id")?.toString(),
+                                  parentNoteId = rs.getObject("parent_note_id")?.toString(),
+                                  wordCount = rs.getInt("word_count"),
+                                  isArchived = rs.getBoolean("is_archived"),
+                                  isPinned = rs.getBoolean("is_pinned"),
+                                  isFavorite = rs.getBoolean("is_favorite"),
+                                  isFullPrivacy = rs.getBoolean("is_full_privacy"),
+                                  excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
+                                  createdAt = rs.getTimestamp("created_at").time,
+                                  updatedAt = rs.getTimestamp("updated_at").time,
+                              )
+                         } else {
+                             null
+                         }
                     }
                 }
             }
