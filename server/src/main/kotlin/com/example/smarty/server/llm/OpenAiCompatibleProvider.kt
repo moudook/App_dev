@@ -50,18 +50,40 @@ class OpenAiCompatibleProvider(
         val endpoint = resolveEndpoint(baseUrl)
 
         try {
-            val responseText =
-                client.post(endpoint) {
-                    header(HttpHeaders.Authorization, "Bearer $apiKey")
-                    contentType(ContentType.Application.Json)
-                    timeout {
-                        requestTimeoutMillis = 120_000
-                        connectTimeoutMillis = 30_000
-                    }
-                    setBody(requestBodyJson)
-                }.bodyAsText()
+            val httpResponse = client.post(endpoint) {
+                header(HttpHeaders.Authorization, "Bearer $apiKey")
+                contentType(ContentType.Application.Json)
+                timeout {
+                    requestTimeoutMillis = 120_000
+                    connectTimeoutMillis = 30_000
+                }
+                setBody(requestBodyJson)
+            }
 
-            val response: OpenAiChatResponse = json.decodeFromString(responseText)
+            val responseText = httpResponse.bodyAsText()
+
+            // Check HTTP status BEFORE deserializing — Groq/OpenAI return error JSON on failure
+            if (!httpResponse.status.isSuccess()) {
+                logger.error("LLM API error for $providerName: ${httpResponse.status} - $responseText")
+                val errorMsg = when {
+                    responseText.contains("invalid_api_key", ignoreCase = true) ||
+                        responseText.contains("authentication", ignoreCase = true) ||
+                        httpResponse.status.value == 401 -> "API key is invalid or missing for $providerName."
+                    responseText.contains("rate", ignoreCase = true) ||
+                        httpResponse.status.value == 429 -> "Rate limit exceeded for $providerName."
+                    httpResponse.status.value == 503 ||
+                        httpResponse.status.value == 502 -> "LLM provider is temporarily unavailable."
+                    else -> "$providerName returned ${httpResponse.status}: ${responseText.take(200)}"
+                }
+                throw IllegalStateException(errorMsg)
+            }
+
+            val response: OpenAiChatResponse = try {
+                json.decodeFromString(responseText)
+            } catch (e: Exception) {
+                logger.error("Failed to deserialize $providerName response. Raw body: $responseText", e)
+                throw IllegalStateException("$providerName returned unexpected response format: ${responseText.take(200)}", e)
+            }
             val choice = response.choices.firstOrNull() ?: return LlmResponse(content = null)
 
             // Some providers (GLM-5, DeepSeek) return content=null with reasoning_content
@@ -78,6 +100,7 @@ class OpenAiCompatibleProvider(
             logger.error("Generate call failed for $providerName", e)
             val errorMsg =
                 when {
+                    e.message?.contains("invalid or missing", ignoreCase = true) == true -> e.message!!
                     e.message?.contains("rate", ignoreCase = true) == true -> "Rate limit exceeded. Please try again in a moment."
                     e.message?.contains("401") == true || e.message?.contains("unauthorized", ignoreCase = true) == true -> "API authentication failed."
                     e.message?.contains("500") == true || e.message?.contains("502") == true -> "LLM provider is experiencing issues."
