@@ -191,8 +191,8 @@ class SearchFeatureTest {
     @Test
     fun `rank results by relevance - title match ranks higher`() = runTest {
         val items = listOf(
-            TestBuilders.note { title = "Project meeting", content = "Some content" },
-            TestBuilders.note { title = "Random note", content = "Project details" }
+            TestBuilders.note { title = "Project meeting"; content = "Some content" },
+            TestBuilders.note { title = "Random note"; content = "Project details" }
         )
         val query = "project"
 
@@ -294,8 +294,8 @@ class SearchFeatureTest {
     @Test
     fun `search handles null values gracefully`() = runTest {
         val notes = listOf(
-            TestBuilders.note { title = "Note", content = null },
-            TestBuilders.note { title = "Another", content = "Content" }
+            TestBuilders.note { title = "Note"; content = null },
+            TestBuilders.note { title = "Another"; content = "Content" }
         )
         val query = "content"
 
@@ -324,8 +324,8 @@ class SearchFeatureTest {
     @Test
     fun `search excludes archived items by default`() = runTest {
         val notes = listOf(
-            TestBuilders.note { title = "Active note", isArchived = false },
-            TestBuilders.note { title = "Archived note", isArchived = true }
+            TestBuilders.note { title = "Active note"; isArchived = false },
+            TestBuilders.note { title = "Archived note"; isArchived = true }
         )
         val query = "note"
 

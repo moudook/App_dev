@@ -208,35 +208,35 @@ class UseCaseTest {
 
 // Mock repositories
 class NoteRepository {
-    suspend fun create(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = Result.success(note)
-    suspend fun getById(id: String): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note? = null
-    suspend fun update(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note): Result<Unit> = Result.success(Unit)
+    suspend fun create(note: com.example.smarty.core.domain.model.Note): Result<com.example.smarty.core.domain.model.Note> = Result.success(note)
+    suspend fun getById(id: String): com.example.smarty.core.domain.model.Note? = null
+    suspend fun update(note: com.example.smarty.core.domain.model.Note): Result<Unit> = Result.success(Unit)
     suspend fun delete(id: String): Result<Unit> = Result.success(Unit)
-    suspend fun search(query: String): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = emptyList()
+    suspend fun search(query: String): List<com.example.smarty.core.domain.model.Note> = emptyList()
 }
 
 class CalendarRepository {
-    suspend fun create(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = Result.success(event)
-    suspend fun getById(id: String): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent? = null
-    suspend fun update(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent): Result<Unit> = Result.success(Unit)
+    suspend fun create(event: com.example.smarty.core.domain.model.CalendarEvent): Result<com.example.smarty.core.domain.model.CalendarEvent> = Result.success(event)
+    suspend fun getById(id: String): com.example.smarty.core.domain.model.CalendarEvent? = null
+    suspend fun update(event: com.example.smarty.core.domain.model.CalendarEvent): Result<Unit> = Result.success(Unit)
     suspend fun delete(id: String): Result<Unit> = Result.success(Unit)
-    suspend fun getUpcoming(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = emptyList()
+    suspend fun getUpcoming(): List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList()
 }
 
 class ChatRepository {
-    suspend fun saveMessage(message: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> = Result.success(message)
-    suspend fun getBySession(sessionId: String): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> = emptyList()
+    suspend fun saveMessage(message: com.example.smarty.core.domain.model.ChatMessage): Result<com.example.smarty.core.domain.model.ChatMessage> = Result.success(message)
+    suspend fun getBySession(sessionId: String): List<com.example.smarty.core.domain.model.ChatMessage> = emptyList()
     suspend fun clearChat(sessionId: String): Result<Unit> = Result.success(Unit)
 }
 
 // UseCases
 class NoteUseCase(private val repository: NoteRepository) {
-    suspend fun createNote(title: String?, content: String?): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> {
+    suspend fun createNote(title: String?, content: String?): Result<com.example.smarty.core.domain.model.Note> {
         if (title.isNullOrBlank()) return Result.failure(IllegalArgumentException("Title required"))
         return repository.create(TestBuilders.note { title = title!! })
     }
     suspend fun getNoteById(id: String) = repository.getById(id)
-    suspend fun updateNote(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note): Result<Unit> {
+    suspend fun updateNote(note: com.example.smarty.core.domain.model.Note): Result<Unit> {
         if (repository.getById(note.id) == null) return Result.failure(IllegalArgumentException("Note not found"))
         return repository.update(note)
     }
@@ -245,7 +245,7 @@ class NoteUseCase(private val repository: NoteRepository) {
 }
 
 class CalendarUseCase(private val repository: CalendarRepository) {
-    suspend fun createEvent(title: String?, startTime: Long, endTime: Long): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> {
+    suspend fun createEvent(title: String?, startTime: Long, endTime: Long): Result<com.example.smarty.core.domain.model.CalendarEvent> {
         if (title.isNullOrBlank()) return Result.failure(IllegalArgumentException("Title required"))
         if (endTime <= startTime) return Result.failure(IllegalArgumentException("End time must be after start time"))
         return repository.create(TestBuilders.calendarEvent { this.title = title!! })
@@ -255,7 +255,7 @@ class CalendarUseCase(private val repository: CalendarRepository) {
 }
 
 class ChatUseCase(private val repository: ChatRepository) {
-    suspend fun sendMessage(sessionId: String, content: String?): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> {
+    suspend fun sendMessage(sessionId: String, content: String?): Result<com.example.smarty.core.domain.model.ChatMessage> {
         if (sessionId.isBlank()) return Result.failure(IllegalArgumentException("Session ID required"))
         if (content.isNullOrBlank()) return Result.failure(IllegalArgumentException("Content required"))
         return repository.saveMessage(TestBuilders.chatMessage { this.content = content!! })

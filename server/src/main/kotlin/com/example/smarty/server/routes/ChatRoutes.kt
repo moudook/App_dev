@@ -509,24 +509,82 @@ fun Application.configureChatRoutes() {
                         }
                     }
                 } catch (e: Exception) {
-                    call.application.log.error("Agent execution failed", e)
+                    call.application.log.error("Agent execution failed, attempting Groq fallback", e)
                     try {
+                        val fallbackKey = System.getenv("GROQ_API_KEY")
+                        if (fallbackKey.isNullOrBlank()) {
+                            throw IllegalStateException("GROQ_API_KEY environment variable is not set")
+                        }
+                        val groqProvider = LlmProviderFactory.create(
+                            client = httpClient,
+                            providerOverride = "GROQ",
+                            apiKeyOverride = fallbackKey,
+                            modelIdOverride = "llama-3.3-70b-versatile"
+                        )
+                        
                         send(
                             ServerSentEvent(
-                                data =
-                                    json.encodeToString(
-                                        AgentEvent.Error(
-                                            eventId = UUID.randomUUID().toString(),
-                                            timestamp = System.currentTimeMillis(),
-                                            message = "An internal error occurred: ${e.message?.take(100) ?: "Unknown error"}",
-                                            code = "INTERNAL_ERROR",
-                                        ),
-                                    ),
-                                event = "error",
-                            ),
+                                data = json.encodeToString(
+                                    AgentEvent.Processing(
+                                        eventId = UUID.randomUUID().toString(),
+                                        timestamp = System.currentTimeMillis(),
+                                        content = "Main provider unavailable. Falling back to Groq..."
+                                    )
+                                ),
+                                event = "processing"
+                            )
                         )
-                    } catch (sendError: Exception) {
-                        call.application.log.warn("Failed to send error SSE (client disconnected): ${sendError.message}")
+                        
+                        val fallbackMessages = history.toMutableList()
+                        fallbackMessages.add(LlmMessage(LlmMessage.Role.USER, query))
+                        
+                        val fallbackResponse = groqProvider.generate(fallbackMessages)
+                        val content = fallbackResponse.content ?: "I'm sorry, both the primary provider and fallback provider are unavailable right now."
+                        
+                        if (chatRepository != null) {
+                            chatRepository.saveMessage(
+                                userId = userId,
+                                sessionId = sessionId ?: activeSessionId,
+                                role = LlmMessage.Role.ASSISTANT.name,
+                                content = content,
+                                thinking = "Fallback to Groq completed.",
+                                toolCalls = "[]"
+                            )
+                        }
+                        
+                        send(
+                            ServerSentEvent(
+                                data = json.encodeToString(
+                                    AgentEvent.Result(
+                                        eventId = UUID.randomUUID().toString(),
+                                        timestamp = System.currentTimeMillis(),
+                                        content = content,
+                                        isFinal = true
+                                    )
+                                ),
+                                event = "result"
+                            )
+                        )
+                    } catch (fallbackError: Exception) {
+                        call.application.log.error("Groq fallback also failed", fallbackError)
+                        try {
+                            send(
+                                ServerSentEvent(
+                                    data =
+                                        json.encodeToString(
+                                            AgentEvent.Error(
+                                                eventId = UUID.randomUUID().toString(),
+                                                timestamp = System.currentTimeMillis(),
+                                                message = "An internal error occurred: ${e.message?.take(100) ?: "Unknown error"} (Fallback also failed)",
+                                                code = "INTERNAL_ERROR",
+                                            ),
+                                        ),
+                                    event = "error",
+                                ),
+                            )
+                        } catch (sendError: Exception) {
+                            call.application.log.warn("Failed to send error SSE (client disconnected): ${sendError.message}")
+                        }
                     }
                 } finally {
                     // Always end the active session
@@ -686,6 +744,56 @@ fun Application.configureChatRoutes() {
                                 "events" to events.map { json.encodeToString(it) },
                             ),
                         )
+                    } catch (e: Exception) {
+                        call.application.log.error("POST chat/query agent execution failed, attempting Groq fallback", e)
+                        try {
+                            val fallbackKey = System.getenv("GROQ_API_KEY")
+                            if (fallbackKey.isNullOrBlank()) {
+                                throw IllegalStateException("GROQ_API_KEY environment variable is not set")
+                            }
+                            val groqProvider = LlmProviderFactory.create(
+                                client = httpClient,
+                                providerOverride = "GROQ",
+                                apiKeyOverride = fallbackKey,
+                                modelIdOverride = "llama-3.3-70b-versatile"
+                            )
+                            
+                            val fallbackMessages = history.toMutableList()
+                            fallbackMessages.add(LlmMessage(LlmMessage.Role.USER, fullQuery))
+                            
+                            val fallbackResponse = groqProvider.generate(fallbackMessages)
+                            val content = fallbackResponse.content ?: "Fallback provider unavailable."
+                            
+                            if (chatRepository != null) {
+                                chatRepository.saveMessage(
+                                    userId = userId,
+                                    sessionId = sessionId ?: UUID.randomUUID().toString(),
+                                    role = LlmMessage.Role.ASSISTANT.name,
+                                    content = content,
+                                    thinking = "Fallback to Groq completed.",
+                                    toolCalls = "[]"
+                                )
+                            }
+                            
+                            events.add(AgentEvent.Result(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                content = content,
+                                isFinal = true
+                            ))
+                            
+                            call.respond(
+                                HttpStatusCode.OK,
+                                mapOf(
+                                    "sessionId" to sessionId,
+                                    "response" to content,
+                                    "events" to events.map { json.encodeToString(it) },
+                                ),
+                            )
+                        } catch (fallbackError: Exception) {
+                            call.application.log.error("Groq fallback for POST chat/query also failed", fallbackError)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
+                        }
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                     }

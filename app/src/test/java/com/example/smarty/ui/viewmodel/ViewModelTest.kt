@@ -254,25 +254,25 @@ class ViewModelTest {
 
 // Test builders and data classes
 object TestBuilders {
-    fun note(block: NoteBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note {
+    fun note(block: NoteBuilder.() -> Unit): com.example.smarty.core.domain.model.Note {
         val builder = NoteBuilder()
         builder.block()
         return builder.build()
     }
 
-    fun calendarEvent(block: CalendarEventBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent {
+    fun calendarEvent(block: CalendarEventBuilder.() -> Unit): com.example.smarty.core.domain.model.CalendarEvent {
         val builder = CalendarEventBuilder()
         builder.block()
         return builder.build()
     }
 
-    fun chatMessage(block: ChatMessageBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage {
+    fun chatMessage(block: ChatMessageBuilder.() -> Unit): com.example.smarty.core.domain.model.ChatMessage {
         val builder = ChatMessageBuilder()
         builder.block()
         return builder.build()
     }
 
-    fun chatSession(block: ChatSessionBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession {
+    fun chatSession(block: ChatSessionBuilder.() -> Unit): com.example.smarty.core.domain.model.ChatSession {
         val builder = ChatSessionBuilder()
         builder.block()
         return builder.build()
@@ -296,7 +296,7 @@ class NoteBuilder {
     fun favorite() { isFavorite = true }
     fun active() { isArchived = false }
 
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note(
+    fun build() = com.example.smarty.core.domain.model.Note(
         id = id, title = title, content = content, categoryName = categoryName,
         isArchived = isArchived, isPinned = isPinned, isFavorite = isFavorite,
         isPrivate = isPrivate, createdAt = createdAt, attachments = attachments
@@ -316,7 +316,7 @@ class CalendarEventBuilder {
     var isEventPrivate: Boolean = false
     var isAllDay: Boolean = false
 
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent(
+    fun build() = com.example.smarty.core.domain.model.CalendarEvent(
         id = id, title = title, description = description, startTime = startTime,
         endTime = endTime, location = location, isRecurring = isRecurring,
         reminderMinutes = reminderMinutes, googleEventId = googleEventId,
@@ -330,7 +330,7 @@ class ChatMessageBuilder {
     var content: String = "Test message"
     var timestamp: Long = System.currentTimeMillis()
 
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage(
+    fun build() = com.example.smarty.core.domain.model.ChatMessage(
         id = id, sessionId = sessionId, content = content, timestamp = timestamp
     )
 }
@@ -340,29 +340,29 @@ class ChatSessionBuilder {
     var title: String = "Test Session"
     var createdAt: Long = System.currentTimeMillis()
 
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession(
+    fun build() = com.example.smarty.core.domain.model.ChatSession(
         id = id, title = title, createdAt = createdAt
     )
 }
 
 // Mock use cases
 class NoteUseCases {
-    suspend fun getAllNotes(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = emptyList()
-    suspend fun searchNotes(query: String): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = emptyList()
-    suspend fun createNote(title: String, content: String): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = Result.success(TestBuilders.note { })
+    suspend fun getAllNotes(): List<com.example.smarty.core.domain.model.Note> = emptyList()
+    suspend fun searchNotes(query: String): List<com.example.smarty.core.domain.model.Note> = emptyList()
+    suspend fun createNote(title: String, content: String): Result<com.example.smarty.core.domain.model.Note> = Result.success(TestBuilders.note { })
     suspend fun deleteNote(id: String): Result<Unit> = Result.success(Unit)
 }
 
 class CalendarUseCases {
-    suspend fun getAllEvents(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = emptyList()
-    suspend fun getUpcomingEvents(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = emptyList()
-    suspend fun createEvent(title: String, startTime: Long, endTime: Long): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = Result.success(TestBuilders.calendarEvent { })
+    suspend fun getAllEvents(): List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList()
+    suspend fun getUpcomingEvents(): List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList()
+    suspend fun createEvent(title: String, startTime: Long, endTime: Long): Result<com.example.smarty.core.domain.model.CalendarEvent> = Result.success(TestBuilders.calendarEvent { })
     suspend fun deleteEvent(id: String): Result<Unit> = Result.success(Unit)
 }
 
 class ChatUseCases {
-    suspend fun getMessages(sessionId: String): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> = emptyList()
-    suspend fun sendMessage(sessionId: String, content: String): Result<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> = Result.success(TestBuilders.chatMessage { })
+    suspend fun getMessages(sessionId: String): List<com.example.smarty.core.domain.model.ChatMessage> = emptyList()
+    suspend fun sendMessage(sessionId: String, content: String): Result<com.example.smarty.core.domain.model.ChatMessage> = Result.success(TestBuilders.chatMessage { })
 }
 
 // ViewModels
@@ -391,6 +391,6 @@ class ChatViewModel(private val useCases: ChatUseCases) {
 }
 
 // State classes
-data class NotesState(val isLoading: Boolean = false, val notes: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note> = emptyList())
-data class CalendarState(val isLoading: Boolean = false, val events: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent> = emptyList())
-data class ChatState(val isLoading: Boolean = false, val messages: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage> = emptyList())
+data class NotesState(val isLoading: Boolean = false, val notes: List<com.example.smarty.core.domain.model.Note> = emptyList())
+data class CalendarState(val isLoading: Boolean = false, val events: List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList())
+data class ChatState(val isLoading: Boolean = false, val messages: List<com.example.smarty.core.domain.model.ChatMessage> = emptyList())

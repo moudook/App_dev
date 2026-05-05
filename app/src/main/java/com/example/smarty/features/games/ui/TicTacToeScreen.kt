@@ -31,12 +31,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+import androidx.compose.ui.platform.LocalContext
+import com.example.smarty.features.games.domain.TicTacToeAI
+
 /**
  * Tic-Tac-Toe Mental Break Screen
  * A calm, centralized UI for a quick mental break.
  */
 @Composable
 fun TicTacToeScreen(onClose: () -> Unit) {
+    val context = LocalContext.current
+    val ai = remember { TicTacToeAI(context) }
+    var isAiReady by remember { mutableStateOf(false) }
+    val aiHistory = remember { mutableStateListOf<Pair<List<String?>, Int>>() }
+
     val board = remember { mutableStateListOf<String?>(null, null, null, null, null, null, null, null, null) }
     var isXNext by remember { mutableStateOf(true) }
     var winner by remember { mutableStateOf<String?>(null) }
@@ -50,10 +58,19 @@ fun TicTacToeScreen(onClose: () -> Unit) {
     val isDark = isSystemInDarkTheme()
 
     // Cell styling for better visibility
-    // Dark mode: Use a slightly lighter gray (0xFF1E1E1E) against the black background for minimal but clear contrast
-    // Light mode: Use standard surface white
     val cellColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface
     val cellBorder = if (isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)) else null
+
+    // Helper to get state key for AI
+    fun getBoardKey(currentBoard: List<String?>): String {
+        return currentBoard.joinToString("") {
+            when (it) {
+                "X" -> "1"
+                "O" -> "2"
+                else -> "0"
+            }
+        }
+    }
 
     // Win checking logic
     fun checkWinner(currentBoard: List<String?>): String? {
@@ -73,10 +90,43 @@ fun TicTacToeScreen(onClose: () -> Unit) {
 
     fun resetGame() {
         for (i in 0 until 9) board[i] = null
+        aiHistory.clear()
         isXNext = true
         winner = null
         isDraw = false
         isComputerThinking = false
+    }
+
+    // Update AI model after game ends
+    LaunchedEffect(winner, isDraw) {
+        if (winner != null || isDraw) {
+            val reward = when (winner) {
+                "O" -> 1.0f // AI won
+                "X" -> -1.0f // AI lost
+                else -> 0.5f // Draw
+            }
+            if (aiHistory.isNotEmpty()) {
+                ai.updateModel(aiHistory.toList(), reward)
+            }
+        }
+    }
+
+    LaunchedEffect(ai, isVsMode) {
+        if (isVsMode) {
+            ai.activate()
+            isAiReady = true
+        } else {
+            ai.deactivate()
+            isAiReady = false
+        }
+    }
+
+    DisposableEffect(ai) {
+        onDispose {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                ai.deactivate()
+            }
+        }
     }
 
     Box(
@@ -179,7 +229,7 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                                 elevation = SmartyShadow.cardElevation,
                                 shape = LocalShapes.current.card,
                             )
-                            .clickable(enabled = cellValue == null && winner == null && !isDraw && !isComputerThinking) {
+                            .clickable(enabled = isAiReady && cellValue == null && winner == null && !isDraw && !isComputerThinking) {
                                 // Human Move
                                 board[index] = if (isXNext) "X" else "O"
                                 isXNext = !isXNext
@@ -195,11 +245,13 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                                     scope.launch {
                                         delay(Random.nextLong(500, 1500))
 
-                                        // Computer Move
-                                        val emptyIndices = board.indices.filter { board[it] == null }
-                                        if (emptyIndices.isNotEmpty()) {
-                                            val computerMoveIndex = emptyIndices.random()
+                                        // Computer Move using AI
+                                        val stateBeforeMove = board.toList()
+                                        val computerMoveIndex = ai.getBestMove(board)
+                                        
+                                        if (computerMoveIndex != -1) {
                                             board[computerMoveIndex] = "O"
+                                            aiHistory.add(stateBeforeMove to computerMoveIndex)
                                             isXNext = !isXNext // Back to X
 
                                             win = checkWinner(board)

@@ -254,26 +254,26 @@ class RepositoryTest {
 
 // Mock repositories for testing
 class NoteRepository(private val dao: NoteDao) {
-    suspend fun create(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note) = dao.insert(note)
+    suspend fun create(note: com.example.smarty.core.domain.model.Note) = dao.insert(note)
 
     suspend fun getById(id: String) = dao.getById(id)
 
     suspend fun getAll() = dao.getAll()
 
-    suspend fun update(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note) = dao.update(note)
+    suspend fun update(note: com.example.smarty.core.domain.model.Note) = dao.update(note)
 
     suspend fun delete(id: String) = dao.delete(id)
 }
 
 class CalendarRepository(private val dao: CalendarDao) {
-    suspend fun create(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent) =
+    suspend fun create(event: com.example.smarty.core.domain.model.CalendarEvent) =
         dao.insert(event)
 
     suspend fun getById(id: String) = dao.getById(id)
 
     suspend fun getUpcoming() = dao.getUpcoming()
 
-    suspend fun update(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent) =
+    suspend fun update(event: com.example.smarty.core.domain.model.CalendarEvent) =
         dao.update(
             event,
         )
@@ -282,7 +282,7 @@ class CalendarRepository(private val dao: CalendarDao) {
 }
 
 class ChatRepository(private val dao: ChatDao) {
-    suspend fun saveMessage(message: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage) =
+    suspend fun saveMessage(message: com.example.smarty.core.domain.model.ChatMessage) =
         dao.insert(message)
 
     suspend fun getMessagesBySession(sessionId: String) = dao.getBySession(sessionId)
@@ -294,37 +294,37 @@ class ChatRepository(private val dao: ChatDao) {
 
 // Mock DAOs
 interface NoteDao {
-    suspend fun insert(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note)
+    suspend fun insert(note: com.example.smarty.core.domain.model.Note)
 
-    suspend fun getById(id: String): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note?
+    suspend fun getById(id: String): com.example.smarty.core.domain.model.Note?
 
-    suspend fun getAll(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note>
+    suspend fun getAll(): List<com.example.smarty.core.domain.model.Note>
 
-    suspend fun update(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note)
+    suspend fun update(note: com.example.smarty.core.domain.model.Note)
 
     suspend fun delete(id: String): Int
 }
 
 interface CalendarDao {
-    suspend fun insert(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent)
+    suspend fun insert(event: com.example.smarty.core.domain.model.CalendarEvent)
 
-    suspend fun getById(id: String): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent?
+    suspend fun getById(id: String): com.example.smarty.core.domain.model.CalendarEvent?
 
-    suspend fun getUpcoming(): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent>
+    suspend fun getUpcoming(): List<com.example.smarty.core.domain.model.CalendarEvent>
 
-    suspend fun update(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent)
+    suspend fun update(event: com.example.smarty.core.domain.model.CalendarEvent)
 
     suspend fun delete(id: String): Int
 }
 
 interface ChatDao {
-    suspend fun insert(message: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage)
+    suspend fun insert(message: com.example.smarty.core.domain.model.ChatMessage)
 
     suspend fun getBySession(
         sessionId: String,
-    ): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage>
+    ): List<com.example.smarty.core.domain.model.ChatMessage>
 
     suspend fun deleteBySession(sessionId: String): Int
 
-    suspend fun getRecent(limit: Int): List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession>
+    suspend fun getRecent(limit: Int): List<com.example.smarty.core.domain.model.ChatSession>
 }
