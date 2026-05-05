@@ -428,6 +428,19 @@ class ServerAgent(
             } catch (e: Exception) {
                 logger.error("LLM stream error", e)
                 val errorMsg = e.message ?: "Unknown error"
+
+                // CRITICAL: For provider-unavailability (503/502), rethrow so ChatRoutes
+                // can catch it and activate the Groq fallback. Do NOT swallow these.
+                val isProviderUnavailable =
+                    errorMsg.contains("temporarily unavailable", ignoreCase = true) ||
+                        errorMsg.contains("LLM provider is", ignoreCase = true) ||
+                        errorMsg.contains("service unavailable", ignoreCase = true)
+
+                if (isProviderUnavailable) {
+                    logger.warn("Primary LLM provider unavailable — rethrowing for Groq fallback activation")
+                    throw e
+                }
+
                 val userMsg =
                     when {
                         errorMsg.contains("Max retries exceeded", ignoreCase = true) ||

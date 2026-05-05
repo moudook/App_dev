@@ -375,11 +375,14 @@ object ApiKeyErrorClassifier {
                 message.contains("quota exceeded")
             -> ApiKeyError.RateLimited(exception.message ?: "Rate limited")
 
-            // Server errors (may be transient)
+            // Server errors (may be transient) — also handle human-readable messages from OpenAiCompatibleProvider
             message.contains("500") ||
                 message.contains("502") ||
                 message.contains("503") ||
-                message.contains("504")
+                message.contains("504") ||
+                message.contains("temporarily unavailable") ||
+                message.contains("service unavailable") ||
+                message.contains("llm provider is")
             -> ApiKeyError.ServerError(exception.message ?: "Server error")
 
             // Network/connectivity issues
