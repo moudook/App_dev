@@ -23,21 +23,21 @@ fun Application.configureUtilityRoutes(utilityService: UtilityService) {
                  * POST /api/utility/extract-datetime
                  * Body: { "query": "remind me in 2 hours", "timezone": "America/New_York" }
                  */
-                 post("/extract-datetime") {
-                     val user =
-                         call.principal<FirebaseUserPrincipal>()
-                             ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+                post("/extract-datetime") {
+                    val user =
+                        call.principal<FirebaseUserPrincipal>()
+                            ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
 
-                     try {
-                         val request = call.receive<ExtractDateTimeRequest>()
-                         
-                         // Input validation
-                         com.example.smarty.server.utils.InputValidation.validateQuery(request.query)
-                         request.timezone?.let { 
-                             if (it.length > 50) throw IllegalArgumentException("Timezone too long")
-                         }
+                    try {
+                        val request = call.receive<ExtractDateTimeRequest>()
 
-                         val result =
+                        // Input validation
+                        com.example.smarty.server.utils.InputValidation.validateQuery(request.query)
+                        request.timezone?.let {
+                            if (it.length > 50) throw IllegalArgumentException("Timezone too long")
+                        }
+
+                        val result =
                             utilityService.extractDateTime(
                                 query = request.query,
                                 userTimezone = request.timezone ?: "UTC",
@@ -64,18 +64,18 @@ fun Application.configureUtilityRoutes(utilityService: UtilityService) {
                  * POST /api/utility/categorize
                  * Body: { "content": "Buy milk and eggs" }
                  */
-                 post("/categorize") {
-                     val user =
-                         call.principal<FirebaseUserPrincipal>()
-                             ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+                post("/categorize") {
+                    val user =
+                        call.principal<FirebaseUserPrincipal>()
+                            ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
 
-                     try {
-                         val request = call.receive<CategorizeRequest>()
-                         
-                         // Input validation
-                         com.example.smarty.server.utils.InputValidation.validateContent(request.content)
+                    try {
+                        val request = call.receive<CategorizeRequest>()
 
-                         val category = utilityService.categorize(request.content)
+                        // Input validation
+                        com.example.smarty.server.utils.InputValidation.validateContent(request.content)
+
+                        val category = utilityService.categorize(request.content)
 
                         call.respond(
                             CategorizeResponse(

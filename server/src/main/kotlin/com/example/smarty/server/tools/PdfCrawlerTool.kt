@@ -45,11 +45,12 @@ class PdfCrawlerTool {
         return withContext(Dispatchers.IO) {
             try {
                 // SECURITY: Validate URL to prevent SSRF
-                val validatedUrl = validateUrl(pdfUrl) ?: return@withContext PdfExtractionResult(
-                    success = false,
-                    errorMessage = "Invalid or blocked URL: $pdfUrl",
-                )
-                
+                val validatedUrl =
+                    validateUrl(pdfUrl) ?: return@withContext PdfExtractionResult(
+                        success = false,
+                        errorMessage = "Invalid or blocked URL: $pdfUrl",
+                    )
+
                 val connection = URL(validatedUrl).openConnection() as HttpURLConnection
                 connection.apply {
                     requestMethod = "GET"
@@ -108,7 +109,7 @@ class PdfCrawlerTool {
             }
         }
     }
-    
+
     /**
      * Validate URL to prevent SSRF attacks.
      * Returns the validated URL string or null if invalid/blocked.
@@ -118,58 +119,59 @@ class PdfCrawlerTool {
             val parsedUrl = java.net.URL(url)
             val protocol = parsedUrl.protocol.lowercase()
             val host = parsedUrl.host
-            
+
             // Only allow HTTP/HTTPS
             if (protocol != "http" && protocol != "https") {
                 logger.warn("Blocked URL with disallowed protocol: $protocol - $url")
                 return null
             }
-            
+
             // Check if host is an IP address
-            val ipAddress = try {
-                java.net.InetAddress.getByName(host)
-            } catch (e: Exception) {
-                // If not an IP, it's a domain name - allow it
-                return url
-            }
-            
+            val ipAddress =
+                try {
+                    java.net.InetAddress.getByName(host)
+                } catch (e: Exception) {
+                    // If not an IP, it's a domain name - allow it
+                    return url
+                }
+
             // Check if IP is in private/blocked ranges
             val ipBytes = ipAddress.address
-            
+
             // Check for private IP ranges (RFC 1918, loopback, link-local)
             val firstOctet = ipBytes[0].toInt() and 0xFF
             val secondOctet = ipBytes[1].toInt() and 0xFF
-            
+
             // 127.0.0.0/8 (loopback)
             if (firstOctet == 127) {
                 logger.warn("Blocked URL with loopback IP: $url")
                 return null
             }
-            
+
             // 10.0.0.0/8 (private)
             if (firstOctet == 10) {
                 logger.warn("Blocked URL with private IP (10.x.x.x): $url")
                 return null
             }
-            
+
             // 172.16.0.0/12 (private)
             if (firstOctet == 172 && secondOctet in 16..31) {
                 logger.warn("Blocked URL with private IP (172.16-31.x.x): $url")
                 return null
             }
-            
+
             // 192.168.0.0/16 (private)
             if (firstOctet == 192 && secondOctet == 168) {
                 logger.warn("Blocked URL with private IP (192.168.x.x): $url")
                 return null
             }
-            
+
             // 169.254.0.0/16 (link-local)
             if (firstOctet == 169 && secondOctet == 254) {
                 logger.warn("Blocked URL with link-local IP: $url")
                 return null
             }
-            
+
             url
         } catch (e: Exception) {
             logger.warn("Invalid URL format: $url - ${e.message}")
@@ -201,7 +203,7 @@ class PdfCrawlerTool {
                     )
                 }
 
-                 // Load PDF using PDFBox
+                // Load PDF using PDFBox
                 val document = Loader.loadPDF(file)
                 try {
                     val totalPages = document.numberOfPages

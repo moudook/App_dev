@@ -1,7 +1,5 @@
 package com.example.smarty.server.llm
 
-import com.example.smarty.server.llm.LlmMessage
-import com.example.smarty.server.llm.ToolDefinition
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -52,7 +50,7 @@ object LlmCache {
     /**
      * Get cached response for a key.
      * Returns cached response if valid, null otherwise.
-     * 
+     *
      * FIXED: Removed incorrect filtering that prevented caching of non-action queries.
      * Cache should work for all query types to improve performance.
      */
@@ -69,7 +67,7 @@ object LlmCache {
 
     /**
      * Store response in cache.
-     * 
+     *
      * FIXED: Removed incorrect filtering that prevented caching of non-action queries.
      * Cache should work for all query types to improve performance.
      */

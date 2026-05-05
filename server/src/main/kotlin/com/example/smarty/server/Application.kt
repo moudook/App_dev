@@ -32,8 +32,6 @@ import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.llm.LlmCache
-import com.example.smarty.server.llm.LlmCacheKey
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
 import com.example.smarty.server.tools.WebScrapeTool
@@ -315,7 +313,7 @@ fun Application.module() {
     }
 
     // Configure Image Serving Endpoint
-     routing {
+    routing {
         get("/generated-images/{id}") {
             val providedApiKey = call.parameters["apiKey"]
             val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"

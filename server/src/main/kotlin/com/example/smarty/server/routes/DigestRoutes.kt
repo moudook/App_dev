@@ -39,7 +39,7 @@ fun Application.configureDigestRoutes(
 
     routing {
         authenticate("firebase") {
-             // Get all digests for user
+            // Get all digests for user
             get("/digests") {
                 val userId =
                     call.principal<FirebaseUserPrincipal>()?.userId
@@ -81,7 +81,7 @@ fun Application.configureDigestRoutes(
                 }
             }
 
-             // Manually trigger digest generation
+            // Manually trigger digest generation
             post("/digests/trigger") {
                 val userId =
                     call.principal<FirebaseUserPrincipal>()?.userId
@@ -90,7 +90,7 @@ fun Application.configureDigestRoutes(
                 try {
                     val request = call.receive<TriggerDigestRequest>()
                     val type = request.type ?: "daily"
-                    
+
                     // Input validation
                     if (type !in listOf("daily", "weekly")) {
                         return@post call.respond(mapOf("error" to "Invalid digest type (must be 'daily' or 'weekly')"))

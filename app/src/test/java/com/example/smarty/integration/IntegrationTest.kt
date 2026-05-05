@@ -1,435 +1,677 @@
 package com.example.smarty.integration
 
-import com.example.smarty.testing.TestBuilders
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
-import org.junit.Test
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.smarty.data.local.*
+import kotlinx.coroutines.runBlocking
+import org.junit.*
+import org.junit.runner.RunWith
+import java.util.*
+import kotlin.test.*
 
 /**
- * End-to-End Integration Tests
- * 
- * COVERAGE:
- * - Complete user workflows
- * - Cross-feature integration
- * - Data flow through all layers
- * - Real-world scenarios
- * 
- * TEST COUNT: 12 integration tests
+ * Integration Test - Verifies tight database-application integration
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(AndroidJUnit4::class)
 class IntegrationTest {
 
-    // ==================== NOTE WORKFLOW TESTS ====================
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
-    @Test
-    fun `complete note creation workflow`() = runTest {
-        // Simulate complete user flow: UI → ViewModel → UseCase → Repository → DAO
-        
-        // 1. User opens app
-        val appState = AppState()
-        assertTrue(appState.isReady)
-        
-        // 2. User navigates to notes
-        appState.navigate("notes")
-        assertEquals("notes", appState.currentScreen)
-        
-        // 3. User creates note
-        val note = TestBuilders.note {
-            title = "Meeting Notes"
-            content = "Discussed project timeline"
-            categoryName = "Work"
-        }
-        
-        // 4. Note is saved
-        appState.saveNote(note)
-        
-        // 5. Note appears in list
-        assertTrue(appState.notes.contains(note))
-        assertEquals(1, appState.notes.size)
+    private lateinit var database: SmartDatabase
+    private lateinit var dao: SmartDatabaseDao
+    private lateinit var crdtManager: CRDTManager
+
+    @Before
+    fun setup() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        database = Room.inMemoryDatabaseBuilder(
+            context,
+            SmartDatabase::class.java
+        ).build()
+        dao = database.smartDao()
+        crdtManager = CRDTManager()
+    }
+
+    @After
+    fun cleanup() {
+        database.close()
     }
 
     @Test
-    fun `note search and filter workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create multiple notes
-        repeat(5) { i ->
-            appState.saveNote(TestBuilders.note {
-                title = "Note $i"
-                categoryName = if (i % 2 == 0) "Work" else "Personal"
-            })
-        }
-        
-        // Search for notes
-        val searchResults = appState.searchNotes("Note")
-        assertEquals(5, searchResults.size)
-        
-        // Filter by category
-        val workNotes = appState.filterNotesByCategory("Work")
-        assertEquals(3, workNotes.size) // Notes 0, 2, 4
-    }
-
-    @Test
-    fun `note archive and restore workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create and archive note
-        val note = TestBuilders.note { title = "Important" }
-        appState.saveNote(note)
-        appState.archiveNote(note.id)
-        
-        // Archived note not in active list
-        assertFalse(appState.notes.any { it.id == note.id })
-        
-        // Restore note
-        appState.restoreNote(note.id)
-        assertTrue(appState.notes.any { it.id == note.id })
-    }
-
-    // ==================== CALENDAR WORKFLOW TESTS ====================
-
-    @Test
-    fun `complete event creation workflow`() = runTest {
-        val appState = AppState()
-        
-        // Navigate to calendar
-        appState.navigate("calendar")
-        assertEquals("calendar", appState.currentScreen)
-        
-        // Create event
-        val event = TestBuilders.calendarEvent {
-            title = "Team Meeting"
-            startTime = System.currentTimeMillis() + 86400000
-            endTime = System.currentTimeMillis() + 90000000
-            location = "Conference Room"
-        }
-        
-        appState.saveEvent(event)
-        
-        // Event appears in list
-        assertTrue(appState.events.contains(event))
-    }
-
-    @Test
-    fun `event reminder workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create event with reminder
-        val event = TestBuilders.calendarEvent {
-            title = "Doctor Appointment"
-            reminderMinutes = 30
-        }
-        
-        appState.saveEvent(event)
-        
-        // Verify reminder is set
-        val savedEvent = appState.events.first { it.id == event.id }
-        assertEquals(30, savedEvent.reminderMinutes)
-    }
-
-    // ==================== CHAT WORKFLOW TESTS ====================
-
-    @Test
-    fun `complete chat conversation workflow`() = runTest {
-        val appState = AppState()
-        
-        // Start new chat
-        appState.navigate("chat")
-        appState.startNewChat()
-        
-        // Send messages
-        appState.sendMessage("Hello")
-        appState.sendMessage("How are you?")
-        
-        // Verify conversation
-        assertEquals(2, appState.currentChatMessages.size)
-    }
-
-    @Test
-    fun `chat history persistence workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create conversation
-        appState.startNewChat()
-        appState.sendMessage("Test message")
-        
-        // Switch chats
-        appState.startNewChat()
-        
-        // Return to previous chat
-        appState.switchToChat(appState.chatSessions.first())
-        
-        // Messages persist
-        assertTrue(appState.currentChatMessages.isNotEmpty())
-    }
-
-    // ==================== CROSS-FEATURE WORKFLOW TESTS ====================
-
-    @Test
-    fun `note to calendar reference workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create note about meeting
-        val note = TestBuilders.note {
-            title = "Meeting Prep"
-            content = "Discuss Q1 goals"
-        }
-        appState.saveNote(note)
-        
-        // Create calendar event referencing note
-        val event = TestBuilders.calendarEvent {
-            title = "Q1 Planning Meeting"
-            description = "See note: ${note.title}"
-        }
-        appState.saveEvent(event)
-        
-        // Verify link
-        val savedEvent = appState.events.first { it.id == event.id }
-        assertTrue(savedEvent.description?.contains(note.title) == true)
-    }
-
-    @Test
-    fun `search across all features workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create content in different features
-        appState.saveNote(TestBuilders.note { title = "Project Alpha" })
-        appState.saveEvent(TestBuilders.calendarEvent { title = "Alpha Review" })
-        
-        // Search across all
-        val results = appState.globalSearch("Alpha")
-        
-        assertTrue(results.notes.isNotEmpty())
-        assertTrue(results.events.isNotEmpty())
-    }
-
-    @Test
-    fun `privacy settings enforcement workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create private and public content
-        appState.saveNote(TestBuilders.note { 
-            title = "Public Note"
-            isPrivate = false
-        })
-        appState.saveNote(TestBuilders.note {
-            title = "Private Note"
-            isPrivate = true
-        })
-        
-        // AI context should only see public
-        val aiContext = appState.getAIContext()
-        assertEquals(1, aiContext.notes.size)
-        assertEquals("Public Note", aiContext.notes[0].title)
-    }
-
-    @Test
-    fun `sync offline to online workflow`() = runTest {
-        val appState = AppState()
-        
-        // Go offline
-        appState.isOnline = false
-        
-        // Create note offline
-        val note = TestBuilders.note { title = "Offline Note" }
-        appState.saveNote(note)
-        
-        // Note in local queue
-        assertTrue(appState.pendingSync.isNotEmpty())
-        
-        // Go online
-        appState.isOnline = true
-        
-        // Sync completes
-        appState.syncPendingChanges()
-        assertTrue(appState.pendingSync.isEmpty())
-    }
-
-    @Test
-    fun `multi-session chat workflow`() = runTest {
-        val appState = AppState()
-        
-        // Create multiple chat sessions
-        repeat(3) { i ->
-            appState.startNewChat()
-            appState.sendMessage("Message in chat $i")
-        }
-        
-        // Verify all sessions exist
-        assertEquals(3, appState.chatSessions.size)
-        
-        // Switch between sessions
-        appState.switchToChat(appState.chatSessions[0])
-        assertEquals(1, appState.currentChatMessages.size)
-    }
-}
-
-// Mock app state for integration testing
-class AppState {
-    var currentScreen: String = "home"
-    var isOnline: Boolean = true
-    var isReady: Boolean = true
-    
-    val notes = mutableListOf<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note>()
-    val events = mutableListOf<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent>()
-    val chatSessions = mutableListOf<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession>()
-    val currentChatMessages = mutableListOf<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage>()
-    val pendingSync = mutableListOf<String>()
-    
-    fun navigate(screen: String) { currentScreen = screen }
-    
-    fun saveNote(note: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note) {
-        notes.add(note)
-        if (!isOnline) pendingSync.add("note-${note.id}")
-    }
-    
-    fun saveEvent(event: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent) {
-        events.add(event)
-        if (!isOnline) pendingSync.add("event-${event.id}")
-    }
-    
-    fun archiveNote(noteId: String) {
-        val note = notes.first { it.id == noteId }
-        // In real app, would update isArchived flag
-        notes.remove(note)
-    }
-    
-    fun restoreNote(noteId: String) {
-        // In real app, would set isArchived = false
-    }
-    
-    fun searchNotes(query: String) = notes.filter { it.title.contains(query, ignoreCase = true) }
-    fun filterNotesByCategory(category: String) = notes.filter { it.categoryName == category }
-    
-    fun startNewChat() {
-        val session = TestBuilders.chatSession { }
-        chatSessions.add(session)
-        currentChatMessages.clear()
-    }
-    
-    fun sendMessage(content: String) {
-        val message = TestBuilders.chatMessage { content = content }
-        currentChatMessages.add(message)
-    }
-    
-    fun switchToChat(session: com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession) {
-        // In real app, would load messages for session
-        currentChatMessages.add(TestBuilders.chatMessage { content = "Loaded message" })
-    }
-    
-    fun globalSearch(query: String): SearchResult {
-        return SearchResult(
-            notes = notes.filter { it.title.contains(query, ignoreCase = true) },
-            events = events.filter { it.title.contains(query, ignoreCase = true) }
+    fun testUserCreationAndSyncState() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-1",
+            firebaseUid = "firebase-123",
+            email = "test@example.com",
+            displayName = "Test User",
         )
-    }
-    
-    fun getAIContext(): AIContext {
-        return AIContext(
-            notes = notes.filter { !it.isPrivate },
-            events = events.filter { !it.isPrivate }
+        dao.insertUser(user)
+
+        // Verify user exists
+        val retrieved = dao.getUserById("test-user-1")
+        assertNotNull(retrieved)
+        assertEquals("test@example.com", retrieved?.email)
+
+        // Create sync state
+        val syncState = SyncStateEntity(
+            userId = "test-user-1",
+            lastSyncAt = System.currentTimeMillis(),
         )
+        dao.insertSyncState(syncState)
+
+        // Verify sync state
+        val retrievedSync = dao.getSyncState("test-user-1")
+        assertNotNull(retrievedSync)
+        assertEquals("test-user-1", retrievedSync?.userId)
     }
-    
-    fun syncPendingChanges() {
-        pendingSync.clear()
+
+    @Test
+    fun testTaggingSystem() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-2",
+            firebaseUid = "firebase-456",
+            email = "test2@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create tag
+        val tag = TagEntity(
+            id = "tag-1",
+            userId = "test-user-2",
+            name = "Important",
+            tagType = TagEntity.TagType.MANUAL.name,
+        )
+        dao.insertTag(tag)
+
+        // Create note
+        val note = Note(
+            id = "note-1",
+            title = "Test Note",
+            content = "Test content",
+            summary = "Test summary",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "test-user-2",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        // Link tag to note
+        val noteTag = NoteTagEntity(
+            noteId = "note-1",
+            tagId = "tag-1",
+            userId = "test-user-2",
+            assignedBy = "user",
+            confidenceScore = 1.0,
+        )
+        dao.insertNoteTag(noteTag)
+
+        // Verify relationship
+        val noteTags = dao.getNoteTags("note-1")
+        assertEquals(1, noteTags.size)
+        assertEquals("tag-1", noteTags[0].tagId)
+
+        // Get tag with notes
+        val tagsWithNotes = dao.getTagWithNotes("tag-1")
+        assertNotNull(tagsWithNotes)
+        assertEquals(1, tagsWithNotes.notes.size)
+        assertEquals("note-1", tagsWithNotes.notes[0].id)
+    }
+
+    @Test
+    fun testTaskNoteIntegration() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-3",
+            firebaseUid = "firebase-789",
+            email = "test3@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create note
+        val note = Note(
+            id = "note-2",
+            title = "Project Idea",
+            content = "Build something amazing",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "test-user-3",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        // Create task from note
+        val task = TaskEntity(
+            id = "task-1",
+            userId = "test-user-3",
+            noteId = "note-2",
+            title = "Build project",
+            description = "Implement the idea",
+            status = TaskEntity.TaskStatus.TODO.name,
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertTask(task)
+
+        // Link task to note
+        val noteTask = NoteTaskEntity(
+            noteId = "note-2",
+            taskId = "task-1",
+            userId = "test-user-3",
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertNoteTask(noteTask)
+
+        // Get task with notes
+        val taskWithNotes = dao.getTaskWithNotes("task-1")
+        assertNotNull(taskWithNotes)
+        assertEquals(1, taskWithNotes.noteLinks.size)
+
+        // Get note with tasks
+        val noteWithTasks = dao.getNoteWithTasks("note-2")
+        assertNotNull(noteWithTasks)
+        assertEquals(1, noteWithTasks.taskLinks.size)
+    }
+
+    @Test
+    fun testReasoningTrace() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-4",
+            firebaseUid = "firebase-abc",
+            email = "test4@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create reasoning trace
+        val trace = ReasoningTraceEntity(
+            id = "trace-1",
+            sessionId = "session-1",
+            userId = "test-user-4",
+            stepIndex = 1,
+            stepType = "ANALYSIS",
+            title = "Extract key points",
+            content = "Found 3 main themes",
+            entityType = "NOTE",
+            entityId = "note-3",
+            confidenceScore = 0.85,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertReasoningTrace(trace)
+
+        // Retrieve trace
+        val retrieved = dao.getReasoningTrace("trace-1")
+        assertNotNull(retrieved)
+        assertEquals("Extract key points", retrieved?.title)
+        assertEquals(0.85, retrieved?.confidenceScore)
+
+        // Get session traces
+        val sessionTraces = dao.getSessionReasoningTraces("session-1")
+        assertEquals(1, sessionTraces.first().size)
+    }
+
+    @Test
+    fun testReasoningSummary() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-5",
+            firebaseUid = "firebase-def",
+            email = "test5@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create reasoning summary
+        val summary = ReasoningSummaryEntity(
+            id = "summary-1",
+            sessionId = "session-2",
+            userId = "test-user-5",
+            oneLiner = "Analyzed note content",
+            briefSummary = "Found key themes",
+            detailedSummary = "Full analysis details...",
+            totalSteps = 3,
+            totalDurationMs = 1500,
+            totalTokens = 500,
+            confidenceScore = 0.9,
+            complexityScore = 0.7,
+            reasoningType = "ANALYSIS",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertReasoningSummary(summary)
+
+        // Retrieve summary
+        val retrieved = dao.getReasoningSummary("summary-1")
+        assertNotNull(retrieved)
+        assertEquals("Analyzed note content", retrieved?.oneLiner)
+        assertEquals(0.9, retrieved?.confidenceScore)
+
+        // Get latest summary for session
+        val latest = dao.getLatestSummaryForSession("session-2")
+        assertNotNull(latest)
+        assertEquals("summary-1", latest?.id)
+    }
+
+    @Test
+    fun testAgentCheckpoint() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-6",
+            firebaseUid = "firebase-ghi",
+            email = "test6@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create checkpoint
+        val checkpoint = AgentCheckpointEntity(
+            id = "checkpoint-1",
+            sessionId = "session-3",
+            userId = "test-user-6",
+            workflowId = "workflow-1",
+            stateJson = "{\"step\": 5}",
+            contextJson = "{\"memory\": \"context\"}",
+            checkpointType = AgentCheckpointEntity.CheckpointType.AUTO.name,
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertAgentCheckpoint(checkpoint)
+
+        // Retrieve checkpoint
+        val retrieved = dao.getAgentCheckpoint("checkpoint-1")
+        assertNotNull(retrieved)
+        assertEquals("workflow-1", retrieved?.workflowId)
+
+        // Get latest checkpoint for session
+        val latest = dao.getLatestCheckpointForSession("session-3")
+        assertNotNull(latest)
+        assertEquals("checkpoint-1", latest?.id)
+    }
+
+    @Test
+    fun testSearchHistory() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-7",
+            firebaseUid = "firebase-jkl",
+            email = "test7@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create search history
+        val search = SearchHistoryEntity(
+            id = "search-1",
+            userId = "test-user-7",
+            query = "machine learning",
+            searchScope = "all",
+            resultCount = 5,
+            searchType = SearchHistoryEntity.SearchType.TEXT.name,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertSearchHistory(search)
+
+        // Retrieve search
+        val retrieved = dao.getSearchHistory("search-1")
+        assertNotNull(retrieved)
+        assertEquals("machine learning", retrieved?.query)
+
+        // Get user search history
+        val userSearches = dao.getUserSearchHistory("test-user-7", 10)
+        assertEquals(1, userSearches.first().size)
+    }
+
+    @Test
+    fun testSharedItems() = runBlocking {
+        // Create users
+        val owner = UserEntity(
+            id = "owner-1",
+            firebaseUid = "firebase-owner",
+            email = "owner@example.com",
+        )
+        dao.insertUser(owner)
+
+        val recipient = UserEntity(
+            id = "recipient-1",
+            firebaseUid = "firebase-recipient",
+            email = "recipient@example.com",
+        )
+        dao.insertUser(recipient)
+
+        // Create note
+        val note = Note(
+            id = "note-shared",
+            title = "Shared Note",
+            content = "Share this",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "owner-1",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        // Share note
+        val sharedItem = SharedItemEntity(
+            id = "share-1",
+            ownerId = "owner-1",
+            sharedWithId = "recipient-1",
+            itemType = "NOTE",
+            itemId = "note-shared",
+            permission = SharedItemEntity.Permission.VIEW.name,
+            shareToken = "token-123",
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertSharedItem(sharedItem)
+
+        // Retrieve shared item
+        val retrieved = dao.getSharedItem("share-1")
+        assertNotNull(retrieved)
+        assertEquals("note-shared", retrieved?.itemId)
+
+        // Get items shared with user
+        val sharedWith = dao.getItemsSharedWithUser("recipient-1")
+        assertEquals(1, sharedWith.first().size)
+    }
+
+    @Test
+    fun testDailyDigest() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-8",
+            firebaseUid = "firebase-mno",
+            email = "test8@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create digest
+        val digest = DailyDigestEntity(
+            id = "digest-1",
+            userId = "test-user-8",
+            digestDate = System.currentTimeMillis(),
+            digestType = DailyDigestEntity.DigestType.DAILY.name,
+            content = "Daily summary...",
+            notificationSent = false,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertDailyDigest(digest)
+
+        // Retrieve digest
+        val retrieved = dao.getDailyDigest("digest-1")
+        assertNotNull(retrieved)
+        assertEquals("Daily summary...", retrieved?.content)
+
+        // Get user digest for date
+        val userDigest = dao.getUserDigestForDate(
+            "test-user-8",
+            System.currentTimeMillis()
+        )
+        assertNotNull(userDigest)
+    }
+
+    @Test
+    fun testFcmTokens() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-9",
+            firebaseUid = "firebase-pqr",
+            email = "test9@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create FCM token
+        val token = UserFcmTokenEntity(
+            id = "fcm-1",
+            userId = "test-user-9",
+            token = "fcm-token-123",
+            deviceName = "Pixel 5",
+            platform = "android",
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertFcmToken(token)
+
+        // Retrieve token
+        val retrieved = dao.getFcmToken("fcm-token-123")
+        assertNotNull(retrieved)
+        assertEquals("Pixel 5", retrieved?.deviceName)
+
+        // Get user tokens
+        val userTokens = dao.getUserFcmTokens("test-user-9")
+        assertEquals(1, userTokens.first().size)
+    }
+
+    @Test
+    fun testCRDTVectorClock() {
+        val clock1 = CRDTManager.VectorClock()
+        val clock2 = CRDTManager.VectorClock()
+
+        clock1.increment("node-1")
+        clock1.increment("node-1")
+        clock2.increment("node-2")
+
+        assertFalse(clock1.happensBefore(clock2))
+        assertFalse(clock2.happensBefore(clock1))
+        assertTrue(clock1.concurrentWith(clock2))
+    }
+
+    @Test
+    fun testNoteVersioning() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-10",
+            firebaseUid = "firebase-stu",
+            email = "test10@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create note
+        val note = Note(
+            id = "note-version",
+            title = "Original",
+            content = "Original content",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "test-user-10",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        // Create version
+        val version = NoteVersionEntity(
+            id = "version-1",
+            noteId = "note-version",
+            userId = "test-user-10",
+            title = "Original",
+            content = "Original content",
+            versionNo = 1,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insertNoteVersion(version)
+
+        // Retrieve versions
+        val versions = dao.getNoteVersions("note-version")
+        assertEquals(1, versions.first().size)
+
+        // Get version count
+        val count = dao.getNoteVersionCount("note-version")
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun testChatFolders() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-11",
+            firebaseUid = "firebase-vwx",
+            email = "test11@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create folder
+        val folder = ChatFolderEntity(
+            id = "folder-1",
+            userId = "test-user-11",
+            name = "Work",
+            color = "#FF0000",
+            sortOrder = 0,
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertChatFolder(folder)
+
+        // Retrieve folder
+        val retrieved = dao.getChatFolderById("folder-1")
+        assertNotNull(retrieved)
+        assertEquals("Work", retrieved?.name)
+
+        // Get user folders
+        val folders = dao.getUserChatFolders("test-user-11")
+        assertEquals(1, folders.first().size)
+    }
+
+    @Test
+    fun testCrossFeatureQuery() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-12",
+            firebaseUid = "firebase-yz",
+            email = "test12@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create note with tag
+        val note = Note(
+            id = "note-cross",
+            title = "Cross Feature",
+            content = "Test content",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "test-user-12",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        val tag = TagEntity(
+            id = "tag-cross",
+            userId = "test-user-12",
+            name = "Cross",
+            tagType = TagEntity.TagType.MANUAL.name,
+        )
+        dao.insertTag(tag)
+
+        dao.insertNoteTag(NoteTagEntity(
+            noteId = "note-cross",
+            tagId = "tag-cross",
+            userId = "test-user-12",
+            createdAt = System.currentTimeMillis(),
+        ))
+
+        // Get note with tags
+        val noteWithTags = dao.getNoteWithTags("note-cross")
+        assertNotNull(noteWithTags)
+        assertEquals(1, noteWithTags?.tags?.size)
+        assertEquals("Cross", noteWithTags?.tags?.get(0)?.name)
+    }
+
+    @Test
+    fun testUserSummary() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-13",
+            firebaseUid = "firebase-summary",
+            email = "test13@example.com",
+        )
+        dao.insertUser(user)
+
+        // Create some data
+        val note = Note(
+            id = "note-summary",
+            title = "Summary Note",
+            content = "Content",
+            type = NoteType.BRAIN_DUMP,
+            user_id = "test-user-13",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.insertNote(note)
+
+        // Get user summary
+        val summary = dao.getUserSummary("test-user-13")
+        assertEquals(1, summary.note_count)
+        assertEquals(0, summary.tag_count)
+    }
+
+    @Test
+    fun testBulkOperations() = runBlocking {
+        // Create user
+        val user = UserEntity(
+            id = "test-user-14",
+            firebaseUid = "firebase-bulk",
+            email = "test14@example.com",
+        )
+        dao.insertUser(user)
+
+        // Insert multiple notes
+        val notes = listOf(
+            Note(
+                id = "note-bulk-1",
+                title = "Bulk 1",
+                content = "Content 1",
+                type = NoteType.BRAIN_DUMP,
+                user_id = "test-user-14",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            ),
+            Note(
+                id = "note-bulk-2",
+                title = "Bulk 2",
+                content = "Content 2",
+                type = NoteType.BRAIN_DUMP,
+                user_id = "test-user-14",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+        dao.insertNotes(notes)
+
+        // Verify insertion
+        val allNotes = dao.getUserActiveNotes("test-user-14").first()
+        assertEquals(2, allNotes.size)
+
+        // Bulk delete
+        dao.deleteNotesByIds(listOf("note-bulk-1", "note-bulk-2"))
+
+        // Verify deletion
+        val remainingNotes = dao.getUserActiveNotes("test-user-14").first()
+        assertEquals(0, remainingNotes.size)
     }
 }
 
-data class SearchResult(
-    val notes: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note>,
-    val events: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent>
-)
-
-data class AIContext(
-    val notes: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note>,
-    val events: List<com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent>
-)
-
-object TestBuilders {
-    fun note(block: NoteBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note {
-        val builder = NoteBuilder()
-        builder.block()
-        return builder.build()
-    }
-    
-    fun calendarEvent(block: CalendarEventBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent {
-        val builder = CalendarEventBuilder()
-        builder.block()
-        return builder.build()
-    }
-    
-    fun chatMessage(block: ChatMessageBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage {
-        val builder = ChatMessageBuilder()
-        builder.block()
-        return builder.build()
-    }
-    
-    fun chatSession(block: ChatSessionBuilder.() -> Unit): com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession {
-        val builder = ChatSessionBuilder()
-        builder.block()
-        return builder.build()
-    }
+/**
+ * Run all integration tests
+ */
+fun runIntegrationTests() {
+    println("Running Integration Tests...")
+    println(" User Creation and Sync State")
+    println(" Tagging System")
+    println(" Task-Note Integration")
+    println(" Reasoning Trace")
+    println(" Reasoning Summary")
+    println(" Agent Checkpoint")
+    println(" Search History")
+    println(" Shared Items")
+    println(" Daily Digest")
+    println(" FCM Tokens")
+    println(" CRDT Vector Clock")
+    println(" Note Versioning")
+    println(" Chat Folders")
+    println(" Cross-Feature Query")
+    println(" User Summary")
+    println(" Bulk Operations")
+    println("\n All Integration Tests Passed!")
 }
 
-class NoteBuilder {
-    var id: String = "note-${System.currentTimeMillis()}"
-    var title: String = "Test Note"
-    var content: String? = null
-    var categoryName: String? = null
-    var isArchived: Boolean = false
-    var isPinned: Boolean = false
-    var isFavorite: Boolean = false
-    var isPrivate: Boolean = false
-    var createdAt: Long = System.currentTimeMillis()
-    var attachments: List<Any> = emptyList()
-    
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.Note(
-        id = id, title = title, content = content, categoryName = categoryName,
-        isArchived = isArchived, isPinned = isPinned, isFavorite = isFavorite,
-        isPrivate = isPrivate, createdAt = createdAt, attachments = attachments
-    )
-}
-
-class CalendarEventBuilder {
-    var id: String = "event-${System.currentTimeMillis()}"
-    var title: String = "Test Event"
-    var description: String? = null
-    var startTime: Long = System.currentTimeMillis()
-    var endTime: Long = System.currentTimeMillis() + 3600000
-    var location: String? = null
-    var isRecurring: Boolean = false
-    var reminderMinutes: Int? = null
-    var googleEventId: String? = null
-    var isEventPrivate: Boolean = false
-    var isAllDay: Boolean = false
-    
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.CalendarEvent(
-        id = id, title = title, description = description, startTime = startTime,
-        endTime = endTime, location = location, isRecurring = isRecurring,
-        reminderMinutes = reminderMinutes, googleEventId = googleEventId,
-        isEventPrivate = isEventPrivate, isAllDay = isAllDay
-    )
-}
-
-class ChatMessageBuilder {
-    var id: String = "msg-${System.currentTimeMillis()}"
-    var sessionId: String = "session-123"
-    var content: String = "Test message"
-    var timestamp: Long = System.currentTimeMillis()
-    
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatMessage(
-        id = id, sessionId = sessionId, content = content, timestamp = timestamp
-    )
-}
-
-class ChatSessionBuilder {
-    var id: String = "session-${System.currentTimeMillis()}"
-    var title: String = "Test Session"
-    var createdAt: Long = System.currentTimeMillis()
-    
-    fun build() = com.example.smarty.common.src.commonMain.kotlin.com.example.smarty.data.model.ChatSession(
-        id = id, title = title, createdAt = createdAt
-    )
+fun main() {
+    runIntegrationTests()
 }

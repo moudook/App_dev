@@ -144,7 +144,7 @@ fun Application.configureChatRoutes() {
 
                     // Input validation
                     com.example.smarty.server.utils.InputValidation.validateQuery(request.prompt)
-                    request.token?.let { 
+                    request.token?.let {
                         if (it.length > 500) throw IllegalArgumentException("Token too long")
                     }
 
@@ -303,13 +303,13 @@ fun Application.configureChatRoutes() {
                 try {
                     com.example.smarty.server.utils.InputValidation.validateQuery(query)
                     sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
-                    providerUrlParam?.let { 
+                    providerUrlParam?.let {
                         if (it.length > 500) throw IllegalArgumentException("Provider URL too long")
                     }
-                    modelParam?.let { 
+                    modelParam?.let {
                         if (it.length > 100) throw IllegalArgumentException("Model name too long")
                     }
-                    timezoneParam?.let { 
+                    timezoneParam?.let {
                         if (it.length > 50) throw IllegalArgumentException("Timezone too long")
                     }
                 } catch (e: IllegalArgumentException) {
@@ -562,13 +562,13 @@ fun Application.configureChatRoutes() {
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
                     // Create provider for this request
-                val streamProvider =
-                    LlmProviderFactory.create(
-                        httpClient,
-                        normalizeProviderSelection(request.provider),
-                        request.providerUrl,
-                        request.token,
-                    )
+                    val streamProvider =
+                        LlmProviderFactory.create(
+                            httpClient,
+                            normalizeProviderSelection(request.provider),
+                            request.providerUrl,
+                            request.token,
+                        )
 
                     val streamSummarizer = ConversationSummarizer(streamProvider)
 

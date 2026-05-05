@@ -31,35 +31,37 @@ class CircuitBreaker(
 
     /**
      * Execute a block with circuit breaker protection.
-     * 
+     *
      * FIXED: Uses synchronized lock for atomic state check-and-update operations
      * to prevent race conditions in concurrent environments.
      */
     suspend fun <T> execute(block: suspend () -> T): T {
-        val (currentState, shouldProceed) = synchronized(lock) {
-            val cs = state
-            val proceed = when (cs) {
-                CircuitState.OPEN -> {
-                    if (shouldTryReset()) {
-                        state = CircuitState.HALF_OPEN
-                        halfOpenCallCount = 0
-                        true
-                    } else {
-                        false
+        val (currentState, shouldProceed) =
+            synchronized(lock) {
+                val cs = state
+                val proceed =
+                    when (cs) {
+                        CircuitState.OPEN -> {
+                            if (shouldTryReset()) {
+                                state = CircuitState.HALF_OPEN
+                                halfOpenCallCount = 0
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        CircuitState.HALF_OPEN -> {
+                            if (halfOpenCallCount >= halfOpenMaxCalls) {
+                                false
+                            } else {
+                                halfOpenCallCount++
+                                true
+                            }
+                        }
+                        CircuitState.CLOSED -> true
                     }
-                }
-                CircuitState.HALF_OPEN -> {
-                    if (halfOpenCallCount >= halfOpenMaxCalls) {
-                        false
-                    } else {
-                        halfOpenCallCount++
-                        true
-                    }
-                }
-                CircuitState.CLOSED -> true
+                cs to proceed
             }
-            cs to proceed
-        }
 
         if (!shouldProceed) {
             throw CircuitOpenException("Circuit breaker is $currentState. Try again in ${resetTimeoutMs}ms")
@@ -101,15 +103,16 @@ class CircuitBreaker(
     /**
      * Get circuit breaker statistics.
      */
-    fun getStats(): Map<String, Any> = synchronized(lock) {
-        mapOf(
-            "state" to state.name,
-            "failure_count" to failureCount,
-            "success_count" to successCount,
-            "last_failure_time" to lastFailureTime,
-            "half_open_calls" to halfOpenCallCount,
-        )
-    }
+    fun getStats(): Map<String, Any> =
+        synchronized(lock) {
+            mapOf(
+                "state" to state.name,
+                "failure_count" to failureCount,
+                "success_count" to successCount,
+                "last_failure_time" to lastFailureTime,
+                "half_open_calls" to halfOpenCallCount,
+            )
+        }
 
     /**
      * Reset the circuit breaker to closed state.

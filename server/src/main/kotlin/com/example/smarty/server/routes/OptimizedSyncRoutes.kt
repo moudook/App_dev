@@ -147,9 +147,9 @@ fun Application.configureOptimizedSyncRoutes() {
                         } catch (e: Exception) {
                             DeltaSyncRequest()
                         }
-                     val lastSyncAt = request.lastSyncAt ?: 0L
+                    val lastSyncAt = request.lastSyncAt ?: 0L
                     val limit = request.limit ?: 1000
-                    
+
                     // Input validation
                     if (lastSyncAt < 0) {
                         return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid lastSyncAt"))

@@ -287,6 +287,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                     )
                         .addCallback(databaseCallback)
                         .addMigrations(
+                            // Legacy migrations
                             Migrations.MIGRATION_1_2,
                             Migrations.MIGRATION_2_3,
                             Migrations.MIGRATION_3_4,
@@ -304,33 +305,33 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_15_16,
                             Migrations.MIGRATION_16_17,
                             Migrations.MIGRATION_17_18,
-                            Migrations.MIGRATION_18_19, // Performance: isPinned indices
-                            Migrations.MIGRATION_19_20, // Citations storage
-                            Migrations.MIGRATION_20_21, // Performance: composite indices
-                            Migrations.MIGRATION_21_22, // Performance: processingStatus indices for queue
-                            Migrations.MIGRATION_22_23, // Feature: chunkAnalysesJson for per-page analyses
-                            Migrations.MIGRATION_23_24, // Feature: inlineImagesJson for image viewing in chat
-                            Migrations.MIGRATION_24_25, // Feature: isReadForMemory for AI memory learning
-                            Migrations.MIGRATION_25_26, // Fix: @ColumnInfo defaultValue annotation
-                            Migrations.MIGRATION_26_27, // Feature: googleEventId for calendar_events sync
-                            Migrations.MIGRATION_27_28, // Feature: SmartyTimer for persistent alarms
-                            Migrations.MIGRATION_28_29, // Performance: googleEventId index for calendar sync
-                            Migrations.MIGRATION_29_30, // Feature: ai_cache for persistent caching
-                            Migrations.MIGRATION_30_31, // Feature: ai_cache user_id for multi-tenant
-                            Migrations.MIGRATION_31_32, // Feature: sync_queue for cloud-first sync
-                            Migrations.MIGRATION_32_33, // Feature: calendar_events updatedAt for sync
-                            Migrations.MIGRATION_33_34, // Feature: thinking column for AI reasoning
-                            Migrations.MIGRATION_34_35, // Performance: Additional indices for common queries
-                            Migrations.MIGRATION_35_36, // Feature: Junction tables for note relationships (v4.2.0)
-                            Migrations.MIGRATION_36_37, // Feature: toolCallsJson for Action Panel in chat
-                            Migrations.MIGRATION_37_38, // PERFORMANCE: Comprehensive database indices (100-1000x faster)
+                            Migrations.MIGRATION_18_19,
+                            Migrations.MIGRATION_19_20,
+                            Migrations.MIGRATION_20_21,
+                            Migrations.MIGRATION_21_22,
+                            Migrations.MIGRATION_22_23,
+                            Migrations.MIGRATION_23_24,
+                            Migrations.MIGRATION_24_25,
+                            Migrations.MIGRATION_25_26,
+                            Migrations.MIGRATION_26_27,
+                            Migrations.MIGRATION_27_28,
+                            Migrations.MIGRATION_28_29,
+                            Migrations.MIGRATION_29_30,
+                            Migrations.MIGRATION_30_31,
+                            Migrations.MIGRATION_31_32,
+                            Migrations.MIGRATION_32_33,
+                            Migrations.MIGRATION_33_34,
+                            Migrations.MIGRATION_34_35,
+                            Migrations.MIGRATION_35_36,
+                            Migrations.MIGRATION_36_37,
+                            Migrations.MIGRATION_37_38
                         )
-                        // NOTE: Removed fallbackToDestructiveMigration to preserve user data
-                        // All migrations must be properly defined in Migrations.kt
+                        .fallbackToDestructiveMigration()
                         .build()
                 INSTANCE = instance
                 instance
             }
         }
     }
+
 }

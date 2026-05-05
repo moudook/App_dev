@@ -112,7 +112,7 @@ class FcmNotificationService(
 
     /**
      * Send using FCM HTTP v1 API (recommended).
-     * 
+     *
      * FIXED: FCM v1 requires OAuth2 access token, not server key.
      * Server key is for legacy API only. For v1, we need to either:
      * 1. Use a service account with proper credentials, or
@@ -124,27 +124,28 @@ class FcmNotificationService(
         body: String,
         data: Map<String, String>,
     ): Boolean {
-        val message = FcmV1Message(
-            message =
-                FcmV1Message.Message(
-                    token = token,
-                    notification =
-                        FcmV1Message.Notification(
-                            title = title,
-                            body = body,
-                        ),
-                    data = data,
-                    android =
-                        FcmV1Message.AndroidConfig(
-                            priority = "high",
-                            notification =
-                                FcmV1Message.AndroidNotification(
-                                    channel_id = "digests",
-                                    priority = "PRIORITY_DEFAULT",
-                                ),
-                        ),
-                ),
-        )
+        val message =
+            FcmV1Message(
+                message =
+                    FcmV1Message.Message(
+                        token = token,
+                        notification =
+                            FcmV1Message.Notification(
+                                title = title,
+                                body = body,
+                            ),
+                        data = data,
+                        android =
+                            FcmV1Message.AndroidConfig(
+                                priority = "high",
+                                notification =
+                                    FcmV1Message.AndroidNotification(
+                                        channel_id = "digests",
+                                        priority = "PRIORITY_DEFAULT",
+                                    ),
+                            ),
+                    ),
+            )
 
         return try {
             val response =

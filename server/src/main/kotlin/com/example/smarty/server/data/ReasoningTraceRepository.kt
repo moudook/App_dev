@@ -338,7 +338,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                     UPDATE reasoning_traces
                     SET was_revised = TRUE,
                         revised_by_trace_id = ?
-                    WHERE trace_id = ?
+                    WHERE id = ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
@@ -358,13 +358,14 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 val sql =
                     """
                     DELETE FROM reasoning_traces
-                    WHERE created_at < NOW() - INTERVAL '$daysOld days'
+                    WHERE created_at < NOW() - make_interval(days => ?)
                       AND session_id NOT IN (
                           SELECT id FROM chat_sessions WHERE is_active = true
                       )
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
+                    stmt.setInt(1, daysOld)
                     stmt.executeUpdate()
                 }
             }

@@ -272,6 +272,5 @@ class ChatMessageNotesRepository(private val dataSource: DataSource) {
             """.trimIndent()
         }
 
-    private fun isPostgres(conn: Connection): Boolean =
-        conn.metaData.databaseProductName.contains("PostgreSQL", ignoreCase = true)
+    private fun isPostgres(conn: Connection): Boolean = conn.metaData.databaseProductName.contains("PostgreSQL", ignoreCase = true)
 }

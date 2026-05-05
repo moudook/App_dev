@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory
  */
 object JsonResponseParser {
     private val logger = LoggerFactory.getLogger(JsonResponseParser::class.java)
+
     /**
      * Shared JSON configuration for lenient parsing.
      */

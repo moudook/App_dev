@@ -38,10 +38,10 @@ class DigestScheduler(
 
     // Track users currently being processed to avoid duplicates
     private val processingUsers = ConcurrentHashMap<String, Boolean>()
-    
+
     // Track users being processed for daily digests to prevent duplicates
     private val processingDailyUsers = ConcurrentHashMap<String, Boolean>()
-    
+
     // Track users being processed for weekly digests to prevent duplicates
     private val processingWeeklyUsers = ConcurrentHashMap<String, Boolean>()
 
@@ -78,7 +78,7 @@ class DigestScheduler(
     /**
      * Main check loop - runs every 5 minutes.
      * Checks all users and generates digests if due.
-     * 
+     *
      * FIXED: Uses atomic putIfAbsent to prevent race condition
      * where multiple coroutines could process the same user.
      */
@@ -163,9 +163,9 @@ class DigestScheduler(
 
     /**
      * Check if weekly digest is due.
-     * 
+     *
      * FIXED: dayOfWeek.value returns 1-7 (Monday=1, Sunday=7) in java.time
-     * but weeklyDay is stored as 0=Sunday, 1=Monday, etc. 
+     * but weeklyDay is stored as 0=Sunday, 1=Monday, etc.
      * Need to convert: dayOfWeek.value % 7 gives 0 for Sunday, 1 for Monday, etc.
      */
     private suspend fun isWeeklyDigestDue(
@@ -195,13 +195,14 @@ class DigestScheduler(
         // FIX: Calculate target date based on last digest generation, not always yesterday
         // Get the last time a digest was generated for this user
         val lastDigestDate = getLastDigestDate(userPref.userId, "daily")
-        val targetDate = if (lastDigestDate != null) {
-            // Generate for the day after the last digest
-            lastDigestDate.plusDays(1)
-        } else {
-            // No previous digest, generate for yesterday
-            LocalDate.now(ZoneId.of(userPref.timezone)).minusDays(1)
-        }
+        val targetDate =
+            if (lastDigestDate != null) {
+                // Generate for the day after the last digest
+                lastDigestDate.plusDays(1)
+            } else {
+                // No previous digest, generate for yesterday
+                LocalDate.now(ZoneId.of(userPref.timezone)).minusDays(1)
+            }
 
         // Don't generate for future dates
         val today = LocalDate.now(ZoneId.of(userPref.timezone))
@@ -238,18 +239,19 @@ class DigestScheduler(
 
         // FIX: Calculate target week based on last digest generation
         val lastDigestDate = getLastDigestDate(userPref.userId, "weekly")
-        val targetWeekEnd = if (lastDigestDate != null) {
-            // Generate for the week after the last digest
-            // Find the next Sunday after last digest
-            var nextWeekEnd = lastDigestDate.plusDays(1)
-            while (nextWeekEnd.dayOfWeek.value % 7 != 0) { // 0 = Sunday
-                nextWeekEnd = nextWeekEnd.plusDays(1)
+        val targetWeekEnd =
+            if (lastDigestDate != null) {
+                // Generate for the week after the last digest
+                // Find the next Sunday after last digest
+                var nextWeekEnd = lastDigestDate.plusDays(1)
+                while (nextWeekEnd.dayOfWeek.value % 7 != 0) { // 0 = Sunday
+                    nextWeekEnd = nextWeekEnd.plusDays(1)
+                }
+                nextWeekEnd
+            } else {
+                // No previous digest, generate for last week (ending yesterday)
+                LocalDate.now(ZoneId.of(userPref.timezone)).minusDays(1)
             }
-            nextWeekEnd
-        } else {
-            // No previous digest, generate for last week (ending yesterday)
-            LocalDate.now(ZoneId.of(userPref.timezone)).minusDays(1)
-        }
 
         // Don't generate for future weeks
         val today = LocalDate.now(ZoneId.of(userPref.timezone))
@@ -281,7 +283,10 @@ class DigestScheduler(
     /**
      * Get the last date a digest was generated for a user.
      */
-    private suspend fun getLastDigestDate(userId: String, digestType: String): LocalDate? =
+    private suspend fun getLastDigestDate(
+        userId: String,
+        digestType: String,
+    ): LocalDate? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql = "SELECT digest_date FROM daily_digests WHERE user_id = ? AND digest_type = ? ORDER BY digest_date DESC LIMIT 1"
@@ -299,55 +304,56 @@ class DigestScheduler(
             }
         }
 
-     /**
-      * Send push notification via FCM.
-      */
-     private suspend fun sendPushNotification(
-         userId: String,
-         digest: DigestService.DigestResult,
-         type: String,
-     ) {
-         try {
-             val title =
-                 if (type == "weekly") {
-                     "📊 Your Weekly Summary"
-                 } else {
-                     "☀️ Good Morning! Here's your daily summary"
-                 }
+    /**
+     * Send push notification via FCM.
+     */
+    private suspend fun sendPushNotification(
+        userId: String,
+        digest: DigestService.DigestResult,
+        type: String,
+    ) {
+        try {
+            val title =
+                if (type == "weekly") {
+                    " Your Weekly Summary"
+                } else {
+                    "️ Good Morning! Here's your daily summary"
+                }
 
-             val body =
-                 if (digest.criticalInfo != null) {
-                     "${digest.summary.take(100)}... ⚠️ Critical info included!"
-                 } else {
-                     digest.summary.take(150)
-                 }
+            val body =
+                if (digest.criticalInfo != null) {
+                    "${digest.summary.take(100)}... ️ Critical info included!"
+                } else {
+                    digest.summary.take(150)
+                }
 
-             fcmService?.let { service ->
-                 val success = service.sendNotification(
-                     userId = userId,
-                     title = title,
-                     body = body,
-                     data =
-                         mapOf(
-                             "type" to "digest",
-                             "digestId" to digest.id,
-                             "digestType" to type,
-                             "clickAction" to "OPEN_DIGEST",
-                         ),
-                 )
-                 if (success) {
-                     digestService.markNotificationSent(digest.id)
-                     logger.info("Sent $type digest notification to user $userId")
-                 } else {
-                     logger.warn("Failed to send $type digest notification to user $userId")
-                 }
-             } ?: run {
-                 logger.warn("FCM service not available, skipping notification for user $userId")
-             }
-         } catch (e: Exception) {
-             logger.error("Failed to send digest notification to user $userId: ${e.message}", e)
-         }
-     }
+            fcmService?.let { service ->
+                val success =
+                    service.sendNotification(
+                        userId = userId,
+                        title = title,
+                        body = body,
+                        data =
+                            mapOf(
+                                "type" to "digest",
+                                "digestId" to digest.id,
+                                "digestType" to type,
+                                "clickAction" to "OPEN_DIGEST",
+                            ),
+                    )
+                if (success) {
+                    digestService.markNotificationSent(digest.id)
+                    logger.info("Sent $type digest notification to user $userId")
+                } else {
+                    logger.warn("Failed to send $type digest notification to user $userId")
+                }
+            } ?: run {
+                logger.warn("FCM service not available, skipping notification for user $userId")
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to send digest notification to user $userId: ${e.message}", e)
+        }
+    }
 
     /**
      * Create calendar event for the digest.
@@ -366,7 +372,7 @@ class DigestScheduler(
                 val userPref = getUsersWithDigestPreferences().find { it.userId == userId }
                 val userZone = ZoneId.of(userPref?.timezone ?: "UTC")
                 val now = ZonedDateTime.now(userZone)
-                
+
                 // Create event at 10:00 PM in user's local timezone
                 val eventStart = now.toLocalDate().atTime(22, 0).atZone(userZone)
                 val eventEnd = eventStart.plusHours(1)

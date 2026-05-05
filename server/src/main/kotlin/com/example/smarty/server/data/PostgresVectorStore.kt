@@ -203,7 +203,7 @@ class PostgresVectorStore : VectorStore {
                     SELECT n.id::text,
                            COALESCE(n.content, '') as content,
                            COALESCE(n.metadata, '{}') as metadata,
-                           1.0 as similarity
+                           1.0 as rank
                     FROM notes n
                     WHERE n.user_id = ?::uuid
                       AND n.deleted_at IS NULL

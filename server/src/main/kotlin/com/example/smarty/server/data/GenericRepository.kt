@@ -80,7 +80,7 @@ abstract class GenericRepository<T : Entity>(
             // Validate order column against allowed list
             val allowedColumns = setOf("updated_at", "created_at", "title", "id")
             val safeOrderBy = if (allowedColumns.contains(orderBy)) orderBy else "updated_at"
-            
+
             val sql =
                 """
                 SELECT * FROM $tableName

@@ -1,6 +1,12 @@
 package com.example.smarty.server.agent
 
 import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.data.ReasoningStepType
+import com.example.smarty.server.data.ReasoningTraceRepository
+import com.example.smarty.server.services.ReasoningService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.UUID
@@ -79,44 +85,84 @@ class MonitoringTracer(private val userId: String) : AgentTracer {
 }
 
 /**
- * PostgreSQL tracer - stores trace events in database for later analysis
+ * PostgreSQL tracer - stores trace events in reasoning_traces via ReasoningService.
+ * Falls back to direct JDBC insert into agent_traces if ReasoningService is unavailable.
  */
 class PostgresTracer(private val userId: String) : AgentTracer {
     private val logger = LoggerFactory.getLogger(PostgresTracer::class.java)
+    private val scope = CoroutineScope(Dispatchers.IO)
+
+    // Lazily initialized — only when a DB connection is available
+    private val reasoningService: ReasoningService? by lazy {
+        val ds = DatabaseFactory.getDataSource() ?: return@lazy null
+        ReasoningService(ReasoningTraceRepository(ds))
+    }
+
+    private fun AgentStepType.toReasoningStepType(): ReasoningStepType = when (this) {
+        AgentStepType.THOUGHT -> ReasoningStepType.ANALYSIS
+        AgentStepType.TOOL_CALL -> ReasoningStepType.RESEARCH
+        AgentStepType.TOOL_RESULT -> ReasoningStepType.VERIFICATION
+        AgentStepType.FINAL -> ReasoningStepType.SYNTHESIS
+        AgentStepType.ERROR -> ReasoningStepType.REFLECTION
+        AgentStepType.CHECKPOINT -> ReasoningStepType.PLANNING
+    }
 
     override suspend fun trace(event: AgentTraceEvent) {
-        val dataSource = DatabaseFactory.getDataSource() ?: return
+        val service = reasoningService
+        if (service != null) {
+            // Primary path: structured reasoning_traces row
+            try {
+                service.logReasoningStep(
+                    sessionId = event.sessionId,
+                    messageId = null,
+                    userId = userId,
+                    stepType = event.stepType.toReasoningStepType(),
+                    title = event.stepType.name.lowercase().replace('_', ' '),
+                    content = event.content.take(10_000),
+                    confidenceScore = if (event.stepType == AgentStepType.FINAL) 0.9 else 0.6,
+                    durationMs = System.currentTimeMillis() - event.timestamp,
+                    isFinal = event.stepType == AgentStepType.FINAL,
+                )
+            } catch (e: Exception) {
+                logger.warn("ReasoningService trace failed, falling back to agent_traces: ${e.message}")
+                insertRawTrace(event)
+            }
+        } else {
+            // Fallback path: raw agent_traces insert (no DB or missing reasoningTraceRepository)
+            insertRawTrace(event)
+        }
+    }
 
-        try {
-            dataSource.connection.use { conn ->
-                val stmt =
+    private fun insertRawTrace(event: AgentTraceEvent) {
+        val dataSource = DatabaseFactory.getDataSource() ?: return
+        scope.launch {
+            try {
+                dataSource.connection.use { conn ->
                     conn.prepareStatement(
                         """
-                    INSERT INTO agent_traces (
-                        id, session_id, user_id, step_name, step_type, content,
-                        input_data, output_data, error_message, metadata, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    )
-
-                stmt.use {
-                    stmt.setString(1, event.eventId)
-                    stmt.setString(2, event.sessionId)
-                    stmt.setObject(3, java.util.UUID.fromString(userId))
-                    stmt.setString(4, event.stepType.name.lowercase())
-                    stmt.setString(5, event.stepType.name)
-                    stmt.setString(6, event.content.take(10000))
-                    stmt.setString(7, null)
-                    stmt.setString(8, null)
-                    stmt.setString(9, null)
-                    stmt.setString(10, "{}")
-                    stmt.setTimestamp(11, java.sql.Timestamp.from(Instant.ofEpochMilli(event.timestamp)))
-
-                    stmt.executeUpdate()
+                        INSERT INTO agent_traces (
+                            id, session_id, user_id, step_name, step_type, content,
+                            input_data, output_data, error_message, metadata, created_at
+                        ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+                        """,
+                    ).use { stmt ->
+                        stmt.setString(1, event.eventId)
+                        stmt.setString(2, event.sessionId)
+                        stmt.setObject(3, java.util.UUID.fromString(userId))
+                        stmt.setString(4, event.stepType.name.lowercase())
+                        stmt.setString(5, event.stepType.name)
+                        stmt.setString(6, event.content.take(10_000))
+                        stmt.setString(7, null)
+                        stmt.setString(8, null)
+                        stmt.setString(9, null)
+                        stmt.setString(10, "{}")
+                        stmt.setTimestamp(11, java.sql.Timestamp.from(Instant.ofEpochMilli(event.timestamp)))
+                        stmt.executeUpdate()
+                    }
                 }
+            } catch (e: Exception) {
+                logger.warn("Failed to store raw agent trace: ${e.message}")
             }
-        } catch (e: Exception) {
-            logger.warn("Failed to store agent trace: ${e.message}")
         }
     }
 }
@@ -142,7 +188,7 @@ class AgentPersistenceManager(private val userId: String) {
                         """
                     INSERT INTO agent_checkpoints (
                         id, session_id, user_id, state_json, version, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?)
                     ON CONFLICT (session_id) DO UPDATE SET
                         state_json = EXCLUDED.state_json,
                         version = agent_checkpoints.version + 1,
@@ -184,7 +230,7 @@ class AgentPersistenceManager(private val userId: String) {
                     conn.prepareStatement(
                         """
                     SELECT state_json FROM agent_checkpoints 
-                    WHERE session_id = ? AND user_id = ?
+                    WHERE session_id = ?::uuid AND user_id = ?::uuid
                     ORDER BY updated_at DESC LIMIT 1
                 """,
                     )
@@ -217,7 +263,7 @@ class AgentPersistenceManager(private val userId: String) {
                 val stmt =
                     conn.prepareStatement(
                         """
-                    DELETE FROM agent_checkpoints WHERE session_id = ? AND user_id = ?
+                    DELETE FROM agent_checkpoints WHERE session_id = ?::uuid AND user_id = ?::uuid
                 """,
                     )
 

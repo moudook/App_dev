@@ -7,6 +7,10 @@ import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
+import com.example.smarty.core.domain.model.Citation
+import com.example.smarty.core.domain.model.ClarificationRequest
+import com.example.smarty.core.domain.model.NoteReference
+import com.example.smarty.core.domain.model.EventReference
 import com.example.smarty.data.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -297,15 +301,19 @@ class ChatManager(
         }
     }
 
-    suspend fun updateMessageClarification(
+    suspend fun updateMessageCitations(
         messageId: String,
-        clarification: com.example.smarty.core.domain.model.ClarificationRequest?,
+        newCitations: List<Citation>,
     ) {
         chatMutex.withLock {
-            _chatMessages.value =
-                _chatMessages.value.map { msg ->
-                    if (msg.id == messageId) msg.copy(clarificationRequest = clarification) else msg
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    val merged = (msg.citations + newCitations).distinctBy { it.url }
+                    msg.copy(citations = merged)
+                } else {
+                    msg
                 }
+            }
         }
     }
 
@@ -345,6 +353,18 @@ class ChatManager(
                     } else {
                         msg
                     }
+                }
+        }
+    }
+
+    suspend fun updateMessageClarification(
+        messageId: String,
+        clarification: com.example.smarty.core.domain.model.ClarificationRequest,
+    ) {
+        chatMutex.withLock {
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) msg.copy(clarificationRequest = clarification) else msg
                 }
         }
     }
