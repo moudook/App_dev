@@ -335,19 +335,22 @@ fun ChatMessageItem(
                                  parsedContent = parsedAccordion,
                                  modifier = Modifier.fillMaxWidth()
                              )
-                         } else {
-                             TextEffectPerWord(
-                                 text = rawContent,
-                                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                     fontFamily = FontFamily.SansSerif,
-                                     fontSize = 16.sp,
-                                     lineHeight = 22.sp,
-                                     fontWeight = FontWeight.Medium,
-                                     letterSpacing = 0.sp
-                                 ),
-                                 modifier = Modifier.fillMaxWidth()
-                             )
-                         }
+} else {
+                              TextEffectPerWord(
+                                  text = rawContent,
+                                  textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                      fontFamily = FontFamily.SansSerif,
+                                      fontSize = 16.sp,
+                                      lineHeight = 22.sp,
+                                      fontWeight = FontWeight.Medium,
+                                      letterSpacing = 0.sp
+                                  ),
+                                  normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                  boldColor = MaterialTheme.colorScheme.onSurface,
+                                  linkColor = accentColor,
+                                  codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                              )
+                          }
 
                         // Krea Image Generation direct inline display
                         val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,14 +17,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.markdown.MarkdownText
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TextEffectPerWord(
     text: String,
     modifier: Modifier = Modifier,
-    textStyle: TextStyle = MaterialTheme.typography.bodyMedium
+    textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    normalColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+    boldColor: Color = MaterialTheme.colorScheme.onSurface,
+    linkColor: Color = com.example.smarty.ui.LocalAccentColor.current,
+    codeColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
 ) {
     val words = text.split(" ")
     var isVisible by remember { mutableStateOf(false) }
@@ -47,8 +53,12 @@ fun TextEffectPerWord(
                 label = "alpha_$index"
             )
 
-            Text(
-                text = word,
+            MarkdownText(
+                content = word,
+                normalColor = normalColor,
+                boldColor = boldColor,
+                linkColor = linkColor,
+                codeColor = codeColor,
                 style = textStyle,
                 modifier = Modifier
                     .alpha(alpha)
