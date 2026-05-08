@@ -94,12 +94,23 @@ fun KnowledgeCardScreen(
     var showVersionHistory by remember { mutableStateOf(false) }
 
     // Edit State - Initialize with note content
+    // FIX: Use derived state from the note object to auto-refresh when note updates externally (e.g., AI processing)
     var title by remember(note.id) { mutableStateOf(note.title) }
     var content by remember(note.id) { mutableStateOf(note.content) }
     // Clean up content if it contains auto-generated headers
-    LaunchedEffect(note.id) {
+    LaunchedEffect(note.id, note.content) {
         if (note.content.contains("files attached:\n\n")) {
             content = ""
+        }
+    }
+
+    // FIX: Update local state when note changes externally (e.g., AI updates)
+    LaunchedEffect(note.id, note.title, note.content) {
+        if (title != note.title) {
+            title = note.title
+        }
+        if (content != note.content) {
+            content = note.content
         }
     }
 

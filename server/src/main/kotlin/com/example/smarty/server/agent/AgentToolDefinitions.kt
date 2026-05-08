@@ -200,7 +200,7 @@ Use for: web searches, weather, news, facts, current events, research.""",
             description = """Navigate within app or share content externally.
 
 ACTIONS:
-- go: Navigate to screen (screen: home|calendar|stacks|archive|settings)
+- go: Navigate to screen (screen: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe)
 - share: Share content via other apps (content, title optional)
 
 EXAMPLES:
@@ -213,7 +213,7 @@ Use for: screen navigation, sharing to other apps.""",
                     properties =
                         mapOf(
                             "action" to ToolProperty("string", "Action: go|share", enum = listOf("go", "share")),
-                            "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings", enum = listOf("home", "calendar", "stacks", "archive", "settings")),
+                            "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe", enum = listOf("home", "calendar", "stacks", "archive", "settings", "guided_breathing", "chess", "coin_toss", "tic_tac_toe")),
                             "content" to ToolProperty("string", "Content to share (share action)"),
                             "title" to ToolProperty("string", "Share title (share action, optional)"),
                         ),

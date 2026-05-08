@@ -143,6 +143,9 @@ data class Note(
     val tagsJson: String? = null, // JSON string of List<String> for AI-generated tags
     val isViewed: Boolean = false, // Track if the note has been viewed by the user
     val isPinned: Boolean = false, // Pin note to top of list
+    val stackId: String? = null, // Stack/group ID for note organization
+    val parentNoteId: String? = null, // Parent note ID for hierarchical notes
+    val isFavorite: Boolean = false, // Mark note as favorite
     val reminderText: String? = null, // Smart reminder text to show on card
     val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
     val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses

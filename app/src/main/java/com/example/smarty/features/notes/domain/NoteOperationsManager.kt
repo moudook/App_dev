@@ -1124,8 +1124,10 @@ class NoteOperationsManager(
                     updatedAt = System.currentTimeMillis()
                 ).withTodos(allTodos)
 
-                // Use batcher for AI processing updates (non-critical, can be batched)
+                 // Use batcher for AI processing updates (non-critical, can be batched)
                 writeBatcher.queueUpdate(updatedNote)
+                // Force flush to ensure immediate visibility in UI
+                writeBatcher.forceFlush()
                 Log.i(TAG, "Note processed: category=${result.category}, title=${result.title}")
                 aiCallback?.onProcessingComplete(updatedNote)
             } else {
@@ -1181,6 +1183,9 @@ class NoteOperationsManager(
         repository.updateNote(updatedNote)
         Log.d(TAG, "Stored note ${note.id} with fallback category: $categoryName")
 
+        // Force flush to ensure immediate visibility in UI
+        writeBatcher.forceFlush()
+
         // Refresh widget for immediate feedback
         QuickNoteWidgetProvider.updateAllWidgets(context)
     }
@@ -1199,6 +1204,8 @@ class NoteOperationsManager(
         )
         // Use batcher for non-critical updates
         writeBatcher.queueUpdate(savedNote)
+        // Force flush to ensure immediate visibility in UI
+        writeBatcher.forceFlush()
     }
 
     /**

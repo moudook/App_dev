@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
@@ -181,8 +183,10 @@ class SyncCoordinator(
                                 createdAt = sessionData.createdAt,
                                 updatedAt = sessionData.updatedAt,
                                 messageCount = sessionData.messageCount,
-                                lastMessagePreview = sessionData.lastMessagePreview,
-                                isActive = false,
+                                lastMessagePreview = sessionData.lastMessagePreview ?: "",
+                                isActive = existingSession?.isActive ?: false,
+                                summary = sessionData.summary,
+                                summaryGeneratedAt = sessionData.summaryGeneratedAt,
                             )
 
                         if (existingSession == null) {
@@ -330,7 +334,33 @@ class SyncCoordinator(
                                     id = note.id,
                                     title = note.title,
                                     content = note.content,
-                                    categoryId = null, // TODO: resolve category name to ID
+                                    summary = note.summary,
+                                    sourceUrl = note.sourceUrl,
+                                    imageUri = note.imageUri,
+                                    fileUri = note.fileUri,
+                                    fileName = note.fileName,
+                                    fileMimeType = note.fileMimeType,
+                                    fileSize = note.fileSize,
+                                    type = note.type.name,
+                                    categoryId = note.categoryId,
+                                    categoryName = note.categoryName,
+                                    stackId = note.stackId,
+                                    parentNoteId = note.parentNoteId,
+                                    whySaved = note.whySaved,
+                                    processingStatus = note.processingStatus.name,
+                                    isArchived = note.isArchived,
+                                    isPinned = note.isPinned,
+                                    isFavorite = note.isFavorite,
+                                    isFullPrivacy = note.isFullPrivacy,
+                                    excludeFromAiChat = note.excludeFromAiChat,
+                                    isAiCreated = note.isAiCreated,
+                                    isViewed = note.isViewed,
+                                    todoContent = note.todoContent,
+                                    attachmentsJson = note.attachmentsJson,
+                                    tagsJson = note.tagsJson,
+                                    chunkAnalysesJson = note.chunkAnalysesJson,
+                                    reminderText = note.reminderText,
+                                    reminderExpiresAt = note.reminderExpiresAt,
                                     updatedAt = note.updatedAt,
                                 ),
                             )
@@ -416,13 +446,35 @@ class SyncCoordinator(
             id = info.id,
             title = info.title,
             content = info.content,
-            categoryName = null, // TODO: resolve categoryId to name
-            isArchived = info.isArchived,
+            summary = info.summary,
+            sourceUrl = info.sourceUrl,
+            imageUri = info.imageUri,
+            fileUri = info.fileUri,
+            fileName = info.fileName,
+            fileMimeType = info.fileMimeType,
+            fileSize = info.fileSize,
+            type = try { NoteType.valueOf(info.type) } catch (e: Exception) { NoteType.BRAIN_DUMP },
+            categoryId = info.categoryId,
+            categoryName = info.categoryName,
+            stackId = info.stackId,
+            parentNoteId = info.parentNoteId,
+            whySaved = info.whySaved,
+            processingStatus = try { ProcessingStatus.valueOf(info.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
             createdAt = info.createdAt,
             updatedAt = info.updatedAt,
-            type = com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP,
-            processingStatus = com.example.smarty.core.domain.model.ProcessingStatus.COMPLETED,
-            isAiCreated = true,
+            isArchived = info.isArchived,
+            isPinned = info.isPinned,
+            isFavorite = info.isFavorite,
+            isFullPrivacy = info.isFullPrivacy,
+            excludeFromAiChat = info.excludeFromAiChat,
+            isAiCreated = info.isAiCreated,
+            isViewed = info.isViewed,
+            todoContent = info.todoContent,
+            attachmentsJson = info.attachmentsJson,
+            tagsJson = info.tagsJson,
+            chunkAnalysesJson = info.chunkAnalysesJson,
+            reminderText = info.reminderText,
+            reminderExpiresAt = info.reminderExpiresAt,
         )
     }
 

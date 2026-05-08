@@ -308,10 +308,14 @@ class AssistViewModel(
             chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true, toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "started", displayName = "Direct Request", inputSummary = prompt))))
             val result = remoteAgentService.generateImageDirect(prompt, aspectRatio)
             if (result != null && result.success) {
-                chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "completed", displayName = "Direct Request", inputSummary = prompt, outputSummary = result.jobId))))
+                chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "completed", displayName = "Direct Request", inputSummary = prompt, outputSummary = result.url))))
                 chatManager.markApiCallSuccessful()
+                chatManager.saveMessagePair(userMessage, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Generated image for: $prompt", timestamp = System.currentTimeMillis(), toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "completed", displayName = "Direct Request", inputSummary = prompt, outputSummary = result.url))))
             } else {
-                chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Failed to generate image", timestamp = System.currentTimeMillis(), isError = true))
+                val errorMsg = result?.error ?: result?.message ?: "Please try again."
+                chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Failed to generate image: $errorMsg", timestamp = System.currentTimeMillis(), isError = true))
+                chatManager.markApiCallSuccessful()
+                chatManager.saveMessagePair(userMessage, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Failed to generate image: $errorMsg", timestamp = System.currentTimeMillis(), isError = true))
             }
             _isProcessing.value = false
         }

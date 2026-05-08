@@ -2,76 +2,107 @@ package com.example.smarty.features.games.domain
 
 import android.content.Context
 import java.io.File
+import kotlin.random.Random
 
 /**
- * ABSOLUTE PINNACLE: Nano-level Binary Optimization (Black Hat Level)
- * - 0 Object overhead: Uses contiguous primitive arrays instead of HashMaps.
- * - 13 Bytes per state: Int (4 bytes) for bitboard state + 9 Bytes for Quantized Q-Values.
- * - Total RAM Footprint: < 70 KB (Max possible states = 5478).
- * - In-place binary search for O(log N) lookup.
- * - Quantizes Q-values from Float [-1.0, 1.0] to Byte [-127, 127] mapping.
+ * HYPER-AGGRESSIVE NANO-ENGINE (Black Hat / Amortal Edition)
+ * - Symmetry Expansion: Learning one move learns all 8 equivalent board positions.
+ * - Monte Carlo Propagation: Final rewards hit all moves instantly for rapid adaptation.
+ * - Dynamic Alpha: Spikes learning rate on loss to pivot strategy immediately.
  */
 class TicTacToeAI(private val context: Context) {
-    // Flattened primitive arrays. No Objects.
     private var states = IntArray(0)
-    private var qValues = ByteArray(0) // 9 bytes per state
+    private var qValues = ByteArray(0) 
     
-    private val alpha = 0.15f
+    private var alpha = 0.35f 
     private val gamma = 0.95f
-    private val modelFileName = "tictactoe_nano_v3.bin"
+    private val epsilon = 0.10f // Lowered to trust learned weights more
+    private val modelFileName = "tictactoe_nano_v4.bin"
+
+    // Symmetry Mapping Tables
+    private val rot90 = intArrayOf(6, 3, 0, 7, 4, 1, 8, 5, 2)
+    private val flipH = intArrayOf(2, 1, 0, 5, 4, 3, 8, 7, 6)
 
     init {
         loadModel()
     }
 
+    fun activate() {}
+    fun deactivate() { saveModel() }
+
     /**
-     * 18-bit Bitboard representation. Fits beautifully into a 32-bit Int.
-     * xBits (9 bits) | oBits (9 bits)
+     * Perspective-Correct Bitboard
+     * bits 0-8: SELF positions
+     * bits 9-17: OPPONENT positions
      */
-    private fun getBitboard(board: List<String?>): Int {
-        var xBits = 0
-        var oBits = 0
+    private fun getBitboard(board: List<String?>, perspectiveO: Boolean): Int {
+        var selfBits = 0
+        var oppBits = 0
+        val selfSymbol = if (perspectiveO) "O" else "X"
+        val oppSymbol = if (perspectiveO) "X" else "O"
+        
         for (i in 0 until 9) {
-            if (board[i] == "X") xBits = xBits or (1 shl i)
-            if (board[i] == "O") oBits = oBits or (1 shl i)
+            when (board[i]) {
+                selfSymbol -> selfBits = selfBits or (1 shl i)
+                oppSymbol -> oppBits = oppBits or (1 shl i)
+            }
         }
-        return (xBits shl 9) or oBits
+        return (oppBits shl 9) or selfBits
+    }
+
+    private fun transformBitboard(bb: Int, map: IntArray): Int {
+        val opp = (bb shr 9) and 0x1FF
+        val self = bb and 0x1FF
+        var newOpp = 0
+        var newSelf = 0
+        for (i in 0 until 9) {
+            if ((opp shr i) and 1 == 1) newOpp = newOpp or (1 shl map[i])
+            if ((self shr i) and 1 == 1) newSelf = newSelf or (1 shl map[i])
+        }
+        return (newOpp shl 9) or newSelf
+    }
+
+    private fun getAllSymmetries(bb: Int, action: Int): List<Pair<Int, Int>> {
+        val syms = mutableListOf<Pair<Int, Int>>()
+        var curBB = bb
+        var curAct = action
+        
+        repeat(4) {
+            syms.add(curBB to curAct)
+            // Rotate
+            curBB = transformBitboard(curBB, rot90)
+            curAct = rot90[curAct]
+        }
+        
+        // Flip and repeat
+        curBB = transformBitboard(bb, flipH)
+        curAct = flipH[action]
+        repeat(4) {
+            syms.add(curBB to curAct)
+            curBB = transformBitboard(curBB, rot90)
+            curAct = rot90[curAct]
+        }
+        return syms
     }
 
     private fun loadModel() {
         val file = File(context.filesDir, modelFileName)
         if (!file.exists()) return
-
         try {
             val bytes = file.readBytes()
             if (bytes.size < 4) return
-            // Read Little Endian Int
-            val numStates = (bytes[0].toInt() and 0xFF) or 
-                            ((bytes[1].toInt() and 0xFF) shl 8) or 
-                            ((bytes[2].toInt() and 0xFF) shl 16) or 
-                            ((bytes[3].toInt() and 0xFF) shl 24)
-            
-            val expectedSize = 4 + numStates * 13
-            if (bytes.size != expectedSize) return
-
-            states = IntArray(numStates)
-            qValues = ByteArray(numStates * 9)
-
+            val numStates = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8) or 
+                            ((bytes[2].toInt() and 0xFF) shl 16) or ((bytes[3].toInt() and 0xFF) shl 24)
+            states = IntArray(numStates); qValues = ByteArray(numStates * 9)
             var offset = 4
             for (i in 0 until numStates) {
-                states[i] = (bytes[offset].toInt() and 0xFF) or 
-                            ((bytes[offset+1].toInt() and 0xFF) shl 8) or 
-                            ((bytes[offset+2].toInt() and 0xFF) shl 16) or 
-                            ((bytes[offset+3].toInt() and 0xFF) shl 24)
+                states[i] = (bytes[offset].toInt() and 0xFF) or ((bytes[offset+1].toInt() and 0xFF) shl 8) or 
+                            ((bytes[offset+2].toInt() and 0xFF) shl 16) or ((bytes[offset+3].toInt() and 0xFF) shl 24)
                 offset += 4
                 System.arraycopy(bytes, offset, qValues, i * 9, 9)
                 offset += 9
             }
-        } catch (e: Exception) {
-            // Failsafe: Start fresh if binary is corrupted
-            states = IntArray(0)
-            qValues = ByteArray(0)
-        }
+        } catch (e: Exception) {}
     }
 
     private fun saveModel() {
@@ -79,143 +110,116 @@ class TicTacToeAI(private val context: Context) {
         try {
             val numStates = states.size
             val bytes = ByteArray(4 + numStates * 13)
-            
-            // Write Little Endian Int
             bytes[0] = (numStates and 0xFF).toByte()
             bytes[1] = ((numStates ushr 8) and 0xFF).toByte()
             bytes[2] = ((numStates ushr 16) and 0xFF).toByte()
             bytes[3] = ((numStates ushr 24) and 0xFF).toByte()
-            
             var offset = 4
             for (i in 0 until numStates) {
-                val state = states[i]
-                bytes[offset] = (state and 0xFF).toByte()
-                bytes[offset+1] = ((state ushr 8) and 0xFF).toByte()
-                bytes[offset+2] = ((state ushr 16) and 0xFF).toByte()
-                bytes[offset+3] = ((state ushr 24) and 0xFF).toByte()
+                val s = states[i]
+                bytes[offset] = (s and 0xFF).toByte()
+                bytes[offset+1] = ((s ushr 8) and 0xFF).toByte()
+                bytes[offset+2] = ((s ushr 16) and 0xFF).toByte()
+                bytes[offset+3] = ((s ushr 24) and 0xFF).toByte()
                 offset += 4
-                
                 System.arraycopy(qValues, i * 9, bytes, offset, 9)
                 offset += 9
             }
             file.writeBytes(bytes)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) {}
     }
 
-    // Convert Byte [-127, 127] back to Float [-1.0, 1.0]
-    private fun getQ(stateIndex: Int, action: Int): Float {
-        if (stateIndex < 0) return 0f
-        return qValues[stateIndex * 9 + action].toFloat() / 127f
+    private fun getQ(stateIdx: Int, action: Int): Float = 
+        if (stateIdx < 0) 0f else qValues[stateIdx * 9 + action].toFloat() / 127f
+
+    private fun setQ(stateIdx: Int, action: Int, value: Float) {
+        qValues[stateIdx * 9 + action] = (value.coerceIn(-1.5f, 1.5f) * 80).toInt().toByte()
     }
 
-    // Quantize Float to Byte [-127, 127]
-    private fun setQ(stateIndex: Int, action: Int, value: Float) {
-        val quantized = (value.coerceIn(-1f, 1f) * 127).toInt().toByte()
-        qValues[stateIndex * 9 + action] = quantized
-    }
-
-    /**
-     * O(log N) lookup. If state doesn't exist, it allocates and arraycopies.
-     * Since N is guaranteed <= 5478, shifting 70KB in contiguous memory is nanosecond-fast,
-     * far outperforming the JVM Garbage Collection overhead of a standard HashMap.
-     */
     private fun ensureState(state: Int): Int {
         val idx = states.binarySearch(state)
-        if (idx >= 0) return idx // Found
-        
-        // Not found, binarySearch returns -(insertion_point) - 1
-        val insertPoint = -(idx + 1)
-        val newStates = IntArray(states.size + 1)
-        val newQValues = ByteArray(qValues.size + 9)
-        
-        // Shift states
-        System.arraycopy(states, 0, newStates, 0, insertPoint)
-        newStates[insertPoint] = state
-        System.arraycopy(states, insertPoint, newStates, insertPoint + 1, states.size - insertPoint)
-        
-        // Shift Q-Values (The 9 bytes at the insert point implicitly default to 0)
-        System.arraycopy(qValues, 0, newQValues, 0, insertPoint * 9)
-        System.arraycopy(qValues, insertPoint * 9, newQValues, (insertPoint + 1) * 9, (states.size - insertPoint) * 9)
-        
-        states = newStates
-        qValues = newQValues
-        
-        return insertPoint
+        if (idx >= 0) return idx
+        val insert = -(idx + 1)
+        val nS = IntArray(states.size + 1); val nQ = ByteArray(qValues.size + 9)
+        System.arraycopy(states, 0, nS, 0, insert); nS[insert] = state
+        System.arraycopy(states, insert, nS, insert + 1, states.size - insert)
+        System.arraycopy(qValues, 0, nQ, 0, insert * 9)
+        System.arraycopy(qValues, insert * 9, nQ, (insert + 1) * 9, (states.size - insert) * 9)
+        states = nS; qValues = nQ
+        return insert
     }
 
     fun getBestMove(board: List<String?>): Int {
-        val state = getBitboard(board)
-        val idx = states.binarySearch(state)
+        // Stochastic "Chaos" factor
+        if (Random.nextFloat() < epsilon) {
+            val available = board.indices.filter { board[it] == null }
+            if (available.isNotEmpty()) return available.random()
+        }
+
+        // Tactical Heaven Layer
+        val win = findImmediateWin(board, "O")
+        if (win != -1) return win
+        val block = findImmediateWin(board, "X")
+        if (block != -1) return block
+
+        val bb = getBitboard(board, perspectiveO = true)
+        val idx = states.binarySearch(bb)
         
-        // Heaven Layer: Immediate Heuristics (0 lookup cost)
-        val winningMove = findImmediateWin(board, "O")
-        if (winningMove != -1) return winningMove
-        val blockingMove = findImmediateWin(board, "X")
-        if (blockingMove != -1) return blockingMove
-
-        var bestMove = -1
-        var maxQ = -Float.MAX_VALUE
-
+        var best = -1; var maxQ = -Float.MAX_VALUE
         for (i in 0 until 9) {
             if (board[i] == null) {
                 val q = getQ(idx, i)
-                if (q > maxQ) {
-                    maxQ = q
-                    bestMove = i
-                }
+                if (q > maxQ) { maxQ = q; best = i }
             }
         }
-
-        return if (bestMove != -1) bestMove else board.indices.filter { board[it] == null }.random()
+        return if (best != -1) best else board.indices.filter { board[it] == null }.random()
     }
 
-    private fun findImmediateWin(board: List<String?>, player: String): Int {
-        // Flattened 1D representation of winning lines
-        val lines = intArrayOf(
-            0,1,2, 3,4,5, 6,7,8, // rows
-            0,3,6, 1,4,7, 2,5,8, // cols
-            0,4,8, 2,4,6         // diags
-        )
+    private fun findImmediateWin(board: List<String?>, p: String): Int {
+        val lines = intArrayOf(0,1,2, 3,4,5, 6,7,8, 0,3,6, 1,4,7, 2,5,8, 0,4,8, 2,4,6)
         for (i in lines.indices step 3) {
             val a = lines[i]; val b = lines[i+1]; val c = lines[i+2]
-            val sA = board[a]; val sB = board[b]; val sC = board[c]
-            
-            var pCount = 0
-            var nullIdx = -1
-            
-            if (sA == player) pCount++ else if (sA == null) nullIdx = a
-            if (sB == player) pCount++ else if (sB == null) nullIdx = b
-            if (sC == player) pCount++ else if (sC == null) nullIdx = c
-            
-            if (pCount == 2 && nullIdx != -1) return nullIdx
+            var cP = 0; var nI = -1
+            if (board[a] == p) cP++ else if (board[a] == null) nI = a
+            if (board[b] == p) cP++ else if (board[b] == null) nI = b
+            if (board[c] == p) cP++ else if (board[c] == null) nI = c
+            if (cP == 2 && nI != -1) return nI
         }
         return -1
     }
 
-    fun updateModel(history: List<Pair<List<String?>, Int>>, reward: Float) {
-        var nextMaxQ = 0f
-        
-        for (i in history.indices.reversed()) {
-            val (boardState, action) = history[i]
-            val state = getBitboard(boardState)
-            val idx = ensureState(state) // Ultra-fast contiguous array expansion
-            
-            val currentReward = if (i == history.size - 1) reward else 0f
-            val currentQ = getQ(idx, action)
-            val newQ = currentQ + alpha * (currentReward + gamma * nextMaxQ - currentQ)
-            
-            setQ(idx, action, newQ)
-            
-            nextMaxQ = -Float.MAX_VALUE
-            for (a in 0 until 9) {
-                if (boardState[a] == null) {
-                    val q = getQ(idx, a)
-                    if (q > nextMaxQ) nextMaxQ = q
-                }
-            }
+    fun updateModel(aiHistory: List<Pair<List<String?>, Int>>, userHistory: List<Pair<List<String?>, Int>>, reward: Float) {
+        // Spike alpha on loss to pivot strategy aggressively
+        val effectiveAlpha = if (reward < -1.0f) 0.5f else 0.25f
+
+        // 1. AI Learning
+        applyAggressiveUpdate(aiHistory, reward, perspectiveO = true, alpha = effectiveAlpha)
+
+        // 2. Mirror Learning (Steal User's strategy)
+        if (reward < -1.0f) {
+            applyAggressiveUpdate(userHistory, 1.0f, perspectiveO = false, alpha = effectiveAlpha)
         }
+        
         saveModel()
+    }
+
+    private fun applyAggressiveUpdate(seq: List<Pair<List<String?>, Int>>, finalR: Float, perspectiveO: Boolean, alpha: Float) {
+        // Monte Carlo: Propagate final result backwards with discount
+        var discountReward = finalR
+        for (i in seq.indices.reversed()) {
+            val (board, action) = seq[i]
+            val bb = getBitboard(board, perspectiveO)
+            
+            // SYMMETRY EXPANSION: Update all 8 versions of this move
+            val syms = getAllSymmetries(bb, action)
+            for ((sBB, sAct) in syms) {
+                val idx = ensureState(sBB)
+                val currentQ = getQ(idx, sAct)
+                val newQ = currentQ + alpha * (discountReward - currentQ)
+                setQ(idx, sAct, newQ)
+            }
+            
+            discountReward *= gamma // Move back in time
+        }
     }
 }

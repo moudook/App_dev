@@ -104,8 +104,7 @@ import androidx.compose.ui.text.SpanStyle
 // Import extracted chat components for DRY principle
 import com.example.smarty.ui.components.chat.ThinkingSection
 import com.example.smarty.ui.components.chat.ThinkingDots
-import com.example.smarty.ui.components.chat.StreamingCursor
-import com.example.smarty.ui.components.chat.rememberTypewriterState
+import com.example.smarty.ui.components.chat.TextEffectPerWord
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,7 +137,6 @@ import com.example.smarty.ui.theme.smartyShapes
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.LaTeXView
 // Single source of truth for all markdown rendering (DRY)
-import com.example.smarty.ui.components.markdown.MarkdownRenderer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -284,18 +282,7 @@ fun ChatMessageItem(
     var showContextMenu by remember { mutableStateOf(false) }
     
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    val brandPrimary = Color(0xFF74AA9C)
-    val normalColor = MaterialTheme.colorScheme.onSurface
-    val boldColor = normalColor
     val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
-    
-    // Theme-aware code block colors
-    val codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant
-    val codeHeaderBg = MaterialTheme.colorScheme.surfaceContainerHighest
-    val codeTextColor = MaterialTheme.colorScheme.primary
-    
-    val codeBorderColor = MaterialTheme.colorScheme.outline
-    val linkColor = MaterialTheme.colorScheme.primary
 
     Column(
         modifier = modifier
@@ -312,7 +299,8 @@ fun ChatMessageItem(
                 modifier = Modifier.padding(
                     horizontal = if (isUser) 16.dp else 16.dp,
                     vertical = if (isUser) 16.dp else 16.dp
-                )
+                ),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 if (!isUser) {
 
@@ -337,59 +325,29 @@ fun ChatMessageItem(
                         ThinkingDots()
                     }
                     
-                    // MAIN CONTENT - Shows BELOW thinking (Smarty style)
-                    if (message.content.isNotEmpty()) {
-                        // normalColor and boldColor from outer scope
-
-                        val rawContent = if (isUser) message.content else cleanContent(message.content)
-                        val targetLength = rawContent.length
-
-                        // State that persists across content updates within same message
-                        // Only resets when message.id changes (new message)
-                        var displayPosition by remember(message.id) {
-                            mutableIntStateOf(if (message.isStreaming) 0 else targetLength)
-                        }
-
-                        // Run typewriter animation - keyed on message.id and current length to handle streaming updates
-                        LaunchedEffect(message.id, message.isStreaming, targetLength) {
-                            if (message.isStreaming) {
-                                // Faster typewriter for more real-time feel (was 2 chars/33ms, now 4 chars/25ms)
-                                val charsPerFrame = 4
-                                while (displayPosition < targetLength) {
-                                    val remaining = targetLength - displayPosition
-                                    val step = minOf(charsPerFrame, remaining)
-                                    displayPosition += step
-                                    delay(25)
-                                }
-                            } else {
-                                displayPosition = targetLength
-                            }
-                        }
-                        
-                        // Get visible content
-                        val visibleContent = remember(displayPosition, rawContent) {
-                            if (displayPosition >= rawContent.length) rawContent 
-                            else rawContent.substring(0, displayPosition)
-                        }
-
-                        // Professional Markdown Rendering - Live Streaming with Typewriter Effect
-                        MarkdownRenderer(
-                            content = visibleContent,
-                            isUser = isUser,
-                            normalColor = normalColor,
-                            boldColor = boldColor,
-                            linkColor = linkColor,
-                            codeColor = codeTextColor,
-                            codeBackgroundColor = codeBackgroundColor,
-                            codeBorderColor = codeBorderColor,
-                            codeHeaderBg = codeHeaderBg,
-                            isStreaming = message.isStreaming && displayPosition < targetLength
-                        )
-
-                        // Streaming cursor - using extracted component (DRY)
-                        if (message.isStreaming && displayPosition < targetLength) {
-                            StreamingCursor(cursorColor = brandPrimary)
-                        }
+// MAIN CONTENT - Shows BELOW thinking (Smarty style)
+                     if (message.content.isNotEmpty()) {
+                         val rawContent = if (isUser) message.content else cleanContent(message.content)
+                         val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
+                         
+                         if (parsedAccordion.accordions.isNotEmpty()) {
+                             com.example.smarty.ui.components.chat.AccordionResponse(
+                                 parsedContent = parsedAccordion,
+                                 modifier = Modifier.fillMaxWidth()
+                             )
+                         } else {
+                             TextEffectPerWord(
+                                 text = rawContent,
+                                 textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                     fontFamily = FontFamily.SansSerif,
+                                     fontSize = 16.sp,
+                                     lineHeight = 22.sp,
+                                     fontWeight = FontWeight.Medium,
+                                     letterSpacing = 0.sp
+                                 ),
+                                 modifier = Modifier.fillMaxWidth()
+                             )
+                         }
 
                         // Krea Image Generation direct inline display
                         val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }

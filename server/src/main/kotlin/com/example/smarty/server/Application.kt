@@ -29,6 +29,7 @@ import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
@@ -217,12 +218,34 @@ fun Application.module() {
         digestScheduler.start()
     }
 
+    // Initialize Services
+    val contentAnalysisService = com.example.smarty.server.services.ContentAnalysisService(
+        HttpClientSingleton.client,
+        com.example.smarty.server.services.VisionService(HttpClientSingleton.client)
+    )
+    val adaptiveSearchService = com.example.smarty.server.services.AdaptiveSearchService()
+
+    val chatMessageNotesRepo = if (ds != null) ChatMessageNotesRepository(ds) else null
+    val calendarEventNotesRepo = if (ds != null) CalendarEventNotesRepository(ds) else null
+    val noteRepository = if (ds != null && chatMessageNotesRepo != null && calendarEventNotesRepo != null) {
+        NoteRepository(ds, chatMessageNotesRepo, calendarEventNotesRepo)
+    } else null
+
+    val noteService = if (noteRepository != null) {
+        com.example.smarty.server.services.NoteService(
+            noteRepository,
+            contentAnalysisService,
+            PostgresVectorStore(),
+            adaptiveSearchService
+        )
+    } else null
+
     // Configure routes
     configureHealthRoutes()
-    configureChatRoutes()
+    configureChatRoutes(noteService) // Pass noteService for ToolExecutor
     configureProcessingRoutes()
     configureHandshakeRoutes()
-    configureDataRoutes()
+    configureDataRoutes(noteService)
 
     // Configure v6.0.0 new features routes (Tasks, Tags, Notifications, Folders)
     if (ds != null) {

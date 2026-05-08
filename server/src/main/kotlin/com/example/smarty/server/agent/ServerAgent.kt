@@ -39,13 +39,14 @@ class ServerAgent(
     private val calendarRepository: CalendarRepository?,
     private val eventEmitter: suspend (AgentEvent) -> Unit,
     private val userId: String = "dev-user",
+    private val noteService: com.example.smarty.server.services.NoteService? = null,
 ) {
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
 
     // Extracted components
     private val stateManager = AgentStateManager(userId, llmProvider, vectorStore, summarizer)
     private val toolExecutor =
-        ToolExecutor(userId, llmProvider, tavilyTool, vectorStore, noteRepository, timerRepository, calendarRepository, eventEmitter)
+        ToolExecutor(userId, llmProvider, tavilyTool, vectorStore, noteRepository, timerRepository, calendarRepository, eventEmitter, noteService)
     private val tracer: AgentTracer =
         CompositeTracer(
             listOf(

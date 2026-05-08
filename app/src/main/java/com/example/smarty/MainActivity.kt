@@ -643,6 +643,9 @@ class MainActivity : ComponentActivity() {
                                         android.util.Log.d("SmartyNav", "Navigating to CoinToss")
                                         navController.navigate(Screen.CoinToss.route)
                                     },
+                                    onNavigateToChess = {
+                                        navController.navigate(Screen.Chess.route)
+                                    },
                                     onCancelTimer = { timer ->
                                         viewModel.cancelTimer(timer)
                                     },
@@ -853,6 +856,15 @@ class MainActivity : ComponentActivity() {
                     viewModel.triggerCameraInput()
                 }
             }
+
+     // Handle deep-link routes from notifications (e.g. daily briefing)
+    if (intent?.getStringExtra("route") == "briefing") {
+        val briefingContent = intent.getStringExtra("briefing_content")
+        if (!briefingContent.isNullOrBlank()) {
+            viewModel.enterChatMode()
+            viewModel.enterChatWithNoteReference("Show me my daily briefing")
+        }
+    }
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "Error handling intent: ${e.message}", e)
             // Intent handling failed, but don't crash the app - user can still use it normally

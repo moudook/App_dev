@@ -28,6 +28,7 @@ class ToolExecutor(
     private val timerRepository: TimerRepository?,
     private val calendarRepository: CalendarRepository?,
     private val eventEmitter: suspend (com.example.smarty.protocol.AgentEvent) -> Unit,
+    private val noteService: com.example.smarty.server.services.NoteService? = null,
 ) {
     private val logger = LoggerFactory.getLogger(ToolExecutor::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -229,8 +230,21 @@ class ToolExecutor(
     }
 
     private suspend fun executeMemorySave(args: UnifiedToolArgs): String {
-        return if (noteRepository != null && args.title != null && args.content != null) {
-            val noteId = noteRepository.create(userId, args.title, args.content, null)
+        return if (noteService != null && args.title != null && args.content != null) {
+            val noteId = noteService.createNote(userId, args.title, args.content, args.category)
+            emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
+            "Saved: '${args.title}' (ID: $noteId). AI enrichment started in background."
+        } else if (noteRepository != null && args.title != null && args.content != null) {
+            val noteInfo = com.example.smarty.protocol.NoteInfo(
+                id = "",
+                title = args.title,
+                content = args.content,
+                categoryId = args.category,
+                processingStatus = "COMPLETED",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+            val noteId = noteRepository.create(userId, noteInfo)
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId)"
         } else {
@@ -246,8 +260,17 @@ class ToolExecutor(
     }
 
     private suspend fun executeMemoryFind(args: UnifiedToolArgs): String {
-        return if (noteRepository != null && args.query != null) {
-            val results = noteRepository.search(userId, args.query)
+        return if (noteService != null && args.query != null) {
+            val results = noteService.searchNotes(userId, args.query)
+            if (results.isEmpty()) {
+                "No notes found for '${args.query}'."
+            } else {
+                results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.summary ?: it.content.take(80)}" }
+            }
+        } else if (noteRepository != null && args.query != null) {
+            val results = noteRepository.listByUser(userId, limit = 100).filter {
+                it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true)
+            }.take(20)
             if (results.isEmpty()) {
                 "No notes found for '${args.query}'."
             } else {
@@ -267,9 +290,15 @@ class ToolExecutor(
 
     private suspend fun executeMemoryUpdate(args: UnifiedToolArgs): String {
         return if (noteRepository != null && args.id != null) {
-            noteRepository.update(userId, args.id, args.title, args.content, null)
+            val existing = noteRepository.getById(userId, args.id) ?: return "Note not found: ${args.id}"
+            val updatedNote = existing.copy(
+                title = args.title ?: existing.title,
+                content = args.content ?: existing.content,
+                updatedAt = System.currentTimeMillis()
+            )
+            val success = noteRepository.update(userId, updatedNote)
             emitStateSync("note_updated", """{"id":"${args.id}"}""")
-            "Updated note ${args.id}"
+            if (success) "Updated note ${args.id}" else "Failed to update note ${args.id}"
         } else {
             emitDeviceCommand(
                 AgentCommand.UpdateNote(
@@ -331,7 +360,19 @@ class ToolExecutor(
                 val durationMs = parseDurationToMs(args.duration ?: "1 hour")
                 val endTime = startTime + durationMs
                 if (calendarRepository != null && args.title != null) {
-                    val eventId = calendarRepository.create(userId, args.title, startTime, endTime, args.description, 15)
+                    val eventInfo = com.example.smarty.protocol.CalendarEventInfo(
+                        id = "",
+                        title = args.title,
+                        startTime = startTime,
+                        endTime = endTime,
+                        description = args.description,
+                        reminderMinutes = 15,
+                        linkedNoteId = null,
+                        googleEventId = null,
+                        isEventPrivate = false,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    val eventId = calendarRepository.create(userId, eventInfo)
                     emitStateSync("event_scheduled", """{"id":"$eventId","title":"${args.title}"}""")
                     "Event added: '${args.title}'"
                 } else {
@@ -351,7 +392,7 @@ class ToolExecutor(
             "list" -> {
                 val (startMs, endMs) = parseTimeRange(args.`when` ?: "today", clientTimezone, clientTimeMillis)
                 if (calendarRepository != null) {
-                    val events = calendarRepository.listUpcoming(userId).filter { it.startTime in startMs until endMs }
+                    val events = calendarRepository.listAllEvents(userId).filter { it.startTime in startMs until endMs }
                     if (events.isEmpty()) {
                         "No events for ${args.`when`}."
                     } else {

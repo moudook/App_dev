@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.components.SmartyButton
 import com.example.smarty.ui.theme.SmartyShadow
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.theme.LocalShapes
@@ -40,10 +39,25 @@ import com.example.smarty.features.games.domain.TicTacToeAI
  */
 @Composable
 fun TicTacToeScreen(onClose: () -> Unit) {
+    var showIntro by remember { mutableStateOf(true) }
+
+    if (showIntro) {
+        GameIntroScreen(title = "Tic Tac Toe", onPlay = { showIntro = false })
+    } else {
+        TicTacToeGameContent(onClose = onClose)
+    }
+}
+
+@Composable
+fun TicTacToeGameContent(onClose: () -> Unit) {
     val context = LocalContext.current
     val ai = remember { TicTacToeAI(context) }
     var isAiReady by remember { mutableStateOf(false) }
+    
+    // Tracks AI's moves (State before move -> Index chosen)
     val aiHistory = remember { mutableStateListOf<Pair<List<String?>, Int>>() }
+    // Tracks User's moves (State before move -> Index chosen)
+    val userHistory = remember { mutableStateListOf<Pair<List<String?>, Int>>() }
 
     val board = remember { mutableStateListOf<String?>(null, null, null, null, null, null, null, null, null) }
     var isXNext by remember { mutableStateOf(true) }
@@ -58,19 +72,20 @@ fun TicTacToeScreen(onClose: () -> Unit) {
     val isDark = isSystemInDarkTheme()
 
     // Cell styling for better visibility
-    val cellColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface
-    val cellBorder = if (isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)) else null
+    val cellColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.7f)
+    val cellBorder = BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f))
 
-    // Helper to get state key for AI
-    fun getBoardKey(currentBoard: List<String?>): String {
-        return currentBoard.joinToString("") {
-            when (it) {
-                "X" -> "1"
-                "O" -> "2"
-                else -> "0"
-            }
-        }
-    }
+    // Thinking animation state for "Organic Breath"
+    val infiniteTransition = rememberInfiniteTransition(label = "ThinkingPulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.05f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "PulseAlpha"
+    )
 
     // Win checking logic
     fun checkWinner(currentBoard: List<String?>): String? {
@@ -91,22 +106,23 @@ fun TicTacToeScreen(onClose: () -> Unit) {
     fun resetGame() {
         for (i in 0 until 9) board[i] = null
         aiHistory.clear()
+        userHistory.clear()
         isXNext = true
         winner = null
         isDraw = false
         isComputerThinking = false
     }
 
-    // Update AI model after game ends
+    // High-Stakes Reward System
     LaunchedEffect(winner, isDraw) {
         if (winner != null || isDraw) {
             val reward = when (winner) {
-                "O" -> 1.0f // AI won
-                "X" -> -1.0f // AI lost
-                else -> 0.5f // Draw
+                "O" -> 2.0f // AI won (Aggressive Reward)
+                "X" -> -2.0f // AI lost (Aggressive Penalty)
+                else -> -0.5f // Draw (Penalty - AI must avoid stalemates)
             }
-            if (aiHistory.isNotEmpty()) {
-                ai.updateModel(aiHistory.toList(), reward)
+            if (aiHistory.isNotEmpty() || userHistory.isNotEmpty()) {
+                ai.updateModel(aiHistory.toList(), userHistory.toList(), reward)
             }
         }
     }
@@ -123,9 +139,7 @@ fun TicTacToeScreen(onClose: () -> Unit) {
 
     DisposableEffect(ai) {
         onDispose {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                ai.deactivate()
-            }
+            ai.deactivate()
         }
     }
 
@@ -202,10 +216,10 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                  exit = fadeOut() + shrinkVertically()
              ) {
                 Text(
-                    text = "Thinking...",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    text = "AI is thinking...",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
 
@@ -221,42 +235,52 @@ fun TicTacToeScreen(onClose: () -> Unit) {
             ) {
                 items(9) { index ->
                     val cellValue = board[index]
+                    val isThinkingCell = isComputerThinking && cellValue == null
 
                     Surface(
                         modifier = Modifier
                             .aspectRatio(1f)
                             .softCardShadow(
-                                elevation = SmartyShadow.cardElevation,
-                                shape = LocalShapes.current.card,
+                                elevation = if (isThinkingCell) (4.dp + (8.dp * pulseAlpha)) else 4.dp,
+                                shape = RoundedCornerShape(16.dp),
                             )
-                            .clickable(enabled = isAiReady && cellValue == null && winner == null && !isDraw && !isComputerThinking) {
-                                // Human Move
+                            .clickable(enabled = cellValue == null && winner == null && !isDraw && !isComputerThinking) {
+                                // Record state for learning (only if VS AI mode)
+                                val stateBeforeMove = board.toList()
+                                
+                                // Make the move
                                 board[index] = if (isXNext) "X" else "O"
+                                
+                                if (isVsMode) {
+                                    // In AI mode, humans are always X, so this tracks user moves
+                                    userHistory.add(stateBeforeMove to index)
+                                }
+                                
                                 isXNext = !isXNext
 
-                                var win = checkWinner(board)
+                                // Check for win/draw after the move
+                                val win = checkWinner(board)
                                 if (win != null) {
                                     winner = win
                                 } else if (board.all { it != null }) {
                                     isDraw = true
                                 } else if (isVsMode && !isXNext && winner == null) {
-                                    // Computer Turn
+                                    // AI's turn triggered only in VS Mode
                                     isComputerThinking = true
                                     scope.launch {
                                         delay(Random.nextLong(500, 1500))
 
-                                        // Computer Move using AI
-                                        val stateBeforeMove = board.toList()
+                                        val stateBeforeAiMove = board.toList()
                                         val computerMoveIndex = ai.getBestMove(board)
                                         
                                         if (computerMoveIndex != -1) {
                                             board[computerMoveIndex] = "O"
-                                            aiHistory.add(stateBeforeMove to computerMoveIndex)
-                                            isXNext = !isXNext // Back to X
+                                            aiHistory.add(stateBeforeAiMove to computerMoveIndex)
+                                            isXNext = true // Back to Human (X)
 
-                                            win = checkWinner(board)
-                                            if (win != null) {
-                                                winner = win
+                                            val aiWin = checkWinner(board)
+                                            if (aiWin != null) {
+                                                winner = aiWin
                                             } else if (board.all { it != null }) {
                                                 isDraw = true
                                             }
@@ -265,15 +289,15 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                                     }
                                 }
                             },
-                        shape = LocalShapes.current.card,
-                        color = cellColor,
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isThinkingCell) cellColor.copy(alpha = cellColor.alpha + pulseAlpha) else cellColor,
                         border = cellBorder
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             AnimatedContent(
                                 targetState = cellValue,
                                 transitionSpec = {
-                                    (scaleIn(animationSpec = tween(300, easing = EaseOutBack)) + fadeIn())
+                                    (scaleIn(animationSpec = tween(400, easing = EaseOutBack)) + fadeIn())
                                         .togetherWith(fadeOut())
                                 },
                                 label = "CellAnim"
@@ -282,9 +306,9 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                                     Text(
                                         text = value,
                                         style = MaterialTheme.typography.displaySmall.copy(
-                                            fontSize = 42.sp,
-                                            fontWeight = FontWeight.Light,
-                                            color = if (value == "X") accentColor else MaterialTheme.colorScheme.onSurface
+                                            fontSize = 48.sp,
+                                            fontWeight = if (value == "X") FontWeight.SemiBold else FontWeight.Light,
+                                            color = if (value == "X") accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                                         )
                                     )
                                 }
@@ -317,11 +341,16 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                         modifier = Modifier.padding(bottom = 24.dp)
                     )
 
-                    SmartyButton(
+                    Button(
                         onClick = { resetGame() },
-                        text = stringResource(R.string.tictactoe_play_again),
-                        modifier = Modifier.width(200.dp)
-                    )
+                        modifier = Modifier.width(200.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = LocalAccentColor.current,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(stringResource(R.string.tictactoe_play_again))
+                    }
                 }
             }
 

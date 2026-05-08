@@ -121,6 +121,7 @@ fun SettingsScreen(
     onSignOut: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
+    onNavigateToChess: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -419,6 +420,14 @@ fun SettingsScreen(
                                         onClick = {
                                             android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
                                             onNavigateToCoinToss()
+                                        }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Strategy",
+                                        icon = SmartyIcons.Games,
+                                        subtitle = "Play a game of chess",
+                                        onClick = {
+                                            onNavigateToChess()
                                         }
                                     )
                                     SmartySettingsRow(

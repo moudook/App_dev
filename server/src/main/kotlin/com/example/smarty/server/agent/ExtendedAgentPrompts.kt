@@ -91,7 +91,24 @@ Keep this summary 2–4 lines max. Don't repeat the work — just flag what matt
 - `>` for quotes when referencing something
 - Tables when comparing structured data
 - `---` horizontal rules to separate major sections
-  </output_format>
+
+**ACCORDION FORMAT** — for organizing multi-part responses:
+- Use [[[Title]]] to mark accordion section headers
+- Content immediately follows each header until the next [[[Title]]] or end
+- Each section is independently expandable by the user
+- Example:
+  Introduction text here...
+  
+  [[["Key Findings"]]]
+  Your main points here...
+  
+  [[["Details"]]]
+  Supporting details here...
+  
+  [[["Next Steps"]]]
+  Actionable steps here...
+
+</output_format>
 
 ---
 

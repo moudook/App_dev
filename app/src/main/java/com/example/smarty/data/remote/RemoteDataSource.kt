@@ -220,11 +220,7 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun createNote(
-        title: String,
-        content: String,
-        category: String?,
-    ): String? {
+    suspend fun createNote(note: com.example.smarty.core.domain.model.Note): String? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
@@ -233,7 +229,17 @@ class RemoteDataSource(
                 client.post("$baseUrl/api/v1/notes") {
                     addAuthHeaders(token)
                     contentType(ContentType.Application.Json)
-                    setBody(mapOf("title" to title, "content" to content, "category" to category))
+                    setBody(
+                        mapOf(
+                            "title" to note.title,
+                            "content" to note.content,
+                            "categoryId" to note.categoryId,
+                            "summary" to note.summary,
+                            "sourceUrl" to note.sourceUrl,
+                            "type" to note.type.name,
+                            "processingStatus" to note.processingStatus.name
+                        )
+                    )
                 }
 
             if (response.status.isSuccess()) {
@@ -249,21 +255,26 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun updateNote(
-        id: String,
-        title: String?,
-        content: String?,
-        category: String?,
-    ): Boolean {
+    suspend fun updateNote(note: com.example.smarty.core.domain.model.Note): Boolean {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
             val response =
-                client.put("$baseUrl/api/v1/notes/$id") {
+                client.put("$baseUrl/api/v1/notes/${note.id}") {
                     addAuthHeaders(token)
                     contentType(ContentType.Application.Json)
-                    setBody(mapOf("title" to title, "content" to content, "category" to category))
+                    setBody(
+                        mapOf(
+                            "title" to note.title,
+                            "content" to note.content,
+                            "categoryId" to note.categoryId,
+                            "summary" to note.summary,
+                            "sourceUrl" to note.sourceUrl,
+                            "type" to note.type.name,
+                            "processingStatus" to note.processingStatus.name
+                        )
+                    )
                 }
 
             response.status.isSuccess()

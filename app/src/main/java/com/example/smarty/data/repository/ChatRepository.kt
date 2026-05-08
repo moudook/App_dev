@@ -178,9 +178,9 @@ class ChatRepository(
             return false
         }
 
-        // Skip empty messages
-        if (message.content.isBlank()) {
-            Log.d(TAG, "saveMessage: Skipping blank message.")
+        // Skip empty messages (unless they carry tool calls or inline images — e.g. image generation)
+        if (message.content.isBlank() && message.toolCalls.isEmpty() && message.inlineImages.isEmpty()) {
+            Log.d(TAG, "saveMessage: Skipping blank message with no tool calls/images.")
             return false
         }
 
@@ -265,9 +265,9 @@ class ChatRepository(
             return false
         }
 
-        // Smarty response must have content
-        if (smartyMessage.content.isBlank()) {
-            Log.d(TAG, "Skipping save - smarty content is empty")
+        // Smarty response must have content or tool calls (e.g. image generation has no text)
+        if (smartyMessage.content.isBlank() && smartyMessage.toolCalls.isEmpty() && smartyMessage.inlineImages.isEmpty()) {
+            Log.d(TAG, "Skipping save - smarty content is empty and no tool calls/images")
             return false
         }
 

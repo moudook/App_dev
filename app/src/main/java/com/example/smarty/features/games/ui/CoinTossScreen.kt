@@ -41,7 +41,18 @@ import kotlin.random.Random
  * Features a metallic 3D-flipping coin with physical toss animation.
  */
 @Composable
-fun CoinTossScreen(
+fun CoinTossScreen(onClose: () -> Unit) {
+    var showIntro by remember { mutableStateOf(true) }
+
+    if (showIntro) {
+        GameIntroScreen(title = "Coin Toss", onPlay = { showIntro = false })
+    } else {
+        CoinTossGameContent(onClose = onClose)
+    }
+}
+
+@Composable
+fun CoinTossGameContent(
     onClose: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -61,7 +72,20 @@ fun CoinTossScreen(
 
     // Constants for Coin UI
     val coinSize = 220.dp
+    val accentColor = com.example.smarty.ui.LocalAccentColor.current
     val metallicGradient = SmartyBrushes.metallicSilver
+    
+    // Liquid Highlight Pulse
+    val infiniteTransition = rememberInfiniteTransition(label = "LiquidPulse")
+    val liquidOffset by infiniteTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "LiquidOffset"
+    )
 
     // Effect: Fade in on entry and start first toss
     LaunchedEffect(Unit) {
@@ -90,7 +114,6 @@ fun CoinTossScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .alpha(1f) // Ensure fully visible immediately
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -157,23 +180,42 @@ fun CoinTossScreen(
                 .graphicsLayer {
                     this.rotationY = rotationY.value
                     this.translationY = translationY.value
-                    cameraDistance = 16f * density // Increased distance for less distortion
+                    // Add subtle tilt for organic feel during toss
+                    this.rotationX = if (isTossing) sin(rotationY.value * 0.05f) * 15f else 0f
+                    cameraDistance = 16f * density
                 }
                 .shadow(
-                    elevation = if (isTossing) 10.dp else 4.dp,
+                    elevation = if (isTossing) 12.dp else 6.dp,
                     shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.5f)
+                    spotColor = Color.Black.copy(alpha = 0.4f)
                 )
                 .clip(CircleShape)
                 .background(metallicGradient),
             contentAlignment = Alignment.Center
         ) {
+            // Liquid Highlight Layer
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0f),
+                                Color.White.copy(alpha = 0.15f),
+                                Color.White.copy(alpha = 0f)
+                            ),
+                            start = Offset(liquidOffset * 500f, 0f),
+                            end = Offset(liquidOffset * 500f + 200f, 600f)
+                        )
+                    )
+            )
+
             // Metallic/Etched Rim effect
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(4.dp) // Outer rim thickness
-                    .border(2.dp, Color.Gray.copy(alpha = 0.3f), CircleShape)
+                    .padding(4.dp)
+                    .border(2.dp, Color.White.copy(alpha = 0.1f), CircleShape)
             )
 
             // Inner Grooved Ring
@@ -230,7 +272,7 @@ fun CoinTossScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 140.dp),
+                .padding(bottom = 160.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             androidx.compose.animation.AnimatedVisibility(
@@ -242,10 +284,10 @@ fun CoinTossScreen(
                     text = resultText,
                     style = MaterialTheme.typography.displayMedium.copy(
                         fontWeight = FontWeight.Light,
-                        letterSpacing = 4.sp,
+                        letterSpacing = 8.sp,
                         fontFamily = FontFamily.Serif
                     ),
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = accentColor.copy(alpha = 0.9f)
                 )
             }
         }
@@ -375,8 +417,7 @@ private suspend fun tossCoin(
         // DOWN
         translationY.animateTo(
             targetValue = 0f,
-            animationSpec = tween(tossDuration / 2, easing = BounceInterpolator) // Accelerate down with bounce? No, BounceInterpolator is not standard compose easing.
-            // Using standard easing curve that simulates gravity (Accelerate)
+            animationSpec = tween(tossDuration / 2, easing = BounceInterpolator)
         )
         
         // Landed!

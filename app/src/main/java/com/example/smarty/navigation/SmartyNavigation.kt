@@ -46,6 +46,7 @@ import com.example.smarty.features.notes.ui.StacksScreen
 import com.example.smarty.features.notes.ui.InputStreamScreen
 import com.example.smarty.features.games.ui.TicTacToeScreen
 import com.example.smarty.features.games.ui.CoinTossScreen
+import com.example.smarty.features.games.ui.ChessScreen
 import com.example.smarty.features.digest.ui.DigestScreen
 import com.example.smarty.features.digest.ui.DigestDetailScreen
 import com.example.smarty.features.breathing.GuidedBreathingScreen
@@ -89,6 +90,7 @@ sealed class Screen(val route: String) {
     data object Login : Screen("login")
     data object TicTacToe : Screen("tic_tac_toe")
     data object CoinToss : Screen("coin_toss")
+    data object Chess : Screen("chess")
     data object Digest : Screen("digest")
     data object GuidedBreathing : Screen("guided_breathing")
     data object SearchHistory : Screen("search_history")
@@ -225,6 +227,7 @@ fun SmartyNavHost(
     onCancelTimer: (SmartyTimer) -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
+    onNavigateToChess: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -464,6 +467,7 @@ fun SmartyNavHost(
                 onShareNotes = onShareNotes,
                 onNavigateToTicTacToe = onNavigateToTicTacToe,
                 onNavigateToCoinToss = onNavigateToCoinToss,
+                onNavigateToChess = onNavigateToChess,
                 // 
                 // CENTRALIZED UI: All features accessible from main screen
                 // 
@@ -649,6 +653,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToTicTacToe = {
                     navController.navigate(Screen.TicTacToe.route)
+                },
+                onNavigateToChess = {
+                    navController.navigate(Screen.Chess.route)
                 }
             )
         }
@@ -705,6 +712,12 @@ fun SmartyNavHost(
 
         composable(Screen.CoinToss.route) { _ ->
             CoinTossScreen(
+                onClose = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.Chess.route) { _ ->
+            ChessScreen(
                 onClose = { navController.safePopBackStack() }
             )
         }

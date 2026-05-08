@@ -48,7 +48,7 @@ data class VaultStoreRequest(val encryptedBlob: String, val version: Int)
 @Serializable
 data class VaultResponse(val encryptedBlob: String, val version: Int, val updatedAt: Long)
 
-fun Application.configureDataRoutes() {
+fun Application.configureDataRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
     val dataSource = DatabaseFactory.getDataSource()
     val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
     val calendarEventNotesRepo = dataSource?.let { CalendarEventNotesRepository(it) }
@@ -66,19 +66,28 @@ fun Application.configureDataRoutes() {
                 route("/notes") {
                     get {
                         val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-                        if (noteRepository == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                        if (noteService == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
 
-                        val notes = noteRepository.listByUser(user.userId)
+                        val notes = noteService.getNotes(user.userId)
                         call.respond(notes)
+                    }
+
+                    get("/search") {
+                        val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                        val query = call.request.queryParameters["q"] ?: return@get call.respond(HttpStatusCode.BadRequest, "Query required")
+                        if (noteService == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
+
+                        val results = noteService.searchNotes(user.userId, query)
+                        call.respond(results)
                     }
 
                     post {
                         val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                        if (noteRepository == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                        if (noteService == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
 
                         try {
                             val request = call.receive<CreateNoteRequest>()
-                            val id = noteRepository.create(user.userId, request.title, request.content, request.categoryId)
+                            val id = noteService.createNote(user.userId, request.title, request.content, request.categoryId)
                             call.respond(HttpStatusCode.Created, mapOf("id" to id))
                         } catch (e: Exception) {
                             call.application.log.error("Failed to create note", e)
@@ -87,14 +96,23 @@ fun Application.configureDataRoutes() {
                     }
 
                     route("/{id}") {
+                        get {
+                            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                            if (noteService == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
+
+                            val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                            val note = noteService.getNote(user.userId, id)
+                            if (note != null) call.respond(note) else call.respond(HttpStatusCode.NotFound)
+                        }
+
                         put {
                             val user = call.firebaseUser() ?: return@put call.respond(HttpStatusCode.Unauthorized)
-                            if (noteRepository == null) return@put call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                            if (noteService == null) return@put call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
 
                             val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                             try {
                                 val request = call.receive<UpdateNoteRequest>()
-                                val updated = noteRepository.update(user.userId, id, request.title, request.content, request.categoryId)
+                                val updated = noteService.updateNote(user.userId, id, request.title, request.content, request.categoryId)
                                 if (updated) {
                                     call.respond(HttpStatusCode.OK)
                                 } else {
@@ -107,15 +125,10 @@ fun Application.configureDataRoutes() {
 
                         delete {
                             val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
-                            if (noteRepository == null) {
-                                return@delete call.respond(
-                                    HttpStatusCode.ServiceUnavailable,
-                                    "Database not available",
-                                )
-                            }
+                            if (noteService == null) return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
 
                             val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-                            val deleted = noteRepository.delete(user.userId, id)
+                            val deleted = noteService.deleteNote(user.userId, id)
                             if (deleted) {
                                 call.respond(HttpStatusCode.OK)
                             } else {

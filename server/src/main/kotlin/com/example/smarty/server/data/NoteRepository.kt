@@ -6,19 +6,11 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import javax.sql.DataSource
+import java.sql.ResultSet
 
 /**
  * Server-side repository for notes.
  * PostgreSQL is the source of truth; Android caches via StateSync events.
- *
- * DEDUPLICATION: Automatically detects and prevents duplicate notes.
- * - Checks for existing notes with identical content before creating
- * - Returns existing note ID if duplicate found
- * - Keeps oldest note, prevents newer duplicates
- *
- * SINGLE RESPONSIBILITY: Only manages notes table.
- * Delegates relationship queries to junction repositories.
- * GLOBAL STATE: All tables reference users(firebase_uid) with cascade deletes.
  */
 class NoteRepository(
     private val dataSource: DataSource,
@@ -29,104 +21,73 @@ class NoteRepository(
     private val deduplicationManager = NoteDeduplicationManager(dataSource)
 
     /**
-     * Create a new note with automatic deduplication.
-     * @return The UUID of the created note (or existing note if duplicate).
-     * @return Existing note ID if duplicate content found
+     * Create a new note with all fields.
      */
     suspend fun create(
         userId: String,
-        title: String,
-        content: String,
-        categoryId: String? = null,
-        stackId: String? = null,
-        parentNoteId: String? = null,
+        info: NoteInfo,
     ): String =
         withContext(Dispatchers.IO) {
             // CHECK FOR DUPLICATES FIRST
-            val existingNoteId = deduplicationManager.findDuplicateNote(userId, content, title)
+            val existingNoteId = deduplicationManager.findDuplicateNote(userId, info.content, info.title)
             if (existingNoteId != null) {
                 logger.info("Duplicate note detected: returning existing note id={} for user={}", existingNoteId, userId)
                 return@withContext existingNoteId
             }
 
-            // No duplicate found, create new note
-            val id = UUID.randomUUID()
+            val id = if (info.id.isNotEmpty()) UUID.fromString(info.id) else UUID.randomUUID()
             dataSource.connection.use { conn ->
                 val sql =
                     """
                     INSERT INTO notes (
                         id, user_id, category_id, stack_id, parent_note_id,
-                        title, content, is_archived, is_pinned, is_favorite,
+                        title, content, summary, source_url, image_uri, file_uri,
+                        file_name, file_mime_type, file_size, type, category_name,
+                        why_saved, processing_status, is_archived, is_pinned,
+                        is_favorite, is_full_privacy, exclude_from_ai_chat,
+                        is_ai_created, is_viewed, todo_content, attachments_json,
+                        tags_json, chunk_analyses_json, reminder_text, reminder_expires_at,
                         metadata, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, false, false, false, '{}', now(), now())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, now(), now())
                     """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, id)
-                    stmt.setObject(2, UUID.fromString(userId))
-                    stmt.setObject(3, categoryId?.let { UUID.fromString(it) })
-                    stmt.setObject(4, stackId?.let { UUID.fromString(it) })
-                    stmt.setObject(5, parentNoteId?.let { UUID.fromString(it) })
-                    stmt.setString(6, title)
-                    stmt.setString(7, content)
+                    var idx = 1
+                    stmt.setObject(idx++, id)
+                    stmt.setObject(idx++, UUID.fromString(userId))
+                    stmt.setObject(idx++, info.categoryId?.let { UUID.fromString(it) })
+                    stmt.setObject(idx++, info.stackId?.let { UUID.fromString(it) })
+                    stmt.setObject(idx++, info.parentNoteId?.let { UUID.fromString(it) })
+                    stmt.setString(idx++, info.title)
+                    stmt.setString(idx++, info.content)
+                    stmt.setString(idx++, info.summary)
+                    stmt.setString(idx++, info.sourceUrl)
+                    stmt.setString(idx++, info.imageUri)
+                    stmt.setString(idx++, info.fileUri)
+                    stmt.setString(idx++, info.fileName)
+                    stmt.setString(idx++, info.fileMimeType)
+                    stmt.setObject(idx++, info.fileSize)
+                    stmt.setString(idx++, info.type)
+                    stmt.setString(idx++, info.categoryName)
+                    stmt.setString(idx++, info.whySaved)
+                    stmt.setString(idx++, info.processingStatus)
+                    stmt.setBoolean(idx++, info.isArchived)
+                    stmt.setBoolean(idx++, info.isPinned)
+                    stmt.setBoolean(idx++, info.isFavorite)
+                    stmt.setBoolean(idx++, info.isFullPrivacy)
+                    stmt.setBoolean(idx++, info.excludeFromAiChat)
+                    stmt.setBoolean(idx++, info.isAiCreated)
+                    stmt.setBoolean(idx++, info.isViewed)
+                    stmt.setString(idx++, info.todoContent)
+                    stmt.setString(idx++, info.attachmentsJson ?: "[]")
+                    stmt.setString(idx++, info.tagsJson ?: "[]")
+                    stmt.setString(idx++, info.chunkAnalysesJson ?: "[]")
+                    stmt.setString(idx++, info.reminderText)
+                    stmt.setTimestamp(idx++, info.reminderExpiresAt?.let { java.sql.Timestamp(it) })
+                    stmt.setString(idx++, "{}")
                     stmt.executeUpdate()
                 }
             }
-            logger.info("Note created: id={}, user={}, title={}", id, userId, title)
             id.toString()
-        }
-
-    /**
-     * Search notes by keyword in title or content.
-     */
-    suspend fun search(
-        userId: String,
-        query: String,
-        limit: Int = 10,
-    ): List<NoteInfo> =
-        withContext(Dispatchers.IO) {
-            val results = mutableListOf<NoteInfo>()
-            val searchPattern = "%" + query + "%"
-            dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, 
-                           is_full_privacy, exclude_from_ai_chat, created_at, updated_at
-                    FROM notes
-                    WHERE user_id = ?::uuid AND deleted_at IS NULL 
-                    AND (title ILIKE ? OR content ILIKE ?)
-                    ORDER BY is_pinned DESC, updated_at DESC
-                    LIMIT ?
-                    """.trimIndent()
-
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setString(2, searchPattern)
-                    stmt.setString(3, searchPattern)
-                    stmt.setInt(4, limit)
-                    stmt.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            results.add(
-                                NoteInfo(
-                                    id = rs.getString("id"),
-                                    title = rs.getString("title"),
-                                    content = rs.getString("content"),
-                                    categoryId = rs.getObject("category_id")?.toString(),
-                                    stackId = rs.getObject("stack_id")?.toString(),
-                                    parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                    wordCount = rs.getInt("word_count"),
-                                    isArchived = rs.getBoolean("is_archived"),
-                                    isPinned = rs.getBoolean("is_pinned"),
-                                    isFavorite = rs.getBoolean("is_favorite"),
-                                    createdAt = rs.getTimestamp("created_at").time,
-                                    updatedAt = rs.getTimestamp("updated_at").time,
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-            results
         }
 
     suspend fun listByUser(
@@ -136,38 +97,13 @@ class NoteRepository(
         withContext(Dispatchers.IO) {
             val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
-                    FROM notes
-                    WHERE user_id = ?::uuid AND NOT is_archived AND deleted_at IS NULL
-                    ORDER BY updated_at DESC
-                    LIMIT ?
-                    """.trimIndent()
+                val sql = "SELECT * FROM notes WHERE user_id = ?::uuid AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
-                            results.add(
-                                NoteInfo(
-                                    id = rs.getString("id"),
-                                    title = rs.getString("title"),
-                                    content = rs.getString("content"),
-                                    categoryId = rs.getObject("category_id")?.toString(),
-                                    stackId = rs.getObject("stack_id")?.toString(),
-                                    parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                    wordCount = rs.getInt("word_count"),
-                                    isArchived = rs.getBoolean("is_archived"),
-                                    isPinned = rs.getBoolean("is_pinned"),
-                                    isFavorite = rs.getBoolean("is_favorite"),
-                                    isFullPrivacy = rs.getBoolean("is_full_privacy"),
-                                    excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
-                                    createdAt = rs.getTimestamp("created_at").time,
-                                    updatedAt = rs.getTimestamp("updated_at").time,
-                                ),
-                            )
+                            results.add(mapRowToNoteInfo(rs))
                         }
                     }
                 }
@@ -175,53 +111,22 @@ class NoteRepository(
             results
         }
 
-    /**
-     * DELTA SYNC: List notes updated after a specific timestamp.
-     * Uses index on (user_id, updated_at) for fast queries.
-     */
     suspend fun listByUserUpdatedAfter(
         userId: String,
         timestamp: Long,
-        limit: Int = 50,
+        limit: Int = 100,
     ): List<NoteInfo> =
         withContext(Dispatchers.IO) {
             val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
-                    FROM notes
-                    WHERE user_id = ?::uuid AND deleted_at IS NULL 
-                    AND updated_at > ?
-                    ORDER BY is_pinned DESC, updated_at DESC
-                    LIMIT ?
-                    """.trimIndent()
-
+                val sql = "SELECT * FROM notes WHERE user_id = ?::uuid AND deleted_at IS NULL AND updated_at > ? ORDER BY updated_at ASC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.setTimestamp(2, java.sql.Timestamp(timestamp))
                     stmt.setInt(3, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
-                            results.add(
-                                NoteInfo(
-                                    id = rs.getString("id"),
-                                    title = rs.getString("title"),
-                                    content = rs.getString("content"),
-                                    categoryId = rs.getObject("category_id")?.toString(),
-                                    stackId = rs.getObject("stack_id")?.toString(),
-                                    parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                    wordCount = rs.getInt("word_count"),
-                                    isArchived = rs.getBoolean("is_archived"),
-                                    isPinned = rs.getBoolean("is_pinned"),
-                                    isFavorite = rs.getBoolean("is_favorite"),
-                                    isFullPrivacy = rs.getBoolean("is_full_privacy"),
-                                    excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
-                                    createdAt = rs.getTimestamp("created_at").time,
-                                    updatedAt = rs.getTimestamp("updated_at").time,
-                                ),
-                            )
+                            results.add(mapRowToNoteInfo(rs))
                         }
                     }
                 }
@@ -229,124 +134,117 @@ class NoteRepository(
             results
         }
 
-    /**
-     * Gets a single note by ID.
-     */
     suspend fun getById(
         userId: String,
         noteId: String,
     ): NoteInfo? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, 
-                           is_full_privacy, exclude_from_ai_chat, created_at, updated_at
-                    FROM notes
-                    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
-                    """.trimIndent()
+                val sql = "SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(noteId))
                     stmt.setObject(2, UUID.fromString(userId))
                     stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            return@withContext NoteInfo(
-                                id = rs.getString("id"),
-                                title = rs.getString("title"),
-                                content = rs.getString("content"),
-                                categoryId = rs.getObject("category_id")?.toString(),
-                                stackId = rs.getObject("stack_id")?.toString(),
-                                parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                wordCount = rs.getInt("word_count"),
-                                isArchived = rs.getBoolean("is_archived"),
-                                isPinned = rs.getBoolean("is_pinned"),
-                                isFavorite = rs.getBoolean("is_favorite"),
-                                isFullPrivacy = rs.getBoolean("is_full_privacy"),
-                                excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
-                                createdAt = rs.getTimestamp("created_at").time,
-                                updatedAt = rs.getTimestamp("updated_at").time,
-                            )
-                        }
+                        if (rs.next()) mapRowToNoteInfo(rs) else null
                     }
                 }
             }
-            null
         }
 
-    /**
-     * Update an existing note.
-     */
     suspend fun update(
         userId: String,
-        noteId: String,
-        title: String? = null,
-        content: String? = null,
-        categoryId: String? = null,
-        stackId: String? = null,
-        parentNoteId: String? = null,
-        isArchived: Boolean? = null,
-        isPinned: Boolean? = null,
-        isFavorite: Boolean? = null,
+        info: NoteInfo,
     ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val setClauses = mutableListOf<String>()
-                if (title != null) setClauses.add("title = ?")
-                if (content != null) setClauses.add("content = ?")
-                if (categoryId != null) setClauses.add("category_id = ?")
-                if (stackId != null) setClauses.add("stack_id = ?")
-                if (parentNoteId != null) setClauses.add("parent_note_id = ?")
-                if (isArchived != null) setClauses.add("is_archived = ?")
-                if (isPinned != null) setClauses.add("is_pinned = ?")
-                if (isFavorite != null) setClauses.add("is_favorite = ?")
-                setClauses.add("updated_at = now()")
-
-                if (setClauses.isEmpty()) return@withContext false
-
-                val sql = "UPDATE notes SET ${setClauses.joinToString(", ")} WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+                val sql =
+                    """
+                    UPDATE notes SET
+                        title = ?, content = ?, summary = ?, source_url = ?,
+                        image_uri = ?, file_uri = ?, file_name = ?, file_mime_type = ?,
+                        file_size = ?, type = ?, category_name = ?, why_saved = ?,
+                        processing_status = ?, is_archived = ?, is_pinned = ?,
+                        is_favorite = ?, is_full_privacy = ?, exclude_from_ai_chat = ?,
+                        is_ai_created = ?, is_viewed = ?, todo_content = ?,
+                        attachments_json = ?::jsonb, tags_json = ?::jsonb,
+                        chunk_analyses_json = ?::jsonb, reminder_text = ?,
+                        reminder_expires_at = ?, updated_at = now()
+                    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+                    """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     var idx = 1
-                    if (title != null) stmt.setString(idx++, title)
-                    if (content != null) stmt.setString(idx++, content)
-                    if (categoryId != null) stmt.setObject(idx++, UUID.fromString(categoryId))
-                    if (stackId != null) stmt.setObject(idx++, stackId?.let { UUID.fromString(it) })
-                    if (parentNoteId != null) stmt.setObject(idx++, parentNoteId?.let { UUID.fromString(it) })
-                    if (isArchived != null) stmt.setBoolean(idx++, isArchived)
-                    if (isPinned != null) stmt.setBoolean(idx++, isPinned)
-                    if (isFavorite != null) stmt.setBoolean(idx++, isFavorite)
-                    stmt.setObject(idx++, UUID.fromString(noteId))
+                    stmt.setString(idx++, info.title)
+                    stmt.setString(idx++, info.content)
+                    stmt.setString(idx++, info.summary)
+                    stmt.setString(idx++, info.sourceUrl)
+                    stmt.setString(idx++, info.imageUri)
+                    stmt.setString(idx++, info.fileUri)
+                    stmt.setString(idx++, info.fileName)
+                    stmt.setString(idx++, info.fileMimeType)
+                    stmt.setObject(idx++, info.fileSize)
+                    stmt.setString(idx++, info.type)
+                    stmt.setString(idx++, info.categoryName)
+                    stmt.setString(idx++, info.whySaved)
+                    stmt.setString(idx++, info.processingStatus)
+                    stmt.setBoolean(idx++, info.isArchived)
+                    stmt.setBoolean(idx++, info.isPinned)
+                    stmt.setBoolean(idx++, info.isFavorite)
+                    stmt.setBoolean(idx++, info.isFullPrivacy)
+                    stmt.setBoolean(idx++, info.excludeFromAiChat)
+                    stmt.setBoolean(idx++, info.isAiCreated)
+                    stmt.setBoolean(idx++, info.isViewed)
+                    stmt.setString(idx++, info.todoContent)
+                    stmt.setString(idx++, info.attachmentsJson ?: "[]")
+                    stmt.setString(idx++, info.tagsJson ?: "[]")
+                    stmt.setString(idx++, info.chunkAnalysesJson ?: "[]")
+                    stmt.setString(idx++, info.reminderText)
+                    stmt.setTimestamp(idx++, info.reminderExpiresAt?.let { java.sql.Timestamp(it) })
+                    stmt.setObject(idx++, UUID.fromString(info.id))
                     stmt.setObject(idx, UUID.fromString(userId))
                     stmt.executeUpdate() > 0
                 }
             }
         }
 
-    /**
-     * Archive a note (soft delete).
-     */
-    suspend fun archive(
-        userId: String,
-        noteId: String,
-    ): Boolean =
-        withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                val sql = "UPDATE notes SET is_archived = TRUE, updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(userId))
-                    stmt.executeUpdate() > 0
-                }
-            }
-        }
+    private fun mapRowToNoteInfo(rs: ResultSet): NoteInfo {
+        return NoteInfo(
+            id = rs.getString("id"),
+            title = rs.getString("title"),
+            content = rs.getString("content"),
+            summary = rs.getString("summary"),
+            sourceUrl = rs.getString("source_url"),
+            imageUri = rs.getString("image_uri"),
+            fileUri = rs.getString("file_uri"),
+            fileName = rs.getString("file_name"),
+            fileMimeType = rs.getString("file_mime_type"),
+            fileSize = rs.getLong("file_size").takeIf { !rs.wasNull() },
+            type = rs.getString("type") ?: "BRAIN_DUMP",
+            categoryId = rs.getObject("category_id")?.toString(),
+            categoryName = rs.getString("category_name"),
+            stackId = rs.getObject("stack_id")?.toString(),
+            parentNoteId = rs.getObject("parent_note_id")?.toString(),
+            whySaved = rs.getString("why_saved"),
+            processingStatus = rs.getString("processing_status") ?: "COMPLETED",
+            wordCount = rs.getInt("word_count").takeIf { !rs.wasNull() },
+            isArchived = rs.getBoolean("is_archived"),
+            isPinned = rs.getBoolean("is_pinned"),
+            isFavorite = rs.getBoolean("is_favorite"),
+            isFullPrivacy = rs.getBoolean("is_full_privacy"),
+            excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
+            isAiCreated = rs.getBoolean("is_ai_created"),
+            isViewed = rs.getBoolean("is_viewed"),
+            todoContent = rs.getString("todo_content"),
+            attachmentsJson = rs.getString("attachments_json"),
+            tagsJson = rs.getString("tags_json"),
+            chunkAnalysesJson = rs.getString("chunk_analyses_json"),
+            reminderText = rs.getString("reminder_text"),
+            reminderExpiresAt = rs.getTimestamp("reminder_expires_at")?.time,
+            createdAt = rs.getTimestamp("created_at").time,
+            updatedAt = rs.getTimestamp("updated_at").time,
+        )
+    }
 
-    /**
-     * Permanently delete a note (soft delete by setting deleted_at).
-     */
-    suspend fun delete(
-        userId: String,
-        noteId: String,
-    ): Boolean =
+    suspend fun delete(userId: String, noteId: String): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql = "UPDATE notes SET deleted_at = now(), updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
@@ -358,116 +256,80 @@ class NoteRepository(
             }
         }
 
-    // =============================================================================
-    // RELATIONSHIP QUERY METHODS (Delegated to junction repositories)
-    // =============================================================================
-
-    /**
-     * Get all chat messages linked to a note.
-     */
-    suspend fun getLinkedMessages(
-        userId: String,
-        noteId: String,
-    ): List<String> =
+    suspend fun search(userId: String, query: String, limit: Int = 20): List<NoteInfo> =
         withContext(Dispatchers.IO) {
-            // Verify note belongs to user
-            val note = getNoteById(userId, noteId)
-            if (note == null) {
-                logger.warn("Note {} does not belong to user {}", noteId, userId)
-                throw IllegalAccessException("Note does not belong to user")
-            }
-            // Delegate to junction repository
-            chatMessageNotesRepo.getLinkedMessages(UUID.fromString(noteId))
-                .map { it.toString() }
-        }
-
-    /**
-     * Get all calendar events linked to a note.
-     */
-    suspend fun getLinkedEvents(
-        userId: String,
-        noteId: String,
-    ): List<String> =
-        withContext(Dispatchers.IO) {
-            // Verify note belongs to user
-            val note = getNoteById(userId, noteId)
-            if (note == null) {
-                logger.warn("Note {} does not belong to user {}", noteId, userId)
-                throw IllegalAccessException("Note does not belong to user")
-            }
-            // Delegate to junction repository
-            calendarEventNotesRepo.getLinkedEvents(UUID.fromString(noteId))
-                .map { it.toString() }
-        }
-
-    /**
-     * Get count of linked messages for a note.
-     */
-    suspend fun getLinkedMessageCount(noteId: String): Int =
-        withContext(Dispatchers.IO) {
-            chatMessageNotesRepo.getLinkCountForNote(UUID.fromString(noteId))
-        }
-
-    /**
-     * Get count of linked events for a note.
-     */
-    suspend fun getLinkedEventCount(noteId: String): Int =
-        withContext(Dispatchers.IO) {
-            calendarEventNotesRepo.getLinkCountForNote(UUID.fromString(noteId))
-        }
-
-    /**
-     * Helper method to get a note by ID (for verification).
-     */
-    private suspend fun getNoteById(
-        userId: String,
-        noteId: String,
-    ): NoteInfo? =
-        withContext(Dispatchers.IO) {
+            val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT id, title, content, category_id, stack_id, parent_note_id,
-                           word_count, is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat, created_at, updated_at
-                    FROM notes
-                    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
-                    """.trimIndent()
+                val sql = """
+                    SELECT * FROM notes 
+                    WHERE user_id = ?::uuid 
+                    AND deleted_at IS NULL 
+                    AND (
+                        title ILIKE ? 
+                        OR content ILIKE ?
+                        OR summary ILIKE ?
+                        OR tags_json LIKE ?
+                    )
+                    ORDER BY updated_at DESC 
+                    LIMIT ?
+                """.trimIndent()
+                val searchPattern = "%$query%"
                 conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(userId))
+                    stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setString(2, searchPattern)
+                    stmt.setString(3, searchPattern)
+                    stmt.setString(4, searchPattern)
+                    stmt.setString(5, searchPattern)
+                    stmt.setInt(6, limit)
                     stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            NoteInfo(
-                                id = rs.getString("id"),
-                                title = rs.getString("title"),
-                                content = rs.getString("content"),
-                                categoryId = rs.getObject("category_id")?.toString(),
-                                stackId = rs.getObject("stack_id")?.toString(),
-                                parentNoteId = rs.getObject("parent_note_id")?.toString(),
-                                wordCount = rs.getInt("word_count"),
-                                isArchived = rs.getBoolean("is_archived"),
-                                isPinned = rs.getBoolean("is_pinned"),
-                                isFavorite = rs.getBoolean("is_favorite"),
-                                isFullPrivacy = rs.getBoolean("is_full_privacy"),
-                                excludeFromAiChat = rs.getBoolean("exclude_from_ai_chat"),
-                                createdAt = rs.getTimestamp("created_at").time,
-                                updatedAt = rs.getTimestamp("updated_at").time,
-                            )
-                        } else {
-                            null
+                        while (rs.next()) {
+                            results.add(mapRowToNoteInfo(rs))
                         }
                     }
                 }
             }
+            results
         }
 
     /**
-     * Clean up existing duplicate notes in the database.
-     * Keeps the oldest note, deletes newer duplicates.
-     * @param userId Optional user ID to clean duplicates for (null = all users)
-     * @return Number of duplicates removed
+     * Backward-compatible overload: create note with individual fields.
      */
-    suspend fun cleanupDuplicates(userId: String? = null): Int {
-        return deduplicationManager.cleanupExistingDuplicates(userId)
+    suspend fun create(
+        userId: String,
+        title: String,
+        content: String,
+        categoryId: String? = null,
+    ): String = create(
+        userId,
+        NoteInfo(
+            id = "",
+            title = title,
+            content = content,
+            categoryId = categoryId,
+            processingStatus = "COMPLETED",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+        )
+    )
+
+    /**
+     * Backward-compatible overload: update note with individual fields.
+     * Fetches existing note, updates provided fields, then persists.
+     */
+    suspend fun update(
+        userId: String,
+        id: String,
+        title: String?,
+        content: String?,
+        categoryId: String?,
+    ): Boolean {
+        val existing = getById(userId, id) ?: return false
+        val updated = existing.copy(
+            title = title ?: existing.title,
+            content = content ?: existing.content,
+            categoryId = categoryId ?: existing.categoryId,
+            updatedAt = System.currentTimeMillis()
+        )
+        return update(userId, updated)
     }
 }

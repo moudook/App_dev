@@ -94,7 +94,7 @@ private fun normalizeProviderSelection(provider: String?): String? {
     }
 }
 
-fun Application.configureChatRoutes() {
+fun Application.configureChatRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
     // JSON encoder for events
     val json =
         Json {
@@ -165,6 +165,7 @@ fun Application.configureChatRoutes() {
                             calendarRepository = calendarRepository,
                             eventEmitter = { /* No streaming for briefing yet */ },
                             userId = userId,
+                            noteService = noteService,
                         )
 
                     // Run the agent (no modelOverride - provider already selected)
@@ -456,6 +457,7 @@ fun Application.configureChatRoutes() {
                             }
                         },
                         userId = userId,
+                        noteService = noteService,
                     )
 
                 try {
@@ -687,6 +689,7 @@ fun Application.configureChatRoutes() {
                                 }
                             },
                             userId = userId,
+                            noteService = noteService,
                         )
 
                     // Register active session to prevent digest scheduler interference
@@ -966,7 +969,7 @@ fun Application.configureChatRoutes() {
             val sessionId = call.parameters["sessionId"] ?: return@get call.respond(HttpStatusCode.BadRequest, "sessionId required")
 
             try {
-                val messages = chatRepository?.getHistory(userId, sessionId, limit = 50) ?: emptyList()
+                val messages = chatRepository?.getHistory(userId, sessionId)?.take(50) ?: emptyList()
                 if (messages.isEmpty()) {
                     call.respond(HttpStatusCode.OK, mapOf("summary" to "No messages in this conversation yet."))
                     return@get

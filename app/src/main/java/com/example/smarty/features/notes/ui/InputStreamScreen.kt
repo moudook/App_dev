@@ -169,6 +169,7 @@ fun InputStreamScreen(
     onNavigateToCalendar: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
+    onNavigateToChess: () -> Unit = {},
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
     onCancelShare: () -> Unit,
@@ -1339,6 +1340,7 @@ fun InputStreamScreen(
                             onLoadDeviceCalendars = onLoadDeviceCalendars,
                             onNavigateToTicTacToe = onNavigateToTicTacToe,
                             onNavigateToCoinToss = onNavigateToCoinToss,
+                            onNavigateToChess = onNavigateToChess,
                             connectionStatus = connectionStatus
                         )
                     }
@@ -2048,7 +2050,8 @@ fun InputStreamScreen(
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
             onNavigateToCoinToss = onNavigateToCoinToss,
-            onNavigateToTicTacToe = onNavigateToTicTacToe
+            onNavigateToTicTacToe = onNavigateToTicTacToe,
+            onNavigateToChess = onNavigateToChess
         )
     }
 

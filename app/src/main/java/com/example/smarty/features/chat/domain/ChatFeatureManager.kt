@@ -1388,6 +1388,26 @@ class ChatFeatureManager(
                 // Add user message
                 val userMessage = chatManager.addUserMessage("🎨 Generate image: $prompt")
 
+                // Show streaming placeholder with tool call card
+                val streamingMessageId = java.util.UUID.randomUUID().toString()
+                chatManager.addSmartyMessage(
+                    ChatMessage(
+                        id = streamingMessageId,
+                        role = ChatRole.SMARTY,
+                        content = "",
+                        timestamp = System.currentTimeMillis(),
+                        isStreaming = true,
+                        toolCalls = listOf(
+                            com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                toolName = "generate_image",
+                                status = "started",
+                                displayName = "Direct Request",
+                                inputSummary = prompt,
+                            ),
+                        ),
+                    ),
+                )
+
                 // Show activity indicator
                 _agentActivity.value =
                     AgentActivity(
@@ -1401,25 +1421,48 @@ class ChatFeatureManager(
 
                 _agentActivity.value = null
 
-                val responseContent =
-                    if (result != null && result.success) {
-                        "✨ Image generation started!\n\nJob ID: `${result.jobId}`\n${result.message ?: "Your image is being generated..."}"
-                    } else {
-                        "❌ Image generation failed. ${result?.message ?: "Please try again."}"
-                    }
-
-                val smartyMessage =
-                    ChatMessage(
-                        id = java.util.UUID.randomUUID().toString(),
-                        role = ChatRole.SMARTY,
-                        content = responseContent,
-                        timestamp = System.currentTimeMillis(),
+                if (result != null && result.success) {
+                    // Success — replace with completed tool call carrying the image URL
+                    val smartyMessage =
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "",
+                            timestamp = System.currentTimeMillis(),
+                            toolCalls = listOf(
+                                com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                    toolName = "generate_image",
+                                    status = "completed",
+                                    displayName = "Direct Request",
+                                    inputSummary = prompt,
+                                    outputSummary = result.url,
+                                ),
+                            ),
+                        )
+                    chatManager.replaceMessage(streamingMessageId, smartyMessage)
+                    chatManager.markApiCallSuccessful()
+                    // Persist with non-blank content so ChatRepository.saveMessage doesn't skip it
+                    chatManager.saveMessagePair(
+                        userMessage = userMessage,
+                        smartyMessage = smartyMessage.copy(content = "Generated image for: $prompt"),
                     )
-                chatManager.addSmartyMessage(smartyMessage)
-                chatManager.saveMessagePair(
-                    userMessage = userMessage,
-                    smartyMessage = smartyMessage,
-                )
+                } else {
+                    val errorMsg = result?.error ?: result?.message ?: "Please try again."
+                    val smartyMessage =
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "❌ Image generation failed: $errorMsg",
+                            timestamp = System.currentTimeMillis(),
+                            isError = true,
+                        )
+                    chatManager.replaceMessage(streamingMessageId, smartyMessage)
+                    chatManager.markApiCallSuccessful()
+                    chatManager.saveMessagePair(
+                        userMessage = userMessage,
+                        smartyMessage = smartyMessage,
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Image generation error: ${e.message}", e)
                 _agentActivity.value = null
@@ -1432,6 +1475,11 @@ class ChatFeatureManager(
                         timestamp = System.currentTimeMillis(),
                     )
                 chatManager.addSmartyMessage(errorMessage)
+                chatManager.markApiCallSuccessful()
+                chatManager.saveMessagePair(
+                    userMessage = chatManager.chatMessages.value.lastOrNull { it.isUser } ?: return@launch,
+                    smartyMessage = errorMessage,
+                )
             } finally {
                 chatManager.setProcessing(false)
             }
@@ -1710,6 +1758,18 @@ class ChatFeatureManager(
                                     }
                                 thinkingBuilder.append(cleanThinking)
                             }
+                            // Capture citations from Result event (primary source for web search results)
+                            if (event.citations.isNotEmpty()) {
+                                event.citations.forEach { citation ->
+                                    if (pendingCitations.none { it.url == citation.url }) {
+                                        pendingCitations.add(WebCitation(citation.title, citation.url, citation.snippet))
+                                    }
+                                }
+                                chatManager.updateMessageCitations(
+                                    streamingMessageId,
+                                    pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
+                                )
+                            }
                             // Fix #3: Capture confidence from Result event directly
                             event.confidence?.let { capturedConfidence = it }
                             event.sourceType?.let { capturedSourceType = it }
@@ -1737,12 +1797,20 @@ class ChatFeatureManager(
                             pendingActions.add(actionResult)
                             chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
 
-                            // Also add to pendingToolCalls for ThinkingSection display
+                            // Also add to pendingToolCalls for ThinkingSection display — include all detail fields
                             val toolCallEntry =
                                 com.example.smarty.core.domain.model.AgentToolCallEntry(
                                     toolName = event.toolName,
                                     displayName = event.displayName,
                                     status = event.status,
+                                    inputSummary = event.inputSummary,
+                                    outputSummary = event.outputSummary,
+                                    searchQueries = event.searchQueries.map {
+                                        com.example.smarty.core.domain.model.SearchQueryEntry(
+                                            query = it.query,
+                                            result = it.result,
+                                        )
+                                    },
                                 )
                             pendingToolCalls.removeAll { it.toolName == event.toolName }
                             pendingToolCalls.add(toolCallEntry)

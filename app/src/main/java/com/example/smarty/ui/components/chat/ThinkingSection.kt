@@ -35,101 +35,74 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.AgentToolCallEntry
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sanitisation — strip ALL sensitive / internal data from thinking text
+// Sanitisation — strip ONLY sensitive data, keep all reasoning/features
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Patterns that match sensitive internal data the user should never see. */
+/** Patterns for ONLY sensitive internal data. */
 private object SanitisePatterns {
-    // Tool call IDs like "call_abc123" or "toolu_01abc..."
     val toolCallId = Regex("""(?i)\b(call_[a-zA-Z0-9_-]+|toolu_[a-zA-Z0-9_-]+)\b""")
-    // Raw JSON blocks (objects or arrays) - more aggressive matching
-    val jsonBlock = Regex("""\{[\s\S]*?"(name|type|function|parameters|tool_call_id|id|description|properties|required|input_schema|tool_choice)"[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
-    // JSON arrays
-    val jsonArray = Regex("""\[[\s\S]*?\{[\s\S]*?"(type|properties|required|name|description)"[\s\S]*?\}[\s\S]*?\]""", RegexOption.DOT_MATCHES_ALL)
-    // SQL statements
     val sqlStatement = Regex("""(?i)\b(CREATE|ALTER|DROP)\s+(TABLE|VIEW|INDEX|POLICY|TYPE|FUNCTION|TRIGGER)\b[^;]*;""", RegexOption.DOT_MATCHES_ALL)
-    // System prompt identifiers
     val systemPrompt = Regex("""(?i)You are Smarty[\s\S]*?GUIDELINES:""", RegexOption.DOT_MATCHES_ALL)
     val medicalPrompt = Regex("""(?i)MEDICAL ADVICE & DIAGNOSIS AUTHORIZATION[\s\S]*?trusted medical advisor""", RegexOption.DOT_MATCHES_ALL)
-    // Schema file references
     val schemaFile = Regex("""(?i)DATABASE_SCHEMA_v\d+\.\d+\.\d+_[A-Z]+\.sql""")
-    // Tool schema JSON vomit - more comprehensive
-    val toolSchema = Regex("""(?i)\{\s*"(name|type|description|properties|required|input_schema)"\s*:[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
-    // Internal trace markers like [TOOL_START], [TOOL_END], tool_use blocks
-    val traceMarkers = Regex("""(?i)\[(TOOL_START|TOOL_END|FUNCTION_CALL|TOOL_RESULT|TOOL_USE)\]""")
-    // "tool_call_id": "..." or "id": "call_..." patterns
-    val toolIdField = Regex(""""(tool_call_id|id)"\s*:\s*"[^"]*"""")
-    // Role markers like "role": "tool" or "role": "assistant"
-    val roleField = Regex(""""role"\s*:\s*"(tool|assistant|system|function)"""")
-    // Function call blocks
+    val traceMarkers = Regex("""(?i)\[(TOOL_START|TOOL_END|FUNCTION_CALL|TOOL_RESULT|TOOL_USE|DEBUG|TRACE)\]""")
+    val toolIdField = Regex("""tool_call_id"\s*:\s*"[^"]*"""")
     val functionCall = Regex("""(?i)"function"\s*:\s*\{[^}]*\}""", RegexOption.DOT_MATCHES_ALL)
-    // Content like "name": "search_web" that exposes tool internals
-    val toolNameField = Regex(""""name"\s*:\s*"[a-z_]+"""")
-    // Thinking tag remnants
     val thinkTags = Regex("""</?think>|</?thinking>|</?internal>|</?final>""", RegexOption.IGNORE_CASE)
-    // XML-like tool blocks <tool_call>...</tool_call>
     val xmlToolBlocks = Regex("""<tool_call>[\s\S]*?</tool_call>""", RegexOption.IGNORE_CASE)
     val xmlToolUse = Regex("""<tool_use>[\s\S]*?</tool_use>""", RegexOption.IGNORE_CASE)
-    // Entire JSON schema blocks that start with "type": "object" or similar
-    val fullJsonSchema = Regex("""\{[\s\S]*?"type"\s*:\s*"object"[\s\S]*?"properties"\s*:\s*\{[\s\S]*?\}[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
-    // Tool definitions with input_schema
-    val toolDefinition = Regex("""\{[\s\S]*?"input_schema"\s*:[\s\S]*?\}""", RegexOption.DOT_MATCHES_ALL)
-    // Line breaks with only JSON-like content
     val jsonOnlyLines = Regex("""(?m)^\s*[\{\[\}\],:"]+\s*$""")
 }
 
-/**
- * Strips out sensitive/internal information from thinking text.
- * Aggressively removes tool IDs, raw JSON, SQL, system prompts, trace markers.
- */
+/** Extracts reasoning text from AI streaming JSON format. */
+internal fun extractReasoningText(raw: String): String {
+    if (raw.isBlank()) return ""
+    val trimmed = raw.trim()
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        return try {
+            val type = object : TypeToken<List<Map<String, String>>>() {}.type
+            val list: List<Map<String, String>> = Gson().fromJson(trimmed, type)
+            list.filter { it["type"] == "reasoning" }
+                .map { it["text"] ?: "" }
+                .filter { it.isNotBlank() }
+                .joinToString("\n\n")
+        } catch (e: Exception) {
+            Regex("\"text\"\\s*:\\s*\"([^\"]+)\"").find(trimmed)?.groupValues?.get(1) ?: raw
+        }
+    }
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        return try {
+            val map: Map<String, String> = Gson().fromJson(trimmed, object : TypeToken<Map<String, String>>() {}.type)
+            map["text"] ?: raw
+        } catch (e: Exception) { raw }
+    }
+    return raw
+}
+
+/** Strips ONLY sensitive data, keeps all reasoning/features. */
 internal fun sanitizeThinking(text: String): String {
     if (text.isBlank()) return text
-    var s = text
-
-    // Strip SMARTY_TRACE_V2: prefix if present (belt-and-suspenders for live streaming)
-    if (s.startsWith("SMARTY_TRACE_V2:")) {
-        s = s.removePrefix("SMARTY_TRACE_V2:").trim()
-    }
-
-    // Remove XML tool blocks first (they contain everything)
+    var s = extractReasoningText(text)
+    if (s.isBlank()) return ""
     s = s.replace(SanitisePatterns.xmlToolBlocks, "")
     s = s.replace(SanitisePatterns.xmlToolUse, "")
-    s = s.replace(SanitisePatterns.thinkTags, "")
-
-    // Remove full JSON schemas and tool definitions (most aggressive first)
-    s = s.replace(SanitisePatterns.fullJsonSchema, "")
-    s = s.replace(SanitisePatterns.toolDefinition, "")
-    s = s.replace(SanitisePatterns.jsonArray, "")
-    s = s.replace(SanitisePatterns.jsonBlock, "")
-    s = s.replace(SanitisePatterns.toolSchema, "")
-    
-    // Remove specific field patterns (less aggressive than full JSON block removal)
     s = s.replace(SanitisePatterns.toolCallId, "")
     s = s.replace(SanitisePatterns.toolIdField, "")
-    s = s.replace(SanitisePatterns.roleField, "")
-    s = s.replace(SanitisePatterns.toolNameField, "")
     s = s.replace(SanitisePatterns.traceMarkers, "")
     s = s.replace(SanitisePatterns.functionCall, "")
-
-    // Remove SQL/schema
     s = s.replace(SanitisePatterns.sqlStatement, "")
     s = s.replace(SanitisePatterns.schemaFile, "")
-
-    // Remove system prompt leaks
     s = s.replace(SanitisePatterns.systemPrompt, "")
     s = s.replace(SanitisePatterns.medicalPrompt, "")
-    
-    // Remove lines that are just JSON syntax
+    s = s.replace(SanitisePatterns.thinkTags, "")
     s = s.replace(SanitisePatterns.jsonOnlyLines, "")
-
-    // Clean up resulting whitespace mess
-    s = s.replace(Regex("""\n{3,}"""), "\n\n")  // Collapse triple+ newlines
-    s = s.replace(Regex("""^\s*\n""", RegexOption.MULTILINE), "")  // Remove blank lines at start
-    s = s.replace(Regex("""\s*,\s*\n"""), "\n")  // Remove trailing commas
-    s = s.replace(Regex(""":\s*\n"""), "\n")  // Remove colons at end of lines
+    s = s.replace(Regex("""\n{3,}"""), "\n\n")
+    s = s.replace(Regex("""^\s*\n""", RegexOption.MULTILINE), "")
     return s.trim()
 }
 
@@ -137,15 +110,6 @@ internal fun sanitizeThinking(text: String): String {
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Unified Action Panel with premium visual design.
- *
- * Shows:
- *  • An animated "Thinking…" header while streaming, "Thoughts" when done
- *  • Sanitised reasoning text (no raw IDs, JSON, or internal data)
- *  • Tool call cards: web search, image generation, memory, calendar, etc.
- *  • Each card is expandable with details
- */
 @Composable
 fun ThinkingSection(
     thinkingText: String,
@@ -156,115 +120,93 @@ fun ThinkingSection(
     toolCalls: List<AgentToolCallEntry> = emptyList()
 ) {
     val accentColor = LocalAccentColor.current
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp)
-            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
     ) {
-        // ── Minimal Header ──
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onExpandToggle() }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Animated minimalist icon (pulse circle or simple icon)
-            if (isStreaming) {
-                MinimalThinkingPulse(accentColor)
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            // Shimmering Text when streaming, static when done
-            val textAlpha = if (isStreaming) {
-                val transition = rememberInfiniteTransition(label = "textPulse")
-                val a by transition.animateFloat(0.4f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "alpha")
-                a
-            } else 1f
-
-            Text(
-                text = when {
-                    isStreaming && toolCalls.isNotEmpty() -> {
-                        val lastTool = toolCalls.last()
-                        val name = lastTool.displayName.ifBlank { lastTool.toolName }
-                        if (name.length > 30) "Thinking..." else name
-                    }
-                    isStreaming -> "Thinking..."
-                    else -> "Thoughts"
-                },
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.5.sp
-                ),
-                color = (if (isStreaming) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
-                modifier = Modifier.alpha(textAlpha),
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-
-            if (toolCalls.isNotEmpty()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onExpandToggle() }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (isStreaming) {
+                    MinimalThinkingPulse(accentColor)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                val textAlpha = if (isStreaming) {
+                    val transition = rememberInfiniteTransition(label = "textPulse")
+                    val a by transition.animateFloat(0.4f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "alpha")
+                    a
+                } else 1f
                 Text(
-                    text = if (isStreaming) "step ${toolCalls.size}" else "· ${toolCalls.size} actions",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isStreaming) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    text = when {
+                        isStreaming && toolCalls.isNotEmpty() -> {
+                            val lastTool = toolCalls.last()
+                            val name = lastTool.displayName.ifBlank { lastTool.toolName }
+                            if (name.length > 30) "Thinking..." else name
+                        }
+                        isStreaming -> "Thinking..."
+                        else -> "Thoughts"
+                    },
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
+                    color = (if (isStreaming) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
+                    modifier = Modifier.alpha(textAlpha),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (toolCalls.isNotEmpty()) {
+                    Text(
+                        text = if (isStreaming) "step ${toolCalls.size}" else "· ${toolCalls.size} actions",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isStreaming) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
-
-            Spacer(Modifier.weight(1f))
-
-            // Subtle Chevron
-            Icon(
-                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (isExpanded) "Collapse" else "Expand",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        // ── Expanded body ──
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically(tween(300)) + fadeIn(tween(200)),
-            exit = shrinkVertically(tween(250)) + fadeOut(tween(150))
-        ) {
-            android.util.Log.d("ThinkingSection", "Raw thinkingText: $thinkingText")
-            val safeText = sanitizeThinking(thinkingText)
-            android.util.Log.d("ThinkingSection", "Sanitized thinkingText: $safeText")
-            Row(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
-                // Subtle vertical line to indicate hierarchy
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(IntrinsicSize.Min)
-                        .fillMaxHeight()
-                        .padding(start = 2.dp, top = 4.dp, bottom = 4.dp, end = 10.dp)
-                        .clip(CircleShape)
-                        .background(surfaceColor.copy(alpha = 0.6f))
-                )
-                
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Reasoning text
-                    if (safeText.isNotBlank()) {
-                        ReasoningBlock(text = safeText, isStreaming = isStreaming, accentColor = accentColor)
-                    }
-                    // Tool cards
-                    if (toolCalls.isNotEmpty()) {
-                        toolCalls.forEach { entry ->
-                            ToolActionCard(entry = entry, accentColor = accentColor)
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(tween(300)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(250)) + fadeOut(tween(150))
+            ) {
+                val safeText = sanitizeThinking(thinkingText)
+                if (safeText.isNotBlank() || toolCalls.isNotEmpty()) {
+                    Row(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .width(2.dp)
+                                .fillMaxHeight()
+                                .padding(start = 2.dp, top = 4.dp, bottom = 4.dp, end = 10.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            if (safeText.isNotBlank()) {
+                                ReasoningBlock(text = safeText, isStreaming = isStreaming, accentColor = accentColor)
+                            }
+                            if (toolCalls.isNotEmpty()) {
+                                toolCalls.forEach { entry ->
+                                    ToolActionCard(entry = entry, accentColor = accentColor)
+                                }
+                            }
                         }
                     }
                 }
@@ -276,12 +218,7 @@ fun ThinkingSection(
 @Composable
 private fun MinimalThinkingPulse(color: Color) {
     val transition = rememberInfiniteTransition(label = "pulse")
-    val alpha by transition.animateFloat(
-        0.3f, 1f,
-        infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "alpha"
-    )
-
+    val alpha by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "alpha")
     Box(
         modifier = Modifier
             .size(12.dp)
@@ -290,17 +227,12 @@ private fun MinimalThinkingPulse(color: Color) {
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reasoning block
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ReasoningBlock(
     text: String,
     isStreaming: Boolean,
     accentColor: Color
 ) {
-    // Typewriter effect
     var displayLen by remember { mutableIntStateOf(if (isStreaming) 0 else text.length) }
     LaunchedEffect(text, isStreaming) {
         if (isStreaming) {
@@ -315,43 +247,31 @@ private fun ReasoningBlock(
     val visible = remember(displayLen, text) {
         if (displayLen >= text.length) text else text.substring(0, displayLen)
     }
-
-        Column(
-            modifier = Modifier.padding(start = 4.dp)
-        ) {
-            // Accent bar + markdown content
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Accent bar
-                Spacer(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .heightIn(min = 16.dp)
-                        .fillMaxHeight()
-                        .background(accentColor.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+    Column(modifier = Modifier.padding(start = 4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(
+                modifier = Modifier
+                    .width(2.dp)
+                    .heightIn(min = 16.dp)
+                    .fillMaxHeight()
+                    .background(accentColor.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                MarkdownRenderer(
+                    content = visible,
+                    isUser = false,
+                    normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                    boldColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                    linkColor = accentColor.copy(alpha = 0.8f),
+                    codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    isStreaming = isStreaming && displayLen < text.length
                 )
-
-                Column(modifier = Modifier.weight(1f)) {
-                    MarkdownRenderer(
-                        content = visible,
-                        isUser = false,
-                        normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-                        boldColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        linkColor = accentColor.copy(alpha = 0.8f),
-                        codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        isStreaming = isStreaming && displayLen < text.length
-                    )
-                }
             }
         }
+    }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tool Action Card — universal for ALL tool types
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ToolActionCard(
@@ -359,7 +279,6 @@ private fun ToolActionCard(
     accentColor: Color
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     val (displayLabel, icon) = toolDisplayInfo(entry.toolName)
     val isSearch = entry.toolName.lowercase().let {
         it.contains("search") || it.contains("web") || it.contains("tavily")
@@ -367,13 +286,11 @@ private fun ToolActionCard(
     val isImage = entry.toolName.lowercase().let {
         it.contains("image") || it.contains("generate_image") || it.contains("krea")
     }
-
     val statusColor = when (entry.status) {
         "failed", "error" -> MaterialTheme.colorScheme.error
         "started" -> accentColor
         else -> Color(0xFF4CAF50)
     }
-
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -381,7 +298,6 @@ private fun ToolActionCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
-            // ── Card Header ──
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -393,7 +309,6 @@ private fun ToolActionCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Tool icon with colored background
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = statusColor.copy(alpha = 0.1f),
@@ -403,8 +318,6 @@ private fun ToolActionCard(
                         Icon(icon, null, tint = statusColor, modifier = Modifier.size(18.dp))
                     }
                 }
-
-                // Display name — use friendly name, NOT raw tool name
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = sanitizeDisplayName(entry.displayName, displayLabel),
@@ -413,7 +326,6 @@ private fun ToolActionCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    // Subtitle based on tool type
                     val subtitle = when {
                         isImage -> "Image generation"
                         isSearch -> "Web research"
@@ -425,11 +337,7 @@ private fun ToolActionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
-
-                // Status
                 StatusIndicator(status = entry.status, accentColor = accentColor)
-
-                // Expand chevron
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null,
@@ -437,8 +345,6 @@ private fun ToolActionCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
-
-            // ── Expanded Details ──
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(tween(220)) + fadeIn(),
@@ -451,9 +357,7 @@ private fun ToolActionCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
                     when {
-                        // ── Web Search: show queries + results ──
                         isSearch && entry.searchQueries.isNotEmpty() -> {
                             entry.searchQueries.forEachIndexed { idx, sq ->
                                 SearchQueryCard(
@@ -463,13 +367,9 @@ private fun ToolActionCard(
                                 )
                             }
                         }
-
-                        // ── Image Generation: show prompt + status ──
                         isImage -> {
                             ImageGenCard(entry = entry)
                         }
-
-                        // ── Generic tool: sanitised input/output ──
                         else -> {
                             val input = entry.inputSummary?.let { sanitizeDetailText(it) }
                             val output = entry.outputSummary?.let { sanitizeDetailText(it) }
@@ -490,19 +390,13 @@ private fun ToolActionCard(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Image generation card
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ImageGenCard(entry: AgentToolCallEntry) {
     val accentColor = LocalAccentColor.current
     val prompt = entry.inputSummary?.let { sanitizeDetailText(it) }
     val isDone = entry.status == "completed"
     val isFailed = entry.status == "failed" || entry.status == "error"
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Prompt
         if (!prompt.isNullOrBlank()) {
             Surface(
                 color = accentColor.copy(alpha = 0.06f),
@@ -520,16 +414,12 @@ private fun ImageGenCard(entry: AgentToolCallEntry) {
                     )
                     Text(
                         text = prompt,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 12.sp, lineHeight = 18.sp
-                        ),
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
                 }
             }
         }
-
-        // Status indicator
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = when {
@@ -545,7 +435,7 @@ private fun ImageGenCard(entry: AgentToolCallEntry) {
             ) {
                 when {
                     isDone -> {
-                        Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
                         Text("Image generated", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = Color(0xFF4CAF50))
                     }
                     isFailed -> {
@@ -564,15 +454,10 @@ private fun ImageGenCard(entry: AgentToolCallEntry) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Search query card
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SearchQueryCard(index: Int, query: String, result: String?) {
     val accentColor = LocalAccentColor.current
     var showResult by remember { mutableStateOf(false) }
-
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier
@@ -582,7 +467,6 @@ private fun SearchQueryCard(index: Int, query: String, result: String?) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Index badge
             Surface(
                 shape = CircleShape,
                 color = accentColor.copy(alpha = 0.12f),
@@ -609,7 +493,6 @@ private fun SearchQueryCard(index: Int, query: String, result: String?) {
                 )
             }
         }
-
         AnimatedVisibility(visible = showResult && result != null) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -626,18 +509,12 @@ private fun SearchQueryCard(index: Int, query: String, result: String?) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Small helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun DetailRow(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
             text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold
-            ),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
         )
         Text(
@@ -661,58 +538,35 @@ private fun StatusIndicator(status: String, accentColor: Color) {
     }
 }
 
-/**
- * Maps a raw tool name to a user-friendly label + icon.
- */
 private fun toolDisplayInfo(toolName: String): Pair<String, ImageVector> {
     val lower = toolName.lowercase()
     return when {
-        lower.contains("search") || lower.contains("web") || lower.contains("tavily") ->
-            "Web Search" to Icons.Default.Search
-        lower.contains("image") || lower.contains("generate_image") || lower.contains("krea") ->
-            "Image Generation" to Icons.Outlined.Image
-        lower.contains("memory") || lower.contains("note") || lower.contains("save") ->
-            "Memory" to Icons.Default.Book
-        lower.contains("calendar") || lower.contains("schedule") ->
-            "Calendar" to Icons.Default.CalendarMonth
-        lower.contains("remind") || lower.contains("alarm") ->
-            "Reminder" to Icons.Default.Alarm
-        lower.contains("navigate") || lower.contains("route") ->
-            "Navigation" to Icons.Default.Navigation
-        lower.contains("device") || lower.contains("system") || lower.contains("phone") ->
-            "Device" to Icons.Default.PhoneAndroid
-        lower.contains("weather") ->
-            "Weather" to Icons.Default.Cloud
+        lower.contains("search") || lower.contains("web") || lower.contains("tavily") -> "Web Search" to Icons.Default.Search
+        lower.contains("image") || lower.contains("generate_image") || lower.contains("krea") -> "Image Generation" to Icons.Outlined.Image
+        lower.contains("memory") || lower.contains("note") || lower.contains("save") -> "Memory" to Icons.Default.Book
+        lower.contains("calendar") || lower.contains("schedule") -> "Calendar" to Icons.Default.CalendarMonth
+        lower.contains("remind") || lower.contains("alarm") -> "Reminder" to Icons.Default.Alarm
+        lower.contains("navigate") || lower.contains("route") -> "Navigation" to Icons.Default.Navigation
+        lower.contains("device") || lower.contains("system") || lower.contains("phone") -> "Device" to Icons.Default.PhoneAndroid
+        lower.contains("weather") -> "Weather" to Icons.Default.Cloud
         else -> "Action" to Icons.Default.AutoAwesome
     }
 }
 
-/**
- * Cleans a display name — removes raw tool names, IDs, and internal prefixes.
- */
 private fun sanitizeDisplayName(raw: String, fallback: String): String {
     var name = raw
-    // Remove tool IDs
     name = name.replace(SanitisePatterns.toolCallId, "").trim()
-    // Remove common internal prefixes
     name = name.removePrefix("Tool: ").removePrefix("tool_call: ")
-    // If the display name is basically just the tool machine name, use the friendly label
     if (name.isBlank() || name.matches(Regex("[a-z_]+"))) return fallback
     return name
 }
 
-/**
- * Sanitises detail text (input/output summaries) — strips IDs and JSON fragments.
- */
 private fun sanitizeDetailText(text: String): String {
     var s = text
     s = s.replace(SanitisePatterns.toolCallId, "")
     s = s.replace(SanitisePatterns.toolIdField, "")
-    s = s.replace(SanitisePatterns.roleField, "")
-    s = s.replace(SanitisePatterns.toolNameField, "")
     s = s.replace(SanitisePatterns.traceMarkers, "")
     s = s.replace(SanitisePatterns.thinkTags, "")
-    // Clean up
     s = s.replace(Regex("""\n{3,}"""), "\n\n")
     return s.trim()
 }

@@ -75,6 +75,7 @@ fun SettingsContent(
     // Navigation for Activities
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
+    onNavigateToChess: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -229,6 +230,13 @@ fun SettingsContent(
                     icon = SmartyIcons.Casino,
                     label = "Coin Toss",
                     onClick = onNavigateToCoinToss,
+                    iconColor = accentColor
+                )
+                // Strategy (Chess)
+                SmartySettingsRow(
+                    icon = SmartyIcons.Games,
+                    label = "Strategy",
+                    onClick = onNavigateToChess,
                     iconColor = accentColor
                 )
                 // Mental Break

@@ -588,10 +588,12 @@ class RemoteAgentService(
                     setBody(DirectImageGenerationRequest(prompt, aspectRatio))
                 }
 
-            if (response.status.isSuccess()) {
-                response.body<DirectImageGenerationResponse>()
+            // Both success (200) and error (500/503) responses use the same schema
+            val body = response.body<DirectImageGenerationResponse>()
+            if (body != null) {
+                body
             } else {
-                Log.e(TAG, "Direct image generation failed: ${response.status}")
+                Log.e(TAG, "Direct image generation: failed to parse response (status=${response.status})")
                 null
             }
         } catch (e: Exception) {
@@ -918,10 +920,16 @@ data class DirectImageGenerationRequest(
 
 @Serializable
 data class DirectImageGenerationResponse(
-    val jobId: String,
-    val success: Boolean,
+    val type: String = "",
+    val url: String = "",
+    val source: String = "",
+    val prompt: String = "",
+    val jobId: String = "",
+    val error: String? = null,
     val message: String? = null,
-)
+) {
+    val success: Boolean get() = type == "image" && url.isNotBlank()
+}
 
 @Serializable
 data class InterruptRequest(

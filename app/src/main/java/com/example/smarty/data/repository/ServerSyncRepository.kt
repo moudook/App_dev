@@ -97,14 +97,9 @@ class ServerSyncRepository(
         return if (note.isArchived) {
             remoteDataSource.deleteNote(note.id)
         } else {
-            val existingId =
-                remoteDataSource.createNote(
-                    note.title,
-                    note.content,
-                    note.categoryName,
-                )
+            val existingId = remoteDataSource.createNote(note)
             if (existingId == null) {
-                remoteDataSource.updateNote(note.id, note.title, note.content, note.categoryName)
+                remoteDataSource.updateNote(note)
             } else {
                 true
             }
@@ -200,20 +195,40 @@ class ServerSyncRepository(
 
     /**
      * OPTIMIZATION: Extension function on NoteInfo for mapping to Note.
-     * Eliminates the need for a separate private function.
+     * Maps all fields from the v9.0.0 protocol to the domain model.
      */
     private fun NoteInfo.mapToNote(): Note {
         return Note(
             id = this.id,
             title = this.title,
             content = this.content,
-            categoryName = null, // TODO: resolve categoryId to name
+            summary = this.summary,
+            sourceUrl = this.sourceUrl,
+            imageUri = this.imageUri,
+            fileUri = this.fileUri,
+            fileName = this.fileName,
+            fileMimeType = this.fileMimeType,
+            fileSize = this.fileSize,
+            type = try { NoteType.valueOf(this.type) } catch (e: Exception) { NoteType.BRAIN_DUMP },
+            categoryId = this.categoryId,
+            categoryName = this.categoryName,
+            whySaved = this.whySaved,
+            processingStatus = try { ProcessingStatus.valueOf(this.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
             isArchived = this.isArchived,
+            isPinned = this.isPinned,
+            isFavorite = this.isFavorite,
+            isFullPrivacy = this.isFullPrivacy,
+            excludeFromAiChat = this.excludeFromAiChat,
+            isAiCreated = this.isAiCreated,
+            isViewed = this.isViewed,
+            todoContent = this.todoContent,
+            attachmentsJson = this.attachmentsJson,
+            tagsJson = this.tagsJson,
+            chunkAnalysesJson = this.chunkAnalysesJson,
+            reminderText = this.reminderText,
+            reminderExpiresAt = this.reminderExpiresAt,
             createdAt = this.createdAt,
-            updatedAt = this.updatedAt,
-            type = NoteType.BRAIN_DUMP,
-            processingStatus = ProcessingStatus.COMPLETED,
-            isAiCreated = true,
+            updatedAt = this.updatedAt
         )
     }
 
