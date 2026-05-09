@@ -176,6 +176,7 @@ app/src/main/assets/tts_models/
 *.sql
 !init-db.sql
 !app/src/main/assets/*.sql
+!server/src/main/resources/db/migrations/*.sql
 
 # ============================================
 # 8. DOCUMENTATION & TEMP FILES

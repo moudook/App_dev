@@ -85,13 +85,14 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 val upsertSql =
                     """
-                    INSERT INTO digest_preferences (user_id, enabled, frequency, delivery_hour, delivery_minute)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO digest_preferences (user_id, enabled, frequency, delivery_hour, delivery_minute, timezone)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT (user_id) DO UPDATE SET
                         enabled         = EXCLUDED.enabled,
                         frequency       = EXCLUDED.frequency,
                         delivery_hour   = EXCLUDED.delivery_hour,
                         delivery_minute = EXCLUDED.delivery_minute,
+                        timezone        = EXCLUDED.timezone,
                         updated_at      = now()
                     """.trimIndent()
 
@@ -101,6 +102,7 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
                     stmt.setString(3, frequency)
                     stmt.setInt(4, hour)
                     stmt.setInt(5, minute)
+                    stmt.setString(6, "UTC")
                     stmt.executeUpdate()
                 }
             }
