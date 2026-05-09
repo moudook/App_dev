@@ -28,7 +28,7 @@ class ChatRepository(
 ) {
     companion object {
         private const val TAG = "ChatRepository"
-        private const val MAX_SESSIONS = 20 // Maximum number of sessions to keep
+        private const val MAX_SESSIONS = 100 // Maximum number of sessions to keep
         private const val MIN_MESSAGES_TO_SAVE = 2 // Need at least user + smarty response
     }
 
@@ -178,9 +178,9 @@ class ChatRepository(
             return false
         }
 
-        // Skip empty messages (unless they carry tool calls or inline images — e.g. image generation)
-        if (message.content.isBlank() && message.toolCalls.isEmpty() && message.inlineImages.isEmpty()) {
-            Log.d(TAG, "saveMessage: Skipping blank message with no tool calls/images.")
+        // Skip empty messages (unless they carry tool calls, inline images, or citations — e.g. citation-only responses)
+        if (message.content.isBlank() && message.toolCalls.isEmpty() && message.inlineImages.isEmpty() && message.citations.isEmpty()) {
+            Log.d(TAG, "saveMessage: Skipping blank message with no tool calls/images/citations.")
             return false
         }
 
@@ -265,9 +265,9 @@ class ChatRepository(
             return false
         }
 
-        // Smarty response must have content or tool calls (e.g. image generation has no text)
-        if (smartyMessage.content.isBlank() && smartyMessage.toolCalls.isEmpty() && smartyMessage.inlineImages.isEmpty()) {
-            Log.d(TAG, "Skipping save - smarty content is empty and no tool calls/images")
+        // Smarty response must have content or tool calls/images/citations (e.g. image generation has no text, citation-only responses have no content)
+        if (smartyMessage.content.isBlank() && smartyMessage.toolCalls.isEmpty() && smartyMessage.inlineImages.isEmpty() && smartyMessage.citations.isEmpty()) {
+            Log.d(TAG, "Skipping save - smarty content is empty and no tool calls/images/citations")
             return false
         }
 

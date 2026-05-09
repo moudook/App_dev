@@ -233,12 +233,12 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 val sql =
                     """
                     INSERT INTO reasoning_summaries (
-                        summary_id, session_id, message_id, user_id,
+                        id, session_id, message_id, user_id,
                         one_liner, brief_summary, detailed_summary,
                         total_steps, total_duration_ms, total_tokens,
                         confidence_score, complexity_score, reasoning_type, tags
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (summary_id) DO UPDATE SET
+                    ON CONFLICT (id) DO UPDATE SET
                         one_liner = EXCLUDED.one_liner,
                         brief_summary = EXCLUDED.brief_summary,
                         detailed_summary = EXCLUDED.detailed_summary,
@@ -281,7 +281,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 val sql =
                     """
                     SELECT 
-                        summary_id, session_id, message_id, user_id,
+                        id, session_id, message_id, user_id,
                         one_liner, brief_summary, detailed_summary,
                         total_steps, total_duration_ms, total_tokens,
                         confidence_score, complexity_score, reasoning_type, tags
@@ -301,7 +301,7 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) {
                             ReasoningSummary(
-                                summaryId = rs.getObject("summary_id") as UUID,
+                                summaryId = rs.getObject("id") as UUID,
                                 sessionId = (rs.getObject("session_id") as UUID).toString(),
                                 messageId = (rs.getObject("message_id") as UUID?)?.toString(),
                                 userId = rs.getString("user_id"),

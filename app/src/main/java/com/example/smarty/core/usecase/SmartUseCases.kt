@@ -46,10 +46,9 @@ class UpdateNoteWithVersionUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         note: Note,
-        userId: String,
         changeDescription: String? = null,
     ) {
-        repository.updateNoteWithVersion(note, userId, changeDescription)
+        repository.updateNoteWithVersion(note, changeDescription)
     }
 }
 

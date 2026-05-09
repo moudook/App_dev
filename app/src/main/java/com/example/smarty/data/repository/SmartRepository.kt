@@ -1,6 +1,10 @@
 package com.example.smarty.data.repository
 
 import com.example.smarty.core.domain.model.*
+import com.example.smarty.data.local.CRDTManager
+import com.example.smarty.data.local.OfflineFirstSyncManager
+import com.example.smarty.data.local.SmartyDatabase
+import com.example.smarty.data.local.SmartDatabaseDao
 import com.example.smarty.data.local.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -14,7 +18,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SmartRepository @Inject constructor(
-    private val database: SmartDatabase,
+    private val database: SmartyDatabase,
     private val crdtManager: CRDTManager,
     private val offlineSyncManager: OfflineFirstSyncManager,
 ) {
@@ -111,7 +115,6 @@ class SmartRepository @Inject constructor(
      */
     suspend fun updateNoteWithVersion(
         note: Note,
-        userId: String,
         changeDescription: String? = null,
     ) {
         // Get current version
@@ -121,7 +124,6 @@ class SmartRepository @Inject constructor(
             val version = NoteVersionEntity(
                 id = UUID.randomUUID().toString(),
                 noteId = note.id,
-                userId = userId,
                 title = current.title,
                 content = current.content,
                 summary = current.summary,

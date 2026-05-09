@@ -9,26 +9,6 @@ import kotlinx.serialization.Serializable
  * =============================================================================
  * SYNC QUEUE - Offline Write Queue for Cloud-First Architecture
  * =============================================================================
- *
- * All local writes (CREATE, UPDATE, DELETE) are queued here before being
- * sent to the server. This enables:
- *
- * 1. Offline operation - writes succeed immediately locally
- * 2. Optimistic UI - user sees changes instantly
- * 3. Reliable sync - queue is drained when connectivity resumes
- * 4. Conflict tracking - pending operations are tracked for resolution
- *
- * SYNC FLOW:
- * User Action -> Room DB (optimistic write)
- *            -> SyncQueue (queued with status=PENDING)
- *            -> SyncWorker drains queue -> Server API
- *            -> Server confirms -> Room DB (status=SYNCED, server_timestamp)
- *
- * CONFLICT RESOLUTION:
- * Server is authoritative. Server timestamp wins (LWW).
- * If conflict detected, local changes are archived for manual review.
- *
- * =============================================================================
  */
 
 /**
@@ -55,32 +35,17 @@ enum class SyncEntityType {
  * Status of a sync queue item.
  */
 enum class SyncStatus {
-    PENDING, // Queued, waiting to be sent
-    IN_FLIGHT, // Currently being sent to server
-    SYNCED, // Successfully synced to server
-    FAILED, // Failed after max retries
-    CONFLICT, // Conflict detected, needs resolution
+    PENDING,      // Queued, waiting to be sent
+    IN_FLIGHT,    // Currently being sent to server
+    SYNCED,       // Successfully synced to server
+    FAILED,       // Failed after max retries
+    CONFLICT,     // Conflict detected, needs resolution
 }
 
-/**
- * Sync queue item representing a pending operation.
- *
- * @param id Unique identifier for this queue item
- * @param operation Type of operation (CREATE, UPDATE, DELETE)
- * @param entityType Type of entity being operated on
- * @param entityId ID of the entity
- * @param payloadJson Full serialized entity data
- * @param baseVersion Version of entity at time of write (for conflict detection)
- * @param createdAt Device timestamp when item was created
- * @param retryCount Number of failed sync attempts
- * @param status Current status of the item
- * @param lastError Last error message if failed
- * @param serverTimestamp Server timestamp after successful sync
- */
 @Entity(
     tableName = "sync_queue",
     indices = [
-        Index(value = ["entityId", "entityType"], unique = false),
+        Index(value = ["entityType"], unique = false),
         Index(value = ["status"], unique = false),
         Index(value = ["createdAt"], unique = false),
     ],
@@ -174,7 +139,7 @@ data class SyncQueueItem(
  * Stores the losing side of a conflict for potential manual recovery.
  */
 @Entity(
-    tableName = "conflict_archive",
+    tableName = "conflict_records",
     indices = [
         Index(value = ["entityId"], unique = false),
         Index(value = ["resolvedAt"], unique = false),

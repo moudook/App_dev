@@ -100,10 +100,10 @@ interface SmartDatabaseDao {
     @Delete
     suspend fun deleteNoteTag(noteTag: NoteTagEntity)
 
-    @Query("DELETE FROM note_versions_ext WHERE note_id = :noteId")
+    @Query("DELETE FROM note_versions WHERE note_id = :noteId")
     suspend fun deleteNoteTagsForNote(noteId: String)
 
-    @Query("DELETE FROM note_versions_ext WHERE note_id = :noteId")
+    @Query("DELETE FROM note_versions WHERE note_id = :noteId")
     suspend fun deleteNoteVersions(noteId: String)
 
     @Query("DELETE FROM note_tags WHERE tag_id = :tagId")
@@ -411,22 +411,22 @@ interface SmartDatabaseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNoteVersion(version: NoteVersionEntity): Long
 
-    @Query("SELECT * FROM note_versions_ext WHERE id = :versionId")
+    @Query("SELECT * FROM note_versions WHERE id = :versionId")
     suspend fun getNoteVersion(versionId: String): NoteVersionEntity?
 
-    @Query("SELECT * FROM note_versions_ext WHERE note_id = :noteId ORDER BY version_no DESC")
+    @Query("SELECT * FROM note_versions WHERE note_id = :noteId ORDER BY version_no DESC")
     fun getNoteVersions(noteId: String): Flow<List<NoteVersionEntity>>
 
-    @Query("SELECT * FROM note_versions_ext WHERE note_id = :noteId AND version_no = :versionNo")
+    @Query("SELECT * FROM note_versions WHERE note_id = :noteId AND version_no = :versionNo")
     suspend fun getNoteVersionByNumber(noteId: String, versionNo: Int): NoteVersionEntity?
 
-    @Query("SELECT * FROM note_versions_ext WHERE note_id = :noteId ORDER BY version_no DESC LIMIT 1")
+    @Query("SELECT * FROM note_versions WHERE note_id = :noteId ORDER BY version_no DESC LIMIT 1")
     suspend fun getLatestNoteVersion(noteId: String): NoteVersionEntity?
 
-    @Query("SELECT COUNT(*) FROM note_versions_ext WHERE note_id = :noteId")
+    @Query("SELECT COUNT(*) FROM note_versions WHERE note_id = :noteId")
     suspend fun getNoteVersionCount(noteId: String): Int
 
-    @Query("DELETE FROM note_versions WHERE noteId = :noteId AND versionNumber < :keepFromVersion")
+    @Query("DELETE FROM note_versions WHERE note_id = :noteId AND version_no < :keepFromVersion")
     suspend fun pruneNoteVersions(noteId: String, keepFromVersion: Int): Int
 
     // ============================================================

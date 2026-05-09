@@ -9,6 +9,7 @@ import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteVersion
+import com.example.smarty.data.local.NoteVersionEntity
 import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.local.CategoryDao
@@ -22,6 +23,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -571,15 +573,16 @@ class SmartyRepository(
 
             if (hasChanges) {
                 val latestVersion = noteVersionDao.getLatestVersionNumber(note.id) ?: 0
-                val newVersion =
-                    NoteVersion(
-                        noteId = note.id,
-                        title = currentNote.title,
-                        content = currentNote.content,
-                        summary = currentNote.summary,
-                        versionNumber = latestVersion + 1,
-                        changeDescription = changeDescription,
-                    )
+                val newVersion = NoteVersionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    noteId = note.id,
+                    title = currentNote.title,
+                    content = currentNote.content,
+                    summary = currentNote.summary,
+                    versionNo = latestVersion + 1,
+                    changeDescription = changeDescription,
+                    createdAt = System.currentTimeMillis(),
+                )
                 noteVersionDao.insertVersion(newVersion)
                 noteVersionDao.pruneOldVersions(note.id, keepCount = 10)
             }
@@ -588,43 +591,45 @@ class SmartyRepository(
         noteDao.updateNote(note)
     }
 
-    fun getNoteVersions(noteId: String): Flow<List<NoteVersion>>? = noteVersionDao?.getVersionsForNote(noteId)
+    fun getNoteVersions(noteId: String): Flow<List<NoteVersion>>? = noteVersionDao?.getVersionsForNote(noteId)?.map { list -> list.map { it.toDomain() } }
 
-    suspend fun getNoteVersionsOnce(noteId: String): List<NoteVersion> = noteVersionDao?.getVersionsForNoteOnce(noteId) ?: emptyList()
+    suspend fun getNoteVersionsOnce(noteId: String): List<NoteVersion> = noteVersionDao?.getVersionsForNoteOnce(noteId)?.map { it.toDomain() } ?: emptyList()
 
-    @Transaction
-    suspend fun restoreNoteVersion(
-        noteId: String,
-        versionId: String,
-    ): Boolean {
-        val version = noteVersionDao?.getVersionById(versionId) ?: return false
-        val currentNote = noteDao.getNoteById(noteId) ?: return false
+     @Transaction
+     suspend fun restoreNoteVersion(
+         noteId: String,
+         versionId: String,
+     ): Boolean {
+         val versionEntity = noteVersionDao?.getVersionById(versionId) ?: return false
+         val version = versionEntity.toDomain()
+         val currentNote = noteDao.getNoteById(noteId) ?: return false
 
-        val latestVersion = noteVersionDao?.getLatestVersionNumber(noteId) ?: 0
-        val saveVersion =
-            NoteVersion(
-                noteId = noteId,
-                title = currentNote.title,
-                content = currentNote.content,
-                summary = currentNote.summary,
-                versionNumber = latestVersion + 1,
-                changeDescription = "Auto-saved before restore",
-            )
-        noteVersionDao?.insertVersion(saveVersion)
+          val latestVersion = noteVersionDao?.getLatestVersionNumber(noteId) ?: 0
+          val saveVersion = NoteVersionEntity(
+              id = java.util.UUID.randomUUID().toString(),
+              noteId = noteId,
+              title = currentNote.title,
+              content = currentNote.content,
+              summary = currentNote.summary,
+              versionNo = latestVersion + 1,
+              changeDescription = "Auto-saved before restore",
+              createdAt = System.currentTimeMillis(),
+          )
+         noteVersionDao?.insertVersion(saveVersion)
 
-        val restoredNote =
-            currentNote.copy(
-                title = version.title,
-                content = version.content,
-                summary = version.summary,
-                updatedAt = System.currentTimeMillis(),
-            )
-        noteDao.updateNote(restoredNote)
+         val restoredNote =
+             currentNote.copy(
+                 title = version.title,
+                 content = version.content,
+                 summary = version.summary,
+                 updatedAt = System.currentTimeMillis(),
+             )
+         noteDao.updateNote(restoredNote)
 
-        return true
-    }
+         return true
+     }
 
-    suspend fun getVersionCount(noteId: String): Int = noteVersionDao?.getVersionCount(noteId) ?: 0
+     suspend fun getVersionCount(noteId: String): Int = noteVersionDao?.getVersionCount(noteId) ?: 0
 
     // =========================================================================
     // CATEGORY OPERATIONS
@@ -812,4 +817,17 @@ class SmartyRepository(
         database.impressedLogDao().deleteAllLogs()
         noteVersionDao?.deleteAllVersions()
     }
+}
+
+private fun NoteVersionEntity.toDomain(): NoteVersion {
+    return NoteVersion(
+        id = id,
+        noteId = noteId,
+        title = title,
+        content = content,
+        summary = summary,
+        versionNumber = versionNo,
+        createdAt = createdAt,
+        changeDescription = changeDescription,
+    )
 }

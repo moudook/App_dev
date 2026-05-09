@@ -141,7 +141,6 @@ data class NoteTag(
 data class NoteVersion(
     val id: String = UUID.randomUUID().toString(),
     val noteId: String,
-    val userId: String,
     val title: String,
     val content: String,
     val versionNo: Int,
@@ -169,4 +168,32 @@ data class ChatAttachment(
 data class NoteAttachment(
     val noteId: String,
     val fileId: String,
+)
+
+/**
+ * Stack data model (v6.0.0 schema)
+ * Matches: stacks table
+ */
+@Serializable
+data class Stack(
+    val id: String = UUID.randomUUID().toString(),
+    val userId: String,
+    val name: String,
+    val description: String? = null,
+    val color: String = "#03DAC6",
+    val icon: String = "stack",
+    val parentId: String? = null,
+    val noteCount: Int = 0,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+)
+
+/**
+ * Note-Stack join model (v6.0.0 schema)
+ * Matches: note_stacks table
+ */
+@Serializable
+data class NoteStack(
+    val noteId: String,
+    val stackId: String,
 )

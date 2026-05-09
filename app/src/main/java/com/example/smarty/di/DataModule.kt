@@ -14,35 +14,35 @@ import kotlinx.coroutines.SupervisorJob
  */
 object DatabaseModule {
 
-    fun provideSmartDatabase(context: Context): SmartDatabase {
-        return SmartDatabase.getDatabase(context)
+    fun provideSmartDatabase(context: Context): SmartyDatabase {
+        return SmartyDatabase.getDatabase(context)
     }
 
-    fun provideSmartDao(database: SmartDatabase): SmartDatabaseDao {
+    fun provideSmartDao(database: SmartyDatabase): SmartDatabaseDao {
         return database.smartDao()
     }
 
-    fun provideLegacyNoteDao(database: SmartDatabase): NoteDao {
+    fun provideLegacyNoteDao(database: SmartyDatabase): NoteDao {
         return database.noteDao()
     }
 
-    fun provideLegacyCategoryDao(database: SmartDatabase): CategoryDao {
+    fun provideLegacyCategoryDao(database: SmartyDatabase): CategoryDao {
         return database.categoryDao()
     }
 
-    fun provideLegacyChatDao(database: SmartDatabase): ChatDao {
+    fun provideLegacyChatDao(database: SmartyDatabase): ChatDao {
         return database.chatDao()
     }
 
-    fun provideLegacyCalendarDao(database: SmartDatabase): CalendarDao {
+    fun provideLegacyCalendarDao(database: SmartyDatabase): CalendarDao {
         return database.calendarDao()
     }
 
-    fun provideSyncQueueDao(database: SmartDatabase): SyncQueueDao {
+    fun provideSyncQueueDao(database: SmartyDatabase): SyncQueueDao {
         return database.syncQueueDao()
     }
 
-    fun provideLegacySyncQueueDao(database: SmartDatabase): com.example.smarty.data.local.SyncQueueDao {
+    fun provideLegacySyncQueueDao(database: SmartyDatabase): com.example.smarty.data.local.SyncQueueDao {
         return database.syncQueueDao()
     }
 
@@ -51,7 +51,7 @@ object DatabaseModule {
     }
 
     fun provideOfflineFirstSyncManager(
-        database: SmartDatabase,
+        database: SmartyDatabase,
         crdtManager: CRDTManager,
     ): OfflineFirstSyncManager {
         return OfflineFirstSyncManager(database, crdtManager)
@@ -64,10 +64,9 @@ object DatabaseModule {
 object RepositoryModule {
 
     fun provideSmartRepository(
-        database: SmartDatabase,
+        database: SmartyDatabase,
         crdtManager: CRDTManager,
         offlineSyncManager: OfflineFirstSyncManager,
-        context: Context,
     ): SmartRepository {
         return SmartRepository(database, crdtManager, offlineSyncManager)
     }

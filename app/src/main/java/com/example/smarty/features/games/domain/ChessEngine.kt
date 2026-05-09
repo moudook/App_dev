@@ -239,7 +239,7 @@ object ChessEngine {
         val kbb = getPcBb(s, pcBbIdx(PT_K, col))
         if (kbb != 0L && !inCheck(s, col)) {
             val ksq = kbb.lsb()
-            val rank = if (col == 0) 0 else 7  // rank 1 or 8
+            val rank = if (col == 0) 7 else 0  // white back rank=7 (row with e1), black back rank=0 (row with e8)
             val baseSq = rank * 8 + 4
             if (ksq == baseSq) {
                 // Kingside
@@ -402,17 +402,17 @@ object ChessEngine {
                  else cr and (CR_ALL xor (CR_BK or CR_BQ))
         }
         if (fromPt == PT_R) {
-            if (from == 56) cr = cr and CR_WK.inv() and 0xF // a1
-            if (from == 63) cr = cr and CR_WQ.inv() and 0xF // h1
-            if (from == 0)  cr = cr and CR_BK.inv() and 0xF // a8
-            if (from == 7)  cr = cr and CR_BQ.inv() and 0xF // h8
+            if (from == 56) cr = cr and CR_WQ.inv() and 0xF // a1 = white queenside rook
+            if (from == 63) cr = cr and CR_WK.inv() and 0xF // h1 = white kingside rook
+            if (from == 0)  cr = cr and CR_BQ.inv() and 0xF // a8 = black queenside rook
+            if (from == 7)  cr = cr and CR_BK.inv() and 0xF // h8 = black kingside rook
         }
         // Captured rook
         if (u.capturedPcIdx == pcBbIdx(PT_R, opp)) {
-            if (u.capturedSq == 56) cr = cr and (0xF xor CR_WK)
-            if (u.capturedSq == 63) cr = cr and (0xF xor CR_WQ)
-            if (u.capturedSq == 0)  cr = cr and (0xF xor CR_BK)
-            if (u.capturedSq == 7)  cr = cr and (0xF xor CR_BQ)
+            if (u.capturedSq == 56) cr = cr and (0xF xor CR_WQ) // a1
+            if (u.capturedSq == 63) cr = cr and (0xF xor CR_WK) // h1
+            if (u.capturedSq == 0)  cr = cr and (0xF xor CR_BQ) // a8
+            if (u.capturedSq == 7)  cr = cr and (0xF xor CR_BK) // h8
         }
         s.cr = cr and 0xF
 

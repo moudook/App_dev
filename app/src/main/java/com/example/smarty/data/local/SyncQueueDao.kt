@@ -185,31 +185,31 @@ interface SyncQueueDao {
     /**
      * Get all conflict records.
      */
-    @Query("SELECT * FROM conflict_archive ORDER BY resolvedAt DESC")
+    @Query("SELECT * FROM conflict_records ORDER BY resolvedAt DESC")
     suspend fun getAllConflicts(): List<ConflictRecord>
 
     /**
      * Get conflict records for a specific entity.
      */
-    @Query("SELECT * FROM conflict_archive WHERE entityId = :entityId ORDER BY resolvedAt DESC")
+    @Query("SELECT * FROM conflict_records WHERE entityId = :entityId ORDER BY resolvedAt DESC")
     suspend fun getConflictsForEntity(entityId: String): List<ConflictRecord>
 
     /**
      * Get count of conflict records.
      */
-    @Query("SELECT COUNT(*) FROM conflict_archive")
+    @Query("SELECT COUNT(*) FROM conflict_records")
     suspend fun getConflictRecordCount(): Int
 
     /**
      * Delete a conflict record by ID.
      */
-    @Query("DELETE FROM conflict_archive WHERE id = :id")
+    @Query("DELETE FROM conflict_records WHERE id = :id")
     suspend fun deleteConflictById(id: String)
 
     /**
      * Clear all conflict records.
      */
-    @Query("DELETE FROM conflict_archive")
+    @Query("DELETE FROM conflict_records")
     suspend fun clearAllConflicts()
 
     // ============================================================================

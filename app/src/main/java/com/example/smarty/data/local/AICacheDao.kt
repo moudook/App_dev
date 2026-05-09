@@ -16,6 +16,7 @@ data class CachedAIResponse(
     @PrimaryKey
     val contentHash: String,
     val jsonResponse: String,
+    val userId: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val expiresAt: Long,
     val lastAccessedAt: Long = System.currentTimeMillis(),

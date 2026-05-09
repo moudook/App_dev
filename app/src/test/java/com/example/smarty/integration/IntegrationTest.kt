@@ -4,7 +4,8 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.example.smarty.data.local.*
+import com.example.smarty.data.local.SmartyDatabase
+import com.example.smarty.data.local.SmartDatabaseDao
 import kotlinx.coroutines.runBlocking
 import org.junit.*
 import org.junit.runner.RunWith
@@ -20,7 +21,7 @@ class IntegrationTest {
     @get:Rule
     val instantTaskExecutorRule = InstantTaskExecutorRule()
 
-    private lateinit var database: SmartDatabase
+    private lateinit var database: SmartyDatabase
     private lateinit var dao: SmartDatabaseDao
     private lateinit var crdtManager: CRDTManager
 
@@ -29,7 +30,7 @@ class IntegrationTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         database = Room.inMemoryDatabaseBuilder(
             context,
-            SmartDatabase::class.java
+            SmartyDatabase::class.java
         ).build()
         dao = database.smartDao()
         crdtManager = CRDTManager()

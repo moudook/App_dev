@@ -13,56 +13,86 @@ import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.ImpressedEntry
 import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.domain.model.NoteVersion
 import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.data.local.NoteStackEntity
+import com.example.smarty.data.local.StackEntity
+import com.example.smarty.data.local.SyncQueueItem
+import com.example.smarty.data.local.ConflictRecord
+import com.example.smarty.data.local.UserEntity
+import com.example.smarty.data.local.SyncStateEntity
+import com.example.smarty.data.local.TagEntity
+import com.example.smarty.data.local.ChatFolderEntity
+import com.example.smarty.data.local.TaskEntity
+import com.example.smarty.data.local.ReasoningTraceEntity
+import com.example.smarty.data.local.ReasoningSummaryEntity
+import com.example.smarty.data.local.AgentCheckpointEntity
+import com.example.smarty.data.local.SearchHistoryEntity
+import com.example.smarty.data.local.UserFcmTokenEntity
+import com.example.smarty.data.local.DailyDigestEntity
+import com.example.smarty.data.local.SharedItemEntity
+import com.example.smarty.data.local.NoteTaskEntity
+import com.example.smarty.data.model.AIMemory
+import com.example.smarty.features.chat.domain.memory.AIMemoryDao
 
 @Database(
     entities = [
+        // ── Core entities ──
         Note::class,
         Category::class,
         ChatSession::class,
         ChatMessageEntity::class,
         ImpressedEntry::class,
         CalendarEvent::class,
-        NoteVersion::class,
         SmartyTimer::class,
         CachedAIResponse::class,
-        com.example.smarty.data.model.AIMemory::class,
+        AIMemory::class,
         SyncQueueItem::class,
         ConflictRecord::class,
         // Junction tables for note relationships (v4.2.0)
         ChatMessageNote::class,
         CalendarEventNote::class,
+
+        // ── Consolidated entities (from SmartDatabase) ──
+        UserEntity::class,
+        SyncStateEntity::class,
+        TagEntity::class,
+        ChatFolderEntity::class,
+        TaskEntity::class,
+        ReasoningTraceEntity::class,
+        ReasoningSummaryEntity::class,
+        AgentCheckpointEntity::class,
+        SearchHistoryEntity::class,
+        UserFcmTokenEntity::class,
+        DailyDigestEntity::class,
+        SharedItemEntity::class,
+        NoteTagEntity::class,
+        NoteTaskEntity::class,
+        NoteVersionEntity::class, // for SmartDatabaseDao (note_versions_ext)
+        // Stacks (Phase 1B)
+        StackEntity::class,
+        NoteStackEntity::class,
     ],
-    version = 38, // PERFORMANCE: Comprehensive database indices for 100-1000x faster queries
+    version = 39,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class SmartyDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
-
     abstract fun categoryDao(): CategoryDao
-
     abstract fun chatDao(): ChatDao
-
     abstract fun impressedLogDao(): ImpressedLogDao
-
     abstract fun calendarDao(): CalendarDao
-
     abstract fun noteVersionDao(): NoteVersionDao
-
     abstract fun timerDao(): TimerDao
-
     abstract fun aiCacheDao(): AICacheDao
-
-    abstract fun aiMemoryDao(): com.example.smarty.features.chat.domain.memory.AIMemoryDao
-
+    abstract fun aiMemoryDao(): AIMemoryDao
     abstract fun syncQueueDao(): SyncQueueDao
-
     // Junction table DAOs (v4.2.0)
     abstract fun chatMessageNotesDao(): ChatMessageNotesDao
-
     abstract fun calendarEventNotesDao(): CalendarEventNotesDao
+
+    // ── Consolidated DAOs (from SmartDatabaseDao) ──
+    abstract fun smartDao(): SmartDatabaseDao
 
     companion object {
         private const val TAG = "SmartyDatabase"
@@ -74,18 +104,8 @@ abstract class SmartyDatabase : RoomDatabase() {
         @Volatile
         private var ftsVersion: Int? = null
 
-        /**
-         * Check if FTS is available and which version.
-         * @return 5 for FTS5, 4 for FTS4, 0 if neither is available
-         */
         fun getFtsVersion(): Int = ftsVersion ?: 0
 
-        /**
-         * Callback to ensure FTS table exists.
-         * FTS tables are defined in migrations but NOT as Room entities,
-         * so they don't get created on fresh database creation (only on migration).
-         * This callback ensures the FTS table exists whenever the database is opened.
-         */
         private val databaseCallback =
             object : RoomDatabase.Callback() {
                 override fun onOpen(db: SupportSQLiteDatabase) {
@@ -95,19 +115,16 @@ abstract class SmartyDatabase : RoomDatabase() {
 
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    // For fresh installs, create the FTS table immediately
                     createFtsTable(db)
                 }
 
                 private fun ensureFtsTableExists(db: SupportSQLiteDatabase) {
                     try {
-                        // Check if notes_fts table exists
                         val cursor =
                             db.query(
                                 "SELECT name FROM sqlite_master WHERE type='table' AND name='notes_fts'",
                             )
                         val exists = cursor.use { it.count > 0 }
-
                         if (!exists) {
                             Log.w(TAG, "FTS table missing - creating it now")
                             createFtsTable(db)
@@ -118,7 +135,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                 }
 
                 private fun createFtsTable(db: SupportSQLiteDatabase) {
-                    // Try FTS5 first, fall back to FTS4 if not available
                     if (tryCreateFts5Table(db)) {
                         ftsVersion = 5
                         Log.i(TAG, "FTS5 table created/verified successfully")
@@ -131,16 +147,9 @@ abstract class SmartyDatabase : RoomDatabase() {
                     }
                 }
 
-                /**
-                 * Try to create FTS5 table (preferred, better ranking with bm25).
-                 * @return true if successful, false if FTS5 not available
-                 */
                 private fun tryCreateFts5Table(db: SupportSQLiteDatabase): Boolean {
                     return try {
-                        // Drop existing table/triggers if switching versions
                         dropFtsTableAndTriggers(db)
-
-                        // Create FTS5 virtual table for fast text search
                         db.execSQL(
                             """
                         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
@@ -152,16 +161,12 @@ abstract class SmartyDatabase : RoomDatabase() {
                         )
                     """,
                         )
-
-                        // Populate FTS table with existing data
                         db.execSQL(
                             """
                         INSERT OR IGNORE INTO notes_fts(rowid, title, content, summary)
                         SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
                     """,
                         )
-
-                        // Create triggers to keep FTS table in sync (FTS5 syntax)
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
@@ -170,7 +175,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN
@@ -179,7 +183,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN
@@ -190,7 +193,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         true
                     } catch (e: Exception) {
                         Log.w(TAG, "FTS5 not available: ${e.message}")
@@ -198,16 +200,9 @@ abstract class SmartyDatabase : RoomDatabase() {
                     }
                 }
 
-                /**
-                 * Try to create FTS4 table (fallback for older SQLite versions).
-                 * @return true if successful, false if FTS4 not available
-                 */
                 private fun tryCreateFts4Table(db: SupportSQLiteDatabase): Boolean {
                     return try {
-                        // Drop existing table/triggers if switching versions
                         dropFtsTableAndTriggers(db)
-
-                        // Create FTS4 virtual table (different syntax than FTS5)
                         db.execSQL(
                             """
                         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts4(
@@ -218,16 +213,12 @@ abstract class SmartyDatabase : RoomDatabase() {
                         )
                     """,
                         )
-
-                        // Populate FTS table with existing data
                         db.execSQL(
                             """
                         INSERT OR IGNORE INTO notes_fts(rowid, title, content, summary)
                         SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
                     """,
                         )
-
-                        // Create triggers to keep FTS table in sync (FTS4 syntax - different from FTS5)
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
@@ -236,7 +227,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN
@@ -244,7 +234,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         db.execSQL(
                             """
                         CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN
@@ -254,7 +243,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         END
                     """,
                         )
-
                         true
                     } catch (e: Exception) {
                         Log.e(TAG, "FTS4 also not available: ${e.message}")
@@ -262,9 +250,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                     }
                 }
 
-                /**
-                 * Drop existing FTS table and triggers (for version switching).
-                 */
                 private fun dropFtsTableAndTriggers(db: SupportSQLiteDatabase) {
                     try {
                         db.execSQL("DROP TRIGGER IF EXISTS notes_fts_ai")
@@ -324,14 +309,15 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_34_35,
                             Migrations.MIGRATION_35_36,
                             Migrations.MIGRATION_36_37,
-                            Migrations.MIGRATION_37_38
+                            Migrations.MIGRATION_37_38,
+                            // Consolidated migration: adds new tables from SmartDatabase
+                            Migrations.MIGRATION_38_39,
                         )
-                        .fallbackToDestructiveMigration()
+                        // Explicit error handling instead of destructive migration
                         .build()
                 INSTANCE = instance
                 instance
             }
         }
     }
-
 }

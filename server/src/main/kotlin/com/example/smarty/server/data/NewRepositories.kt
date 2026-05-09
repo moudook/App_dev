@@ -773,17 +773,16 @@ class NoteVersionRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    INSERT INTO note_versions (id, note_id, user_id, title, content, version_no, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, now())
+                    INSERT INTO note_versions (id, note_id, title, content, version_no, created_at)
+                    VALUES (?, ?, ?, ?, ?, now())
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(version.id))
                     stmt.setObject(2, UUID.fromString(version.noteId))
-                    stmt.setObject(3, UUID.fromString(version.userId))
-                    stmt.setString(4, version.title)
-                    stmt.setString(5, version.content)
-                    stmt.setInt(6, version.versionNo)
+                    stmt.setString(3, version.title)
+                    stmt.setString(4, version.content)
+                    stmt.setInt(5, version.versionNo)
                     stmt.executeUpdate()
                 }
             }
@@ -814,7 +813,6 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                                 NoteVersion(
                                     id = rs.getObject("id").toString(),
                                     noteId = rs.getObject("note_id").toString(),
-                                    userId = rs.getObject("user_id").toString(),
                                     title = rs.getString("title"),
                                     content = rs.getString("content"),
                                     versionNo = rs.getInt("version_no"),
@@ -839,7 +837,6 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                             NoteVersion(
                                 id = rs.getObject("id").toString(),
                                 noteId = rs.getObject("note_id").toString(),
-                                userId = rs.getObject("user_id").toString(),
                                 title = rs.getString("title"),
                                 content = rs.getString("content"),
                                 versionNo = rs.getInt("version_no"),

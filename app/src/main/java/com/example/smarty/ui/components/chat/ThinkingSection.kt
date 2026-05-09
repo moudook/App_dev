@@ -89,18 +89,13 @@ internal fun sanitizeThinking(text: String): String {
     if (text.isBlank()) return text
     var s = extractReasoningText(text)
     if (s.isBlank()) return ""
-    s = s.replace(SanitisePatterns.xmlToolBlocks, "")
-    s = s.replace(SanitisePatterns.xmlToolUse, "")
     s = s.replace(SanitisePatterns.toolCallId, "")
-    s = s.replace(SanitisePatterns.toolIdField, "")
     s = s.replace(SanitisePatterns.traceMarkers, "")
-    s = s.replace(SanitisePatterns.functionCall, "")
     s = s.replace(SanitisePatterns.sqlStatement, "")
     s = s.replace(SanitisePatterns.schemaFile, "")
     s = s.replace(SanitisePatterns.systemPrompt, "")
     s = s.replace(SanitisePatterns.medicalPrompt, "")
     s = s.replace(SanitisePatterns.thinkTags, "")
-    s = s.replace(SanitisePatterns.jsonOnlyLines, "")
     s = s.replace(Regex("""\n{3,}"""), "\n\n")
     s = s.replace(Regex("""^\s*\n""", RegexOption.MULTILINE), "")
     return s.trim()
@@ -564,7 +559,6 @@ private fun sanitizeDisplayName(raw: String, fallback: String): String {
 private fun sanitizeDetailText(text: String): String {
     var s = text
     s = s.replace(SanitisePatterns.toolCallId, "")
-    s = s.replace(SanitisePatterns.toolIdField, "")
     s = s.replace(SanitisePatterns.traceMarkers, "")
     s = s.replace(SanitisePatterns.thinkTags, "")
     s = s.replace(Regex("""\n{3,}"""), "\n\n")

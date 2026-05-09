@@ -14,7 +14,9 @@ import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.StackRepository
 import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.Stack
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.plugins.firebaseUser
@@ -124,6 +126,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
     val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
+    val stackRepository = dataSource?.let { StackRepository(it) }
 
     routing {
         // Authenticated routes
@@ -1066,8 +1069,187 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 )
             }
         }
-    }
-}
+
+        // ────────────────────────────────────────────────────────────────────────────
+        // STACKS ROUTES (stacks + note_stacks junction)
+        // ────────────────────────────────────────────────────────────────────────────
+
+        /**
+         * POST /stacks
+         * Create a new stack.
+         */
+        post("/stacks") {
+            val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+
+            try {
+                val stack = call.receive<com.example.smarty.server.data.Stack>()
+                val id = stackRepository?.createStack(stack.copy(userId = userId)) ?: throw IllegalStateException("Stack repository unavailable")
+                call.respond(HttpStatusCode.OK, mapOf("id" to id, "success" to true))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to create stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * GET /stacks
+         * List all stacks for current user.
+         */
+        get("/stacks") {
+            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+
+            try {
+                val stacks = stackRepository?.getStacksForUser(userId) ?: emptyList()
+                call.respond(HttpStatusCode.OK, mapOf("stacks" to stacks, "count" to stacks.size))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to list stacks", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * GET /stacks/{stackId}
+         * Get a single stack by ID.
+         */
+        get("/stacks/{stackId}") {
+            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@get call.respond(HttpStatusCode.BadRequest, "stackId required")
+
+            try {
+                val stack = stackRepository?.getStackById(stackId)
+                if (stack == null || stack.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                } else {
+                    call.respond(HttpStatusCode.OK, stack)
+                }
+            } catch (e: Exception) {
+                call.application.log.error("Failed to get stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * PUT /stacks/{stackId}
+         * Update a stack.
+         */
+        put("/stacks/{stackId}") {
+            val user = call.firebaseUser() ?: return@put call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@put call.respond(HttpStatusCode.BadRequest, "stackId required")
+
+            try {
+                val stack = call.receive<com.example.smarty.server.data.Stack>()
+                val existing = stackRepository?.getStackById(stackId)
+                if (existing == null || existing.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                    return@put
+                }
+                val updated = stackRepository.updateStack(stack.copy(id = stackId, userId = userId))
+                call.respond(HttpStatusCode.OK, mapOf("success" to updated))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to update stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * DELETE /stacks/{stackId}
+         * Delete a stack.
+         */
+        delete("/stacks/{stackId}") {
+            val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "stackId required")
+
+            try {
+                val existing = stackRepository?.getStackById(stackId)
+                if (existing == null || existing.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                    return@delete
+                }
+                val deleted = stackRepository.deleteStack(stackId)
+                call.respond(HttpStatusCode.OK, mapOf("success" to deleted))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to delete stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * POST /stacks/{stackId}/notes/{noteId}
+         * Add a note to a stack.
+         */
+        post("/stacks/{stackId}/notes/{noteId}") {
+            val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@post call.respond(HttpStatusCode.BadRequest, "stackId required")
+            val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest, "noteId required")
+
+            try {
+                val stack = stackRepository?.getStackById(stackId)
+                if (stack == null || stack.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                    return@post
+                }
+                val added = stackRepository.addNoteToStack(noteId, stackId)
+                call.respond(HttpStatusCode.OK, mapOf("success" to added))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to add note to stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * DELETE /stacks/{stackId}/notes/{noteId}
+         * Remove a note from a stack.
+         */
+        delete("/stacks/{stackId}/notes/{noteId}") {
+            val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "stackId required")
+            val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "noteId required")
+
+            try {
+                val stack = stackRepository?.getStackById(stackId)
+                if (stack == null || stack.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                    return@delete
+                }
+                val removed = stackRepository.removeNoteFromStack(noteId, stackId)
+                call.respond(HttpStatusCode.OK, mapOf("success" to removed))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to remove note from stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+
+        /**
+         * GET /stacks/{stackId}/notes
+         * List all notes in a stack.
+         */
+        get("/stacks/{stackId}/notes") {
+            val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+            val userId = user.userId
+            val stackId = call.parameters["stackId"] ?: return@get call.respond(HttpStatusCode.BadRequest, "stackId required")
+
+            try {
+                val stack = stackRepository?.getStackById(stackId)
+                if (stack == null || stack.userId != userId) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Stack not found"))
+                    return@get
+                }
+                val noteIds = stackRepository.getNotesForStack(stackId)
+                call.respond(HttpStatusCode.OK, mapOf("stackId" to stackId, "noteIds" to noteIds, "count" to noteIds.size))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to list notes in stack", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
+        }
+     }
+ }
 
 @Serializable
 data class InterruptRequest(

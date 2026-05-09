@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -105,6 +106,7 @@ import androidx.compose.ui.text.SpanStyle
 import com.example.smarty.ui.components.chat.ThinkingSection
 import com.example.smarty.ui.components.chat.ThinkingDots
 import com.example.smarty.ui.components.chat.TextEffectPerWord
+import com.example.smarty.ui.components.chat.CitationCards
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -326,31 +328,33 @@ fun ChatMessageItem(
                     }
                     
 // MAIN CONTENT - Shows BELOW thinking (Smarty style)
-                     if (message.content.isNotEmpty()) {
-                         val rawContent = if (isUser) message.content else cleanContent(message.content)
-                         val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
-                         
-                         if (parsedAccordion.accordions.isNotEmpty()) {
-                             com.example.smarty.ui.components.chat.AccordionResponse(
-                                 parsedContent = parsedAccordion,
-                                 modifier = Modifier.fillMaxWidth()
-                             )
-} else {
-                              TextEffectPerWord(
-                                  text = rawContent,
-                                  textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                      fontFamily = FontFamily.SansSerif,
-                                      fontSize = 16.sp,
-                                      lineHeight = 22.sp,
-                                      fontWeight = FontWeight.Medium,
-                                      letterSpacing = 0.sp
-                                  ),
-                                  normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                                  boldColor = MaterialTheme.colorScheme.onSurface,
-                                  linkColor = accentColor,
-                                  codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                      if (message.content.isNotEmpty()) {
+                          val rawContent = if (isUser) message.content else cleanContent(message.content)
+                          val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
+
+                          if (parsedAccordion.accordions.isNotEmpty()) {
+                              com.example.smarty.ui.components.chat.AccordionResponse(
+                                  parsedContent = parsedAccordion,
+                                  modifier = Modifier.fillMaxWidth()
                               )
-                          }
+} else {
+                               TextEffectPerWord(
+                                   text = rawContent,
+                                   textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                       fontFamily = FontFamily.SansSerif,
+                                       fontSize = 16.sp,
+                                       lineHeight = 22.sp,
+                                       fontWeight = FontWeight.Medium,
+                                       letterSpacing = 0.sp
+                                   ),
+                                   normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                   boldColor = MaterialTheme.colorScheme.onSurface,
+                                   linkColor = accentColor,
+                                   codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                   codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                                   codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                               )
+                           }
 
                         // Krea Image Generation direct inline display
                         val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
@@ -362,27 +366,30 @@ fun ChatMessageItem(
                                 else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
                             }
 
-                            // The URL might be stored in outputSummary once available
+                            // Extract image URL cleanly from outputSummary without polluting the text content
                             val imageUrl = generateImageCall.outputSummary?.let { summary ->
                                 android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
-                                if (summary.startsWith("http")) summary
-                                else if (summary.startsWith("{") && summary.contains("\"url\"")) {
-                                    // Robust extraction of url from JSON string without adding heavy dependencies
-                                    val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
-                                    android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
-                                    extracted
-                                } else {
-                                    android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
-                                    null
+                                when {
+                                    summary.startsWith("http") -> summary
+                                    summary.startsWith("{") && summary.contains("\"url\"") -> {
+                                        // Robust extraction of url from JSON string
+                                        val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
+                                        android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
+                                        extracted
+                                    }
+                                    else -> {
+                                        android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
+                                        null
+                                    }
                                 }
                             }
                             android.util.Log.d("ChatMessageItem", "Final imageUrl: $imageUrl")
-                            
+
                             com.example.smarty.ui.components.krea.ImageGenerationCard(
                                 state = state,
-                                mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true)) 
+                                mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true))
                                     com.example.smarty.ui.components.krea.ImageGenMode.Direct
-                                else 
+                                else
                                     com.example.smarty.ui.components.krea.ImageGenMode.Agent,
                                 prompt = generateImageCall.inputSummary ?: message.content.takeIf { it.isNotBlank() } ?: "Generating image...",
                                 imageUrl = imageUrl,
@@ -524,6 +531,18 @@ fun ChatMessageItem(
                                 )
                             }
                         }
+                    }
+
+                    // Citations as bottom horizontal cards
+                    if (!isUser && message.hasCitations) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        com.example.smarty.ui.components.chat.CitationCards(
+                            citations = message.citations,
+                            accentColor = accentColor,
+                            onCitationClick = { url -> 
+                                // TODO: open URL in browser
+                            }
+                        )
                     }
                     } // end if (message.content.isNotEmpty())
                 } // end if !isUser
@@ -742,11 +761,6 @@ if (isUser) {
                 // Context (Time on Right)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (message.hasCitations) {
-                        CitationsInline(
-                            citations = message.citations,
-                            accentColor = accentColor
-                        )
-
                         val serverConfidence = message.confidence
                         val sourceCount = message.citations.size
                         val confidenceColor = when (serverConfidence) {
@@ -806,251 +820,6 @@ if (isUser) {
                         fontSize = 11.sp
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CitationsInline(
-    citations: List<Citation>,
-    accentColor: Color
-) {
-    var showSelectionPopup by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
-
-    Surface(
-        onClick = { showSelectionPopup = true },
-        shape = RoundedCornerShape(50),
-        color = accentColor.copy(alpha = 0.1f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f)),
-        modifier = Modifier.height(28.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = stringResource(R.string.sources_count, citations.size),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.5.sp
-                ),
-                color = accentColor
-            )
-        }
-    }
-
-    if (showSelectionPopup) {
-        Popup(
-            alignment = Alignment.Center,
-            onDismissRequest = { showSelectionPopup = false },
-            properties = PopupProperties(
-                focusable = true,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = true
-            )
-        ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 16.dp,
-                modifier = Modifier
-                    .widthIn(min = 300.dp, max = 360.dp)
-                    .heightIn(max = 520.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 20.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = accentColor.copy(alpha = 0.1f),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = stringResource(R.string.sources),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    letterSpacing = (-0.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = stringResource(R.string.references_found, citations.size),
-                                style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(bottom = 20.dp)
-                    )
-
-                    Column(
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        citations.forEachIndexed { index, citation ->
-                            SourceCard(
-                                citation = citation,
-                                index = index + 1,
-                                onClick = {
-                                    try {
-                                        uriHandler.openUri(citation.url)
-                                        showSelectionPopup = false
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Failed to open citation URL: ${citation.url}", e)
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Text(
-                        text = stringResource(R.string.tap_outside_to_close),
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SourceCard(
-    citation: Citation,
-    index: Int,
-    onClick: () -> Unit
-) {
-    val domain = try {
-        java.net.URI(citation.url).host?.removePrefix("www.") ?: "link"
-    } catch (e: Exception) { "link" }
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .softCardShadow(shape = RoundedCornerShape(24.dp))
-            .zIndex(1f)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.Top) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = index.toString(),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = citation.title.ifBlank { stringResource(R.string.untitled_source) }.lowercase(),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp,
-                        letterSpacing = 0.1.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Launch,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = domain,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-            }
-
-            if (citation.snippet.isNotBlank()) {
-                 Text(
-                    text = citation.snippet,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }

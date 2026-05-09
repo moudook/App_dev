@@ -697,11 +697,11 @@ object Migrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_queue_status ON sync_queue(status)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_queue_createdAt ON sync_queue(createdAt)")
 
-                // Create conflict_archive table for tracking resolved conflicts
+                // Create conflict_records table for tracking resolved conflicts
                 db.execSQL(
                     """
-                CREATE TABLE IF NOT EXISTS conflict_archive (
-                    id TEXT PRIMARY KEY NOT NULL,
+                CREATE TABLE IF NOT EXISTS conflict_records (
+                    id TEXT NOT NULL PRIMARY KEY,
                     entityId TEXT NOT NULL,
                     entityType TEXT NOT NULL,
                     localPayloadJson TEXT NOT NULL,
@@ -714,9 +714,9 @@ object Migrations {
             """,
                 )
 
-                // Indices for conflict archive queries
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_archive_entityId ON conflict_archive(entityId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_archive_resolvedAt ON conflict_archive(resolvedAt)")
+                // Indices for conflict records queries
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_records_entityId ON conflict_records(entityId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_records_resolvedAt ON conflict_records(resolvedAt)")
             }
         }
 
@@ -916,6 +916,326 @@ object Migrations {
                     "CREATE INDEX IF NOT EXISTS index_chat_sessions_updatedAt_isActive " +
                         "ON chat_sessions(updatedAt, isActive)",
                 )
+            }
+        }
+
+    /**
+     * Migration 38 → 39: DB CONSOLIDATION
+     * Merges SmartDatabase tables into SmartyDatabase.
+     * Adds: users, sync_state, tags, note_tags, chat_folders, tasks, note_tasks,
+     * reasoning_traces, reasoning_summaries, agent_checkpoints, search_history,
+     * user_fcm_tokens, daily_digests, shared_items, stacks, note_stacks.
+     */
+    val MIGRATION_38_39 =
+        object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // ── Users table ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        firebase_uid TEXT NOT NULL,
+                        email TEXT,
+                        display_name TEXT,
+                        avatar_url TEXT,
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        is_premium INTEGER NOT NULL DEFAULT 0,
+                        subscription_expires_at INTEGER,
+                        sync_state TEXT NOT NULL DEFAULT 'PENDING',
+                        device_fingerprint TEXT,
+                        last_device_id TEXT,
+                        feature_flags TEXT NOT NULL DEFAULT '{}',
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        last_login_at INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)")
+
+                // ── Sync state table ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sync_state (
+                        user_id TEXT NOT NULL PRIMARY KEY,
+                        last_sync_at INTEGER,
+                        last_pull_at INTEGER,
+                        last_push_at INTEGER,
+                        pending_operations INTEGER NOT NULL DEFAULT 0,
+                        conflict_count INTEGER NOT NULL DEFAULT 0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+
+                // ── Tags table ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tags (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        color TEXT NOT NULL DEFAULT '#6200EE',
+                        usage_count INTEGER NOT NULL DEFAULT 0,
+                        tag_type TEXT NOT NULL DEFAULT 'MANUAL',
+                        confidence_score REAL NOT NULL DEFAULT 1.0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_tags_user_name ON tags(user_id, name)")
+
+                // ── Note tags junction ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS note_tags (
+                        note_id TEXT NOT NULL,
+                        tag_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        assigned_by TEXT NOT NULL DEFAULT 'user',
+                        confidence_score REAL NOT NULL DEFAULT 1.0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY (note_id, tag_id),
+                        FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
+                        FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_user ON note_tags(user_id)")
+
+                // ── Chat folders ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS chat_folders (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        color TEXT NOT NULL DEFAULT '#6200EE',
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_chat_folders_user ON chat_folders(user_id)")
+
+                // ── Tasks ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        session_id TEXT,
+                        note_id TEXT,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        status TEXT NOT NULL DEFAULT 'TODO',
+                        priority INTEGER NOT NULL DEFAULT 2,
+                        due_date INTEGER,
+                        completed_at INTEGER,
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        is_recurring INTEGER NOT NULL DEFAULT 0,
+                        recurrence_rule TEXT,
+                        metadata TEXT NOT NULL DEFAULT '{}',
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        deleted_at INTEGER,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
+
+                // ── Note tasks junction ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS note_tasks (
+                        note_id TEXT NOT NULL,
+                        task_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY (note_id, task_id),
+                        FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
+                        FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tasks_note ON note_tasks(note_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tasks_task ON note_tasks(task_id)")
+
+                // ── Reasoning traces ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS reasoning_traces (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        session_id TEXT NOT NULL,
+                        message_id TEXT,
+                        user_id TEXT NOT NULL,
+                        step_index INTEGER NOT NULL,
+                        step_type TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        entity_type TEXT,
+                        entity_id TEXT,
+                        input_data TEXT,
+                        output_data TEXT,
+                        confidence_score REAL NOT NULL DEFAULT 0.5,
+                        importance_score REAL NOT NULL DEFAULT 0.5,
+                        is_final INTEGER NOT NULL DEFAULT 0,
+                        was_revised INTEGER NOT NULL DEFAULT 0,
+                        revised_by_trace_id TEXT,
+                        token_count INTEGER NOT NULL DEFAULT 0,
+                        duration_ms INTEGER NOT NULL DEFAULT 0,
+                        metadata TEXT NOT NULL DEFAULT '{}',
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_user ON reasoning_traces(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_session ON reasoning_traces(session_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_entity ON reasoning_traces(entity_type, entity_id)")
+
+                // ── Reasoning summaries ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS reasoning_summaries (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        session_id TEXT NOT NULL,
+                        message_id TEXT,
+                        user_id TEXT NOT NULL,
+                        one_liner TEXT NOT NULL,
+                        brief_summary TEXT NOT NULL,
+                        detailed_summary TEXT NOT NULL,
+                        total_steps INTEGER NOT NULL DEFAULT 0,
+                        total_duration_ms INTEGER NOT NULL DEFAULT 0,
+                        total_tokens INTEGER NOT NULL DEFAULT 0,
+                        confidence_score REAL NOT NULL DEFAULT 0.5,
+                        complexity_score REAL NOT NULL DEFAULT 0.5,
+                        reasoning_type TEXT,
+                        tags TEXT NOT NULL DEFAULT '[]',
+                        linked_entities TEXT NOT NULL DEFAULT '[]',
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_summary_user ON reasoning_summaries(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_summary_session ON reasoning_summaries(session_id)")
+
+                // ── Agent checkpoints ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS agent_checkpoints (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        session_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        workflow_id TEXT,
+                        state_json TEXT NOT NULL,
+                        context_json TEXT,
+                        memory_json TEXT,
+                        version INTEGER NOT NULL DEFAULT 1,
+                        checkpoint_type TEXT NOT NULL DEFAULT 'MANUAL',
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_checkpoint_user ON agent_checkpoints(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_checkpoint_session ON agent_checkpoints(session_id)")
+
+                // ── Search history ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS search_history (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        query TEXT NOT NULL,
+                        search_scope TEXT NOT NULL DEFAULT 'all',
+                        result_count INTEGER NOT NULL DEFAULT 0,
+                        entities_found TEXT NOT NULL DEFAULT '[]',
+                        search_type TEXT NOT NULL DEFAULT 'TEXT',
+                        ai_enhanced INTEGER NOT NULL DEFAULT 0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_search_user ON search_history(user_id)")
+
+                // ── User FCM tokens ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        token TEXT NOT NULL,
+                        device_name TEXT,
+                        device_id TEXT,
+                        platform TEXT NOT NULL DEFAULT 'android',
+                        last_used_at INTEGER NOT NULL DEFAULT 0,
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_fcm_user ON user_fcm_tokens(user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_fcm_token ON user_fcm_tokens(token)")
+
+                // ── Daily digests ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS daily_digests (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        digest_date INTEGER NOT NULL,
+                        digest_type TEXT NOT NULL DEFAULT 'DAILY',
+                        content TEXT NOT NULL,
+                        notification_sent INTEGER NOT NULL DEFAULT 0,
+                        calendar_event_id TEXT,
+                        linked_note_ids TEXT NOT NULL DEFAULT '[]',
+                        generated_by_ai INTEGER NOT NULL DEFAULT 1,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_digest_user ON daily_digests(user_id)")
+
+                // ── Shared items ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS shared_items (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        owner_id TEXT NOT NULL,
+                        shared_with_id TEXT,
+                        item_type TEXT NOT NULL,
+                        item_id TEXT NOT NULL,
+                        permission TEXT NOT NULL DEFAULT 'VIEW',
+                        share_token TEXT,
+                        expires_at INTEGER,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_shared_owner ON shared_items(owner_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_shared_token ON shared_items(share_token)")
+
+                // ── Stacks (Phase 1B) ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS stacks (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        color TEXT NOT NULL DEFAULT '#03DAC6',
+                        icon TEXT NOT NULL DEFAULT 'stack',
+                        parent_id TEXT,
+                        note_count INTEGER NOT NULL DEFAULT 0,
+                        created_at INTEGER NOT NULL DEFAULT 0,
+                        updated_at INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_stacks_user ON stacks(user_id)")
+
+                // ── Note-stacks junction ──
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS note_stacks (
+                        note_id TEXT NOT NULL,
+                        stack_id TEXT NOT NULL,
+                        PRIMARY KEY (note_id, stack_id),
+                        FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
+                        FOREIGN KEY(stack_id) REFERENCES stacks(id) ON DELETE CASCADE
+                    )
+                """)
             }
         }
 }

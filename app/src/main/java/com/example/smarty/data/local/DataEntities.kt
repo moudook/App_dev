@@ -40,46 +40,92 @@ data class TagEntity(
     
     @ColumnInfo(name = "confidence_score")
     val confidenceScore: Double = 1.0,
-    
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
-    
+
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     enum class TagType {
-        CATEGORY, TAG, AUTO, MANUAL, AI
+        MANUAL, AUTO, AI
     }
 }
 
 // ============================================================
-// NOTE_TAGS - Junction table for notes and tags
+// STACKS - Note organization stacks
 // ============================================================
+@Entity(
+    tableName = "stacks",
+    indices = [
+        Index(value = ["user_id"], unique = false),
+        Index(value = ["name"], unique = false),
+    ],
+)
+data class StackEntity(
+    @PrimaryKey
+    val id: String,
+
+    @ColumnInfo(name = "user_id")
+    val userId: String,
+
+    val name: String,
+    val description: String? = null,
+    val color: String = "#03DAC6",
+    val icon: String = "stack",
+
+    @ColumnInfo(name = "parent_id")
+    val parentId: String? = null,
+
+    @ColumnInfo(name = "note_count")
+    val noteCount: Int = 0,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "note_stacks",
+    primaryKeys = ["note_id", "stack_id"],
+    indices = [
+        Index(value = ["note_id"], unique = false),
+        Index(value = ["stack_id"], unique = false),
+    ],
+)
+data class NoteStackEntity(
+    @ColumnInfo(name = "note_id")
+    val noteId: String,
+
+    @ColumnInfo(name = "stack_id")
+    val stackId: String,
+)
 @Entity(
     tableName = "note_tags",
     primaryKeys = ["note_id", "tag_id"],
     indices = [
-        Index(value = ["note_id"]),
-        Index(value = ["tag_id"]),
-        Index(value = ["user_id"]),
+        Index(value = ["note_id"], unique = false),
+        Index(value = ["tag_id"], unique = false),
     ],
 )
 data class NoteTagEntity(
     @ColumnInfo(name = "note_id")
     val noteId: String,
-    
+
     @ColumnInfo(name = "tag_id")
     val tagId: String,
-    
+
     @ColumnInfo(name = "user_id")
     val userId: String,
-    
+
     @ColumnInfo(name = "assigned_by")
     val assignedBy: String = "user",
-    
+
     @ColumnInfo(name = "confidence_score")
     val confidenceScore: Double = 1.0,
-    
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 )
@@ -581,10 +627,9 @@ data class SharedItemEntity(
 // NOTE_VERSIONS - Git-like note versioning
 // ============================================================
 @Entity(
-    tableName = "note_versions_ext",
+    tableName = "note_versions",
     indices = [
         Index(value = ["note_id"], unique = false),
-        Index(value = ["user_id"], unique = false),
         Index(value = ["version_no"], unique = false),
         Index(value = ["created_at"], unique = false),
     ],
@@ -595,9 +640,6 @@ data class NoteVersionEntity(
     
     @ColumnInfo(name = "note_id")
     val noteId: String,
-    
-    @ColumnInfo(name = "user_id")
-    val userId: String,
     
     val title: String,
     

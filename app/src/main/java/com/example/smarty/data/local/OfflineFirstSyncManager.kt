@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Handles bidirectional sync between Room and Supabase
  */
 class OfflineFirstSyncManager(
-    private val database: SmartDatabase,
+    private val database: SmartyDatabase,
     private val crdtManager: CRDTManager,
 ) {
     private val syncScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
