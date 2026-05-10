@@ -298,10 +298,10 @@ class ChatRepository(
      */
     suspend fun shouldPersistSession(sessionId: String): Boolean {
         val messageCount = chatDao.getMessageCountForSession(sessionId)
-        val smartyCount = chatDao.getSmartyMessageCount(sessionId)
 
-        // Need at least one user message and one Smarty response
-        return messageCount >= MIN_MESSAGES_TO_SAVE && smartyCount >= 1
+        // Keep any session that has at least one message (user or smarty)
+        // This prevents deletion on errors (e.g. 500) if the user message was saved.
+        return messageCount > 0
     }
 
     /**

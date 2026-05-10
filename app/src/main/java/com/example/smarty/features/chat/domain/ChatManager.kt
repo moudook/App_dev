@@ -153,7 +153,8 @@ class ChatManager(
 
         scope.launch {
             _currentSessionId.value?.let { sessionId ->
-                if (_chatMessages.value.isEmpty()) {
+                // Check if session is worth keeping using the repository's relaxed logic
+                if (!chatRepository.shouldPersistSession(sessionId)) {
                     chatRepository.deleteSession(sessionId)
                     Log.d(TAG, "Deleted empty session on exit: $sessionId")
                 } else {
@@ -422,8 +423,11 @@ class ChatManager(
         lastApiCallSuccessful = false
     }
 
-    fun shouldSaveChat(): Boolean {
+    fun shouldSaveChat(isUserMessage: Boolean = false): Boolean {
         if (_currentSessionId.value == null) return false
+        // Always allow saving user messages
+        if (isUserMessage) return true
+        // Only save assistant messages if the API call was successful
         if (!lastApiCallSuccessful) return false
         return true
     }
@@ -470,14 +474,20 @@ class ChatManager(
                     Log.w(TAG, "saveMessagePair: currentSessionId is null. Cannot save message pair.")
                 }
                 _currentSessionId.value?.let { sessionId ->
-                    val saveAllowed = shouldSaveChat()
-                    Log.d(TAG, "saveMessagePair: Invoking chatRepository.saveMessagePair. sessionId: $sessionId, shouldSave: $saveAllowed")
-                    chatRepository.saveMessagePair(
-                        sessionId = sessionId,
-                        userMessage = userMessage,
-                        smartyMessage = smartyMessage,
-                        shouldSave = saveAllowed,
-                    )
+                    val userSaveAllowed = shouldSaveChat(isUserMessage = true)
+                    val smartySaveAllowed = shouldSaveChat(isUserMessage = false)
+                    
+                    Log.d(TAG, "saveMessagePair: Invoking repository. sessionId: $sessionId, userSave: $userSaveAllowed, smartySave: $smartySaveAllowed")
+                    
+                    // Save user message if allowed and has content
+                    if (userSaveAllowed && userMessage.content.isNotBlank()) {
+                        chatRepository.saveMessage(sessionId, userMessage)
+                    }
+                    
+                    // Save Smarty response only if allowed and has content/actions
+                    if (smartySaveAllowed) {
+                        chatRepository.saveMessage(sessionId, smartyMessage)
+                    }
                 }
                 Log.d(TAG, "saveMessagePair: Completed successfully.")
                 Result.success(Unit)
