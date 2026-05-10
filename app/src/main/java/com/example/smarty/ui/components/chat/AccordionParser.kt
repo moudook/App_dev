@@ -7,7 +7,7 @@ package com.example.smarty.ui.components.chat
  * The format is unique and won't conflict with existing markdown.
  */
 object AccordionParser {
-    private val SECTION_PATTERN = Regex("(\\[\\[\\[([^\\]]*?)\\]\\])")
+    private val SECTION_PATTERN = Regex("\\[\\[\\[(.*?)\\]\\]\\]")
     
     data class AccordionSection(
         val title: String,
@@ -33,7 +33,7 @@ object AccordionParser {
         
         matches.forEachIndexed { index, matchResult ->
             val startIndex = matchResult.range.first
-            val title = matchResult.groupValues[2]
+            val title = matchResult.groupValues[1]
             
             val contentStart = matchResult.range.last + 1
             val nextMatch = matches.getOrNull(index + 1)

@@ -32,6 +32,7 @@ fun TextEffectPerWord(
     codeColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
     codeBackgroundColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
     codeBorderColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+    isStreaming: Boolean = false
 ) {
     var isVisible by remember { mutableStateOf(false) }
 
@@ -64,7 +65,7 @@ fun TextEffectPerWord(
             codeColor = codeColor,
             codeBackgroundColor = codeBackgroundColor,
             codeBorderColor = codeBorderColor,
-            isStreaming = false,
+            isStreaming = isStreaming,
         )
     }
 }

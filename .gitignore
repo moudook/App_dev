@@ -175,6 +175,7 @@ app/src/main/assets/tts_models/
 # Database migrations (keep only essential)
 *.sql
 !init-db.sql
+!SUPABASE_SCHEMA.sql
 !app/src/main/assets/*.sql
 !server/src/main/resources/db/migrations/*.sql
 

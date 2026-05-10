@@ -1,24 +1,34 @@
 package com.example.smarty.server.agent
 
 import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.ReasoningStepType
-import com.example.smarty.server.data.ReasoningTraceRepository
-import com.example.smarty.server.services.ReasoningService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
+import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 
 /**
- * Extracted tracing and monitoring logic from ServerAgent.kt
- * Handles agent execution tracing, metrics, and persistence
+ * Agent tracer interface for tracing agent execution steps
  */
 interface AgentTracer {
     suspend fun trace(event: AgentTraceEvent)
 }
 
+/**
+ * Agent trace event - represents a single step in agent execution
+ */
 data class AgentTraceEvent(
     val sessionId: String,
     val stepType: AgentStepType,
@@ -93,18 +103,18 @@ class PostgresTracer(private val userId: String) : AgentTracer {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     // Lazily initialized — only when a DB connection is available
-    private val reasoningService: ReasoningService? by lazy {
+    private val reasoningService: com.example.smarty.server.services.ReasoningService? by lazy {
         val ds = DatabaseFactory.getDataSource() ?: return@lazy null
-        ReasoningService(ReasoningTraceRepository(ds))
+        com.example.smarty.server.services.ReasoningService(com.example.smarty.server.data.ReasoningTraceRepository(ds))
     }
 
-    private fun AgentStepType.toReasoningStepType(): ReasoningStepType = when (this) {
-        AgentStepType.THOUGHT -> ReasoningStepType.ANALYSIS
-        AgentStepType.TOOL_CALL -> ReasoningStepType.RESEARCH
-        AgentStepType.TOOL_RESULT -> ReasoningStepType.VERIFICATION
-        AgentStepType.FINAL -> ReasoningStepType.SYNTHESIS
-        AgentStepType.ERROR -> ReasoningStepType.REFLECTION
-        AgentStepType.CHECKPOINT -> ReasoningStepType.PLANNING
+    private fun AgentStepType.toReasoningStepType(): com.example.smarty.server.data.ReasoningStepType = when (this) {
+        AgentStepType.THOUGHT -> com.example.smarty.server.data.ReasoningStepType.ANALYSIS
+        AgentStepType.TOOL_CALL -> com.example.smarty.server.data.ReasoningStepType.RESEARCH
+        AgentStepType.TOOL_RESULT -> com.example.smarty.server.data.ReasoningStepType.VERIFICATION
+        AgentStepType.FINAL -> com.example.smarty.server.data.ReasoningStepType.SYNTHESIS
+        AgentStepType.ERROR -> com.example.smarty.server.data.ReasoningStepType.REFLECTION
+        AgentStepType.CHECKPOINT -> com.example.smarty.server.data.ReasoningStepType.PLANNING
     }
 
     override suspend fun trace(event: AgentTraceEvent) {
@@ -173,6 +183,7 @@ class PostgresTracer(private val userId: String) : AgentTracer {
  */
 class AgentPersistenceManager(private val userId: String) {
     private val logger = LoggerFactory.getLogger(AgentPersistenceManager::class.java)
+    private val json = Json { ignoreUnknownKeys = true }
 
     fun saveCheckpoint(
         sessionId: String,
@@ -183,26 +194,23 @@ class AgentPersistenceManager(private val userId: String) {
 
         try {
             dataSource.connection.use { conn ->
+                val stateJson = buildJsonObject {
+                    put("messages", buildJsonArray { })
+                    put("context", kotlinx.serialization.json.JsonPrimitive(context))
+                }.toString()
+
                 val stmt =
                     conn.prepareStatement(
                         """
                     INSERT INTO agent_checkpoints (
                         id, session_id, user_id, state_json, version, created_at, updated_at
-                    ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?)
+                    ) VALUES (?::uuid, ?::uuid, ?::uuid, ?::jsonb, ?, ?, ?)
                     ON CONFLICT (session_id) DO UPDATE SET
                         state_json = EXCLUDED.state_json,
                         version = agent_checkpoints.version + 1,
                         updated_at = EXCLUDED.updated_at
                 """,
                     )
-
-                val stateJson =
-                    buildString {
-                        append("{")
-                        append("\"messages\": [],")
-                        append("\"context\": \"${context.replace("\"", "\\\"")}\"")
-                        append("}")
-                    }
 
                 stmt.use {
                     stmt.setString(1, UUID.randomUUID().toString())
@@ -229,7 +237,7 @@ class AgentPersistenceManager(private val userId: String) {
                 val stmt =
                     conn.prepareStatement(
                         """
-                    SELECT state_json FROM agent_checkpoints 
+                    SELECT state_json FROM agent_checkpoints
                     WHERE session_id = ?::uuid AND user_id = ?::uuid
                     ORDER BY updated_at DESC LIMIT 1
                 """,
@@ -241,9 +249,14 @@ class AgentPersistenceManager(private val userId: String) {
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
                         val stateJson = rs.getString("state_json")
-                        // For now, return null - full checkpoint restoration needs proper JSON parsing
-                        // This is a placeholder that can be extended later
-                        null
+                        try {
+                            val parsed = json.parseToJsonElement(stateJson).jsonObject
+                            val context = parsed["context"]?.jsonPrimitive?.content ?: ""
+                            CheckpointResult(context = context)
+                        } catch (e: Exception) {
+                            logger.warn("Failed to parse checkpoint JSON: ${e.message}")
+                            CheckpointResult(context = stateJson)
+                        }
                     } else {
                         null
                     }
@@ -277,7 +290,8 @@ class AgentPersistenceManager(private val userId: String) {
     }
 
     data class CheckpointResult(
-        val messages: List<com.example.smarty.server.llm.LlmMessage>,
-        val version: Int,
+        val messages: List<com.example.smarty.server.llm.LlmMessage> = emptyList(),
+        val context: String = "",
+        val version: Int = 0,
     )
 }

@@ -209,9 +209,9 @@ class PostgresVectorStore : VectorStore {
                       AND n.deleted_at IS NULL
                     ORDER BY
                         CASE 
-                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'preference') THEN 1
-                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'memory') THEN 2
-                            WHEN n.category_id IN (SELECT id FROM note_categories WHERE name = 'factual') THEN 3
+                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'preference') THEN 1
+                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'memory') THEN 2
+                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'factual') THEN 3
                             ELSE 4
                         END,
                         n.updated_at DESC

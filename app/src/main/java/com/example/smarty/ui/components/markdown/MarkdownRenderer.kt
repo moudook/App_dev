@@ -93,34 +93,36 @@ fun MarkdownRenderer(
         processedContent.split("```")
     }
 
-    parts.forEachIndexed { index, part ->
-        if (index % 2 == 1) {
-            // ── Code Block ──
-            val lines = part.trim().lines()
-            val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
-            val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        parts.forEachIndexed { index, part ->
+            if (index % 2 == 1) {
+                // ── Code Block ──
+                val lines = part.trim().lines()
+                val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
+                val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
 
-            Spacer(modifier = Modifier.height(12.dp))
-            com.example.smarty.ui.components.CodeBlock(
-                code = codeContent,
-                language = language,
-                backgroundColor = codeBackgroundColor,
-                borderColor = codeBorderColor,
-                headerBgColor = codeHeaderBg
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-        } else {
-            // ── Markdown Text ──
-            if (part.isNotBlank()) {
-                RenderMarkdownBlock(
-                    text = part.trim(),
-                    normalColor = normalColor,
-                    boldColor = boldColor,
-                    linkColor = linkColor,
-                    codeColor = codeColor,
-                    codeBackgroundColor = codeBackgroundColor,
-                    isStreaming = isStreaming
+                Spacer(modifier = Modifier.height(12.dp))
+                com.example.smarty.ui.components.CodeBlock(
+                    code = codeContent,
+                    language = language,
+                    backgroundColor = codeBackgroundColor,
+                    borderColor = codeBorderColor,
+                    headerBgColor = codeHeaderBg
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                // ── Markdown Text ──
+                if (part.isNotBlank()) {
+                    RenderMarkdownBlock(
+                        text = part.trim(),
+                        normalColor = normalColor,
+                        boldColor = boldColor,
+                        linkColor = linkColor,
+                        codeColor = codeColor,
+                        codeBackgroundColor = codeBackgroundColor,
+                        isStreaming = isStreaming
+                    )
+                }
             }
         }
     }
@@ -140,132 +142,110 @@ private fun RenderMarkdownBlock(
     codeBackgroundColor: Color,
     isStreaming: Boolean
 ) {
-    val lines = text.lines()
-    var i = 0
-    while (i < lines.size) {
-        val trimmedLine = lines[i].trim()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        val lines = text.lines()
+        var i = 0
+        while (i < lines.size) {
+            val trimmedLine = lines[i].trim()
 
-        when {
-            // ── Headers ──
-            trimmedLine.startsWith("### ") -> {
-                Spacer(modifier = Modifier.height(20.dp))
-                MarkdownText(
-                    content = trimmedLine.removePrefix("### "),
-                    normalColor = boldColor, boldColor = boldColor,
-                    linkColor = linkColor, codeColor = codeColor,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
-                        lineHeight = 28.sp, letterSpacing = (-0.1).sp, color = boldColor
-                    )
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                i++
-            }
-            trimmedLine.startsWith("## ") -> {
-                Spacer(modifier = Modifier.height(24.dp))
-                MarkdownText(
-                    content = trimmedLine.removePrefix("## "),
-                    normalColor = boldColor, boldColor = boldColor,
-                    linkColor = linkColor, codeColor = codeColor,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold, fontSize = 24.sp,
-                        lineHeight = 32.sp, letterSpacing = (-0.2).sp, color = boldColor
-                    )
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                i++
-            }
-            trimmedLine.startsWith("# ") -> {
-                Spacer(modifier = Modifier.height(28.dp))
-                MarkdownText(
-                    content = trimmedLine.removePrefix("# "),
-                    normalColor = boldColor, boldColor = boldColor,
-                    linkColor = linkColor, codeColor = codeColor,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold, fontSize = 28.sp,
-                        lineHeight = 38.sp, letterSpacing = (-0.3).sp, color = boldColor
-                    )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                i++
-            }
-
-            // ── LaTeX Block Math ──
-            trimmedLine.startsWith("$$") || trimmedLine.startsWith("\\[") -> {
-                val mathLines = mutableListOf<String>()
-                if (trimmedLine.length > 2) mathLines.add(trimmedLine.substring(2).trim())
-                i++
-                while (i < lines.size) {
-                    val next = lines[i].trim()
-                    if (next.endsWith("$$") || next.endsWith("\\]")) {
-                        mathLines.add(next.substring(0, next.length - 2).trim())
-                        i++; break
-                    }
-                    mathLines.add(next); i++
-                }
-                val mathContent = mathLines.joinToString(" ")
-                if (mathContent.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LaTeXView(latex = mathContent, isBlock = true,
-                        textColor = codeColor, backgroundColor = codeBackgroundColor.copy(alpha = 0.3f))
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-            }
-
-            // ── Task Lists ──
-            trimmedLine.matches(RenderPatterns.taskUnchecked) ||
-            trimmedLine.matches(RenderPatterns.taskChecked) -> {
-                val tasks = mutableListOf<Pair<Boolean, String>>()
-                RenderPatterns.taskItem.find(trimmedLine)?.let { m ->
-                    tasks.add(Pair(m.groupValues[1].trim().isNotEmpty(), m.groupValues[2]))
-                }
-                i++
-                while (i < lines.size) {
-                    val next = lines[i].trim()
-                    val match = RenderPatterns.taskItem.find(next)
-                    if (match != null) {
-                        tasks.add(Pair(match.groupValues[1].trim().isNotEmpty(), match.groupValues[2]))
-                        i++
-                    } else if (isBlockBreak(next)) { break }
-                    else {
-                        if (tasks.isNotEmpty()) {
-                            val last = tasks.last()
-                            tasks[tasks.lastIndex] = Pair(last.first, last.second + "\n" + next)
-                        }
-                        i++
-                    }
-                }
-                TaskListView(tasks, normalColor, boldColor, linkColor, codeColor)
-            }
-
-            // ── Bullet Lists ──
-            trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
-                val itemText = collectContinuationLines(trimmedLine.substring(2), lines, i + 1).also { i = it.second }.first
-                Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
-                    Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp), color = normalColor.copy(alpha = 0.7f))
-                    Spacer(modifier = Modifier.width(8.dp))
+            when {
+                // ── Headers ──
+                trimmedLine.startsWith("### ") -> {
+                    Spacer(modifier = Modifier.height(20.dp))
                     MarkdownText(
-                        content = itemText, normalColor = normalColor, boldColor = boldColor,
+                        content = trimmedLine.removePrefix("### "),
+                        normalColor = boldColor, boldColor = boldColor,
                         linkColor = linkColor, codeColor = codeColor,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
-                    )
-                }
-            }
-
-            // ── Numbered Lists ──
-            trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") &&
-            !trimmedLine.matches(RenderPatterns.numberedTaskDetect) -> {
-                val dotIndex = trimmedLine.indexOf(". ")
-                if (dotIndex in 1..3) {
-                    val prefix = trimmedLine.substring(0, dotIndex + 2)
-                    val itemText = collectContinuationLines(trimmedLine.substring(dotIndex + 2), lines, i + 1).also { i = it.second }.first
-                    Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
-                        Text(
-                            text = prefix,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
-                            color = normalColor.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(top = 2.dp)
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
+                            lineHeight = 28.sp, letterSpacing = (-0.1).sp, color = boldColor
                         )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    i++
+                }
+                trimmedLine.startsWith("## ") -> {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    MarkdownText(
+                        content = trimmedLine.removePrefix("## "),
+                        normalColor = boldColor, boldColor = boldColor,
+                        linkColor = linkColor, codeColor = codeColor,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold, fontSize = 24.sp,
+                            lineHeight = 32.sp, letterSpacing = (-0.2).sp, color = boldColor
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    i++
+                }
+                trimmedLine.startsWith("# ") -> {
+                    Spacer(modifier = Modifier.height(28.dp))
+                    MarkdownText(
+                        content = trimmedLine.removePrefix("# "),
+                        normalColor = boldColor, boldColor = boldColor,
+                        linkColor = linkColor, codeColor = codeColor,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold, fontSize = 28.sp,
+                            lineHeight = 38.sp, letterSpacing = (-0.3).sp, color = boldColor
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    i++
+                }
+
+                // ── LaTeX Block Math ──
+                trimmedLine.startsWith("$$") || trimmedLine.startsWith("\\[") -> {
+                    val mathLines = mutableListOf<String>()
+                    if (trimmedLine.length > 2) mathLines.add(trimmedLine.substring(2).trim())
+                    i++
+                    while (i < lines.size) {
+                        val next = lines[i].trim()
+                        if (next.endsWith("$$") || next.endsWith("\\]")) {
+                            mathLines.add(next.substring(0, next.length - 2).trim())
+                            i++; break
+                        }
+                        mathLines.add(next); i++
+                    }
+                    val mathContent = mathLines.joinToString(" ")
+                    if (mathContent.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LaTeXView(latex = mathContent, isBlock = true,
+                            textColor = codeColor, backgroundColor = codeBackgroundColor.copy(alpha = 0.3f))
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+
+                // ── Task Lists ──
+                trimmedLine.matches(RenderPatterns.taskUnchecked) ||
+                trimmedLine.matches(RenderPatterns.taskChecked) -> {
+                    val tasks = mutableListOf<Pair<Boolean, String>>()
+                    RenderPatterns.taskItem.find(trimmedLine)?.let { m ->
+                        tasks.add(Pair(m.groupValues[1].trim().isNotEmpty(), m.groupValues[2]))
+                    }
+                    i++
+                    while (i < lines.size) {
+                        val next = lines[i].trim()
+                        val match = RenderPatterns.taskItem.find(next)
+                        if (match != null) {
+                            tasks.add(Pair(match.groupValues[1].trim().isNotEmpty(), match.groupValues[2]))
+                            i++
+                        } else if (isBlockBreak(next)) { break }
+                        else {
+                            if (tasks.isNotEmpty()) {
+                                val last = tasks.last()
+                                tasks[tasks.lastIndex] = Pair(last.first, last.second + "\n" + next)
+                            }
+                            i++
+                        }
+                    }
+                    TaskListView(tasks, normalColor, boldColor, linkColor, codeColor)
+                }
+
+                // ── Bullet Lists ──
+                trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
+                    val itemText = collectContinuationLines(trimmedLine.substring(2), lines, i + 1).also { i = it.second }.first
+                    Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+                        Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp), color = normalColor.copy(alpha = 0.7f))
                         Spacer(modifier = Modifier.width(8.dp))
                         MarkdownText(
                             content = itemText, normalColor = normalColor, boldColor = boldColor,
@@ -273,71 +253,95 @@ private fun RenderMarkdownBlock(
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
                         )
                     }
-                } else {
-                    val itemText = collectContinuationLines(trimmedLine, lines, i + 1).also { i = it.second }.first
-                    StandardText(itemText, normalColor, boldColor, linkColor, codeColor)
                 }
-            }
 
-            // ── Tables ──
-            trimmedLine.startsWith("|") -> {
-                val tableLines = mutableListOf(trimmedLine)
-                i++
-                while (i < lines.size) {
-                    val next = lines[i].trim()
-                    if (!next.startsWith("|")) break
-                    tableLines.add(next); i++
+                // ── Numbered Lists ──
+                trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") &&
+                !trimmedLine.matches(RenderPatterns.numberedTaskDetect) -> {
+                    val dotIndex = trimmedLine.indexOf(". ")
+                    if (dotIndex in 1..3) {
+                        val prefix = trimmedLine.substring(0, dotIndex + 2)
+                        val itemText = collectContinuationLines(trimmedLine.substring(dotIndex + 2), lines, i + 1).also { i = it.second }.first
+                        Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = prefix,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
+                                color = normalColor.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            MarkdownText(
+                                content = itemText, normalColor = normalColor, boldColor = boldColor,
+                                linkColor = linkColor, codeColor = codeColor,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
+                            )
+                        }
+                    } else {
+                        val itemText = collectContinuationLines(trimmedLine, lines, i + 1).also { i = it.second }.first
+                        StandardText(itemText, normalColor, boldColor, linkColor, codeColor)
+                    }
                 }
-                MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
-            }
 
-            // ── Blockquote ──
-            trimmedLine.startsWith("> ") -> {
-                val quoteLines = mutableListOf(trimmedLine.substring(2).trim())
-                i++
-                while (i < lines.size) {
-                    val next = lines[i].trim()
-                    if (isBlockBreak(next)) break
-                    quoteLines.add(if (next.startsWith("> ")) next.substring(2).trim() else next)
+                // ── Tables ──
+                trimmedLine.startsWith("|") -> {
+                    val tableLines = mutableListOf(trimmedLine)
+                    i++
+                    while (i < lines.size) {
+                        val next = lines[i].trim()
+                        if (!next.startsWith("|")) break
+                        tableLines.add(next); i++
+                    }
+                    MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
+                }
+
+                // ── Blockquote ──
+                trimmedLine.startsWith("> ") -> {
+                    val quoteLines = mutableListOf(trimmedLine.substring(2).trim())
+                    i++
+                    while (i < lines.size) {
+                        val next = lines[i].trim()
+                        if (isBlockBreak(next)) break
+                        quoteLines.add(if (next.startsWith("> ")) next.substring(2).trim() else next)
+                        i++
+                    }
+                    Box(
+                        modifier = Modifier
+                            .padding(vertical = 6.dp)
+                            .fillMaxWidth()
+                            .drawBehind {
+                                drawLine(normalColor.copy(alpha = 0.3f),
+                                    Offset(0f, 0f), Offset(0f, size.height), 4.dp.toPx())
+                            }
+                            .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        MarkdownText(
+                            content = quoteLines.joinToString("\n"),
+                            normalColor = normalColor, boldColor = boldColor,
+                            linkColor = linkColor, codeColor = codeColor,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 16.sp, lineHeight = 26.sp,
+                                fontStyle = FontStyle.Italic, color = normalColor.copy(alpha = 0.8f)
+                            )
+                        )
+                    }
+                }
+
+                // ── Horizontal Rule ──
+                trimmedLine.matches(RenderPatterns.horizontalRule) -> {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = normalColor.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(16.dp))
                     i++
                 }
-                Box(
-                    modifier = Modifier
-                        .padding(vertical = 6.dp)
-                        .fillMaxWidth()
-                        .drawBehind {
-                            drawLine(normalColor.copy(alpha = 0.3f),
-                                Offset(0f, 0f), Offset(0f, size.height), 4.dp.toPx())
-                        }
-                        .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
-                ) {
-                    MarkdownText(
-                        content = quoteLines.joinToString("\n"),
-                        normalColor = normalColor, boldColor = boldColor,
-                        linkColor = linkColor, codeColor = codeColor,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 16.sp, lineHeight = 26.sp,
-                            fontStyle = FontStyle.Italic, color = normalColor.copy(alpha = 0.8f)
-                        )
-                    )
+
+                // ── Blank line → spacer ──
+                trimmedLine.isBlank() -> { Spacer(modifier = Modifier.height(12.dp)); i++ }
+
+                // ── Plain paragraph ──
+                else -> {
+                    val paragraphText = collectParagraphLines(trimmedLine, lines, i + 1).also { i = it.second }.first
+                    StandardText(paragraphText, normalColor, boldColor, linkColor, codeColor)
                 }
-            }
-
-            // ── Horizontal Rule ──
-            trimmedLine.matches(RenderPatterns.horizontalRule) -> {
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = normalColor.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(16.dp))
-                i++
-            }
-
-            // ── Blank line → spacer ──
-            trimmedLine.isBlank() -> { Spacer(modifier = Modifier.height(12.dp)); i++ }
-
-            // ── Plain paragraph ──
-            else -> {
-                val paragraphText = collectParagraphLines(trimmedLine, lines, i + 1).also { i = it.second }.first
-                StandardText(paragraphText, normalColor, boldColor, linkColor, codeColor)
             }
         }
     }
@@ -574,35 +578,29 @@ private fun RichTextWithLatex(
     val segments = parseTextWithInlineMath(text)
 
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        val annotatedString = buildAnnotatedString {
-            segments.forEach { segment ->
-                if (!segment.isLatex) {
-                    append(parseMarkdownToAnnotatedString(
-                        segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
-                    ))
+        segments.forEach { segment ->
+            if (segment.isLatex) {
+                if (segment.content.isNotBlank()) {
+                    LaTeXView(
+                        latex = segment.content, isBlock = false,
+                        textColor = codeColor, backgroundColor = Color.Transparent,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
                 }
-            }
-        }
-
-        val textContent = segments.filter { !it.isLatex }.joinToString("") { it.content }
-        if (textContent.isNotBlank()) {
-            Text(
-                text = annotatedString,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
-                    fontWeight = FontWeight.Normal, color = normalColor
-                )
-            )
-        }
-
-        segments.filter { it.isLatex }.forEach { segment ->
-            if (segment.content.isNotBlank()) {
-                LaTeXView(
-                    latex = segment.content, isBlock = false,
-                    textColor = codeColor, backgroundColor = Color.Transparent,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
+            } else {
+                if (segment.content.isNotBlank()) {
+                    Text(
+                        text = parseMarkdownToAnnotatedString(
+                            segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+                        ),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
+                            fontWeight = FontWeight.Normal, color = normalColor
+                        )
+                    )
+                }
             }
         }
     }
 }
+

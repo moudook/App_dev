@@ -12,6 +12,7 @@ import com.example.smarty.server.tools.TavilySearchTool
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -67,8 +68,8 @@ class ToolExecutor(
         val info: String? = null,
         val screen: String? = null,
         val question: String? = null,
-        val options: List<String>? = null,
-        val allowCustom: Boolean? = null,
+        val options: kotlinx.serialization.json.JsonElement? = null,
+        @SerialName("allow_custom") val allowCustom: Boolean? = null,
         val noteId: String? = null,
         val snippet: String? = null,
         val limit: String? = null,
@@ -534,7 +535,13 @@ class ToolExecutor(
 
     private suspend fun executeAskUser(args: UnifiedToolArgs): String {
         val question = args.question ?: "What would you like?"
-        val options = args.options ?: emptyList()
+        val options = args.options?.let { element ->
+            when (element) {
+                is kotlinx.serialization.json.JsonArray -> element.map { it.jsonPrimitive.content }
+                is kotlinx.serialization.json.JsonPrimitive -> element.content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+                else -> emptyList()
+            }
+        } ?: emptyList()
         val allowCustom = args.allowCustom ?: false
         emit(
             com.example.smarty.protocol.AgentEvent.Question(

@@ -352,8 +352,10 @@ fun ChatMessageItem(
                                    linkColor = accentColor,
                                    codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                    codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                                   codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                                   codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                                   isStreaming = message.isStreaming
                                )
+
                            }
 
                         // Krea Image Generation direct inline display
@@ -701,7 +703,8 @@ if (isUser) {
                             ),
                             color = accentColor,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -980,7 +983,10 @@ private fun ClarificationBubble(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
+            ) {
                 request.options.forEach { option ->
                     Surface(
                         onClick = {
@@ -1002,6 +1008,8 @@ private fun ClarificationBubble(
                             ),
                             color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
                             modifier = Modifier.padding(12.dp),
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }

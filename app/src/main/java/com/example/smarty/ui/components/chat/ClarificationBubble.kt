@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ClarificationRequest
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * Interactive bubble that displays AI clarification questions with
@@ -94,7 +95,8 @@ fun ClarificationBubble(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.widthIn(max = 320.dp)) {
                 request.options.forEach { option ->
                     val isSelected = selectedOption == option
                     val showCheck = isSelected && !isSubmitted
@@ -152,7 +154,9 @@ fun ClarificationBubble(
                                     isSubmitted -> MaterialTheme.colorScheme.onSurfaceVariant
                                     else -> MaterialTheme.colorScheme.onSurface
                                 },
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

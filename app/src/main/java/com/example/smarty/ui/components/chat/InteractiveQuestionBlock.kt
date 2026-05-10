@@ -110,6 +110,8 @@ fun InteractiveQuestionBlock(
                         text = option,
                         style = MaterialTheme.typography.bodyLarge,
                         color = textColor,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     

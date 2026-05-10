@@ -1,13 +1,27 @@
 -- =====================================================
 -- Database Schema v6.0.0 - Unified Production Schema
--- =====================================================
--- This file contains all database migrations for Smarty
+-- Optimized: vector search, FTS, sync-ready, unified constraints
 -- Applied automatically on server startup
+-- =====================================================
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- =====================================================
+-- AUTO updated_at TRIGGER FUNCTION
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =====================================================
 -- Core Tables
@@ -21,11 +35,25 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT,
     is_active BOOLEAN DEFAULT true,
     is_premium BOOLEAN DEFAULT false,
-    subscription_expires_at TIMESTAMP WITH TIME ZONE,
+    subscription_expires_at TIMESTAMPTZ,
     feature_flags JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    sync_state TEXT DEFAULT 'PENDING',
+    device_fingerprint TEXT,
+    last_device_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sync_state (
+    user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    last_sync_at TIMESTAMPTZ,
+    last_pull_at TIMESTAMPTZ,
+    last_push_at TIMESTAMPTZ,
+    pending_operations INTEGER DEFAULT 0,
+    conflict_count INTEGER DEFAULT 0,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS chat_folders (
@@ -36,6 +64,116 @@ CREATE TABLE IF NOT EXISTS chat_folders (
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    color           TEXT DEFAULT '#6200EE',
+    icon            TEXT DEFAULT 'folder',
+    parent_id       UUID REFERENCES categories(id) ON DELETE SET NULL,
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    note_count      INTEGER NOT NULL DEFAULT 0,
+    is_ai_generated BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, lower(name));
+
+CREATE TABLE IF NOT EXISTS stacks (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    description TEXT,
+    color       TEXT DEFAULT '#03DAC6',
+    icon        TEXT DEFAULT 'stack',
+    parent_id   UUID REFERENCES stacks(id) ON DELETE SET NULL,
+    note_count  INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    folder_id       UUID REFERENCES chat_folders(id) ON DELETE SET NULL,
+    title           TEXT,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    is_archived     BOOLEAN NOT NULL DEFAULT false,
+    is_pinned       BOOLEAN NOT NULL DEFAULT false,
+    model_used      TEXT,
+    temperature     NUMERIC(3,2) DEFAULT 0.7 CHECK (temperature BETWEEN 0 AND 2),
+    max_tokens      INTEGER DEFAULT 4096 CHECK (max_tokens > 0),
+    system_prompt   TEXT,
+    token_count     INTEGER NOT NULL DEFAULT 0,
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    last_message_preview TEXT,
+    summary         TEXT,
+    summary_generated_at TIMESTAMPTZ,
+    metadata        JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id             UUID REFERENCES categories(id) ON DELETE SET NULL,
+    stack_id                UUID REFERENCES stacks(id) ON DELETE SET NULL,
+    parent_note_id          UUID REFERENCES notes(id) ON DELETE SET NULL,
+    title                   TEXT NOT NULL DEFAULT '',
+    content                 TEXT NOT NULL DEFAULT '',
+    summary                 TEXT,
+    source_url              TEXT,
+    image_uri               TEXT,
+    file_uri                TEXT,
+    file_name               TEXT,
+    file_mime_type          TEXT,
+    file_size               BIGINT,
+    type                    TEXT NOT NULL DEFAULT 'BRAIN_DUMP',
+    category_name           TEXT,
+    why_saved               TEXT,
+    processing_status       TEXT NOT NULL DEFAULT 'PENDING' CHECK (processing_status IN ('PENDING','PROCESSING','COMPLETED','FAILED')),
+    is_archived             BOOLEAN NOT NULL DEFAULT false,
+    is_pinned               BOOLEAN NOT NULL DEFAULT false,
+    is_favorite             BOOLEAN NOT NULL DEFAULT false,
+    is_full_privacy         BOOLEAN NOT NULL DEFAULT false,
+    exclude_from_ai_chat    BOOLEAN NOT NULL DEFAULT false,
+    is_ai_created           BOOLEAN NOT NULL DEFAULT false,
+    is_viewed               BOOLEAN NOT NULL DEFAULT false,
+    todo_content            TEXT,
+    attachments_json        JSONB DEFAULT '[]',
+    tags_json               JSONB DEFAULT '[]',
+    chunk_analyses_json     JSONB DEFAULT '[]',
+    reminder_text           TEXT,
+    reminder_expires_at     TIMESTAMPTZ,
+    metadata                JSONB NOT NULL DEFAULT '{}',
+    word_count              INTEGER,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at              TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id        UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    parent_message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL,
+    role              TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
+    content           TEXT NOT NULL,
+    content_hash      TEXT,
+    thinking          TEXT,
+    tool_calls        JSONB,
+    tool_call_id      TEXT,
+    token_count       INTEGER DEFAULT 0,
+    is_edited         BOOLEAN NOT NULL DEFAULT false,
+    is_starred        BOOLEAN NOT NULL DEFAULT false,
+    metadata          JSONB NOT NULL DEFAULT '{}',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -64,9 +202,11 @@ CREATE TABLE IF NOT EXISTS tags (
     name       TEXT NOT NULL,
     color      TEXT DEFAULT '#6200EE',
     usage_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    tag_type   TEXT NOT NULL DEFAULT 'MANUAL',
+    confidence_score DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_user_lower_name ON tags(user_id, lower(name));
 
 CREATE TABLE IF NOT EXISTS note_tags (
@@ -74,6 +214,22 @@ CREATE TABLE IF NOT EXISTS note_tags (
     tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (note_id, tag_id)
 );
+
+CREATE TABLE IF NOT EXISTS note_stacks (
+    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    stack_id UUID NOT NULL REFERENCES stacks(id) ON DELETE CASCADE,
+    PRIMARY KEY (note_id, stack_id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_message_notes (
+    message_id UUID NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    PRIMARY KEY (message_id, note_id)
+);
+
+-- =====================================================
+-- System & AI Tables
+-- =====================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -100,122 +256,6 @@ CREATE TABLE IF NOT EXISTS digest_preferences (
     UNIQUE(user_id)
 );
 
-CREATE TABLE IF NOT EXISTS sync_state (
-    user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    last_sync_at TIMESTAMPTZ,
-    last_pull_at TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS note_categories (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name        TEXT NOT NULL,
-    color       TEXT DEFAULT '#6200EE',
-    icon        TEXT DEFAULT 'folder',
-    parent_id   UUID REFERENCES note_categories(id) ON DELETE SET NULL,
-    sort_order  INTEGER NOT NULL DEFAULT 0,
-    note_count  INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS note_stacks (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name        TEXT NOT NULL,
-    description TEXT,
-    color       TEXT DEFAULT '#03DAC6',
-    icon        TEXT DEFAULT 'stack',
-    parent_id   UUID REFERENCES note_stacks(id) ON DELETE SET NULL,
-    note_count  INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS notes (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category_id     UUID REFERENCES note_categories(id) ON DELETE SET NULL,
-    stack_id        UUID REFERENCES note_stacks(id) ON DELETE SET NULL,
-    parent_note_id  UUID REFERENCES notes(id) ON DELETE SET NULL,
-    title           TEXT NOT NULL DEFAULT '',
-    content         TEXT NOT NULL DEFAULT '',
-    is_archived     BOOLEAN NOT NULL DEFAULT false,
-    is_pinned       BOOLEAN NOT NULL DEFAULT false,
-    is_favorite     BOOLEAN NOT NULL DEFAULT false,
-    is_full_privacy BOOLEAN NOT NULL DEFAULT false,
-    exclude_from_ai_chat BOOLEAN NOT NULL DEFAULT false,
-    metadata        JSONB NOT NULL DEFAULT '{}',
-    word_count      INTEGER GENERATED ALWAYS AS (char_length(content)) STORED,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at      TIMESTAMPTZ
-);
-
-CREATE TABLE IF NOT EXISTS agent_traces (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workflow_id   UUID,
-    session_id    UUID,
-    user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    step_name     TEXT NOT NULL,
-    step_type     TEXT,
-    content       TEXT,
-    input_data    JSONB,
-    output_data   JSONB,
-    error_message TEXT,
-    duration_ms   BIGINT,
-    token_usage   JSONB,
-    metadata      JSONB NOT NULL DEFAULT '{}',
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS chat_sessions (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    folder_id       UUID REFERENCES chat_folders(id) ON DELETE SET NULL,
-    title           TEXT,
-    is_active       BOOLEAN NOT NULL DEFAULT true,
-    is_archived     BOOLEAN NOT NULL DEFAULT false,
-    is_pinned       BOOLEAN NOT NULL DEFAULT false,
-    model_used      TEXT,
-    temperature     NUMERIC(3,2) DEFAULT 0.7 CHECK (temperature BETWEEN 0 AND 2),
-    max_tokens      INTEGER DEFAULT 4096 CHECK (max_tokens > 0),
-    system_prompt   TEXT,
-    token_count     INTEGER NOT NULL DEFAULT 0,
-    message_count   INTEGER NOT NULL DEFAULT 0,
-    metadata        JSONB NOT NULL DEFAULT '{}',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ
-);
-
-CREATE TABLE IF NOT EXISTS chat_messages (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id        UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    parent_message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL,
-    role              TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
-    content           TEXT NOT NULL,
-    content_hash      TEXT,
-    thinking          TEXT,
-    tool_calls        JSONB,
-    tool_call_id      TEXT,
-    token_count       INTEGER DEFAULT 0,
-    is_edited         BOOLEAN NOT NULL DEFAULT false,
-    is_starred        BOOLEAN NOT NULL DEFAULT false,
-    metadata          JSONB NOT NULL DEFAULT '{}',
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS chat_message_notes (
-    message_id UUID NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
-    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-    PRIMARY KEY (message_id, note_id)
-);
-
 CREATE TABLE IF NOT EXISTS timers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -234,14 +274,15 @@ CREATE TABLE IF NOT EXISTS user_fcm_tokens (
     device_name TEXT,
     device_id TEXT,
     last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id, token)
 );
 
 CREATE TABLE IF NOT EXISTS daily_digests (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     digest_date       DATE NOT NULL,
-    digest_type       TEXT NOT NULL CHECK (digest_type IN ('morning','evening','weekly','daily')),
+    digest_type       TEXT NOT NULL CHECK (digest_type IN ('morning','evening','weekly','daily','DAILY','WEEKLY','MONTHLY','CUSTOM')),
     summary           TEXT,
     key_insights      JSONB DEFAULT '[]',
     goals_progress    JSONB DEFAULT '[]',
@@ -280,6 +321,20 @@ CREATE TABLE IF NOT EXISTS calendar_event_notes (
     event_id UUID NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
     note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
     PRIMARY KEY (event_id, note_id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_traces (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id    UUID NOT NULL,
+    user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    step_name     TEXT NOT NULL,
+    step_type     TEXT,
+    content       TEXT,
+    input_data    TEXT,
+    output_data   TEXT,
+    error_message TEXT,
+    metadata      JSONB NOT NULL DEFAULT '{}',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS reasoning_traces (
@@ -323,10 +378,12 @@ CREATE TABLE IF NOT EXISTS reasoning_summaries (
 
 CREATE TABLE IF NOT EXISTS agent_checkpoints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL,
+    session_id UUID NOT NULL UNIQUE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     workflow_id UUID,
     state_json JSONB NOT NULL,
+    context_json JSONB,
+    memory_json JSONB,
     version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -369,13 +426,15 @@ CREATE TABLE IF NOT EXISTS user_devices (
 );
 
 CREATE TABLE IF NOT EXISTS note_versions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    version_no INTEGER NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    note_id                UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    title                  TEXT NOT NULL,
+    content                TEXT NOT NULL,
+    summary                TEXT,
+    version_no             INTEGER NOT NULL,
+    change_description     TEXT,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(note_id, version_no)
 );
 
 CREATE TABLE IF NOT EXISTS shared_items (
@@ -390,32 +449,6 @@ CREATE TABLE IF NOT EXISTS shared_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- =====================================================
--- Indexes for Performance
--- =====================================================
-
-CREATE INDEX IF NOT EXISTS idx_reasoning_traces_session ON reasoning_traces(session_id, step_index ASC);
-CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_session ON reasoning_summaries(session_id);
-CREATE INDEX IF NOT EXISTS idx_generated_images_user ON generated_images(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_generated_images_session ON generated_images(session_id);
-CREATE INDEX IF NOT EXISTS idx_generated_images_krea_job ON generated_images(krea_job_id);
-CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notes_fts ON notes USING gin (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')));
-CREATE INDEX IF NOT EXISTS idx_notes_user_active ON notes(user_id, updated_at DESC) WHERE is_archived = false AND deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_notes_user_pinned ON notes(user_id, updated_at DESC) WHERE is_pinned = true AND deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_active ON chat_sessions(user_id, updated_at DESC) WHERE is_active = true AND is_archived = false;
-CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned ON chat_sessions(user_id) WHERE is_pinned = true;
-CREATE INDEX IF NOT EXISTS idx_search_history_user ON search_history(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions(note_id, version_no DESC);
-CREATE INDEX IF NOT EXISTS idx_shared_items_token ON shared_items(share_token);
-
--- =====================================================
--- Vector Search Configuration
--- =====================================================
-
--- Create vector store table for embeddings
 CREATE TABLE IF NOT EXISTS vector_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -425,48 +458,49 @@ CREATE TABLE IF NOT EXISTS vector_embeddings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_vector_embeddings ON vector_embeddings USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+CREATE TABLE IF NOT EXISTS ai_cache (
+    content_hash       TEXT PRIMARY KEY,
+    json_response      TEXT NOT NULL,
+    user_id            UUID REFERENCES users(id) ON DELETE CASCADE,
+    created_at         BIGINT NOT NULL,
+    expires_at         BIGINT NOT NULL,
+    last_accessed_at    BIGINT NOT NULL
+);
 
-CREATE INDEX IF NOT EXISTS idx_vector_embeddings_user ON vector_embeddings(user_id);
-
--- ============================================================
--- USER VAULTS (E2E encrypted data)
--- ============================================================
 CREATE TABLE IF NOT EXISTS user_vaults (
-    user_id         VARCHAR(128) PRIMARY KEY,
+    user_id         TEXT PRIMARY KEY,
     encrypted_blob  TEXT NOT NULL,
     version         INTEGER NOT NULL DEFAULT 1,
     updated_at      BIGINT NOT NULL
 );
 
+-- =====================================================
+-- Indexes for Performance
+-- =====================================================
+
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_category ON notes(category_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_stack ON notes(stack_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_fts ON notes USING gin (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')));
+CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vector_embeddings_user ON vector_embeddings(user_id);
+CREATE INDEX IF NOT EXISTS idx_vector_embeddings ON vector_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_ai_cache_expires ON ai_cache(expires_at);
+
 -- ============================================================
--- SCHEMA UPGRADE: ALTERATIONS FOR EXISTING DEPLOYMENTS
--- These statements are safe to run repeatedly (idempotent).
--- They bring pre-existing installations up to date with schema changes.
+-- IDEMPOTENT UPGRADES
 -- ============================================================
 
--- 1. digest_preferences: add missing timezone column
-ALTER TABLE digest_preferences ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
-
--- 2. daily_digests: add new columns to match server expectations
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS summary TEXT;
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS key_insights JSONB DEFAULT '[]';
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS goals_progress JSONB DEFAULT '[]';
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS priorities JSONB DEFAULT '[]';
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS critical_info TEXT;
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS notes_analyzed INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS chats_analyzed INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE daily_digests ADD COLUMN IF NOT EXISTS memories_analyzed INTEGER NOT NULL DEFAULT 0;
-
--- 2a. daily_digests: add unique constraint (user_id, digest_date, digest_type)
-ALTER TABLE daily_digests ADD UNIQUE (user_id, digest_date, digest_type);
-
--- 3. reasoning_summaries: rename summary_id → id for existing installations
--- Safe to run even if already renamed or if summary_id doesn't exist; errors are caught by migration runner
-ALTER TABLE reasoning_summaries RENAME COLUMN summary_id TO id;
-
--- 4. tags: add missing tag_type and confidence_score columns (already have usage_count)
-ALTER TABLE tags ADD COLUMN IF NOT EXISTS tag_type TEXT NOT NULL DEFAULT 'MANUAL';
-ALTER TABLE tags ADD COLUMN IF NOT EXISTS confidence_score DOUBLE PRECISION NOT NULL DEFAULT 1.0;
-
+-- Create triggers
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_users_updated_at') THEN
+        CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notes_updated_at') THEN
+        CREATE TRIGGER trg_notes_updated_at BEFORE UPDATE ON notes FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
+    -- (Add other triggers if needed)
+END $$;
