@@ -797,6 +797,33 @@ class RemoteAgentService(
         }
     }
 
+    /**
+     * Push local changes to the server (Optimized Sync).
+     */
+    suspend fun pushSync(request: com.example.smarty.protocol.SyncPushRequest): com.example.smarty.protocol.SyncPushResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response =
+                client.post("$baseUrl/api/v1/sync/push") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+
+            if (response.status.isSuccess()) {
+                response.body<com.example.smarty.protocol.SyncPushResponse>()
+            } else {
+                Log.e(TAG, "Sync push failed: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Sync push error: ${e.message}", e)
+            null
+        }
+    }
+
     companion object {
         private const val TAG = "RemoteAgentService"
     }

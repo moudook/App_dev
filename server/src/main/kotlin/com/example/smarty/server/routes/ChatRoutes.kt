@@ -456,7 +456,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     ),
                                 )
                             } catch (e: Exception) {
-                                call.application.log.warn("Failed to send SSE event (client disconnected): ${e.message}")
+                                // Downgrade to DEBUG to avoid log spamming for expected client-side closures
+                                call.application.log.debug("SSE client disconnected during stream: ${e.message}")
                             }
                         },
                         userId = userId,
@@ -588,7 +589,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 ),
                             )
                         } catch (sendError: Exception) {
-                            call.application.log.warn("Failed to send error SSE (client disconnected): ${sendError.message}")
+                            call.application.log.debug("Failed to send error SSE (client already disconnected): ${sendError.message}")
                         }
                     }
                 } finally {

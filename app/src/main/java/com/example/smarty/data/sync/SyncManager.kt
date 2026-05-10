@@ -15,25 +15,6 @@ import kotlinx.serialization.json.Json
  * =============================================================================
  *
  * Manages synchronization between local Room database and remote server.
- *
- * ARCHITECTURE:
- * - Server is the single source of truth (PostgreSQL)
- * - Room DB is a read-optimized cache
- * - All writes go through sync queue
- * - Conflict resolution: Last-Write-Wins (LWW) with server timestamp
- *
- * SYNC FLOW:
- * 1. Local write -> Room DB (optimistic) -> SyncQueue (pending)
- * 2. SyncWorker drains queue -> Server API
- * 3. Server responds with serverTimestamp
- * 4. Local entity updated with serverTimestamp, status=SYNCED
- *
- * CONFLICT RESOLUTION (LWW):
- * - Server timestamp is authoritative
- * - If local write has baseVersion < current server version -> CONFLICT
- * - Resolution: Server version wins, local changes archived to conflict_archive
- *
- * =============================================================================
  */
 
 /**
@@ -41,9 +22,7 @@ import kotlinx.serialization.json.Json
  */
 sealed class SyncResult {
     data class Success(val serverTimestamp: Long) : SyncResult()
-
     data class Conflict(val serverData: String, val localData: String) : SyncResult()
-
     data class Error(val message: String, val retryable: Boolean) : SyncResult()
 }
 
@@ -186,11 +165,9 @@ class SyncManager(
      * Process all pending items in the sync queue.
      */
     private suspend fun processSyncQueue() {
-        // Update status to syncing
         _syncStatus.update { it.copy(isSyncing = true) }
 
         try {
-            // Get pending items
             val pendingItems = syncQueueDao.getPendingItems(BATCH_SIZE)
 
             if (pendingItems.isEmpty()) {
@@ -200,12 +177,54 @@ class SyncManager(
 
             Log.i(TAG, "Processing ${pendingItems.size} sync items")
 
-            // Process each item
+            val notesToPush = mutableListOf<com.example.smarty.protocol.NotePushItem>()
+            val sessionsToPush = mutableListOf<com.example.smarty.protocol.SessionPushItem>()
+            val eventsToPush = mutableListOf<com.example.smarty.protocol.EventPushItem>()
+
             pendingItems.forEach { item ->
-                processSyncItem(item)
+                syncQueueDao.markInFlight(item.id)
+                try {
+                    when (item.entityType) {
+                        SyncEntityType.NOTE.name -> {
+                            val payload = json.decodeFromString<NotePayload>(item.payloadJson)
+                            notesToPush.add(payload.toPushItem())
+                        }
+                        SyncEntityType.EVENT.name -> {
+                            val payload = json.decodeFromString<EventPayload>(item.payloadJson)
+                            eventsToPush.add(payload.toPushItem())
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse payload for ${item.id}", e)
+                    syncQueueDao.markFailed(item.id, "Parse error: ${e.message}")
+                }
             }
 
-            // Clean up synced items older than 7 days
+            if (notesToPush.isNotEmpty() || sessionsToPush.isNotEmpty() || eventsToPush.isNotEmpty()) {
+                val request = com.example.smarty.protocol.SyncPushRequest(
+                    notes = notesToPush.ifEmpty { null },
+                    sessions = sessionsToPush.ifEmpty { null },
+                    events = eventsToPush.ifEmpty { null }
+                )
+
+                val response = remoteAgentService.pushSync(request)
+                
+                if (response?.success == true) {
+                    val now = System.currentTimeMillis()
+                    pendingItems.forEach { item ->
+                        syncQueueDao.markSynced(item.id, now)
+                    }
+                    Log.i(TAG, "Batch sync successful: ${pendingItems.size} items")
+                } else {
+                    val errorMsg = response?.errors?.joinToString() ?: "Unknown server error"
+                    pendingItems.forEach { item ->
+                        syncQueueDao.markFailed(item.id, errorMsg)
+                    }
+                    Log.e(TAG, "Batch sync failed: $errorMsg")
+                }
+            }
+
+            // Cleanup synced items
             syncQueueDao.deleteSyncedItems()
         } finally {
             updateStatus()
@@ -213,135 +232,6 @@ class SyncManager(
         }
     }
 
-    /**
-     * Process a single sync queue item.
-     */
-    private suspend fun processSyncItem(item: SyncQueueItem) {
-        // Mark as in-flight
-        syncQueueDao.markInFlight(item.id)
-
-        try {
-            val result =
-                when (item.entityType) {
-                    SyncEntityType.NOTE.name -> processNoteSync(item)
-                    SyncEntityType.EVENT.name -> processEventSync(item)
-                    else -> {
-                        Log.w(TAG, "Unknown entity type: ${item.entityType}")
-                        SyncResult.Error("Unknown entity type", false)
-                    }
-                }
-
-            when (result) {
-                is SyncResult.Success -> {
-                    syncQueueDao.markSynced(item.id, result.serverTimestamp)
-                    Log.d(TAG, "Synced ${item.entityType} ${item.entityId}")
-                }
-                is SyncResult.Conflict -> {
-                    syncQueueDao.markConflict(item.id, "Server version is newer")
-                    archiveConflict(item, result.serverData, result.localData)
-                    Log.w(TAG, "Conflict for ${item.entityType} ${item.entityId}")
-                }
-                is SyncResult.Error -> {
-                    if (result.retryable && item.canRetry(MAX_RETRIES)) {
-                        syncQueueDao.markFailed(item.id, result.message)
-                        Log.w(TAG, "Retryable error for ${item.entityId}: ${result.message}")
-                    } else {
-                        syncQueueDao.markFailed(item.id, result.message)
-                        Log.e(TAG, "Permanent error for ${item.entityId}: ${result.message}")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception processing ${item.id}", e)
-            if (item.canRetry(MAX_RETRIES)) {
-                syncQueueDao.markFailed(item.id, e.message ?: "Unknown error")
-            } else {
-                syncQueueDao.markFailed(item.id, "Max retries exceeded: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * Process a note sync operation.
-     *
-     * Server Integration Required:
-     * - POST /api/sync/notes - Send note updates to server
-     * - Response: { serverTimestamp: Long, conflict: Boolean }
-     */
-    private suspend fun processNoteSync(item: SyncQueueItem): SyncResult {
-        return try {
-            val payload = json.decodeFromString<NotePayload>(item.payloadJson)
-
-            // Server integration point: Send note to server and get server timestamp
-            // val response = apiClient.syncNote(payload.toServerNote())
-            // val serverTimestamp = response.serverTimestamp
-
-            // For now, simulate success with local timestamp
-            val serverTimestamp = System.currentTimeMillis()
-
-            // Update local note with server timestamp
-            val note = noteDao.getNoteById(item.entityId)
-            if (note != null) {
-                noteDao.updateNote(note.copy(updatedAt = serverTimestamp))
-            }
-
-            SyncResult.Success(serverTimestamp)
-        } catch (e: Exception) {
-            SyncResult.Error(e.message ?: "Unknown error", true)
-        }
-    }
-
-    /**
-     * Process an event sync operation.
-     *
-     * Server Integration Required:
-     * - POST /api/sync/events - Send calendar events to server
-     * - Response: { serverTimestamp: Long, conflict: Boolean }
-     */
-    private suspend fun processEventSync(item: SyncQueueItem): SyncResult {
-        return try {
-            val payload = json.decodeFromString<EventPayload>(item.payloadJson)
-
-            // Server integration point: Send event to server and get server timestamp
-            // val response = apiClient.syncEvent(payload.toServerEvent())
-            val serverTimestamp = System.currentTimeMillis()
-
-            // Update local event with server timestamp
-            val event = calendarDao.getEventById(item.entityId)
-            if (event != null) {
-                calendarDao.updateEvent(event.copy(updatedAt = serverTimestamp))
-            }
-
-            SyncResult.Success(serverTimestamp)
-        } catch (e: Exception) {
-            SyncResult.Error(e.message ?: "Unknown error", true)
-        }
-    }
-
-    /**
-     * Archive a conflict for potential manual recovery.
-     */
-    private suspend fun archiveConflict(
-        item: SyncQueueItem,
-        serverData: String,
-        localData: String,
-    ) {
-        val record =
-            ConflictRecord.create(
-                entityId = item.entityId,
-                entityType = item.entityType,
-                localPayload = localData,
-                serverPayload = serverData,
-                localTs = item.baseVersion,
-                serverTs = System.currentTimeMillis(),
-                resolution = "SERVER_WINS",
-            )
-        syncQueueDao.insertConflict(record)
-    }
-
-    /**
-     * Update sync status from database.
-     */
     private suspend fun updateStatus() {
         val summary = syncQueueDao.getSyncStatusSummary()
         _syncStatus.update {
@@ -353,18 +243,12 @@ class SyncManager(
         }
     }
 
-    /**
-     * Reset failed items for retry.
-     */
     suspend fun retryFailed() {
         syncQueueDao.resetFailedItems()
         updateStatus()
         Log.i(TAG, "Reset failed items for retry")
     }
 
-    /**
-     * Clear all sync data (for testing or reset).
-     */
     suspend fun clearAll() {
         syncQueueDao.clearAll()
         syncQueueDao.clearAllConflicts()
@@ -373,7 +257,7 @@ class SyncManager(
 }
 
 // =============================================================================
-// PAYLOAD MODELS FOR SERIALIZATION
+// PAYLOAD MODELS
 // =============================================================================
 
 @Serializable
@@ -411,6 +295,42 @@ data class NotePayload(
     val createdAt: Long,
     val updatedAt: Long,
 ) {
+    fun toPushItem(): com.example.smarty.protocol.NotePushItem {
+        return com.example.smarty.protocol.NotePushItem(
+            id = id,
+            title = title,
+            content = content,
+            summary = summary,
+            sourceUrl = sourceUrl,
+            imageUri = imageUri,
+            fileUri = fileUri,
+            fileName = fileName,
+            fileMimeType = fileMimeType,
+            fileSize = fileSize,
+            type = type,
+            categoryId = categoryId,
+            categoryName = categoryName,
+            stackId = stackId,
+            parentNoteId = parentNoteId,
+            whySaved = whySaved,
+            processingStatus = processingStatus,
+            isArchived = isArchived,
+            isPinned = isPinned,
+            isFavorite = isFavorite,
+            isFullPrivacy = isFullPrivacy,
+            excludeFromAiChat = excludeFromAiChat,
+            isAiCreated = isAiCreated,
+            isViewed = isViewed,
+            todoContent = todoContent,
+            attachmentsJson = attachmentsJson,
+            tagsJson = tagsJson,
+            chunkAnalysesJson = chunkAnalysesJson,
+            reminderText = reminderText,
+            reminderExpiresAt = reminderExpiresAt,
+            updatedAt = updatedAt
+        )
+    }
+
     companion object {
         fun fromNote(note: com.example.smarty.core.domain.model.Note): NotePayload {
             return NotePayload(
@@ -467,6 +387,21 @@ data class EventPayload(
     val createdAt: Long,
     val updatedAt: Long,
 ) {
+    fun toPushItem(): com.example.smarty.protocol.EventPushItem {
+        return com.example.smarty.protocol.EventPushItem(
+            id = id,
+            title = title,
+            description = description,
+            startTime = startTime,
+            endTime = endTime,
+            location = location,
+            reminderMinutes = reminderMinutes ?: 15,
+            linkedNoteId = linkedNoteId,
+            googleEventId = googleEventId,
+            isEventPrivate = isEventPrivate
+        )
+    }
+
     companion object {
         fun fromEvent(event: com.example.smarty.core.domain.model.CalendarEvent): EventPayload {
             return EventPayload(
