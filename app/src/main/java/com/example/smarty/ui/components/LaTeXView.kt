@@ -38,7 +38,7 @@ fun LaTeXView(
     
     Box(
         modifier = modifier
-            .fillMaxWidth()
+            .then(if (isBlock) Modifier.fillMaxWidth() else Modifier)
             .heightIn(min = minHeight, max = maxHeight)
     ) {
         AndroidView(
@@ -75,7 +75,7 @@ fun LaTeXView(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
         )
     }
 }

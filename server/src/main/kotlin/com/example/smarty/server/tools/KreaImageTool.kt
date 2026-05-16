@@ -85,6 +85,10 @@ data class ImageGenerationResult(
  * Supports both text-to-image and image-to-image workflows.
  */
 class KreaImageTool {
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true }
+    }
+
     private val logger = LoggerFactory.getLogger(KreaImageTool::class.java)
 
     private val kreaApiKey = System.getenv("KREA_API_KEY")?.trim()?.ifBlank { null }
@@ -243,7 +247,7 @@ class KreaImageTool {
                 // Parse manually to expose exact response structure
                 val body =
                     try {
-                        Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResponse>(rawBody)
+                        json.decodeFromString<KreaJobResponse>(rawBody)
                     } catch (e: Exception) {
                         logger.error("X Failed to parse Krea response as KreaJobResponse")
                         logger.error("   Error: ${e.message}")
@@ -327,7 +331,7 @@ class KreaImageTool {
                 logger.debug("OK Poll successful (2xx)")
 
                 return try {
-                    val result = Json { ignoreUnknownKeys = true }.decodeFromString<KreaJobResult>(rawBody)
+                    val result = json.decodeFromString<KreaJobResult>(rawBody)
                     logger.debug("   Job status: ${result.status}")
                     if (result.result?.urls != null) {
                         logger.debug("   Result URLs count: ${result.result.urls.size}")

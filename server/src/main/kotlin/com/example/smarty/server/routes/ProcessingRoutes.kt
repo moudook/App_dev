@@ -268,11 +268,7 @@ fun Application.configureProcessingRoutes() {
                             withContext(Dispatchers.IO) {
                                 kreaTool.uploadToSupabase(kreaImageUrl, jobId, com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName())
                             }
-                        if (supabaseUrl != null) {
-                            log.info(" Image uploaded to Supabase: $supabaseUrl")
-                        } else {
-                            log.warn("️  Supabase upload returned null - will use Krea URL")
-                        }
+                        log.info(" Image uploaded to Supabase: $supabaseUrl")
                     } catch (e: Exception) {
                         log.warn("️  Supabase upload failed, will use Krea URL: ${e.message}")
                     }

@@ -160,9 +160,7 @@ class ToolExecutor(
                         bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName(),
                     )
 
-                if (supabaseUrl != null) {
-                    emitProcessing("Image uploaded to permanent storage!", "Supabase URL: $supabaseUrl")
-                }
+                emitProcessing("Image uploaded to permanent storage!", "Supabase URL: $supabaseUrl")
             } catch (e: Exception) {
                 logger.warn("Supabase upload failed, will use Krea URL: ${e.message}")
             }

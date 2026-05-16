@@ -590,12 +590,7 @@ class RemoteAgentService(
 
             // Both success (200) and error (500/503) responses use the same schema
             val body = response.body<DirectImageGenerationResponse>()
-            if (body != null) {
-                body
-            } else {
-                Log.e(TAG, "Direct image generation: failed to parse response (status=${response.status})")
-                null
-            }
+            body
         } catch (e: Exception) {
             Log.e(TAG, "Direct image generation error: ${e.message}", e)
             null

@@ -30,11 +30,15 @@ import java.lang.ref.WeakReference
  * - WorkManager: Custom configuration to prevent memory leaks
  */
 class SmartyApplication : Application(), Configuration.Provider {
+// class is a group of functions
 
     companion object {
         private const val TAG = "SmartyApplication"
+        //private   means no code outside the class can touch this variable
         private var instance: SmartyApplication? = null
+        //private   means no code outside the class can touch this variable
         private var wasOffline: Boolean = false
+        //private   means no code outside the class can touch this variable
 
         fun getInstance(): SmartyApplication? = instance
 
