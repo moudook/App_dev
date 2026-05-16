@@ -113,6 +113,9 @@ enum class ProcessingStatus {
         // PERFORMANCE (Sprint 3): processingStatus index for queue management
         Index(value = ["processingStatus"]), // Queue processing queries
         Index(value = ["processingStatus", "updatedAt"]), // Stuck note detection with timeout
+        // DEDUPLICATION: content_hash index for fast duplicate detection
+        Index(value = ["contentHash"]),
+        Index(value = ["processedContentHash"]),
     ],
 )
 data class Note(
@@ -132,6 +135,8 @@ data class Note(
     val categoryName: String? = null,
     val whySaved: String? = null,
     val processingStatus: ProcessingStatus = ProcessingStatus.PENDING,
+    val contentHash: String? = null, // SHA-256 hash of content for deduplication
+    val processedContentHash: String? = null, // Hash of content that was AI-processed (prevents reprocessing)
     val createdAt: Long = 0L, // System.currentTimeMillis(),
     val updatedAt: Long = 0L, // System.currentTimeMillis(),
     val isArchived: Boolean = false,
@@ -149,6 +154,8 @@ data class Note(
     val reminderText: String? = null, // Smart reminder text to show on card
     val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
     val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses
+    val metadata: String? = null, // JSONB metadata field
+    val wordCount: Int? = null, // Word count for analytics
 ) : PrivacyAware {
     /**
      * PrivacyAware implementation.

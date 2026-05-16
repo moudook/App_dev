@@ -29,10 +29,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 
-/**
- * Simple Service Locator to manage singletons and dependencies.
- * Helps decouple ViewModels by providing shared instances of managers.
- */
 object ServiceLocator {
     @Volatile
     private var repository: SmartyRepository? = null
@@ -42,6 +38,9 @@ object ServiceLocator {
 
     @Volatile
     private var noteOperationsManager: NoteOperationsManager? = null
+
+    @Volatile
+    private var noteEngagementManager: com.example.smarty.features.notes.domain.NoteEngagementManager? = null
 
     @Volatile
     private var calendarFeatureManager: CalendarFeatureManager? = null
@@ -68,10 +67,12 @@ object ServiceLocator {
             val syncCoordinator = provideSyncCoordinator(application)
             val offlineQueue = provideOfflineQueue(application)
             com.example.smarty.data.repository.ServerSyncRepository(
+                context = application,
                 remoteDataSource = remoteDataSource,
                 eventSink = eventSink,
                 syncCoordinator = syncCoordinator,
                 offlineQueue = offlineQueue,
+                noteDao = database.noteDao(),
             ).also { syncRepository = it }
         }
     }
@@ -137,13 +138,27 @@ object ServiceLocator {
             val securePreferences = SecurePreferences.getInstance(application)
             val aiService = provideAIService(application)
             val repository = provideRepository(application)
+            val engagementManager = provideNoteEngagementManager(application)
 
             NoteOperationsManager(
                 repository = repository,
                 aiService = aiService,
                 context = application,
-                scope = applicationScope, // Use app scope for singleton manager
-            ).also { noteOperationsManager = it }
+                scope = applicationScope,
+            ).also { noteOps ->
+                noteOps.setEngagementManager(engagementManager)
+                noteOperationsManager = noteOps
+            }
+        }
+    }
+
+    fun provideNoteEngagementManager(application: Application): com.example.smarty.features.notes.domain.NoteEngagementManager {
+        return noteEngagementManager ?: synchronized(this) {
+            val repository = provideRepository(application)
+            com.example.smarty.features.notes.domain.NoteEngagementManager(
+                repository = repository,
+                context = application,
+            ).also { noteEngagementManager = it }
         }
     }
 
@@ -229,9 +244,6 @@ object ServiceLocator {
             val securePreferences = SecurePreferences.getInstance(application)
             val audioManager = provideAudioPlaybackManager(application)
             val repo = provideDeviceAudioRepository(application)
-            // Note: Navigation callback needs to be handled carefully or injected later
-            // For now passing a no-op or we need a way to set it
-
             val calendarFM = provideCalendarFeatureManager(application)
 
             SystemFeatureManager(
@@ -372,7 +384,7 @@ object ServiceLocator {
             com.example.smarty.features.chat.domain.WorkflowManager(
                 repository = repo,
                 scope = applicationScope,
-                onStatusUpdate = { /* Callback handling to be improved */ },
+                onStatusUpdate = { },
             ).also { workflowManager = it }
         }
     }
@@ -401,8 +413,6 @@ object ServiceLocator {
         }
     }
 
-    // ChatFeatureManager requires a lot of dependencies and ViewModelScope usually
-    // We might need to factory it per ViewModel or keep it shared if it holds state
     fun provideChatFeatureManager(
         application: Application,
         scope: CoroutineScope,
@@ -411,7 +421,7 @@ object ServiceLocator {
             val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
             val repo = provideRepository(application)
-            val chatRepo = provideChatRepository(application) // Use provider
+            val chatRepo = provideChatRepository(application)
 
             val settingsFM = provideSettingsFeatureManager(application)
             val noteOps = provideNoteOperationsManager(application)
@@ -423,14 +433,13 @@ object ServiceLocator {
             val calendarFM = provideCalendarFeatureManager(application)
             val styleFM = provideStyleFeatureManager()
             val workflowManager = provideWorkflowManager(application)
-            val savedStateHandle = androidx.lifecycle.SavedStateHandle() // Placeholder if not provided
+            val savedStateHandle = androidx.lifecycle.SavedStateHandle()
 
-            // Shared State
             val sharedState = provideSharedAppState()
 
             ChatFeatureManager(
                 application = application,
-                scope = applicationScope, // Use app scope for persistence
+                scope = applicationScope,
                 chatRepository = chatRepo,
                 repository = repo,
                 database = database,
@@ -460,8 +469,6 @@ object ServiceLocator {
         return searchFeatureManager ?: synchronized(this) {
             val repo = provideRepository(application)
             val noteOps = provideNoteOperationsManager(application)
-            // Get notes flow from NoteOperationsManager (which gets it from Repo)
-            // We need a StateFlow for SearchFeatureManager
             val allNotesFlow =
                 noteOps.getAllNotes()
                     .stateIn(applicationScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -478,7 +485,7 @@ object ServiceLocator {
         }
     }
 
-    // Reset for testing or cleanup
+    // Reset for testing
     fun reset() {
         calendarFeatureManager = null
         noteOperationsManager = null
@@ -515,7 +522,7 @@ object ServiceLocator {
         }
     }
 
-    // Chat ViewModel Factory - provides ChatViewModel with all dependencies
+    // Chat ViewModel Factory
     fun provideChatViewModel(application: Application): com.example.smarty.features.chat.domain.ChatViewModel {
         return com.example.smarty.features.chat.domain.ChatViewModel(application)
     }

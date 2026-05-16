@@ -43,12 +43,12 @@ class NoteRepository(
                         id, user_id, category_id, stack_id, parent_note_id,
                         title, content, summary, source_url, image_uri, file_uri,
                         file_name, file_mime_type, file_size, type, category_name,
-                        why_saved, processing_status, is_archived, is_pinned,
-                        is_favorite, is_full_privacy, exclude_from_ai_chat,
+                        why_saved, processing_status, content_hash, processed_content_hash,
+                        is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat,
                         is_ai_created, is_viewed, todo_content, attachments_json,
                         tags_json, chunk_analyses_json, reminder_text, reminder_expires_at,
-                        metadata, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, now(), now())
+                        metadata, word_count, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, now(), now())
                     """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     var idx = 1
@@ -70,6 +70,8 @@ class NoteRepository(
                     stmt.setString(idx++, info.categoryName)
                     stmt.setString(idx++, info.whySaved)
                     stmt.setString(idx++, info.processingStatus)
+                    stmt.setString(idx++, info.contentHash)
+                    stmt.setString(idx++, info.processedContentHash)
                     stmt.setBoolean(idx++, info.isArchived)
                     stmt.setBoolean(idx++, info.isPinned)
                     stmt.setBoolean(idx++, info.isFavorite)
@@ -83,7 +85,8 @@ class NoteRepository(
                     stmt.setString(idx++, info.chunkAnalysesJson ?: "[]")
                     stmt.setString(idx++, info.reminderText)
                     stmt.setTimestamp(idx++, info.reminderExpiresAt?.let { java.sql.Timestamp(it) })
-                    stmt.setString(idx++, "{}")
+                    stmt.setString(idx++, info.metadata ?: "{}")
+                    stmt.setObject(idx++, info.wordCount)
                     stmt.executeUpdate()
                 }
             }
@@ -151,24 +154,50 @@ class NoteRepository(
             }
         }
 
+    private val noteVersionRepo = NoteVersionRepository(dataSource)
+
     suspend fun update(
         userId: String,
         info: NoteInfo,
     ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
+                // PHASE 7: Create version snapshot if content changed
+                val existingNote = getById(userId, info.id)
+                val contentChanged = existingNote != null && existingNote.content != info.content
+
+                if (contentChanged) {
+                    val latestVersionNo = noteVersionRepo.getVersionsForNote(info.id, 1).firstOrNull()?.versionNo ?: 0
+                    noteVersionRepo.createVersion(
+                        com.example.smarty.server.data.NoteVersion(
+                            id = java.util.UUID.randomUUID().toString(),
+                            noteId = info.id,
+                            title = existingNote!!.title,
+                            content = existingNote.content,
+                            versionNo = latestVersionNo + 1,
+                            createdAt = null,
+                        )
+                    )
+                    // Prune old versions to prevent unbounded growth
+                    noteVersionRepo.deleteOldVersions(info.id, keepCount = 10)
+                    logger.info("Created version snapshot for note ${info.id} (version ${latestVersionNo + 1})")
+                }
+
                 val sql =
                     """
                     UPDATE notes SET
                         title = ?, content = ?, summary = ?, source_url = ?,
                         image_uri = ?, file_uri = ?, file_name = ?, file_mime_type = ?,
-                        file_size = ?, type = ?, category_name = ?, why_saved = ?,
-                        processing_status = ?, is_archived = ?, is_pinned = ?,
-                        is_favorite = ?, is_full_privacy = ?, exclude_from_ai_chat = ?,
+                        file_size = ?, type = ?, category_id = ?, category_name = ?,
+                        stack_id = ?, parent_note_id = ?, why_saved = ?,
+                        processing_status = ?, content_hash = ?, processed_content_hash = ?,
+                        is_archived = ?, is_pinned = ?, is_favorite = ?,
+                        is_full_privacy = ?, exclude_from_ai_chat = ?,
                         is_ai_created = ?, is_viewed = ?, todo_content = ?,
                         attachments_json = ?::jsonb, tags_json = ?::jsonb,
                         chunk_analyses_json = ?::jsonb, reminder_text = ?,
-                        reminder_expires_at = ?, updated_at = now()
+                        reminder_expires_at = ?, metadata = ?::jsonb, word_count = ?,
+                        updated_at = now()
                     WHERE id = ? AND user_id = ? AND deleted_at IS NULL
                     """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
@@ -183,9 +212,14 @@ class NoteRepository(
                     stmt.setString(idx++, info.fileMimeType)
                     stmt.setObject(idx++, info.fileSize)
                     stmt.setString(idx++, info.type)
+                    stmt.setObject(idx++, info.categoryId?.let { UUID.fromString(it) })
                     stmt.setString(idx++, info.categoryName)
+                    stmt.setObject(idx++, info.stackId?.let { UUID.fromString(it) })
+                    stmt.setObject(idx++, info.parentNoteId?.let { UUID.fromString(it) })
                     stmt.setString(idx++, info.whySaved)
                     stmt.setString(idx++, info.processingStatus)
+                    stmt.setString(idx++, info.contentHash)
+                    stmt.setString(idx++, info.processedContentHash)
                     stmt.setBoolean(idx++, info.isArchived)
                     stmt.setBoolean(idx++, info.isPinned)
                     stmt.setBoolean(idx++, info.isFavorite)
@@ -199,6 +233,8 @@ class NoteRepository(
                     stmt.setString(idx++, info.chunkAnalysesJson ?: "[]")
                     stmt.setString(idx++, info.reminderText)
                     stmt.setTimestamp(idx++, info.reminderExpiresAt?.let { java.sql.Timestamp(it) })
+                    stmt.setString(idx++, info.metadata ?: "{}")
+                    stmt.setObject(idx++, info.wordCount)
                     stmt.setObject(idx++, UUID.fromString(info.id))
                     stmt.setObject(idx, UUID.fromString(userId))
                     stmt.executeUpdate() > 0
@@ -225,6 +261,8 @@ class NoteRepository(
             parentNoteId = rs.getObject("parent_note_id")?.toString(),
             whySaved = rs.getString("why_saved"),
             processingStatus = rs.getString("processing_status") ?: "COMPLETED",
+            contentHash = rs.getString("content_hash"),
+            processedContentHash = rs.getString("processed_content_hash"),
             wordCount = rs.getInt("word_count").takeIf { !rs.wasNull() },
             isArchived = rs.getBoolean("is_archived"),
             isPinned = rs.getBoolean("is_pinned"),
@@ -239,6 +277,7 @@ class NoteRepository(
             chunkAnalysesJson = rs.getString("chunk_analyses_json"),
             reminderText = rs.getString("reminder_text"),
             reminderExpiresAt = rs.getTimestamp("reminder_expires_at")?.time,
+            metadata = rs.getString("metadata"),
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at").time,
         )
@@ -332,4 +371,130 @@ class NoteRepository(
         )
         return update(userId, updated)
     }
+
+    // ==================== PHASE 7: Batch Operations ====================
+
+    /**
+     * Batch upsert notes: INSERT OR UPDATE by ID.
+     * Used for sync operations - idempotent.
+     * @return List of note IDs that were created or updated
+     */
+    suspend fun batchUpsert(
+        userId: String,
+        notes: List<NoteInfo>,
+    ): List<String> =
+        withContext(Dispatchers.IO) {
+            val results = mutableListOf<String>()
+            dataSource.connection.use { conn ->
+                conn.autoCommit = false
+                try {
+                    val sql =
+                        """
+                        INSERT INTO notes (
+                            id, user_id, category_id, stack_id, parent_note_id,
+                            title, content, summary, source_url, image_uri, file_uri,
+                            file_name, file_mime_type, file_size, type, category_name,
+                            why_saved, processing_status, content_hash, processed_content_hash,
+                            is_archived, is_pinned, is_favorite, is_full_privacy, exclude_from_ai_chat,
+                            is_ai_created, is_viewed, todo_content, attachments_json,
+                            tags_json, chunk_analyses_json, reminder_text, reminder_expires_at,
+                            metadata, word_count, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, now(), now())
+                        ON CONFLICT (id) DO UPDATE SET
+                            title = EXCLUDED.title, content = EXCLUDED.content, summary = EXCLUDED.summary,
+                            source_url = EXCLUDED.source_url, image_uri = EXCLUDED.image_uri,
+                            file_uri = EXCLUDED.file_uri, file_name = EXCLUDED.file_name,
+                            file_mime_type = EXCLUDED.file_mime_type, file_size = EXCLUDED.file_size,
+                            type = EXCLUDED.type, category_name = EXCLUDED.category_name,
+                            why_saved = EXCLUDED.why_saved, processing_status = EXCLUDED.processing_status,
+                            content_hash = EXCLUDED.content_hash, processed_content_hash = EXCLUDED.processed_content_hash,
+                            is_archived = EXCLUDED.is_archived, is_pinned = EXCLUDED.is_pinned,
+                            is_favorite = EXCLUDED.is_favorite, is_full_privacy = EXCLUDED.is_full_privacy,
+                            exclude_from_ai_chat = EXCLUDED.exclude_from_ai_chat,
+                            is_ai_created = EXCLUDED.is_ai_created, is_viewed = EXCLUDED.is_viewed,
+                            todo_content = EXCLUDED.todo_content, attachments_json = EXCLUDED.attachments_json,
+                            tags_json = EXCLUDED.tags_json, chunk_analyses_json = EXCLUDED.chunk_analyses_json,
+                            reminder_text = EXCLUDED.reminder_text, reminder_expires_at = EXCLUDED.reminder_expires_at,
+                            metadata = EXCLUDED.metadata, word_count = EXCLUDED.word_count,
+                            updated_at = now()
+                        WHERE notes.user_id = EXCLUDED.user_id
+                        """.trimIndent()
+
+                    conn.prepareStatement(sql).use { stmt ->
+                        notes.forEach { info ->
+                            var idx = 1
+                            stmt.setObject(idx++, UUID.fromString(info.id))
+                            stmt.setObject(idx++, UUID.fromString(userId))
+                            stmt.setObject(idx++, info.categoryId?.let { UUID.fromString(it) })
+                            stmt.setObject(idx++, info.stackId?.let { UUID.fromString(it) })
+                            stmt.setObject(idx++, info.parentNoteId?.let { UUID.fromString(it) })
+                            stmt.setString(idx++, info.title)
+                            stmt.setString(idx++, info.content)
+                            stmt.setString(idx++, info.summary)
+                            stmt.setString(idx++, info.sourceUrl)
+                            stmt.setString(idx++, info.imageUri)
+                            stmt.setString(idx++, info.fileUri)
+                            stmt.setString(idx++, info.fileName)
+                            stmt.setString(idx++, info.fileMimeType)
+                            stmt.setObject(idx++, info.fileSize)
+                            stmt.setString(idx++, info.type)
+                            stmt.setString(idx++, info.categoryName)
+                            stmt.setString(idx++, info.whySaved)
+                            stmt.setString(idx++, info.processingStatus)
+                            stmt.setString(idx++, info.contentHash)
+                            stmt.setString(idx++, info.processedContentHash)
+                            stmt.setBoolean(idx++, info.isArchived)
+                            stmt.setBoolean(idx++, info.isPinned)
+                            stmt.setBoolean(idx++, info.isFavorite)
+                            stmt.setBoolean(idx++, info.isFullPrivacy)
+                            stmt.setBoolean(idx++, info.excludeFromAiChat)
+                            stmt.setBoolean(idx++, info.isAiCreated)
+                            stmt.setBoolean(idx++, info.isViewed)
+                            stmt.setString(idx++, info.todoContent)
+                            stmt.setString(idx++, info.attachmentsJson ?: "[]")
+                            stmt.setString(idx++, info.tagsJson ?: "[]")
+                            stmt.setString(idx++, info.chunkAnalysesJson ?: "[]")
+                            stmt.setString(idx++, info.reminderText)
+                            stmt.setTimestamp(idx++, info.reminderExpiresAt?.let { java.sql.Timestamp(it) })
+                            stmt.setString(idx++, info.metadata ?: "{}")
+                            stmt.setObject(idx++, info.wordCount)
+                            stmt.addBatch()
+                            results.add(info.id)
+                        }
+                        stmt.executeBatch()
+                    }
+                    conn.commit()
+                } catch (e: Exception) {
+                    conn.rollback()
+                    logger.error("Batch upsert failed for user $userId", e)
+                    throw e
+                } finally {
+                    conn.autoCommit = true
+                }
+            }
+            results
+        }
+
+    /**
+     * Batch delete notes by ID (soft delete).
+     * @return Number of notes deleted
+     */
+    suspend fun batchDelete(
+        userId: String,
+        noteIds: List<String>,
+    ): Int =
+        withContext(Dispatchers.IO) {
+            if (noteIds.isEmpty()) return@withContext 0
+            dataSource.connection.use { conn ->
+                val placeholders = noteIds.joinToString(",") { "?" }
+                val sql = "UPDATE notes SET deleted_at = now(), updated_at = now() WHERE id IN ($placeholders) AND user_id = ? AND deleted_at IS NULL"
+                conn.prepareStatement(sql).use { stmt ->
+                    noteIds.forEachIndexed { index, id ->
+                        stmt.setObject(index + 1, UUID.fromString(id))
+                    }
+                    stmt.setObject(noteIds.size + 1, UUID.fromString(userId))
+                    stmt.executeUpdate()
+                }
+            }
+        }
 }

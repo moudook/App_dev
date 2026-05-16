@@ -10,16 +10,18 @@ import javax.sql.DataSource
 /**
  * Note Deduplication Manager
  *
- * Purpose: Automatically detect and remove duplicate notes based on content.
+ * Purpose: Automatically detect and prevent duplicate notes using content hashing.
  *
  * Strategy:
- * - When saving a note, check if identical content already exists
+ * - When saving a note, compute SHA-256 hash of content
+ * - Check content_hash index for existing match (fast indexed lookup)
+ * - If hash matches, do a full content comparison to avoid false positives
  * - If duplicate found, return existing note ID instead of creating new one
  * - Periodic cleanup to remove existing duplicates from database
  *
  * Duplicate Detection:
- * - Content-based hashing (SHA-256)
- * - Title similarity (optional, can be disabled)
+ * - Primary: content_hash (SHA-256) with indexed lookup
+ * - Secondary: exact content match (fallback for notes without hash)
  * - User-scoped (only check within same user's notes)
  */
 class NoteDeduplicationManager(private val dataSource: DataSource) {
@@ -27,6 +29,7 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
 
     /**
      * Check if a note with identical content already exists for this user.
+     * Uses content_hash index for fast lookup, falls back to exact content match.
      *
      * @param userId User ID
      * @param content Note content
@@ -39,23 +42,49 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
         title: String? = null,
     ): String? =
         withContext(Dispatchers.IO) {
+            val contentHash = content.sha256()
+
             dataSource.connection.use { conn ->
-                // Check by exact content match
+                // Primary: Check by content_hash (fast indexed lookup)
+                val hashSql =
+                    """
+                    SELECT id, content FROM notes
+                    WHERE user_id = ? AND content_hash = ? AND is_archived = false AND deleted_at IS NULL
+                    ORDER BY created_at ASC
+                    """.trimIndent()
+
+                conn.prepareStatement(hashSql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setString(2, contentHash)
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            // Verify full content match to avoid hash collision false positives
+                            val existingContent = rs.getString("content")
+                            if (existingContent == content) {
+                                val existingId = rs.getString("id")
+                                logger.info("Found duplicate note by content_hash: id={}, userId={}", existingId, userId)
+                                return@withContext existingId
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: Check by exact content match (for notes created before content_hash was added)
                 val contentSql =
                     """
                     SELECT id FROM notes
-                    WHERE user_id = ? AND content = ? AND is_archived = false AND deleted_at IS NULL
+                    WHERE user_id = ? AND content = ? AND content_hash IS NULL AND is_archived = false AND deleted_at IS NULL
                     ORDER BY created_at ASC
                     LIMIT 1
                     """.trimIndent()
 
                 conn.prepareStatement(contentSql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(userId)) // UUID cast — v6 schema
+                    stmt.setObject(1, UUID.fromString(userId))
                     stmt.setString(2, content)
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) {
                             val existingId = rs.getString("id")
-                            logger.info("Found duplicate note by content match: existingId={}, userId={}", existingId, userId)
+                            logger.info("Found duplicate note by content match (fallback): id={}, userId={}", existingId, userId)
                             return@withContext existingId
                         }
                     }
@@ -77,42 +106,41 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
             var removedCount = 0
 
             dataSource.connection.use { conn ->
-                // Find duplicates by content
+                // Find duplicates by content_hash (fast)
                 val findDuplicatesSql =
                     """
-                    SELECT content, user_id, COUNT(*) as count,
+                    SELECT content_hash, user_id, COUNT(*) as count,
                            MIN(created_at) as oldest_created_at
                     FROM notes
-                    WHERE is_archived = false AND deleted_at IS NULL
+                    WHERE content_hash IS NOT NULL AND is_archived = false AND deleted_at IS NULL
                     ${if (userId != null) "AND user_id = ?" else ""}
-                    GROUP BY content, user_id
+                    GROUP BY content_hash, user_id
                     HAVING COUNT(*) > 1
                     """.trimIndent()
 
                 conn.prepareStatement(findDuplicatesSql).use { findStmt ->
                     if (userId != null) {
-                        findStmt.setObject(1, UUID.fromString(userId)) // UUID cast — v6 schema
+                        findStmt.setObject(1, UUID.fromString(userId))
                     }
 
                     findStmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             val dupUserId = rs.getString("user_id")
-                            val content = rs.getString("content")
+                            val contentHash = rs.getString("content_hash")
                             val oldestCreatedAt = rs.getTimestamp("oldest_created_at")
 
                             // Delete all duplicates except the oldest one
                             val deleteSql =
                                 """
                                 DELETE FROM notes
-                                WHERE user_id = ? AND content = ? 
+                                WHERE user_id = ? AND content_hash = ? 
                                   AND is_archived = false AND deleted_at IS NULL
                                   AND created_at > ?
                                 """.trimIndent()
 
                             conn.prepareStatement(deleteSql).use { deleteStmt ->
-                                // dupUserId from rs.getString is a UUID-formatted string — cast to UUID object
                                 deleteStmt.setObject(1, UUID.fromString(dupUserId))
-                                deleteStmt.setString(2, content)
+                                deleteStmt.setString(2, contentHash)
                                 deleteStmt.setTimestamp(3, oldestCreatedAt)
 
                                 val deleted = deleteStmt.executeUpdate()
@@ -124,25 +152,15 @@ class NoteDeduplicationManager(private val dataSource: DataSource) {
                         }
                     }
                 }
-
-                removedCount
             }
-        }
 
-    /**
-     * Note: content_hash column is no longer used in v6.0.0 schema.
-     * This function is kept for backwards compatibility but is a no-op.
-     */
-    @Deprecated("content_hash is not used in v6.0.0 schema")
-    suspend fun addContentHashColumn() {
-        // No-op - content_hash column doesn't exist in v6.0.0 notes table
-        logger.info("addContentHashColumn called but skipped - not needed in v6.0.0 schema")
-    }
+            removedCount
+        }
 
     /**
      * Calculate SHA-256 hash of content.
      */
-    private fun String.sha256(): String {
+    fun String.sha256(): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(this.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }

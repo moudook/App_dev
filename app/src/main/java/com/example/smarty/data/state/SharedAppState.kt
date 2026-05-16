@@ -1,20 +1,12 @@
 package com.example.smarty.data.state
 
 import com.example.smarty.core.domain.model.NavigationTab
+import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.components.ConnectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Singleton holder for shared app state to decouple ViewModels.
- * Now includes global error, loading, and navigation state.
- *
- * Principles:
- * - Single source of truth for cross-feature state
- * - Separated concerns (domain state vs UI state)
- * - Immutable state flows
- */
 class SharedAppState {
     private val _currentScreen = MutableStateFlow("startup")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
@@ -37,36 +29,29 @@ class SharedAppState {
     private val _selectedTab = MutableStateFlow<NavigationTab>(NavigationTab.NOTES)
     val selectedTab: StateFlow<NavigationTab> = _selectedTab.asStateFlow()
 
-    // Global state managers - Single Responsibility for cross-cutting concerns
+    // Cross-cutting concerns
     val errorState = GlobalErrorState()
     val loadingState = LoadingState()
     val navigationState = NavigationState()
 
-    fun setCurrentScreen(screen: String) {
-        _currentScreen.value = screen
-    }
+    // Engagement state
+    private val _noteStreak = MutableStateFlow(0)
+    val noteStreak: StateFlow<Int> = _noteStreak.asStateFlow()
 
-    fun setActiveNoteId(id: String?) {
-        _activeNoteId.value = id
-    }
+    private val _noteOfTheDay = MutableStateFlow<Note?>(null)
+    val noteOfTheDay: StateFlow<Note?> = _noteOfTheDay.asStateFlow()
 
-    fun setDarkTheme(isDark: Boolean) {
-        _isDarkTheme.value = isDark
-    }
+    private val _smartSuggestions = MutableStateFlow<List<Note>>(emptyList())
+    val smartSuggestions: StateFlow<List<Note>> = _smartSuggestions.asStateFlow()
 
-    fun setConnectionStatus(status: ConnectionStatus) {
-        _connectionStatus.value = status
-    }
-
-    fun setNavigationRequest(screen: String?) {
-        _navigationRequest.value = screen
-    }
-
-    fun setCacheSizeBytes(size: Long) {
-        _cacheSizeBytes.value = size
-    }
-
-    fun setSelectedTab(tab: NavigationTab) {
-        _selectedTab.value = tab
-    }
+    fun setNoteStreak(count: Int) { _noteStreak.value = count }
+    fun setNoteOfTheDay(note: Note?) { _noteOfTheDay.value = note }
+    fun setSmartSuggestions(notes: List<Note>) { _smartSuggestions.value = notes }
+    fun setCurrentScreen(screen: String) { _currentScreen.value = screen }
+    fun setActiveNoteId(id: String?) { _activeNoteId.value = id }
+    fun setDarkTheme(isDark: Boolean) { _isDarkTheme.value = isDark }
+    fun setConnectionStatus(status: ConnectionStatus) { _connectionStatus.value = status }
+    fun setNavigationRequest(screen: String?) { _navigationRequest.value = screen }
+    fun setCacheSizeBytes(size: Long) { _cacheSizeBytes.value = size }
+    fun setSelectedTab(tab: NavigationTab) { _selectedTab.value = tab }
 }

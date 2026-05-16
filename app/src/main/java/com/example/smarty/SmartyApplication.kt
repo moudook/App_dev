@@ -30,15 +30,11 @@ import java.lang.ref.WeakReference
  * - WorkManager: Custom configuration to prevent memory leaks
  */
 class SmartyApplication : Application(), Configuration.Provider {
-// class is a group of functions
 
     companion object {
         private const val TAG = "SmartyApplication"
-        //private   means no code outside the class can touch this variable
         private var instance: SmartyApplication? = null
-        //private   means no code outside the class can touch this variable
         private var wasOffline: Boolean = false
-        //private   means no code outside the class can touch this variable
 
         fun getInstance(): SmartyApplication? = instance
 
@@ -106,6 +102,8 @@ class SmartyApplication : Application(), Configuration.Provider {
             performInitialSync()
         }
 
+        setupEngagementTracking()
+
         com.example.smarty.core.common.util.CrashLogger.log(this, "Application onCreate finished")
     }
 
@@ -155,6 +153,45 @@ class SmartyApplication : Application(), Configuration.Provider {
         } catch (e: Exception) {
             Log.e(TAG, "Initial sync failed", e)
         }
+    }
+
+    private fun setupEngagementTracking() {
+        val engagementManager = com.example.smarty.di.ServiceLocator.provideNoteEngagementManager(this)
+        val appState = com.example.smarty.di.ServiceLocator.provideSharedAppState()
+
+        appScope.launch {
+            engagementManager.streakCount.collectLatest { count ->
+                appState.setNoteStreak(count)
+            }
+        }
+
+        appScope.launch {
+            engagementManager.noteOfTheDay.collectLatest { note ->
+                appState.setNoteOfTheDay(note)
+            }
+        }
+
+        appScope.launch {
+            engagementManager.smartSuggestions.collectLatest { notes ->
+                appState.setSmartSuggestions(notes)
+            }
+        }
+
+        appScope.launch {
+            val noteOfTheDay = engagementManager.getNoteOfTheDay()
+            if (noteOfTheDay != null) {
+                appState.setNoteOfTheDay(noteOfTheDay)
+            }
+        }
+
+        appScope.launch {
+            val suggestions = engagementManager.getSmartSuggestions()
+            if (suggestions.isNotEmpty()) {
+                appState.setSmartSuggestions(suggestions)
+            }
+        }
+
+        Log.d(TAG, "Engagement tracking initialized")
     }
 
     override fun onTerminate() {

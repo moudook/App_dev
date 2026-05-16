@@ -137,38 +137,66 @@ class SyncCoordinator(
                 var sessionsUpdated = 0
                 var eventsUpdated = 0
 
-                // Sync notes with deduplication
+                // Sync notes with idempotent upsert and conflict resolution
                 response.notes.forEach { noteInfo ->
                     val existing = noteDao.getNoteByIdSync(noteInfo.id)
                     val note = mapToNote(noteInfo)
 
-                    // ADD: Content-based deduplication to prevent duplicates
-                    val shouldInsert =
-                        if (existing == null) {
-                            // Check for notes with similar content (within last 5 seconds to catch race conditions)
-                            val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
-                            val isDuplicateByContent =
-                                recentNotes.any { recentNote ->
-                                    recentNote.content.trim() == note.content.trim() &&
-                                        recentNote.title.trim() == note.title.trim()
-                                }
-                            if (isDuplicateByContent) {
-                                Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
-                            }
-                            !isDuplicateByContent
-                        } else {
-                            // Existing note - update if server version is newer
-                            existing.updatedAt < noteInfo.updatedAt
+                    if (existing == null) {
+                        // New note from server - check for content-based duplicates
+                        val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
+                        val isDuplicateByContent = recentNotes.any { recentNote ->
+                            recentNote.content.trim() == note.content.trim() &&
+                                recentNote.title.trim() == note.title.trim()
                         }
-
-                    if (shouldInsert && (existing == null || existing.updatedAt < noteInfo.updatedAt)) {
-                        if (existing != null) {
-                            noteDao.updateNote(note)
+                        if (isDuplicateByContent) {
+                            Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
                         } else {
-                            noteDao.insertNote(note)
+                            noteDao.upsertNote(note)
+                            notesUpdated++
                         }
+                    } else if (existing.updatedAt < noteInfo.updatedAt) {
+                        // Server version is newer - apply conflict resolution (last-write-wins)
+                        noteDao.updateNoteIfServerIsNewer(
+                            id = note.id,
+                            title = note.title,
+                            content = note.content,
+                            summary = note.summary,
+                            sourceUrl = note.sourceUrl,
+                            imageUri = note.imageUri,
+                            fileUri = note.fileUri,
+                            fileName = note.fileName,
+                            fileMimeType = note.fileMimeType,
+                            fileSize = note.fileSize,
+                            type = note.type,
+                            categoryId = note.categoryId,
+                            categoryName = note.categoryName,
+                            stackId = note.stackId,
+                            parentNoteId = note.parentNoteId,
+                            whySaved = note.whySaved,
+                            processingStatus = note.processingStatus,
+                            contentHash = note.contentHash,
+                            processedContentHash = note.processedContentHash,
+                            isArchived = note.isArchived,
+                            isPinned = note.isPinned,
+                            isFavorite = note.isFavorite,
+                            isFullPrivacy = note.isFullPrivacy,
+                            excludeFromAiChat = note.excludeFromAiChat,
+                            isAiCreated = note.isAiCreated,
+                            isViewed = note.isViewed,
+                            todoContent = note.todoContent,
+                            attachmentsJson = note.attachmentsJson,
+                            tagsJson = note.tagsJson,
+                            chunkAnalysesJson = note.chunkAnalysesJson,
+                            reminderText = note.reminderText,
+                            reminderExpiresAt = note.reminderExpiresAt,
+                            metadata = note.metadata,
+                            wordCount = note.wordCount,
+                            updatedAt = note.updatedAt,
+                        )
                         notesUpdated++
                     }
+                    // If local is newer, skip (local changes take precedence)
                 }
 
                 // Sync sessions
@@ -460,6 +488,10 @@ class SyncCoordinator(
             parentNoteId = info.parentNoteId,
             whySaved = info.whySaved,
             processingStatus = try { ProcessingStatus.valueOf(info.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
+            contentHash = info.contentHash,
+            processedContentHash = info.processedContentHash,
+            metadata = info.metadata,
+            wordCount = info.wordCount,
             createdAt = info.createdAt,
             updatedAt = info.updatedAt,
             isArchived = info.isArchived,

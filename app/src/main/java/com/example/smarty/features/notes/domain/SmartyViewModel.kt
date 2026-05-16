@@ -998,23 +998,6 @@ class SmartyViewModel(
     }
 
     /**
-     * Build description for multiple attachments
-     */
-    private fun buildMultipleAttachmentsDescription(attachments: List<NoteAttachment>): String {
-        val app = getApplication<Application>()
-        val sb = StringBuilder()
-        sb.append(app.getString(R.string.attachments_list_header, app.getString(R.string.files_attached_count, attachments.size))).append("\n\n")
-        attachments.forEachIndexed { index, attachment ->
-            val sizeStr = if (attachment.fileSize > 0) {
-                app.getString(R.string.attachment_size_format, ContentTypeDetector.formatFileSize(app, attachment.fileSize))
-            } else ""
-            sb.append(app.getString(R.string.attachment_list_item, index + 1, attachment.fileName)).append(sizeStr)
-            if (index < attachments.lastIndex) sb.append('\n')
-        }
-        return sb.toString()
-    }
-
-    /**
      * Compresses and stores an attachment to internal storage for persistence.
      * Uses optimal compression based on file type.
      * Returns the original attachment if compression fails.

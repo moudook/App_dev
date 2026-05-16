@@ -122,7 +122,7 @@ fun InteractiveQuestionBlock(
                     )
                 }
                 
-                Divider(color = dividerColor)
+                HorizontalDivider(color = dividerColor)
             }
 
             // Custom Input Option

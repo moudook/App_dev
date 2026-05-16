@@ -1,10 +1,13 @@
 package com.example.smarty.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.core.domain.model.ProcessingStatus
+import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.data.sync.OfflineQueue
 import com.example.smarty.data.sync.SyncCoordinator
@@ -23,21 +26,27 @@ import kotlinx.coroutines.launch
  * - Replaced AtomicLong with volatile var for simpler lastSync tracking
  * - Extracted common sync logic into private helper functions
  * - Added sealed class for sync operation results
+ * - Phase 2: Fresh install detection, idempotent upsert, conflict resolution
  */
 class ServerSyncRepository(
+    private val context: Context,
     private val remoteDataSource: RemoteDataSource,
     private val eventSink: com.example.smarty.core.common.worker.BackgroundAgentEventSink,
     private val syncCoordinator: SyncCoordinator,
     private val offlineQueue: OfflineQueue,
+    private val noteDao: NoteDao,
 ) : SyncRepository {
     companion object {
         private const val TAG = "ServerSyncRepo"
         private const val MIN_SYNC_INTERVAL_MS = 30_000L
+        private const val PREFS_NAME = "server_sync_prefs"
+        private const val KEY_IS_FRESH_INSTALL = "is_fresh_install"
 
         // OPTIMIZATION: Log level control - set to false in production to reduce overhead
         private val ENABLE_DEBUG_LOGS = false // BuildConfig.DEBUG causes issues
     }
 
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private var currentUserId: String? = null
 
     // OPTIMIZATION: Use volatile var instead of AtomicLong for simpler read/write
@@ -53,6 +62,19 @@ class ServerSyncRepository(
         currentUserId = userId
         logIfDebug { "Initialized Server Sync for user: $userId" }
 
+        // Check if this is a fresh install (no notes in local DB)
+        val isFreshInstall = prefs.getBoolean(KEY_IS_FRESH_INSTALL, true)
+        if (isFreshInstall) {
+            scope.launch {
+                val hasLocalNotes = noteDao.hasAnyNotes()
+                if (!hasLocalNotes) {
+                    Log.i(TAG, "Fresh install detected - pulling all notes from server")
+                    pullAllNotesFromServer()
+                }
+                prefs.edit().putBoolean(KEY_IS_FRESH_INSTALL, false).apply()
+            }
+        }
+
         scope.launch {
             refreshData()
         }
@@ -62,6 +84,27 @@ class ServerSyncRepository(
                 logIfDebug { "Received sync trigger: $syncType" }
                 refreshData()
             }
+        }
+    }
+
+    /**
+     * Pull all notes from server (used on fresh install).
+     * Uses idempotent upsert to prevent duplicates.
+     */
+    private suspend fun pullAllNotesFromServer() {
+        try {
+            val noteInfos = remoteDataSource.fetchNotes()
+            if (noteInfos.isEmpty()) {
+                Log.d(TAG, "No notes to pull from server")
+                return
+            }
+
+            val notes = noteInfos.map { it.mapToNote() }
+            noteDao.upsertNotes(notes)
+            _remoteNotes.value = notes
+            Log.i(TAG, "Pulled ${notes.size} notes from server on fresh install")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to pull notes on fresh install", e)
         }
     }
 
@@ -92,6 +135,7 @@ class ServerSyncRepository(
 
     /**
      * OPTIMIZATION: Extracted note sync logic into separate function.
+     * Uses idempotent upsert pattern.
      */
     private suspend fun performNoteSync(note: Note): Boolean {
         return if (note.isArchived) {
@@ -195,7 +239,7 @@ class ServerSyncRepository(
 
     /**
      * OPTIMIZATION: Extension function on NoteInfo for mapping to Note.
-     * Maps all fields from the v9.0.0 protocol to the domain model.
+     * Maps all fields from the v10.0.0 protocol to the domain model.
      */
     private fun NoteInfo.mapToNote(): Note {
         return Note(
@@ -212,8 +256,14 @@ class ServerSyncRepository(
             type = try { NoteType.valueOf(this.type) } catch (e: Exception) { NoteType.BRAIN_DUMP },
             categoryId = this.categoryId,
             categoryName = this.categoryName,
+            stackId = this.stackId,
+            parentNoteId = this.parentNoteId,
             whySaved = this.whySaved,
             processingStatus = try { ProcessingStatus.valueOf(this.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
+            contentHash = this.contentHash,
+            processedContentHash = this.processedContentHash,
+            metadata = this.metadata,
+            wordCount = this.wordCount,
             isArchived = this.isArchived,
             isPinned = this.isPinned,
             isFavorite = this.isFavorite,

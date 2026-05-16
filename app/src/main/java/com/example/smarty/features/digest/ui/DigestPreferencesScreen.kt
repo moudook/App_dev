@@ -2,6 +2,8 @@ package com.example.smarty.features.digest.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +39,7 @@ fun DigestPreferencesScreen(
                 title = { Text("Digest Preferences") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 actions = {
@@ -120,7 +122,7 @@ fun DigestPreferencesScreen(
             // Content Preferences
             DigestPreferenceCard(
                 title = "Include Notes",
-                icon = Icons.Default.Note,
+                icon = Icons.AutoMirrored.Filled.Note,
                 enabled = includeNotes,
                 onEnableChange = { includeNotes = it },
                 showDivider = false

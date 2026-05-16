@@ -1,6 +1,6 @@
 -- ============================================================
--- SUPABASE COMPATIBLE DATABASE SCHEMA v10.0.0
--- Optimized: vector search, FTS, sync-ready, unified constraints
+-- SUPABASE COMPATIBLE DATABASE SCHEMA v11.0.0
+-- Optimized: vector search, FTS, sync-ready, unified constraints, RLS policies
 -- ============================================================
 
 -- Enable required extensions
@@ -15,6 +15,9 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DROP TABLE IF EXISTS shared_items CASCADE;
 DROP TABLE IF EXISTS note_versions CASCADE;
+DROP TABLE IF EXISTS generated_images CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS agent_context CASCADE;
 DROP TABLE IF EXISTS user_devices CASCADE;
 DROP TABLE IF EXISTS search_history CASCADE;
 DROP TABLE IF EXISTS agent_checkpoints CASCADE;
@@ -30,8 +33,6 @@ DROP TABLE IF EXISTS chat_message_notes CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
 DROP TABLE IF EXISTS chat_sessions CASCADE;
 DROP TABLE IF EXISTS chat_folders CASCADE;
-DROP TABLE IF EXISTS note_attachments CASCADE;
-DROP TABLE IF EXISTS chat_attachments CASCADE;
 DROP TABLE IF EXISTS note_tags CASCADE;
 DROP TABLE IF EXISTS tags CASCADE;
 DROP TABLE IF EXISTS note_tasks CASCADE;
@@ -175,6 +176,8 @@ CREATE TABLE notes (
     category_name           TEXT,
     why_saved               TEXT,
     processing_status       TEXT NOT NULL DEFAULT 'PENDING' CHECK (processing_status IN ('PENDING','PROCESSING','COMPLETED','FAILED')),
+    content_hash            TEXT,
+    processed_content_hash  TEXT,
     is_archived             BOOLEAN NOT NULL DEFAULT false,
     is_pinned               BOOLEAN NOT NULL DEFAULT false,
     is_favorite             BOOLEAN NOT NULL DEFAULT false,
@@ -198,6 +201,7 @@ CREATE INDEX idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_notes_user_updated ON notes(user_id, updated_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX idx_notes_category ON notes(category_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_notes_stack ON notes(stack_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_notes_content_hash ON notes(user_id, content_hash) WHERE content_hash IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_notes_fts ON notes USING gin (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')));
 CREATE TRIGGER trg_notes_updated_at BEFORE UPDATE ON notes FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -330,6 +334,7 @@ CREATE TABLE ai_cache (
     last_accessed_at    BIGINT NOT NULL
 );
 CREATE INDEX idx_ai_cache_expires ON ai_cache(expires_at);
+CREATE INDEX idx_ai_cache_user ON ai_cache(user_id);
 
 -- ────────────────────────────────────────────────────────────
 
@@ -347,6 +352,17 @@ CREATE TABLE agent_checkpoints (
 );
 CREATE TRIGGER trg_agent_checkpoints_updated_at BEFORE UPDATE ON agent_checkpoints FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+CREATE TABLE agent_context (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id  UUID,
+    content     TEXT NOT NULL,
+    metadata    JSONB NOT NULL DEFAULT '{}',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_agent_context_user ON agent_context(user_id, created_at DESC);
+CREATE INDEX idx_agent_context_session ON agent_context(session_id);
+
 -- ────────────────────────────────────────────────────────────
 
 CREATE TABLE agent_traces (
@@ -363,6 +379,7 @@ CREATE TABLE agent_traces (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_agent_traces_session ON agent_traces(session_id);
+CREATE INDEX idx_agent_traces_user ON agent_traces(user_id, created_at DESC);
 
 -- ────────────────────────────────────────────────────────────
 
@@ -386,6 +403,7 @@ CREATE TABLE reasoning_traces (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_reasoning_traces_session ON reasoning_traces(session_id, step_index ASC);
+CREATE INDEX idx_reasoning_traces_user ON reasoning_traces(user_id, created_at DESC);
 
 -- ────────────────────────────────────────────────────────────
 
@@ -408,6 +426,7 @@ CREATE TABLE reasoning_summaries (
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TRIGGER trg_reasoning_summaries_updated_at BEFORE UPDATE ON reasoning_summaries FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_reasoning_summaries_user ON reasoning_summaries(user_id, created_at DESC);
 
 -- ────────────────────────────────────────────────────────────
 
@@ -420,6 +439,7 @@ CREATE TABLE impressed_log (
     timestamp   BIGINT NOT NULL,
     metadata    JSONB NOT NULL DEFAULT '{}'
 );
+CREATE INDEX idx_impressed_log_user ON impressed_log(user_id, timestamp DESC);
 
 -- ============================================================
 -- JUNCTION & ATTACHMENT TABLES
@@ -536,9 +556,10 @@ CREATE TABLE generated_images (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TRIGGER trg_generated_images_updated_at BEFORE UPDATE ON generated_images FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_generated_images_user ON generated_images(user_id, created_at DESC);
 
 CREATE TABLE user_vaults (
-    user_id         TEXT PRIMARY KEY,
+    user_id         UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     encrypted_blob  TEXT NOT NULL,
     version         INTEGER NOT NULL DEFAULT 1,
     updated_at      BIGINT NOT NULL
@@ -546,6 +567,7 @@ CREATE TABLE user_vaults (
 
 CREATE TABLE sync_queue (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     operation        TEXT NOT NULL,
     entity_type      TEXT NOT NULL,
     entity_id        TEXT NOT NULL,
@@ -557,9 +579,12 @@ CREATE TABLE sync_queue (
     last_error       TEXT,
     server_timestamp BIGINT
 );
+CREATE INDEX idx_sync_queue_user_status ON sync_queue(user_id, status);
+CREATE INDEX idx_sync_queue_pending ON sync_queue(status, created_at ASC) WHERE status = 'PENDING';
 
 CREATE TABLE conflict_records (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     entity_id           TEXT NOT NULL,
     entity_type         TEXT NOT NULL,
     local_payload_json  TEXT NOT NULL,
@@ -569,6 +594,7 @@ CREATE TABLE conflict_records (
     resolved_at         BIGINT NOT NULL,
     resolution          TEXT NOT NULL
 );
+CREATE INDEX idx_conflict_records_user ON conflict_records(user_id);
 
 CREATE TABLE user_fcm_tokens (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -609,6 +635,16 @@ CREATE TABLE user_devices (
 );
 CREATE TRIGGER trg_user_devices_updated_at BEFORE UPDATE ON user_devices FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+CREATE TABLE search_history (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    query       TEXT NOT NULL,
+    search_scope TEXT NOT NULL DEFAULT 'all' CHECK (search_scope IN ('all','notes','chat','research','tasks')),
+    result_count INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_search_history_user ON search_history(user_id, created_at DESC);
+
 CREATE TABLE shared_items (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -632,6 +668,121 @@ CREATE TABLE note_versions (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(note_id, version_no)
 );
+
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================================
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid()::text = firebase_uid);
+
+ALTER TABLE sync_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own sync state" ON sync_state FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own notes" ON notes FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own categories" ON categories FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE stacks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own stacks" ON stacks FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own tasks" ON tasks FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own chat sessions" ON chat_sessions FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own chat messages" ON chat_messages FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE chat_folders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own chat folders" ON chat_folders FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own tags" ON tags FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE note_tags ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own note tags" ON note_tags FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE note_stacks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own note stacks" ON note_stacks FOR ALL USING (note_id IN (SELECT id FROM notes WHERE user_id = auth.uid()));
+
+ALTER TABLE note_tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own note tasks" ON note_tasks FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own calendar events" ON calendar_events FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE calendar_event_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own calendar note links" ON calendar_event_notes FOR ALL USING (event_id IN (SELECT id FROM calendar_events WHERE user_id = auth.uid()));
+
+ALTER TABLE chat_message_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own chat note links" ON chat_message_notes FOR ALL USING (message_id IN (SELECT id FROM chat_messages WHERE user_id = auth.uid()));
+
+ALTER TABLE note_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own note versions" ON note_versions FOR ALL USING (note_id IN (SELECT id FROM notes WHERE user_id = auth.uid()));
+
+ALTER TABLE shared_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own shared items" ON shared_items FOR ALL USING (owner_id = auth.uid());
+
+ALTER TABLE daily_digests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own digests" ON daily_digests FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE digest_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own digest preferences" ON digest_preferences FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE generated_images ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own generated images" ON generated_images FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE timers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own timers" ON timers FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE user_devices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own devices" ON user_devices FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE user_fcm_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own FCM tokens" ON user_fcm_tokens FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE vector_embeddings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own embeddings" ON vector_embeddings FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE ai_cache ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own AI cache" ON ai_cache FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE agent_traces ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own agent traces" ON agent_traces FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE reasoning_traces ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own reasoning traces" ON reasoning_traces FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE reasoning_summaries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own reasoning summaries" ON reasoning_summaries FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE agent_checkpoints ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own agent checkpoints" ON agent_checkpoints FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE agent_context ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own agent context" ON agent_context FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own search history" ON search_history FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own notifications" ON notifications FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE sync_queue ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own sync queue" ON sync_queue FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE conflict_records ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own conflict records" ON conflict_records FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE impressed_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own impressed log" ON impressed_log FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE user_vaults ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own vaults" ON user_vaults FOR ALL USING (user_id = auth.uid());
 
 -- ============================================================
 -- COMPLETE
