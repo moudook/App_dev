@@ -391,8 +391,8 @@ class TagRepository(private val dataSource: DataSource) {
                 } finally {
                     conn.autoCommit = true
                 }
-            }
         }
+    }
 
     private fun ResultSet.toTag(): Tag {
         return Tag(
@@ -407,70 +407,6 @@ class TagRepository(private val dataSource: DataSource) {
             updatedAt = getTimestamp("updated_at")?.toString(),
         )
     }
-}
-
-    suspend fun addTagToNote(
-        noteId: String,
-        tagId: String,
-    ): Boolean =
-        withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                val sql = "INSERT INTO note_tags (note_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(tagId))
-                    stmt.executeUpdate() >= 0
-                }
-            }
-        }
-
-    suspend fun removeTagFromNote(
-        noteId: String,
-        tagId: String,
-    ): Boolean =
-        withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                val sql = "DELETE FROM note_tags WHERE note_id = ? AND tag_id = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(tagId))
-                    stmt.executeUpdate() > 0
-                }
-            }
-        }
-
-    suspend fun getTagsForNote(noteId: String): List<Tag> =
-        withContext(Dispatchers.IO) {
-            val tags = mutableListOf<Tag>()
-            dataSource.connection.use { conn ->
-                val sql =
-                    """
-                    SELECT t.* FROM tags t
-                    JOIN note_tags nt ON t.id = nt.tag_id
-                    WHERE nt.note_id = ?
-                    ORDER BY t.name
-                    """.trimIndent()
-
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            tags.add(
-                                Tag(
-                                    id = rs.getObject("id").toString(),
-                                    userId = rs.getObject("user_id").toString(),
-                                    name = rs.getString("name"),
-                                    color = rs.getString("color"),
-                                    usageCount = rs.getInt("usage_count"),
-                                    createdAt = rs.getTimestamp("created_at")?.toString(),
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-            tags
-        }
 }
 
 /**
