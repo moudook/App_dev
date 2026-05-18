@@ -454,6 +454,9 @@ CREATE TABLE note_tags (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (note_id, tag_id)
 );
+CREATE INDEX idx_note_tags_user ON note_tags(user_id);
+CREATE INDEX idx_note_tags_tag ON note_tags(tag_id);
+CREATE INDEX idx_note_tags_note ON note_tags(note_id);
 
 CREATE TABLE note_stacks (
     note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,

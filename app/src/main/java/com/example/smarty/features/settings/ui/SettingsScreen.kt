@@ -123,6 +123,7 @@ fun SettingsScreen(
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToChess: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
+    onNavigateToTags: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -442,6 +443,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Tasks,
                                         subtitle = "Manage your tasks",
                                         onClick = { onNavigateToTasks() }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Tags",
+                                        icon = SmartyIcons.Tags,
+                                        subtitle = "Organize notes with tags",
+                                        onClick = { onNavigateToTags() }
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.default_assistant),

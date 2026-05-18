@@ -750,4 +750,157 @@ class RemoteDataSource(
             null
         }
     }
+
+    // ==================== TAGS API ====================
+
+    suspend fun getTags(): com.example.smarty.core.domain.model.TagsResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.get("$baseUrl/api/tags") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get tags: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting tags: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun createTag(request: com.example.smarty.core.domain.model.TagCreateRequest): com.example.smarty.core.domain.model.TagCreateResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.post("$baseUrl/api/tags") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to create tag: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating tag: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun updateTag(tag: com.example.smarty.core.domain.model.Tag): com.example.smarty.core.domain.model.TagResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.put("$baseUrl/api/tags/${tag.id}") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(tag)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to update tag: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating tag: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun deleteTag(tagId: String): com.example.smarty.core.domain.model.TagResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.delete("$baseUrl/api/tags/$tagId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to delete tag: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting tag: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun getNotesForTag(tagId: String): com.example.smarty.core.domain.model.TagNotesResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.get("$baseUrl/api/tags/$tagId/notes") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get notes for tag: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting notes for tag: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun assignTagToNote(tagId: String, noteId: String): com.example.smarty.core.domain.model.TagResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.post("$baseUrl/api/tags/$tagId/notes/$noteId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to assign tag to note: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error assigning tag to note: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun removeTagFromNote(tagId: String, noteId: String): com.example.smarty.core.domain.model.TagResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.delete("$baseUrl/api/tags/$tagId/notes/$noteId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to remove tag from note: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing tag from note: ${e.message}", e)
+            null
+        }
+    }
 }

@@ -204,8 +204,8 @@ class TagRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    INSERT INTO tags (id, user_id, name, color, usage_count, created_at)
-                    VALUES (?, ?, lower(?), ?, ?, now())
+                    INSERT INTO tags (id, user_id, name, color, tag_type, confidence_score, usage_count, created_at, updated_at)
+                    VALUES (?, ?, lower(?), ?, ?, ?, ?, now(), now())
                     ON CONFLICT (user_id, lower(name)) DO UPDATE SET
                         color = EXCLUDED.color,
                         usage_count = tags.usage_count + 1,
@@ -218,7 +218,9 @@ class TagRepository(private val dataSource: DataSource) {
                     stmt.setObject(2, UUID.fromString(tag.userId))
                     stmt.setString(3, tag.name)
                     stmt.setString(4, tag.color)
-                    stmt.setInt(5, tag.usageCount)
+                    stmt.setString(5, tag.tagType)
+                    stmt.setDouble(6, tag.confidenceScore)
+                    stmt.setInt(7, tag.usageCount)
                     val result = stmt.executeQuery()
                     if (result.next()) result.getObject("id").toString() else tag.id
                 }
@@ -229,22 +231,11 @@ class TagRepository(private val dataSource: DataSource) {
         withContext(Dispatchers.IO) {
             val tags = mutableListOf<Tag>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM tags WHERE user_id = ? ORDER BY name"
+                val sql = "SELECT * FROM tags WHERE user_id = ? ORDER BY usage_count DESC, name"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            tags.add(
-                                Tag(
-                                    id = rs.getObject("id").toString(),
-                                    userId = rs.getObject("user_id").toString(),
-                                    name = rs.getString("name"),
-                                    color = rs.getString("color"),
-                                    usageCount = rs.getInt("usage_count"),
-                                    createdAt = rs.getTimestamp("created_at")?.toString(),
-                                ),
-                            )
-                        }
+                        while (rs.next()) tags.add(rs.toTag())
                     }
                 }
             }
@@ -257,34 +248,166 @@ class TagRepository(private val dataSource: DataSource) {
                 val sql = "SELECT * FROM tags WHERE id = ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(tagId))
+                    stmt.executeQuery().use { rs -> if (rs.next()) rs.toTag() else null }
+                }
+            }
+        }
+
+    suspend fun updateTag(tag: Tag): Boolean =
+        withContext(Dispatchers.IO) {
+            dataSource.connection.use { conn ->
+                val sql =
+                    """
+                    UPDATE tags SET
+                        name = lower(?), color = ?, tag_type = ?, confidence_score = ?, updated_at = now()
+                    WHERE id = ?
+                    """.trimIndent()
+
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, tag.name)
+                    stmt.setString(2, tag.color)
+                    stmt.setString(3, tag.tagType)
+                    stmt.setDouble(4, tag.confidenceScore)
+                    stmt.setObject(5, UUID.fromString(tag.id))
+                    stmt.executeUpdate() > 0
+                }
+            }
+        }
+
+    suspend fun getNotesForTag(tagId: String): List<NoteForTag> =
+        withContext(Dispatchers.IO) {
+            val notes = mutableListOf<NoteForTag>()
+            dataSource.connection.use { conn ->
+                val sql =
+                    """
+                    SELECT n.id, n.title, n.content, n.summary, n.type, n.category_id,
+                           n.created_at, n.updated_at, n.pinned, n.archived, n.tags_json
+                    FROM notes n
+                    JOIN note_tags nt ON n.id = nt.note_id
+                    WHERE nt.tag_id = ? AND n.deleted_at IS NULL
+                    ORDER BY n.created_at DESC
+                    """.trimIndent()
+
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(tagId))
                     stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            Tag(
-                                id = rs.getObject("id").toString(),
-                                userId = rs.getObject("user_id").toString(),
-                                name = rs.getString("name"),
-                                color = rs.getString("color"),
-                                usageCount = rs.getInt("usage_count"),
-                                createdAt = rs.getTimestamp("created_at")?.toString(),
+                        while (rs.next()) {
+                            notes.add(
+                                NoteForTag(
+                                    id = rs.getObject("id").toString(),
+                                    title = rs.getString("title"),
+                                    content = rs.getString("content"),
+                                    summary = rs.getString("summary"),
+                                    type = rs.getString("type"),
+                                    categoryId = rs.getObject("category_id")?.toString(),
+                                    createdAt = rs.getTimestamp("created_at")?.toString(),
+                                    updatedAt = rs.getTimestamp("updated_at")?.toString(),
+                                    pinned = rs.getBoolean("pinned"),
+                                    archived = rs.getBoolean("archived"),
+                                    tagsJson = rs.getString("tags_json"),
+                                ),
                             )
-                        } else {
-                            null
                         }
                     }
                 }
             }
+            notes
+        }
+
+    suspend fun addTagToNote(noteId: String, tagId: String, userId: String, assignedBy: String = "user"): Boolean =
+        withContext(Dispatchers.IO) {
+            dataSource.connection.use { conn ->
+                val sql =
+                    """
+                    INSERT INTO note_tags (note_id, tag_id, user_id, assigned_by, confidence_score, created_at)
+                    VALUES (?, ?, ?, ?, ?, now())
+                    ON CONFLICT (note_id, tag_id) DO NOTHING
+                    """.trimIndent()
+
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(noteId))
+                    stmt.setObject(2, UUID.fromString(tagId))
+                    stmt.setObject(3, UUID.fromString(userId))
+                    stmt.setString(4, assignedBy)
+                    stmt.setDouble(5, 1.0)
+                    stmt.executeUpdate() >= 0
+                }
+            }
+        }
+
+    suspend fun removeTagFromNote(noteId: String, tagId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            dataSource.connection.use { conn ->
+                val sql = "DELETE FROM note_tags WHERE note_id = ? AND tag_id = ?"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(noteId))
+                    stmt.setObject(2, UUID.fromString(tagId))
+                    stmt.executeUpdate() > 0
+                }
+            }
+        }
+
+    suspend fun getTagsForNote(noteId: String): List<Tag> =
+        withContext(Dispatchers.IO) {
+            val tags = mutableListOf<Tag>()
+            dataSource.connection.use { conn ->
+                val sql =
+                    """
+                    SELECT t.* FROM tags t
+                    JOIN note_tags nt ON t.id = nt.tag_id
+                    WHERE nt.note_id = ?
+                    ORDER BY t.usage_count DESC, t.name
+                    """.trimIndent()
+
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(noteId))
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) tags.add(rs.toTag())
+                    }
+                }
+            }
+            tags
         }
 
     suspend fun deleteTag(tagId: String): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql = "DELETE FROM tags WHERE id = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(tagId))
-                    stmt.executeUpdate() > 0
+                conn.autoCommit = false
+                try {
+                    conn.prepareStatement("DELETE FROM note_tags WHERE tag_id = ?").use { stmt ->
+                        stmt.setObject(1, UUID.fromString(tagId))
+                        stmt.executeUpdate()
+                    }
+                    conn.prepareStatement("DELETE FROM tags WHERE id = ?").use { stmt ->
+                        stmt.setObject(1, UUID.fromString(tagId))
+                        val result = stmt.executeUpdate() > 0
+                        conn.commit()
+                        result
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    logger.error("Failed to delete tag $tagId: ${e.message}")
+                    false
+                } finally {
+                    conn.autoCommit = true
                 }
             }
         }
+
+    private fun ResultSet.toTag(): Tag {
+        return Tag(
+            id = getObject("id").toString(),
+            userId = getObject("user_id").toString(),
+            name = getString("name"),
+            color = getString("color"),
+            tagType = getString("tag_type"),
+            confidenceScore = getDouble("confidence_score"),
+            usageCount = getInt("usage_count"),
+            createdAt = getTimestamp("created_at")?.toString(),
+            updatedAt = getTimestamp("updated_at")?.toString(),
+        )
+    }
+}
 
     suspend fun addTagToNote(
         noteId: String,

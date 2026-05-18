@@ -89,6 +89,7 @@ object SmartyIcons {
     val Casino: ImageVector = Icons.Outlined.Contrast // Metaphor: duality, heads vs tails 50/50 balance
     val Games: ImageVector = Icons.Outlined.Air // Metaphor: a breather, space, taking a breath (mental break)
     val Tasks: ImageVector = Icons.Outlined.CheckCircle // Task management
+    val Tags: ImageVector = Icons.Outlined.LocalOffer // Tag management
     val Build: ImageVector = Icons.Outlined.Tune // Tuning/adjusting instead of wrench
     val DarkMode: ImageVector = Icons.Outlined.DarkMode
     val DeleteOutline: ImageVector = Icons.Outlined.BlurOff // Metaphor: clear the fog/cache

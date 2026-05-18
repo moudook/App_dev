@@ -212,8 +212,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_user_lower_name ON tags(user_id, lowe
 CREATE TABLE IF NOT EXISTS note_tags (
     note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
     tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_by TEXT NOT NULL DEFAULT 'user',
+    confidence_score DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (note_id, tag_id)
 );
+CREATE INDEX IF NOT EXISTS idx_note_tags_user ON note_tags(user_id);
+CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id);
 
 CREATE TABLE IF NOT EXISTS note_stacks (
     note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,

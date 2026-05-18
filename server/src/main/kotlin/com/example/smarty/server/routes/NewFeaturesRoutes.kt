@@ -85,12 +85,52 @@ fun Application.configureNewFeaturesRoutes(
                 call.respond(TagCreateResponse(success = true, id = id))
             }
 
+            put("/{tagId}") {
+                val principal = call.principal<FirebaseUserPrincipal>() ?: return@put call.respond(HttpStatusCode.Unauthorized)
+                val tagId = call.parameters["tagId"] ?: return@put call.respond(HttpStatusCode.BadRequest)
+                val tag = call.receive<Tag>().copy(id = tagId)
+                if (tagRepository.updateTag(tag)) {
+                    call.respond(TagResponse(success = true))
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
+            }
+
             delete("/{tagId}") {
                 val tagId = call.parameters["tagId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 if (tagRepository.deleteTag(tagId)) {
                     call.respond(TagResponse(success = true))
                 } else {
                     call.respond(HttpStatusCode.NotFound)
+                }
+            }
+
+            get("/{tagId}/notes") {
+                val principal = call.principal<FirebaseUserPrincipal>() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                val tagId = call.parameters["tagId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val notes = tagRepository.getNotesForTag(tagId)
+                call.respond(TagNotesResponse(success = true, notes = notes))
+            }
+
+            post("/{tagId}/notes/{noteId}") {
+                val principal = call.principal<FirebaseUserPrincipal>() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val tagId = call.parameters["tagId"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+                val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+                if (tagRepository.addTagToNote(noteId, tagId, principal.userId)) {
+                    call.respond(TagResponse(success = true, message = "Tag assigned to note"))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError)
+                }
+            }
+
+            delete("/{tagId}/notes/{noteId}") {
+                val principal = call.principal<FirebaseUserPrincipal>() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                val tagId = call.parameters["tagId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                if (tagRepository.removeTagFromNote(noteId, tagId)) {
+                    call.respond(TagResponse(success = true, message = "Tag removed from note"))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError)
                 }
             }
         }
@@ -185,6 +225,8 @@ fun Application.configureNewFeaturesRoutes(
 @Serializable data class TagResponse(val success: Boolean, val message: String? = null)
 
 @Serializable data class TagCreateResponse(val success: Boolean, val id: String, val message: String? = null)
+
+@Serializable data class TagNotesResponse(val success: Boolean, val notes: List<com.example.smarty.server.data.NoteForTag> = emptyList(), val message: String? = null)
 
 @Serializable data class NotificationsResponse(val success: Boolean, val notifications: List<Notification> = emptyList(), val message: String? = null)
 

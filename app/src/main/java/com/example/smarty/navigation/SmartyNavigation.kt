@@ -62,6 +62,8 @@ import com.example.smarty.features.digest.domain.toDomainModel
 import com.example.smarty.features.digest.domain.toUiModel
 import com.example.smarty.features.notes.domain.SmartyViewModel
 import com.example.smarty.features.tasks.ui.TasksScreen
+import com.example.smarty.features.tags.ui.TagsScreen
+import com.example.smarty.features.tags.ui.TagNotesScreen
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -98,6 +100,8 @@ sealed class Screen(val route: String) {
     data object DeviceManagement : Screen("device_management")
     data object DigestPreferences : Screen("digest_preferences")
     data object Tasks : Screen("tasks")
+    data object Tags : Screen("tags")
+    data object TagNotes : Screen("tag_notes")
 }
 
 @Composable
@@ -231,6 +235,7 @@ fun SmartyNavHost(
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToChess: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
+    onNavigateToTags: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -662,6 +667,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToTasks = {
                     navController.navigate(Screen.Tasks.route)
+                },
+                onNavigateToTags = {
+                    navController.navigate(Screen.Tags.route)
                 }
             )
         }
@@ -800,6 +808,31 @@ fun SmartyNavHost(
             val tasks by viewModel.tasks.collectAsState()
 
             TasksScreen(
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.Tags.route) { _ ->
+            TagsScreen(
+                onNavigateBack = { navController.safePopBackStack() },
+                onTagClick = { tagId ->
+                    navController.navigate("tag_notes/$tagId")
+                }
+            )
+        }
+
+        composable(
+            route = "tag_notes/{tagId}",
+            arguments = listOf(navArgument("tagId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tagId = backStackEntry.arguments?.getString("tagId") ?: ""
+            val tagName = backStackEntry.arguments?.getString("tagName") ?: ""
+            val tagColor = backStackEntry.arguments?.getString("tagColor") ?: "#6200EE"
+
+            TagNotesScreen(
+                tagId = tagId,
+                tagName = tagName,
+                tagColor = tagColor,
                 onNavigateBack = { navController.safePopBackStack() }
             )
         }

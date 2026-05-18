@@ -38,8 +38,11 @@ data class Tag(
     val userId: String,
     val name: String,
     val color: String = "#6200EE",
+    val tagType: String = "MANUAL", // MANUAL, AUTO, AI
+    val confidenceScore: Double = 1.0,
     val usageCount: Int = 0,
     val createdAt: String? = null, // TIMESTAMPTZ
+    val updatedAt: String? = null, // TIMESTAMPTZ
 )
 
 /**
@@ -131,6 +134,28 @@ data class SharedItem(
 data class NoteTag(
     val noteId: String,
     val tagId: String,
+    val userId: String,
+    val assignedBy: String = "user", // user, ai, auto
+    val confidenceScore: Double = 1.0,
+    val createdAt: String? = null,
+)
+
+/**
+ * Lightweight note representation for tag-detail view
+ */
+@Serializable
+data class NoteForTag(
+    val id: String,
+    val title: String,
+    val content: String? = null,
+    val summary: String? = null,
+    val type: String? = null,
+    val categoryId: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val pinned: Boolean = false,
+    val archived: Boolean = false,
+    val tagsJson: String? = null,
 )
 
 /**
