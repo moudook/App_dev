@@ -326,6 +326,7 @@ class AssistViewModel(
         pendingInlineImages.clear()
         pendingToolCalls.clear()
         val responseBuilder = StringBuilder()
+        var finalContent: String? = null
         val streamingMessageId = java.util.UUID.randomUUID().toString()
         chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true))
         
@@ -337,8 +338,8 @@ class AssistViewModel(
                         chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), event.thinking)
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        if (event.content.isNotEmpty()) responseBuilder.append(event.content)
-                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), event.thinking)
+                        finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                        chatManager.updateMessageWithThinking(streamingMessageId, finalContent!!, event.thinking)
                         if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
                     }
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
@@ -347,7 +348,8 @@ class AssistViewModel(
                     else -> {}
                 }
             }
-            val smartyMessage = ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = responseBuilder.toString(), toolCalls = pendingToolCalls.toList(), timestamp = System.currentTimeMillis(), citations = pendingCitations.toList(), isStreaming = false)
+            val contentToSave = finalContent ?: responseBuilder.toString()
+            val smartyMessage = ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = contentToSave, toolCalls = pendingToolCalls.toList(), timestamp = System.currentTimeMillis(), citations = pendingCitations.toList(), isStreaming = false)
             chatManager.replaceMessage(streamingMessageId, smartyMessage)
             chatManager.markApiCallSuccessful()
             chatManager.saveMessagePair(userMessage, smartyMessage)

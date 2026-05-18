@@ -1739,11 +1739,10 @@ class ChatFeatureManager(
                             )
                         }
                         is AgentEvent.Result -> {
-                            // Only append content if it's new (not already in builder), some servers send full result at end
-                            if (event.content.isNotEmpty() && !responseBuilder.toString().contains(event.content)) {
-                                responseBuilder.append(event.content)
-                                extractAndStripInlineTags(responseBuilder, streamingMessageId)
-                            }
+                            // Result contains the COMPLETE final response — use it directly
+                            // This prevents duplication from accumulated Processing chunks
+                            val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                            extractAndStripInlineTags(StringBuilder(finalContent), streamingMessageId)
                             event.thinking?.let { thinking ->
                                 // Final thinking - replace to ensure clean content
                                 thinkingBuilder.clear()
@@ -1771,14 +1770,14 @@ class ChatFeatureManager(
                                 )
                             }
                             // Fix #3: Capture confidence from Result event directly
-                            event.confidence?.let { capturedConfidence = it }
-                            event.sourceType?.let { capturedSourceType = it }
+                            capturedConfidence = event.confidence ?: capturedConfidence
+                            capturedSourceType = event.sourceType ?: capturedSourceType
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
-                                responseBuilder.toString(),
+                                finalContent,
                                 thinkingBuilder.toString().ifEmpty { null },
-                                event.confidence,
-                                event.sourceType,
+                                capturedConfidence,
+                                capturedSourceType,
                             )
                         }
                         is AgentEvent.Error -> {

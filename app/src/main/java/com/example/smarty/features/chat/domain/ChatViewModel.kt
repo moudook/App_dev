@@ -184,13 +184,15 @@ class ChatViewModel(
 
             // Actually call the AI service
             val responseBuilder = StringBuilder()
+            var finalContent: String? = null
+            var finalThinking: String? = null
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId
             ).collect { event ->
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
-                        responseBuilder.append(event.content)
+                        event.content?.let { responseBuilder.append(it) }
                         // Update message as content streams in
                         _chatState.update { state ->
                             state.copy(
@@ -204,7 +206,8 @@ class ChatViewModel(
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        responseBuilder.append(event.content)
+                        finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                        finalThinking = event.thinking
                         // Mark complete
                         _chatState.update { state ->
                             state.copy(
@@ -212,8 +215,8 @@ class ChatViewModel(
                                     if (msg.id == streamingMessageId) {
                                         msg.copy(
                                             isStreaming = false,
-                                            content = responseBuilder.toString(),
-                                            thinking = event.thinking
+                                            content = finalContent!!,
+                                            thinking = finalThinking
                                         )
                                     } else msg
                                 },
@@ -226,8 +229,13 @@ class ChatViewModel(
                 }
             }
 
-            // Save message pair
-            saveMessagePair(userMessage, streamingMessage)
+            // Save message pair with the correct final content
+            val savedMessage = streamingMessage.copy(
+                content = finalContent ?: responseBuilder.toString(),
+                thinking = finalThinking,
+                isStreaming = false
+            )
+            saveMessagePair(userMessage, savedMessage)
 
         } catch (e: Exception) {
             Log.e(TAG, "AI processing failed: ${e.message}", e)
