@@ -7,6 +7,10 @@ import com.example.smarty.data.model.LogReasoningResponse
 import com.example.smarty.data.model.ProgressiveDisclosureResponse
 import com.example.smarty.data.model.ReasoningTimelineResponse
 import com.example.smarty.data.model.ReasoningTracesResponse
+import com.example.smarty.core.domain.model.Task
+import com.example.smarty.core.domain.model.TaskCreateResponse
+import com.example.smarty.core.domain.model.TaskResponse
+import com.example.smarty.core.domain.model.TasksResponse
 import com.example.smarty.protocol.*
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
@@ -631,6 +635,118 @@ class RemoteDataSource(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error logging reasoning step: ${e.message}", e)
+            null
+        }
+    }
+
+    // ==================== TASKS API ====================
+
+    suspend fun getTasks(status: String? = null): TasksResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val url = if (status != null) "$baseUrl/api/tasks?status=$status" else "$baseUrl/api/tasks"
+            val response = client.get(url) {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get tasks: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting tasks: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun getTask(taskId: String): TaskResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.get("$baseUrl/api/tasks/$taskId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get task: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting task: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun createTask(task: Task): TaskCreateResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.post("$baseUrl/api/tasks") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(task)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to create task: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating task: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun updateTaskStatus(taskId: String, status: String): TaskResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.patch("$baseUrl/api/tasks/$taskId/status") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("status" to status))
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to update task status: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating task status: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun deleteTask(taskId: String): TaskResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.delete("$baseUrl/api/tasks/$taskId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to delete task: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting task: ${e.message}", e)
             null
         }
     }

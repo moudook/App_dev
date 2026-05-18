@@ -61,6 +61,7 @@ import com.example.smarty.features.digest.domain.DigestPreferences
 import com.example.smarty.features.digest.domain.toDomainModel
 import com.example.smarty.features.digest.domain.toUiModel
 import com.example.smarty.features.notes.domain.SmartyViewModel
+import com.example.smarty.features.tasks.ui.TasksScreen
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -96,6 +97,7 @@ sealed class Screen(val route: String) {
     data object SearchHistory : Screen("search_history")
     data object DeviceManagement : Screen("device_management")
     data object DigestPreferences : Screen("digest_preferences")
+    data object Tasks : Screen("tasks")
 }
 
 @Composable
@@ -228,6 +230,7 @@ fun SmartyNavHost(
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToChess: () -> Unit = {},
+    onNavigateToTasks: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -656,6 +659,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToChess = {
                     navController.navigate(Screen.Chess.route)
+                },
+                onNavigateToTasks = {
+                    navController.navigate(Screen.Tasks.route)
                 }
             )
         }
@@ -784,6 +790,16 @@ fun SmartyNavHost(
             DigestPreferencesScreen(
                 preferences = preferences?.toUiModel() ?: com.example.smarty.features.digest.ui.DigestPreferences(),
                 onSavePreferences = { newPrefs -> viewModel.savePreferences(newPrefs.toDomainModel()) },
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.Tasks.route) { _ ->
+            val viewModel: com.example.smarty.features.tasks.domain.TasksViewModel = viewModel()
+            val uiState by viewModel.uiState.collectAsState()
+            val tasks by viewModel.tasks.collectAsState()
+
+            TasksScreen(
                 onNavigateBack = { navController.safePopBackStack() }
             )
         }

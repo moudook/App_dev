@@ -646,6 +646,9 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToChess = {
                                         navController.navigate(Screen.Chess.route)
                                     },
+                                    onNavigateToTasks = {
+                                        navController.navigate(Screen.Tasks.route)
+                                    },
                                     onCancelTimer = { timer ->
                                         viewModel.cancelTimer(timer)
                                     },

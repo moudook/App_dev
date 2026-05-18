@@ -122,6 +122,7 @@ fun SettingsScreen(
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToChess: () -> Unit = {},
+    onNavigateToTasks: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -435,6 +436,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Games,
                                         subtitle = "5-minute mental break",
                                         onClick = { currentView = SettingsView.GuidedBreathing }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Tasks",
+                                        icon = SmartyIcons.Tasks,
+                                        subtitle = "Manage your tasks",
+                                        onClick = { onNavigateToTasks() }
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.default_assistant),
