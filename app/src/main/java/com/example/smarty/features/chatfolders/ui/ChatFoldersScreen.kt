@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.ChatFolder
 import com.example.smarty.features.chatfolders.domain.ChatFoldersViewModel
 import com.example.smarty.ui.components.common.EmptyStatePlaceholder
+import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +42,8 @@ fun ChatFoldersScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var folderToEdit by remember { mutableStateOf<ChatFolder?>(null) }
     var folderToDelete by remember { mutableStateOf<ChatFolder?>(null) }
+
+    BackHandler(onBack = onNavigateBack)
 
     Scaffold(
         topBar = {

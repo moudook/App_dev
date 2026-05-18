@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.Tag
 import com.example.smarty.features.tags.domain.TagTypeFilter
@@ -44,6 +45,8 @@ fun TagsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var tagToEdit by remember { mutableStateOf<Tag?>(null) }
     var tagToDelete by remember { mutableStateOf<Tag?>(null) }
+
+    BackHandler(onBack = onNavigateBack)
 
     Scaffold(
         topBar = {

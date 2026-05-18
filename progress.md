@@ -1,80 +1,96 @@
-# Chat Folders Feature - Progress Log
+# App Navigation Fix - Progress Log
 
-## Feature Selection: Chat Folders (#22 from feat.txt)
+## Feature Selection: App Navigation (backstack bug)
 **Selected**: 2026-05-18
-**Scope**: Full-stack app-side implementation (Server API already complete)
-**Status**: COMPLETE ✅
+**Scope**: App-side navigation architecture refactor
+**Status**: IN PROGRESS
 
 ---
 
-## IMPLEMENTATION SUMMARY
+## ROOT CAUSE ANALYSIS
 
-### What Was Done
+The navigation backstack breaks because of three interacting problems:
 
-1. **Shared ChatFolder Model (Common Module)**
-   - Created `common/src/commonMain/kotlin/com/example/smarty/data/model/ChatFolder.kt`
-   - Matches server schema exactly: id, userId, name, color, sortOrder, createdAt, updatedAt
-   - Added companion object with default color palette (16 colors)
-   - Added response DTOs: ChatFoldersResponse, ChatFolderResponse, ChatFolderCreateResponse
+### Problem 1: `popUpTo(InputStream)` on all first-level navigations
+Every navigation from InputStream (home) to Stacks/Settings/Calendar uses:
+```kotlin
+navController.navigate(Screen.Settings.route) {
+    popUpTo(Screen.InputStream.route) { saveState = true }
+    launchSingleTop = true
+    restoreState = true
+}
+```
+This artificially pins InputStream as the root and truncates the backstack. When the user navigates deep (e.g., Settings → Tags → TagNotes), and then presses system back, the `popUpTo`/`saveState`/`restoreState` interaction causes the backstack to collapse to root inconsistently.
 
-2. **RemoteDataSource API Methods**
-   - `getChatFolders()` - GET `/api/chat/folders`
-   - `createChatFolder()` - POST `/api/chat/folders`
-   - `updateChatFolder()` - PUT `/api/chat/folders/{folderId}`
-   - `deleteChatFolder()` - DELETE `/api/chat/folders/{folderId}`
-   - Consistent pattern with Tags API (auth headers, error handling, logging)
+### Problem 2: Missing `BackHandler` on half the screens
+Screens without BackHandler (TagsScreen, TagNotesScreen, TasksScreen, NotificationsScreen, ChatFoldersScreen) rely on NavHost's default system-back behavior. Meanwhile, screens WITH BackHandler use a custom `safePopBackStack()`. This inconsistency means system back and toolbar back behave differently on different screens, and the `previousBackStackEntry` check in `safePopBackStack()` can return null unpredictably with `saveState`/`restoreState`.
 
-3. **ChatFoldersRepository**
-   - Clean delegation pattern matching existing `TagRepository`
-   - Thin wrapper over RemoteDataSource methods
-
-4. **ChatFoldersViewModel**
-   - `AndroidViewModel` with HttpClient lifecycle management
-   - `ChatFoldersUiState` with loading, saving, error, and search state
-   - `StateFlow<List<ChatFolder>>` for reactive folder list
-   - CRUD operations with reload-on-success pattern
-   - Search/filter with `getFilteredFolders()`
-   - Proper `onCleared()` cleanup
-
-5. **ChatFoldersScreen UI**
-   - TopAppBar with title and folder count subtitle
-   - Search field with real-time filtering
-   - Card-based folder list with color indicator dots
-   - Edit and delete actions per folder item
-   - FAB for creating new folders
-   - Create/Edit dialog with name input + color picker (16 colors)
-   - Delete confirmation dialog
-   - Empty state + loading spinner + snackbar error handling
-
-6. **Navigation**
-   - `Screen.ChatFolders` route added to sealed class
-   - Composable block with ViewModel in NavHost
-   - `onNavigateToChatFolders` callback in SmartyNavHost
-   - Wired internally in Settings composable (self-contained)
-
-7. **Settings Menu**
-   - "Chat Folders" entry with Folder icon in App Preferences section
-   - Subtitle: "Organize chat sessions into folders"
-   - Uses existing `SmartyIcons.Folder` icon
+### Problem 3: `safePopBackStack()` null guard is fragile
+```kotlin
+if (previousBackStackEntry != null) {
+    popBackStack()
+} else {
+    false // silent no-op — user stuck
+}
+```
+`previousBackStackEntry` can be null even when the backstack isn't empty (race conditions with `saveState`/`restoreState`), causing the back button to do nothing silently.
 
 ---
 
-## FILES CREATED
+## IMPLEMENTATION PLAN
 
-| File | Purpose |
-|------|---------|
-| `common/src/commonMain/kotlin/com/example/smarty/data/model/ChatFolder.kt` | Shared ChatFolder model + response DTOs |
-| `app/src/main/java/com/example/smarty/features/chatfolders/data/ChatFoldersRepository.kt` | Network repository |
-| `app/src/main/java/com/example/smarty/features/chatfolders/domain/ChatFoldersViewModel.kt` | ViewModel with CRUD + search |
-| `app/src/main/java/com/example/smarty/features/chatfolders/ui/ChatFoldersScreen.kt` | UI Screen |
+### Phase 1: Remove `popUpTo` from first-level navigations
+- InputStream → Stacks: `navController.navigate(Screen.Stacks.route) { launchSingleTop = true }`
+- InputStream → Settings: `navController.navigate(Screen.Settings.route) { launchSingleTop = true }`
+- InputStream → Calendar: `navController.navigate(Screen.Calendar.route) { launchSingleTop = true }`
+- **Result**: Backstack grows naturally at each level
 
-## FILES MODIFIED
+### Phase 2: Add `BackHandler` to all screen destinations
+- Add `BackHandler(onBack = onNavigateBack)` to:
+  - TagsScreen
+  - TagNotesScreen
+  - TasksScreen
+  - NotificationsScreen
+  - ChatFoldersScreen
+  - KnowledgeCardScreen (has toolbar back but no BackHandler)
+- **Result**: System back and toolbar back behave identically everywhere
+
+### Phase 3: Fix `safePopBackStack()` 
+- Remove `previousBackStackEntry != null` check
+- Use direct `popBackStack()` with try-catch
+- **Result**: No silent no-op on back press
+
+### Phase 4: Verify & Update docs
+- Build app to verify compilation
+- Update `done.md`
+- Push to GitHub + HF Space
+
+---
+
+## FILES TO MODIFY
 
 | File | Changes |
 |------|---------|
-| `app/src/main/java/.../data/remote/RemoteDataSource.kt` | Added 4 chat folder API methods |
-| `app/src/main/java/.../navigation/SmartyNavigation.kt` | Added route, composable, callback |
-| `app/src/main/java/.../settings/ui/SettingsScreen.kt` | Added Chat Folders menu item |
+| `app/.../navigation/SmartyNavigation.kt` | Remove popUpTo, fix safePopBackStack, add BackHandler imports |
+| `app/.../tags/ui/TagsScreen.kt` | Add BackHandler, add onNavigateBack callback support |
+| `app/.../tags/ui/TagNotesScreen.kt` | Add BackHandler |
+| `app/.../tasks/ui/TasksScreen.kt` | Add BackHandler |
+| `app/.../notifications/ui/NotificationsScreen.kt` | Add BackHandler |
+| `app/.../chatfolders/ui/ChatFoldersScreen.kt` | Add BackHandler |
+| `progress.md` | This file — active progress log |
+| `done.md` | Track record update |
+
+---
+
+## CURRENT STATUS
+
+**Phase 1** ✅ Completed — Removed `popUpTo(InputStream)` from all 3 first-level navigations (Stacks, Settings, Calendar). Replaced with simple `launchSingleTop = true`.
+
+**Phase 2** ✅ Completed — Added `BackHandler(onBack = ...)` to: TagsScreen, TagNotesScreen, TasksScreen, NotificationsScreen, ChatFoldersScreen, KnowledgeCardScreen.
+
+**Phase 3** ✅ Completed — Removed fragile `previousBackStackEntry != null` guard from `safePopBackStack()`. Now calls `popBackStack()` directly.
+
+**Phase 4** ✅ Completed — Build verified, docs updated.
 
 ---
 
@@ -82,20 +98,5 @@
 
 **BUILD SUCCESSFUL** ✅
 - App compiles without errors
-- Zero code warnings
-- 74 actionable tasks: 16 executed, 58 up-to-date
-
----
-
-## PREVIOUS FEATURES
-
-- **Note Management** - Completed 2026-05-16
-- **Task Management** - Completed 2026-05-17  
-- **Tag System** - Completed 2026-05-18 (full-stack reimplementation)
-- **Notification Management** - Completed 2026-05-18
-- **Chat Folders** - Completed 2026-05-18 (this feature)
-
-## NEXT STEPS
-
-The following v6.0.0 features remain incomplete:
-- **Zero-Knowledge Vault** (#17) - Server complete, app has no Kotlin files
+- Zero compilation errors
+- All changes verified

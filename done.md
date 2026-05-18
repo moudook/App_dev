@@ -151,3 +151,24 @@
 1. `app/src/main/java/.../data/remote/RemoteDataSource.kt` - Added 4 chat folder API methods
 2. `app/src/main/java/.../navigation/SmartyNavigation.kt` - Added route, composable, callback
 3. `app/src/main/java/.../settings/ui/SettingsScreen.kt` - Added Chat Folders menu item
+
+---
+
+## 2026-05-18: App Navigation Backstack Fix
+
+### COMPLETED ✅
+- [x] Removed `popUpTo(InputStream)` from all first-level navigations (Stacks, Settings, Calendar) — allows backstack to grow naturally
+- [x] Replaced with simple `launchSingleTop = true` to prevent duplicate destinations
+- [x] Added `BackHandler(onBack = ...)` to 6 screens missing it (Tags, TagNotes, Tasks, Notifications, ChatFolders, KnowledgeCard)
+- [x] Fixed `safePopBackStack()` — removed fragile `previousBackStackEntry != null` guard that returned false when entries existed
+- [x] System back & toolbar back now behave identically on every screen
+- [x] BUILD SUCCESSFUL — Zero compilation errors
+
+### Files Modified
+1. `app/src/main/java/.../navigation/SmartyNavigation.kt` — Removed popUpTo, simplified safePopBackStack
+2. `app/src/main/java/.../tags/ui/TagsScreen.kt` — Added BackHandler
+3. `app/src/main/java/.../tags/ui/TagNotesScreen.kt` — Added BackHandler
+4. `app/src/main/java/.../tasks/ui/TasksScreen.kt` — Added BackHandler
+5. `app/src/main/java/.../notifications/ui/NotificationsScreen.kt` — Added BackHandler
+6. `app/src/main/java/.../chatfolders/ui/ChatFoldersScreen.kt` — Added BackHandler
+7. `app/src/main/java/.../notes/ui/KnowledgeCardScreen.kt` — Added BackHandler

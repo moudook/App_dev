@@ -67,15 +67,13 @@ import com.example.smarty.features.tags.ui.TagNotesScreen
 import com.example.smarty.features.notifications.ui.NotificationsScreen
 
 /**
- * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
+ * Safe popBackStack that prevents crashes on empty back stack.
+ * Uses direct popBackStack() without previousBackStackEntry guard,
+ * which can be null even with entries on the stack when saveState/restoreState is active.
  */
 private fun NavHostController.safePopBackStack(): Boolean {
     return try {
-        if (previousBackStackEntry != null) {
-            popBackStack()
-        } else {
-            false
-        }
+        popBackStack()
     } catch (e: Exception) {
         android.util.Log.w("SmartyNavigation", "Safe pop failed: ${e.message}")
         false
@@ -378,23 +376,17 @@ fun SmartyNavHost(
                 onUpdateNoteTodos = onUpdateNoteTodos,
                 onNavigateToStacks = {
                     navController.navigate(Screen.Stacks.route) {
-                        popUpTo(Screen.InputStream.route) { saveState = true }
                         launchSingleTop = true
-                        restoreState = true
                     }
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route) {
-                        popUpTo(Screen.InputStream.route) { saveState = true }
                         launchSingleTop = true
-                        restoreState = true
                     }
                 },
                 onNavigateToCalendar = {
                     navController.navigate(Screen.Calendar.route) {
-                        popUpTo(Screen.InputStream.route) { saveState = true }
                         launchSingleTop = true
-                        restoreState = true
                     }
                 },
                 pendingShare = pendingShare,

@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.NoteForTag
 import com.example.smarty.features.tags.domain.TagNotesViewModel
@@ -44,6 +45,8 @@ fun TagNotesScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val notes by viewModel.notes.collectAsState()
+
+    BackHandler(onBack = onNavigateBack)
 
     Scaffold(
         topBar = {

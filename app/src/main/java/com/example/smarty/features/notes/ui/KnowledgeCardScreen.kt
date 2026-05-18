@@ -58,6 +58,7 @@ import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.components.audio.AudioWaveform
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -154,6 +155,8 @@ fun KnowledgeCardScreen(
 
     // Determine Accent Color
     val monochromeColor = rememberMonochromeAccent()
+
+    BackHandler(onBack = onBackClick)
 
     CompositionLocalProvider(LocalAccentColor provides monochromeColor) {
         Scaffold(

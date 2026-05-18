@@ -21,6 +21,7 @@ import com.example.smarty.core.domain.model.Notification
 import com.example.smarty.features.notifications.domain.NotificationsViewModel
 import com.example.smarty.ui.components.common.EmptyStatePlaceholder
 import com.example.smarty.ui.theme.SmartyIcons
+import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +40,8 @@ fun NotificationsScreen(
             viewModel.clearError()
         }
     }
+
+    BackHandler(onBack = onNavigateBack)
 
     Scaffold(
         topBar = {
