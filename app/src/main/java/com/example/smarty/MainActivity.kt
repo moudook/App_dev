@@ -649,6 +649,9 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToTasks = {
                                         navController.navigate(Screen.Tasks.route)
                                     },
+                                    onNavigateToNotifications = {
+                                        navController.navigate(Screen.Notifications.route)
+                                    },
                                     onCancelTimer = { timer ->
                                         viewModel.cancelTimer(timer)
                                     },

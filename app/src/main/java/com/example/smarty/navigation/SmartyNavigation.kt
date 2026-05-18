@@ -64,6 +64,7 @@ import com.example.smarty.features.notes.domain.SmartyViewModel
 import com.example.smarty.features.tasks.ui.TasksScreen
 import com.example.smarty.features.tags.ui.TagsScreen
 import com.example.smarty.features.tags.ui.TagNotesScreen
+import com.example.smarty.features.notifications.ui.NotificationsScreen
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -102,6 +103,7 @@ sealed class Screen(val route: String) {
     data object Tasks : Screen("tasks")
     data object Tags : Screen("tags")
     data object TagNotes : Screen("tag_notes")
+    data object Notifications : Screen("notifications")
 }
 
 @Composable
@@ -236,6 +238,7 @@ fun SmartyNavHost(
     onNavigateToChess: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -670,6 +673,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToTags = {
                     navController.navigate(Screen.Tags.route)
+                },
+                onNavigateToNotifications = {
+                    navController.navigate(Screen.Notifications.route)
                 }
             )
         }
@@ -833,6 +839,12 @@ fun SmartyNavHost(
                 tagId = tagId,
                 tagName = tagName,
                 tagColor = tagColor,
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.Notifications.route) { _ ->
+            NotificationsScreen(
                 onNavigateBack = { navController.safePopBackStack() }
             )
         }
