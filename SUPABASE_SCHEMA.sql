@@ -478,6 +478,28 @@ CREATE TABLE note_tasks (
     PRIMARY KEY (note_id, task_id)
 );
 
+CREATE TABLE calendar_events (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    linked_note_id   UUID REFERENCES notes(id) ON DELETE SET NULL,
+    google_event_id  TEXT,
+    title            TEXT NOT NULL,
+    description      TEXT,
+    start_time       TIMESTAMPTZ NOT NULL,
+    end_time         TIMESTAMPTZ,
+    is_all_day       BOOLEAN NOT NULL DEFAULT false,
+    is_event_private BOOLEAN NOT NULL DEFAULT false,
+    status           TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed','tentative','cancelled')),
+    visibility       TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public','private')),
+    reminders        JSONB NOT NULL DEFAULT '[]',
+    attendees        JSONB NOT NULL DEFAULT '[]',
+    location         TEXT,
+    metadata         JSONB NOT NULL DEFAULT '{}',
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TRIGGER trg_calendar_events_updated_at BEFORE UPDATE ON calendar_events FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 CREATE TABLE calendar_event_notes (
     event_id UUID NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
     note_id  UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
@@ -521,28 +543,6 @@ CREATE TABLE daily_digests (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(user_id, digest_date, digest_type)
 );
-
-CREATE TABLE calendar_events (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    linked_note_id   UUID REFERENCES notes(id) ON DELETE SET NULL,
-    google_event_id  TEXT,
-    title            TEXT NOT NULL,
-    description      TEXT,
-    start_time       TIMESTAMPTZ NOT NULL,
-    end_time         TIMESTAMPTZ,
-    is_all_day       BOOLEAN NOT NULL DEFAULT false,
-    is_event_private BOOLEAN NOT NULL DEFAULT false,
-    status           TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed','tentative','cancelled')),
-    visibility       TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public','private')),
-    reminders        JSONB NOT NULL DEFAULT '[]',
-    attendees        JSONB NOT NULL DEFAULT '[]',
-    location         TEXT,
-    metadata         JSONB NOT NULL DEFAULT '{}',
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TRIGGER trg_calendar_events_updated_at BEFORE UPDATE ON calendar_events FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE generated_images (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
