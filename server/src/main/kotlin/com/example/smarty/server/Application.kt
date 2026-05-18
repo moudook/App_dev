@@ -88,12 +88,7 @@ private val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAUL
 val serverStartTime = System.currentTimeMillis()
 
 fun main() {
-    embeddedServer(Netty, port = serverPort, host = "0.0.0.0", module = Application::module) {
-        // Allow long-running SSE connections for LLM streaming (up to 10 minutes)
-        requestTimeout = 600_000
-        responseWriteTimeout = 600_000
-        connectionIdleTimeout = 600_000
-    }
+    embeddedServer(Netty, port = serverPort, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 
