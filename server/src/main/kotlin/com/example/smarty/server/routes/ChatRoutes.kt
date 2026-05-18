@@ -465,6 +465,21 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     )
 
                 try {
+                    // Send immediate "thinking" event so client knows the request is being processed
+                    // This prevents timeout issues when LLM providers take 1-3 minutes to start responding
+                    send(
+                        ServerSentEvent(
+                            data = json.encodeToString(
+                                AgentEvent.Processing(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = System.currentTimeMillis(),
+                                    content = "Thinking...",
+                                ),
+                            ),
+                            event = "processing",
+                        ),
+                    )
+
                     // Run the agent strategy with history, model override, and time context
                     // CRITICAL: Pass sessionId to preserve chat history continuity
                     val assistantResponse =

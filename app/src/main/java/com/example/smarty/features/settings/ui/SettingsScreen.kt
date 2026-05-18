@@ -375,7 +375,7 @@ fun SettingsScreen(
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.backup_sync),
-                                        icon = SmartyIcons.Backup,
+                                        icon = SmartyIcons.CloudSync,
                                         subtitle = if (lastBackupTime > 0) {
                                             val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
                                             "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"

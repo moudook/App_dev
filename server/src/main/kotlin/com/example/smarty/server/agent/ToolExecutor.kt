@@ -187,6 +187,12 @@ class ToolExecutor(
             ).take(200)}", "jobId": "$jobId"}"""
         } catch (e: Exception) {
             logger.error("Image generation failed", e)
+            try {
+                generatedImageRepository?.clearQueuedForUser(userId)
+                logger.info("Cleared queued images for user $userId after error")
+            } catch (cleanupError: Exception) {
+                logger.warn("Failed to clear queued images: ${cleanupError.message}")
+            }
             "Failed to generate image: ${e.message}"
         }
     }

@@ -48,6 +48,8 @@ import com.example.smarty.features.games.ui.TicTacToeScreen
 import com.example.smarty.features.games.ui.CoinTossScreen
 import com.example.smarty.features.games.ui.ChessScreen
 import com.example.smarty.features.digest.ui.DigestScreen
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import com.example.smarty.features.digest.ui.DigestDetailScreen
 import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.features.auth.ui.RefinedLoginScreen
@@ -212,6 +214,10 @@ fun SmartyNavHost(
     wasShakeTriggered: Boolean = false,
     // Network status (Phase 7)
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    // Cloud sync
+    cloudSyncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState = com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle,
+    onSyncCloud: () -> Unit = {},
+    syncSnackbarMessage: kotlinx.coroutines.flow.SharedFlow<String> = kotlinx.coroutines.flow.MutableSharedFlow(),
     // Camera trigger from widget
     cameraTriggered: Boolean = false,
     onClearCameraTrigger: () -> Unit = {},
@@ -463,6 +469,9 @@ fun SmartyNavHost(
                 speechResults = speechResults,
                 wasShakeTriggered = wasShakeTriggered,
                 connectionStatus = connectionStatus,
+                cloudSyncState = cloudSyncState,
+                onSyncCloud = onSyncCloud,
+                syncSnackbarMessage = syncSnackbarMessage,
                 // Camera trigger from widget
                 cameraTriggered = cameraTriggered,
                 onClearCameraTrigger = onClearCameraTrigger,

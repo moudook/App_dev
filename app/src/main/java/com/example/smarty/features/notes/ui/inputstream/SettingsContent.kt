@@ -173,7 +173,7 @@ fun SettingsContent(
                     iconColor = accentColor
                 )
                 SmartySettingsRow(
-                    icon = SmartyIcons.Backup,
+                    icon = SmartyIcons.CloudSync,
                     label = stringResource(R.string.backup),
                     onClick = { showBackupSheet = true },
                     iconColor = accentColor
