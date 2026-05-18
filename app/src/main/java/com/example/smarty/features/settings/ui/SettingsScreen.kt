@@ -125,6 +125,7 @@ fun SettingsScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
+    onNavigateToChatFolders: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -456,6 +457,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Notifications,
                                         subtitle = "View and manage notifications",
                                         onClick = { onNavigateToNotifications() }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Chat Folders",
+                                        icon = SmartyIcons.Folder,
+                                        subtitle = "Organize chat sessions into folders",
+                                        onClick = { onNavigateToChatFolders() }
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.default_assistant),

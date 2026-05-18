@@ -903,4 +903,86 @@ class RemoteDataSource(
             null
         }
     }
+
+    // ==================== CHAT FOLDERS API ====================
+
+    suspend fun getChatFolders(): com.example.smarty.core.domain.model.ChatFoldersResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+            val response = client.get("$baseUrl/api/chat/folders") {
+                addAuthHeaders(token)
+            }
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get chat folders: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting chat folders: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun createChatFolder(request: com.example.smarty.core.domain.model.ChatFolderCreateRequest): com.example.smarty.core.domain.model.ChatFolderCreateResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+            val response = client.post("$baseUrl/api/chat/folders") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to create chat folder: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating chat folder: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun updateChatFolder(folder: com.example.smarty.core.domain.model.ChatFolder): com.example.smarty.core.domain.model.ChatFolderResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+            val response = client.put("$baseUrl/api/chat/folders/${folder.id}") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(folder)
+            }
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to update chat folder: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating chat folder: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun deleteChatFolder(folderId: String): com.example.smarty.core.domain.model.ChatFolderResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+            val response = client.delete("$baseUrl/api/chat/folders/$folderId") {
+                addAuthHeaders(token)
+            }
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to delete chat folder: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting chat folder: ${e.message}", e)
+            null
+        }
+    }
 }

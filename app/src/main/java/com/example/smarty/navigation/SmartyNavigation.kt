@@ -104,6 +104,7 @@ sealed class Screen(val route: String) {
     data object Tags : Screen("tags")
     data object TagNotes : Screen("tag_notes")
     data object Notifications : Screen("notifications")
+    data object ChatFolders : Screen("chat_folders")
 }
 
 @Composable
@@ -239,6 +240,7 @@ fun SmartyNavHost(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
+    onNavigateToChatFolders: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -676,6 +678,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToNotifications = {
                     navController.navigate(Screen.Notifications.route)
+                },
+                onNavigateToChatFolders = {
+                    navController.navigate(Screen.ChatFolders.route)
                 }
             )
         }
@@ -845,6 +850,12 @@ fun SmartyNavHost(
 
         composable(Screen.Notifications.route) { _ ->
             NotificationsScreen(
+                onNavigateBack = { navController.safePopBackStack() }
+            )
+        }
+
+        composable(Screen.ChatFolders.route) { _ ->
+            com.example.smarty.features.chatfolders.ui.ChatFoldersScreen(
                 onNavigateBack = { navController.safePopBackStack() }
             )
         }

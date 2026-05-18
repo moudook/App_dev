@@ -125,3 +125,29 @@
 2. `app/src/main/java/com/example/smarty/navigation/SmartyNavigation.kt` - Route + callback
 3. `app/src/main/java/com/example/smarty/features/settings/ui/SettingsScreen.kt` - Menu item
 4. `app/src/main/java/com/example/smarty/MainActivity.kt` - Navigation handler
+
+---
+
+## 2026-05-18: Chat Folders Feature (Full Reimplementation)
+
+### COMPLETED ✅
+- [x] Shared ChatFolder model in common module (matches server schema)
+- [x] 4 API methods in RemoteDataSource (GET/POST/PUT/DELETE)
+- [x] ChatFoldersRepository with clean delegation pattern
+- [x] ChatFoldersViewModel with CRUD + search/filter + lifecycle management
+- [x] ChatFoldersScreen UI with folder list, search, create/edit/delete dialogs, color picker
+- [x] Route + composable in SmartyNavigation.kt (self-contained navigation)
+- [x] Menu entry in SettingsScreen.kt (App Preferences section)
+- [x] Uses existing SmartyIcons.Folder icon
+- [x] BUILD SUCCESSFUL - Zero errors, zero warnings
+
+### Files Created
+1. `common/src/commonMain/kotlin/com/example/smarty/data/model/ChatFolder.kt` - ChatFolder data models + response DTOs
+2. `app/src/main/java/com/example/smarty/features/chatfolders/data/ChatFoldersRepository.kt` - Network repository
+3. `app/src/main/java/com/example/smarty/features/chatfolders/domain/ChatFoldersViewModel.kt` - ViewModel
+4. `app/src/main/java/com/example/smarty/features/chatfolders/ui/ChatFoldersScreen.kt` - UI Screen
+
+### Files Modified
+1. `app/src/main/java/.../data/remote/RemoteDataSource.kt` - Added 4 chat folder API methods
+2. `app/src/main/java/.../navigation/SmartyNavigation.kt` - Added route, composable, callback
+3. `app/src/main/java/.../settings/ui/SettingsScreen.kt` - Added Chat Folders menu item
