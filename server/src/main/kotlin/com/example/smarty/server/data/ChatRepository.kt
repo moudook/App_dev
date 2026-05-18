@@ -89,6 +89,64 @@ class ChatRepository(
         }
     }
 
+    suspend fun saveMessageWithId(
+        userId: String,
+        sessionId: String,
+        messageId: String,
+        role: String,
+        content: String,
+        thinking: String? = null,
+        toolCalls: String? = null,
+        toolCallId: String? = null,
+        tokenCount: Int = 0,
+        createdAt: Long? = null,
+    ) = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                INSERT INTO chat_messages (
+                    id, session_id, user_id, role, content, thinking, tool_calls,
+                    tool_call_id, token_count, is_edited, is_starred, metadata,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, false, false, '{}', ?, now())
+                ON CONFLICT (id) DO UPDATE SET
+                    role = EXCLUDED.role,
+                    content = EXCLUDED.content,
+                    thinking = EXCLUDED.thinking,
+                    tool_calls = EXCLUDED.tool_calls,
+                    tool_call_id = EXCLUDED.tool_call_id,
+                    token_count = EXCLUDED.token_count,
+                    updated_at = now()
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(messageId))
+                stmt.setObject(2, UUID.fromString(sessionId))
+                stmt.setObject(3, UUID.fromString(userId))
+                stmt.setString(4, role.lowercase())
+                stmt.setString(5, content)
+                stmt.setString(6, thinking)
+                stmt.setString(7, toolCalls ?: "null")
+                stmt.setString(8, toolCallId)
+                stmt.setInt(9, tokenCount)
+                stmt.setTimestamp(10, java.sql.Timestamp(createdAt ?: System.currentTimeMillis()))
+                stmt.executeUpdate()
+            }
+            
+            // Update session preview and counts
+            val updateSessionSql = """
+                UPDATE chat_sessions 
+                SET last_message_preview = ?,
+                    message_count = message_count + 1,
+                    updated_at = now()
+                WHERE id = ?
+            """.trimIndent()
+            conn.prepareStatement(updateSessionSql).use { stmt ->
+                stmt.setString(1, content.take(200))
+                stmt.setObject(2, UUID.fromString(sessionId))
+                stmt.executeUpdate()
+            }
+        }
+    }
+
     suspend fun updateSessionSummary(
         userId: String,
         sessionId: String,
@@ -134,10 +192,10 @@ class ChatRepository(
         withContext(Dispatchers.IO) {
             val sessions = mutableListOf<SessionInfo>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM chat_sessions WHERE user_id = ?::uuid AND updated_at > ? ORDER BY updated_at ASC LIMIT ?"
+                val sql = "SELECT * FROM chat_sessions WHERE user_id = ?::uuid AND updated_at > to_timestamp(? / 1000.0) ORDER BY updated_at ASC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setTimestamp(2, java.sql.Timestamp(timestamp))
+                    stmt.setLong(2, timestamp)
                     stmt.setInt(3, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {

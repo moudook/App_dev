@@ -229,42 +229,47 @@ class SyncCoordinator(
                         sessionData.messages.forEach { msgData ->
                             // Check by server ID first
                             val existingById = chatDao.getMessageById(msgData.id)
-                            // Also check if a message with same role+normalized content already exists locally
-                            // (app and server generate different UUIDs for the same message)
-                            // BUG FIX: Normalize content before comparing - strip <think> tags and trim
-                            // so server content (with think tags) matches app content (tags stripped)
+                            if (existingById != null) {
+                                // Message already exists by ID, skip
+                                return@forEach
+                            }
+
+                            // Check by content hash (normalized)
                             val normalizedServerContent = normalizeContentForDedup(msgData.content)
                             val existingByContent =
                                 existingLocalMessages.any { local ->
                                     local.role == msgData.role.uppercase() &&
                                         normalizeContentForDedup(local.content) == normalizedServerContent
                                 }
-                            if (existingById == null && !existingByContent) {
-                                // Extract thinking from server content if embedded in <think> tags
-                                val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
-                                val cleanContent =
-                                    if (thinking != null && msgData.thinking == null) {
-                                        // Server had thinking embedded in content, strip it
-                                        stripThinkTags(msgData.content)
-                                    } else {
-                                        msgData.content
-                                    }
-                                val message =
-                                    ChatMessage(
-                                        id = msgData.id,
-                                        role =
-                                            when (msgData.role.uppercase()) {
-                                                "USER" -> ChatRole.USER
-                                                "SMARTY", "ASSISTANT" -> ChatRole.SMARTY
-                                                else -> ChatRole.SYSTEM
-                                            },
-                                        content = cleanContent,
-                                        thinking = thinking,
-                                        timestamp = msgData.createdAt,
-                                    )
-                                val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
-                                chatDao.insertMessage(entity)
+                            if (existingByContent) {
+                                // Message already exists by content, skip
+                                return@forEach
                             }
+
+                            // Extract thinking from server content if embedded in <think> tags
+                            val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
+                            val cleanContent =
+                                if (thinking != null && msgData.thinking == null) {
+                                    // Server had thinking embedded in content, strip it
+                                    stripThinkTags(msgData.content)
+                                } else {
+                                    msgData.content
+                                }
+                            val message =
+                                ChatMessage(
+                                    id = msgData.id,
+                                    role =
+                                        when (msgData.role.uppercase()) {
+                                            "USER" -> ChatRole.USER
+                                            "SMARTY", "ASSISTANT" -> ChatRole.SMARTY
+                                            else -> ChatRole.SYSTEM
+                                        },
+                                    content = cleanContent,
+                                    thinking = thinking,
+                                    timestamp = msgData.createdAt,
+                                )
+                            val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
+                            chatDao.insertMessage(entity)
                         }
                         sessionsUpdated++
                     }
@@ -524,7 +529,7 @@ class SyncCoordinator(
 
         /**
          * Normalize content for deduplication comparison.
-         * Strips <think> and <final> tags, trims whitespace.
+         * Strips <think> and <final> tags, normalizes whitespace, trims.
          * This ensures that server content (with think tags) matches app content (tags stripped).
          */
         fun normalizeContentForDedup(content: String): String {
@@ -532,6 +537,8 @@ class SyncCoordinator(
                 .replace(THINK_TAG_REGEX, "")
                 .replace(THINK_OPEN_REGEX, "")
                 .replace(FINAL_TAG_REGEX, "")
+                .replace("\\r\\n", "\\n") // Normalize line endings
+                .replace(Regex("\\s+"), " ") // Collapse multiple whitespace to single space
                 .trim()
         }
 

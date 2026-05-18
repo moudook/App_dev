@@ -335,7 +335,11 @@ fun Application.configureOptimizedSyncRoutes() {
                                 }
 
                                 sessionItem.messages?.forEach { msg ->
-                                    chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking)
+                                    if (msg.id != null) {
+                                        chatRepository.saveMessageWithId(userId, sessionItem.id, msg.id!!, msg.role, msg.content, msg.thinking, createdAt = msg.createdAt)
+                                    } else {
+                                        chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking)
+                                    }
                                 }
                             } catch (e: Exception) {
                                 errors.add("Session error: ${e.message}")
