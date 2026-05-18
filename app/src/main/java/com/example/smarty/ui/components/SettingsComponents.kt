@@ -5,6 +5,7 @@ import com.example.smarty.R
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,6 +104,113 @@ fun ConnectionStatusIndicator(
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Cloud sync status indicator.
+ * Shows sync state: idle (hidden), syncing (spinner), success (checkmark), error (error icon).
+ */
+@Composable
+fun CloudSyncIndicator(
+    syncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState,
+    onSyncClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    showLabel: Boolean = true
+) {
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    when (syncState) {
+        is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle -> {
+            // Don't show anything when idle
+        }
+        is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Syncing -> {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+                tonalElevation = 0.dp,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
+                modifier = modifier.clickable(onClick = onSyncClick)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (showLabel) {
+                        Text(
+                            text = "Syncing...",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Success -> {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF34C759).copy(alpha = 0.15f),
+                tonalElevation = 0.dp,
+                border = BorderStroke(0.5.dp, Color(0xFF34C759).copy(alpha = 0.3f)),
+                modifier = modifier.clickable(onClick = onSyncClick)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = "Synced",
+                        modifier = Modifier.size(12.dp),
+                        tint = Color(0xFF34C759)
+                    )
+                    if (showLabel) {
+                        Text(
+                            text = "Synced",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = Color(0xFF34C759)
+                        )
+                    }
+                }
+            }
+        }
+        is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Error -> {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFFFF3B30).copy(alpha = 0.15f),
+                tonalElevation = 0.dp,
+                border = BorderStroke(0.5.dp, Color(0xFFFF3B30).copy(alpha = 0.3f)),
+                modifier = modifier.clickable(onClick = onSyncClick)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = "Sync error",
+                        modifier = Modifier.size(12.dp),
+                        tint = Color(0xFFFF3B30)
+                    )
+                    if (showLabel) {
+                        Text(
+                            text = "Sync failed",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = Color(0xFFFF3B30)
+                        )
+                    }
                 }
             }
         }

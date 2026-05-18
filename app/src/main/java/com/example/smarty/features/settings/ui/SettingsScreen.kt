@@ -107,6 +107,8 @@ fun SettingsScreen(
     // Google Calendar Sync
     lastCalendarSyncTime: Long = 0L,
     onCalendarSync: () -> Unit = {},
+    // Cloud Sync
+    onCloudSync: () -> Unit = {},
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
@@ -366,8 +368,14 @@ fun SettingsScreen(
                                 )
                                 SmartySettingsCard {
                                     SmartySettingsRow(
-                                        label = stringResource(R.string.backup_sync),
+                                        label = "Cloud Sync",
                                         icon = SmartyIcons.CloudSync,
+                                        subtitle = "Pull down on notes to sync or tap here",
+                                        onClick = onCloudSync
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.backup_sync),
+                                        icon = SmartyIcons.Backup,
                                         subtitle = if (lastBackupTime > 0) {
                                             val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
                                             "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"

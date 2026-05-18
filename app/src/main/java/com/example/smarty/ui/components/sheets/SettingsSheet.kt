@@ -32,6 +32,7 @@ fun SettingsSheet(
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToChess: () -> Unit = {},
+    onCloudSync: () -> Unit = {},
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
     BackHandler(enabled = true) {
@@ -71,7 +72,8 @@ fun SettingsSheet(
             onLoadDeviceCalendars = onLoadDeviceCalendars,
             onNavigateToCoinToss = onNavigateToCoinToss,
             onNavigateToTicTacToe = onNavigateToTicTacToe,
-            onNavigateToChess = onNavigateToChess
+            onNavigateToChess = onNavigateToChess,
+            onCloudSync = onCloudSync
         )
     }
 }

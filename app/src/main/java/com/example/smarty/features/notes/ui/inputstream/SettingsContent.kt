@@ -84,7 +84,9 @@ fun SettingsContent(
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
     // Server Connection Status
-    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED
+    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    // Cloud Sync
+    onCloudSync: () -> Unit = {}
 ) {
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
@@ -165,6 +167,13 @@ fun SettingsContent(
             SmartySettingsCard {
                 SmartySettingsRow(
                     icon = SmartyIcons.CloudSync,
+                    label = "Cloud Sync",
+                    subtitle = "Tap to sync notes, chats & calendar",
+                    onClick = onCloudSync,
+                    iconColor = accentColor
+                )
+                SmartySettingsRow(
+                    icon = SmartyIcons.Backup,
                     label = stringResource(R.string.backup),
                     onClick = { showBackupSheet = true },
                     iconColor = accentColor

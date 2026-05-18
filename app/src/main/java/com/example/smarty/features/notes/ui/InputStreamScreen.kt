@@ -102,6 +102,7 @@ import com.example.smarty.ui.theme.SmartyBrushes
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
+import com.example.smarty.ui.components.CloudSyncIndicator
 import com.example.smarty.ui.components.NotesEmptyState
 import com.example.smarty.ui.components.SearchEmptyState
 import com.example.smarty.ui.components.HorizontalActionBar
@@ -234,6 +235,9 @@ fun InputStreamScreen(
 
     wasShakeTriggered: Boolean = false,  // Deprecated: shake indicator removed, kept for API compatibility
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
+    cloudSyncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState = com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle,
+    onSyncCloud: () -> Unit = {},
+    syncSnackbarMessage: kotlinx.coroutines.flow.SharedFlow<String> = kotlinx.coroutines.flow.MutableSharedFlow(),
     // Camera trigger from widget
     cameraTriggered: Boolean = false,
     onClearCameraTrigger: () -> Unit = {},
@@ -349,6 +353,13 @@ fun InputStreamScreen(
     // Snackbar state for undo archive
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
+
+    // Sync snackbar messages
+    LaunchedEffect(Unit) {
+        syncSnackbarMessage.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
 
     // Accent color for theming
     val accentColor = LocalAccentColor.current
@@ -1168,7 +1179,7 @@ fun InputStreamScreen(
                     .background(brush = topGradientBrush)
                     .zIndex(2f)
             ) {
-                // Minimal Header Row: Status Indicator Only
+                // Minimal Header Row: Status Indicators
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1176,9 +1187,19 @@ fun InputStreamScreen(
                         .height(24.dp), // Reduced from 32dp
                     contentAlignment = Alignment.Center
                 ) {
-                    ConnectionStatusIndicator(
-                        status = connectionStatus
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ConnectionStatusIndicator(
+                            status = connectionStatus
+                        )
+                        CloudSyncIndicator(
+                            syncState = cloudSyncState,
+                            onSyncClick = onSyncCloud
+                        )
+                    }
                 }
 
                 // Horizontal Action Bar - All features accessible here
@@ -1341,7 +1362,8 @@ fun InputStreamScreen(
                             onNavigateToTicTacToe = onNavigateToTicTacToe,
                             onNavigateToCoinToss = onNavigateToCoinToss,
                             onNavigateToChess = onNavigateToChess,
-                            connectionStatus = connectionStatus
+                            connectionStatus = connectionStatus,
+                            onCloudSync = onSyncCloud
                         )
                     }
                     "calendar" -> {
@@ -2051,7 +2073,8 @@ fun InputStreamScreen(
             onLoadDeviceCalendars = onLoadDeviceCalendars,
             onNavigateToCoinToss = onNavigateToCoinToss,
             onNavigateToTicTacToe = onNavigateToTicTacToe,
-            onNavigateToChess = onNavigateToChess
+            onNavigateToChess = onNavigateToChess,
+            onCloudSync = onSyncCloud
         )
     }
 

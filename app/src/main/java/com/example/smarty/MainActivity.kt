@@ -439,9 +439,9 @@ class MainActivity : ComponentActivity() {
                                         viewModel.undoArchive()
                                     },
                                     onRefreshNotes = {
-                                        viewModel.refreshNotes()
+                                        viewModel.syncCloudNow()
                                     },
-                                    isRefreshing = viewModel.isRefreshing.collectAsState().value,
+                                    isRefreshing = viewModel.cloudSyncState.collectAsState().value is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Syncing,
                                     isNotesLoading = isNotesLoading,
                                     isStacksLoading = isStacksLoading,
                                     isArchiveLoading = isArchiveLoading,
@@ -611,6 +611,9 @@ class MainActivity : ComponentActivity() {
                                     // Shake mode switch animation
                                     wasShakeTriggered = wasShakeTriggered,
                                     connectionStatus = connectionStatus,
+                                    cloudSyncState = viewModel.cloudSyncState.collectAsState().value,
+                                    onSyncCloud = { viewModel.syncCloudNow() },
+                                    syncSnackbarMessage = viewModel.syncSnackbarMessage,
                                     // Camera trigger from widget
                                     cameraTriggered = cameraTriggered,
                                     onClearCameraTrigger = { viewModel.clearCameraTrigger() },

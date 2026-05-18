@@ -353,7 +353,7 @@ class SmartyViewModel(
     )
     val speechResults = _speechResults.asSharedFlow()
 
-    // Pull-to-refresh state
+    // Pull-to-refresh state (local DB refresh)
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
@@ -365,6 +365,72 @@ class SmartyViewModel(
             kotlinx.coroutines.delay(500)
             _isRefreshing.value = false
         }
+    }
+
+    // Cloud sync state and operations
+    sealed class CloudSyncState {
+        object Idle : CloudSyncState()
+        object Syncing : CloudSyncState()
+        data class Success(val notesUpdated: Int, val sessionsUpdated: Int, val eventsUpdated: Int) : CloudSyncState()
+        data class Error(val message: String) : CloudSyncState()
+    }
+
+    private val _cloudSyncState = MutableStateFlow<CloudSyncState>(CloudSyncState.Idle)
+    val cloudSyncState: StateFlow<CloudSyncState> = _cloudSyncState.asStateFlow()
+
+    // Sync snackbar messages
+    private val _syncSnackbarMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val syncSnackbarMessage = _syncSnackbarMessage.asSharedFlow()
+
+    fun syncCloudNow() {
+        viewModelScope.launch {
+            _cloudSyncState.value = CloudSyncState.Syncing
+            try {
+                val app = getApplication<Application>()
+                val syncCoordinator = com.example.smarty.di.ServiceLocator.provideSyncCoordinator(app)
+
+                // Push local changes first, then pull from server
+                val pushResult = syncCoordinator.pushPendingChanges()
+                val pullResult = syncCoordinator.pullFromServer()
+
+                when {
+                    pullResult is com.example.smarty.data.sync.PullResult.Success -> {
+                        val total = pullResult.notes + pullResult.sessions + pullResult.events
+                        _cloudSyncState.value = CloudSyncState.Success(
+                            notesUpdated = pullResult.notes,
+                            sessionsUpdated = pullResult.sessions,
+                            eventsUpdated = pullResult.events
+                        )
+                        _syncSnackbarMessage.emit("Synced: ${pullResult.notes} notes, ${pullResult.sessions} chats, ${pullResult.events} events")
+                        kotlinx.coroutines.delay(3000)
+                        _cloudSyncState.value = CloudSyncState.Idle
+                    }
+                    pullResult is com.example.smarty.data.sync.PullResult.Offline -> {
+                        _cloudSyncState.value = CloudSyncState.Error("No internet connection")
+                        _syncSnackbarMessage.emit("No internet connection")
+                        kotlinx.coroutines.delay(3000)
+                        _cloudSyncState.value = CloudSyncState.Idle
+                    }
+                    else -> {
+                        val errorMsg = (pullResult as? com.example.smarty.data.sync.PullResult.Error)?.message ?: "Sync failed"
+                        _cloudSyncState.value = CloudSyncState.Error(errorMsg)
+                        _syncSnackbarMessage.emit("Sync failed: $errorMsg")
+                        kotlinx.coroutines.delay(3000)
+                        _cloudSyncState.value = CloudSyncState.Idle
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Cloud sync failed", e)
+                _cloudSyncState.value = CloudSyncState.Error(e.message ?: "Unknown error")
+                _syncSnackbarMessage.emit("Sync error: ${e.message}")
+                kotlinx.coroutines.delay(3000)
+                _cloudSyncState.value = CloudSyncState.Idle
+            }
+        }
+    }
+
+    fun resetCloudSyncState() {
+        _cloudSyncState.value = CloudSyncState.Idle
     }
     fun clearInput() {
         _currentInputText.value = ""
