@@ -96,10 +96,15 @@ class ChatViewModel(
         // Set initial state from cached preferences
         val initialModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
         val initialCachedModels = securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
+        val fallbackModels = if (initialCachedModels.isNotEmpty()) {
+            initialCachedModels
+        } else {
+            com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
+        }
         _uiState.update { 
             it.copy(
                 selectedModel = initialModel,
-                availableModels = initialCachedModels
+                availableModels = fallbackModels
             )
         }
 
@@ -523,10 +528,13 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
-                if (refreshed.isNotEmpty()) {
+                val models = if (refreshed.isNotEmpty()) {
                     securePreferences.setCachedModels(refreshed)
-                    _uiState.update { it.copy(availableModels = refreshed) }
+                    refreshed
+                } else {
+                    com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
                 }
+                _uiState.update { it.copy(availableModels = models) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to refresh models: ${e.message}")
             }
@@ -535,19 +543,22 @@ class ChatViewModel(
 
     /**
      * Suspend function for UI to call directly for live model refresh.
-     * Returns the refreshed model list, or empty if failed.
+     * Returns the refreshed model list, or fallback defaults if failed.
      */
     suspend fun refreshModelsNow(): List<Pair<String, String>> {
         return try {
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
-            if (refreshed.isNotEmpty()) {
+            val models = if (refreshed.isNotEmpty()) {
                 securePreferences.setCachedModels(refreshed)
-                _uiState.update { it.copy(availableModels = refreshed) }
+                refreshed
+            } else {
+                com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
             }
-            refreshed
+            _uiState.update { it.copy(availableModels = models) }
+            models
         } catch (e: Exception) {
             Log.e(TAG, "Failed to refresh models: ${e.message}")
-            emptyList()
+            com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
         }
     }
 }

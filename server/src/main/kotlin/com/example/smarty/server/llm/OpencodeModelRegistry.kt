@@ -32,7 +32,7 @@ object OpencodeModelRegistry {
     private val logger = LoggerFactory.getLogger(OpencodeModelRegistry::class.java)
 
     private const val CACHE_TTL_MS = 5 * 60 * 1000L
-    private const val MAX_FREE_MODELS = 3
+    private const val MAX_FREE_MODELS = 10
 
     // Runtime-discovered models — zero hardcoded names
     private val discoveredModels = AtomicReference<List<OpencodeModelInfo>>(emptyList())
