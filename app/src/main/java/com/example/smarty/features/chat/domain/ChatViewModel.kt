@@ -99,11 +99,8 @@ class ChatViewModel(
         
         Log.d(TAG, "ViewModel init: initialModel=$initialModel, cachedModels=${initialCachedModels.size}")
         
-        val fallbackModels = if (initialCachedModels.isNotEmpty()) {
-            initialCachedModels
-        } else {
-            com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
-        }
+        // Always start with correct fallback models (synced with server discoveries)
+        val fallbackModels = com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
         
         _uiState.update { 
             it.copy(
@@ -141,11 +138,12 @@ class ChatViewModel(
                     }
                     Log.d(TAG, "Models updated: selected=$activeModel, available=${dynamicModels.size}")
                 } else {
-                    Log.w(TAG, "Server returned empty model list, keeping cached models")
+                    Log.w(TAG, "Server returned empty model list, keeping fallback models")
+                    // Don't update UI - keep the correct fallback models
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize opencode models: ${e.message}", e)
-                // Keep using cached models - don't fall back to defaults unless cache is also empty
+                // Keep using correct fallback models - don't fall back to potentially stale cache
             }
         }
     }
