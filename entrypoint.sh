@@ -2,8 +2,9 @@
 # =============================================================================
 # Entrypoint for Hugging Face Spaces (Alpine Linux)
 # 1. Start OpenCode CLI daemon in background
-# 2. Health check loop — wait for daemon to be ready
-# 3. Launch Ktor server
+# 2. Verify OpenCode CLI works (models + run)
+# 3. Health check loop — wait for daemon to be ready
+# 4. Launch Ktor server
 # =============================================================================
 
 set -e
@@ -22,7 +23,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: Verify OpenCode CLI is installed
 # -----------------------------------------------------------------------------
-echo "[1/4] Verifying OpenCode CLI installation..."
+echo "[1/5] Verifying OpenCode CLI installation..."
 if ! command -v opencode &> /dev/null; then
     echo "ERROR: opencode CLI not found. Install with: npm install -g opencode-ai"
     exit 1
@@ -36,16 +37,41 @@ echo "  opencode.json exists: $([ -f ./opencode.json ] && echo 'YES' || echo 'NO
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 2: Start OpenCode daemon in background
+# Step 2: List available free models (VERIFICATION)
 # -----------------------------------------------------------------------------
-echo "[2/4] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[2/5] Discovering free models via 'opencode models'..."
+echo "  Running: opencode models"
+echo "  --- BEGIN opencode models output ---"
+MODELS_OUTPUT=$(opencode models 2>&1 || echo "ERROR: opencode models failed")
+echo "$MODELS_OUTPUT"
+echo "  --- END opencode models output ---"
+
+# Count free models
+FREE_COUNT=$(echo "$MODELS_OUTPUT" | grep -i "free" | grep -c "opencode/" || echo "0")
+echo ""
+echo "  Found $FREE_COUNT free model(s) containing 'free' in the name:"
+echo "$MODELS_OUTPUT" | grep -i "free" | grep "opencode/" | while read -r line; do
+    echo "    -> $line"
+done
+echo ""
+
+if [ "$FREE_COUNT" -eq 0 ]; then
+    echo "  WARNING: No free models found! Chat will not work."
+else
+    echo "  SUCCESS: $FREE_COUNT free model(s) available for inference."
+fi
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 3: Start OpenCode daemon in background
+# -----------------------------------------------------------------------------
+echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
 
 # Ensure opencode.json is in the working directory
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
     echo "  opencode.json: FOUND"
-    echo "  Config: $(cat ./opencode.json | head -1)"
 fi
 
 # Launch daemon — redirect output to log file
@@ -68,9 +94,9 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 3: Health check loop — wait for daemon to respond
+# Step 4: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[3/4] Waiting for OpenCode daemon to be ready..."
+echo "[4/5] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -87,7 +113,7 @@ for i in $(seq 1 $MAX_RETRIES); do
         echo "  WARNING: Daemon did not respond after $((MAX_RETRIES * RETRY_INTERVAL)) seconds."
         echo "  Daemon log (last 10 lines):"
         tail -10 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
-        echo "  Continuing anyway — Ktor will use one-shot CLI mode."
+        echo "  Continuing anyway — Ktor will use one-shot CLI mode (no daemon)."
         echo ""
         break
     fi
@@ -100,11 +126,9 @@ for i in $(seq 1 $MAX_RETRIES); do
     sleep $RETRY_INTERVAL
 done
 
-# -----------------------------------------------------------------------------
-# Step 3b: Verify daemon is actually serving
-# -----------------------------------------------------------------------------
+# Verify daemon responds with actual health data
 if [ "$DAEMON_READY" = true ]; then
-    echo "[3b/4] Verifying daemon responds to requests..."
+    echo "[4b/5] Verifying daemon responds to requests..."
     HEALTH_RESPONSE=$(wget -q -O - --timeout=2 "$DAEMON_URL/global/health" 2>/dev/null || echo "")
     if [ -n "$HEALTH_RESPONSE" ]; then
         echo "  Daemon health response: $HEALTH_RESPONSE"
@@ -115,9 +139,9 @@ if [ "$DAEMON_READY" = true ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Step 4: Launch Ktor server
+# Step 5: Launch Ktor server
 # -----------------------------------------------------------------------------
-echo "[4/4] Launching Ktor server on port ${SERVER_PORT:-7860}"
+echo "[5/5] Launching Ktor server on port ${SERVER_PORT:-7860}"
 echo "============================================"
 echo ""
 echo "  JVM heap: -Xmx384m"
@@ -126,6 +150,7 @@ echo "  Max RAM: 80%"
 echo "  OOM behavior: ExitOnOutOfMemoryError"
 echo "  Daemon status: $([ "$DAEMON_READY" = true ] && echo 'RUNNING' || echo 'NOT RUNNING')"
 echo "  Daemon PID: $([ -n "$DAEMON_PID" ] && echo $DAEMON_PID || echo 'N/A')"
+echo "  Free models available: $FREE_COUNT"
 echo ""
 echo "============================================"
 echo "  All checks complete — starting Ktor server"
