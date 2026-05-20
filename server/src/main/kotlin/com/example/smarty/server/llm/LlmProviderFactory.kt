@@ -2,6 +2,9 @@ package com.example.smarty.server.llm
 
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
@@ -12,6 +15,13 @@ import org.slf4j.LoggerFactory
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
 
+    private val daemonJson = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        explicitNulls = false
+        isLenient = true
+    }
+
     @Volatile
     private var cachedProvider: LlmProvider? = null
 
@@ -20,9 +30,13 @@ object LlmProviderFactory {
 
     fun getOrCreateHttpClient(): HttpClient {
         return cachedHttpClient ?: synchronized(this) {
-            cachedHttpClient ?: HttpClient(OkHttp).also {
+            cachedHttpClient ?: HttpClient(OkHttp) {
+                install(ContentNegotiation) {
+                    json(daemonJson)
+                }
+            }.also {
                 cachedHttpClient = it
-                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine)")
+                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation)")
             }
         }
     }
