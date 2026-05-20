@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
     // Track mic permission state for enrollment check
     private val _micPermissionGranted = mutableStateOf(false)
-    
+
     // Track calendar permission state
     private val _calendarPermissionGranted = mutableStateOf(false)
 
@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
         // Update state to complete splash - whether granted or denied
         // This allows the splash to complete even if user denies permission
         _micPermissionGranted.value = true
-        
+
         // Check calendar permissions
         val readCalendar = permissions[Manifest.permission.READ_CALENDAR] ?: false
         val writeCalendar = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Enable edge-to-edge
         enableEdgeToEdge()
 
@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity() {
 
         // Detect if launched via share intent or widget - skip splash animation for instant access
         val shouldSkipSplash = intent?.action in listOf(
-            Intent.ACTION_SEND, 
+            Intent.ACTION_SEND,
             Intent.ACTION_SEND_MULTIPLE,
             "com.example.smarty.action.QUICK_NOTE",
             "com.example.smarty.action.VOICE_NOTE",
@@ -153,12 +153,12 @@ class MainActivity : ComponentActivity() {
                 // FirebaseAuth.currentUser is available immediately if user was logged in before
                 val firebaseCurrentUser = FirebaseAuth.getInstance().currentUser
                 val currentUser by authViewModel.currentUser.collectAsState()
-                
+
                 // Track if auth state has been loaded
                 // OPTIMIZATION: If Firebase already has a cached user, mark as loaded immediately
                 // This prevents the login screen from flashing when sharing from other apps
                 var authStateLoaded by remember { mutableStateOf(firebaseCurrentUser != null) }
-                
+
                 // CRITICAL FIX: When there's no cached user (fresh install/cleared data),
                 // we need to mark auth state as loaded after the ViewModel finishes checking.
                 // Without this, the app stays stuck on the loading indicator forever.
@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
                         authStateLoaded = true
                     }
                 }
-                
+
                 // Track mic permission state
                 val micPermissionGranted by _micPermissionGranted
 
@@ -331,12 +331,12 @@ class MainActivity : ComponentActivity() {
                     // 2. After login → StartupScreen (splash animation)
                     // 3. After splash → VoiceEnrollment (if needed)
                     // 4. After enrollment → Main App
-                    
+
                     // Determine current screen state
                     // Use EITHER the synchronous Firebase user OR the async flow user
                     // This ensures no login flash when user was already logged in
                     val isLoggedIn = authStateLoaded && (currentUser != null || firebaseCurrentUser != null)
-                    
+
                     // Screen state machine (SIMPLIFIED - no separate splash)
                     // State: LOADING_AUTH → LOGIN → VOICE_ENROLLMENT → MAIN_APP
                     // Note: Particle animation is now integrated into LoginScreen
@@ -345,7 +345,7 @@ class MainActivity : ComponentActivity() {
                         !isLoggedIn -> "login"
                         else -> "main_app"
                     }
-                    
+
                     Crossfade(
                         targetState = screenState,
                         animationSpec = tween(600),
@@ -366,7 +366,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             }
-                            
+
                             "login" -> {
                                 // Block shake detection on login screen
                                 LaunchedEffect(Unit) {
@@ -381,9 +381,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-                            
-                            
-                            
+
+
+
                             "main_app" -> {
                                 // Enable shake detection for main app (unless blocked by specific views)
                                 LaunchedEffect(Unit) {
@@ -397,7 +397,7 @@ class MainActivity : ComponentActivity() {
                                         // Auth Guard - user is definitely logged in at this point
                                         isLoggedIn = true,
                                         onSignOut = { authViewModel.signOut() },
-                                    
+
                                     notes = notes,
                                     archivedNotes = archivedNotes,
                                     categories = categories,
@@ -740,12 +740,8 @@ class MainActivity : ComponentActivity() {
         // Notify audio service to use high-frequency updates (immediate, no delay needed)
         AudioPlayerService.enterForeground(this)
 
-        // PROCESS DEATH SAFE: Delay Vosk operations to allow ViewModel initialization
-        // Vosk uses native JNI objects that are invalidated after process death
-        // VoskWakeWordManager now handles this internally, but we add a small delay
-        // to ensure the ViewModel and its coroutine scope are fully ready
+
         lifecycleScope.launch {
-            // Small delay to ensure ViewModel is ready after process death
             delay(300)
 
             // Wake word detection removed - using Google Speech Recognizer instead
@@ -771,7 +767,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // lifecycleScope is automatically cancelled by ComponentActivity
+        // lifecycleScope is automatically canceled by ComponentActivity
         super.onDestroy()
     }
 

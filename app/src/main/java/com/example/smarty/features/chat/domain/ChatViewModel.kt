@@ -106,7 +106,7 @@ class ChatViewModel(
         // Fetch latest dynamic list of models from backend
         viewModelScope.launch {
             try {
-                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = false)
+                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = true)
                 if (dynamicModels.isNotEmpty()) {
                     securePreferences.setCachedModels(dynamicModels)
                     val activeModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)

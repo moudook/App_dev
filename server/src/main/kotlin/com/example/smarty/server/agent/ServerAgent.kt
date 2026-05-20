@@ -433,15 +433,13 @@ class ServerAgent(
                 logger.error("LLM stream error", e)
                 val errorMsg = e.message ?: "Unknown error"
 
-                // CRITICAL: For provider-unavailability (503/502), rethrow so ChatRoutes
-                // can catch it and activate the Groq fallback. Do NOT swallow these.
-                val isProviderUnavailable =
-                    errorMsg.contains("temporarily unavailable", ignoreCase = true) ||
-                        errorMsg.contains("LLM provider is", ignoreCase = true) ||
-                        errorMsg.contains("service unavailable", ignoreCase = true)
+                val isCliUnavailable =
+                    errorMsg.contains("OpenCode CLI", ignoreCase = true) ||
+                        errorMsg.contains("exit code", ignoreCase = true) ||
+                        errorMsg.contains("opencode: command not found", ignoreCase = true)
 
-                if (isProviderUnavailable) {
-                    logger.warn("Primary LLM provider unavailable — rethrowing for Groq fallback activation")
+                if (isCliUnavailable) {
+                    logger.warn("OpenCode CLI unavailable — rethrowing for error handling")
                     throw e
                 }
 

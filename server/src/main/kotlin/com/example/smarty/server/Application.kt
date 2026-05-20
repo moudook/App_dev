@@ -78,6 +78,7 @@ import io.ktor.server.routing.*
 import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -93,6 +94,9 @@ fun main() {
 }
 
 fun Application.module() {
+    // Verify OpenCode CLI is installed and accessible
+    verifyOpenCodeCli()
+
     // Initialize Database
     DatabaseFactory.init()
 
@@ -432,4 +436,23 @@ fun Application.configureSecurityMonitoring() {
     logger.info("  - InputValidation: Input validation and sanitization")
     logger.info("  - SecurityHeaders: Security header management")
     logger.info("  - SecurityMonitor: Security event tracking and monitoring")
+}
+
+private fun verifyOpenCodeCli() {
+    val logger = org.slf4j.LoggerFactory.getLogger("OpenCodeStartup")
+    try {
+        val process = ProcessBuilder(listOf("opencode", "--version"))
+            .redirectErrorStream(true)
+            .start()
+        val version = process.inputStream.bufferedReader().readText().trim().lines().firstOrNull() ?: "unknown"
+        val exited = process.waitFor(5, TimeUnit.SECONDS)
+        if (exited && process.exitValue() == 0) {
+            logger.info("OpenCode CLI verified: {}", version)
+        } else {
+            logger.warn("OpenCode CLI check: exit code {}, version: {}", process.exitValue(), version)
+        }
+    } catch (e: Exception) {
+        logger.error("OpenCode CLI is NOT installed or accessible: {}", e.message)
+        logger.error("Run 'npm install -g opencode-ai' to install the CLI")
+    }
 }

@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 @Serializable
@@ -31,6 +32,7 @@ object OpencodeModelRegistry {
     private val logger = LoggerFactory.getLogger(OpencodeModelRegistry::class.java)
 
     const val DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
+    private const val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
 
     private val bundledFreeModels =
         listOf(
@@ -78,55 +80,83 @@ object OpencodeModelRegistry {
     fun currentState(activeModel: String? = null): OpencodeModelState {
         val state = cachedState.get()
         val validatedActive = requireAllowedFreeModel(activeModel ?: state.activeModel)
-        return state.copy(activeModel = validatedActive)
+        val now = System.currentTimeMillis()
+        val isStale = (now - state.updatedAt) > CACHE_TTL_MS
+        return state.copy(
+            activeModel = validatedActive,
+            source = if (isStale) "stale" else state.source,
+        )
     }
 
     suspend fun refreshFromCli(timeoutMs: Long = 12_000L): OpencodeModelState =
         withContext(Dispatchers.IO) {
-            val output =
+            val state = cachedState.get()
+            val now = System.currentTimeMillis()
+
+            if ((now - state.updatedAt) < CACHE_TTL_MS && state.source != "bundled") {
+                logger.info("OpenCode models cache is fresh (age: ${(now - state.updatedAt) / 1000}s), returning cached")
+                return@withContext state
+            }
+
+            val discovered =
                 runCatching {
                     val process =
-                        ProcessBuilder(resolveCommand("opencode") + listOf("models"))
+                        ProcessBuilder(listOf("opencode", "models", "opencode"))
                             .redirectErrorStream(true)
                             .start()
 
                     val reader = BufferedReader(InputStreamReader(process.inputStream))
-                    val text = buildString {
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            appendLine(line)
-                        }
+                    val lines = mutableListOf<String>()
+                    var line = reader.readLine()
+                    while (line != null) {
+                        lines.add(line)
+                        line = reader.readLine()
                     }
 
-                    val completed = process.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
                     if (!completed) {
                         process.destroyForcibly()
                         throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
                     }
-                    text
+
+                    parseFreeModelsFromCli(lines)
                 }.getOrElse { error ->
                     logger.warn("Could not refresh OpenCode models from CLI: {}", error.message)
-                    ""
+                    emptyList()
                 }
 
-            val discovered =
-                allowList
-                    .filter { id -> output.contains(id, ignoreCase = true) }
-                    .mapNotNull { id -> bundledFreeModels.firstOrNull { it.id == id } }
-                    .ifEmpty { bundledFreeModels }
+            val finalModels = discovered.ifEmpty { bundledFreeModels }
 
-            val state =
+            val newState =
                 OpencodeModelState(
                     defaultModel = DEFAULT_MODEL,
                     activeModel = requireAllowedFreeModel(System.getenv("OPENCODE_MODEL") ?: System.getenv("LLM_MODEL_ID")),
-                    models = discovered,
-                    source = if (output.isBlank()) "bundled" else "cli-filtered",
+                    models = finalModels,
+                    source = if (discovered.isEmpty()) "bundled" else "cli-filtered",
+                    updatedAt = System.currentTimeMillis(),
                 )
-            cachedState.set(state)
-            state
+            cachedState.set(newState)
+            logger.info("OpenCode models refreshed: {} free models (source: {})", finalModels.size, newState.source)
+            newState
         }
 
-    internal fun resolveCommand(binary: String): List<String> {
-        return listOf(binary)
+    private fun parseFreeModelsFromCli(lines: List<String>): List<OpencodeModelInfo> {
+        val modelRegex = Regex("""(opencode/[-\w.]+)\s+(.+?)\s+(Free|free)""")
+        val parsed = mutableListOf<OpencodeModelInfo>()
+
+        for (line in lines) {
+            val match = modelRegex.find(line) ?: continue
+            val modelId = match.groupValues[1].trim()
+            val label = match.groupValues[2].trim()
+            if (modelId in allowList || modelId.endsWith("-free")) {
+                parsed.add(OpencodeModelInfo(id = modelId, label = label))
+                logger.debug("Discovered free model from CLI: {} ({})", modelId, label)
+            }
+        }
+
+        if (parsed.isNotEmpty()) {
+            logger.info("Parsed {} free models from CLI output", parsed.size)
+        }
+        return parsed
     }
 }

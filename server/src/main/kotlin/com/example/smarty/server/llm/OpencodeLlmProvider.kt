@@ -23,14 +23,6 @@ import java.io.InputStreamReader
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-/**
- * OpenCode CLI bridge.
- *
- * This intentionally treats OpenCode as an agentic CLI runtime, not as a normal
- * OpenAI-compatible API provider. The Ktor agent remains the owner of Smarty
- * tools, Supabase persistence, SSE, and session state; OpenCode supplies the
- * free model inference and returns text/reasoning/tool-call intents.
- */
 class OpencodeLlmProvider(
     private val client: HttpClient,
     override val providerName: String = "OpenCode CLI",
@@ -45,20 +37,6 @@ class OpencodeLlmProvider(
             encodeDefaults = true
             explicitNulls = false
         }
-
-    // Smarty tool names â€” filter out OpenCode internal tools (websearch, bash, etc.)
-    private val smartyToolNames = setOf(
-        "create_note", "search_notes", "update_note", "delete_note",
-        "create_reminder", "search_reminders", "update_reminder", "delete_reminder",
-        "create_event", "search_events", "update_event", "delete_event",
-        "create_task", "search_tasks", "update_task", "delete_task",
-        "ask_user", "web_search", "deep_research",
-        "create_image", "edit_image",
-        "get_weather", "send_email",
-        "create_contact", "search_contacts",
-        "get_location", "read_file", "write_file", "run_code",
-        "summarize", "translate",
-    )
 
     private val daemonBaseUrl = "http://$daemonHost:$daemonPort"
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
@@ -93,25 +71,24 @@ class OpencodeLlmProvider(
             val sessionId = deriveSessionId(messages)
             val process = startCliProcess(prompt, selectedModel, sessionId)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
-            logger.info("OpenCode stream started, reading output...")
+            logger.info("OpenCode stream started (model: $selectedModel, session: $sessionId)")
 
             var lineCount = 0
             var eventCount = 0
             var nonJsonLines = 0
+            var accumulatedUsage: LlmUsage? = null
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 lineCount++
                 val current = line?.trim().orEmpty()
 
-                // Log raw JSON for debugging (first 200 chars)
-                if (current.startsWith('{')) {
-                    logger.info("RAW JSON [{}]: {}", lineCount, current.take(200))
-                } else if (current.isNotEmpty()) {
-                    nonJsonLines++
-                    logger.warn("CLI non-JSON output [{}]: {}", lineCount, current.take(300))
+                if (current.isEmpty() || !current.startsWith('{')) {
+                    if (current.isNotEmpty()) {
+                        nonJsonLines++
+                        logger.debug("CLI non-JSON line [{}]: {}", lineCount, current.take(200))
+                    }
+                    continue
                 }
-
-                if (current.isEmpty() || !current.startsWith('{')) continue
 
                 runCatching {
                     val obj = json.parseToJsonElement(current).jsonObject
@@ -119,38 +96,76 @@ class OpencodeLlmProvider(
                     eventCount++
 
                     when (eventType) {
-                        "reasoning" -> {
-                            val text = extractPartText(obj)
-                            if (!text.isNullOrEmpty()) {
-                                logger.info("OpenCode reasoning event: {} chars", text.length)
-                                emit(LlmChunk(content = null, reasoning = text))
-                            }
-                        }
                         "text" -> {
-                            val text = extractPartText(obj)
+                            val text = extractPartTextField(obj)
                             if (!text.isNullOrEmpty()) {
-                                logger.info("OpenCode text event: {} chars", text.length)
-                                emit(LlmChunk(content = text, reasoning = null, toolCall = null))
+                                logger.debug("OpenCode text event: {} chars", text.length)
+                                emit(LlmChunk(content = text, reasoning = null))
                             }
                         }
-                        "tool" -> {
-                            val toolCall = extractSmartyToolCall(obj)
-                            if (toolCall != null) {
-                                logger.info("OpenCode Smarty tool call: {}", toolCall.functionName)
-                                emit(LlmChunk(content = null, reasoning = null, toolCall = toolCall))
-                            } else {
-                                logger.debug("OpenCode internal tool (ignored)")
+
+                        "tool_use" -> {
+                            val part = obj["part"]?.jsonObject
+                            val toolName = part?.get("tool")?.jsonPrimitive?.contentOrNull
+                            val state = part?.get("state")?.jsonObject
+                            val status = state?.get("status")?.jsonPrimitive?.contentOrNull
+
+                            if (toolName != null && status == "completed") {
+                                when {
+                                    isSmartyTool(toolName) -> {
+                                        val toolCall = buildSmartyToolCall(part, toolName, state)
+                                        if (toolCall != null) {
+                                            logger.info("OpenCode Smarty tool call: {}", toolName)
+                                            emit(LlmChunk(content = null, reasoning = null, toolCall = toolCall))
+                                        }
+                                    }
+                                    toolName == "websearch" -> {
+                                        val output = extractToolOutput(state)
+                                        if (!output.isNullOrBlank()) {
+                                            logger.info("OpenCode websearch result: {} chars", output.length)
+                                            emit(LlmChunk(content = output, reasoning = null))
+                                        }
+                                    }
+                                    else -> {
+                                        logger.debug("OpenCode internal tool '{}' completed (ignored)", toolName)
+                                    }
+                                }
                             }
                         }
-                        "step_finish" -> {
-                            val reason = obj["part"]?.jsonObject?.get("reason")?.jsonPrimitive?.contentOrNull
-                            logger.info("OpenCode step_finish: reason={}", reason)
-                        }
+
                         "step_start" -> {
                             logger.debug("OpenCode step_start")
                         }
+
+                        "step_finish" -> {
+                            val tokens = obj["part"]?.jsonObject?.get("tokens")?.jsonObject
+                            if (tokens != null) {
+                                val inputTokens = tokens["input"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+                                val outputTokens = tokens["output"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+                                val reasoningTokens = tokens["reasoning"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+                                val usage = LlmUsage(
+                                    promptTokens = inputTokens,
+                                    completionTokens = outputTokens + reasoningTokens,
+                                    totalTokens = inputTokens + outputTokens + reasoningTokens,
+                                )
+                                accumulatedUsage = usage
+                                emit(LlmChunk(content = null, reasoning = null, toolCall = null, usage = usage))
+                                logger.info("OpenCode step_finish: tokens={}/{}/{} (input/output/reasoning)", inputTokens, outputTokens, reasoningTokens)
+                            } else {
+                                logger.info("OpenCode step_finish (no token data)")
+                            }
+                        }
+
+                        "error" -> {
+                            val errorObj = obj["error"]?.jsonObject
+                            val errorMsg = errorObj?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+                                ?: errorObj?.get("message")?.jsonPrimitive?.contentOrNull
+                                ?: "Unknown OpenCode error"
+                            logger.error("OpenCode error event: {}", errorMsg)
+                        }
+
                         else -> {
-                            logger.info("OpenCode unknown event type: {}", eventType)
+                            logger.debug("OpenCode unknown event type: {}", eventType)
                         }
                     }
                 }.onFailure { e ->
@@ -158,16 +173,23 @@ class OpencodeLlmProvider(
                 }
             }
 
-            logger.info("OpenCode stream done: {} lines read, {} JSON events, {} non-JSON lines", lineCount, eventCount, nonJsonLines)
+            logger.info("OpenCode stream done: {} lines, {} events, {} non-JSON, {} skipped", lineCount, eventCount, nonJsonLines)
 
             val exitCode = withContext(Dispatchers.IO) {
                 val completed = process.waitFor(60, TimeUnit.SECONDS)
-                if (!completed) process.destroyForcibly()
+                if (!completed) {
+                    logger.warn("OpenCode process did not exit within 60s — destroying")
+                    process.destroyForcibly()
+                }
                 process.exitValue()
             }
 
             if (exitCode != 0) {
-                logger.error("OpenCode CLI exited with code $exitCode")
+                logger.error("OpenCode CLI exited with code $exitCode after $lineCount lines")
+            }
+
+            if (accumulatedUsage != null) {
+                emit(LlmChunk(content = null, reasoning = null, toolCall = null, usage = accumulatedUsage))
             }
         }.flowOn(Dispatchers.IO)
 
@@ -178,11 +200,8 @@ class OpencodeLlmProvider(
     ) = withContext(Dispatchers.IO) {
         val workDir = File(System.getProperty("user.dir"), "_temp/opencode").apply { mkdirs() }
 
-        val command = mutableListOf(
-            "opencode", "run",
-        )
+        val command = mutableListOf("opencode", "run")
 
-        // Connect to local daemon if running
         if (isDaemonRunning()) {
             command += listOf("--attach", daemonBaseUrl)
         }
@@ -292,47 +311,55 @@ class OpencodeLlmProvider(
         return "$bridgePrompt\n\n<conversation>\n$formattedMessages\n</conversation>"
     }
 
-    /**
-     * Extract text from the "part.text" or "part.reasoning" field of an OpenCode event.
-     *
-     * Actual format:
-     * {"type":"text","part":{"type":"text","text":"Hello there..."}}
-     * {"type":"reasoning","part":{"type":"reasoning","text":"Analyzing..."}}
-     */
-    private fun extractPartText(obj: JsonObject): String? {
+    private fun extractPartTextField(obj: JsonObject): String? {
         val part = obj["part"]?.jsonObject ?: return null
-        return part["text"]?.jsonPrimitive?.contentOrNull
+        val text = part["text"]?.jsonPrimitive?.contentOrNull
+        return text?.takeIf { it.isNotBlank() }
     }
 
-    /**
-     * Extract a Smarty tool call from a "tool" event.
-     *
-     * Actual format:
-     * {"type":"tool","part":{"type":"tool","tool":"websearch",
-     *   "callID":"call_00_xxx","state":{"status":"completed",
-     *   "input":{"query":"...","numResults":5},"output":"..."}}}
-     *
-     * Only returns tool calls that match Smarty's known tool names.
-     * OpenCode internal tools (websearch, bash, read, write) are ignored.
-     */
-    private fun extractSmartyToolCall(obj: JsonObject): LlmToolCall? {
-        val part = obj["part"]?.jsonObject ?: return null
-        val toolName = part["tool"]?.jsonPrimitive?.contentOrNull ?: return null
+    private fun isSmartyTool(toolName: String): Boolean = toolName in smartyToolNames
 
-        // Skip OpenCode internal tools â€” Ktor handles these
-        if (toolName !in smartyToolNames) {
-            return null
+    private fun extractToolOutput(state: JsonObject?): String? {
+        if (state == null) return null
+        val output = state["output"]?.jsonPrimitive?.contentOrNull
+        val input = state["input"]?.jsonObject?.get("query")?.jsonPrimitive?.contentOrNull
+        val metadata = state["metadata"]?.jsonObject
+        val exitCode = metadata?.get("exit")?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+
+        return when {
+            output != null && exitCode == 0 -> output
+            output != null -> "[Tool completed with exit code $exitCode]: $output"
+            else -> "[Tool completed, no output]"
         }
+    }
 
-        val state = part["state"]?.jsonObject
+    private fun buildSmartyToolCall(
+        part: JsonObject?,
+        toolName: String,
+        state: JsonObject?,
+    ): LlmToolCall? {
         val input = state?.get("input")?.jsonObject
-        val callId = part["callID"]?.jsonPrimitive?.contentOrNull
+        val callId = part?.get("callID")?.jsonPrimitive?.contentOrNull
             ?: UUID.randomUUID().toString()
-
         return LlmToolCall(
             id = callId,
             functionName = toolName,
             arguments = input?.toString() ?: "{}",
+        )
+    }
+
+    companion object {
+        private val smartyToolNames = setOf(
+            "create_note", "search_notes", "update_note", "delete_note",
+            "create_reminder", "search_reminders", "update_reminder", "delete_reminder",
+            "create_event", "search_events", "update_event", "delete_event",
+            "create_task", "search_tasks", "update_task", "delete_task",
+            "ask_user", "web_search", "deep_research",
+            "create_image", "edit_image",
+            "get_weather", "send_email",
+            "create_contact", "search_contacts",
+            "get_location", "read_file", "write_file", "run_code",
+            "summarize", "translate",
         )
     }
 }

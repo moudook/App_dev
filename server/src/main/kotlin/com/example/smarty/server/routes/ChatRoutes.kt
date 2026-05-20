@@ -85,21 +85,10 @@ data class BriefingResponse(
 )
 
 private fun normalizeProviderSelection(provider: String?): String? {
-    val normalized = provider?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: return null
-    return when (normalized) {
-        "AUTO",
-        "BALANCED",
-        "CHEAPEST",
-        "FASTEST",
-        "SMARTEST",
-        "OPENCODE",
-        -> null
-        else -> {
-            // feat/cli is OpenCode-only. Legacy API providers are intentionally ignored
-            // so chat cannot silently fall back to paid API-key routes.
-            null
-        }
-    }
+    // feat/cli is OpenCode-only. All provider selection is normalized to null (default),
+    // meaning the server always uses OpencodeLlmProvider. Legacy API provider names
+    // are accepted without error but silently mapped to the OpenCode default.
+    return null
 }
 
 fun Application.configureChatRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
@@ -307,13 +296,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 
                 // CRITICAL FIX: If client specifically requests an OpenCode free model,
                 // force the provider to OPENCODE, overriding whatever the default/fallback is.
-                val baseProviderParam = normalizeProviderSelection(call.request.queryParameters["provider"])
-                val providerParam = if (modelParam != null && modelParam.startsWith("opencode/")) {
-                    call.application.log.info("Client requested OpenCode model ($modelParam). Forcing provider to OPENCODE (CLI mode).")
-                    "OPENCODE"
-                } else {
-                    call.application.log.info("Client requested provider '$baseProviderParam' with model '$modelParam'. Using API provider.")
-                    baseProviderParam
+                val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
+                if (modelParam != null && modelParam.startsWith("opencode/")) {
+                    call.application.log.info("Client requested OpenCode model ($modelParam). Using OPENCODE provider.")
                 }
 
                 val providerUrlParam = call.request.queryParameters["providerUrl"]
@@ -604,13 +589,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                     // CRITICAL FIX: If client specifically requests an OpenCode free model,
                     // force the provider to OPENCODE, overriding whatever the default/fallback is.
-                    val baseProviderParam = normalizeProviderSelection(request.provider)
-                    val providerParam = if (safeModelOverride != null && safeModelOverride.startsWith("opencode/")) {
-                        call.application.log.info("Client requested OpenCode model ($safeModelOverride). Forcing provider to OPENCODE (CLI mode).")
-                        "OPENCODE"
-                    } else {
-                        call.application.log.info("Client requested provider '$baseProviderParam' with model '$safeModelOverride'. Using API provider.")
-                        baseProviderParam
+                    val providerParam = normalizeProviderSelection(request.provider)
+                    if (safeModelOverride != null && safeModelOverride.startsWith("opencode/")) {
+                        call.application.log.info("Client requested OpenCode model ($safeModelOverride). Using OPENCODE provider.")
                     }
 
                     // Create provider for this request

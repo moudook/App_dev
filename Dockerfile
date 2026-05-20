@@ -52,8 +52,8 @@ FROM eclipse-temurin:17-jre-alpine
 # Install Node.js, NPM, and bash for orchestration
 RUN apk add --no-cache nodejs npm bash
 
-# Install OpenCode CLI globally
-RUN npm install -g opencode-ai
+# Install OpenCode CLI globally and clean npm cache to reduce image size
+RUN npm install -g opencode-ai && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
 RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
