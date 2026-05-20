@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * OpenCode CLI is the ONLY LLM provider.
- * All model inference routes through `opencode run` with free Zen models.
+ * All model inference routes through the daemon HTTP API (port 4096).
  * NO API keys required.
  */
 object LlmProviderFactory {
@@ -40,34 +40,10 @@ object LlmProviderFactory {
         }
     }
 
-    /**
-     * Create a new OpencodeLlmProvider instance.
-     * All parameters are ignored — OpenCode CLI is the only provider.
-     */
-    fun create(
-        client: HttpClient,
-        providerOverride: String? = null,
-        baseUrlOverride: String? = null,
-        apiKeyOverride: String? = null,
-        modelIdOverride: String? = null,
-    ): LlmProvider {
-        val finalModelId = modelIdOverride ?: System.getenv("LLM_MODEL_ID")?.takeIf { it.isNotBlank() }
-        logger.info("[LlmProviderFactory] create() called — modelIdOverride={}, env LLM_MODEL_ID={}, finalModel={}",
-            modelIdOverride, System.getenv("LLM_MODEL_ID"), finalModelId)
-
-        if (providerOverride != null && providerOverride.uppercase() != "OPENCODE") {
-            logger.warn("[LlmProviderFactory] Ignoring non-OpenCode provider override '{}' — only OpenCode CLI is supported", providerOverride)
-        }
-        if (apiKeyOverride != null) {
-            logger.warn("[LlmProviderFactory] Ignoring API key override — OpenCode CLI requires no API keys")
-        }
-        if (baseUrlOverride != null) {
-            logger.warn("[LlmProviderFactory] Ignoring base URL override — OpenCode CLI uses local subprocess")
-        }
-
-        val resolvedModel = OpencodeModelRegistry.requireAllowedFreeModel(finalModelId)
-        logger.info("[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, agent={}, daemon port={}",
-            resolvedModel, System.getenv("OPENCODE_AGENT") ?: "smarty-headless-agent", 4096)
+    fun create(client: HttpClient): LlmProvider {
+        val resolvedModel = OpencodeModelRegistry.requireAllowedFreeModel(null)
+        logger.info("[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, daemon port={}",
+            resolvedModel, 4096)
 
         return OpencodeLlmProvider(
             client = client,

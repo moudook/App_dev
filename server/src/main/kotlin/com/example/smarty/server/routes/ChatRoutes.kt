@@ -341,7 +341,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 )
 
                 // Create provider and summarizer for this specific request
-                val streamProvider = LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
+                val streamProvider = LlmProviderFactory.create(httpClient)
 
                 val streamSummarizer = ConversationSummarizer(streamProvider)
 
@@ -591,13 +591,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
 
                     // Create provider for this request
-                    val streamProvider =
-                        LlmProviderFactory.create(
-                            httpClient,
-                            providerParam,
-                            request.providerUrl,
-                            request.token,
-                        )
+                    val streamProvider = LlmProviderFactory.create(httpClient)
 
                     val streamSummarizer = ConversationSummarizer(streamProvider)
 

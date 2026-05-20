@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @Serializable
@@ -39,10 +38,6 @@ object OpencodeModelRegistry {
     private val discoveredModels = AtomicReference<List<OpencodeModelInfo>>(emptyList())
     private val cachedState = AtomicReference<OpencodeModelState?>(null)
 
-    // Track which env vars are known-invalid so we don't log warnings repeatedly
-    private val invalidEnvModelsLogged = AtomicBoolean(false)
-    private var invalidEnvModelValue: String? = null
-
     val defaultModel: String
         get() = discoveredModels.get().firstOrNull()?.id ?: ""
 
@@ -54,12 +49,6 @@ object OpencodeModelRegistry {
         val start = System.currentTimeMillis()
         logger.info("[OpencodeModelRegistry] === PHASE 1: Model Discovery ===")
         logger.info("[OpencodeModelRegistry] Running 'opencode models' to discover free models at runtime...")
-
-        // Log env var state upfront
-        val envOpenCodeModel = System.getenv("OPENCODE_MODEL")
-        val envLlmModelId = System.getenv("LLM_MODEL_ID")
-        logger.info("[OpencodeModelRegistry] Environment: OPENCODE_MODEL={}, LLM_MODEL_ID={}",
-            envOpenCodeModel ?: "(not set)", envLlmModelId ?: "(not set)")
 
         val models = runCatching {
             val workDir = java.io.File(System.getProperty("user.dir"))
@@ -105,9 +94,6 @@ object OpencodeModelRegistry {
 
         discoveredModels.set(models)
 
-        // Validate env vars against discovered models — log ONCE if invalid
-        validateEnvVarsAgainstDiscovered(models)
-
         if (models.isEmpty()) {
             logger.error("[OpencodeModelRegistry] CRITICAL: ZERO free models discovered! Chat will fail.")
         } else {
@@ -129,28 +115,6 @@ object OpencodeModelRegistry {
         logger.info("[OpencodeModelRegistry] === PHASE 1 COMPLETE ===")
     }
 
-    /**
-     * Check env vars at startup. If they point to non-free models, log ONCE and remember
-     * so we don't spam warnings on every request.
-     */
-    private fun validateEnvVarsAgainstDiscovered(models: List<OpencodeModelInfo>) {
-        val envModel = System.getenv("OPENCODE_MODEL") ?: System.getenv("LLM_MODEL_ID") ?: return
-
-        val discoveredIds = models.map { it.id }.toSet()
-        val isFree = envModel in discoveredIds ||
-            (envModel.startsWith("opencode/") && envModel.contains("free", ignoreCase = true))
-
-        if (!isFree) {
-            invalidEnvModelValue = envModel
-            invalidEnvModelsLogged.set(true)
-            logger.warn("[OpencodeModelRegistry] Env var model '{}' is NOT a free OpenCode model.", envModel)
-            logger.warn("[OpencodeModelRegistry]   This env var will be IGNORED. Using discovered default: {}", models.firstOrNull()?.id)
-            logger.warn("[OpencodeModelRegistry]   To fix: unset LLM_MODEL_ID or set it to a free model (e.g., {}) on HF Space settings.", models.firstOrNull()?.id)
-        } else {
-            logger.info("[OpencodeModelRegistry] Env var model '{}' is valid (free model).", envModel)
-        }
-    }
-
     fun isAllowedFreeModel(model: String?): Boolean {
         val normalized = model?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         val discovered = discoveredModels.get()
@@ -164,16 +128,12 @@ object OpencodeModelRegistry {
 
     /**
      * Validate and return a free model.
-     *
      * Priority: explicit parameter > discovered default.
-     * Env vars (LLM_MODEL_ID, OPENCODE_MODEL) are IGNORED if they point to non-free models
-     * (detected at startup, logged once, then silently skipped).
      */
     fun requireAllowedFreeModel(model: String?): String {
         val discovered = discoveredModels.get()
         val fallback = discovered.firstOrNull()?.id ?: ""
 
-        // Step 1: Use explicit parameter if provided and valid
         val paramModel = model?.trim()?.takeIf { it.isNotBlank() }
         if (paramModel != null) {
             return if (isAllowedFreeModel(paramModel)) {
@@ -185,29 +145,6 @@ object OpencodeModelRegistry {
             }
         }
 
-        // Step 2: Check env vars — but skip if we know they're invalid (logged at startup)
-        if (invalidEnvModelsLogged.get()) {
-            logger.debug("[OpencodeModelRegistry] Skipping invalid env var model '{}' (logged at startup) — using default: {}",
-                invalidEnvModelValue, fallback)
-            return fallback.ifEmpty { throwNoModelsError() }
-        }
-
-        // Step 3: Try env vars (only if not previously flagged as invalid)
-        val envModel = System.getenv("OPENCODE_MODEL") ?: System.getenv("LLM_MODEL_ID")
-        if (envModel != null && envModel.isNotBlank()) {
-            return if (isAllowedFreeModel(envModel)) {
-                logger.debug("[OpencodeModelRegistry] Model from env var: {}", envModel)
-                envModel
-            } else {
-                // First time seeing this — flag it
-                invalidEnvModelValue = envModel
-                invalidEnvModelsLogged.set(true)
-                logger.warn("[OpencodeModelRegistry] Env var model '{}' is not free — ignoring, using default: {}", envModel, fallback)
-                fallback.ifEmpty { throwNoModelsError() }
-            }
-        }
-
-        // Step 4: Use discovered default
         logger.debug("[OpencodeModelRegistry] Using discovered default model: {}", fallback)
         return fallback.ifEmpty { throwNoModelsError() }
     }
