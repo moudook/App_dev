@@ -23,6 +23,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.JsonArray
 import org.slf4j.LoggerFactory
 
 class OpencodeLlmProvider(
@@ -101,11 +102,16 @@ class OpencodeLlmProvider(
 
         logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}, toolsMap={}", daemonSessionId, selectedModel, agentName, toolsMap != null)
 
+        val parts = listOf(buildJsonObject {
+            put("type", "text")
+            put("text", userMessage)
+        })
+
         val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
-                message = userMessage,
+                parts = parts,
                 model = modelObj,
                 agent = agentName,
                 system = systemPrompt,
@@ -294,13 +300,12 @@ private data class DaemonSessionResponse(
 
 @Serializable
 private data class DaemonMessageRequest(
-    val message: String,
+    val parts: List<JsonObject>,
     val model: JsonObject? = null,
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
     val tools: JsonObject? = null,
-    val parts: List<JsonObject>? = null,
 )
 
 @Serializable
