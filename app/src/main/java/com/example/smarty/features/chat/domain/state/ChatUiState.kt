@@ -4,12 +4,16 @@ import androidx.compose.ui.text.input.TextFieldValue
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.MentionState
 
+/**
+ * Fallback model list — used only before the server responds with the real list.
+ * The server discovers free models at runtime via `opencode models`, so this
+ * list is a best-effort default that may be stale.
+ */
 val DEFAULT_FREE_MODELS = listOf(
     "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
     "opencode/minimax-m2.5-free" to "MiniMax M2.5 Free",
     "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
     "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
-    "opencode/big-pickle" to "Big Pickle",
 )
 
 /**

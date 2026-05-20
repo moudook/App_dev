@@ -12,17 +12,17 @@ import java.util.UUID
 
 /**
  * Available models for the server connection.
- * Note: The actual model selection is handled by the server.
+ * These are FALLBACK defaults — the app fetches the real list from the server
+ * at startup via GET /api/v1/opencode/models (which runs `opencode models`).
+ * The server discovers free models at runtime, so this list may be stale.
  */
 object AIModels {
-    // Server-side models - These are handled by the Smarty Server (OpenCode CLI free models)
     val SERVER_MODELS =
         listOf(
             "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
             "opencode/minimax-m2.5-free" to "MiniMax M2.5 Free",
             "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
             "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
-            "opencode/big-pickle" to "Big Pickle",
         )
     const val SERVER_DEFAULT = "opencode/deepseek-v4-flash-free"
 
