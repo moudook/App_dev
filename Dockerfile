@@ -45,17 +45,30 @@ RUN ./gradlew :server:shadowJar --no-daemon --parallel -x test \
     --max-workers=2
 
 # -----------------------------------------------------------------------------
-# Stage 3: Minimal JRE runtime (~100MB total image)
+# Stage 3: Minimal JRE runtime with Node.js and OpenCode CLI
 # -----------------------------------------------------------------------------
 FROM eclipse-temurin:17-jre-alpine
+
+# Install Node.js, NPM, and bash for orchestration
+RUN apk add --no-cache nodejs npm bash
+
+# Install OpenCode CLI globally
+RUN npm install -g @opencode-ai/cli
 
 # Security: non-root user (HF Spaces uses UID 1000)
 RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
 
 WORKDIR /app
 
-# Copy fat JAR
+# Copy fat JAR and configurations
 COPY --from=builder --chown=user:appgroup /build/server/build/libs/server-1.0.0-all.jar app.jar
+COPY --chown=user:appgroup entrypoint.sh /app/entrypoint.sh
+COPY --chown=user:appgroup opencode.json /app/opencode.json
+
+# Pre-create temp directories and set permissions
+RUN mkdir -p /app/_temp && \
+    chmod +x /app/entrypoint.sh && \
+    chown -R user:appgroup /app
 
 USER user
 
@@ -65,5 +78,5 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:7860/health || exit 1
 
-# Optimized JVM for containerized environment
-CMD ["java", "-Xmx384m", "-XX:+UseG1GC", "-XX:MaxRAMPercentage=80.0", "-XX:+UseStringDeduplication", "-jar", "app.jar"]
+# Orchestrate daemon and server launch via entrypoint script
+CMD ["/bin/bash", "/app/entrypoint.sh"]

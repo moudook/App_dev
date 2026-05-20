@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "smarty-headless-agent": {
+      "description": "Smarty Headless Cloud Agent",
+      "model": "opencode/deepseek-v4-flash-free",
+      "prompt": "You are the cognitive engine for the Smarty Ktor server. You do NOT have local file/command execution capabilities. You MUST use only the provided websearch tool or format responses in standard tool-calling blocks.",
+      "tools": {
+        "bash": false,
+        "read": false,
+        "write": false,
+        "edit": false,
+        "websearch": true
+      }
+    }
+  }
+}

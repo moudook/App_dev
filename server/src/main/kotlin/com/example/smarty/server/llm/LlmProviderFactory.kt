@@ -67,7 +67,7 @@ object LlmProviderFactory {
         val activeProvider =
             providerOverride?.uppercase()
                 ?: System.getenv("ACTIVE_PROVIDER")?.uppercase()
-                ?: "GEMINI"
+                ?: "OPENCODE"
 
         val envBaseUrl = System.getenv("LLM_BASE_URL")?.takeIf { it.isNotBlank() }
         val envModelId = System.getenv("LLM_MODEL_ID")?.takeIf { it.isNotBlank() }
@@ -81,12 +81,18 @@ object LlmProviderFactory {
 
         logger.info("Initializing LLM Provider: $activeProvider with ${keys.size} API key(s)")
 
-        if (keys.isEmpty()) {
+        if (keys.isEmpty() && activeProvider != "OPENCODE") {
             logger.warn("WARNING: $envKeyName is missing. Falling back to MOCK provider.")
             return createMock(client)
         }
 
         return when (activeProvider) {
+            "OPENCODE" -> {
+                OpencodeLlmProvider(
+                    client = client,
+                    defaultModel = finalModelId ?: "opencode/deepseek-v4-flash-free"
+                )
+            }
             "GEMINI" -> {
                 if (keys.size > 1) {
                     KeyRotatingGeminiProvider(client, keys)

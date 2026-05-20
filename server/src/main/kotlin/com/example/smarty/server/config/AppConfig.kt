@@ -27,7 +27,7 @@ object AppConfig {
     val kreaApiKey: String? = System.getenv("KREA_API_KEY")?.trim()?.ifBlank { null }
 
     // Active Provider Selection
-    val activeProvider: String = System.getenv("ACTIVE_PROVIDER") ?: "GEMINI"
+    val activeProvider: String = System.getenv("ACTIVE_PROVIDER") ?: "OPENCODE"
 
     // Firebase Configuration
     val fcmServerKey: String? = System.getenv("FCM_SERVER_KEY")
