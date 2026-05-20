@@ -19,11 +19,11 @@ class VisionService(
 ) {
     private val logger = LoggerFactory.getLogger(VisionService::class.java)
 
-    // Lazy provider — always OpenCode CLI, no API keys
+    // Lazy provider — uses cached singleton from factory
     private val llmProvider: LlmProvider by lazy {
-        logger.info("[VisionService] Lazy-init OpenCode LLM provider")
-        LlmProviderFactory.create(httpClient).also {
-            logger.info("[VisionService] OpenCode LLM provider initialized: {}", it.providerName)
+        logger.info("[VisionService] Lazy-init OpenCode LLM provider (cached singleton)")
+        LlmProviderFactory.getOrCreateProvider(httpClient).also {
+            logger.info("[VisionService] OpenCode LLM provider ready: {}", it.providerName)
         }
     }
 

@@ -212,7 +212,7 @@ fun Application.module() {
                 dataSource = ds,
                 chatRepository = ChatRepository(ds, chatMessageNotesRepo),
                 vectorStore = PostgresVectorStore(),
-                llmProvider = LlmProviderFactory.create(HttpClientSingleton.client),
+                llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
             )
 
         val fcmService = FcmNotificationService.fromEnvironment(ds)
@@ -267,14 +267,14 @@ fun Application.module() {
 
     val deepResearchAgent =
         com.example.smarty.server.agent.DeepResearchAgent(
-            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
+            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
             webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
             progressFileManager = com.example.smarty.server.agent.ProgressFileManager(),
         )
 
     val advancedDeepResearchAgent =
         com.example.smarty.server.agent.AdvancedDeepResearchAgent(
-            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
+            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
             webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
             progressTracker = com.example.smarty.server.agent.ResearchProgressTracker(),
         )
@@ -301,7 +301,7 @@ fun Application.module() {
     }
 
     // Initialize Utility Service
-    val utilityService = UtilityService(LlmProviderFactory.create(HttpClientSingleton.client))
+    val utilityService = UtilityService(LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client))
 
     // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
     val orchestratorService =

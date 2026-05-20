@@ -114,7 +114,7 @@ class ContentAnalysisService(
                 "$sanitizedContent\n\n---\nAttached Files:\n$attachmentsSection"
             }
 
-        val provider = LlmProviderFactory.create(httpClient)
+        val provider = LlmProviderFactory.getOrCreateProvider(httpClient)
 
         val messages =
             listOf(
@@ -167,7 +167,7 @@ class ContentAnalysisService(
             }
 
         val fullContent = contextPrefix + sanitizedText
-        val provider = LlmProviderFactory.create(httpClient)
+        val provider = LlmProviderFactory.getOrCreateProvider(httpClient)
 
         val messages =
             listOf(
