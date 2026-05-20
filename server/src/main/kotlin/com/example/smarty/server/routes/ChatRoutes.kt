@@ -301,11 +301,22 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val userId = user.userId
                 val query = call.request.queryParameters["query"] ?: "default query"
                 var sessionId = call.request.queryParameters["sessionId"]
-                val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
-                val providerUrlParam = call.request.queryParameters["providerUrl"]
                 val modelParam =
                     call.request.queryParameters["model"]
                         ?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
+                
+                // CRITICAL FIX: If client specifically requests an OpenCode free model,
+                // force the provider to OPENCODE, overriding whatever the default/fallback is.
+                val baseProviderParam = normalizeProviderSelection(call.request.queryParameters["provider"])
+                val providerParam = if (modelParam != null && modelParam.startsWith("opencode/")) {
+                    call.application.log.info("Client requested OpenCode model ($modelParam). Forcing provider to OPENCODE (CLI mode).")
+                    "OPENCODE"
+                } else {
+                    call.application.log.info("Client requested provider '$baseProviderParam' with model '$modelParam'. Using API provider.")
+                    baseProviderParam
+                }
+
+                val providerUrlParam = call.request.queryParameters["providerUrl"]
                 val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
                 val timezoneParam = call.request.queryParameters["timezone"]
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
@@ -591,11 +602,22 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
+                    // CRITICAL FIX: If client specifically requests an OpenCode free model,
+                    // force the provider to OPENCODE, overriding whatever the default/fallback is.
+                    val baseProviderParam = normalizeProviderSelection(request.provider)
+                    val providerParam = if (safeModelOverride != null && safeModelOverride.startsWith("opencode/")) {
+                        call.application.log.info("Client requested OpenCode model ($safeModelOverride). Forcing provider to OPENCODE (CLI mode).")
+                        "OPENCODE"
+                    } else {
+                        call.application.log.info("Client requested provider '$baseProviderParam' with model '$safeModelOverride'. Using API provider.")
+                        baseProviderParam
+                    }
+
                     // Create provider for this request
                     val streamProvider =
                         LlmProviderFactory.create(
                             httpClient,
-                            normalizeProviderSelection(request.provider),
+                            providerParam,
                             request.providerUrl,
                             request.token,
                         )
