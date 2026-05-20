@@ -90,7 +90,7 @@ object LlmProviderFactory {
             "OPENCODE" -> {
                 OpencodeLlmProvider(
                     client = client,
-                    defaultModel = finalModelId ?: "opencode/deepseek-v4-flash-free"
+                    defaultModel = OpencodeModelRegistry.requireAllowedFreeModel(finalModelId),
                 )
             }
             "GEMINI" -> {

@@ -1,6 +1,7 @@
 package com.example.smarty.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -14,15 +15,16 @@ import java.util.UUID
  * Note: The actual model selection is handled by the server.
  */
 object AIModels {
-    // Server-side models - These are handled by the Smarty Server
+    // Server-side models - These are handled by the Smarty Server (OpenCode CLI free models)
     val SERVER_MODELS =
         listOf(
-            "gpt-4o" to "GPT-4o (Default)",
-            "gpt-4o-mini" to "GPT-4o Mini",
-            "claude-3-5-sonnet" to "Claude 3.5 Sonnet",
-            "claude-3-5-haiku" to "Claude 3.5 Haiku",
+            "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
+            "opencode/minimax-m2.5-free" to "MiniMax M2.5 Free",
+            "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
+            "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
+            "opencode/big-pickle" to "Big Pickle",
         )
-    const val SERVER_DEFAULT = "gpt-4o"
+    const val SERVER_DEFAULT = "opencode/deepseek-v4-flash-free"
 
     fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> {
         return when (connection) {
@@ -78,6 +80,7 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
         private const val KEY_LOCAL_PC_MODEL = "local_pc_model"
+        private const val KEY_CACHED_MODELS = "cached_models"
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_HAPTIC_ENABLED = "haptic_enabled"
@@ -156,10 +159,11 @@ class SecurePreferences(private val context: Context) {
     }
 
     fun getSelectedModel(connection: AIConnection): String {
-        return encryptedPrefs.getString(
-            KEY_LOCAL_PC_MODEL,
-            AIModels.getDefaultModel(connection),
-        ) ?: AIModels.getDefaultModel(connection)
+        val saved = encryptedPrefs.getString(KEY_LOCAL_PC_MODEL, null)
+        if (saved == null || !saved.startsWith("opencode/")) {
+            return AIModels.getDefaultModel(connection)
+        }
+        return saved
     }
 
     fun setSelectedModel(
@@ -239,8 +243,27 @@ class SecurePreferences(private val context: Context) {
 
     fun isServerEnabled(): Boolean = true // Always enabled in Remote-Only mode
 
+    fun getCachedModels(): List<Pair<String, String>> {
+        val jsonStr = encryptedPrefs.getString(KEY_CACHED_MODELS, null) ?: return AIModels.SERVER_MODELS
+        return try {
+            val listType = object : com.google.gson.reflect.TypeToken<List<Pair<String, String>>>() {}.type
+            gson.fromJson(jsonStr, listType) ?: AIModels.SERVER_MODELS
+        } catch (e: Exception) {
+            AIModels.SERVER_MODELS
+        }
+    }
+
+    fun setCachedModels(models: List<Pair<String, String>>) {
+        try {
+            val jsonStr = gson.toJson(models)
+            encryptedPrefs.edit().putString(KEY_CACHED_MODELS, jsonStr).apply()
+        } catch (e: Exception) {
+            Log.e("SecurePreferences", "Failed to cache models: ${e.message}")
+        }
+    }
+
     fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
-        return AIModels.getModelsForConnection(connection)
+        return getCachedModels()
     }
 
     // AI Provider Strategy

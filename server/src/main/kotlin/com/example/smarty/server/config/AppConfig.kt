@@ -77,7 +77,7 @@ object AppConfig {
             errors.add("DB_URL environment variable is required")
         }
 
-        if (geminiApiKeys.isEmpty() && openAiApiKeys.isEmpty()) {
+        if (activeProvider.uppercase() != "OPENCODE" && geminiApiKeys.isEmpty() && openAiApiKeys.isEmpty()) {
             errors.add("At least one LLM API key (GEMINI_API_KEY or OPENAI_API_KEY) is required")
         }
 

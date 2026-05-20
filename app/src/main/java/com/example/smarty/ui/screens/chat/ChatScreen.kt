@@ -176,29 +176,32 @@ fun ChatScreen(
         } else {
             // Standard Input field
             SmartyInputField(
-            value = inputText,
-            onValueChange = { 
-                inputText = it
-                viewModel.onEvent(ChatEvent.InputTextChanged(it))
-            },
-            onSubmit = {
-                if (inputText.text.isNotBlank()) {
-                    viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
-                    inputText = androidx.compose.ui.text.input.TextFieldValue("")
-                }
-            },
-            isChatMode = true,
-            isProcessing = isProcessing,
-            isAgentWorking = isProcessing,
-            onStopGeneration = { viewModel.onEvent(ChatEvent.GenerationStopped) },
-            onStartVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStarted) },
-            onStopVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStopped) },
-            chatPlaceholder = "Ask anything...",
-            showHistoryOption = true,
-            onOpenChatHistory = { viewModel.onEvent(ChatEvent.ChatHistoryRequested) },
-            onNewChat = { viewModel.onEvent(ChatEvent.NewChatRequested) },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+                value = inputText,
+                onValueChange = { 
+                    inputText = it
+                    viewModel.onEvent(ChatEvent.InputTextChanged(it))
+                },
+                onSubmit = {
+                    if (inputText.text.isNotBlank()) {
+                        viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
+                        inputText = androidx.compose.ui.text.input.TextFieldValue("")
+                    }
+                },
+                isChatMode = true,
+                isProcessing = isProcessing,
+                isAgentWorking = isProcessing,
+                onStopGeneration = { viewModel.onEvent(ChatEvent.GenerationStopped) },
+                onStartVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStarted) },
+                onStopVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStopped) },
+                chatPlaceholder = "Ask anything...",
+                showHistoryOption = true,
+                onOpenChatHistory = { viewModel.onEvent(ChatEvent.ChatHistoryRequested) },
+                onNewChat = { viewModel.onEvent(ChatEvent.NewChatRequested) },
+                selectedModel = uiState.selectedModel,
+                availableModels = uiState.availableModels,
+                onModelSelected = { viewModel.onEvent(ChatEvent.ModelSelected(it)) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
     }
 }

@@ -240,6 +240,41 @@ class RemoteAgentService(
     }
 
     /**
+     * Fetch available OpenCode models from the server.
+     */
+    suspend fun getOpencodeModels(refresh: Boolean = false): List<Pair<String, String>> {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val response = client.get("$baseUrl/api/v1/opencode/models") {
+                if (token != null) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+                parameter("refresh", refresh)
+            }
+            if (response.status.isSuccess()) {
+                val body = response.bodyAsText()
+                val jsonObject = com.google.gson.JsonParser.parseString(body).asJsonObject
+                val modelsArray = jsonObject.getAsJsonArray("models")
+                val resultList = mutableListOf<Pair<String, String>>()
+                for (element in modelsArray) {
+                    val mObj = element.asJsonObject
+                    val id = mObj.get("id").asString
+                    val label = mObj.get("label").asString
+                    resultList.add(id to label)
+                }
+                resultList
+            } else {
+                Log.e(TAG, "Failed to fetch opencode models: ${response.status}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching opencode models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    /**
      * Analyze content on the server.
      */
     suspend fun analyzeContent(

@@ -296,6 +296,7 @@ class ServerAgent(
                                                 "This error is deterministic and cannot be fixed by retrying. " +
                                                 "Do NOT attempt to call this tool again with similar arguments. " +
                                                 "Inform the user and stop.",
+                                        name = streamProcessor.currentToolName,
                                     )
                                 goalMemoryManager.addError(
                                     "Tool ${streamProcessor.currentToolName} permanent failure: ${toolResult.take(200)}",
@@ -332,6 +333,7 @@ class ServerAgent(
                             LlmMessage(
                                 role = LlmMessage.Role.TOOL,
                                 content = "[Tool Result for ${streamProcessor.currentToolName}]: $toolResult",
+                                name = streamProcessor.currentToolName,
                             )
 
                         if (streamProcessor.currentToolName == "ask_user" && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
@@ -371,6 +373,7 @@ class ServerAgent(
                             LlmMessage(
                                 role = LlmMessage.Role.TOOL,
                                 content = "[Tool Error for ${streamProcessor.currentToolName}]: ${e.message}",
+                                name = streamProcessor.currentToolName,
                             )
                         goalMemoryManager.addError("Tool ${streamProcessor.currentToolName} exception: ${e.message?.take(200)}")
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_${streamProcessor.currentToolName}")

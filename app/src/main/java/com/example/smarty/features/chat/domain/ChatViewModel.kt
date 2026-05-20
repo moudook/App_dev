@@ -9,6 +9,8 @@ import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.state.SharedAppState
+import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.di.ServiceLocator
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import com.example.smarty.features.chat.domain.state.ChatState
@@ -78,6 +80,10 @@ class ChatViewModel(
         ServiceLocator.provideRemoteAgentService(application)
     }
 
+    private val securePreferences: SecurePreferences by lazy {
+        SecurePreferences.getInstance(application)
+    }
+
     // Global state - immutable, updated via copy
     private val _chatState = MutableStateFlow(ChatState.initial())
     val chatState: StateFlow<ChatState> = _chatState.asStateFlow()
@@ -85,6 +91,37 @@ class ChatViewModel(
     // UI state - separated from domain state
     private val _uiState = MutableStateFlow(ChatUiState.initial())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    init {
+        // Set initial state from cached preferences
+        val initialModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
+        val initialCachedModels = securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
+        _uiState.update { 
+            it.copy(
+                selectedModel = initialModel,
+                availableModels = initialCachedModels
+            )
+        }
+
+        // Fetch latest dynamic list of models from backend
+        viewModelScope.launch {
+            try {
+                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = false)
+                if (dynamicModels.isNotEmpty()) {
+                    securePreferences.setCachedModels(dynamicModels)
+                    val activeModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
+                    _uiState.update { 
+                        it.copy(
+                            selectedModel = activeModel,
+                            availableModels = dynamicModels
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize opencode models: ${e.message}")
+            }
+        }
+    }
 
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
 
@@ -109,6 +146,7 @@ class ChatViewModel(
             is ChatEvent.GenerationStopped -> handleStopGeneration()
             is ChatEvent.ErrorOccurred -> handleError(event.message, event.error)
             is ChatEvent.ErrorDismissed -> handleDismissError()
+            is ChatEvent.ModelSelected -> handleModelSelected(event.modelId)
             // Add more event handlers as needed
             else -> Log.d(TAG, "Event not handled: $event")
         }
@@ -188,7 +226,8 @@ class ChatViewModel(
             var finalThinking: String? = null
             remoteAgentService.sendQuery(
                 query = content,
-                sessionId = sessionId
+                sessionId = sessionId,
+                model = _uiState.value.selectedModel
             ).collect { event ->
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
@@ -468,6 +507,12 @@ class ChatViewModel(
     fun setListening(listening: Boolean) {
         _uiState.update { it.copy(isVoiceListening = listening) }
         _chatState.update { it.copy(isListening = listening) }
+    }
+
+    private fun handleModelSelected(modelId: String) {
+        Log.d(TAG, "Model selected: $modelId")
+        securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
+        _uiState.update { it.copy(selectedModel = modelId) }
     }
 }
 

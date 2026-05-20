@@ -2,6 +2,7 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
 import io.ktor.server.application.*
@@ -57,6 +58,17 @@ fun Application.configureHealthRoutes() {
             )
         }
 
+        get("/api/v1/opencode/models") {
+            val refresh = call.request.queryParameters["refresh"] == "true"
+            val state =
+                if (refresh) {
+                    OpencodeModelRegistry.refreshFromCli()
+                } else {
+                    OpencodeModelRegistry.currentState()
+                }
+            call.respond(state)
+        }
+
         /**
          * Advanced health dashboard - shows everything happening in the server.
          * Returns active sessions, recent agent activities, and tool calls.
@@ -101,18 +113,19 @@ fun Application.configureHealthRoutes() {
          * The app expects an OpenAI-compatible /v1/models endpoint to verify connectivity.
          */
         get("/v1/models") {
+            val modelState = OpencodeModelRegistry.currentState()
             val response =
                 mapOf(
                     "object" to "list",
                     "data" to
-                        listOf(
+                        modelState.models.map { model ->
                             mapOf(
-                                "id" to "smarty-server-agent",
+                                "id" to model.id,
                                 "object" to "model",
-                                "created" to System.currentTimeMillis() / 1000,
-                                "owned_by" to "smarty-server",
-                            ),
-                        ),
+                                "created" to modelState.updatedAt / 1000,
+                                "owned_by" to "opencode-cli-free",
+                            )
+                        },
                 )
             call.respond(response)
         }

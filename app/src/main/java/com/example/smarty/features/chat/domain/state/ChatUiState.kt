@@ -31,7 +31,9 @@ data class ChatUiState(
     val isRecording: Boolean = false,
     val isAgentWorking: Boolean = false,
     val autoSendActive: Boolean = false,
-    val attachments: List<Attachment> = emptyList()
+    val attachments: List<Attachment> = emptyList(),
+    val selectedModel: String = "opencode/deepseek-v4-flash-free",
+    val availableModels: List<Pair<String, String>> = emptyList()
 ) {
     val canSend: Boolean = inputText.text.isNotEmpty() || attachments.isNotEmpty()
     val hasActiveFilters: Boolean = selectedFilters.isNotEmpty()

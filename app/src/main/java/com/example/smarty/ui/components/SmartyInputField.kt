@@ -220,7 +220,11 @@ fun SmartyInputField(
     showScrollButton: Boolean = false,
     isAtLatest: Boolean = true,
     onScrollToBottom: () -> Unit = {},
-    onScrollToTop: () -> Unit = {}
+    onScrollToTop: () -> Unit = {},
+    // Dynamic Model Selection
+    selectedModel: String = "opencode/deepseek-v4-flash-free",
+    availableModels: List<Pair<String, String>> = emptyList(),
+    onModelSelected: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -526,6 +530,121 @@ fun SmartyInputField(
                                             rotationZ = if (isImageGenMode) starRotation else 0f
                                         }
                                 )
+                            }
+                        }
+
+                        // Model Picker Badge/Pill
+                        if (availableModels.isNotEmpty()) {
+                            var showModelMenu by remember { mutableStateOf(false) }
+                            val selectedModelLabel = availableModels.find { it.first == selectedModel }?.second 
+                                ?: selectedModel.substringAfterLast("/")
+
+                            val modelInteractionSource = remember { MutableInteractionSource() }
+                            val modelIsPressed by modelInteractionSource.collectIsPressedAsState()
+                            val modelScale by animateFloatAsState(
+                                targetValue = if (modelIsPressed) 0.92f else 1f,
+                                animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+                                label = "modelScale"
+                            )
+
+                            Box {
+                                Surface(
+                                    modifier = Modifier
+                                        .scale(modelScale)
+                                        .height(36.dp)
+                                        .clickable(
+                                            interactionSource = modelInteractionSource,
+                                            indication = null,
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                showModelMenu = true
+                                            }
+                                        ),
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = pillBackground,
+                                    border = BorderStroke(0.5.dp, pillBorder)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Psychology,
+                                            contentDescription = "AI Model",
+                                            tint = monochromeColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = selectedModelLabel,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontFamily = MonoFont,
+                                                fontWeight = FontWeight.Medium
+                                            ),
+                                            color = monochromeColor
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardDoubleArrowDown,
+                                            contentDescription = "Select model",
+                                            tint = monochromeColor.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+
+                                val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+                                val menuBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
+                                val menuBorder = if (isDark) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+
+                                DropdownMenu(
+                                    expanded = showModelMenu,
+                                    onDismissRequest = { showModelMenu = false },
+                                    offset = DpOffset(x = 0.dp, y = 4.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    containerColor = menuBackground,
+                                    border = BorderStroke(1.dp, menuBorder),
+                                    tonalElevation = 8.dp
+                                ) {
+                                    Text(
+                                        text = "Select AI Model",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                    )
+
+                                    availableModels.forEach { (modelId, label) ->
+                                        val isCurrent = modelId == selectedModel
+                                        DropdownMenuItem(
+                                            text = { 
+                                                Text(
+                                                    text = label, 
+                                                    fontSize = 14.sp, 
+                                                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (isCurrent) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
+                                                ) 
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = if (isCurrent) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showModelMenu = false
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                onModelSelected(modelId)
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

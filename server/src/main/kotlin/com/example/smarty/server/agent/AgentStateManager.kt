@@ -560,7 +560,17 @@ class AgentStateManager(
         history: List<LlmMessage>,
         userMessage: LlmMessage?,
     ): List<LlmMessage> {
-        val fullHistory = if (userMessage != null) history + userMessage else history
+        val fullHistory =
+            if (userMessage != null) {
+                val last = history.lastOrNull()
+                if (last?.role == LlmMessage.Role.USER && last.content == userMessage.content) {
+                    history
+                } else {
+                    history + userMessage
+                }
+            } else {
+                history
+            }
 
         return if (fullHistory.size > MAX_HISTORY) {
             val splitIndex = fullHistory.size - RECENT_WINDOW

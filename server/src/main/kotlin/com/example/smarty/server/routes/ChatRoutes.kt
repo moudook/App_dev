@@ -19,6 +19,7 @@ import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.Stack
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
+import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.server.tools.TavilySearchTool
 import io.ktor.http.*
@@ -91,8 +92,13 @@ private fun normalizeProviderSelection(provider: String?): String? {
         "CHEAPEST",
         "FASTEST",
         "SMARTEST",
+        "OPENCODE",
         -> null
-        else -> normalized
+        else -> {
+            // feat/cli is OpenCode-only. Legacy API providers are intentionally ignored
+            // so chat cannot silently fall back to paid API-key routes.
+            null
+        }
     }
 }
 
@@ -297,7 +303,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 var sessionId = call.request.queryParameters["sessionId"]
                 val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
                 val providerUrlParam = call.request.queryParameters["providerUrl"]
-                val modelParam = call.request.queryParameters["model"]
+                val modelParam =
+                    call.request.queryParameters["model"]
+                        ?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
                 val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
                 val timezoneParam = call.request.queryParameters["timezone"]
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
@@ -311,7 +319,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         if (it.length > 500) throw IllegalArgumentException("Provider URL too long")
                     }
                     modelParam?.let {
-                        if (it.length > 100) throw IllegalArgumentException("Model name too long")
+                        if (it.length > 120) throw IllegalArgumentException("Model name too long")
                     }
                     timezoneParam?.let {
                         if (it.length > 50) throw IllegalArgumentException("Timezone too long")
@@ -530,82 +538,24 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         }
                     }
                 } catch (e: Exception) {
-                    call.application.log.error("Agent execution failed, attempting Groq fallback", e)
+                    call.application.log.error("OpenCode agent execution failed", e)
                     try {
-                        val fallbackKey = System.getenv("GROQ_API_KEY")
-                        if (fallbackKey.isNullOrBlank()) {
-                            throw IllegalStateException("GROQ_API_KEY environment variable is not set")
-                        }
-                        val groqProvider = LlmProviderFactory.create(
-                            client = httpClient,
-                            providerOverride = "GROQ",
-                            apiKeyOverride = fallbackKey,
-                            modelIdOverride = "llama-3.3-70b-versatile"
-                        )
-                        
                         send(
                             ServerSentEvent(
-                                data = json.encodeToString(
-                                    AgentEvent.Processing(
-                                        eventId = UUID.randomUUID().toString(),
-                                        timestamp = System.currentTimeMillis(),
-                                        content = "Main provider unavailable. Falling back to Groq..."
-                                    )
-                                ),
-                                event = "processing"
-                            )
-                        )
-                        
-                        val fallbackMessages = history.toMutableList()
-                        fallbackMessages.add(LlmMessage(LlmMessage.Role.USER, query))
-                        
-                        val fallbackResponse = groqProvider.generate(fallbackMessages)
-                        val content = fallbackResponse.content ?: "I'm sorry, both the primary provider and fallback provider are unavailable right now."
-                        
-                        if (chatRepository != null) {
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId ?: activeSessionId,
-                                role = LlmMessage.Role.ASSISTANT.name,
-                                content = content,
-                                thinking = "Fallback to Groq completed.",
-                                toolCalls = "[]"
-                            )
-                        }
-                        
-                        send(
-                            ServerSentEvent(
-                                data = json.encodeToString(
-                                    AgentEvent.Result(
-                                        eventId = UUID.randomUUID().toString(),
-                                        timestamp = System.currentTimeMillis(),
-                                        content = content,
-                                        isFinal = true
-                                    )
-                                ),
-                                event = "result"
-                            )
-                        )
-                    } catch (fallbackError: Exception) {
-                        call.application.log.error("Groq fallback also failed", fallbackError)
-                        try {
-                            send(
-                                ServerSentEvent(
-                                    data =
-                                        json.encodeToString(
-                                            AgentEvent.Error(
-                                                eventId = UUID.randomUUID().toString(),
-                                                timestamp = System.currentTimeMillis(),
-                                                message = "An internal error occurred: ${e.message?.take(100) ?: "Unknown error"} (Fallback also failed)",
-                                                code = "INTERNAL_ERROR",
-                                            ),
+                                data =
+                                    json.encodeToString(
+                                        AgentEvent.Error(
+                                            eventId = UUID.randomUUID().toString(),
+                                            timestamp = System.currentTimeMillis(),
+                                            message = "OpenCode CLI could not complete this request: ${e.message?.take(160) ?: "Unknown error"}",
+                                            code = "OPENCODE_CLI_ERROR",
                                         ),
-                                    event = "error",
-                                ),
-                            )
-                        } catch (sendError: Exception) {
-                            call.application.log.debug("Failed to send error SSE (client already disconnected): ${sendError.message}")
-                        }
+                                    ),
+                                event = "error",
+                            ),
+                        )
+                    } catch (sendError: Exception) {
+                        call.application.log.debug("Failed to send error SSE (client already disconnected): ${sendError.message}")
                     }
                 } finally {
                     // Always end the active session
@@ -637,6 +587,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val request = call.receive<ChatRequest>()
                     val userId = user.userId
                     var sessionId = request.sessionId
+                    val safeModelOverride = request.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
 
@@ -721,7 +672,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 query = fullQuery,
                                 sessionId = activeSessionId,
                                 history = history,
-                                modelOverride = request.model,
+                                modelOverride = safeModelOverride,
                                 clientTimezone = request.timezone,
                                 clientTimeMillis = request.clientTime,
                                 personality = request.personality,
@@ -767,55 +718,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             ),
                         )
                     } catch (e: Exception) {
-                        call.application.log.error("POST chat/query agent execution failed, attempting Groq fallback", e)
-                        try {
-                            val fallbackKey = System.getenv("GROQ_API_KEY")
-                            if (fallbackKey.isNullOrBlank()) {
-                                throw IllegalStateException("GROQ_API_KEY environment variable is not set")
-                            }
-                            val groqProvider = LlmProviderFactory.create(
-                                client = httpClient,
-                                providerOverride = "GROQ",
-                                apiKeyOverride = fallbackKey,
-                                modelIdOverride = "llama-3.3-70b-versatile"
-                            )
-                            
-                            val fallbackMessages = history.toMutableList()
-                            fallbackMessages.add(LlmMessage(LlmMessage.Role.USER, fullQuery))
-                            
-                            val fallbackResponse = groqProvider.generate(fallbackMessages)
-                            val content = fallbackResponse.content ?: "Fallback provider unavailable."
-                            
-                            if (chatRepository != null) {
-                                chatRepository.saveMessage(
-                                    userId = userId,
-                                    sessionId = sessionId ?: UUID.randomUUID().toString(),
-                                    role = LlmMessage.Role.ASSISTANT.name,
-                                    content = content,
-                                    thinking = "Fallback to Groq completed.",
-                                    toolCalls = "[]"
-                                )
-                            }
-                            
-                            events.add(AgentEvent.Result(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                content = content,
-                                isFinal = true
-                            ))
-                            
-                            call.respond(
-                                HttpStatusCode.OK,
-                                mapOf(
-                                    "sessionId" to sessionId,
-                                    "response" to content,
-                                    "events" to events.map { json.encodeToString(it) },
-                                ),
-                            )
-                        } catch (fallbackError: Exception) {
-                            call.application.log.error("Groq fallback for POST chat/query also failed", fallbackError)
-                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
-                        }
+                        call.application.log.error("POST chat/query OpenCode agent execution failed", e)
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            mapOf("error" to "OpenCode CLI could not complete this request: ${e.message?.take(160) ?: "Unknown error"}"),
+                        )
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                     }
