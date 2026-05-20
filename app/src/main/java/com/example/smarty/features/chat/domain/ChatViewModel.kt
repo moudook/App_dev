@@ -147,6 +147,7 @@ class ChatViewModel(
             is ChatEvent.ErrorOccurred -> handleError(event.message, event.error)
             is ChatEvent.ErrorDismissed -> handleDismissError()
             is ChatEvent.ModelSelected -> handleModelSelected(event.modelId)
+            is ChatEvent.ModelsRefreshRequested -> handleModelsRefresh()
             // Add more event handlers as needed
             else -> Log.d(TAG, "Event not handled: $event")
         }
@@ -513,6 +514,38 @@ class ChatViewModel(
         Log.d(TAG, "Model selected: $modelId")
         securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
         _uiState.update { it.copy(selectedModel = modelId) }
+    }
+
+    private fun handleModelsRefresh() {
+        viewModelScope.launch {
+            try {
+                val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+                if (refreshed.isNotEmpty()) {
+                    securePreferences.setCachedModels(refreshed)
+                    _uiState.update { it.copy(availableModels = refreshed) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh models: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Suspend function for UI to call directly for live model refresh.
+     * Returns the refreshed model list, or empty if failed.
+     */
+    suspend fun refreshModelsNow(): List<Pair<String, String>> {
+        return try {
+            val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+            if (refreshed.isNotEmpty()) {
+                securePreferences.setCachedModels(refreshed)
+                _uiState.update { it.copy(availableModels = refreshed) }
+            }
+            refreshed
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to refresh models: ${e.message}")
+            emptyList()
+        }
     }
 }
 

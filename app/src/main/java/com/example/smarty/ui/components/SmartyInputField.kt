@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -224,7 +225,8 @@ fun SmartyInputField(
     // Dynamic Model Selection
     selectedModel: String = "opencode/deepseek-v4-flash-free",
     availableModels: List<Pair<String, String>> = emptyList(),
-    onModelSelected: (String) -> Unit = {}
+    onModelSelected: (String) -> Unit = {},
+    onRefreshModels: suspend () -> List<Pair<String, String>> = { emptyList() }
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -535,6 +537,7 @@ fun SmartyInputField(
 
                         // Model Picker Badge/Pill — always visible in chat mode
                         var showModelMenu by remember { mutableStateOf(false) }
+                        var isRefreshing by remember { mutableStateOf(false) }
                         val selectedModelLabel = availableModels.find { it.first == selectedModel }?.second
                             ?: selectedModel.substringAfterLast("/")
 
@@ -550,13 +553,23 @@ fun SmartyInputField(
                             Surface(
                                 modifier = Modifier
                                     .scale(modelScale)
-                                    .height(36.dp)
+                                    .requiredHeight(36.dp)
+                                    .widthIn(min = 60.dp, max = 160.dp)
                                     .clickable(
                                         interactionSource = modelInteractionSource,
                                         indication = null,
                                         onClick = {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            showModelMenu = true
+                                            scope.launch {
+                                                isRefreshing = true
+                                                val refreshed = onRefreshModels()
+                                                isRefreshing = false
+                                                if (refreshed.isNotEmpty()) {
+                                                    showModelMenu = true
+                                                } else {
+                                                    showModelMenu = true
+                                                }
+                                            }
                                         }
                                     ),
                                 shape = RoundedCornerShape(18.dp),
@@ -564,30 +577,39 @@ fun SmartyInputField(
                                 border = BorderStroke(0.5.dp, pillBorder)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Psychology,
-                                        contentDescription = "AI Model",
-                                        tint = monochromeColor,
-                                        modifier = Modifier.size(16.dp)
-                                    )
                                     Text(
                                         text = selectedModelLabel,
                                         style = MaterialTheme.typography.labelMedium.copy(
                                             fontFamily = MonoFont,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 11.sp
                                         ),
-                                        color = monochromeColor
+                                        color = monochromeColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardDoubleArrowDown,
-                                        contentDescription = "Select model",
-                                        tint = monochromeColor.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(12.dp)
-                                    )
+                                    if (isRefreshing) {
+                                        Spacer(Modifier.width(4.dp))
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(10.dp),
+                                            strokeWidth = 1.5.dp,
+                                            color = monochromeColor.copy(alpha = 0.6f)
+                                        )
+                                    } else {
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardDoubleArrowDown,
+                                            contentDescription = "Select model",
+                                            tint = monochromeColor.copy(alpha = 0.5f),
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
                                 }
                             }
 

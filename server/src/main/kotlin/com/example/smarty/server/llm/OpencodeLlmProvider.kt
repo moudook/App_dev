@@ -97,6 +97,7 @@ class OpencodeLlmProvider(
 
             var lineCount = 0
             var eventCount = 0
+            var nonJsonLines = 0
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 lineCount++
@@ -105,6 +106,9 @@ class OpencodeLlmProvider(
                 // Log raw JSON for debugging (first 200 chars)
                 if (current.startsWith('{')) {
                     logger.info("RAW JSON [{}]: {}", lineCount, current.take(200))
+                } else if (current.isNotEmpty()) {
+                    nonJsonLines++
+                    logger.warn("CLI non-JSON output [{}]: {}", lineCount, current.take(300))
                 }
 
                 if (current.isEmpty() || !current.startsWith('{')) continue
@@ -154,7 +158,7 @@ class OpencodeLlmProvider(
                 }
             }
 
-            logger.info("OpenCode stream done: {} lines read, {} JSON events parsed", lineCount, eventCount)
+            logger.info("OpenCode stream done: {} lines read, {} JSON events, {} non-JSON lines", lineCount, eventCount, nonJsonLines)
 
             val exitCode = withContext(Dispatchers.IO) {
                 val completed = process.waitFor(60, TimeUnit.SECONDS)
@@ -174,16 +178,25 @@ class OpencodeLlmProvider(
     ) = withContext(Dispatchers.IO) {
         val workDir = File(System.getProperty("user.dir"), "_temp/opencode").apply { mkdirs() }
 
-        // Write prompt to temp file to avoid shell arg limits on Linux
-        val promptFile = File(workDir, "prompt_${sessionId}.txt")
-        promptFile.writeText(prompt, Charsets.UTF_8)
-
-        val command = listOf(
-            "bash", "-c",
-            "opencode run --agent $agentName --model $model --format json --session $sessionId --dangerously-skip-permissions < '${promptFile.absolutePath}'"
+        val command = mutableListOf(
+            "opencode", "run",
         )
 
-        logger.info("OpenCode CLI: {} [prompt file: {} ({} chars)]", command.first(), promptFile.absolutePath, prompt.length)
+        // Connect to local daemon if running
+        if (isDaemonRunning()) {
+            command += listOf("--attach", daemonBaseUrl)
+        }
+
+        command += listOf(
+            "--agent", agentName,
+            "--model", model,
+            "--format", "json",
+            "--session", sessionId,
+            "--dangerously-skip-permissions",
+            prompt,
+        )
+
+        logger.info("OpenCode CLI: {} [prompt: {} chars, daemon: {}]", command.take(8).joinToString(" "), prompt.length, isDaemonRunning())
 
         ProcessBuilder(command)
             .directory(workDir)

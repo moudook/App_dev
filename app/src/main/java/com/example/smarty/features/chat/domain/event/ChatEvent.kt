@@ -74,6 +74,7 @@ sealed class ChatEvent {
     data class ErrorOccurred(val message: String, val error: Throwable? = null) : ChatEvent()
     data object ErrorDismissed : ChatEvent()
     data class ModelSelected(val modelId: String) : ChatEvent()
+    data object ModelsRefreshRequested : ChatEvent()
 }
 
 // Type alias for convenience
