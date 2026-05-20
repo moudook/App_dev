@@ -331,7 +331,9 @@ class AssistViewModel(
         chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true))
         
         try {
-            remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value).collect { event ->
+            val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(getApplication())
+            val selectedModel = securePrefs.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+            remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value, model = selectedModel).collect { event ->
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         event.content?.let { responseBuilder.append(it) }

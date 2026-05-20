@@ -1708,10 +1708,12 @@ class ChatFeatureManager(
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
             val personality = securePreferences.getPersonality()
+            val selectedModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
                 personality = personality,
+                model = selectedModel,
             )
                 .collect { event ->
                     when (event) {
