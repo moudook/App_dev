@@ -171,6 +171,7 @@ app/src/main/assets/tts_models/
 *.py
 !gradlew
 !gradlew.bat
+!entrypoint.sh
 
 # Database migrations (keep only essential)
 *.sql
