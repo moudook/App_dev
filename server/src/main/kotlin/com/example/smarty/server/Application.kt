@@ -106,22 +106,27 @@ fun Application.module() {
     // Configure Firewall (IP restrictions, request limits)
     configureFirewall()
 
-    // Configure CORS (Restricted)
+    // Configure CORS (Allow Android client + HF Spaces + common development origins)
     install(CORS) {
-        allowHost("localhost")
-        allowHost("127.0.0.1")
-        // Allow Hugging Face Spaces
-        allowHost("huggingface.co")
-        allowHost("*.hf.space")
+        allowHost("*")  // allowHeaders and allowMethods below restrict it
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
         allowHeader("X-Smarty-Device-Id")
+        allowHeader("X-Smarty-Version")
+        allowHeader(HttpHeaders.AccessControlAllowOrigin)
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Patch)
         allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Head)
+        // WebSocket upgrade header
+        allowHeader(HttpHeaders.Upgrade)
+        allowHeader(HttpHeaders.Connection)
+        // Allow pre-flight requests from any origin (auth is enforced via Firebase JWT)
+        anyHost()
+        allowCredentials = true
     }
     install(CallId) {
         header("X-Request-ID")
@@ -263,7 +268,6 @@ fun Application.module() {
     val deepResearchAgent =
         com.example.smarty.server.agent.DeepResearchAgent(
             llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
-            tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
             webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
             progressFileManager = com.example.smarty.server.agent.ProgressFileManager(),
         )
@@ -271,7 +275,6 @@ fun Application.module() {
     val advancedDeepResearchAgent =
         com.example.smarty.server.agent.AdvancedDeepResearchAgent(
             llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(HttpClientSingleton.client),
-            tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
             webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
             progressTracker = com.example.smarty.server.agent.ResearchProgressTracker(),
         )
@@ -440,19 +443,8 @@ fun Application.configureSecurityMonitoring() {
 
 private fun verifyOpenCodeCli() {
     val logger = org.slf4j.LoggerFactory.getLogger("OpenCodeStartup")
-    try {
-        val process = ProcessBuilder(listOf("opencode", "--version"))
-            .redirectErrorStream(true)
-            .start()
-        val version = process.inputStream.bufferedReader().readText().trim().lines().firstOrNull() ?: "unknown"
-        val exited = process.waitFor(5, TimeUnit.SECONDS)
-        if (exited && process.exitValue() == 0) {
-            logger.info("OpenCode CLI verified: {}", version)
-        } else {
-            logger.warn("OpenCode CLI check: exit code {}, version: {}", process.exitValue(), version)
-        }
-    } catch (e: Exception) {
-        logger.error("OpenCode CLI is NOT installed or accessible: {}", e.message)
-        logger.error("Run 'npm install -g opencode-ai' to install the CLI")
-    }
+    logger.info("OpenCode CLI verification will be performed lazily on first request (not blocking server startup)")
+    // NOTE: Startup CLI verification moved to lazy / first-request check to avoid
+    // blocking the Ktor server or throwing on cold starts. The daemon (entrypoint.sh)
+    // performs the warm-up check and serves as the authoritative health signal.
 }

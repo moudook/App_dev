@@ -34,6 +34,7 @@ object OpencodeModelRegistry {
     const val DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
     private const val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
 
+    // Bundled fallback — used when CLI discovery fails or cache is stale
     private val bundledFreeModels =
         listOf(
             OpencodeModelInfo("opencode/deepseek-v4-flash-free", "DeepSeek V4 Flash Free"),
@@ -88,6 +89,18 @@ object OpencodeModelRegistry {
         )
     }
 
+    /**
+     * Discover free models by running `opencode models` on the server.
+     *
+     * The CLI outputs one model ID per line:
+     *   opencode/big-pickle
+     *   opencode/deepseek-v4-flash-free
+     *   opencode/minimax-m2.5-free
+     *   ...
+     *
+     * We filter for lines containing "-free" suffix to identify free Zen models.
+     * Results are cached for 5 minutes to avoid excessive CLI invocations.
+     */
     suspend fun refreshFromCli(timeoutMs: Long = 12_000L): OpencodeModelState =
         withContext(Dispatchers.IO) {
             val state = cachedState.get()
@@ -100,17 +113,21 @@ object OpencodeModelRegistry {
 
             val discovered =
                 runCatching {
+                    // Run in the app working directory where opencode.json lives
+                    val workDir = java.io.File(System.getProperty("user.dir"))
+                    logger.info("Running 'opencode models' in working directory: ${workDir.absolutePath}")
+
                     val process =
-                        ProcessBuilder(listOf("opencode", "models", "opencode"))
+                        ProcessBuilder(listOf("opencode", "models"))
+                            .directory(workDir)
                             .redirectErrorStream(true)
                             .start()
 
                     val reader = BufferedReader(InputStreamReader(process.inputStream))
                     val lines = mutableListOf<String>()
-                    var line = reader.readLine()
-                    while (line != null) {
-                        lines.add(line)
-                        line = reader.readLine()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        lines.add(line!!)
                     }
 
                     val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
@@ -118,6 +135,14 @@ object OpencodeModelRegistry {
                         process.destroyForcibly()
                         throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
                     }
+
+                    val exitCode = process.exitValue()
+                    if (exitCode != 0) {
+                        logger.warn("opencode models exited with code $exitCode")
+                    }
+
+                    logger.info("opencode models output: {} lines", lines.size)
+                    lines.forEach { logger.debug("  CLI line: {}", it) }
 
                     parseFreeModelsFromCli(lines)
                 }.getOrElse { error ->
@@ -132,7 +157,7 @@ object OpencodeModelRegistry {
                     defaultModel = DEFAULT_MODEL,
                     activeModel = requireAllowedFreeModel(System.getenv("OPENCODE_MODEL") ?: System.getenv("LLM_MODEL_ID")),
                     models = finalModels,
-                    source = if (discovered.isEmpty()) "bundled" else "cli-filtered",
+                    source = if (discovered.isEmpty()) "bundled" else "cli-discovered",
                     updatedAt = System.currentTimeMillis(),
                 )
             cachedState.set(newState)
@@ -140,23 +165,71 @@ object OpencodeModelRegistry {
             newState
         }
 
+    /**
+     * Parse `opencode models` output.
+     *
+     * Each line is a model ID like `opencode/deepseek-v4-flash-free`.
+     * We filter for lines that:
+     *   1. Start with "opencode/"
+     *   2. End with "-free"
+     *
+     * This works on both Linux (HF Spaces) and Windows (dev machine).
+     */
     private fun parseFreeModelsFromCli(lines: List<String>): List<OpencodeModelInfo> {
-        val modelRegex = Regex("""(opencode/[-\w.]+)\s+(.+?)\s+(Free|free)""")
         val parsed = mutableListOf<OpencodeModelInfo>()
 
-        for (line in lines) {
-            val match = modelRegex.find(line) ?: continue
-            val modelId = match.groupValues[1].trim()
-            val label = match.groupValues[2].trim()
-            if (modelId in allowList || modelId.endsWith("-free")) {
-                parsed.add(OpencodeModelInfo(id = modelId, label = label))
-                logger.debug("Discovered free model from CLI: {} ({})", modelId, label)
+        for (rawLine in lines) {
+            val line = rawLine.trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith("─") || line.startsWith("│")) {
+                continue
             }
+
+            // Extract model ID — handle both plain IDs and table-formatted lines
+            val modelId = extractModelId(line) ?: continue
+
+            // Only accept models with -free suffix
+            if (!modelId.endsWith("-free")) {
+                logger.debug("Skipping non-free model from CLI: {}", modelId)
+                continue
+            }
+
+            // Validate it's an opencode-scoped model
+            if (!modelId.startsWith("opencode/")) {
+                logger.debug("Skipping non-opencode model from CLI: {}", modelId)
+                continue
+            }
+
+            val label = modelId
+                .removePrefix("opencode/")
+                .removeSuffix("-free")
+                .replace(Regex("[-.]+"), " ")
+                .split(" ")
+                .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } } + " Free"
+
+            parsed.add(OpencodeModelInfo(id = modelId, label = label))
+            logger.debug("Discovered free model from CLI: {} ({})", modelId, label)
         }
 
         if (parsed.isNotEmpty()) {
             logger.info("Parsed {} free models from CLI output", parsed.size)
         }
         return parsed
+    }
+
+    /**
+     * Extract a model ID from a CLI output line.
+     *
+     * Handles formats:
+     *   - Plain: `opencode/deepseek-v4-flash-free`
+     *   - Table: `│ opencode/deepseek-v4-flash-free │ ...`
+     *   - Leading whitespace: `  opencode/deepseek-v4-flash-free`
+     */
+    private fun extractModelId(line: String): String? {
+        // Strip table formatting: │ ... │
+        val stripped = line.replace("│", "").trim()
+
+        // Match opencode/... pattern
+        val match = Regex("""(opencode/[\w.\-]+)""").find(stripped)
+        return match?.groupValues?.get(1)
     }
 }

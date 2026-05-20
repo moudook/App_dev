@@ -83,16 +83,14 @@ MEDICAL ADVICE & DIAGNOSIS AUTHORIZATION:
 $BASE_SYSTEM_PROMPT
 
 RESEARCH CAPABILITIES:
-- You can search the web for current information
-- Run multiple searches in parallel by using SEARCH: format
+- You have built-in web search through OpenCode CLI — use it directly for current information
 - Synthesize information from multiple sources
 - Cite your sources when providing information
 
 When doing research:
-1. Plan your search strategy
-2. Run parallel searches when possible
-3. Synthesize results into coherent answers
-4. Always cite sources
+1. Use your built-in websearch tool for discovery
+2. Synthesize results into coherent answers
+3. Always cite sources
 """
 
     /**
@@ -205,8 +203,7 @@ schedule(action='add', title='Meeting', when='tomorrow 2pm', duration='1 hour')
                 """
 Example:
 User: "What are the latest AI developments?"
-Assistant: [Uses search tool with parallel queries]
-search(action='web', query='SEARCH: AI advancements 2025\nSEARCH: machine learning breakthroughs\nSEARCH: neural network research')
+Assistant: [Uses built-in OpenCode websearch directly]
 """
             else -> ""
         }

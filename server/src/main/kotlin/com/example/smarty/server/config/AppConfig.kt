@@ -3,15 +3,12 @@ package com.example.smarty.server.config
 /**
  * Centralized Application Configuration.
  *
- * Single Responsibility: Only handles configuration management.
- * DRY: Replaces scattered System.getenv() calls across 15+ files.
- * Global State: Single source of truth for all configuration.
+ * OpenCode CLI is the ONLY LLM provider — no API keys required.
+ * All model inference routes through `opencode run` with free Zen models.
  *
- * Usage:
- * ```
- * val dbUrl = AppConfig.dbUrl
- * val apiKey = AppConfig.geminiApiKeys.firstOrNull()
- * ```
+ * Single Responsibility: Only handles configuration management.
+ * DRY: Replaces scattered System.getenv() calls across files.
+ * Global State: Single source of truth for all configuration.
  */
 object AppConfig {
     // Database Configuration
@@ -20,14 +17,9 @@ object AppConfig {
     val dbPassword: String? = System.getenv("DB_PASSWORD")
     val dbDriver: String = System.getenv("DB_DRIVER") ?: "org.postgresql.Driver"
 
-    // LLM API Keys (supports comma-separated list for rotation)
-    val geminiApiKeys: List<String> = parseApiKeys(System.getenv("GEMINI_API_KEY"))
-    val openAiApiKeys: List<String> = parseApiKeys(System.getenv("OPENAI_API_KEY"))
-    val tavilyApiKeys: List<String> = parseApiKeys(System.getenv("TAVILY_API_KEY"))
+    // Optional API keys (only for tools that still need external services)
+    // Krea is optional for image generation
     val kreaApiKey: String? = System.getenv("KREA_API_KEY")?.trim()?.ifBlank { null }
-
-    // Active Provider Selection
-    val activeProvider: String = System.getenv("ACTIVE_PROVIDER") ?: "OPENCODE"
 
     // Firebase Configuration
     val fcmServerKey: String? = System.getenv("FCM_SERVER_KEY")
@@ -69,20 +61,13 @@ object AppConfig {
 
     /**
      * Validate that required configuration is present.
+     * OpenCode CLI requires NO API keys — only DB_URL is mandatory.
      */
     fun validate(): List<String> {
         val errors = mutableListOf<String>()
 
         if (dbUrl.isNullOrBlank()) {
             errors.add("DB_URL environment variable is required")
-        }
-
-        if (activeProvider.uppercase() != "OPENCODE" && geminiApiKeys.isEmpty() && openAiApiKeys.isEmpty()) {
-            errors.add("At least one LLM API key (GEMINI_API_KEY or OPENAI_API_KEY) is required")
-        }
-
-        if (tavilyApiKeys.isEmpty()) {
-            errors.add("TAVILY_API_KEY environment variable is required")
         }
 
         return errors
@@ -95,10 +80,7 @@ object AppConfig {
         mapOf(
             "environment" to environment,
             "server_port" to serverPort,
-            "active_provider" to activeProvider,
-            "gemini_keys_count" to geminiApiKeys.size,
-            "openai_keys_count" to openAiApiKeys.size,
-            "tavily_keys_count" to tavilyApiKeys.size,
+            "llm_provider" to "opencode-cli-free",
             "krea_api_key_set" to (kreaApiKey != null),
             "max_concurrent_sessions" to maxConcurrentSessions,
             "monitoring_enabled" to enableMonitoring,

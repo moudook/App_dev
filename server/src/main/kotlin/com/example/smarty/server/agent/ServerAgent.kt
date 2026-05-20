@@ -8,7 +8,6 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
-import com.example.smarty.server.tools.TavilySearchTool
 import io.micrometer.core.instrument.Metrics
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -31,7 +30,6 @@ import java.util.UUID
  */
 class ServerAgent(
     private val llmProvider: LlmProvider,
-    private val tavilyTool: TavilySearchTool,
     private val vectorStore: PostgresVectorStore,
     private val summarizer: ConversationSummarizer,
     private val noteRepository: NoteRepository?,
@@ -46,7 +44,7 @@ class ServerAgent(
     // Extracted components
     private val stateManager = AgentStateManager(userId, llmProvider, vectorStore, summarizer)
     private val toolExecutor =
-        ToolExecutor(userId, llmProvider, tavilyTool, vectorStore, noteRepository, timerRepository, calendarRepository, eventEmitter, noteService)
+        ToolExecutor(userId, llmProvider, vectorStore, noteRepository, timerRepository, calendarRepository, eventEmitter, noteService)
     private val tracer: AgentTracer =
         CompositeTracer(
             listOf(
@@ -65,7 +63,9 @@ class ServerAgent(
         const val MAX_ITERATIONS = 200 // Max LLM iterations for extensive research
     }
 
-    // Use centralized tool definitions from AgentToolDefinitions
+    // Pass our app's tool definitions to the LLM — these are core product features.
+    // OpenCode CLI handles websearch natively; our other tools (memory, schedule, remind,
+    // device, navigate, ask_user, etc.) are passed as definitions so the LLM knows how to use them.
     private val tools = AgentToolDefinitions.getAllTools()
 
     suspend fun run(
@@ -212,13 +212,25 @@ class ServerAgent(
                     kv("model", llmProvider.providerName),
                 )
 
+                // Post-stream: parse tool call XML from accumulated content.
+                // Smarty tools come as text (not native OpenCode tool_use events),
+                // so we need to extract them from the LLM's text output.
+                streamProcessor.finalizeAndExtractToolCalls()
+
+                // Determine tool call source: native tool_use event OR parsed XML from text
+                val hasNativeToolCall = streamProcessor.isToolCallInProgress && streamProcessor.currentToolName.isNotEmpty()
+                val hasParsedToolCall = streamProcessor.parsedToolCallFound && streamProcessor.parsedToolName.isNotEmpty()
+
                 // 4. Tool call detected — execute and loop
-                if (streamProcessor.isToolCallInProgress && streamProcessor.currentToolName.isNotEmpty()) {
-                    val argsHash = streamProcessor.currentToolArgs.take(100).hashCode().toString()
-                    val sameCallCount = toolCallHistory.count { it.first == streamProcessor.currentToolName && it.second == argsHash }
+                if (hasNativeToolCall || hasParsedToolCall) {
+                    val toolName = if (hasParsedToolCall) streamProcessor.parsedToolName else streamProcessor.currentToolName
+                    val toolArgs = if (hasParsedToolCall) streamProcessor.parsedToolArgs else streamProcessor.currentToolArgs
+
+                    val argsHash = toolArgs.take(100).hashCode().toString()
+                    val sameCallCount = toolCallHistory.count { it.first == toolName && it.second == argsHash }
 
                     val isResearchTool =
-                        streamProcessor.currentToolName.lowercase().let {
+                        toolName.lowercase().let {
                             it.contains("search") || it.contains("web") || it.contains("tavily") ||
                                 it.contains("fetch") || it.contains("scrape") || it.contains("browser")
                         }
@@ -227,13 +239,13 @@ class ServerAgent(
 
                     if (shouldBlock) {
                         logger.warn(
-                            "TOOL BLOCKED: Tool ${streamProcessor.currentToolName} called ${sameCallCount + 1} times with same query",
+                            "TOOL BLOCKED: Tool $toolName called ${sameCallCount + 1} times with same query",
                         )
                         emit(
                             AgentEvent.ToolBlocked(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                toolName = streamProcessor.currentToolName,
+                                toolName = toolName,
                                 reason = "Same query repeated ${sameCallCount + 1} times. Try a different approach.",
                                 code = "TOOL_BLOCKED_SAME_QUERY",
                             ),
@@ -241,7 +253,7 @@ class ServerAgent(
                         return "I can't search for the same thing again. Let me try a different approach."
                     }
 
-                    toolCallHistory.add(Pair(streamProcessor.currentToolName, argsHash))
+                    toolCallHistory.add(Pair(toolName, argsHash))
                     toolCallCount++
 
                     if (toolCallCount > MAX_TOOL_CALLS) {
@@ -258,20 +270,31 @@ class ServerAgent(
                         return streamProcessor.currentContent.ifEmpty { "Execution limit reached." }
                     }
 
+                    // Emit ToolCall SSE event so the client shows "Executing tool..."
+                    emit(
+                        AgentEvent.ToolCall(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            toolName = toolName,
+                            displayName = "Executing $toolName...",
+                            status = "started",
+                        ),
+                    )
+
                     try {
                         tracer.trace(
                             AgentTraceEvent(
                                 sessionId = sessionId,
                                 stepType = AgentStepType.TOOL_CALL,
-                                content = "Calling tool: ${streamProcessor.currentToolName}",
-                                metadata = mapOf("args" to streamProcessor.currentToolArgs),
+                                content = "Calling tool: $toolName",
+                                metadata = mapOf("args" to toolArgs),
                             ),
                         )
 
                         val toolResult =
                             toolExecutor.executeTool(
-                                name = streamProcessor.currentToolName,
-                                argsJson = streamProcessor.currentToolArgs,
+                                name = toolName,
+                                argsJson = toolArgs,
                                 history = messagesForAgent,
                                 clientTimezone = clientTimezone,
                                 clientTimeMillis = clientTimeMillis,
@@ -287,36 +310,36 @@ class ServerAgent(
 
                         if (isToolError) {
                             if (toolResult.contains("schema") || toolResult.contains("auth") || toolResult.contains("missing")) {
-                                logger.error("PERMANENT TOOL FAILURE: ${streamProcessor.currentToolName} — $toolResult")
+                                logger.error("PERMANENT TOOL FAILURE: $toolName — $toolResult")
                                 messagesForAgent +=
                                     LlmMessage(
                                         role = LlmMessage.Role.TOOL,
                                         content =
-                                            "[Tool Permanent Error for ${streamProcessor.currentToolName}]: $toolResult. " +
+                                            "[Tool Permanent Error for $toolName]: $toolResult. " +
                                                 "This error is deterministic and cannot be fixed by retrying. " +
                                                 "Do NOT attempt to call this tool again with similar arguments. " +
                                                 "Inform the user and stop.",
-                                        name = streamProcessor.currentToolName,
+                                        name = toolName,
                                     )
                                 goalMemoryManager.addError(
-                                    "Tool ${streamProcessor.currentToolName} permanent failure: ${toolResult.take(200)}",
+                                    "Tool $toolName permanent failure: ${toolResult.take(200)}",
                                 )
                                 persistenceManager.saveCheckpoint(
                                     sessionId,
                                     messagesForAgent,
-                                    "permanent_error_${streamProcessor.currentToolName}",
+                                    "permanent_error_$toolName",
                                 )
                                 continue
                             }
 
-                            if (streamProcessor.currentToolName == lastFailedToolName) {
+                            if (toolName == lastFailedToolName) {
                                 consecutiveToolFailures++
                             } else {
-                                lastFailedToolName = streamProcessor.currentToolName
+                                lastFailedToolName = toolName
                                 consecutiveToolFailures = 1
                             }
                             logger.warn(
-                                "Tool returned error result: ${streamProcessor.currentToolName}, failures: $consecutiveToolFailures",
+                                "Tool returned error result: $toolName, failures: $consecutiveToolFailures",
                             )
                         } else {
                             lastFailedToolName = null
@@ -326,17 +349,17 @@ class ServerAgent(
                         Metrics.counter(
                             "agent.tool." + if (isToolError) "error" else "success",
                             "tool",
-                            streamProcessor.currentToolName,
+                            toolName,
                         ).increment()
 
                         messagesForAgent +=
                             LlmMessage(
                                 role = LlmMessage.Role.TOOL,
-                                content = "[Tool Result for ${streamProcessor.currentToolName}]: $toolResult",
-                                name = streamProcessor.currentToolName,
+                                content = "[Tool Result for $toolName]: $toolResult",
+                                name = toolName,
                             )
 
-                        if (streamProcessor.currentToolName == "ask_user" && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
+                        if (toolName == "ask_user" && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
                             val finalThinking = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
                             emit(
                                 AgentEvent.Result(
@@ -352,31 +375,31 @@ class ServerAgent(
                             continue
                         }
 
-                        val stepDescription = "Executed ${streamProcessor.currentToolName}"
+                        val stepDescription = "Executed $toolName"
                         if (isToolError) {
-                            goalMemoryManager.addError("Tool ${streamProcessor.currentToolName} failed: ${toolResult.take(200)}")
+                            goalMemoryManager.addError("Tool $toolName failed: ${toolResult.take(200)}")
                         } else {
                             goalMemoryManager.markStepCompleted(
                                 description = stepDescription,
-                                toolUsed = streamProcessor.currentToolName,
+                                toolUsed = toolName,
                                 result = toolResult.take(500),
                             )
                         }
 
-                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, streamProcessor.currentToolName)
+                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, toolName)
                         continue
                     } catch (e: Exception) {
-                        logger.error("Tool execution failed: ${streamProcessor.currentToolName}", e)
-                        Metrics.counter("agent.tool.error", "tool", streamProcessor.currentToolName).increment()
+                        logger.error("Tool execution failed: $toolName", e)
+                        Metrics.counter("agent.tool.error", "tool", toolName).increment()
 
                         messagesForAgent +=
                             LlmMessage(
                                 role = LlmMessage.Role.TOOL,
-                                content = "[Tool Error for ${streamProcessor.currentToolName}]: ${e.message}",
-                                name = streamProcessor.currentToolName,
+                                content = "[Tool Error for $toolName]: ${e.message}",
+                                name = toolName,
                             )
-                        goalMemoryManager.addError("Tool ${streamProcessor.currentToolName} exception: ${e.message?.take(200)}")
-                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_${streamProcessor.currentToolName}")
+                        goalMemoryManager.addError("Tool $toolName exception: ${e.message?.take(200)}")
+                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_$toolName")
                         continue
                     }
                 } else if (streamProcessor.currentContent.isNotEmpty()) {

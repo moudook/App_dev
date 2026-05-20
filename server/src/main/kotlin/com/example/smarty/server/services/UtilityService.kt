@@ -9,9 +9,10 @@ import java.util.regex.Pattern
 /**
  * Utility Service for common tasks like Date Parsing, Summarization, Categorization.
  * Migrated from Android App to Server.
+ * All LLM calls route through OpenCode CLI free models.
  */
 class UtilityService(
-    private val llmProvider: LlmProvider, // Typically gemini-3-flash
+    private val llmProvider: LlmProvider,
 ) {
     private val logger = LoggerFactory.getLogger(UtilityService::class.java)
 
@@ -29,7 +30,6 @@ class UtilityService(
         if (matcher.find()) {
             val amount = matcher.group(1).toLong()
             val unit = matcher.group(2).lowercase()
-            // Use user's timezone for proper date/time calculation
             val now =
                 java.time.LocalDateTime.now(
                     java.time.ZoneId.of(userTimezone).rules.getOffset(java.time.Instant.now()).let {
@@ -37,7 +37,6 @@ class UtilityService(
                     },
                 )
 
-            // Simplified relative logic
             return when {
                 unit.startsWith("min") -> now.plusMinutes(amount).toString()
                 unit.startsWith("hour") || unit.startsWith("hr") -> now.plusHours(amount).toString()
@@ -46,7 +45,7 @@ class UtilityService(
             }
         }
 
-        // 2. LLM Fallback (Smart)
+        // 2. LLM Fallback (Smart) — uses OpenCode CLI free model
         try {
             val response =
                 llmProvider.generate(
@@ -57,7 +56,6 @@ class UtilityService(
                                 content = "Extract the intended date and time from this text: '$query'. Return ONLY the ISO-8601 string (e.g., 2023-10-25T14:30:00). User is in $userTimezone. If no date, return 'null'.",
                             ),
                         ),
-                    model = "gemini-3-flash",
                 )
             val result = response.content?.trim()
             return if (result == "null") null else result

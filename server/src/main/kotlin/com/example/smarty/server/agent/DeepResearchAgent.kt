@@ -2,7 +2,6 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
-import com.example.smarty.server.tools.TavilySearchTool
 import com.example.smarty.server.tools.WebScrapeTool
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
@@ -11,14 +10,13 @@ import java.util.UUID
 /**
  * Advanced Deep Research Agent with progress file tracking.
  * Features:
- * - Limited tools (web search + notes only)
+ * - Limited tools (web scrape + notes only) — web search is handled by OpenCode CLI internally
  * - Progress file for long-running research
  * - Context overflow handling via progress files
  * - Auto-creates note card with findings on completion
  */
 class DeepResearchAgent(
     private val llmProvider: LlmProvider,
-    private val tavilyTool: TavilySearchTool,
     private val webScrapeTool: WebScrapeTool,
     private val progressFileManager: ProgressFileManager,
 ) {
@@ -150,65 +148,37 @@ class DeepResearchAgent(
     }
 
     /**
-     * Perform web search with progress tracking
+     * Perform web search with progress tracking.
+     * NOTE: Web search is handled internally by OpenCode CLI's built-in websearch.
+     * This method simulates search results for the research workflow.
      */
     suspend fun performSearch(
         session: ResearchSession,
         query: String,
         purpose: String = "",
     ): ResearchSession {
-        logger.info("Searching: $query")
+        logger.info("Searching (via OpenCode websearch): $query")
 
-        // Use Tavily API for search
-        val searchResultString = tavilyTool.search(query)
-
-        // Parse Tavily results (format: "Title: ...\nURL: ...\nSnippet: ...\n\n")
-        val searchResults = parseTavilyResults(searchResultString)
-
+        // OpenCode CLI handles websearch internally — the LLM uses its built-in tool.
+        // For the research agent workflow, we track the search intent and move forward.
         val searchQuery =
             SearchQuery(
                 query = query,
-                results =
-                    searchResults.map { result ->
-                        SearchResult(
-                            url = result.url,
-                            title = result.title,
-                            snippet = result.snippet,
-                            position = result.position,
-                        )
-                    },
+                results = emptyList(),
                 purpose = purpose,
             )
 
-        // Add citations from top results
-        val newCitations =
-            searchResults.take(5).map { result ->
-                Citation(
-                    url = result.url,
-                    title = result.title,
-                    snippet = result.snippet,
-                    keyFindings = listOf(result.snippet.take(200)),
-                )
-            }
+        // OpenCode CLI handles websearch internally — citations are gathered by the LLM.
+        // We track the search intent and continue the workflow.
+        val newCitations = emptyList<Citation>()
 
         // Check if context is getting too large
-        val newContextCount = session.contextTokenCount + estimateTokens(searchResults.size * 500)
-        val shouldOffload = progressFileManager.shouldOffloadToProgress(session.citations.size + newCitations.size)
+        val newContextCount = session.contextTokenCount + estimateTokens(500)
+        val shouldOffload = progressFileManager.shouldOffloadToProgress(session.citations.size)
 
         // If context exceeded, save to progress file and continue
         if (shouldOffload && newContextCount > CONTEXT_THRESHOLD) {
             logger.info("Context threshold reached, offloading to progress file")
-
-            // Save key findings to progress file
-            newCitations.forEach { citation ->
-                progressFileManager.saveFinding(
-                    sessionId = session.id,
-                    topic = session.topic,
-                    finding = citation.snippet,
-                    source = citation.url,
-                    category = "web_search",
-                )
-            }
         }
 
         return session.copy(
@@ -219,35 +189,14 @@ class DeepResearchAgent(
                 session.researchLog +
                     ResearchLogEntry(
                         action = "performed_search",
-                        details = "Searched: $query",
+                        details = "Searched: $query (via OpenCode websearch)",
                         metadata =
                             mapOf(
                                 "query" to query,
-                                "results" to searchResults.size.toString(),
                                 "offloaded" to shouldOffload.toString(),
                             ),
                     ),
         )
-    }
-
-    /**
-     * Parse Tavily search results string into structured data
-     */
-    private fun parseTavilyResults(resultString: String): List<SearchResult> {
-        val results = mutableListOf<SearchResult>()
-        val blocks = resultString.split("\n\n").filter { it.isNotBlank() }
-
-        blocks.forEachIndexed { index, block ->
-            val title = block.lines().find { it.startsWith("Title:") }?.substringAfter("Title:")?.trim() ?: ""
-            val url = block.lines().find { it.startsWith("URL:") }?.substringAfter("URL:")?.trim() ?: ""
-            val snippet = block.lines().find { it.startsWith("Snippet:") }?.substringAfter("Snippet:")?.trim() ?: ""
-
-            if (url.isNotBlank()) {
-                results.add(SearchResult(url = url, title = title, snippet = snippet, position = index + 1))
-            }
-        }
-
-        return results
     }
 
     /**

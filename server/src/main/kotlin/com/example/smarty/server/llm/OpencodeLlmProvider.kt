@@ -162,6 +162,8 @@ class OpencodeLlmProvider(
                                 ?: errorObj?.get("message")?.jsonPrimitive?.contentOrNull
                                 ?: "Unknown OpenCode error"
                             logger.error("OpenCode error event: {}", errorMsg)
+                            // Surface error to the client as content so it's visible in chat
+                            emit(LlmChunk(content = "\n[OpenCode Error: $errorMsg]\n", reasoning = null))
                         }
 
                         else -> {
@@ -186,6 +188,10 @@ class OpencodeLlmProvider(
 
             if (exitCode != 0) {
                 logger.error("OpenCode CLI exited with code $exitCode after $lineCount lines")
+                // Surface non-zero exit as error content if no other content was produced
+                if (lineCount == 0 || eventCount == 0) {
+                    emit(LlmChunk(content = "\n[OpenCode CLI exited with code $exitCode — no output produced]\n", reasoning = null))
+                }
             }
 
             if (accumulatedUsage != null) {

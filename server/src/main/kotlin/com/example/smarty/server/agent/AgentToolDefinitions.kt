@@ -155,37 +155,22 @@ Use for: opening apps, media control, settings, device status.""",
         )
 
     /**
-     * Search tool for web searches.
+     * Search tool — web search is handled natively by OpenCode CLI's built-in websearch.
+     * This tool definition is kept for backward compatibility but returns a directive
+     * for the LLM to use its internal websearch capability.
      */
     val searchTool: ToolDefinition =
         ToolDefinition(
             name = "search",
             description = """Search the internet for information.
-
-ACTIONS:
-- web: Search for anything (query)
-
-PARALLEL SEARCH (RECOMMENDED):
-To run MULTIPLE searches simultaneously, use this format in your query:
-SEARCH: query 1
-SEARCH: query 2
-SEARCH: query 3
-
-This executes all searches in PARALLEL and returns combined results.
-Much faster than sequential searches for research tasks.
-
-EXAMPLES:
-- search(action='web', query='current weather in New York')
-- search(action='web', query='SEARCH: AI advancements 2025\nSEARCH: machine learning breakthroughs\nSEARCH: neural network research')
-- search(action='web', query='SEARCH: best productivity apps\nSEARCH: note-taking apps comparison')
-
+NOTE: Web search is handled internally by the OpenCode CLI. Use your built-in websearch capability directly.
 Use for: web searches, weather, news, facts, current events, research.""",
             parameters =
                 ToolParameters(
                     properties =
                         mapOf(
                             "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
-                            "query" to ToolProperty("string", "What to search for. For multiple parallel searches, use format:\nSEARCH: query 1\nSEARCH: query 2\nSEARCH: query 3"),
+                            "query" to ToolProperty("string", "What to search for"),
                         ),
                     required = listOf("action", "query"),
                 ),

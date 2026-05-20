@@ -3,7 +3,6 @@ package com.example.smarty.server.agent
 import com.example.smarty.server.agent.DeepResearchAgent.TimeoutStatus
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
-import com.example.smarty.server.tools.TavilySearchTool
 import com.example.smarty.server.tools.WebScrapeTool
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
@@ -13,6 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * ADVANCED DEEP RESEARCH AGENT v3.0 - TECHNICAL RESEARCH SPECIALIST EDITION
+ *
+ * NOTE: Web search is handled internally by OpenCode CLI's built-in websearch.
+ * This agent uses web scrape tool for content extraction and OpenCode websearch for discovery.
  *
  * Upgraded with Professional Intelligence Methodologies (2026):
  * - Structured Analytic Techniques (ACH matrix, hypothesis tracking)
@@ -37,7 +39,6 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class AdvancedDeepResearchAgent(
     private val llmProvider: LlmProvider,
-    private val tavilyTool: TavilySearchTool,
     private val webScrapeTool: WebScrapeTool,
     private val progressTracker: ResearchProgressTracker,
 ) {
@@ -660,9 +661,8 @@ class AdvancedDeepResearchAgent(
             withContext(Dispatchers.IO) {
                 queries.map { query ->
                     async {
-                        val resultString = tavilyTool.search(query)
-                        val results = parseSearchResults(resultString, query)
-                        SearchQueryResult(query, results, System.currentTimeMillis() - startTime)
+                        // OpenCode CLI handles websearch internally — track search intent
+                        SearchQueryResult(query, emptyList(), System.currentTimeMillis() - startTime)
                     }
                 }.awaitAll()
             }
@@ -788,13 +788,13 @@ class AdvancedDeepResearchAgent(
                     )
                 }
 
-        // Run deep-dive searches concurrently
+        // Run deep-dive searches concurrently (OpenCode websearch handles internally)
         val searchResults =
             withContext(Dispatchers.IO) {
                 deepDiveQueries.take(MAX_CONCURRENT_SEARCHES).map { query ->
                     async {
-                        val resultString = tavilyTool.search(query)
-                        parseSearchResults(resultString, query)
+                        // OpenCode CLI handles websearch internally
+                        emptyList<SearchResult>()
                     }
                 }.awaitAll()
             }

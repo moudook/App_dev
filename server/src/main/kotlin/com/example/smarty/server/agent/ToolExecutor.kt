@@ -8,7 +8,6 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.tools.KreaImageTool
-import com.example.smarty.server.tools.TavilySearchTool
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -19,11 +18,13 @@ import java.util.UUID
 /**
  * Extracted tool execution logic from ServerAgent.kt
  * Handles all tool execution, parameter parsing, and result formatting
+ *
+ * NOTE: Web search is handled natively by OpenCode CLI's built-in websearch.
+ * The `search` tool returns a directive for the LLM to use its internal websearch.
  */
 class ToolExecutor(
     private val userId: String,
     private val llmProvider: com.example.smarty.server.llm.LlmProvider,
-    private val tavilyTool: TavilySearchTool,
     private val vectorStore: PostgresVectorStore,
     private val noteRepository: NoteRepository?,
     private val timerRepository: TimerRepository?,
@@ -526,12 +527,9 @@ class ToolExecutor(
     private suspend fun executeSearchTool(args: UnifiedToolArgs): String {
         return when (args.action) {
             "web" -> {
-                val searchResult = tavilyTool.search(args.query ?: "")
-                if (searchResult.startsWith("Error")) {
-                    "Search failed: $searchResult"
-                } else {
-                    searchResult
-                }
+                // OpenCode CLI has built-in websearch — the LLM uses it internally.
+                // This tool is a no-op redirect telling the LLM to use its own websearch.
+                "[OpenCode websearch is handled internally by the LLM. Use your built-in websearch tool to search for: ${args.query}]"
             }
             else -> "Unknown search action: ${args.action}"
         }

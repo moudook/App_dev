@@ -1,6 +1,7 @@
 package com.example.smarty.server.services
 
 import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmProviderFactory
 import io.ktor.client.*
 import kotlinx.serialization.Serializable
@@ -8,15 +9,20 @@ import org.slf4j.LoggerFactory
 
 /**
  * Service for processing images and performing OCR.
- * Routes requests through the Antigravity proxy which handles vision AI.
+ * Routes all requests through OpenCode CLI free models.
  *
- * The proxy (at ANTHROPIC_BASE_URL) already has vision capabilities built in.
- * We send image data with prompts and receive processed text/analysis.
+ * Since OpenCode free models are text-only, images are sent as base64 data
+ * embedded in the prompt text. The LLM processes the textual representation.
  */
 class VisionService(
     private val httpClient: HttpClient,
 ) {
     private val logger = LoggerFactory.getLogger(VisionService::class.java)
+
+    // Lazy provider — always OpenCode CLI, no API keys
+    private val llmProvider: LlmProvider by lazy {
+        LlmProviderFactory.create(httpClient)
+    }
 
     companion object {
         private const val IMAGE_BLOCK_TEMPLATE = "[Image: data:%s;base64,%s]"
@@ -69,19 +75,14 @@ class VisionService(
 
     /**
      * Perform OCR on a base64-encoded image.
-     * Sends request through the proxy which handles vision processing.
-     *
-     * @param base64Image Base64-encoded image data
-     * @param mimeType The MIME type (e.g., "image/png")
-     * @return OCR result with extracted text
+     * Routes through OpenCode CLI free models.
      */
     suspend fun performOcr(
         base64Image: String,
         mimeType: String = "image/png",
     ): OcrResult {
-        logger.info("Performing OCR via proxy (type: $mimeType)")
+        logger.info("Performing OCR via OpenCode CLI (type: $mimeType)")
 
-        // Strip data URI prefix if present
         val imageData =
             if (base64Image.contains(",")) {
                 base64Image.substringAfter(",")
@@ -89,10 +90,6 @@ class VisionService(
                 base64Image
             }
 
-        // Create provider that routes through GEMINI
-        val provider = LlmProviderFactory.create(httpClient, "GEMINI")
-
-        // Send image with OCR prompt
         val messages =
             listOf(
                 LlmMessage(
@@ -103,7 +100,7 @@ class VisionService(
 
         return try {
             val response = StringBuilder()
-            provider.stream(messages, emptyList(), null).collect { chunk ->
+            llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
             }
 
@@ -133,14 +130,14 @@ class VisionService(
 
     /**
      * Analyze an image and return a description.
-     * Routes through proxy for vision processing.
+     * Routes through OpenCode CLI free models.
      */
     suspend fun analyzeImage(
         base64Image: String,
         mimeType: String = "image/png",
         customPrompt: String? = null,
     ): ImageAnalysisResult {
-        logger.info("Analyzing image via proxy (type: $mimeType)")
+        logger.info("Analyzing image via OpenCode CLI (type: $mimeType)")
 
         val imageData =
             if (base64Image.contains(",")) {
@@ -149,7 +146,6 @@ class VisionService(
                 base64Image
             }
 
-        val provider = LlmProviderFactory.create(httpClient, "GEMINI")
         val prompt = customPrompt ?: IMAGE_ANALYSIS_PROMPT
 
         val messages =
@@ -162,7 +158,7 @@ class VisionService(
 
         return try {
             val response = StringBuilder()
-            provider.stream(messages, emptyList(), null).collect { chunk ->
+            llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
             }
 

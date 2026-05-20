@@ -21,7 +21,6 @@ import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
-import com.example.smarty.server.tools.TavilySearchTool
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
@@ -107,7 +106,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     // Initialize dependencies (Manual DI for now)
     // In production, use Koin or Dagger
     val vectorStore = PostgresVectorStore()
-    val tavilyTool = TavilySearchTool()
 
     // Default provider - use cached instance for better performance
     val llmProvider = LlmProviderFactory.getOrCreateProvider(httpClient)
@@ -155,7 +153,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val agent =
                         ServerAgent(
                             llmProvider = llmProvider,
-                            tavilyTool = tavilyTool,
                             vectorStore = vectorStore,
                             summarizer = briefingSummarizer,
                             noteRepository = noteRepository,
@@ -398,7 +395,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val agent =
                     ServerAgent(
                         llmProvider = streamProvider,
-                        tavilyTool = tavilyTool,
                         vectorStore = vectorStore,
                         summarizer = streamSummarizer,
                         noteRepository = noteRepository,
@@ -645,7 +641,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val agent =
                         ServerAgent(
                             llmProvider = streamProvider,
-                            tavilyTool = tavilyTool,
                             vectorStore = vectorStore,
                             summarizer = streamSummarizer,
                             noteRepository = noteRepository,
