@@ -120,7 +120,7 @@ class OpencodeLlmProvider(
             setBody(DaemonMessageRequest(
                 message = userMessage,
                 model = buildJsonObject {
-                    put("id", selectedModel)
+                    put("modelID", selectedModel)
                     put("providerID", "opencode")
                 },
                 agent = agentName,
