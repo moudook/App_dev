@@ -129,14 +129,14 @@ object DatabaseFactory {
                     username = dbUser
                     password = dbPassword
                     driverClassName = "org.postgresql.Driver"
-                    maximumPoolSize = 20 // Increased for better concurrency
-                    minimumIdle = 5 // Warm pool of 5 connections for local PostgreSQL
-                    idleTimeout = 300000 // 5 minutes (standard for local DB, not PgBouncer)
-                    connectionTimeout = 30000 // 30 seconds
-                    maxLifetime = 1800000 // 30 minutes (PostgreSQL default, not PgBouncer)
-                    keepaliveTime = 0 // Disabled for local PostgreSQL connections
+                    maximumPoolSize = 5
+                    minimumIdle = 2
+                    idleTimeout = 300000
+                    connectionTimeout = 30000
+                    maxLifetime = 1800000
+                    keepaliveTime = 0
                     connectionTestQuery = "SELECT 1"
-                    leakDetectionThreshold = 120000 // 2 minutes
+                    leakDetectionThreshold = 120000
                     addDataSourceProperty("prepareThreshold", "0")
                     addDataSourceProperty("cachePrepStmts", "true")
                     addDataSourceProperty("prepStmtCacheSize", "250")

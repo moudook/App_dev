@@ -73,19 +73,15 @@ import com.example.smarty.server.routes.configureUserDeviceRoutes
 import io.ktor.server.plugins.callid.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.auth.*
-import io.ktor.server.metrics.micrometer.*
 import io.ktor.server.routing.*
-import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.minutes
 
 /**
  * Server port. Can be overridden via SERVER_PORT environment variable.
  */
 private val serverPort = System.getenv("SERVER_PORT")?.toIntOrNull() ?: 7860
-private val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 val serverStartTime = System.currentTimeMillis()
 
 fun main() {
@@ -150,26 +146,15 @@ fun Application.module() {
     // Configure Security Monitoring
     configureSecurityMonitoring()
 
-    // Configure Rate Limiting - Per-user to prevent abuse
+    // Configure Rate Limiting - Simplified for low-memory environment
     install(RateLimit) {
-        // Chat endpoints - more generous for real-time interaction
         register(RateLimitName("chat")) {
             rateLimiter(limit = 120, refillPeriod = 1.minutes)
             requestKey { call ->
-                // Use User ID from Firebase auth, fallback to IP
                 call.principal<FirebaseUserPrincipal>()?.userId
                     ?: call.request.local.remoteHost
             }
         }
-        // Processing endpoints - more restrictive (expensive operations)
-        register(RateLimitName("processing")) {
-            rateLimiter(limit = 30, refillPeriod = 1.minutes)
-            requestKey { call ->
-                call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: call.request.local.remoteHost
-            }
-        }
-        // Global fallback for unregistered routes
         global {
             rateLimiter(limit = 100, refillPeriod = 1.minutes)
             requestKey { call ->
@@ -179,18 +164,13 @@ fun Application.module() {
         }
     }
 
-    // Configure Micrometer Metrics
-    install(MicrometerMetrics) {
-        registry = prometheusRegistry
-    }
-
     // Configure JSON serialization
     install(ContentNegotiation) {
         json(
             Json {
-                prettyPrint = true
                 isLenient = true
                 ignoreUnknownKeys = true
+                explicitNulls = false
             },
         )
     }
@@ -198,7 +178,7 @@ fun Application.module() {
     // Configure SSE plugin for streaming
     install(SSE)
 
-    // Initialize Digest System
+    // Initialize core services — single pass, no duplicates
     val ds = DatabaseFactory.getDataSource()
     var digestService: DigestService? = null
     var digestScheduler: DigestScheduler? = null
@@ -206,149 +186,103 @@ fun Application.module() {
     if (ds != null) {
         val chatMessageNotesRepo = ChatMessageNotesRepository(ds)
         val calendarEventNotesRepo = CalendarEventNotesRepository(ds)
+        val chatRepo = ChatRepository(ds, chatMessageNotesRepo)
 
-        digestService =
-            DigestService(
-                dataSource = ds,
-                chatRepository = ChatRepository(ds, chatMessageNotesRepo),
-                vectorStore = PostgresVectorStore(),
-                llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-            )
+        digestService = DigestService(
+            dataSource = ds,
+            chatRepository = chatRepo,
+            vectorStore = PostgresVectorStore(),
+            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
+        )
 
         val fcmService = FcmNotificationService.fromEnvironment(ds)
-
-        digestScheduler =
-            DigestScheduler(
-                application = this,
-                dataSource = ds,
-                digestService = digestService,
-                fcmService = fcmService,
-            )
-        digestScheduler.start()
-    }
-
-    // Initialize Services
-    val contentAnalysisService = com.example.smarty.server.services.ContentAnalysisService(
-        HttpClientSingleton.client,
-        com.example.smarty.server.services.VisionService(HttpClientSingleton.client)
-    )
-    val adaptiveSearchService = com.example.smarty.server.services.AdaptiveSearchService()
-
-    val chatMessageNotesRepo = if (ds != null) ChatMessageNotesRepository(ds) else null
-    val calendarEventNotesRepo = if (ds != null) CalendarEventNotesRepository(ds) else null
-    val noteRepository = if (ds != null && chatMessageNotesRepo != null && calendarEventNotesRepo != null) {
-        NoteRepository(ds, chatMessageNotesRepo, calendarEventNotesRepo)
-    } else null
-
-    val noteService = if (noteRepository != null) {
-        com.example.smarty.server.services.NoteService(
-            noteRepository,
-            contentAnalysisService,
-            PostgresVectorStore(),
-            adaptiveSearchService
+        digestScheduler = DigestScheduler(
+            application = this,
+            dataSource = ds,
+            digestService = digestService,
+            fcmService = fcmService,
         )
-    } else null
+        digestScheduler.start()
 
-    // Configure routes
-    configureHealthRoutes()
-    configureChatRoutes(noteService) // Pass noteService for ToolExecutor
-    configureProcessingRoutes()
-    configureHandshakeRoutes()
-    configureDataRoutes(noteService)
+        val noteRepo = NoteRepository(ds, chatMessageNotesRepo, calendarEventNotesRepo)
+        val noteService = com.example.smarty.server.services.NoteService(
+            noteRepo,
+            com.example.smarty.server.services.ContentAnalysisService(
+                HttpClientSingleton.client,
+                VisionService(HttpClientSingleton.client)
+            ),
+            PostgresVectorStore(),
+            com.example.smarty.server.services.AdaptiveSearchService()
+        )
 
-    // Configure v6.0.0 new features routes (Tasks, Tags, Notifications, Folders)
-    if (ds != null) {
+        // Configure routes
+        configureHealthRoutes()
+        configureChatRoutes(noteService)
+        configureProcessingRoutes()
+        configureHandshakeRoutes()
+        configureDataRoutes(noteService)
+
         val taskRepo = TaskRepository(ds)
         val tagRepo = TagRepository(ds)
         val notificationRepo = NotificationRepository(ds)
         val chatFolderRepo = ChatFolderRepository(ds)
         configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
-    }
 
-    val deepResearchAgent =
-        com.example.smarty.server.agent.DeepResearchAgent(
-            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-            webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+        val deepResearchAgent = com.example.smarty.server.agent.DeepResearchAgent(
+            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
+            webScrapeTool = WebScrapeTool(),
             progressFileManager = com.example.smarty.server.agent.ProgressFileManager(),
         )
 
-    val advancedDeepResearchAgent =
-        com.example.smarty.server.agent.AdvancedDeepResearchAgent(
-            llmProvider = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-            webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+        val advancedDeepResearchAgent = com.example.smarty.server.agent.AdvancedDeepResearchAgent(
+            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
+            webScrapeTool = WebScrapeTool(),
             progressTracker = com.example.smarty.server.agent.ResearchProgressTracker(),
         )
 
-    configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
-    configureOptimizedSyncRoutes()
-    configureSyncRoutes()
+        configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
+        configureOptimizedSyncRoutes()
+        configureSyncRoutes()
 
-    // Initialize Reasoning Service
-    val reasoningService =
-        if (ds != null) {
-            val reasoningRepo = ReasoningTraceRepository(ds)
-            ReasoningService(reasoningRepo)
-        } else {
-            null
-        }
-
-    // Configure Reasoning Routes
-    if (reasoningService != null) {
-        routing {
-            configureReasoningRoutes(reasoningService)
-        }
+        val reasoningRepo = ReasoningTraceRepository(ds)
+        val reasoningService = ReasoningService(reasoningRepo)
+        routing { configureReasoningRoutes(reasoningService) }
         log.info("ReasoningRoutes configured with ReasoningService")
-    }
 
-    // Initialize Utility Service
-    val utilityService = UtilityService(LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client))
+        val utilityService = UtilityService(LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client))
+        configureUtilityRoutes(utilityService)
+        log.info("UtilityRoutes configured")
 
-    // Initialize Orchestrator Service (The Brain - routes requests to appropriate services)
-    val orchestratorService =
-        if (ds != null) {
-            OrchestratorService(
-                visionService = VisionService(HttpClientSingleton.client),
-                kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
-            )
-        } else {
-            null
-        }
-
-    // Initialize Search History Repository
-    val searchHistoryRepository = if (ds != null) SearchHistoryRepository(ds) else null
-
-    // Initialize User Device Repository
-    val userDeviceRepository = if (ds != null) UserDeviceRepository(ds) else null
-
-    // Configure Utility Routes (ENABLED)
-    configureUtilityRoutes(utilityService)
-    log.info("UtilityRoutes configured")
-
-    // Configure Orchestrator Routes (ENABLED)
-    if (orchestratorService != null) {
+        val orchestratorService = OrchestratorService(
+            visionService = VisionService(HttpClientSingleton.client),
+            kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
+        )
         configureOrchestratorRoutes(orchestratorService)
         log.info("OrchestratorRoutes configured")
-    }
 
-    // Configure Search History Routes (ENABLED)
-    if (searchHistoryRepository != null) {
-        configureSearchHistoryRoutes(searchHistoryRepository)
+        val searchHistoryRepo = SearchHistoryRepository(ds)
+        configureSearchHistoryRoutes(searchHistoryRepo)
         log.info("SearchHistoryRoutes configured")
-    }
 
-    // Configure User Device Routes (ENABLED)
-    if (userDeviceRepository != null) {
-        configureUserDeviceRoutes(userDeviceRepository)
+        val userDeviceRepo = UserDeviceRepository(ds)
+        configureUserDeviceRoutes(userDeviceRepo)
         log.info("UserDeviceRoutes configured")
+
+        configureDigestRoutes(digestService, digestScheduler, ds)
+    } else {
+        configureHealthRoutes()
+        configureProcessingRoutes()
+        configureHandshakeRoutes()
+        configureOptimizedSyncRoutes()
+        configureSyncRoutes()
     }
 
-    // Configure Image Serving Endpoint
+    // Image serving endpoint
     routing {
         get("/generated-images/{id}") {
             val providedApiKey = call.parameters["apiKey"]
             val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
 
-            // Verify API key if provided, otherwise allow for development
             if (providedApiKey != expectedApiKey && providedApiKey != null) {
                 call.respondText("{\"error\": \"Invalid API key\"}", ContentType.Application.Json, HttpStatusCode.Unauthorized)
                 return@get
@@ -360,7 +294,6 @@ fun Application.module() {
                 return@get
             }
 
-            // FIX: Validate imageId is a valid UUID to prevent path traversal
             try {
                 java.util.UUID.fromString(imageId)
             } catch (e: IllegalArgumentException) {
@@ -383,7 +316,6 @@ fun Application.module() {
                     return@get
                 }
 
-                // Verify image ownership when API key is not provided
                 if (providedApiKey == null) {
                     val storedImage = imageRepo.getById(imageId)
                     if (storedImage == null) {
@@ -392,26 +324,20 @@ fun Application.module() {
                     }
                 }
 
-                // Serve the image bytes with appropriate content type
                 val (bytes, contentType) = imageData
-                val mimeType =
-                    when {
-                        contentType.contains("png") -> ContentType.Image.PNG
-                        contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
-                        contentType.contains("gif") -> ContentType.Image.GIF
-                        contentType.contains("webp") -> ContentType("image", "webp")
-                        else -> ContentType.Image.Any
-                    }
+                val mimeType = when {
+                    contentType.contains("png") -> ContentType.Image.PNG
+                    contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
+                    contentType.contains("gif") -> ContentType.Image.GIF
+                    contentType.contains("webp") -> ContentType("image", "webp")
+                    else -> ContentType.Image.Any
+                }
                 call.respondBytes(bytes, mimeType)
             } catch (e: Exception) {
                 call.application.log.error("Failed to serve image", e)
                 call.respondText("{\"error\": \"Failed to serve image\"}", ContentType.Application.Json, HttpStatusCode.InternalServerError)
             }
         }
-    }
-
-    if (digestService != null && digestScheduler != null && ds != null) {
-        configureDigestRoutes(digestService, digestScheduler, ds!!)
     }
 
     // Configure Monitoring

@@ -13,7 +13,7 @@ object HttpClientSingleton {
 
     val client: HttpClient by lazy {
         logger.info("Initializing shared HTTP client instance")
-        HttpClientFactory.createLongTimeout()
+        HttpClientFactory.createDefault()
     }
 
     fun close() {
