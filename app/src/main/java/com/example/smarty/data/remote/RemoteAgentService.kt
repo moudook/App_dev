@@ -42,6 +42,25 @@ class RemoteAgentService(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /**
+     * Decode an SSE event into the correct AgentEvent subclass.
+     * The server sends the type in the SSE `event:` field, NOT in the JSON data.
+     */
+    private fun decodeAgentEvent(eventType: String, data: String): AgentEvent {
+        return when (eventType) {
+            "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
+            "tool_call" -> json.decodeFromString<AgentEvent.ToolCall>(data)
+            "result" -> json.decodeFromString<AgentEvent.Result>(data)
+            "error" -> json.decodeFromString<AgentEvent.Error>(data)
+            "command" -> json.decodeFromString<AgentEvent.Command>(data)
+            "state_sync" -> json.decodeFromString<AgentEvent.StateSync>(data)
+            "tool_blocked" -> json.decodeFromString<AgentEvent.ToolBlocked>(data)
+            "question" -> json.decodeFromString<AgentEvent.Question>(data)
+            "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
+            else -> json.decodeFromString<AgentEvent.Processing>(data)
+        }
+    }
+
     private val _connectionState = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
 
@@ -132,7 +151,8 @@ class RemoteAgentService(
                         incoming.collect { event ->
                             val data = event.data ?: return@collect
                             try {
-                                val agentEvent = json.decodeFromString<AgentEvent>(data)
+                                val eventType = event.event ?: "processing"
+                                val agentEvent = decodeAgentEvent(eventType, data)
                                 val shouldStop = handleEvent(agentEvent, this@flow)
                                 if (shouldStop) {
                                     throw EndStreamException()

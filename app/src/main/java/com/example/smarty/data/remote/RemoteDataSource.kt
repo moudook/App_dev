@@ -18,6 +18,8 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import kotlinx.coroutines.tasks.await
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class RemoteDataSource(
     private val client: HttpClient,
@@ -94,10 +96,10 @@ class RemoteDataSource(
                             contentType(ContentType.Application.Json)
                             // DELTA SYNC: Send lastSyncAt timestamp
                             setBody(
-                                mapOf(
-                                    "lastSyncAt" to (lastSyncAt ?: 0L),
-                                    "limit" to limit,
-                                ),
+                                buildJsonObject {
+                                    put("lastSyncAt", lastSyncAt ?: 0L)
+                                    put("limit", limit)
+                                },
                             )
                         }
 
