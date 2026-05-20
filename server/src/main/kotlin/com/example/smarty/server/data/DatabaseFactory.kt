@@ -44,11 +44,39 @@ object DatabaseFactory {
                     val migrationSql = BufferedReader(InputStreamReader(migrationStream)).use { it.readText() }
 
                     conn.createStatement().use { stmt ->
-                        // Split by semicolon but ignore semicolons inside strings/comments
-                        val statements =
-                            migrationSql.split(Regex(";\\s*(?!--|/\\*|$)"))
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() && !it.startsWith("--") }
+                        val statements = mutableListOf<String>()
+                        var inDollarBlock = false
+                        val currentStmt = StringBuilder()
+
+                        for (line in migrationSql.lines()) {
+                            // Track whether we are inside a $$ ... $$ block
+                            if (line.contains("$$")) {
+                                var idx = 0
+                                while (true) {
+                                    idx = line.indexOf("$$", idx)
+                                    if (idx == -1) break
+                                    inDollarBlock = !inDollarBlock
+                                    idx += 2
+                                }
+                            }
+
+                            currentStmt.append(line).append("\n")
+
+                            // Split statement only if we are outside a $$ block and line ends with semicolon
+                            if (!inDollarBlock && line.trimEnd().endsWith(";")) {
+                                val sql = currentStmt.toString().trim()
+                                if (sql.isNotEmpty() && !sql.startsWith("--")) {
+                                    statements.add(sql)
+                                }
+                                currentStmt.clear()
+                            }
+                        }
+                        
+                        // Add any remaining statement
+                        val remaining = currentStmt.toString().trim()
+                        if (remaining.isNotEmpty() && !remaining.startsWith("--")) {
+                            statements.add(remaining)
+                        }
 
                         var applied = 0
                         statements.forEach { sql ->
