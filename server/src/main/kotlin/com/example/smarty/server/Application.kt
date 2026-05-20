@@ -94,8 +94,8 @@ fun main() {
 }
 
 fun Application.module() {
-    // Verify OpenCode CLI is installed and accessible
-    verifyOpenCodeCli()
+    // Discover OpenCode free models at startup (blocking, runs `opencode models`)
+    com.example.smarty.server.llm.OpencodeModelRegistry.discoverAtStartup()
 
     // Initialize Database
     DatabaseFactory.init()
@@ -441,36 +441,4 @@ fun Application.configureSecurityMonitoring() {
     logger.info("  - SecurityMonitor: Security event tracking and monitoring")
 }
 
-private fun verifyOpenCodeCli() {
-    val logger = org.slf4j.LoggerFactory.getLogger("OpenCodeStartup")
-    logger.info("[OpenCodeStartup] Verifying OpenCode CLI installation...")
 
-    try {
-        val process = ProcessBuilder("opencode", "--version")
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        val completed = process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
-
-        if (completed && process.exitValue() == 0) {
-            logger.info("[OpenCodeStartup] OpenCode CLI found — version: {}", output.trim())
-        } else {
-            logger.warn("[OpenCodeStartup] OpenCode CLI returned exit code ${process.exitValue()} — output: {}", output.trim())
-        }
-    } catch (e: Exception) {
-        logger.error("[OpenCodeStartup] OpenCode CLI not found or failed to execute: {}", e.message)
-    }
-
-    // Log environment variables
-    logger.info("[OpenCodeStartup] Environment: OPENCODE_AGENT={}, OPENCODE_MODEL={}, LLM_MODEL_ID={}",
-        System.getenv("OPENCODE_AGENT") ?: "(default: smarty-headless-agent)",
-        System.getenv("OPENCODE_MODEL") ?: "(not set)",
-        System.getenv("LLM_MODEL_ID") ?: "(not set)")
-
-    // Log model registry state
-    val modelState = com.example.smarty.server.llm.OpencodeModelRegistry.currentState()
-    logger.info("[OpenCodeStartup] Model registry — default: {}, active: {}, source: {}, models: {}",
-        modelState.defaultModel, modelState.activeModel, modelState.source, modelState.models.size)
-
-    logger.info("[OpenCodeStartup] OpenCode CLI verification complete — lazy init on first request")
-}

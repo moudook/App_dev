@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 class OpencodeLlmProvider(
     private val client: HttpClient,
     override val providerName: String = "OpenCode CLI",
-    private val defaultModel: String = OpencodeModelRegistry.DEFAULT_MODEL,
+    private val defaultModel: String = OpencodeModelRegistry.defaultModel,
     private val daemonPort: Int = 4096,
     private val daemonHost: String = "127.0.0.1",
 ) : LlmProvider {
