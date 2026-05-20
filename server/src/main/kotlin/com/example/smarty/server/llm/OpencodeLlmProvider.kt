@@ -101,6 +101,12 @@ class OpencodeLlmProvider(
             while (reader.readLine().also { line = it } != null) {
                 lineCount++
                 val current = line?.trim().orEmpty()
+
+                // Log raw JSON for debugging (first 200 chars)
+                if (current.startsWith('{')) {
+                    logger.info("RAW JSON [{}]: {}", lineCount, current.take(200))
+                }
+
                 if (current.isEmpty() || !current.startsWith('{')) continue
 
                 runCatching {
@@ -166,28 +172,18 @@ class OpencodeLlmProvider(
         model: String,
         sessionId: String,
     ) = withContext(Dispatchers.IO) {
-        val workDir =
-            File(System.getProperty("user.dir"), "_temp/opencode")
-                .apply { mkdirs() }
+        val workDir = File(System.getProperty("user.dir"), "_temp/opencode").apply { mkdirs() }
 
-        val command = mutableListOf<String>()
-        command += OpencodeModelRegistry.resolveCommand(System.getenv("OPENCODE_BINARY")?.takeIf { it.isNotBlank() } ?: "opencode")
-        command += listOf("run")
+        // Write prompt to temp file to avoid shell arg limits on Linux
+        val promptFile = File(workDir, "prompt_${sessionId}.txt")
+        promptFile.writeText(prompt, Charsets.UTF_8)
 
-        if (isDaemonRunning()) {
-            command += listOf("--attach", daemonBaseUrl)
-        }
-
-        command += listOf(
-            "--agent", agentName,
-            "--model", model,
-            "--format", "json",
-            "--session", sessionId,
-            "--dangerously-skip-permissions",
+        val command = listOf(
+            "bash", "-c",
+            "opencode run --agent $agentName --model $model --format json --session $sessionId --dangerously-skip-permissions < '${promptFile.absolutePath}'"
         )
-        command += prompt
 
-        logger.info("OpenCode CLI: {} [prompt: {} chars]", command.take(10).joinToString(" "), prompt.length)
+        logger.info("OpenCode CLI: {} [prompt file: {} ({} chars)]", command.first(), promptFile.absolutePath, prompt.length)
 
         ProcessBuilder(command)
             .directory(workDir)

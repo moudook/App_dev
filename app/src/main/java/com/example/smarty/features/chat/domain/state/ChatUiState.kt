@@ -4,6 +4,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.MentionState
 
+val DEFAULT_FREE_MODELS = listOf(
+    "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
+    "opencode/minimax-m2.5-free" to "MiniMax M2.5 Free",
+    "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
+    "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
+    "opencode/big-pickle" to "Big Pickle",
+)
+
 /**
  * UI-specific state for chat screen.
  * Separated from domain state to avoid leaking UI concerns.
@@ -33,7 +41,7 @@ data class ChatUiState(
     val autoSendActive: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val selectedModel: String = "opencode/deepseek-v4-flash-free",
-    val availableModels: List<Pair<String, String>> = emptyList()
+    val availableModels: List<Pair<String, String>> = DEFAULT_FREE_MODELS
 ) {
     val canSend: Boolean = inputText.text.isNotEmpty() || attachments.isNotEmpty()
     val hasActiveFilters: Boolean = selectedFilters.isNotEmpty()
