@@ -53,7 +53,7 @@ FROM eclipse-temurin:17-jre-alpine
 RUN apk add --no-cache nodejs npm bash
 
 # Install OpenCode CLI globally
-RUN npm install -g @opencode-ai/cli
+RUN npm install -g opencode-ai
 
 # Security: non-root user (HF Spaces uses UID 1000)
 RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
