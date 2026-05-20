@@ -96,11 +96,15 @@ class ChatViewModel(
         // Set initial state from cached preferences
         val initialModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
         val initialCachedModels = securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
+        
+        Log.d(TAG, "ViewModel init: initialModel=$initialModel, cachedModels=${initialCachedModels.size}")
+        
         val fallbackModels = if (initialCachedModels.isNotEmpty()) {
             initialCachedModels
         } else {
             com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
         }
+        
         _uiState.update { 
             it.copy(
                 selectedModel = initialModel,
@@ -111,19 +115,37 @@ class ChatViewModel(
         // Fetch latest dynamic list of models from backend
         viewModelScope.launch {
             try {
+                Log.d(TAG, "Fetching dynamic models from server...")
                 val dynamicModels = remoteAgentService.getOpencodeModels(refresh = true)
+                Log.d(TAG, "Server returned ${dynamicModels.size} models: $dynamicModels")
+                
                 if (dynamicModels.isNotEmpty()) {
                     securePreferences.setCachedModels(dynamicModels)
-                    val activeModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
+                    
+                    // Validate current selected model is still in the list
+                    val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
+                    val activeModel = if (dynamicModels.any { it.first == currentModel }) {
+                        currentModel
+                    } else {
+                        // Selected model no longer available, use first from server
+                        dynamicModels.first().first.also { 
+                            securePreferences.setSelectedModel(AIConnection.LOCAL_PC, it)
+                        }
+                    }
+                    
                     _uiState.update { 
                         it.copy(
                             selectedModel = activeModel,
                             availableModels = dynamicModels
                         )
                     }
+                    Log.d(TAG, "Models updated: selected=$activeModel, available=${dynamicModels.size}")
+                } else {
+                    Log.w(TAG, "Server returned empty model list, keeping cached models")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize opencode models: ${e.message}")
+                Log.e(TAG, "Failed to initialize opencode models: ${e.message}", e)
+                // Keep using cached models - don't fall back to defaults unless cache is also empty
             }
         }
     }

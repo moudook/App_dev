@@ -90,6 +90,11 @@ fun Application.configureHealthRoutes() {
                 } else {
                     OpencodeModelRegistry.currentState()
                 }
+            
+            // Log what we're returning
+            call.application.log.info("[ModelsAPI] Returning {} models: {}", 
+                state.models.size, state.models.map { it.id })
+            
             call.respond(state)
         }
 

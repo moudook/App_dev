@@ -261,28 +261,60 @@ class RemoteAgentService(
 
     /**
      * Fetch available OpenCode models from the server.
+     * Returns list of (modelId, label) pairs.
+     * Falls back to cached models if server call fails.
      */
     suspend fun getOpencodeModels(refresh: Boolean = false): List<Pair<String, String>> {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
+            
+            Log.d(TAG, "Fetching opencode models: refresh=$refresh, url=$baseUrl/api/v1/opencode/models")
+            
             val response = client.get("$baseUrl/api/v1/opencode/models") {
                 if (token != null) {
                     header(HttpHeaders.Authorization, "Bearer $token")
                 }
                 parameter("refresh", refresh)
             }
+            
+            Log.d(TAG, "Models API response status: ${response.status}")
+            
             if (response.status.isSuccess()) {
                 val body = response.bodyAsText()
+                Log.d(TAG, "Models API response body (first 500 chars): ${body.take(500)}")
+                
                 val jsonObject = com.google.gson.JsonParser.parseString(body).asJsonObject
-                val modelsArray = jsonObject.getAsJsonArray("models")
-                val resultList = mutableListOf<Pair<String, String>>()
-                for (element in modelsArray) {
-                    val mObj = element.asJsonObject
-                    val id = mObj.get("id").asString
-                    val label = mObj.get("label").asString
-                    resultList.add(id to label)
+                
+                // Check if models array exists
+                if (!jsonObject.has("models")) {
+                    Log.e(TAG, "Response missing 'models' field: ${body.take(200)}")
+                    return emptyList()
                 }
+                
+                val modelsArray = jsonObject.getAsJsonArray("models")
+                Log.d(TAG, "Models array size: ${modelsArray.size()}")
+                
+                val resultList = mutableListOf<Pair<String, String>>()
+                for (i in 0 until modelsArray.size()) {
+                    val element = modelsArray.get(i)
+                    if (element.isJsonObject) {
+                        val mObj = element.asJsonObject
+                        val id = mObj.get("id")?.asString
+                        val label = mObj.get("label")?.asString
+                        
+                        if (id != null && label != null) {
+                            resultList.add(id to label)
+                            Log.d(TAG, "  Model[$i]: $id -> $label")
+                        } else {
+                            Log.w(TAG, "  Model[$i] missing id or label: $element")
+                        }
+                    } else {
+                        Log.w(TAG, "  Model[$i] is not a JSON object: $element")
+                    }
+                }
+                
+                Log.d(TAG, "Successfully parsed ${resultList.size} models from server")
                 resultList
             } else {
                 Log.e(TAG, "Failed to fetch opencode models: ${response.status}")

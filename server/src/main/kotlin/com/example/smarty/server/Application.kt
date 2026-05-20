@@ -54,6 +54,7 @@ import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.data.UserDeviceRepository
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
+import com.example.smarty.server.routes.configureModelRoutes
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -268,6 +269,9 @@ fun Application.module() {
         configureUserDeviceRoutes(userDeviceRepo)
         log.info("UserDeviceRoutes configured")
 
+        configureModelRoutes()
+        log.info("ModelRoutes configured")
+
         configureDigestRoutes(digestService, digestScheduler, ds)
     } else {
         configureHealthRoutes()
@@ -275,6 +279,7 @@ fun Application.module() {
         configureHandshakeRoutes()
         configureOptimizedSyncRoutes()
         configureSyncRoutes()
+        configureModelRoutes()
     }
 
     // Image serving endpoint
