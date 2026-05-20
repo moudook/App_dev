@@ -119,7 +119,7 @@ class OpencodeLlmProvider(
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 message = userMessage,
-                model = selectedModel,
+                model = buildJsonObject { put("id", selectedModel) },
                 agent = agentName,
                 system = systemPrompt,
                 tools = if (toolDefs.isNotEmpty()) toolDefs else null,
@@ -307,7 +307,7 @@ private data class DaemonSessionResponse(
 @Serializable
 private data class DaemonMessageRequest(
     val message: String,
-    val model: String? = null,
+    val model: JsonObject? = null,
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
