@@ -104,21 +104,25 @@ class OpencodeLlmProvider(
         var lineCount = 0
         var eventCount = 0
 
+        logger.info("[OpenCode] === SSE STREAM STARTED ===")
+
         while (!channel.isClosedForRead) {
             val line = channel.readUTF8Line() ?: break
             lineCount++
 
-            if (lineCount <= 10) {
-                logger.debug("[OpenCode] SSE raw line #{}: '{}'", lineCount, line.take(200))
-            }
+            // Log EVERY line for debugging
+            logger.debug("[OpenCode] SSE LINE #{}: '{}'", lineCount, line.take(500))
 
             if (line.isEmpty()) {
                 if (currentData.isNotEmpty()) {
                     val eventType = currentEvent ?: "message"
                     eventCount++
+                    logger.info("[OpenCode] SSE EVENT #{}: type='{}', data={} chars", eventCount, eventType, currentData.length)
                     processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
                         totalChars = chars
                     }
+                } else {
+                    logger.debug("[OpenCode] SSE: empty line (no data to process)")
                 }
                 currentEvent = null
                 currentData = StringBuilder()
@@ -127,31 +131,37 @@ class OpencodeLlmProvider(
 
             if (line.startsWith("event:")) {
                 currentEvent = line.substringAfter("event:").trim()
+                logger.debug("[OpenCode] SSE: event type set to '{}'", currentEvent)
             } else if (line.startsWith("data:")) {
                 val data = line.substringAfter("data:").trim()
                 if (data.isNotEmpty()) {
                     if (currentData.isNotEmpty()) currentData.append("\n")
                     currentData.append(data)
+                    logger.debug("[OpenCode] SSE: data appended ({} chars total)", currentData.length)
                 }
             } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
-                // Skip SSE metadata and comments
+                logger.debug("[OpenCode] SSE: skipping metadata/comment line")
             } else if (line.startsWith("{")) {
-                // Daemon may return plain JSON error (not wrapped in SSE) — process directly
+                logger.info("[OpenCode] SSE: raw JSON line detected (not SSE-wrapped)")
                 processSseEvent("message", line, totalChars)?.let { chars ->
                     totalChars = chars
                 }
+            } else {
+                logger.debug("[OpenCode] SSE: unrecognized line format: '{}'", line.take(100))
             }
         }
 
         if (currentData.isNotEmpty()) {
             val eventType = currentEvent ?: "message"
             eventCount++
+            logger.info("[OpenCode] SSE FINAL EVENT: type='{}', data={} chars", eventType, currentData.length)
             processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
                 totalChars = chars
             }
         }
 
-        logger.info("[OpenCode] SSE stream read — {} lines, {} events, {} chars, {}ms elapsed", lineCount, eventCount, totalChars, System.currentTimeMillis() - streamStartTime)
+        logger.info("[OpenCode] === SSE STREAM COMPLETE ===")
+        logger.info("[OpenCode] SSE stats: {} lines, {} events, {} chars, {}ms elapsed", lineCount, eventCount, totalChars, System.currentTimeMillis() - streamStartTime)
         val streamDuration = System.currentTimeMillis() - streamStartTime
         logger.info("[OpenCode] stream() completed — {} chars, {}ms elapsed", totalChars, streamDuration)
         logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
@@ -164,9 +174,12 @@ class OpencodeLlmProvider(
     ): Int? {
         var runningTotal = totalChars
 
-        if (data.isBlank()) return runningTotal
+        if (data.isBlank()) {
+            logger.debug("[OpenCode] processSseEvent: blank data, skipping")
+            return runningTotal
+        }
 
-        logger.debug("[OpenCode] SSE event: '{}' — data: {}", eventType, data.take(300))
+        logger.info("[OpenCode] processSseEvent: type='{}', data={} chars, preview='{}'", eventType, data.length, data.take(150))
 
         // Check for daemon error response (plain JSON, not SSE-wrapped)
         // Daemon errors come as {"name":"XxxError","data":{"message":"..."}}
@@ -177,50 +190,98 @@ class OpencodeLlmProvider(
             name.endsWith("Error") || name.endsWith("Request")
         }.getOrDefault(false)
         if (isDaemonError) {
-            logger.error("[OpenCode] Daemon error: {}", data.take(500))
+            logger.error("[OpenCode] Daemon error detected: {}", data.take(500))
             return runningTotal
         }
 
         if (data.startsWith("{")) {
-            val part = runCatching { daemonJson.decodeFromString<DaemonPart>(data) }.getOrNull()
-            if (part != null) {
-                return when (part.type) {
-                    "text" -> {
-                        val text = part.text ?: return runningTotal
-                        runningTotal += text.length
-                        emit(LlmChunk(content = text, reasoning = null))
-                        runningTotal
-                    }
-                    "reasoning" -> {
-                        val reasoning = part.text ?: return runningTotal
-                        emit(LlmChunk(content = null, reasoning = reasoning))
-                        runningTotal
-                    }
-                    "tool_use", "tool" -> {
-                        val toolName = part.name ?: "unknown"
-                        val toolInput = part.input?.toString() ?: ""
-                        emit(LlmChunk(content = null, toolCall = LlmToolCall(
-                            id = "tool-${System.currentTimeMillis()}",
-                            functionName = toolName,
-                            arguments = toolInput,
-                        )))
-                        runningTotal
-                    }
-                    else -> {
-                        logger.debug("[OpenCode] Part type '{}' not handled", part.type)
-                        runningTotal
-                    }
+            // Parse the JSON to determine event type
+            val jsonElement = runCatching { 
+                Json.parseToJsonElement(data) 
+            }.onFailure { e ->
+                logger.warn("[OpenCode] Failed to parse JSON: {}", e.message)
+            }.getOrNull()
+            
+            if (jsonElement is JsonObject) {
+                logger.debug("[OpenCode] JSON keys: {}", jsonElement.keys)
+                
+                // Check for "info" event (metadata) - skip it
+                if (jsonElement.containsKey("info")) {
+                    logger.info("[OpenCode] Skipping 'info' event (metadata)")
+                    return runningTotal
                 }
-            }
 
-            val toolCall = runCatching { daemonJson.decodeFromString<DaemonToolCall>(data) }.getOrNull()
-            if (toolCall != null && toolCall.name != null) {
-                emit(LlmChunk(content = null, toolCall = LlmToolCall(
-                    id = toolCall.id ?: "tool-${System.currentTimeMillis()}",
-                    functionName = toolCall.name,
-                    arguments = toolCall.input?.toString() ?: "",
-                )))
-                return runningTotal
+                // Check for "type" field (DaemonPart format)
+                val part = runCatching { 
+                    daemonJson.decodeFromString<DaemonPart>(data) 
+                }.onFailure { e ->
+                    logger.debug("[OpenCode] Failed to parse as DaemonPart: {}", e.message)
+                }.getOrNull()
+                
+                if (part != null) {
+                    logger.info("[OpenCode] Parsed as DaemonPart: type='{}', text={} chars", part.type, part.text?.length ?: 0)
+                    return when (part.type) {
+                        "text" -> {
+                            val text = part.text ?: run {
+                                logger.warn("[OpenCode] DaemonPart type='text' but no text field")
+                                return runningTotal
+                            }
+                            runningTotal += text.length
+                            logger.info("[OpenCode] Emitting text chunk: {} chars", text.length)
+                            emit(LlmChunk(content = text, reasoning = null))
+                            runningTotal
+                        }
+                        "reasoning" -> {
+                            val reasoning = part.text ?: run {
+                                logger.warn("[OpenCode] DaemonPart type='reasoning' but no text field")
+                                return runningTotal
+                            }
+                            logger.info("[OpenCode] Emitting reasoning chunk: {} chars", reasoning.length)
+                            emit(LlmChunk(content = null, reasoning = reasoning))
+                            runningTotal
+                        }
+                        "tool_use", "tool" -> {
+                            val toolName = part.name ?: "unknown"
+                            val toolInput = part.input?.toString() ?: ""
+                            logger.info("[OpenCode] Emitting tool_use: name='{}'", toolName)
+                            emit(LlmChunk(content = null, toolCall = LlmToolCall(
+                                id = "tool-${System.currentTimeMillis()}",
+                                functionName = toolName,
+                                arguments = toolInput,
+                            )))
+                            runningTotal
+                        }
+                        else -> {
+                            logger.warn("[OpenCode] DaemonPart type '{}' not handled", part.type)
+                            runningTotal
+                        }
+                    }
+                } else {
+                    logger.debug("[OpenCode] Not a DaemonPart (no 'type' field or parse failed)")
+                }
+
+                // Check for tool call format (name field)
+                val toolCall = runCatching { 
+                    daemonJson.decodeFromString<DaemonToolCall>(data) 
+                }.onFailure { e ->
+                    logger.debug("[OpenCode] Failed to parse as DaemonToolCall: {}", e.message)
+                }.getOrNull()
+                
+                if (toolCall != null && toolCall.name != null) {
+                    logger.info("[OpenCode] Emitting tool call: name='{}'", toolCall.name)
+                    emit(LlmChunk(content = null, toolCall = LlmToolCall(
+                        id = toolCall.id ?: "tool-${System.currentTimeMillis()}",
+                        functionName = toolCall.name,
+                        arguments = toolCall.input?.toString() ?: "",
+                    )))
+                    return runningTotal
+                } else {
+                    logger.debug("[OpenCode] Not a DaemonToolCall (no 'name' field or parse failed)")
+                }
+                
+                logger.warn("[OpenCode] JSON object not recognized as any known format: keys={}", jsonElement.keys)
+            } else {
+                logger.debug("[OpenCode] Data starts with '{' but is not a JSON object")
             }
         }
 
@@ -234,7 +295,7 @@ class OpencodeLlmProvider(
                 runningTotal
             }
             else -> {
-                logger.debug("[OpenCode] Unknown SSE event type: '{}' data: {}", eventType, data.take(100))
+                logger.warn("[OpenCode] Unknown SSE event type: '{}' (data={} chars)", eventType, data.length)
                 runningTotal
             }
         }
