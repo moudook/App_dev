@@ -17,13 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.putJsonObject
-import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.add
-import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 
 class OpencodeLlmProvider(
@@ -84,38 +80,20 @@ class OpencodeLlmProvider(
         val userMessage = buildUserMessage(messages)
         logger.info("[OpenCode] User message: {} chars, {} tools", userMessage.length, tools.size)
 
-        // Daemon API: tools is Record<string, boolean> — tool name -> enabled
-        // NOT an array of OpenAI-style definitions. Daemon reads tool defs from opencode.json/plugins.
-        val toolsMap = if (tools.isNotEmpty()) {
-            buildJsonObject {
-                tools.forEach { tool ->
-                    put(tool.name, true)
-                }
-            }
-        } else null
-
-        // Model object: { modelID: "...", providerID: "..." }
-        val modelObj = buildJsonObject {
-            put("modelID", selectedModel)
-            put("providerID", "opencode")
-        }
-
-        logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}, toolsMap={}", daemonSessionId, selectedModel, agentName, toolsMap != null)
-
         val parts = listOf(buildJsonObject {
             put("type", "text")
             put("text", userMessage)
         })
+
+        logger.info("[OpenCode] POST /session/{}/message — agent={}, system={}chars, tools={}", daemonSessionId, agentName, systemPrompt?.length ?: 0, tools.size)
 
         val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 parts = parts,
-                model = modelObj,
                 agent = agentName,
                 system = systemPrompt,
-                tools = toolsMap,
             ))
         }
 
@@ -191,7 +169,14 @@ class OpencodeLlmProvider(
         logger.debug("[OpenCode] SSE event: '{}' — data: {}", eventType, data.take(300))
 
         // Check for daemon error response (plain JSON, not SSE-wrapped)
-        if (data.startsWith("{\"name\":\"BadRequest\"") || data.startsWith("{\"name\":\"Error\"")) {
+        // Daemon errors come as {"name":"XxxError","data":{"message":"..."}}
+        val isDaemonError = runCatching {
+            val el = Json.parseToJsonElement(data)
+            if (el !is JsonObject) return@runCatching false
+            val name = (el["name"] as? JsonPrimitive)?.content ?: ""
+            name.endsWith("Error") || name.endsWith("Request")
+        }.getOrDefault(false)
+        if (isDaemonError) {
             logger.error("[OpenCode] Daemon error: {}", data.take(500))
             return runningTotal
         }
