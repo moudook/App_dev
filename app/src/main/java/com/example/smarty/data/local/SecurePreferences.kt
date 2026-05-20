@@ -20,7 +20,6 @@ object AIModels {
     val SERVER_MODELS =
         listOf(
             "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
-            "opencode/minimax-m2.5-free" to "MiniMax M2.5 Free",
             "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
             "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
         )
