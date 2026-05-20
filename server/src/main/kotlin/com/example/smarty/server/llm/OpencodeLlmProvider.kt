@@ -93,28 +93,33 @@ class OpencodeLlmProvider(
             val sessionId = deriveSessionId(messages)
             val process = startCliProcess(prompt, selectedModel, sessionId)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
+            logger.info("OpenCode stream started, reading output...")
 
+            var lineCount = 0
+            var eventCount = 0
             var line: String?
             while (reader.readLine().also { line = it } != null) {
+                lineCount++
                 val current = line?.trim().orEmpty()
                 if (current.isEmpty() || !current.startsWith('{')) continue
 
                 runCatching {
                     val obj = json.parseToJsonElement(current).jsonObject
                     val eventType = obj["type"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    eventCount++
 
                     when (eventType) {
                         "reasoning" -> {
                             val text = extractPartText(obj)
                             if (!text.isNullOrEmpty()) {
-                                logger.debug("OpenCode reasoning: {} chars", text.length)
+                                logger.info("OpenCode reasoning event: {} chars", text.length)
                                 emit(LlmChunk(content = null, reasoning = text))
                             }
                         }
                         "text" -> {
                             val text = extractPartText(obj)
                             if (!text.isNullOrEmpty()) {
-                                logger.debug("OpenCode text: {} chars", text.length)
+                                logger.info("OpenCode text event: {} chars", text.length)
                                 emit(LlmChunk(content = text, reasoning = null, toolCall = null))
                             }
                         }
@@ -124,24 +129,26 @@ class OpencodeLlmProvider(
                                 logger.info("OpenCode Smarty tool call: {}", toolCall.functionName)
                                 emit(LlmChunk(content = null, reasoning = null, toolCall = toolCall))
                             } else {
-                                logger.debug("OpenCode internal tool call (ignored by Ktor)")
+                                logger.debug("OpenCode internal tool (ignored)")
                             }
                         }
                         "step_finish" -> {
                             val reason = obj["part"]?.jsonObject?.get("reason")?.jsonPrimitive?.contentOrNull
-                            logger.debug("OpenCode step_finish: reason={}", reason)
+                            logger.info("OpenCode step_finish: reason={}", reason)
                         }
                         "step_start" -> {
-                            // turn boundary â€” no emission needed
+                            logger.debug("OpenCode step_start")
                         }
                         else -> {
-                            logger.trace("OpenCode unknown event: {}", eventType)
+                            logger.info("OpenCode unknown event type: {}", eventType)
                         }
                     }
                 }.onFailure { e ->
-                    logger.debug("OpenCode parse error: {}", e.message)
+                    logger.warn("OpenCode parse error on line {}: {}", lineCount, e.message)
                 }
             }
+
+            logger.info("OpenCode stream done: {} lines read, {} JSON events parsed", lineCount, eventCount)
 
             val exitCode = withContext(Dispatchers.IO) {
                 val completed = process.waitFor(60, TimeUnit.SECONDS)
@@ -172,19 +179,15 @@ class OpencodeLlmProvider(
         }
 
         command += listOf(
-            "--agent",
-            agentName,
-            "--model",
-            model,
-            "--format",
-            "json",
-            "--session",
-            sessionId,
+            "--agent", agentName,
+            "--model", model,
+            "--format", "json",
+            "--session", sessionId,
             "--dangerously-skip-permissions",
-            prompt,
         )
+        command += prompt
 
-        logger.info("OpenCode CLI: {}", command.joinToString(" "))
+        logger.info("OpenCode CLI: {} [prompt: {} chars]", command.take(10).joinToString(" "), prompt.length)
 
         ProcessBuilder(command)
             .directory(workDir)

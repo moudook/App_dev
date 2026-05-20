@@ -127,11 +127,6 @@ object OpencodeModelRegistry {
         }
 
     internal fun resolveCommand(binary: String): List<String> {
-        val os = System.getProperty("os.name").lowercase()
-        return if (os.contains("win")) {
-            listOf("cmd.exe", "/c", binary)
-        } else {
-            listOf(binary)
-        }
+        return listOf(binary)
     }
 }
