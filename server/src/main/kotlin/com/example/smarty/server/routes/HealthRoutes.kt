@@ -9,6 +9,8 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import java.io.File
+import io.ktor.http.*
 
 /**
  * Health check response model.
@@ -149,6 +151,28 @@ fun Application.configureHealthRoutes() {
                         },
                 )
             call.respond(response)
+        }
+
+        /**
+         * Debug: read the last N lines of the daemon log file.
+         * Protected by query param secret to prevent abuse.
+         * Usage: GET /api/v1/opencode/daemon-log?lines=50&secret=debug123
+         */
+        get("/api/v1/opencode/daemon-log") {
+            val secret = call.request.queryParameters["secret"]
+            if (secret != "debug123") {
+                call.respondText("Unauthorized", status = HttpStatusCode.Unauthorized)
+                return@get
+            }
+            val lines = call.request.queryParameters["lines"]?.toIntOrNull()?.coerceIn(1, 500) ?: 50
+            val logFile = File("/tmp/opencode-daemon.log")
+            if (!logFile.exists()) {
+                call.respondText("Daemon log not found at /tmp/opencode-daemon.log", status = HttpStatusCode.NotFound)
+                return@get
+            }
+            val allLines = logFile.readLines()
+            val lastLines = allLines.takeLast(lines)
+            call.respondText(lastLines.joinToString("\n"), contentType = ContentType.Text.Plain)
         }
     }
 }
