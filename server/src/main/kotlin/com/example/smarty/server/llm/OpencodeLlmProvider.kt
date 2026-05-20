@@ -80,52 +80,36 @@ class OpencodeLlmProvider(
         val systemPrompt = extractSystemPrompt(messages)
         logger.info("[OpenCode] Friday system prompt: {} chars", systemPrompt?.length ?: 0)
 
-        val userMessage = buildUserMessage(messages, tools)
+        val userMessage = buildUserMessage(messages)
         logger.info("[OpenCode] User message: {} chars, {} tools", userMessage.length, tools.size)
 
-        val toolDefs = tools.map { tool ->
-            val props = tool.parameters.properties.entries.associate { (name, prop) ->
-                val enumValues = prop.enum
-                name to buildJsonObject {
-                    put("type", prop.type)
-                    prop.description?.let { put("description", it) }
-                    if (!enumValues.isNullOrEmpty()) {
-                        putJsonArray("enum") { enumValues.forEach { add(JsonPrimitive(it)) } }
-                    }
-                }
-            }
+        // Daemon API: tools is Record<string, boolean> — tool name -> enabled
+        // NOT an array of OpenAI-style definitions. Daemon reads tool defs from opencode.json/plugins.
+        val toolsMap = if (tools.isNotEmpty()) {
             buildJsonObject {
-                put("type", "function")
-                putJsonObject("function") {
-                    put("name", tool.name)
-                    put("description", tool.description)
-                    putJsonObject("parameters") {
-                        put("type", "object")
-                        putJsonObject("properties") {
-                            props.forEach { (name, schema) -> put(name, schema) }
-                        }
-                        if (tool.parameters.required.isNotEmpty()) {
-                            putJsonArray("required") { tool.parameters.required.forEach { add(JsonPrimitive(it)) } }
-                        }
-                    }
+                tools.forEach { tool ->
+                    put(tool.name, true)
                 }
             }
+        } else null
+
+        // Model object: { modelID: "...", providerID: "..." }
+        val modelObj = buildJsonObject {
+            put("modelID", selectedModel)
+            put("providerID", "opencode")
         }
 
-        logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}", daemonSessionId, selectedModel, agentName)
+        logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}, toolsMap={}", daemonSessionId, selectedModel, agentName, toolsMap != null)
 
         val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 message = userMessage,
-                model = buildJsonObject {
-                    put("modelID", selectedModel)
-                    put("providerID", "opencode")
-                },
+                model = modelObj,
                 agent = agentName,
                 system = systemPrompt,
-                tools = if (toolDefs.isNotEmpty()) toolDefs else null,
+                tools = toolsMap,
             ))
         }
 
@@ -145,7 +129,6 @@ class OpencodeLlmProvider(
             }
 
             if (line.isEmpty()) {
-                // Blank line = end of SSE event, process accumulated data
                 if (currentData.isNotEmpty()) {
                     val eventType = currentEvent ?: "message"
                     eventCount++
@@ -168,10 +151,14 @@ class OpencodeLlmProvider(
                 }
             } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
                 // Skip SSE metadata and comments
+            } else if (line.startsWith("{")) {
+                // Daemon may return plain JSON error (not wrapped in SSE) — process directly
+                processSseEvent("message", line, totalChars)?.let { chars ->
+                    totalChars = chars
+                }
             }
         }
 
-        // Process any remaining data
         if (currentData.isNotEmpty()) {
             val eventType = currentEvent ?: "message"
             eventCount++
@@ -197,7 +184,12 @@ class OpencodeLlmProvider(
 
         logger.debug("[OpenCode] SSE event: '{}' — data: {}", eventType, data.take(300))
 
-        // Try to parse as DaemonPart regardless of event type
+        // Check for daemon error response (plain JSON, not SSE-wrapped)
+        if (data.startsWith("{\"name\":\"BadRequest\"") || data.startsWith("{\"name\":\"Error\"")) {
+            logger.error("[OpenCode] Daemon error: {}", data.take(500))
+            return runningTotal
+        }
+
         if (data.startsWith("{")) {
             val part = runCatching { daemonJson.decodeFromString<DaemonPart>(data) }.getOrNull()
             if (part != null) {
@@ -230,7 +222,6 @@ class OpencodeLlmProvider(
                 }
             }
 
-            // Try DaemonToolCall format
             val toolCall = runCatching { daemonJson.decodeFromString<DaemonToolCall>(data) }.getOrNull()
             if (toolCall != null && toolCall.name != null) {
                 emit(LlmChunk(content = null, toolCall = LlmToolCall(
@@ -242,7 +233,6 @@ class OpencodeLlmProvider(
             }
         }
 
-        // Handle known event types that don't have JSON data
         return when (eventType) {
             "error" -> {
                 logger.error("[OpenCode] SSE error event: {}", data)
@@ -275,10 +265,7 @@ class OpencodeLlmProvider(
             .takeIf { it.isNotBlank() }
     }
 
-    private fun buildUserMessage(
-        messages: List<LlmMessage>,
-        tools: List<ToolDefinition>,
-    ): String {
+    private fun buildUserMessage(messages: List<LlmMessage>): String {
         val nonSystem = messages.filter { it.role != LlmMessage.Role.SYSTEM }
         return nonSystem.joinToString("\n\n") { msg ->
             when (msg.role) {
@@ -293,8 +280,6 @@ class OpencodeLlmProvider(
         }
     }
 }
-
-// ==================== Daemon API Data Classes ====================
 
 @Serializable
 private data class DaemonSessionRequest(
@@ -314,7 +299,7 @@ private data class DaemonMessageRequest(
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
-    val tools: List<JsonObject>? = null,
+    val tools: JsonObject? = null,
     val parts: List<JsonObject>? = null,
 )
 
