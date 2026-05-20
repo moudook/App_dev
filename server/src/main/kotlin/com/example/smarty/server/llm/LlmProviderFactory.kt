@@ -20,14 +20,23 @@ object LlmProviderFactory {
 
     fun getOrCreateHttpClient(): HttpClient {
         return cachedHttpClient ?: synchronized(this) {
-            cachedHttpClient ?: HttpClient(OkHttp).also { cachedHttpClient = it }
+            cachedHttpClient ?: HttpClient(OkHttp).also {
+                cachedHttpClient = it
+                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine)")
+            }
         }
     }
 
     fun getOrCreateProvider(client: HttpClient = getOrCreateHttpClient()): LlmProvider {
-        cachedProvider?.let { return it }
+        cachedProvider?.let {
+            logger.debug("[LlmProviderFactory] Returning cached OpenCode provider")
+            return it
+        }
         return synchronized(this) {
-            cachedProvider ?: create(client).also { cachedProvider = it }
+            cachedProvider ?: create(client).also {
+                cachedProvider = it
+                logger.info("[LlmProviderFactory] OpenCode provider created and cached")
+            }
         }
     }
 
@@ -43,22 +52,26 @@ object LlmProviderFactory {
         modelIdOverride: String? = null,
     ): LlmProvider {
         val finalModelId = modelIdOverride ?: System.getenv("LLM_MODEL_ID")?.takeIf { it.isNotBlank() }
+        logger.info("[LlmProviderFactory] create() called — modelIdOverride={}, env LLM_MODEL_ID={}, finalModel={}",
+            modelIdOverride, System.getenv("LLM_MODEL_ID"), finalModelId)
 
         if (providerOverride != null && providerOverride.uppercase() != "OPENCODE") {
-            logger.warn("Ignoring non-OpenCode provider override '$providerOverride' — only OpenCode CLI is supported")
+            logger.warn("[LlmProviderFactory] Ignoring non-OpenCode provider override '{}' — only OpenCode CLI is supported", providerOverride)
         }
         if (apiKeyOverride != null) {
-            logger.warn("Ignoring API key override — OpenCode CLI requires no API keys")
+            logger.warn("[LlmProviderFactory] Ignoring API key override — OpenCode CLI requires no API keys")
         }
         if (baseUrlOverride != null) {
-            logger.warn("Ignoring base URL override — OpenCode CLI uses local subprocess")
+            logger.warn("[LlmProviderFactory] Ignoring base URL override — OpenCode CLI uses local subprocess")
         }
 
-        logger.info("Initializing LLM Provider: OPENCODE (CLI-only, free models, no API keys)")
+        val resolvedModel = OpencodeModelRegistry.requireAllowedFreeModel(finalModelId)
+        logger.info("[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, agent={}, daemon port={}",
+            resolvedModel, System.getenv("OPENCODE_AGENT") ?: "smarty-headless-agent", 4096)
 
         return OpencodeLlmProvider(
             client = client,
-            defaultModel = OpencodeModelRegistry.requireAllowedFreeModel(finalModelId),
+            defaultModel = resolvedModel,
         )
     }
 }

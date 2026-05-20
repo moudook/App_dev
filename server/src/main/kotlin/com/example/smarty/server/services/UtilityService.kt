@@ -47,6 +47,8 @@ class UtilityService(
 
         // 2. LLM Fallback (Smart) — uses OpenCode CLI free model
         try {
+            logger.info("[UtilityService] LLM date extraction requested — query: '{}', timezone: {}", query.take(80), userTimezone)
+            val llmStart = System.currentTimeMillis()
             val response =
                 llmProvider.generate(
                     messages =
@@ -57,10 +59,12 @@ class UtilityService(
                             ),
                         ),
                 )
+            val llmDuration = System.currentTimeMillis() - llmStart
             val result = response.content?.trim()
+            logger.info("[UtilityService] LLM date extraction completed in {}ms — result: '{}'", llmDuration, result)
             return if (result == "null") null else result
         } catch (e: Exception) {
-            logger.error("LLM date extraction failed", e)
+            logger.error("[UtilityService] LLM date extraction failed: {}", e.message, e)
             return null
         }
     }

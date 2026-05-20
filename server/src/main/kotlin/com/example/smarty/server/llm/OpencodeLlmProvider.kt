@@ -46,6 +46,8 @@ class OpencodeLlmProvider(
         tools: List<ToolDefinition>,
         model: String?,
     ): LlmResponse {
+        logger.info("[OpenCode] generate() called — model={}, messages={}, tools={}", model ?: "default", messages.size, tools.size)
+        val startTime = System.currentTimeMillis()
         val content = StringBuilder()
         val reasoning = StringBuilder()
         val toolCalls = mutableListOf<LlmToolCall>()
@@ -54,6 +56,9 @@ class OpencodeLlmProvider(
             chunk.reasoning?.let { reasoning.append(it) }
             chunk.toolCall?.let { toolCalls.add(it) }
         }
+        val duration = System.currentTimeMillis() - startTime
+        logger.info("[OpenCode] generate() completed in {}ms — content={} chars, toolCalls={}, reasoning={} chars",
+            duration, content.length, toolCalls.size, reasoning.length)
         return LlmResponse(
             content = content.toString().ifBlank { null },
             toolCalls = toolCalls,
@@ -66,12 +71,24 @@ class OpencodeLlmProvider(
         model: String?,
     ): Flow<LlmChunk> =
         flow {
+            val streamStartTime = System.currentTimeMillis()
+            logger.info("[OpenCode] stream() starting — model={}, messages={}, tools={}", model ?: "default", messages.size, tools.size)
+
             val selectedModel = OpencodeModelRegistry.requireAllowedFreeModel(model ?: defaultModel)
+            logger.info("[OpenCode] Model selected: {} (requested: {})", selectedModel, model ?: "default")
+
             val prompt = buildCliPrompt(messages, tools)
+            logger.info("[OpenCode] Prompt built — {} chars, {} messages, {} tools", prompt.length, messages.size, tools.size)
+
             val sessionId = deriveSessionId(messages)
+            logger.info("[OpenCode] Session ID: {}", sessionId)
+
+            val daemonAvailable = isDaemonRunning()
+            logger.info("[OpenCode] Daemon status: {} ({}:{})", if (daemonAvailable) "RUNNING" else "NOT RUNNING", daemonHost, daemonPort)
+
             val process = startCliProcess(prompt, selectedModel, sessionId)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
-            logger.info("OpenCode stream started (model: $selectedModel, session: $sessionId)")
+            logger.info("[OpenCode] CLI process started (PID: {}) — model: {}, session: {}", process.pid(), selectedModel, sessionId)
 
             var lineCount = 0
             var eventCount = 0
@@ -111,25 +128,29 @@ class OpencodeLlmProvider(
                             val status = state?.get("status")?.jsonPrimitive?.contentOrNull
 
                             if (toolName != null && status == "completed") {
+                                logger.debug("[OpenCode] tool_use completed: {} (status: {})", toolName, status)
                                 when {
                                     isSmartyTool(toolName) -> {
                                         val toolCall = buildSmartyToolCall(part, toolName, state)
                                         if (toolCall != null) {
-                                            logger.info("OpenCode Smarty tool call: {}", toolName)
+                                            logger.info("[OpenCode] SMARTY TOOL: {} — callId: {}", toolName, toolCall.id)
+                                            logger.debug("[OpenCode] Tool args: {}", toolCall.arguments.take(200))
                                             emit(LlmChunk(content = null, reasoning = null, toolCall = toolCall))
                                         }
                                     }
                                     toolName == "websearch" -> {
                                         val output = extractToolOutput(state)
                                         if (!output.isNullOrBlank()) {
-                                            logger.info("OpenCode websearch result: {} chars", output.length)
+                                            logger.info("[OpenCode] websearch completed: {} chars", output.length)
                                             emit(LlmChunk(content = output, reasoning = null))
                                         }
                                     }
                                     else -> {
-                                        logger.debug("OpenCode internal tool '{}' completed (ignored)", toolName)
+                                        logger.debug("[OpenCode] Internal tool '{}' completed (not a Smarty tool — ignored)", toolName)
                                     }
                                 }
+                            } else if (toolName != null) {
+                                logger.debug("[OpenCode] tool_use event: {} (status: {} — not completed yet)", toolName, status)
                             }
                         }
 
@@ -161,7 +182,7 @@ class OpencodeLlmProvider(
                             val errorMsg = errorObj?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
                                 ?: errorObj?.get("message")?.jsonPrimitive?.contentOrNull
                                 ?: "Unknown OpenCode error"
-                            logger.error("OpenCode error event: {}", errorMsg)
+                            logger.error("[OpenCode] ERROR event: {}", errorMsg)
                             // Surface error to the client as content so it's visible in chat
                             emit(LlmChunk(content = "\n[OpenCode Error: $errorMsg]\n", reasoning = null))
                         }
@@ -175,7 +196,8 @@ class OpencodeLlmProvider(
                 }
             }
 
-            logger.info("OpenCode stream done: {} lines, {} events, {} non-JSON, {} skipped", lineCount, eventCount, nonJsonLines)
+            val streamDuration = System.currentTimeMillis() - streamStartTime
+            logger.info("[OpenCode] stream() completed — {} lines, {} events, {} non-JSON, {}ms elapsed", lineCount, eventCount, nonJsonLines, streamDuration)
 
             val exitCode = withContext(Dispatchers.IO) {
                 val completed = process.waitFor(60, TimeUnit.SECONDS)
@@ -187,11 +209,13 @@ class OpencodeLlmProvider(
             }
 
             if (exitCode != 0) {
-                logger.error("OpenCode CLI exited with code $exitCode after $lineCount lines")
+                logger.error("[OpenCode] CLI exited with code {} after {} lines (session: {})", exitCode, lineCount, sessionId)
                 // Surface non-zero exit as error content if no other content was produced
                 if (lineCount == 0 || eventCount == 0) {
                     emit(LlmChunk(content = "\n[OpenCode CLI exited with code $exitCode — no output produced]\n", reasoning = null))
                 }
+            } else {
+                logger.info("[OpenCode] CLI exited cleanly (code 0) — session: {}", sessionId)
             }
 
             if (accumulatedUsage != null) {
@@ -205,11 +229,16 @@ class OpencodeLlmProvider(
         sessionId: String,
     ) = withContext(Dispatchers.IO) {
         val workDir = File(System.getProperty("user.dir"), "_temp/opencode").apply { mkdirs() }
+        logger.info("[OpenCode] Working directory: {}", workDir.absolutePath)
 
         val command = mutableListOf("opencode", "run")
 
-        if (isDaemonRunning()) {
+        val daemonRunning = isDaemonRunning()
+        if (daemonRunning) {
             command += listOf("--attach", daemonBaseUrl)
+            logger.info("[OpenCode] Attaching to running daemon at {}", daemonBaseUrl)
+        } else {
+            logger.info("[OpenCode] No daemon detected — using one-shot CLI mode")
         }
 
         command += listOf(
@@ -221,16 +250,21 @@ class OpencodeLlmProvider(
             prompt,
         )
 
-        logger.info("OpenCode CLI: {} [prompt: {} chars, daemon: {}]", command.take(8).joinToString(" "), prompt.length, isDaemonRunning())
+        logger.info("[OpenCode] CLI command: {} [prompt: {} chars, agent: {}, daemon: {}]",
+            command.take(8).joinToString(" "), prompt.length, agentName, daemonRunning)
 
-        ProcessBuilder(command)
+        val processStart = System.currentTimeMillis()
+        val process = ProcessBuilder(command)
             .directory(workDir)
             .redirectErrorStream(true)
             .start()
+        logger.info("[OpenCode] Process started in {}ms — PID: {}", System.currentTimeMillis() - processStart, process.pid())
+        process
     }
 
     private suspend fun isDaemonRunning(): Boolean =
         try {
+            val checkStart = System.currentTimeMillis()
             val response =
                 client.get(daemonBaseUrl) {
                     timeout {
@@ -238,8 +272,12 @@ class OpencodeLlmProvider(
                         connectTimeoutMillis = 1_000
                     }
                 }
-            response.status.isSuccess() || response.bodyAsText().isNotBlank()
-        } catch (_: Exception) {
+            val checkDuration = System.currentTimeMillis() - checkStart
+            val isRunning = response.status.isSuccess() || response.bodyAsText().isNotBlank()
+            logger.debug("[OpenCode] Daemon health check: {} ({}ms, status: {})", if (isRunning) "UP" else "DOWN", checkDuration, response.status.value)
+            isRunning
+        } catch (e: Exception) {
+            logger.debug("[OpenCode] Daemon health check failed: {} — daemon not running", e.message)
             false
         }
 

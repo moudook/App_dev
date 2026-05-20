@@ -21,7 +21,10 @@ class VisionService(
 
     // Lazy provider — always OpenCode CLI, no API keys
     private val llmProvider: LlmProvider by lazy {
-        LlmProviderFactory.create(httpClient)
+        logger.info("[VisionService] Lazy-init OpenCode LLM provider")
+        LlmProviderFactory.create(httpClient).also {
+            logger.info("[VisionService] OpenCode LLM provider initialized: {}", it.providerName)
+        }
     }
 
     companion object {
@@ -81,32 +84,32 @@ class VisionService(
         base64Image: String,
         mimeType: String = "image/png",
     ): OcrResult {
-        logger.info("Performing OCR via OpenCode CLI (type: $mimeType)")
-
-        val imageData =
-            if (base64Image.contains(",")) {
-                base64Image.substringAfter(",")
-            } else {
-                base64Image
-            }
+        val imageBytes = if (base64Image.contains(",")) base64Image.substringAfter(",") else base64Image
+        logger.info("[VisionService] OCR requested — mimeType: {}, image size: {} bytes", mimeType, imageBytes.length)
 
         val messages =
             listOf(
                 LlmMessage(
                     role = LlmMessage.Role.USER,
-                    content = "$OCR_PROMPT\n\n" + IMAGE_BLOCK_TEMPLATE.format(mimeType, imageData),
+                    content = "$OCR_PROMPT\n\n" + IMAGE_BLOCK_TEMPLATE.format(mimeType, imageBytes),
                 ),
             )
 
         return try {
+            val ocrStart = System.currentTimeMillis()
+            logger.info("[VisionService] Sending OCR request to OpenCode CLI...")
             val response = StringBuilder()
             llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
             }
+            val ocrDuration = System.currentTimeMillis() - ocrStart
+            val extractedText = response.toString().trim()
+            logger.info("[VisionService] OCR completed in {}ms — extracted {} chars, content type: {}",
+                ocrDuration, extractedText.length, detectContentType(extractedText))
 
             OcrResult(
-                extractedText = response.toString().trim(),
-                contentType = detectContentType(response.toString()),
+                extractedText = extractedText,
+                contentType = detectContentType(extractedText),
                 language = "en",
                 confidence = 0.9,
                 elements = emptyList(),
@@ -114,7 +117,7 @@ class VisionService(
                 success = true,
             )
         } catch (e: Exception) {
-            logger.error("OCR failed: ${e.message}", e)
+            logger.error("[VisionService] OCR failed: {}", e.message, e)
             OcrResult(
                 extractedText = "",
                 contentType = "error",
@@ -137,14 +140,9 @@ class VisionService(
         mimeType: String = "image/png",
         customPrompt: String? = null,
     ): ImageAnalysisResult {
-        logger.info("Analyzing image via OpenCode CLI (type: $mimeType)")
-
-        val imageData =
-            if (base64Image.contains(",")) {
-                base64Image.substringAfter(",")
-            } else {
-                base64Image
-            }
+        val imageBytes = if (base64Image.contains(",")) base64Image.substringAfter(",") else base64Image
+        logger.info("[VisionService] Image analysis requested — mimeType: {}, customPrompt: {}, image size: {} bytes",
+            mimeType, if (customPrompt != null) "yes" else "no", imageBytes.length)
 
         val prompt = customPrompt ?: IMAGE_ANALYSIS_PROMPT
 
@@ -152,22 +150,28 @@ class VisionService(
             listOf(
                 LlmMessage(
                     role = LlmMessage.Role.USER,
-                    content = "$prompt\n\n" + IMAGE_BLOCK_TEMPLATE.format(mimeType, imageData),
+                    content = "$prompt\n\n" + IMAGE_BLOCK_TEMPLATE.format(mimeType, imageBytes),
                 ),
             )
 
         return try {
+            val analysisStart = System.currentTimeMillis()
+            logger.info("[VisionService] Sending image analysis request to OpenCode CLI...")
             val response = StringBuilder()
             llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
             }
+            val analysisDuration = System.currentTimeMillis() - analysisStart
+            val description = response.toString().trim()
+            logger.info("[VisionService] Image analysis completed in {}ms — description: {} chars",
+                analysisDuration, description.length)
 
             ImageAnalysisResult(
-                description = response.toString().trim(),
+                description = description,
                 success = true,
             )
         } catch (e: Exception) {
-            logger.error("Image analysis failed: ${e.message}", e)
+            logger.error("[VisionService] Image analysis failed: {}", e.message, e)
             ImageAnalysisResult(
                 description = "",
                 success = false,

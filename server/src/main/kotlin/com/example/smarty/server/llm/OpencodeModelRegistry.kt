@@ -56,7 +56,9 @@ object OpencodeModelRegistry {
 
     fun isAllowedFreeModel(model: String?): Boolean {
         val normalized = model?.trim()?.takeIf { it.isNotEmpty() } ?: return false
-        return normalized in allowList || (normalized.startsWith("opencode/") && normalized.endsWith("-free"))
+        val isAllowed = normalized in allowList || (normalized.startsWith("opencode/") && normalized.endsWith("-free"))
+        logger.debug("[OpencodeModelRegistry] isAllowedFreeModel('{}') = {}", normalized, isAllowed)
+        return isAllowed
     }
 
     fun requireAllowedFreeModel(model: String?): String {
@@ -69,9 +71,16 @@ object OpencodeModelRegistry {
                 ?: DEFAULT_MODEL
 
         return if (isAllowedFreeModel(candidate)) {
+            logger.info("[OpencodeModelRegistry] Model validated: {} (source: {})", candidate,
+                when {
+                    model != null -> "parameter"
+                    System.getenv("OPENCODE_MODEL") != null -> "OPENCODE_MODEL env"
+                    System.getenv("LLM_MODEL_ID") != null -> "LLM_MODEL_ID env"
+                    else -> "DEFAULT_MODEL"
+                })
             candidate
         } else {
-            logger.warn("Rejected non-free or unknown OpenCode model override: {}", candidate)
+            logger.warn("[OpencodeModelRegistry] Rejected non-free or unknown model: '{}' — falling back to {}", candidate, DEFAULT_MODEL)
             DEFAULT_MODEL
         }
     }
@@ -103,20 +112,25 @@ object OpencodeModelRegistry {
      */
     suspend fun refreshFromCli(timeoutMs: Long = 12_000L): OpencodeModelState =
         withContext(Dispatchers.IO) {
+            val refreshStart = System.currentTimeMillis()
             val state = cachedState.get()
             val now = System.currentTimeMillis()
 
             if ((now - state.updatedAt) < CACHE_TTL_MS && state.source != "bundled") {
-                logger.info("OpenCode models cache is fresh (age: ${(now - state.updatedAt) / 1000}s), returning cached")
+                logger.info("[OpencodeModelRegistry] Models cache is fresh (age: ${(now - state.updatedAt) / 1000}s), returning cached")
                 return@withContext state
             }
+
+            logger.info("[OpencodeModelRegistry] Refreshing models from CLI (cache age: {}s, source: {})",
+                (now - state.updatedAt) / 1000, state.source)
 
             val discovered =
                 runCatching {
                     // Run in the app working directory where opencode.json lives
                     val workDir = java.io.File(System.getProperty("user.dir"))
-                    logger.info("Running 'opencode models' in working directory: ${workDir.absolutePath}")
+                    logger.info("[OpencodeModelRegistry] Running 'opencode models' in: {}", workDir.absolutePath)
 
+                    val cliStart = System.currentTimeMillis()
                     val process =
                         ProcessBuilder(listOf("opencode", "models"))
                             .directory(workDir)
@@ -131,26 +145,32 @@ object OpencodeModelRegistry {
                     }
 
                     val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+                    val cliDuration = System.currentTimeMillis() - cliStart
+
                     if (!completed) {
                         process.destroyForcibly()
+                        logger.error("[OpencodeModelRegistry] 'opencode models' timed out after {}ms", timeoutMs)
                         throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
                     }
 
                     val exitCode = process.exitValue()
-                    if (exitCode != 0) {
-                        logger.warn("opencode models exited with code $exitCode")
-                    }
+                    logger.info("[OpencodeModelRegistry] CLI exited in {}ms — code: {}, lines: {}", cliDuration, exitCode, lines.size)
 
-                    logger.info("opencode models output: {} lines", lines.size)
-                    lines.forEach { logger.debug("  CLI line: {}", it) }
+                    if (exitCode != 0) {
+                        logger.warn("[OpencodeModelRegistry] 'opencode models' exited with code $exitCode")
+                        lines.forEach { logger.debug("[OpencodeModelRegistry]   CLI output: {}", it) }
+                    } else {
+                        lines.forEach { logger.debug("[OpencodeModelRegistry]   CLI line: {}", it) }
+                    }
 
                     parseFreeModelsFromCli(lines)
                 }.getOrElse { error ->
-                    logger.warn("Could not refresh OpenCode models from CLI: {}", error.message)
+                    logger.warn("[OpencodeModelRegistry] Could not refresh models from CLI: {}", error.message)
                     emptyList()
                 }
 
             val finalModels = discovered.ifEmpty { bundledFreeModels }
+            val refreshDuration = System.currentTimeMillis() - refreshStart
 
             val newState =
                 OpencodeModelState(
@@ -161,7 +181,15 @@ object OpencodeModelRegistry {
                     updatedAt = System.currentTimeMillis(),
                 )
             cachedState.set(newState)
-            logger.info("OpenCode models refreshed: {} free models (source: {})", finalModels.size, newState.source)
+
+            if (discovered.isEmpty()) {
+                logger.warn("[OpencodeModelRegistry] No models discovered from CLI — using {} bundled fallback models (refresh took {}ms)",
+                    bundledFreeModels.size, refreshDuration)
+            } else {
+                logger.info("[OpencodeModelRegistry] Models refreshed: {} free models discovered (source: {}, refresh took {}ms)",
+                    discovered.size, newState.source, refreshDuration)
+                discovered.forEach { logger.info("[OpencodeModelRegistry]   - {} ({})", it.id, it.label) }
+            }
             newState
         }
 

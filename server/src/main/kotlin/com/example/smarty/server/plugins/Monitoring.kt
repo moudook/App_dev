@@ -148,12 +148,17 @@ object ServerMonitor {
 }
 
 fun Application.configureMonitoring() {
+    val monitorLogger = org.slf4j.LoggerFactory.getLogger("OpenCodeMonitor")
+    monitorLogger.info("[OpenCodeMonitor] Monitoring subsystem started — checking daemon at 127.0.0.1:4096/global/health")
+
     // 1. Start Background Health Check
     val monitorScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     monitorScope.launch {
+        var consecutiveFailures = 0
         while (isActive) {
             runCatching {
                 // Check OpenCode Daemon
+                val daemonCheckStart = System.currentTimeMillis()
                 try {
                     val url = URL("http://127.0.0.1:4096/global/health")
                     val conn = url.openConnection() as HttpURLConnection
@@ -162,16 +167,31 @@ fun Application.configureMonitoring() {
                     conn.requestMethod = "GET"
 
                     if (conn.responseCode == 200) {
+                        val wasDown = !ServerMonitor.isOpenCodeDaemonReachable
                         ServerMonitor.isOpenCodeDaemonReachable = true
                         ServerMonitor.openCodeDaemonStatusMsg = "Online (${conn.responseCode})"
+                        if (wasDown) {
+                            monitorLogger.info("[OpenCodeMonitor] Daemon RECOVERED — now healthy (check took ${System.currentTimeMillis() - daemonCheckStart}ms)")
+                        }
+                        consecutiveFailures = 0
                     } else {
                         ServerMonitor.isOpenCodeDaemonReachable = false
                         ServerMonitor.openCodeDaemonStatusMsg = "HTTP ${conn.responseCode}"
+                        monitorLogger.warn("[OpenCodeMonitor] Daemon returned HTTP ${conn.responseCode}")
+                        consecutiveFailures++
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
+                    val wasUp = ServerMonitor.isOpenCodeDaemonReachable
                     ServerMonitor.isOpenCodeDaemonReachable = false
                     ServerMonitor.openCodeDaemonStatusMsg = "Unreachable (${e.message?.take(60)})"
+                    if (wasUp) {
+                        monitorLogger.error("[OpenCodeMonitor] Daemon WENT DOWN — ${e.message?.take(80)}")
+                    }
+                    consecutiveFailures++
+                    if (consecutiveFailures > 0 && consecutiveFailures % 6 == 0) {
+                        monitorLogger.warn("[OpenCodeMonitor] Daemon unreachable for ${consecutiveFailures * 5}s — ${e.message?.take(80)}")
+                    }
                 }
 
                 // Check DB
