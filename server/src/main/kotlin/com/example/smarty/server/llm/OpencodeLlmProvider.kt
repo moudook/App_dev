@@ -3,8 +3,8 @@ package com.example.smarty.server.llm
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
-import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -36,7 +36,7 @@ class OpencodeLlmProvider(
     private val daemonBaseUrl = "http://$daemonHost:$daemonPort"
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
-    private val sseJson = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val daemonJson = Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false }
 
     override suspend fun generate(
         messages: List<LlmMessage>,
@@ -114,8 +114,9 @@ class OpencodeLlmProvider(
 
         logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}", daemonSessionId, selectedModel, agentName)
 
-        val httpRequest = client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
+        val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
+            header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 message = userMessage,
                 model = selectedModel,
@@ -125,51 +126,61 @@ class OpencodeLlmProvider(
             ))
         }
 
-        httpRequest.execute { response ->
-            val channel = response.bodyAsChannel()
-            var currentEvent: String? = null
-            var currentData = StringBuilder()
-            var totalChars = 0
+        val channel = httpRequest.bodyAsChannel()
+        var currentEvent: String? = null
+        var currentData = StringBuilder()
+        var totalChars = 0
+        var lineCount = 0
+        var eventCount = 0
 
-            while (!channel.isClosedForRead) {
-                val line = channel.readUTF8Line() ?: break
+        while (!channel.isClosedForRead) {
+            val line = channel.readUTF8Line() ?: break
+            lineCount++
 
-                if (line.isEmpty()) {
-                    // Blank line = end of SSE event, process accumulated data
-                    if (currentEvent != null && currentData.isNotEmpty()) {
-                        processSseEvent(currentEvent, currentData.toString(), totalChars)?.let { chars ->
-                            totalChars = chars
-                        }
-                    }
-                    currentEvent = null
-                    currentData = StringBuilder()
-                    continue
-                }
-
-                if (line.startsWith("event:")) {
-                    currentEvent = line.substringAfter("event:").trim()
-                } else if (line.startsWith("data:")) {
-                    val data = line.substringAfter("data:").trim()
-                    if (data.isNotEmpty()) {
-                        if (currentData.isNotEmpty()) currentData.append("\n")
-                        currentData.append(data)
-                    }
-                } else if (line.startsWith("id:") || line.startsWith("retry:")) {
-                    // Skip
-                }
+            if (lineCount <= 10) {
+                logger.debug("[OpenCode] SSE raw line #{}: '{}'", lineCount, line.take(200))
             }
 
-            // Process any remaining data
-            if (currentEvent != null && currentData.isNotEmpty()) {
-                processSseEvent(currentEvent, currentData.toString(), totalChars)?.let { chars ->
-                    totalChars = chars
+            if (line.isEmpty()) {
+                // Blank line = end of SSE event, process accumulated data
+                if (currentData.isNotEmpty()) {
+                    val eventType = currentEvent ?: "message"
+                    eventCount++
+                    processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
+                        totalChars = chars
+                    }
                 }
+                currentEvent = null
+                currentData = StringBuilder()
+                continue
             }
 
-            val streamDuration = System.currentTimeMillis() - streamStartTime
-            logger.info("[OpenCode] stream() completed — {} chars, {}ms elapsed", totalChars, streamDuration)
-            logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
+            if (line.startsWith("event:")) {
+                currentEvent = line.substringAfter("event:").trim()
+            } else if (line.startsWith("data:")) {
+                val data = line.substringAfter("data:").trim()
+                if (data.isNotEmpty()) {
+                    if (currentData.isNotEmpty()) currentData.append("\n")
+                    currentData.append(data)
+                }
+            } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
+                // Skip SSE metadata and comments
+            }
         }
+
+        // Process any remaining data
+        if (currentData.isNotEmpty()) {
+            val eventType = currentEvent ?: "message"
+            eventCount++
+            processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
+                totalChars = chars
+            }
+        }
+
+        logger.info("[OpenCode] SSE stream read — {} lines, {} events, {} chars, {}ms elapsed", lineCount, eventCount, totalChars, System.currentTimeMillis() - streamStartTime)
+        val streamDuration = System.currentTimeMillis() - streamStartTime
+        logger.info("[OpenCode] stream() completed — {} chars, {}ms elapsed", totalChars, streamDuration)
+        logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
     }.flowOn(Dispatchers.IO)
 
     private suspend fun FlowCollector<LlmChunk>.processSseEvent(
@@ -178,22 +189,28 @@ class OpencodeLlmProvider(
         totalChars: Int,
     ): Int? {
         var runningTotal = totalChars
-        logger.debug("[OpenCode] SSE event: {} — data: {}", eventType, data.take(200))
 
-        return when (eventType) {
-            "part" -> {
-                val part = runCatching { sseJson.decodeFromString<DaemonPart>(data) }.getOrNull() ?: return runningTotal
-                when (part.type) {
+        if (data.isBlank()) return runningTotal
+
+        logger.debug("[OpenCode] SSE event: '{}' — data: {}", eventType, data.take(300))
+
+        // Try to parse as DaemonPart regardless of event type
+        if (data.startsWith("{")) {
+            val part = runCatching { daemonJson.decodeFromString<DaemonPart>(data) }.getOrNull()
+            if (part != null) {
+                return when (part.type) {
                     "text" -> {
                         val text = part.text ?: return runningTotal
                         runningTotal += text.length
                         emit(LlmChunk(content = text, reasoning = null))
+                        runningTotal
                     }
                     "reasoning" -> {
                         val reasoning = part.text ?: return runningTotal
                         emit(LlmChunk(content = null, reasoning = reasoning))
+                        runningTotal
                     }
-                    "tool_use" -> {
+                    "tool_use", "tool" -> {
                         val toolName = part.name ?: "unknown"
                         val toolInput = part.input?.toString() ?: ""
                         emit(LlmChunk(content = null, toolCall = LlmToolCall(
@@ -201,40 +218,39 @@ class OpencodeLlmProvider(
                             functionName = toolName,
                             arguments = toolInput,
                         )))
+                        runningTotal
+                    }
+                    else -> {
+                        logger.debug("[OpenCode] Part type '{}' not handled", part.type)
+                        runningTotal
                     }
                 }
-                runningTotal
             }
-            "tool_use" -> {
-                val toolCall = runCatching { sseJson.decodeFromString<DaemonToolCall>(data) }.getOrNull()
-                if (toolCall != null) {
-                    emit(LlmChunk(content = null, toolCall = LlmToolCall(
-                        id = toolCall.id ?: "tool-${System.currentTimeMillis()}",
-                        functionName = toolCall.name ?: "unknown",
-                        arguments = toolCall.input?.toString() ?: "",
-                    )))
-                }
-                runningTotal
+
+            // Try DaemonToolCall format
+            val toolCall = runCatching { daemonJson.decodeFromString<DaemonToolCall>(data) }.getOrNull()
+            if (toolCall != null && toolCall.name != null) {
+                emit(LlmChunk(content = null, toolCall = LlmToolCall(
+                    id = toolCall.id ?: "tool-${System.currentTimeMillis()}",
+                    functionName = toolCall.name,
+                    arguments = toolCall.input?.toString() ?: "",
+                )))
+                return runningTotal
             }
+        }
+
+        // Handle known event types that don't have JSON data
+        return when (eventType) {
             "error" -> {
                 logger.error("[OpenCode] SSE error event: {}", data)
                 runningTotal
             }
-            "end", "message_end", "done" -> {
-                logger.info("[OpenCode] SSE end event received")
+            "end", "message_end", "done", "session-update", "part-start", "part-end" -> {
+                logger.debug("[OpenCode] SSE control event: {}", eventType)
                 runningTotal
             }
             else -> {
-                // Some events may have data directly without a known type — try to parse as text
-                if (data.startsWith("{")) {
-                    val part = runCatching { sseJson.decodeFromString<DaemonPart>(data) }.getOrNull()
-                    if (part != null && part.type == "text" && part.text != null) {
-                        runningTotal += part.text!!.length
-                        emit(LlmChunk(content = part.text, reasoning = null))
-                        return runningTotal
-                    }
-                }
-                logger.debug("[OpenCode] Unknown SSE event type: {}", eventType)
+                logger.debug("[OpenCode] Unknown SSE event type: '{}' data: {}", eventType, data.take(100))
                 runningTotal
             }
         }

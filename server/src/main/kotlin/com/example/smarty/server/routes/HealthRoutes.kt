@@ -24,6 +24,28 @@ data class HealthResponse(
 )
 
 /**
+ * Environment info for advanced health endpoint.
+ */
+@Serializable
+data class EnvironmentInfo(
+    val jvmVersion: String,
+    val availableProcessors: String,
+    val freeMemoryMb: String,
+    val totalMemoryMb: String,
+)
+
+/**
+ * Advanced health response model.
+ */
+@Serializable
+data class AdvancedHealthResponse(
+    val server: HealthResponse,
+    val activeSessions: List<String>,
+    val recentActivities: List<String>,
+    val environment: EnvironmentInfo,
+)
+
+/**
  * Configure health check routes.
  *
  * Endpoints:
@@ -93,17 +115,16 @@ fun Application.configureHealthRoutes() {
             val recentActivities = ServerActivityMonitor.getRecentEvents()
 
             call.respond(
-                mapOf(
-                    "server" to health,
-                    "active_sessions" to activeSessions,
-                    "recent_activities" to recentActivities,
-                    "environment" to
-                        mapOf(
-                            "jvm_version" to System.getProperty("java.version"),
-                            "available_processors" to Runtime.getRuntime().availableProcessors(),
-                            "free_memory_mb" to Runtime.getRuntime().freeMemory() / (1024 * 1024),
-                            "total_memory_mb" to Runtime.getRuntime().totalMemory() / (1024 * 1024),
-                        ),
+                AdvancedHealthResponse(
+                    server = health,
+                    activeSessions = activeSessions.map { it.toString() },
+                    recentActivities = recentActivities.map { it.toString() },
+                    environment = EnvironmentInfo(
+                        jvmVersion = System.getProperty("java.version"),
+                        availableProcessors = Runtime.getRuntime().availableProcessors().toString(),
+                        freeMemoryMb = (Runtime.getRuntime().freeMemory() / (1024 * 1024)).toString(),
+                        totalMemoryMb = (Runtime.getRuntime().totalMemory() / (1024 * 1024)).toString(),
+                    ),
                 ),
             )
         }
