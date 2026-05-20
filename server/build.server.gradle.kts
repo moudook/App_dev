@@ -1,4 +1,5 @@
-// Server-only build config - no version catalog dependencies
+// Server-only build config - standalone, no version catalog
+// Uses the same versions as settings.gradle.kts libs.versions.toml for consistency
 plugins {
     application
     kotlin("jvm")
@@ -24,8 +25,19 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     }
 }
 
+// All dependency versions MUST match those in gradle/libs.versions.toml
+// to avoid binary incompatibilities between transitive dependencies
 val ktorVersion = "3.1.0"
 val exposedVersion = "0.59.0"
+val kotlinxSerializationVersion = "1.8.0"
+val kotlinxCoroutinesVersion = "1.10.1"
+val logbackVersion = "1.4.14"
+val logstashVersion = "7.4"
+val micrometerVersion = "1.12.2"
+val postgresqlVersion = "42.7.1"
+val hikaricpVersion = "5.1.0"
+val firebaseAdminVersion = "9.4.3"
+val pdfboxVersion = "3.0.1"
 
 dependencies {
     implementation(project(":common"))
@@ -40,34 +52,34 @@ dependencies {
     implementation("io.ktor:ktor-server-rate-limit:$ktorVersion")
     implementation("io.ktor:ktor-server-cors:$ktorVersion")
     implementation("io.ktor:ktor-server-auth:$ktorVersion")
+    implementation("io.ktor:ktor-server-metrics-micrometer:$ktorVersion")
 
     // Ktor Client
     implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
 
     // PDF Processing
-    implementation("org.apache.pdfbox:pdfbox:3.0.1")
+    implementation("org.apache.pdfbox:pdfbox:$pdfboxVersion")
 
     // Kotlinx
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinxSerializationVersion")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
 
     // Logging
-    implementation("ch.qos.logback:logback-classic:1.4.14")
-    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+    implementation("ch.qos.logback:logback-classic:$logbackVersion")
+    implementation("net.logstash.logback:logstash-logback-encoder:$logstashVersion")
 
     // Metrics
-    implementation("io.micrometer:micrometer-registry-prometheus:1.12.2")
-    implementation("io.ktor:ktor-server-metrics-micrometer:$ktorVersion")
+    implementation("io.micrometer:micrometer-registry-prometheus:$micrometerVersion")
 
     // Database
-    implementation("org.postgresql:postgresql:42.7.1")
-    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("org.postgresql:postgresql:$postgresqlVersion")
+    implementation("com.zaxxer:HikariCP:$hikaricpVersion")
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
 
     // Firebase Admin
-    implementation("com.google.firebase:firebase-admin:9.4.3")
+    implementation("com.google.firebase:firebase-admin:$firebaseAdminVersion")
 
     // Testing
     testImplementation(kotlin("test"))

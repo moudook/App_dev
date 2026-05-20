@@ -223,7 +223,6 @@ class ChatViewModel(
 
             // Actually call the AI service
             val responseBuilder = StringBuilder()
-            var finalContent: String? = null
             var finalThinking: String? = null
             remoteAgentService.sendQuery(
                 query = content,
@@ -232,7 +231,9 @@ class ChatViewModel(
             ).collect { event ->
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
+                        // Accumulate streamed content (server sends deltas, not full text)
                         event.content?.let { responseBuilder.append(it) }
+                        event.thinking?.let { finalThinking = it }
                         // Update message as content streams in
                         _chatState.update { state ->
                             state.copy(
@@ -246,8 +247,10 @@ class ChatViewModel(
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
-                        finalThinking = event.thinking
+                        // Server sends empty content in Result to avoid duplication.
+                        // The accumulated content from Processing events is the final answer.
+                        finalThinking = event.thinking ?: finalThinking
+                        val finalContent = responseBuilder.toString()
                         // Mark complete
                         _chatState.update { state ->
                             state.copy(
@@ -255,7 +258,7 @@ class ChatViewModel(
                                     if (msg.id == streamingMessageId) {
                                         msg.copy(
                                             isStreaming = false,
-                                            content = finalContent!!,
+                                            content = finalContent,
                                             thinking = finalThinking
                                         )
                                     } else msg
@@ -269,9 +272,9 @@ class ChatViewModel(
                 }
             }
 
-            // Save message pair with the correct final content
+            // Save message pair with the accumulated content
             val savedMessage = streamingMessage.copy(
-                content = finalContent ?: responseBuilder.toString(),
+                content = responseBuilder.toString(),
                 thinking = finalThinking,
                 isStreaming = false
             )

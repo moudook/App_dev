@@ -43,6 +43,7 @@ if [ ! -f "./opencode.json" ]; then
 fi
 
 # Launch daemon — redirect output to log file
+# 'opencode serve' is headless by default
 opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"

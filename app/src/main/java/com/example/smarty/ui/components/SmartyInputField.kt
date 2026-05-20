@@ -780,6 +780,7 @@ fun SmartyInputField(
                         isAgentWorking = isAgentWorking,
                         value = value,
                         isFocused = isFocused,
+                        mentionState = mentionState,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -1429,13 +1430,14 @@ private fun VoiceWaveformIcon(
     isAgentWorking: Boolean,
     value: TextFieldValue,
     isFocused: Boolean,
+    mentionState: MentionState,
     modifier: Modifier = Modifier
 ) {
     var isIdleFor20s by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isListening, isProcessing, isAgentWorking, value.text, isFocused) {
-        isIdleFor20s = false // Reset idle state on any action
-        if (!isListening && !isProcessing && !isAgentWorking && value.text.isEmpty() && !isFocused) {
+    LaunchedEffect(isListening, isProcessing, isAgentWorking, value.text) {
+        isIdleFor20s = false // Reset idle state on any action or text typing
+        if (!isListening && !isProcessing && !isAgentWorking) {
             delay(20000) // Wait 20 seconds
             isIdleFor20s = true
         }
@@ -1477,7 +1479,8 @@ private fun VoiceWaveformIcon(
     }
 
     val isUserAnsweringTool = (hasQuestionBeenAsked && value.text.isNotEmpty() && isFocused) || 
-                              (value.text.startsWith("/") || value.text.startsWith("@"))
+                              (value.text.startsWith("/") || value.text.startsWith("@")) ||
+                              mentionState.isActive
 
     val state = when {
         isListening -> WaveformState.TALK
@@ -1504,391 +1507,465 @@ private fun VoiceWaveformIcon(
         label = "waveformColor"
     )
 
+    val successAnimProgress = remember { Animatable(0f) }
+    LaunchedEffect(isSuccessActive) {
+        if (isSuccessActive) {
+            successAnimProgress.snapTo(0f)
+            successAnimProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(2500, easing = LinearEasing)
+            )
+        }
+    }
+
     WaveformBars(
         modifier = modifier.size(24.dp),
         color = animatedColor,
-        state = state
+        state = state,
+        successProgress = successAnimProgress.value
     )
+}
+
+private data class BarProperties(
+    val heightFraction: Float,
+    val yOffsetFraction: Float,
+    val widthMultiplier: Float,
+    val xOffsetFraction: Float
+)
+
+private fun getBarProperties(
+    state: WaveformState,
+    index: Int,
+    playTimeMs: Long,
+    successProgress: Float
+): BarProperties {
+    var widthMultiplier = 1.0f
+    var xOffsetFraction = 0f
+    var heightFraction = 0.2f
+    var yOffsetFraction = 0f
+
+    val baseHeight = when (index) {
+        0, 4 -> 0.3f
+        1, 3 -> 0.8f
+        else -> 0.2f
+    }
+
+    when (state) {
+        WaveformState.TALK -> {
+            val p = (playTimeMs % 1200) / 1200f
+            val time = 2.0 * Math.PI * (p - index * 0.1f)
+            heightFraction = 0.25f + 0.5f * (0.5f + 0.5f * Math.sin(time).toFloat())
+            yOffsetFraction = 0f
+            widthMultiplier = 1.0f
+            xOffsetFraction = 0f
+        }
+        WaveformState.THINKING -> {
+            val p = (playTimeMs % 1100) / 1100f
+            val (h, y) = when (index) {
+                2 -> {
+                    val peak = 0.18f
+                    val valH = if (p < peak) {
+                        0.1f + 0.9f * (p / peak)
+                    } else if (p < 0.45f) {
+                        1.0f - 0.85f * ((p - peak) / (0.45f - peak))
+                    } else {
+                        // Smoothly transition from 0.15f back to 0.1f to prevent wrap jitter
+                        val t = (p - 0.45f) / (1.0f - 0.45f)
+                        0.15f + (0.1f - 0.15f) * t
+                    }
+                    valH to 0f
+                }
+                1, 3 -> {
+                    val valH = if (p < 0.12f) {
+                        0.2f
+                    } else if (p < 0.30f) {
+                        0.2f + 0.75f * ((p - 0.12f) / (0.30f - 0.12f))
+                    } else if (p < 0.55f) {
+                        0.95f - 0.75f * ((p - 0.30f) / (0.55f - 0.30f))
+                    } else {
+                        0.2f
+                    }
+                    val valY = if (p in 0.12f..0.55f) {
+                        val t = (p - 0.12f) / (0.55f - 0.12f)
+                        val displacement = -2f / 24f
+                        displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
+                    } else 0f
+                    valH to valY
+                }
+                else -> {
+                    val valH = if (p < 0.24f) {
+                        0.25f
+                    } else if (p < 0.42f) {
+                        0.25f + 0.63f * ((p - 0.24f) / (0.42f - 0.24f))
+                    } else if (p < 0.68f) {
+                        0.88f - 0.63f * ((p - 0.42f) / (0.68f - 0.42f))
+                    } else {
+                        0.25f
+                    }
+                    val valY = if (p in 0.24f..0.68f) {
+                        val t = (p - 0.24f) / (0.68f - 0.24f)
+                        val displacement = -4f / 24f
+                        displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
+                    } else 0f
+                    valH to valY
+                }
+            }
+            heightFraction = h
+            yOffsetFraction = y
+            widthMultiplier = 1.0f
+            xOffsetFraction = 0f
+        }
+        WaveformState.SUCCESS -> {
+            val p = successProgress
+            val (h, y) = when {
+                p < 0.12f -> {
+                    val t = p / 0.12f
+                    val startH = baseHeight
+                    val endH = when (index) {
+                        0, 4 -> 0.08f
+                        1, 3 -> 0.2f
+                        else -> 0.06f
+                    }
+                    val valH = startH + (endH - startH) * t
+                    val valY = 0.1f * t
+                    valH to valY
+                }
+                p < 0.32f -> {
+                    val t = (p - 0.12f) / 0.20f
+                    val startH = when (index) {
+                        0, 4 -> 0.08f
+                        1, 3 -> 0.2f
+                        else -> 0.06f
+                    }
+                    val endH = when (index) {
+                        0, 4 -> 0.78f
+                        1, 3 -> 1.15f
+                        else -> 0.45f
+                    }
+                    val hVal = startH + (endH - startH) * t
+                    val startY = 0.1f
+                    val endY = -0.75f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+                p < 0.48f -> {
+                    val t = (p - 0.32f) / 0.16f
+                    val startH = when (index) {
+                        0, 4 -> 0.78f
+                        1, 3 -> 1.15f
+                        else -> 0.45f
+                    }
+                    val endH = when (index) {
+                        0, 4 -> 0.4f
+                        1, 3 -> 0.9f
+                        else -> 0.28f
+                    }
+                    val hVal = startH + (endH - startH) * t
+                    val startY = -0.75f
+                    val endY = -0.8f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+                p < 0.62f -> {
+                    val t = (p - 0.48f) / 0.14f
+                    val startH = when (index) {
+                        0, 4 -> 0.4f
+                        1, 3 -> 0.9f
+                        else -> 0.28f
+                    }
+                    val endH = when (index) {
+                        0, 4 -> 0.05f
+                        1, 3 -> 0.05f
+                        else -> 0.04f
+                    }
+                    val hVal = startH + (endH - startH) * t
+                    val startY = -0.8f
+                    val endY = 0.1f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+                p < 0.75f -> {
+                    val t = (p - 0.62f) / 0.13f
+                    val startH = when (index) {
+                        0, 4 -> 0.05f
+                        1, 3 -> 0.05f
+                        else -> 0.04f
+                    }
+                    val endH = when (index) {
+                        0, 4 -> 0.45f
+                        1, 3 -> 0.95f
+                        else -> 0.3f
+                    }
+                    val hVal = startH + (endH - startH) * t
+                    val startY = 0.1f
+                    val endY = -0.08f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+                p < 0.88f -> {
+                    val t = (p - 0.75f) / 0.13f
+                    val startH = when (index) {
+                        0, 4 -> 0.45f
+                        1, 3 -> 0.95f
+                        else -> 0.3f
+                    }
+                    val endH = when (index) {
+                        0, 4 -> 0.25f
+                        1, 3 -> 0.75f
+                        else -> 0.18f
+                    }
+                    val hVal = startH + (endH - startH) * t
+                    val startY = -0.08f
+                    val endY = 0.02f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+                else -> {
+                    val t = minOf(1.0f, (p - 0.88f) / 0.12f)
+                    val startH = when (index) {
+                        0, 4 -> 0.25f
+                        1, 3 -> 0.75f
+                        else -> 0.18f
+                    }
+                    val endH = baseHeight
+                    val hVal = startH + (endH - startH) * t
+                    val startY = 0.02f
+                    val endY = 0.0f
+                    val yVal = startY + (endY - startY) * t
+                    hVal to yVal
+                }
+            }
+            heightFraction = h
+            yOffsetFraction = y
+            widthMultiplier = 1.0f
+            xOffsetFraction = 0f
+        }
+        WaveformState.GIGGLE -> {
+            val p = (playTimeMs % 1800) / 1800f
+            // Premium smooth transition for Giggle merging/spreading
+            val mergeFactor = if (p < 0.1f) {
+                val t = p / 0.1f
+                0.5f - 0.5f * Math.cos(t * Math.PI).toFloat()
+            } else if (p < 0.85f) {
+                1.0f
+            } else if (p < 0.95f) {
+                val t = (p - 0.85f) / 0.1f
+                0.5f + 0.5f * Math.cos(t * Math.PI).toFloat()
+            } else {
+                0.0f
+            }
+
+            widthMultiplier = 1.0f + 1.7f * mergeFactor
+            xOffsetFraction = when (index) {
+                0 -> 0.3f * mergeFactor
+                1 -> -1.7f * mergeFactor
+                3 -> 0.0f * mergeFactor
+                4 -> -2.0f * mergeFactor
+                else -> 0.0f
+            }
+
+            // Beautiful sine envelope to make wiggle expand and decay cleanly with zero boundary jumps
+            heightFraction = if (p in 0.1f..0.85f) {
+                val envelope = Math.sin(((p - 0.1f) / 0.75f) * Math.PI).toFloat()
+                val gigTime = 2.0 * Math.PI * ((p - 0.1f) / 0.75f) * 2.0
+                val wiggle = 0.185f * Math.sin(gigTime - index * 0.2f).toFloat()
+                baseHeight + (0.265f + wiggle) * envelope
+            } else {
+                baseHeight
+            }
+            yOffsetFraction = 0f
+        }
+        WaveformState.SAD -> {
+            val p = (playTimeMs % 3200) / 3200f
+            val sighFactor = if (p in 0.35f..0.55f) {
+                val t = (p - 0.35f) / 0.2f
+                Math.sin(t * Math.PI).toFloat()
+            } else 0f
+
+            heightFraction = when (index) {
+                0, 4 -> 0.12f - 0.06f * sighFactor
+                1, 3 -> 0.35f - 0.33f * sighFactor
+                else -> 0.05f - 0.03f * sighFactor
+            }
+
+            yOffsetFraction = when (index) {
+                0, 4 -> 0.075f + 0.015f * sighFactor
+                1, 3 -> 0f
+                else -> 0.125f + 0.02f * sighFactor
+            }
+            widthMultiplier = 1.0f
+            xOffsetFraction = 0f
+        }
+        WaveformState.IDLE -> {
+            val p = (playTimeMs % 3000) / 3000f
+
+            // Premium continuous blink (closing and opening smoothly)
+            val eyeHeight = if (p in 0.07f..0.12f) {
+                val t = (p - 0.07f) / 0.05f
+                if (t < 0.3f) {
+                    val subT = t / 0.3f
+                    baseHeight + (0.05f - baseHeight) * subT
+                } else if (t < 0.7f) {
+                    0.05f
+                } else {
+                    val subT = (t - 0.7f) / 0.3f
+                    0.05f + (baseHeight - 0.05f) * subT
+                }
+            } else {
+                baseHeight
+            }
+
+            val earLeftHeight = if (p in 0.0f..0.3f) {
+                val t = p / 0.3f
+                if (t < 0.5f) {
+                    0.3f + 0.18f * (t / 0.5f)
+                } else {
+                    0.48f - 0.28f * ((t - 0.5f) / 0.5f)
+                }
+            } else if (p in 0.3f..0.4f) {
+                val t = (p - 0.3f) / 0.1f
+                0.2f + 0.1f * t
+            } else {
+                0.3f
+            }
+
+            val earRightHeight = if (p in 0.4f..0.7f) {
+                val t = (p - 0.4f) / 0.3f
+                if (t < 0.5f) {
+                    0.3f + 0.18f * (t / 0.5f)
+                } else {
+                    0.48f - 0.28f * ((t - 0.5f) / 0.5f)
+                }
+            } else if (p in 0.7f..0.8f) {
+                val t = (p - 0.7f) / 0.1f
+                0.2f + 0.1f * t
+            } else {
+                0.3f
+            }
+
+            heightFraction = when (index) {
+                0 -> earLeftHeight
+                4 -> earRightHeight
+                1, 3 -> eyeHeight
+                else -> {
+                    // Continuous nose/mouth height transition
+                    if (p < 0.07f) {
+                        0.2f
+                    } else if (p < 0.09f) {
+                        val t = (p - 0.07f) / 0.02f
+                        0.2f + (0.12f - 0.2f) * t
+                    } else if (p < 0.11f) {
+                        0.12f
+                    } else if (p < 0.20f) {
+                        val t = (p - 0.11f) / 0.09f
+                        0.12f + 0.2f * t
+                    } else if (p < 0.35f) {
+                        val t = (p - 0.20f) / 0.15f
+                        0.32f + (0.2f - 0.32f) * t
+                    } else {
+                        0.2f
+                    }
+                }
+            }
+
+            // Continuous nose vertical transition
+            val noseYOffset = if (p < 0.07f) {
+                0f
+            } else if (p < 0.09f) {
+                val t = (p - 0.07f) / 0.02f
+                (1.2f / 24f) * t
+            } else if (p < 0.11f) {
+                1.2f / 24f
+            } else if (p < 0.20f) {
+                val t = (p - 0.11f) / 0.09f
+                (1.2f - 3.4f * t) / 24f
+            } else if (p < 0.35f) {
+                val t = (p - 0.20f) / 0.15f
+                (-2.2f + 2.2f * t) / 24f
+            } else {
+                0f
+            }
+
+            yOffsetFraction = if (index == 2) noseYOffset else 0f
+
+            val shiftFactor = when {
+                p in 0.35f..0.55f -> {
+                    val t = (p - 0.35f) / 0.2f
+                    Math.sin(t * Math.PI).toFloat() * -1.8f / 24f
+                }
+                p in 0.65f..0.85f -> {
+                    val t = (p - 0.65f) / 0.2f
+                    Math.sin(t * Math.PI).toFloat() * 1.8f / 24f
+                }
+                else -> 0f
+            }
+
+            xOffsetFraction = shiftFactor
+            widthMultiplier = 1.0f
+        }
+    }
+
+    return BarProperties(heightFraction, yOffsetFraction, widthMultiplier, xOffsetFraction)
 }
 
 @Composable
 private fun WaveformBars(
     modifier: Modifier = Modifier,
     color: Color,
-    state: WaveformState
+    state: WaveformState,
+    successProgress: Float = 0f
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "masterProgress"
-    )
+    // Monotonic smooth timer driven by frame ticking
+    var playTimeMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        val startTime = withFrameNanos { it } / 1_000_000
+        while (true) {
+            withFrameNanos { frameTimeNanos ->
+                playTimeMs = (frameTimeNanos / 1_000_000) - startTime
+            }
+        }
+    }
+
+    // State transition variables to animate between old and new state perfectly
+    var prevState by remember { mutableStateOf(state) }
+    var currentState by remember { mutableStateOf(state) }
+    val transitionAlpha = remember { Animatable(1f) }
+
+    LaunchedEffect(state) {
+        if (state != currentState) {
+            prevState = currentState
+            currentState = state
+            transitionAlpha.snapTo(0f)
+            transitionAlpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(400, easing = FastOutSlowInEasing) // Smooth state morphing
+            )
+        }
+    }
 
     Canvas(modifier = modifier) {
         val barCount = 5
         val barWidth = size.width / 9f
         val maxHeight = size.height * 0.8f
         val centerY = size.height / 2f
+        val alpha = transitionAlpha.value
 
         for (index in 0 until barCount) {
-            val widthMultiplier: Float
-            val xOffsetFraction: Float
-            val heightFraction: Float
-            val yOffsetFraction: Float
+            val prevProps = getBarProperties(prevState, index, playTimeMs, successProgress)
+            val currProps = getBarProperties(currentState, index, playTimeMs, successProgress)
 
-            when (state) {
-                WaveformState.TALK -> {
-                    val talkProgress = (progress * 3000f / 1200f) % 1f
-                    val time = 2.0 * Math.PI * (talkProgress - index * 0.1f)
-                    heightFraction = 0.25f + 0.5f * (0.5f + 0.5f * Math.sin(time).toFloat())
-                    yOffsetFraction = 0f
-                    widthMultiplier = 1.0f
-                    xOffsetFraction = 0f
-                }
-                WaveformState.THINKING -> {
-                    val thinkingProgress = (progress * 3000f / 1100f) % 1f
-                    val p = thinkingProgress
-                    
-                    val (h, y) = when (index) {
-                        2 -> {
-                            val peak = 0.18f
-                            val valH = if (p < peak) {
-                                0.1f + 0.9f * (p / peak)
-                            } else if (p < 0.45f) {
-                                1.0f - 0.85f * ((p - peak) / (0.45f - peak))
-                            } else {
-                                0.15f
-                            }
-                            valH to 0f
-                        }
-                        1, 3 -> {
-                            val valH = if (p < 0.12f) {
-                                0.2f
-                            } else if (p < 0.30f) {
-                                0.2f + 0.75f * ((p - 0.12f) / (0.30f - 0.12f))
-                            } else if (p < 0.55f) {
-                                0.95f - 0.75f * ((p - 0.30f) / (0.55f - 0.30f))
-                            } else {
-                                0.2f
-                            }
-                            val valY = if (p in 0.12f..0.55f) {
-                                val t = (p - 0.12f) / (0.55f - 0.12f)
-                                val displacement = -2f / 24f
-                                displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
-                            } else 0f
-                            valH to valY
-                        }
-                        else -> {
-                            val valH = if (p < 0.24f) {
-                                0.25f
-                            } else if (p < 0.42f) {
-                                0.25f + 0.63f * ((p - 0.24f) / (0.42f - 0.24f))
-                            } else if (p < 0.68f) {
-                                0.88f - 0.63f * ((p - 0.42f) / (0.68f - 0.42f))
-                            } else {
-                                0.25f
-                            }
-                            val valY = if (p in 0.24f..0.68f) {
-                                val t = (p - 0.24f) / (0.68f - 0.24f)
-                                val displacement = -4f / 24f
-                                displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
-                            } else 0f
-                            valH to valY
-                        }
-                    }
-                    heightFraction = h
-                    yOffsetFraction = y
-                    widthMultiplier = 1.0f
-                    xOffsetFraction = 0f
-                }
-                WaveformState.SUCCESS -> {
-                    val successProgress = (progress * 3000f / 1100f) % 1f
-                    val p = successProgress
-                    val baseHeight = when (index) {
-                        0, 4 -> 0.3f
-                        1, 3 -> 0.8f
-                        else -> 0.2f
-                    }
-                    val (h, y) = when {
-                        p < 0.12f -> {
-                            val t = p / 0.12f
-                            val startH = baseHeight
-                            val endH = when (index) {
-                                0, 4 -> 0.08f
-                                1, 3 -> 0.2f
-                                else -> 0.06f
-                            }
-                            val valH = startH + (endH - startH) * t
-                            val valY = 0.1f * t
-                            valH to valY
-                        }
-                        p < 0.32f -> {
-                            val t = (p - 0.12f) / 0.20f
-                            val startH = when (index) {
-                                0, 4 -> 0.08f
-                                1, 3 -> 0.2f
-                                else -> 0.06f
-                            }
-                            val endH = when (index) {
-                                0, 4 -> 0.78f
-                                1, 3 -> 1.15f
-                                else -> 0.45f
-                            }
-                            val hVal = startH + (endH - startH) * t
-                            val startY = 0.1f
-                            val endY = -0.75f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                        p < 0.48f -> {
-                            val t = (p - 0.32f) / 0.16f
-                            val startH = when (index) {
-                                0, 4 -> 0.78f
-                                1, 3 -> 1.15f
-                                else -> 0.45f
-                            }
-                            val endH = when (index) {
-                                0, 4 -> 0.4f
-                                1, 3 -> 0.9f
-                                else -> 0.28f
-                            }
-                            val hVal = startH + (endH - startH) * t
-                            val startY = -0.75f
-                            val endY = -0.8f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                        p < 0.62f -> {
-                            val t = (p - 0.48f) / 0.14f
-                            val startH = when (index) {
-                                0, 4 -> 0.4f
-                                1, 3 -> 0.9f
-                                else -> 0.28f
-                            }
-                            val endH = when (index) {
-                                0, 4 -> 0.05f
-                                1, 3 -> 0.05f
-                                else -> 0.04f
-                            }
-                            val hVal = startH + (endH - startH) * t
-                            val startY = -0.8f
-                            val endY = 0.1f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                        p < 0.75f -> {
-                            val t = (p - 0.62f) / 0.13f
-                            val startH = when (index) {
-                                0, 4 -> 0.05f
-                                1, 3 -> 0.05f
-                                else -> 0.04f
-                            }
-                            val endH = when (index) {
-                                0, 4 -> 0.45f
-                                1, 3 -> 0.95f
-                                else -> 0.3f
-                            }
-                            val hVal = startH + (endH - startH) * t
-                            val startY = 0.1f
-                            val endY = -0.08f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                        p < 0.88f -> {
-                            val t = (p - 0.75f) / 0.13f
-                            val startH = when (index) {
-                                0, 4 -> 0.45f
-                                1, 3 -> 0.95f
-                                else -> 0.3f
-                            }
-                            val endH = when (index) {
-                                0, 4 -> 0.25f
-                                1, 3 -> 0.75f
-                                else -> 0.18f
-                            }
-                            val hVal = startH + (endH - startH) * t
-                            val startY = -0.08f
-                            val endY = 0.02f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                        else -> {
-                            val t = (p - 0.88f) / 0.12f
-                            val startH = when (index) {
-                                0, 4 -> 0.25f
-                                1, 3 -> 0.75f
-                                else -> 0.18f
-                            }
-                            val endH = baseHeight
-                            val hVal = startH + (endH - startH) * t
-                            val startY = 0.02f
-                            val endY = 0.0f
-                            val yVal = startY + (endY - startY) * t
-                            hVal to yVal
-                        }
-                    }
-                    heightFraction = h
-                    yOffsetFraction = y
-                    widthMultiplier = 1.0f
-                    xOffsetFraction = 0f
-                }
-                WaveformState.GIGGLE -> {
-                    val giggleProgress = (progress * 3000f / 1800f) % 1f
-                    val p = giggleProgress
-                    val mergeFactor = if (p < 0.1f) {
-                        p / 0.1f
-                    } else if (p < 0.85f) {
-                        1.0f
-                    } else if (p < 0.95f) {
-                        1.0f - (p - 0.85f) / 0.1f
-                    } else {
-                        0.0f
-                    }
-                    
-                    widthMultiplier = 1.0f + 1.7f * mergeFactor
-                    xOffsetFraction = when (index) {
-                        0 -> 0.3f * mergeFactor
-                        1 -> -1.7f * mergeFactor
-                        3 -> 0.0f * mergeFactor
-                        4 -> -2.0f * mergeFactor
-                        else -> 0.0f
-                    }
-                    
-                    val baseHeight = when (index) {
-                        0, 4 -> 0.3f
-                        1, 3 -> 0.8f
-                        else -> 0.2f
-                    }
-                    heightFraction = if (p in 0.1f..0.85f) {
-                        val gigTime = 2.0 * Math.PI * ((p - 0.1f) / 0.75f) * 2.0
-                        0.565f + 0.185f * Math.sin(gigTime - index * 0.2f).toFloat()
-                    } else {
-                        baseHeight
-                    }
-                    yOffsetFraction = 0f
-                }
-                WaveformState.SAD -> {
-                    val sadProgress = (progress * 3000f / 3200f) % 1f
-                    val p = sadProgress
-                    val sighFactor = if (p in 0.35f..0.55f) {
-                        val t = (p - 0.35f) / 0.2f
-                        Math.sin(t * Math.PI).toFloat()
-                    } else 0f
+            // Smooth linear interpolation (morphing) of vector values
+            val heightFraction = prevProps.heightFraction + (currProps.heightFraction - prevProps.heightFraction) * alpha
+            val yOffsetFraction = prevProps.yOffsetFraction + (currProps.yOffsetFraction - prevProps.yOffsetFraction) * alpha
+            val widthMultiplier = prevProps.widthMultiplier + (currProps.widthMultiplier - prevProps.widthMultiplier) * alpha
+            val xOffsetFraction = prevProps.xOffsetFraction + (currProps.xOffsetFraction - prevProps.xOffsetFraction) * alpha
 
-                    heightFraction = when (index) {
-                        0, 4 -> 0.12f - 0.06f * sighFactor
-                        1, 3 -> 0.35f - 0.33f * sighFactor
-                        else -> 0.05f - 0.03f * sighFactor
-                    }
-
-                    yOffsetFraction = when (index) {
-                        0, 4 -> 0.075f + 0.015f * sighFactor
-                        1, 3 -> 0f
-                        else -> 0.125f + 0.02f * sighFactor
-                    }
-                    widthMultiplier = 1.0f
-                    xOffsetFraction = 0f
-                }
-                WaveformState.IDLE -> {
-                    val p = progress
-                    val baseHeight = when (index) {
-                        0, 4 -> 0.3f
-                        1, 3 -> 0.8f
-                        else -> 0.2f
-                    }
-
-                    val isBlinking = p in 0.08f..0.11f
-                    val eyeHeight = if (isBlinking) 0.05f else baseHeight
-
-                    val earLeftHeight = if (p in 0.0f..0.3f) {
-                        val t = p / 0.3f
-                        if (t < 0.5f) {
-                            0.3f + 0.18f * (t / 0.5f)
-                        } else {
-                            0.48f - 0.28f * ((t - 0.5f) / 0.5f)
-                        }
-                    } else if (p in 0.3f..0.4f) {
-                        val t = (p - 0.3f) / 0.1f
-                        0.2f + 0.1f * t
-                    } else {
-                        0.3f
-                    }
-
-                    val earRightHeight = if (p in 0.4f..0.7f) {
-                        val t = (p - 0.4f) / 0.3f
-                        if (t < 0.5f) {
-                            0.3f + 0.18f * (t / 0.5f)
-                        } else {
-                            0.48f - 0.28f * ((t - 0.5f) / 0.5f)
-                        }
-                    } else if (p in 0.7f..0.8f) {
-                        val t = (p - 0.7f) / 0.1f
-                        0.2f + 0.1f * t
-                    } else {
-                        0.3f
-                    }
-
-                    heightFraction = when (index) {
-                        0 -> earLeftHeight
-                        4 -> earRightHeight
-                        1, 3 -> eyeHeight
-                        else -> {
-                            if (p in 0.08f..0.11f) {
-                                0.12f
-                            } else if (p in 0.11f..0.20f) {
-                                val t = (p - 0.11f) / 0.09f
-                                0.12f + 0.2f * t
-                            } else if (p in 0.20f..0.35f) {
-                                val t = (p - 0.20f) / 0.15f
-                                0.32f - 0.17f * t
-                            } else {
-                                0.2f
-                            }
-                        }
-                    }
-
-                    val noseYOffset = if (p in 0.08f..0.11f) {
-                        1.2f / 24f
-                    } else if (p in 0.11f..0.20f) {
-                        val t = (p - 0.11f) / 0.09f
-                        (1.2f - 3.4f * t) / 24f
-                    } else if (p in 0.20f..0.35f) {
-                        val t = (p - 0.20f) / 0.15f
-                        (-2.2f + 3.2f * t) / 24f
-                    } else {
-                        0f
-                    }
-
-                    yOffsetFraction = if (index == 2) noseYOffset else 0f
-
-                    val shiftFactor = when {
-                        p in 0.35f..0.55f -> {
-                            val t = (p - 0.35f) / 0.2f
-                            Math.sin(t * Math.PI).toFloat() * -1.8f / 24f
-                        }
-                        p in 0.65f..0.85f -> {
-                            val t = (p - 0.65f) / 0.2f
-                            Math.sin(t * Math.PI).toFloat() * 1.8f / 24f
-                        }
-                        else -> 0f
-                    }
-
-                    xOffsetFraction = shiftFactor
-                    widthMultiplier = 1.0f
-                }
-            }
-
-            // Proportional coordinates drawing
             val baseLeft = index * barWidth * 2f
             val targetLeft = baseLeft + (xOffsetFraction * barWidth)
             val targetWidth = widthMultiplier * barWidth
             val targetHeight = heightFraction * maxHeight
 
-            // Guard height to prevent capsule compression or corner inversion
+            // Safeguard height to prevent capsule compression or corner inversion
             val finalHeight = maxOf(targetHeight, targetWidth)
             val targetTop = centerY + (yOffsetFraction * maxHeight) - (finalHeight / 2f)
 

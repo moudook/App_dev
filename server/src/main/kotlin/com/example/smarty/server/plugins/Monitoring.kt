@@ -58,9 +58,9 @@ object ServerMonitor {
     private const val MAX_LLM_LOGS = 50
 
     // --- Health Status (Volatile for thread visibility) ---
-    @Volatile var isProxyReachable: Boolean = false
+    @Volatile var isOpenCodeDaemonReachable: Boolean = false
 
-    @Volatile var proxyStatusMsg: String = "Checking..."
+    @Volatile var openCodeDaemonStatusMsg: String = "Checking..."
 
     @Volatile var isDbConnected: Boolean = false
 
@@ -129,8 +129,8 @@ object ServerMonitor {
             "requestsPerMinute" to if (uptimeMs > 60000) "%.1f".format(totalRequests.get() * 60000.0 / uptimeMs) else "N/A",
             "uniqueIps" to requestLogs.map { it.sourceIp }.toSet().size,
             // Infrastructure
-            "isProxyReachable" to isProxyReachable,
-            "proxyStatusMsg" to proxyStatusMsg,
+            "isOpenCodeDaemonReachable" to isOpenCodeDaemonReachable,
+            "openCodeDaemonStatusMsg" to openCodeDaemonStatusMsg,
             "isDbConnected" to isDbConnected,
             "activeSse" to activeSseConnections.get(),
             "usedMemoryMb" to usedMem,
@@ -153,25 +153,25 @@ fun Application.configureMonitoring() {
     monitorScope.launch {
         while (isActive) {
             runCatching {
-                // Check Proxy
+                // Check OpenCode Daemon
                 try {
-                    val url = URL("http://localhost:8089/v1/models")
+                    val url = URL("http://127.0.0.1:4096/global/health")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 2000
                     conn.readTimeout = 2000
                     conn.requestMethod = "GET"
 
                     if (conn.responseCode == 200) {
-                        ServerMonitor.isProxyReachable = true
-                        ServerMonitor.proxyStatusMsg = "Online (200 OK)"
+                        ServerMonitor.isOpenCodeDaemonReachable = true
+                        ServerMonitor.openCodeDaemonStatusMsg = "Online (${conn.responseCode})"
                     } else {
-                        ServerMonitor.isProxyReachable = false
-                        ServerMonitor.proxyStatusMsg = "Error ${conn.responseCode}"
+                        ServerMonitor.isOpenCodeDaemonReachable = false
+                        ServerMonitor.openCodeDaemonStatusMsg = "HTTP ${conn.responseCode}"
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
-                    ServerMonitor.isProxyReachable = false
-                    ServerMonitor.proxyStatusMsg = "Unreachable"
+                    ServerMonitor.isOpenCodeDaemonReachable = false
+                    ServerMonitor.openCodeDaemonStatusMsg = "Unreachable (${e.message?.take(60)})"
                 }
 
                 // Check DB
@@ -272,12 +272,15 @@ fun Application.configureMonitoring() {
                 </tr>"""
                 }
 
+            val opencodeStatus = stats["isOpenCodeDaemonReachable"] as Boolean
+            val opencodeMsg = stats["openCodeDaemonStatusMsg"] as String
+
             call.respondText(ContentType.Text.Html) {
                 """
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Smarty Monitor</title>
+                    <title>Smarty Server Monitor</title>
                     <meta http-equiv="refresh" content="5">
                     <style>
                         :root { --bg: #0f0f0f; --card: #1a1a2e; --border: #2a2a4a; --text: #e0e0e0; --accent: #7c4dff; }
@@ -310,11 +313,11 @@ fun Application.configureMonitoring() {
                     <!-- Health & Resources -->
                     <div class="grid">
                         <div class="card">
-                            <h3>Proxy Status</h3>
-                            <div class="val" style="color:${statusColor(stats["isProxyReachable"] as Boolean)}">
-                                ${if (stats["isProxyReachable"] as Boolean) "HEALTHY" else "DOWN"}
+                            <h3>OpenCode Daemon</h3>
+                            <div class="val" style="color:${statusColor(opencodeStatus)}">
+                                ${if (opencodeStatus) "HEALTHY" else "DOWN"}
                             </div>
-                            <div class="sub">${stats["proxyStatusMsg"]}</div>
+                            <div class="sub">$opencodeMsg</div>
                         </div>
                         <div class="card">
                             <h3>Database</h3>

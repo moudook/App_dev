@@ -215,7 +215,7 @@ fun Application.configureEnhancedHealthCheck() {
     routing {
         /**
          * Basic health check endpoint
-         * Returns simple status for load balancers
+         * Returns simple status for load balancers and Docker HEALTHCHECK
          */
         get("/health") {
             HealthMonitor.incrementRequestCount()

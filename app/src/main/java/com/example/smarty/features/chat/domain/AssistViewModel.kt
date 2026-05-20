@@ -326,10 +326,10 @@ class AssistViewModel(
         pendingInlineImages.clear()
         pendingToolCalls.clear()
         val responseBuilder = StringBuilder()
-        var finalContent: String? = null
+        var finalThinking: String? = null
         val streamingMessageId = java.util.UUID.randomUUID().toString()
         chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true))
-        
+
         try {
             val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(getApplication())
             val selectedModel = securePrefs.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
@@ -337,11 +337,14 @@ class AssistViewModel(
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         event.content?.let { responseBuilder.append(it) }
+                        event.thinking?.let { finalThinking = it }
                         chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), event.thinking)
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
-                        chatManager.updateMessageWithThinking(streamingMessageId, finalContent!!, event.thinking)
+                        // Server sends empty content in Result to avoid duplication.
+                        // The accumulated content from Processing events is the final answer.
+                        finalThinking = event.thinking ?: finalThinking
+                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), finalThinking)
                         if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
                     }
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
@@ -350,7 +353,7 @@ class AssistViewModel(
                     else -> {}
                 }
             }
-            val contentToSave = finalContent ?: responseBuilder.toString()
+            val contentToSave = responseBuilder.toString()
             val smartyMessage = ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = contentToSave, toolCalls = pendingToolCalls.toList(), timestamp = System.currentTimeMillis(), citations = pendingCitations.toList(), isStreaming = false)
             chatManager.replaceMessage(streamingMessageId, smartyMessage)
             chatManager.markApiCallSuccessful()
