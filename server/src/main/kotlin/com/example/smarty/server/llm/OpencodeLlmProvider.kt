@@ -1,17 +1,18 @@
 package com.example.smarty.server.llm
 
 import io.ktor.client.HttpClient
-import kotlinx.coroutines.Dispatchers
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStreamReader
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 class OpencodeLlmProvider(
     private val client: HttpClient,
@@ -21,7 +22,6 @@ class OpencodeLlmProvider(
     private val daemonHost: String = "127.0.0.1",
 ) : LlmProvider {
     private val logger = LoggerFactory.getLogger(OpencodeLlmProvider::class.java)
-
     private val daemonBaseUrl = "http://$daemonHost:$daemonPort"
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
@@ -53,168 +53,110 @@ class OpencodeLlmProvider(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?,
-    ): Flow<LlmChunk> =
-        flow {
-            val streamStartTime = System.currentTimeMillis()
-            logger.info("[OpenCode] === PHASE 2: LLM Inference ===")
-            logger.info("[OpenCode] stream() starting — model={}, messages={}, tools={}", model ?: "default", messages.size, tools.size)
+    ): Flow<LlmChunk> = flow {
+        val streamStartTime = System.currentTimeMillis()
+        logger.info("[OpenCode] === PHASE 2: LLM Inference (Daemon HTTP API) ===")
+        logger.info("[OpenCode] stream() starting — model={}, messages={}, tools={}", model ?: "default", messages.size, tools.size)
 
-            val selectedModel = OpencodeModelRegistry.requireAllowedFreeModel(model ?: defaultModel)
-            logger.info("[OpenCode] Model selected: {} (requested: {})", selectedModel, model ?: "default")
+        val selectedModel = OpencodeModelRegistry.requireAllowedFreeModel(model ?: defaultModel)
+        logger.info("[OpenCode] Model selected: {} (requested: {})", selectedModel, model ?: "default")
 
-            val prompt = buildCliPrompt(messages, tools)
-            logger.info("[OpenCode] Prompt built — {} chars, {} messages, {} tools", prompt.length, messages.size, tools.size)
+        val prompt = buildDaemonPrompt(messages, tools)
+        logger.info("[OpenCode] Prompt built — {} chars, {} messages, {} tools", prompt.length, messages.size, tools.size)
 
-            val sessionId = deriveSessionId(messages)
-            logger.info("[OpenCode] Session ID: {}", sessionId)
+        val daemonSessionId = createDaemonSession()
+        logger.info("[OpenCode] Daemon session created: {}", daemonSessionId)
 
-            val process = startCliProcess(prompt, selectedModel, sessionId)
-            val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
-            val stderrReader = BufferedReader(InputStreamReader(process.errorStream))
-            val pid = process.pid()
-            val logFile = File("/tmp/opencode-run-${pid}.log")
-            logger.info("[OpenCode] CLI process started (PID: {}) — model: {}, session: {}", pid, selectedModel, sessionId)
-            logger.info("[OpenCode] Process output log: {} — run 'cat {}' on the server to see raw output", logFile.absolutePath, logFile.absolutePath)
+        val systemPrompt = extractSystemPrompt(messages)
+        logger.info("[OpenCode] Friday system prompt: {} chars", systemPrompt?.length ?: 0)
 
-            // Shared counter so watchdog can see progress from the stdout reader thread
-            val stdoutLineCount = AtomicInteger(0)
+        val userMessage = buildUserMessage(messages, tools)
+        logger.info("[OpenCode] User message: {} chars, {} tools", userMessage.length, tools.size)
 
-            // Capture stderr separately so we can see tool errors, model init messages, etc.
-            val stderrLog = StringBuilder()
-            val stderrThread = Thread {
-                var errLine: String?
-                while (stderrReader.readLine().also { errLine = it } != null) {
-                    val err = errLine?.trim().orEmpty()
-                    if (err.isNotEmpty()) {
-                        stderrLog.append(err).append('\n')
-                        logFile.appendText("[STDERR] $err\n")
-                        logger.info("[OpenCode STDERR] {}", err)
-                    }
-                }
-            }.apply { isDaemon = true; name = "opencode-stderr-${pid}" }
-            stderrThread.start()
-
-            // Watchdog: log if no stdout arrives within 15 seconds
-            val watchdog = Thread {
-                Thread.sleep(15_000)
-                if (stdoutLineCount.get() == 0 && process.isAlive) {
-                    logger.warn("[OpenCode] ⚠️  No stdout output after 15s — process is alive (PID: {}), stderr so far:", pid)
-                    if (stderrLog.isNotEmpty()) {
-                        stderrLog.toString().trim().split('\n').forEach { line ->
-                            logger.warn("[OpenCode]   stderr> {}", line)
-                        }
-                    } else {
-                        logger.warn("[OpenCode]   (stderr is also empty)")
-                    }
-                    // Check if process is still alive
-                    try {
-                        val exit = process.exitValue()
-                        logger.warn("[OpenCode]   Process already exited with code: {}", exit)
-                    } catch (_: IllegalThreadStateException) {
-                        logger.warn("[OpenCode]   Process is still running — waiting for output...")
-                    }
-                }
-            }.apply { isDaemon = true; name = "opencode-watchdog-${pid}" }
-            watchdog.start()
-
-            // opencode run outputs plain text (not JSON events).
-            // We read all stdout as the LLM response, logging every line at INFO for visibility.
-            var lineCount = 0
-            var charCount = 0
-            var line: String?
-            while (stdoutReader.readLine().also { line = it } != null) {
-                lineCount++
-                stdoutLineCount.incrementAndGet()
-                val current = line?.trim().orEmpty()
-
-                if (current.isEmpty()) continue
-
-                charCount += current.length
-                logFile.appendText("[STDOUT] $current\n")
-                logger.info("[OpenCode STDOUT] [{}] {} chars: {}", lineCount, current.length, current.take(200))
-                emit(LlmChunk(content = current + "\n", reasoning = null))
-            }
-
-            val streamDuration = System.currentTimeMillis() - streamStartTime
-            logger.info("[OpenCode] stream() completed — {} lines, {} chars, {}ms elapsed", lineCount, charCount, streamDuration)
-
-            val exitCode = withContext(Dispatchers.IO) {
-                val completed = process.waitFor(120, TimeUnit.SECONDS)
-                if (!completed) {
-                    logger.warn("[OpenCode] Process did not exit within 120s — destroying")
-                    process.destroyForcibly()
-                }
-                process.exitValue()
-            }
-
-            if (exitCode != 0) {
-                logger.error("[OpenCode] CLI exited with code {} after {} lines (session: {})", exitCode, lineCount, sessionId)
-                if (lineCount == 0) {
-                    emit(LlmChunk(content = "\n[OpenCode CLI exited with code $exitCode — no output produced]\n", reasoning = null))
-                }
-            } else {
-                logger.info("[OpenCode] CLI exited cleanly (code 0) — session: {}", sessionId)
-            }
-
-            logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
-        }.flowOn(Dispatchers.IO)
-
-    private suspend fun startCliProcess(
-        prompt: String,
-        model: String,
-        sessionId: String,
-    ) = withContext(Dispatchers.IO) {
-        val workDir = File(System.getProperty("user.dir"), "_temp/opencode").apply { mkdirs() }
-        logger.info("[OpenCode] Working directory: {}", workDir.absolutePath)
-
-        // NOTE: 'opencode run' does NOT support --attach. The --attach flag belongs to
-        // 'opencode attach <url>' which is for TUI connections. For headless LLM calls,
-        // we use 'opencode run' in one-shot mode (spawns its own process per call).
-        val command = mutableListOf(
-            "opencode", "run",
-            "--agent", agentName,
-            "--model", model,
-            "--session", sessionId,
-            "--dangerously-skip-permissions",
-            "--print-logs",
-            "--log-level", "ERROR",
-            prompt,
-        )
-
-        val commandStr = command.joinToString(" ") { arg ->
-            if (arg.length > 200) arg.take(200) + "..." else arg
+        logger.info("[OpenCode] POST /session/{}/message — model={}, agent={}", daemonSessionId, selectedModel, agentName)
+        val response = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
+            contentType(ContentType.Application.Json)
+            setBody(DaemonMessageRequest(
+                message = userMessage,
+                model = selectedModel,
+                agent = agentName,
+                system = systemPrompt,
+            ))
         }
-        logger.info("[OpenCode] Full CLI command: {}", commandStr)
 
-        val processStart = System.currentTimeMillis()
-        val process = ProcessBuilder(command)
-            .directory(workDir)
-            .redirectErrorStream(false) // Keep stderr separate so we can log it
-            .start()
-        logger.info("[OpenCode] Process started in {}ms — PID: {}", System.currentTimeMillis() - processStart, process.pid())
+        val result: DaemonMessageResponse = response.body()
+        logger.info("[OpenCode] Daemon response: {} parts", result.parts.size)
 
-        // Write full process output to a log file for debugging
-        val logFile = File("/tmp/opencode-run-${process.pid()}.log")
-        logger.info("[OpenCode] Process output log: {}", logFile.absolutePath)
-        logFile.writeText("=== OpenCode CLI Process Log ===\n")
-        logFile.appendText("PID: ${process.pid()}\n")
-        logFile.appendText("Command: $commandStr\n")
-        logFile.appendText("Started: ${java.time.Instant.now()}\n")
-        logFile.appendText("=== STDOUT ===\n")
+        var totalChars = 0
+        for (part in result.parts) {
+            when (part.type) {
+                "text" -> {
+                    val text = part.text ?: continue
+                    totalChars += text.length
+                    logger.info("[OpenCode] Text part: {} chars", text.length)
+                    emit(LlmChunk(content = text, reasoning = null))
+                }
+                "reasoning" -> {
+                    val reasoning = part.text ?: continue
+                    logger.info("[OpenCode] Reasoning part: {} chars", reasoning.length)
+                    emit(LlmChunk(content = null, reasoning = reasoning))
+                }
+                "tool" -> {
+                    val toolName = part.name
+                    val toolInput = part.input?.toString() ?: ""
+                    logger.info("[OpenCode] Tool call: {} — {}", toolName, toolInput.take(100))
+                    emit(LlmChunk(content = null, toolCall = LlmToolCall(
+                        id = "tool-${System.currentTimeMillis()}",
+                        functionName = toolName ?: "unknown",
+                        arguments = toolInput,
+                    )))
+                }
+                else -> {
+                    logger.debug("[OpenCode] Unknown part type: {}", part.type)
+                }
+            }
+        }
 
-        process
+        val streamDuration = System.currentTimeMillis() - streamStartTime
+        logger.info("[OpenCode] stream() completed — {} chars, {} parts, {}ms elapsed", totalChars, result.parts.size, streamDuration)
+        logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
+    }.flowOn(Dispatchers.IO)
+
+    private suspend fun createDaemonSession(): String {
+        val response = client.post("$daemonBaseUrl/session") {
+            contentType(ContentType.Application.Json)
+            setBody(DaemonSessionRequest())
+        }
+        val result: DaemonSessionResponse = response.body()
+        return result.id
     }
 
-    private fun deriveSessionId(messages: List<LlmMessage>): String {
-        val anchor =
-            messages
-                .firstOrNull { it.role == LlmMessage.Role.USER }
-                ?.content
-                ?: messages.joinToString("|") { it.content.take(80) }
-        return "smarty-${anchor.hashCode().toUInt()}"
+    private fun extractSystemPrompt(messages: List<LlmMessage>): String? {
+        return messages
+            .filter { it.role == LlmMessage.Role.SYSTEM }
+            .joinToString("\n\n") { it.content }
+            .takeIf { it.isNotBlank() }
     }
 
-    private fun buildCliPrompt(
+    private fun buildUserMessage(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+    ): String {
+        val nonSystem = messages.filter { it.role != LlmMessage.Role.SYSTEM }
+        return nonSystem.joinToString("\n\n") { msg ->
+            when (msg.role) {
+                LlmMessage.Role.USER -> "<user>\n${msg.content}\n</user>"
+                LlmMessage.Role.ASSISTANT -> {
+                    val thinking = msg.thinking?.takeIf { it.isNotBlank() }?.let { "<think>\n$it\n</think>\n" } ?: ""
+                    "<assistant>\n$thinking${msg.content}\n</assistant>"
+                }
+                LlmMessage.Role.TOOL -> "<tool_result name=\"${msg.name ?: "tool"}\">\n${msg.content}\n</tool_result>"
+                else -> msg.content
+            }
+        }
+    }
+
+    private fun buildDaemonPrompt(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
     ): String {
@@ -279,3 +221,48 @@ class OpencodeLlmProvider(
         return "$bridgePrompt\n\n<conversation>\n$formattedMessages\n</conversation>"
     }
 }
+
+// ==================== Daemon API Data Classes ====================
+
+@Serializable
+private data class DaemonSessionRequest(
+    val parentID: String? = null,
+    val title: String? = null,
+)
+
+@Serializable
+private data class DaemonSessionResponse(
+    val id: String,
+)
+
+@Serializable
+private data class DaemonMessageRequest(
+    val message: String,
+    val model: String? = null,
+    val agent: String? = null,
+    val noReply: Boolean? = null,
+    val system: String? = null,
+    val tools: List<JsonObject>? = null,
+    val parts: List<JsonObject>? = null,
+)
+
+@Serializable
+private data class DaemonMessageResponse(
+    val info: DaemonMessageInfo,
+    val parts: List<DaemonPart>,
+)
+
+@Serializable
+private data class DaemonMessageInfo(
+    val id: String,
+    val type: String? = null,
+)
+
+@Serializable
+private data class DaemonPart(
+    val type: String,
+    val text: String? = null,
+    val name: String? = null,
+    val input: JsonObject? = null,
+    val output: JsonObject? = null,
+)
