@@ -11,13 +11,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
@@ -50,6 +46,20 @@ class OpencodeLlmProvider(
             explicitNulls = false
         }
 
+    // Smarty tool names â€” filter out OpenCode internal tools (websearch, bash, etc.)
+    private val smartyToolNames = setOf(
+        "create_note", "search_notes", "update_note", "delete_note",
+        "create_reminder", "search_reminders", "update_reminder", "delete_reminder",
+        "create_event", "search_events", "update_event", "delete_event",
+        "create_task", "search_tasks", "update_task", "delete_task",
+        "ask_user", "web_search", "deep_research",
+        "create_image", "edit_image",
+        "get_weather", "send_email",
+        "create_contact", "search_contacts",
+        "get_location", "read_file", "write_file", "run_code",
+        "summarize", "translate",
+    )
+
     private val daemonBaseUrl = "http://$daemonHost:$daemonPort"
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
@@ -59,12 +69,17 @@ class OpencodeLlmProvider(
         model: String?,
     ): LlmResponse {
         val content = StringBuilder()
+        val reasoning = StringBuilder()
         val toolCalls = mutableListOf<LlmToolCall>()
         stream(messages, tools, model).collect { chunk ->
             chunk.content?.let { content.append(it) }
+            chunk.reasoning?.let { reasoning.append(it) }
             chunk.toolCall?.let { toolCalls.add(it) }
         }
-        return LlmResponse(content = content.toString().ifBlank { null }, toolCalls = toolCalls)
+        return LlmResponse(
+            content = content.toString().ifBlank { null },
+            toolCalls = toolCalls,
+        )
     }
 
     override suspend fun stream(
@@ -75,36 +90,67 @@ class OpencodeLlmProvider(
         flow {
             val selectedModel = OpencodeModelRegistry.requireAllowedFreeModel(model ?: defaultModel)
             val prompt = buildCliPrompt(messages, tools)
-            val process = startCliProcess(prompt, selectedModel, deriveSessionId(messages))
+            val sessionId = deriveSessionId(messages)
+            val process = startCliProcess(prompt, selectedModel, sessionId)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val textParser = ToolBlockTextParser()
 
             var line: String?
             while (reader.readLine().also { line = it } != null) {
-                val current = line ?: continue
-                val parsed = parseJsonEvent(current)
-                if (parsed != null) {
-                    if (!parsed.reasoning.isNullOrEmpty()) emit(LlmChunk(content = null, reasoning = parsed.reasoning))
-                    if (parsed.toolCall != null) emit(LlmChunk(content = null, toolCall = parsed.toolCall))
-                    if (!parsed.content.isNullOrEmpty()) {
-                        textParser.accept(parsed.content).forEach { emit(it) }
+                val current = line?.trim().orEmpty()
+                if (current.isEmpty() || !current.startsWith('{')) continue
+
+                runCatching {
+                    val obj = json.parseToJsonElement(current).jsonObject
+                    val eventType = obj["type"]?.jsonPrimitive?.contentOrNull.orEmpty()
+
+                    when (eventType) {
+                        "reasoning" -> {
+                            val text = extractPartText(obj)
+                            if (!text.isNullOrEmpty()) {
+                                logger.debug("OpenCode reasoning: {} chars", text.length)
+                                emit(LlmChunk(content = null, reasoning = text))
+                            }
+                        }
+                        "text" -> {
+                            val text = extractPartText(obj)
+                            if (!text.isNullOrEmpty()) {
+                                logger.debug("OpenCode text: {} chars", text.length)
+                                emit(LlmChunk(content = text, reasoning = null, toolCall = null))
+                            }
+                        }
+                        "tool" -> {
+                            val toolCall = extractSmartyToolCall(obj)
+                            if (toolCall != null) {
+                                logger.info("OpenCode Smarty tool call: {}", toolCall.functionName)
+                                emit(LlmChunk(content = null, reasoning = null, toolCall = toolCall))
+                            } else {
+                                logger.debug("OpenCode internal tool call (ignored by Ktor)")
+                            }
+                        }
+                        "step_finish" -> {
+                            val reason = obj["part"]?.jsonObject?.get("reason")?.jsonPrimitive?.contentOrNull
+                            logger.debug("OpenCode step_finish: reason={}", reason)
+                        }
+                        "step_start" -> {
+                            // turn boundary â€” no emission needed
+                        }
+                        else -> {
+                            logger.trace("OpenCode unknown event: {}", eventType)
+                        }
                     }
-                } else {
-                    textParser.accept(cleanTerminalLine(current)).forEach { emit(it) }
+                }.onFailure { e ->
+                    logger.debug("OpenCode parse error: {}", e.message)
                 }
             }
 
-            textParser.flush().forEach { emit(it) }
-
-            val completed = process.waitFor(30, TimeUnit.SECONDS)
-            if (!completed) {
-                process.destroyForcibly()
-                throw IllegalStateException("OpenCode CLI did not exit after its output stream closed.")
+            val exitCode = withContext(Dispatchers.IO) {
+                val completed = process.waitFor(60, TimeUnit.SECONDS)
+                if (!completed) process.destroyForcibly()
+                process.exitValue()
             }
 
-            val exitCode = process.exitValue()
             if (exitCode != 0) {
-                throw IllegalStateException("OpenCode CLI exited with code $exitCode. Ensure a verified free OpenCode model is selected.")
+                logger.error("OpenCode CLI exited with code $exitCode")
             }
         }.flowOn(Dispatchers.IO)
 
@@ -134,10 +180,11 @@ class OpencodeLlmProvider(
             "json",
             "--session",
             sessionId,
+            "--dangerously-skip-permissions",
             prompt,
         )
 
-        logger.info("Starting OpenCode CLI stream: {}", command.take(command.size - 1).joinToString(" "))
+        logger.info("OpenCode CLI: {}", command.joinToString(" "))
 
         ProcessBuilder(command)
             .directory(workDir)
@@ -233,174 +280,47 @@ class OpencodeLlmProvider(
         return "$bridgePrompt\n\n<conversation>\n$formattedMessages\n</conversation>"
     }
 
-    private fun parseJsonEvent(line: String): ParsedCliEvent? {
-        val trimmed = line.trim()
-        if (!trimmed.startsWith("{")) return null
-
-        return runCatching {
-            val element = json.parseToJsonElement(trimmed)
-            val type = element.findString("type", "kind", "event", "name")?.lowercase().orEmpty()
-            val toolCall = element.toToolCall()
-            val text = element.findString("text", "content", "delta", "message", "output")
-
-            when {
-                toolCall != null -> ParsedCliEvent(toolCall = toolCall)
-                type.contains("reason") || type.contains("think") ->
-                    ParsedCliEvent(reasoning = text)
-                type.contains("text") ||
-                    type.contains("content") ||
-                    type.contains("assistant") ||
-                    type.contains("message") ||
-                    type.contains("output") ->
-                    ParsedCliEvent(content = text)
-                text != null && type.isBlank() -> ParsedCliEvent(content = text)
-                else -> null
-            }
-        }.getOrNull()
+    /**
+     * Extract text from the "part.text" or "part.reasoning" field of an OpenCode event.
+     *
+     * Actual format:
+     * {"type":"text","part":{"type":"text","text":"Hello there..."}}
+     * {"type":"reasoning","part":{"type":"reasoning","text":"Analyzing..."}}
+     */
+    private fun extractPartText(obj: JsonObject): String? {
+        val part = obj["part"]?.jsonObject ?: return null
+        return part["text"]?.jsonPrimitive?.contentOrNull
     }
 
-    private fun cleanTerminalLine(line: String): String =
-        line
-            .replace(Regex("""^\s*[│┃╎>]*\s*"""), "")
-            .replace(Regex("""\u001B\[[;\d]*m"""), "")
-            .trimEnd()
-            .let { if (it.startsWith("build ", ignoreCase = true)) "" else it }
+    /**
+     * Extract a Smarty tool call from a "tool" event.
+     *
+     * Actual format:
+     * {"type":"tool","part":{"type":"tool","tool":"websearch",
+     *   "callID":"call_00_xxx","state":{"status":"completed",
+     *   "input":{"query":"...","numResults":5},"output":"..."}}}
+     *
+     * Only returns tool calls that match Smarty's known tool names.
+     * OpenCode internal tools (websearch, bash, read, write) are ignored.
+     */
+    private fun extractSmartyToolCall(obj: JsonObject): LlmToolCall? {
+        val part = obj["part"]?.jsonObject ?: return null
+        val toolName = part["tool"]?.jsonPrimitive?.contentOrNull ?: return null
 
-    private data class ParsedCliEvent(
-        val content: String? = null,
-        val reasoning: String? = null,
-        val toolCall: LlmToolCall? = null,
-    )
-
-    private inner class ToolBlockTextParser {
-        private val buffer = StringBuilder()
-        private var inToolBlock = false
-
-        fun accept(text: String): List<LlmChunk> {
-            if (text.isEmpty()) return emptyList()
-            val chunks = mutableListOf<LlmChunk>()
-            buffer.append(text)
-
-            while (true) {
-                val current = buffer.toString()
-                val start = current.indexOf("<tool_call>")
-                if (start < 0) {
-                    if (!inToolBlock && buffer.isNotEmpty()) {
-                        chunks += LlmChunk(content = buffer.toString())
-                        buffer.clear()
-                    }
-                    break
-                }
-
-                if (start > 0 && !inToolBlock) {
-                    chunks += LlmChunk(content = current.substring(0, start))
-                    buffer.delete(0, start)
-                }
-
-                inToolBlock = true
-                val block = buffer.toString()
-                val end = block.indexOf("</tool_call>")
-                if (end < 0) break
-
-                val payload = block.substringAfter("<tool_call>").substringBefore("</tool_call>").trim()
-                parseToolBlock(payload)?.let { chunks += LlmChunk(content = null, toolCall = it) }
-                buffer.delete(0, end + "</tool_call>".length)
-                inToolBlock = false
-            }
-
-            return chunks
+        // Skip OpenCode internal tools â€” Ktor handles these
+        if (toolName !in smartyToolNames) {
+            return null
         }
 
-        fun flush(): List<LlmChunk> {
-            val remaining = buffer.toString()
-            buffer.clear()
-            inToolBlock = false
-            if (remaining.isBlank()) return emptyList()
-            return listOf(LlmChunk(content = remaining))
-        }
+        val state = part["state"]?.jsonObject
+        val input = state?.get("input")?.jsonObject
+        val callId = part["callID"]?.jsonPrimitive?.contentOrNull
+            ?: UUID.randomUUID().toString()
 
-        private fun parseToolBlock(payload: String): LlmToolCall? =
-            runCatching {
-                val element = json.parseToJsonElement(payload)
-                element.toToolCall() ?: run {
-                    val obj = element.jsonObject
-                    val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return null
-                    val args = obj["arguments"] ?: obj["args"] ?: JsonObject(emptyMap())
-                    LlmToolCall(
-                        id = obj["id"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString(),
-                        functionName = name,
-                        arguments = args.toString(),
-                    )
-                }
-            }.getOrNull()
-    }
-}
-
-private fun JsonElement.findString(vararg keys: String): String? {
-    when (this) {
-        is JsonPrimitive -> return contentOrNull
-        is JsonObject -> {
-            keys.forEach { key ->
-                val value = this[key]
-                if (value is JsonPrimitive) value.contentOrNull?.let { return it }
-            }
-            this["message"]?.let { nested ->
-                if (nested is JsonObject) nested.findString(*keys)?.let { return it }
-            }
-            this["delta"]?.let { nested ->
-                if (nested is JsonObject) nested.findString(*keys)?.let { return it }
-            }
-            values.forEach { value ->
-                if (value is JsonObject) value.findString(*keys)?.let { return it }
-            }
-        }
-        is JsonArray -> {
-            forEach { element -> element.findString(*keys)?.let { return it } }
-        }
-    }
-    return null
-}
-
-private fun JsonElement.toToolCall(): LlmToolCall? {
-    val obj = this as? JsonObject ?: return null
-
-    val directName =
-        obj["tool"]?.jsonPrimitiveOrNull()?.contentOrNull
-            ?: obj["toolName"]?.jsonPrimitiveOrNull()?.contentOrNull
-            ?: obj["tool_name"]?.jsonPrimitiveOrNull()?.contentOrNull
-            ?: obj["functionName"]?.jsonPrimitiveOrNull()?.contentOrNull
-            ?: obj["name"]?.jsonPrimitiveOrNull()?.contentOrNull?.takeIf {
-                obj["arguments"] != null || obj["args"] != null
-            }
-
-    if (directName != null) {
-        val args = obj["arguments"] ?: obj["args"] ?: JsonObject(emptyMap())
         return LlmToolCall(
-            id = obj["id"]?.jsonPrimitiveOrNull()?.contentOrNull ?: UUID.randomUUID().toString(),
-            functionName = directName,
-            arguments = args.toString(),
+            id = callId,
+            functionName = toolName,
+            arguments = input?.toString() ?: "{}",
         )
     }
-
-    val nestedFunction = obj["function"] as? JsonObject
-    if (nestedFunction != null) {
-        val name = nestedFunction["name"]?.jsonPrimitiveOrNull()?.contentOrNull
-        val args = nestedFunction["arguments"] ?: nestedFunction["args"] ?: JsonObject(emptyMap())
-        if (name != null) {
-            return LlmToolCall(
-                id = obj["id"]?.jsonPrimitiveOrNull()?.contentOrNull ?: UUID.randomUUID().toString(),
-                functionName = name,
-                arguments = if (args is JsonPrimitive) args.contentOrNull ?: "{}" else args.toString(),
-            )
-        }
-    }
-
-    val toolCalls = obj["tool_calls"] ?: obj["toolCalls"]
-    if (toolCalls is JsonArray) {
-        toolCalls.firstOrNull()?.toToolCall()?.let { return it }
-    }
-
-    return null
 }
-
-private fun JsonElement.jsonPrimitiveOrNull(): JsonPrimitive? = this as? JsonPrimitive
