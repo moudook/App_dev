@@ -119,7 +119,10 @@ class OpencodeLlmProvider(
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 message = userMessage,
-                model = buildJsonObject { put("id", selectedModel) },
+                model = buildJsonObject {
+                    put("id", selectedModel)
+                    put("providerID", "opencode")
+                },
                 agent = agentName,
                 system = systemPrompt,
                 tools = if (toolDefs.isNotEmpty()) toolDefs else null,
