@@ -42,6 +42,7 @@ data class AgentActionResult(
  * @param toolName   Machine tool name (for tool_call/opencode_tool types)
  * @param durationMs How long this step took (set on completed/failed)
  */
+@Serializable
 data class AgentStepEntry(
     val stepType: String,
     val stepTitle: String,

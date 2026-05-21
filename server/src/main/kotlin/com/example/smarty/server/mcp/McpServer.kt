@@ -55,7 +55,7 @@ class McpServer(
 
     fun configureRouting(routing: Routing) {
         routing.route("/mcp") {
-            // 1. Establish SSE Connection
+            // 1. Establish SSE Connection (GET via standard SSE protocol)
             sse("/sse") {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.UNLIMITED)
@@ -73,6 +73,20 @@ class McpServer(
                     sessions.remove(sessionId)
                     channel.close()
                 }
+            }
+
+            // OpenCode daemon sends POST to /sse for MCP init — create session and respond
+            post("/sse") {
+                val sessionId = UUID.randomUUID().toString()
+                val channel = Channel<ServerSentEvent>(Channel.UNLIMITED)
+                sessions[sessionId] = channel
+
+                call.respondText(
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.OK,
+                    text = """{"sessionId":"$sessionId","endpoint":"/mcp/messages?sessionId=$sessionId"}"""
+                )
+                logger.info("[McpServer] POST-SSE session created: $sessionId")
             }
 
             // 2. Receive JSON-RPC messages from client
