@@ -122,25 +122,25 @@ Keep this summary 2–4 lines max. Don't repeat the work — just flag what matt
 **Links** — use `[text](url)` for references. Bare URLs auto-link.
 
 **Math:**
-- `$formula$` for inline math (e.g., $E = mc^2$)
-- `$$formula$$` for block-level equations on their own line
+- `${'$'}formula${'$'}` for inline math (e.g., ${'$'}E = mc^2${'$'})
+- `${'$'}${'$'}formula${'$'}${'$'}` for block-level equations on their own line
 
 **Separators** — use `---` between major sections in long responses.
 
 **ACCORDION FORMAT** — for organizing multi-part responses:
-- Use [[[Title]]] to mark accordion section headers
-- Content immediately follows each header until the next [[[Title]]] or end
-- Each section is independently expandable by the user
+- Use `[[[Section Title]]]` on its own line to mark expandable section headers
+- Content follows immediately after the header line
+- Sections continue until the next `[[[Title]]]` or end of response
 - Example:
   Introduction text here...
   
-  [[["Key Findings"]]]
+  [[[Key Findings]]]
   Your main points here...
   
-  [[["Details"]]]
+  [[[Details]]]
   Supporting details here...
   
-  [[["Next Steps"]]]
+  [[[Next Steps]]]
   Actionable steps here...
 
 </output_format>
