@@ -127,12 +127,21 @@ class OpencodeLlmProvider(
         var totalChars = 0
         val flowCollector = this
 
+        // The OpenCode Daemon API requires the model parameter to be an object with providerID and modelID
+        // e.g. "opencode/deepseek-v4-flash-free" -> providerID="opencode", modelID="deepseek-v4-flash-free"
+        val slashIndex = selectedModel.indexOf('/')
+        val providerId = if (slashIndex > 0) selectedModel.substring(0, slashIndex) else "opencode"
+        val modelId = if (slashIndex > 0) selectedModel.substring(slashIndex + 1) else selectedModel
+
         client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
                 parts = parts,
-                model = buildJsonObject { put("model", selectedModel) },
+                model = buildJsonObject { 
+                    put("providerID", providerId)
+                    put("modelID", modelId)
+                },
                 agent = agentName,
                 system = systemPrompt,
                 tools = mappedTools
