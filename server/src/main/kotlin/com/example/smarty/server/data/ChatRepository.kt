@@ -50,27 +50,32 @@ class ChatRepository(
         content: String,
         thinking: String? = null,
         toolCalls: String? = null,
+        agentStepsJson: String? = null,
         toolCallId: String? = null,
         tokenCount: Int = 0,
-    ) = withContext(Dispatchers.IO) {
+    ): MessageRecord = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
                 INSERT INTO chat_messages (
-                    session_id, user_id, role, content, thinking, tool_calls,
+                    session_id, user_id, role, content, thinking, tool_calls, agent_steps_json,
                     tool_call_id, token_count, is_edited, is_starred, metadata,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, false, false, '{}', now(), now())
+                ) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, false, false, '{}', now(), now())
+                RETURNING *
             """.trimIndent()
-            conn.prepareStatement(sql).use { stmt ->
+            val messageRecord = conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
                 stmt.setObject(2, UUID.fromString(userId))
                 stmt.setString(3, role.lowercase())
                 stmt.setString(4, content)
                 stmt.setString(5, thinking)
                 stmt.setString(6, toolCalls ?: "null")
-                stmt.setString(7, toolCallId)
-                stmt.setInt(8, tokenCount)
-                stmt.executeUpdate()
+                stmt.setString(7, agentStepsJson ?: "[]")
+                stmt.setString(8, toolCallId)
+                stmt.setInt(9, tokenCount)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) mapRowToMessageRecord(rs) else throw Exception("Failed to insert message")
+                }
             }
             
             // Update session preview and counts
@@ -86,6 +91,7 @@ class ChatRepository(
                 stmt.setObject(2, UUID.fromString(sessionId))
                 stmt.executeUpdate()
             }
+            messageRecord
         }
     }
 
@@ -97,52 +103,36 @@ class ChatRepository(
         content: String,
         thinking: String? = null,
         toolCalls: String? = null,
-        toolCallId: String? = null,
-        tokenCount: Int = 0,
+        agentStepsJson: String? = null,
         createdAt: Long? = null,
-    ) = withContext(Dispatchers.IO) {
+        updatedAt: Long? = null,
+    ): MessageRecord = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                INSERT INTO chat_messages (
-                    id, session_id, user_id, role, content, thinking, tool_calls,
-                    tool_call_id, token_count, is_edited, is_starred, metadata,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, false, false, '{}', ?, now())
-                ON CONFLICT (id) DO UPDATE SET
-                    role = EXCLUDED.role,
+                INSERT INTO chat_messages (id, session_id, user_id, role, content, thinking, tool_calls, agent_steps_json, created_at, updated_at) 
+                VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, COALESCE(?, now()), COALESCE(?, now()))
+                ON CONFLICT (id) DO UPDATE SET 
                     content = EXCLUDED.content,
                     thinking = EXCLUDED.thinking,
                     tool_calls = EXCLUDED.tool_calls,
-                    tool_call_id = EXCLUDED.tool_call_id,
-                    token_count = EXCLUDED.token_count,
-                    updated_at = now()
+                    agent_steps_json = EXCLUDED.agent_steps_json,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING *
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setObject(1, UUID.fromString(messageId))
-                stmt.setObject(2, UUID.fromString(sessionId))
-                stmt.setObject(3, UUID.fromString(userId))
-                stmt.setString(4, role.lowercase())
+                stmt.setString(1, messageId)
+                stmt.setString(2, sessionId)
+                stmt.setString(3, userId)
+                stmt.setString(4, role)
                 stmt.setString(5, content)
                 stmt.setString(6, thinking)
-                stmt.setString(7, toolCalls ?: "null")
-                stmt.setString(8, toolCallId)
-                stmt.setInt(9, tokenCount)
-                stmt.setTimestamp(10, java.sql.Timestamp(createdAt ?: System.currentTimeMillis()))
-                stmt.executeUpdate()
-            }
-            
-            // Update session preview and counts
-            val updateSessionSql = """
-                UPDATE chat_sessions 
-                SET last_message_preview = ?,
-                    message_count = message_count + 1,
-                    updated_at = now()
-                WHERE id = ?
-            """.trimIndent()
-            conn.prepareStatement(updateSessionSql).use { stmt ->
-                stmt.setString(1, content.take(200))
-                stmt.setObject(2, UUID.fromString(sessionId))
-                stmt.executeUpdate()
+                stmt.setString(7, toolCalls)
+                stmt.setString(8, agentStepsJson)
+                stmt.setTimestamp(9, createdAt?.let { java.sql.Timestamp(it) })
+                stmt.setTimestamp(10, updatedAt?.let { java.sql.Timestamp(it) })
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) mapRowToMessageRecord(rs) else throw Exception("Failed to save message")
+                }
             }
         }
     }
@@ -207,9 +197,6 @@ class ChatRepository(
             sessions
         }
 
-    /**
-     * Get all messages for a session as LlmMessage for agent consumption.
-     */
     suspend fun getHistory(userId: String, sessionId: String): List<com.example.smarty.server.llm.LlmMessage> =
         getAllMessagesForSession(userId, sessionId).map { msg ->
             com.example.smarty.server.llm.LlmMessage(
@@ -225,9 +212,6 @@ class ChatRepository(
             )
         }
 
-    /**
-     * Get all messages for a session (raw records).
-     */
     suspend fun getAllMessagesForSession(
         userId: String,
         sessionId: String,
@@ -241,21 +225,27 @@ class ChatRepository(
                     stmt.setObject(2, UUID.fromString(userId))
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
-                            messages.add(
-                                MessageRecord(
-                                    id = rs.getObject("id") as UUID,
-                                    role = rs.getString("role"),
-                                    content = rs.getString("content"),
-                                    thinking = rs.getString("thinking"),
-                                    createdAt = rs.getTimestamp("created_at").time,
-                                )
-                            )
+                            messages.add(mapRowToMessageRecord(rs))
                         }
                     }
                 }
             }
             messages
         }
+
+    private fun mapRowToMessageRecord(rs: ResultSet): MessageRecord =
+        MessageRecord(
+            id = rs.getObject("id") as UUID,
+            sessionId = rs.getObject("session_id") as UUID,
+            userId = rs.getObject("user_id") as UUID,
+            role = rs.getString("role"),
+            content = rs.getString("content") ?: "",
+            thinking = rs.getString("thinking"),
+            toolCalls = rs.getString("tool_calls"),
+            agentStepsJson = rs.getString("agent_steps_json"),
+            createdAt = rs.getTimestamp("created_at").time,
+            updatedAt = rs.getTimestamp("updated_at")?.time ?: rs.getTimestamp("created_at").time,
+        )
 
     private fun mapRowToSessionInfo(rs: ResultSet): SessionInfo {
         return SessionInfo(
@@ -299,9 +289,6 @@ class ChatRepository(
             }
         }
 
-    /**
-     * Get a single session by ID.
-     */
     suspend fun getSession(userId: String, sessionId: String): SessionInfo? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
@@ -316,9 +303,6 @@ class ChatRepository(
             }
         }
 
-    /**
-     * Create a session with a specific ID (for client-provided IDs).
-     */
     suspend fun createSessionWithId(userId: String, sessionId: String, title: String? = null): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
@@ -340,50 +324,48 @@ class ChatRepository(
             true
         }
 
-    /**
-     * Update the thinking field of the most recent message in a session.
-     */
     suspend fun updateMessageThinking(
         userId: String,
         sessionId: String,
         thinking: String,
-        toolCalls: String? = null
-    ): Boolean = withContext(Dispatchers.IO) {
+        toolCalls: String? = null,
+        agentStepsJson: String? = null,
+    ): MessageRecord? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            // Update the most recent message for this session that has content
-            val sql = """
-                UPDATE chat_messages 
-                SET thinking = ?, tool_calls = ?::jsonb, updated_at = now()
-                WHERE id = (
-                    SELECT id FROM chat_messages 
-                    WHERE session_id = ?::uuid AND user_id = ?::uuid 
-                    ORDER BY created_at DESC LIMIT 1
-                )
-            """.trimIndent()
-            conn.prepareStatement(sql).use { stmt ->
+            val findSql = "SELECT id FROM chat_messages WHERE session_id = ?::uuid AND user_id = ?::uuid AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+            var latestMsgId: UUID? = null
+            conn.prepareStatement(findSql).use { stmt ->
+                stmt.setString(1, sessionId)
+                stmt.setString(2, userId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        latestMsgId = rs.getObject("id") as UUID
+                    }
+                }
+            }
+            
+            if (latestMsgId == null) return@withContext null
+
+            val updateSql = "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), agent_steps_json = COALESCE(?::jsonb, agent_steps_json), updated_at = now() WHERE id = ? RETURNING *"
+            conn.prepareStatement(updateSql).use { stmt ->
                 stmt.setString(1, thinking)
                 stmt.setString(2, toolCalls)
-                stmt.setObject(3, UUID.fromString(sessionId))
-                stmt.setObject(4, UUID.fromString(userId))
-                stmt.executeUpdate() > 0
+                stmt.setString(3, agentStepsJson)
+                stmt.setObject(4, latestMsgId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) mapRowToMessageRecord(rs) else null
+                }
             }
         }
     }
 
-    /**
-     * List all sessions for a user (alias for listSessions).
-     */
     suspend fun listAllSessions(userId: String, limit: Int = 50): List<SessionInfo> =
         listSessions(userId, limit)
 
-    /**
-     * Delete a message and all messages after it in the same session.
-     */
     suspend fun deleteMessageAndAfter(userId: String, messageId: String): Int = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            // First get the session and created_at of the message
             val getMsgSql = "SELECT session_id, created_at FROM chat_messages WHERE id = ?::uuid AND user_id = ?::uuid"
-            val (sessionId, timestamp) = conn.prepareStatement(getMsgSql).use { stmt ->
+            val (sessionId, _) = conn.prepareStatement(getMsgSql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(messageId))
                 stmt.setObject(2, UUID.fromString(userId))
                 stmt.executeQuery().use { rs ->
@@ -395,7 +377,6 @@ class ChatRepository(
                 }
             }
             
-            // Delete all messages with created_at >= target message's created_at
             val deleteSql = """
                 DELETE FROM chat_messages 
                 WHERE session_id = ? AND user_id = ? 
@@ -410,13 +391,9 @@ class ChatRepository(
         }
     }
 
-    /**
-     * Link a note to a chat message.
-     */
     suspend fun linkNoteToMessage(userId: String, messageId: String, noteId: String) {
         val msgId = UUID.fromString(messageId)
         val noteUuid = UUID.fromString(noteId)
-        // Verify ownership (message belongs to user)
         dataSource.connection.use { conn ->
             val checkSql = "SELECT 1 FROM chat_messages WHERE id = ? AND user_id = ?"
             conn.prepareStatement(checkSql).use { stmt ->
@@ -430,13 +407,9 @@ class ChatRepository(
         chatMessageNotesRepo.linkMessageToNote(msgId, noteUuid)
     }
 
-    /**
-     * Unlink a note from a chat message.
-     */
     suspend fun unlinkNoteFromMessage(userId: String, messageId: String, noteId: String): Boolean {
         val msgId = UUID.fromString(messageId)
         val noteUuid = UUID.fromString(noteId)
-        // Verify ownership
         dataSource.connection.use { conn ->
             val checkSql = "SELECT 1 FROM chat_messages WHERE id = ? AND user_id = ?"
             conn.prepareStatement(checkSql).use { stmt ->
@@ -450,11 +423,7 @@ class ChatRepository(
         return chatMessageNotesRepo.unlinkMessageFromNote(msgId, noteUuid)
     }
 
-    /**
-     * Get all note IDs linked to a chat message.
-     */
     suspend fun getLinkedNotes(userId: String, messageId: String): List<String> = withContext(Dispatchers.IO) {
-        // Verify ownership
         dataSource.connection.use { conn ->
             val checkSql = "SELECT 1 FROM chat_messages WHERE id = ? AND user_id = ?"
             conn.prepareStatement(checkSql).use { stmt ->
@@ -469,9 +438,6 @@ class ChatRepository(
             .map { it.toString() }
     }
 
-    /**
-     * Search chat history for a query.
-     */
     suspend fun searchHistory(userId: String, query: String, limit: Int = 10): List<SearchResult> =
         withContext(Dispatchers.IO) {
             val results = mutableListOf<SearchResult>()
@@ -547,9 +513,14 @@ data class SessionInfo(
 
 data class MessageRecord(
     val id: UUID,
+    val sessionId: UUID,
+    val userId: UUID,
     val role: String,
     val content: String,
-    val thinking: String?,
+    val thinking: String? = null,
+    val toolCalls: String? = null,
+    val agentStepsJson: String? = null,
     val createdAt: Long,
+    val updatedAt: Long,
     val linkedNoteIds: List<String> = emptyList(),
 )

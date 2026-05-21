@@ -132,9 +132,9 @@ You output: <tool_call>{"name":"memory","arguments":{"action":"save","title":"Wi
 **RULES:**
 - Output ONLY the <tool_call>...</tool_call> tag when using a tool — no extra prose before calling it
 - After the tool result is returned to you, provide your final answer to the user
-- Your ONLY available tools are listed below. Do not attempt to use any other tools.
+- You may use the SMARTY TOOLS listed below, AS WELL AS native system tools like `web_search` and `webfetch`.
 
-**YOUR TOOLS:**
+**YOUR SMARTY TOOLS:**
 $toolsDesc
             """.trimIndent()
             systemPrompt = (systemPrompt ?: "") + "\n" + toolInstruction

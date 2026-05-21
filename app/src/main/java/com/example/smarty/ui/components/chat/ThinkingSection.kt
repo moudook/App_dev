@@ -37,9 +37,12 @@ import com.example.smarty.core.domain.model.AgentStepEntry
 import com.example.smarty.core.domain.model.AgentToolCallEntry
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
+import com.example.smarty.features.chat.ui.thinking.OrganicThinkingIndicator
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sanitisation — strip ONLY sensitive data, keep all reasoning/features
@@ -135,7 +138,10 @@ fun ThinkingSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (isStreaming) {
-                    MinimalThinkingPulse(accentColor)
+                    OrganicThinkingIndicator(
+                        size = 18.dp,
+                        baseColor = accentColor
+                    )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Psychology,
@@ -188,40 +194,46 @@ fun ThinkingSection(
                 val safeText = sanitizeThinking(thinkingText)
                 val hasContent = agentSteps.isNotEmpty() || safeText.isNotBlank() || toolCalls.isNotEmpty()
                 if (hasContent) {
-                    Row(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .width(2.dp)
-                                .fillMaxHeight()
-                                .padding(start = 2.dp, top = 4.dp, bottom = 4.dp, end = 10.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            if (agentSteps.isNotEmpty()) {
-                                agentSteps.forEach { step ->
+                    Column(
+                        modifier = Modifier
+                            .padding(top = 12.dp, bottom = 8.dp, start = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        if (agentSteps.isNotEmpty()) {
+                            agentSteps.forEach { step ->
+                                TimelineNodeItem(status = step.stepStatus, accentColor = accentColor) {
                                     if (step.stepType == "thinking" && step.stepContent.isNotBlank()) {
                                         val safeStep = sanitizeThinking(step.stepContent)
                                         if (safeStep.isNotBlank()) {
                                             ReasoningBlock(text = safeStep, isStreaming = step.stepStatus == "streaming", accentColor = accentColor)
                                         }
-                                    } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool") {
+                                    } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool" || step.stepType == "tool_result") {
                                         val toolEntry = toolCalls.find { it.toolName == step.toolName }?.copy(status = step.stepStatus)
                                             ?: AgentToolCallEntry(
-                                                toolName = step.toolName ?: "",
+                                                toolName = step.toolName ?: "action",
                                                 displayName = step.stepTitle,
                                                 status = step.stepStatus,
                                                 inputSummary = step.stepContent
                                             )
                                         ToolActionCard(entry = toolEntry, accentColor = accentColor)
+                                    } else {
+                                        Text(
+                                            text = step.stepTitle,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
-                            } else {
-                                if (safeText.isNotBlank()) {
+                            }
+                        } else {
+                            if (safeText.isNotBlank()) {
+                                TimelineNodeItem(status = if (isStreaming) "streaming" else "completed", accentColor = accentColor) {
                                     ReasoningBlock(text = safeText, isStreaming = isStreaming, accentColor = accentColor)
                                 }
-                                if (toolCalls.isNotEmpty()) {
-                                    toolCalls.forEach { entry ->
+                            }
+                            if (toolCalls.isNotEmpty()) {
+                                toolCalls.forEach { entry ->
+                                    TimelineNodeItem(status = entry.status, accentColor = accentColor) {
                                         ToolActionCard(entry = entry, accentColor = accentColor)
                                     }
                                 }
@@ -235,42 +247,45 @@ fun ThinkingSection(
 }
 
 @Composable
-private fun MinimalThinkingPulse(color: Color) {
-    val transition = rememberInfiniteTransition(label = "pulse")
-    val scale by transition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
-    )
-    val alpha by transition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
-        // Outer glowing ring
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .scale(scale)
-                .clip(CircleShape)
-                .background(color.copy(alpha = alpha * 0.25f))
-        )
-        // Solid core
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = alpha))
-        )
+private fun TimelineNodeItem(
+    status: String,
+    accentColor: Color,
+    content: @Composable () -> Unit
+) {
+    val nodeColor = when (status) {
+        "completed" -> Color(0xFF4CAF50)
+        "failed", "error" -> MaterialTheme.colorScheme.error
+        else -> accentColor
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        if (status == "started" || status == "streaming") {
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .size(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                OrganicThinkingIndicator(
+                    size = 12.dp,
+                    baseColor = nodeColor
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(nodeColor.copy(alpha = 0.8f))
+            )
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            content()
+        }
     }
 }
 

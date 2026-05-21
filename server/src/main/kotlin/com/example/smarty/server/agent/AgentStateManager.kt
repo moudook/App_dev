@@ -379,7 +379,7 @@ class AgentStateManager(
                 | "pause / play / next track"                 | `device` action=media               |
                 | "turn on/off wifi / bluetooth / flashlight" | `device` action=toggle              |
                 | "screenshot"                                | `device` action=capture             |
-                | "search / look up / research / news"        | `search` (parallel + follow-up)     |
+                | "search / look up / research / news"        | `web_search` (built-in tool)        |
                 | "go to [screen]"                            | `navigate` action=go                |
                 | "share this"                                | `navigate` action=share             |
                 | "generate / create image"                   | `generate_image`                    |

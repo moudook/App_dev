@@ -267,6 +267,7 @@ class SyncCoordinator(
                                     content = cleanContent,
                                     thinking = thinking,
                                     timestamp = msgData.createdAt,
+                                    agentSteps = com.example.smarty.core.domain.model.ChatMessageEntity.parseAgentStepsJson(msgData.agentStepsJson ?: "[]")
                                 )
                             val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
                             chatDao.insertMessage(entity)
