@@ -3,8 +3,10 @@ package com.example.smarty.server.llm
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
+import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.request.header
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -122,7 +124,10 @@ class OpencodeLlmProvider(
 
         logger.info("[OpenCode] POST /session/{}/message — agent={}, system={}chars, tools={}", daemonSessionId, agentName, systemPrompt?.length ?: 0, tools.size)
 
-        val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
+        var totalChars = 0
+        val flowCollector = this
+
+        client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
             contentType(ContentType.Application.Json)
             header("Accept", "text/event-stream")
             setBody(DaemonMessageRequest(
@@ -131,73 +136,73 @@ class OpencodeLlmProvider(
                 system = systemPrompt,
                 tools = mappedTools
             ))
-        }
+        }.execute { response ->
+            val channel = response.bodyAsChannel()
+            var currentEvent: String? = null
+            var currentData = StringBuilder()
+            var lineCount = 0
+            var eventCount = 0
 
-        val channel = httpRequest.bodyAsChannel()
-        var currentEvent: String? = null
-        var currentData = StringBuilder()
-        var totalChars = 0
-        var lineCount = 0
-        var eventCount = 0
+            logger.info("[OpenCode] === SSE STREAM STARTED ===")
 
-        logger.info("[OpenCode] === SSE STREAM STARTED ===")
+            while (!channel.isClosedForRead) {
+                val line = channel.readUTF8Line() ?: break
+                lineCount++
 
-        while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line() ?: break
-            lineCount++
+                // Log EVERY line for debugging
+                logger.debug("[OpenCode] SSE LINE #{}: '{}'", lineCount, line.take(500))
 
-            // Log EVERY line for debugging
-            logger.debug("[OpenCode] SSE LINE #{}: '{}'", lineCount, line.take(500))
+                if (line.isEmpty()) {
+                    if (currentData.isNotEmpty()) {
+                        val eventType = currentEvent ?: "message"
+                        eventCount++
+                        logger.info("[OpenCode] SSE EVENT #{}: type='{}', data={} chars", eventCount, eventType, currentData.length)
+                        flowCollector.processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
+                            totalChars = chars
+                        }
+                    } else {
+                        logger.debug("[OpenCode] SSE: empty line (no data to process)")
+                    }
+                    currentEvent = null
+                    currentData = StringBuilder()
+                    continue
+                }
 
-            if (line.isEmpty()) {
-                if (currentData.isNotEmpty()) {
-                    val eventType = currentEvent ?: "message"
-                    eventCount++
-                    logger.info("[OpenCode] SSE EVENT #{}: type='{}', data={} chars", eventCount, eventType, currentData.length)
-                    processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
+                if (line.startsWith("event:")) {
+                    currentEvent = line.substringAfter("event:").trim()
+                    logger.debug("[OpenCode] SSE: event type set to '{}'", currentEvent)
+                } else if (line.startsWith("data:")) {
+                    val data = line.substringAfter("data:").trim()
+                    if (data.isNotEmpty()) {
+                        if (currentData.isNotEmpty()) currentData.append("\n")
+                        currentData.append(data)
+                        logger.debug("[OpenCode] SSE: data appended ({} chars total)", currentData.length)
+                    }
+                } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
+                    logger.debug("[OpenCode] SSE: skipping metadata/comment line")
+                } else if (line.startsWith("{")) {
+                    logger.info("[OpenCode] SSE: raw JSON line detected (not SSE-wrapped)")
+                    flowCollector.processSseEvent("message", line, totalChars)?.let { chars ->
                         totalChars = chars
                     }
                 } else {
-                    logger.debug("[OpenCode] SSE: empty line (no data to process)")
+                    logger.debug("[OpenCode] SSE: unrecognized line format: '{}'", line.take(100))
                 }
-                currentEvent = null
-                currentData = StringBuilder()
-                continue
             }
 
-            if (line.startsWith("event:")) {
-                currentEvent = line.substringAfter("event:").trim()
-                logger.debug("[OpenCode] SSE: event type set to '{}'", currentEvent)
-            } else if (line.startsWith("data:")) {
-                val data = line.substringAfter("data:").trim()
-                if (data.isNotEmpty()) {
-                    if (currentData.isNotEmpty()) currentData.append("\n")
-                    currentData.append(data)
-                    logger.debug("[OpenCode] SSE: data appended ({} chars total)", currentData.length)
-                }
-            } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
-                logger.debug("[OpenCode] SSE: skipping metadata/comment line")
-            } else if (line.startsWith("{")) {
-                logger.info("[OpenCode] SSE: raw JSON line detected (not SSE-wrapped)")
-                processSseEvent("message", line, totalChars)?.let { chars ->
+            if (currentData.isNotEmpty()) {
+                val eventType = currentEvent ?: "message"
+                eventCount++
+                logger.info("[OpenCode] SSE FINAL EVENT: type='{}', data={} chars", eventType, currentData.length)
+                flowCollector.processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
                     totalChars = chars
                 }
-            } else {
-                logger.debug("[OpenCode] SSE: unrecognized line format: '{}'", line.take(100))
             }
+
+            logger.info("[OpenCode] === SSE STREAM COMPLETE ===")
+            logger.info("[OpenCode] SSE stats: {} lines, {} events, {} chars, {}ms elapsed", lineCount, eventCount, totalChars, System.currentTimeMillis() - streamStartTime)
         }
 
-        if (currentData.isNotEmpty()) {
-            val eventType = currentEvent ?: "message"
-            eventCount++
-            logger.info("[OpenCode] SSE FINAL EVENT: type='{}', data={} chars", eventType, currentData.length)
-            processSseEvent(eventType, currentData.toString(), totalChars)?.let { chars ->
-                totalChars = chars
-            }
-        }
-
-        logger.info("[OpenCode] === SSE STREAM COMPLETE ===")
-        logger.info("[OpenCode] SSE stats: {} lines, {} events, {} chars, {}ms elapsed", lineCount, eventCount, totalChars, System.currentTimeMillis() - streamStartTime)
         val streamDuration = System.currentTimeMillis() - streamStartTime
         logger.info("[OpenCode] stream() completed — {} chars, {}ms elapsed", totalChars, streamDuration)
         logger.info("[OpenCode] === PHASE 2 COMPLETE ===")
