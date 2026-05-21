@@ -3,6 +3,8 @@ package com.example.smarty.data.repository
 import android.util.Log
 import androidx.room.Transaction
 import com.example.smarty.core.common.util.PrivacyGuard
+import com.example.smarty.core.domain.model.AgentStepEntity
+import com.example.smarty.core.domain.model.AgentStepEntry
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatRole
@@ -10,6 +12,7 @@ import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.ChatDao
 import com.example.smarty.data.local.ChatMessageNotesDao
+import com.example.smarty.data.local.dao.AgentStepDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.map
 class ChatRepository(
     private val chatDao: ChatDao,
     private val chatMessageNotesDao: ChatMessageNotesDao,
+    private val agentStepDao: AgentStepDao,
 ) {
     companion object {
         private const val TAG = "ChatRepository"
@@ -433,5 +437,35 @@ class ChatRepository(
      */
     suspend fun getOrCreateActiveSession(context: android.content.Context): ChatSession {
         return getActiveSession() ?: createNewSession(context)
+    }
+
+    // ==================== Agent Step Persistence ====================
+
+    /**
+     * Persist accumulated AgentStepEntry list for a message.
+     * Called after message_end so the trace survives app restarts.
+     */
+    @Transaction
+    suspend fun saveAgentSteps(messageId: String, steps: List<AgentStepEntry>) {
+        if (steps.isEmpty()) return
+        val entities = AgentStepEntity.fromAgentStepEntries(steps, messageId)
+        agentStepDao.insertSteps(entities)
+        Log.d(TAG, "saveAgentSteps: persisted ${entities.size} steps for message $messageId")
+    }
+
+    /**
+     * Load agent steps for a message (used when hydrating chat history).
+     */
+    suspend fun loadAgentSteps(messageId: String): List<AgentStepEntry> {
+        return agentStepDao.getStepsForMessage(messageId).map { it.toAgentStepEntry() }
+    }
+
+    /**
+     * Observe agent steps for a message as a Flow.
+     */
+    fun agentStepsFlow(messageId: String): Flow<List<AgentStepEntry>> {
+        return agentStepDao.getStepsForMessageFlow(messageId)
+            .map { entities -> entities.map { it.toAgentStepEntry() } }
+            .distinctUntilChanged()
     }
 }

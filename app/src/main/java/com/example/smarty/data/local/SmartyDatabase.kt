@@ -33,6 +33,8 @@ import com.example.smarty.data.local.SharedItemEntity
 import com.example.smarty.data.local.NoteTaskEntity
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.features.chat.domain.memory.AIMemoryDao
+import com.example.smarty.core.domain.model.AgentStepEntity
+import com.example.smarty.data.local.dao.AgentStepDao
 
 @Database(
     entities = [
@@ -41,6 +43,7 @@ import com.example.smarty.features.chat.domain.memory.AIMemoryDao
         Category::class,
         ChatSession::class,
         ChatMessageEntity::class,
+        AgentStepEntity::class,
         ImpressedEntry::class,
         CalendarEvent::class,
         SmartyTimer::class,
@@ -72,7 +75,7 @@ import com.example.smarty.features.chat.domain.memory.AIMemoryDao
         StackEntity::class,
         NoteStackEntity::class,
     ],
-    version = 41,
+    version = 42,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -80,6 +83,7 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun categoryDao(): CategoryDao
     abstract fun chatDao(): ChatDao
+    abstract fun agentStepDao(): AgentStepDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
     abstract fun noteVersionDao(): NoteVersionDao
@@ -314,6 +318,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_38_39,
                             Migrations.MIGRATION_39_40,
                             Migrations.MIGRATION_40_41,
+                            Migrations.MIGRATION_41_42,
                         )
                         .fallbackToDestructiveMigration()
                         .build()

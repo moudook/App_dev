@@ -1256,4 +1256,28 @@ object Migrations {
                 db.execSQL("ALTER TABLE chat_sessions ADD COLUMN personality TEXT")
             }
         }
+
+    val MIGRATION_41_42 =
+        object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS agent_steps (
+                        stepId TEXT PRIMARY KEY NOT NULL,
+                        messageId TEXT NOT NULL,
+                        stepType TEXT NOT NULL,
+                        stepTitle TEXT NOT NULL,
+                        stepContent TEXT NOT NULL,
+                        stepStatus TEXT NOT NULL,
+                        stepIndex INTEGER NOT NULL,
+                        toolName TEXT,
+                        durationMs INTEGER,
+                        timestamp INTEGER NOT NULL,
+                        FOREIGN KEY(messageId) REFERENCES chat_messages(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_steps_messageId ON agent_steps(messageId)")
+            }
+        }
 }

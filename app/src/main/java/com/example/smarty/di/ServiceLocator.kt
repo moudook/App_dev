@@ -269,6 +269,7 @@ object ServiceLocator {
             com.example.smarty.data.repository.ChatRepository(
                 chatDao = database.chatDao(),
                 chatMessageNotesDao = database.chatMessageNotesDao(),
+                agentStepDao = database.agentStepDao(),
             ).also { chatRepository = it }
         }
     }
