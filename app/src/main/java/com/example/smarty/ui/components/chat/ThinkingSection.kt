@@ -209,12 +209,22 @@ fun ThinkingSection(
                                         }
                                     } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool" || step.stepType == "tool_result") {
                                         val toolEntry = toolCalls.find { it.toolName == step.toolName }?.copy(status = step.stepStatus)
-                                            ?: AgentToolCallEntry(
-                                                toolName = step.toolName ?: "action",
-                                                displayName = step.stepTitle,
-                                                status = step.stepStatus,
-                                                inputSummary = step.stepContent
-                                            )
+                                            ?: if (step.stepType == "tool_result") {
+                                                AgentToolCallEntry(
+                                                    toolName = step.toolName ?: "action",
+                                                    displayName = step.stepTitle,
+                                                    status = step.stepStatus,
+                                                    inputSummary = step.stepTitle,
+                                                    outputSummary = step.stepContent
+                                                )
+                                            } else {
+                                                AgentToolCallEntry(
+                                                    toolName = step.toolName ?: "action",
+                                                    displayName = step.stepTitle,
+                                                    status = step.stepStatus,
+                                                    inputSummary = step.stepContent
+                                                )
+                                            }
                                         ToolActionCard(entry = toolEntry, accentColor = accentColor)
                                     } else {
                                         Text(
@@ -435,14 +445,38 @@ private fun ToolActionCard(
                         else -> {
                             val input = entry.inputSummary?.let { sanitizeDetailText(it) }
                             val output = entry.outputSummary?.let { sanitizeDetailText(it) }
-                            if (!input.isNullOrBlank()) DetailRow("Input", input)
-                            if (!output.isNullOrBlank()) DetailRow("Result", output)
-                            if (input.isNullOrBlank() && output.isNullOrBlank()) {
-                                Text(
-                                    "No details available",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
+
+                            // For tool_result steps, show the raw output with safe truncation
+                            val isToolResult = entry.outputSummary != null && entry.outputSummary!!.length > 1000
+                            if (isToolResult) {
+                                var showFull by remember(entry.outputSummary) { mutableStateOf(false) }
+                                val fullOutput = output ?: ""
+                                val truncated = if (fullOutput.length > 2000) fullOutput.take(2000) else fullOutput
+
+                                DetailRow("Result (${formatByteSize(fullOutput.length)} chars)", truncated)
+                                if (fullOutput.length > 2000) {
+                                    Text(
+                                        text = if (showFull) "Show less" else "Show full output (${fullOutput.length} chars)",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = accentColor,
+                                        modifier = Modifier
+                                            .clickable { showFull = !showFull }
+                                            .padding(top = 4.dp)
+                                    )
+                                    if (showFull) {
+                                        DetailRow("Full Output", fullOutput)
+                                    }
+                                }
+                            } else {
+                                if (!input.isNullOrBlank()) DetailRow("Input", input)
+                                if (!output.isNullOrBlank()) DetailRow("Result", output)
+                                if (input.isNullOrBlank() && output.isNullOrBlank()) {
+                                    Text(
+                                        "No details available",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -630,4 +664,12 @@ private fun sanitizeDetailText(text: String): String {
     s = s.replace(SanitisePatterns.thinkTags, "")
     s = s.replace(Regex("""\n{3,}"""), "\n\n")
     return s.trim()
+}
+
+private fun formatByteSize(charCount: Int): String {
+    return when {
+        charCount < 1000 -> "$charCount"
+        charCount < 1_000_000 -> "${charCount / 1000}K"
+        else -> "${charCount / 1_000_000}M"
+    }
 }

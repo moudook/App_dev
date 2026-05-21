@@ -1833,6 +1833,75 @@ class ChatFeatureManager(
                             )
                             collectedAgentSteps.add(uiStep)
                             chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
+
+                            // For tool_result steps, also update the corresponding ToolCall entry
+                            // with the actual output so ToolActionCard can display it
+                            if (event.stepType == "tool_result" && event.toolName != null) {
+                                val toolName = event.toolName
+                                val resultContent = event.stepContent
+
+                                // Update pendingToolCalls: find the matching tool and set outputSummary
+                                val existingIdx = pendingToolCalls.indexOfFirst { it.toolName == toolName && it.status == "completed" }
+                                if (existingIdx >= 0) {
+                                    val existing = pendingToolCalls[existingIdx]
+                                    pendingToolCalls[existingIdx] = existing.copy(
+                                        outputSummary = resultContent,
+                                        status = "completed"
+                                    )
+                                    chatManager.updateSmartyMessageActions(
+                                        streamingMessageId,
+                                        pendingActions.toList()
+                                    )
+                                } else {
+                                    // No matching completed tool found — create a new entry
+                                    val displayName = when (toolName.lowercase()) {
+                                        "web_search", "websearch" -> "Searching the web"
+                                        "webfetch" -> "Fetching webpage"
+                                        else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+                                    }
+                                    val newEntry = com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                        toolName = toolName,
+                                        displayName = displayName,
+                                        status = "completed",
+                                        inputSummary = event.stepTitle,
+                                        outputSummary = resultContent,
+                                    )
+                                    pendingToolCalls.add(newEntry)
+                                }
+
+                                // Also update the toolCalls on the streaming message directly
+                                // so the UI re-renders with the result visible
+                                val currentMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
+                                if (currentMsg != null) {
+                                    val updatedToolCalls = currentMsg.toolCalls.toMutableList()
+                                    val tcIdx = updatedToolCalls.indexOfFirst { it.toolName == toolName && it.status == "completed" }
+                                    if (tcIdx >= 0) {
+                                        updatedToolCalls[tcIdx] = updatedToolCalls[tcIdx].copy(
+                                            outputSummary = resultContent,
+                                            status = "completed"
+                                        )
+                                    } else {
+                                        val displayName = when (toolName.lowercase()) {
+                                            "web_search", "websearch" -> "Searching the web"
+                                            "webfetch" -> "Fetching webpage"
+                                            else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+                                        }
+                                        updatedToolCalls.add(
+                                            com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                                toolName = toolName,
+                                                displayName = displayName,
+                                                status = "completed",
+                                                inputSummary = event.stepTitle,
+                                                outputSummary = resultContent,
+                                            )
+                                        )
+                                    }
+                                    chatManager.replaceMessage(
+                                        streamingMessageId,
+                                        currentMsg.copy(toolCalls = updatedToolCalls.toList())
+                                    )
+                                }
+                            }
                         }
                         is AgentEvent.StateSync -> {
                             // State sync handled by eventSink

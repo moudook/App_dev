@@ -261,6 +261,7 @@ class ChatViewModel(
             // Actually call the AI service
             val responseBuilder = StringBuilder()
             var finalThinking: String? = null
+            val agentStepsBuilder = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
@@ -276,7 +277,10 @@ class ChatViewModel(
                             state.copy(
                                 messages = state.messages.map { msg ->
                                     if (msg.id == streamingMessageId) {
-                                        msg.copy(content = responseBuilder.toString())
+                                        msg.copy(
+                                            content = responseBuilder.toString(),
+                                            agentSteps = agentStepsBuilder.toList()
+                                        )
                                     } else msg
                                 },
                                 lastUpdated = System.currentTimeMillis()
@@ -296,7 +300,8 @@ class ChatViewModel(
                                         msg.copy(
                                             isStreaming = false,
                                             content = finalContent,
-                                            thinking = finalThinking
+                                            thinking = finalThinking,
+                                            agentSteps = agentStepsBuilder.toList()
                                         )
                                     } else msg
                                 },
@@ -305,7 +310,39 @@ class ChatViewModel(
                             )
                         }
                     }
-                    else -> { /* Handle other events */ }
+                    is com.example.smarty.protocol.AgentEvent.AgentStep -> {
+                        // Track agentic steps for live timeline display
+                        val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
+                            stepType = event.stepType,
+                            stepTitle = event.stepTitle,
+                            stepContent = event.stepContent,
+                            stepStatus = event.stepStatus,
+                            stepIndex = event.stepIndex,
+                            toolName = event.toolName,
+                            durationMs = event.durationMs
+                        )
+                        agentStepsBuilder.add(uiStep)
+                        _chatState.update { state ->
+                            state.copy(
+                                messages = state.messages.map { msg ->
+                                    if (msg.id == streamingMessageId) {
+                                        msg.copy(agentSteps = agentStepsBuilder.toList())
+                                    } else msg
+                                },
+                                lastUpdated = System.currentTimeMillis()
+                            )
+                        }
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ToolCall -> {
+                        Log.d(TAG, "ToolCall: ${event.toolName} (${event.status})")
+                    }
+                    is com.example.smarty.protocol.AgentEvent.Error -> {
+                        Log.e(TAG, "Agent error: ${event.message}")
+                        responseBuilder.append("\n[Error: ${event.message}]")
+                    }
+                    else -> {
+                        Log.d(TAG, "Unhandled event: ${event::class.simpleName}")
+                    }
                 }
             }
 
@@ -313,7 +350,8 @@ class ChatViewModel(
             val savedMessage = streamingMessage.copy(
                 content = responseBuilder.toString(),
                 thinking = finalThinking,
-                isStreaming = false
+                isStreaming = false,
+                agentSteps = agentStepsBuilder.toList()
             )
             saveMessagePair(userMessage, savedMessage)
 

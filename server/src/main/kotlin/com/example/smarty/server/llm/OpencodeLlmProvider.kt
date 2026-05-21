@@ -431,6 +431,20 @@ $toolsDesc
                                 )))
                                 context.totalEmitTime += System.currentTimeMillis() - emitStart
                             }
+                            "tool_result", "tool_return" -> {
+                                val content = part.content
+                                if (!content.isNullOrEmpty()) {
+                                    val toolName = part.toolName ?: "unknown"
+                                    logger.info("[OpenCode.Tools][inference=$inferenceId] Emitting tool_result: name='$toolName', length=${content.length}")
+                                    
+                                    val emitStart = System.currentTimeMillis()
+                                    emit(LlmChunk(content = null, toolResult = LlmToolResult(
+                                        functionName = toolName,
+                                        result = content
+                                    )))
+                                    context.totalEmitTime += System.currentTimeMillis() - emitStart
+                                }
+                            }
                             "step-start", "step-finish" -> {
                                 logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping structural boundary: ${part.type}")
                             }
@@ -571,6 +585,7 @@ private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): Canon
             when (type) {
                 "text", "reasoning" -> CanonicalPart(type = type, content = el["text"]?.jsonPrimitive?.content)
                 "tool_use", "tool" -> CanonicalPart(type = type, toolName = el["name"]?.jsonPrimitive?.content, toolArgs = el["input"]?.toString())
+                "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = el["name"]?.jsonPrimitive?.content, content = el["output"]?.toString() ?: el["text"]?.jsonPrimitive?.content)
                 else -> CanonicalPart(type = type)
             }
         }

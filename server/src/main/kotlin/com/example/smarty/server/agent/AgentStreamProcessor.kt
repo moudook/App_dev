@@ -356,6 +356,41 @@ class AgentStreamProcessor(
             if (toolCall.functionName.isNotEmpty()) currentToolName = toolCall.functionName
             currentToolArgs += toolCall.arguments
         }
+
+        // Handle native OpenCode tool_result events
+        val toolResult = chunk.toolResult
+        if (toolResult != null) {
+            // Automatically complete the tool if it was in progress
+            if (isToolCallInProgress) {
+                isToolCallInProgress = false
+                emitOpenCodeToolStep(currentToolName, "completed", currentToolArgs)
+                this.emit(
+                    AgentEvent.ToolCall(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        toolName = currentToolName,
+                        displayName = "Finished ${currentToolName.replace('_', ' ')}",
+                        status = "completed",
+                    ),
+                )
+            }
+            
+            // Emit the tool result itself as a discrete agent step so the UI can display the output
+            val stepId = UUID.randomUUID().toString()
+            this.emit(
+                AgentEvent.AgentStep(
+                    eventId = stepId,
+                    timestamp = System.currentTimeMillis(),
+                    stepIndex = stepIndex++,
+                    stepType = "tool_result",
+                    stepTitle = "Result from ${toolResult.functionName.replace('_', ' ')}",
+                    stepContent = toolResult.result,
+                    stepStatus = "completed",
+                    toolName = toolResult.functionName,
+                    durationMs = 0
+                )
+            )
+        }
     }
 
     /**

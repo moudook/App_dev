@@ -40,25 +40,45 @@ class RemoteAgentService(
     constructor(client: HttpClient, eventSink: AgentEventSink, serverUrl: String) :
         this(client, eventSink, { serverUrl }, { "smarty-test-device" })
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
 
     /**
      * Decode an SSE event into the correct AgentEvent subclass.
      * The server sends the type in the SSE `event:` field, NOT in the JSON data.
+     *
+     * Self-healing: If decoding fails for any reason (malformed JSON, oversized payload,
+     * unknown type), we return a synthetic Error event instead of crashing the stream.
      */
     private fun decodeAgentEvent(eventType: String, data: String): AgentEvent {
-        return when (eventType) {
-            "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
-            "tool_call" -> json.decodeFromString<AgentEvent.ToolCall>(data)
-            "result" -> json.decodeFromString<AgentEvent.Result>(data)
-            "error" -> json.decodeFromString<AgentEvent.Error>(data)
-            "command" -> json.decodeFromString<AgentEvent.Command>(data)
-            "state_sync" -> json.decodeFromString<AgentEvent.StateSync>(data)
-            "tool_blocked" -> json.decodeFromString<AgentEvent.ToolBlocked>(data)
-            "question" -> json.decodeFromString<AgentEvent.Question>(data)
-            "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
-            "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
-            else -> json.decodeFromString<AgentEvent.Processing>(data)
+        return try {
+            when (eventType) {
+                "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
+                "tool_call" -> json.decodeFromString<AgentEvent.ToolCall>(data)
+                "result" -> json.decodeFromString<AgentEvent.Result>(data)
+                "error" -> json.decodeFromString<AgentEvent.Error>(data)
+                "command" -> json.decodeFromString<AgentEvent.Command>(data)
+                "state_sync" -> json.decodeFromString<AgentEvent.StateSync>(data)
+                "tool_blocked" -> json.decodeFromString<AgentEvent.ToolBlocked>(data)
+                "question" -> json.decodeFromString<AgentEvent.Question>(data)
+                "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
+                "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
+                else -> {
+                    Log.w(TAG, "Unknown SSE event type: '$eventType', falling back to Processing")
+                    json.decodeFromString<AgentEvent.Processing>(data)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode '$eventType' event (data length: ${data.length}): ${e.message}")
+            AgentEvent.Error(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                message = "[Decode Error: $eventType] ${e.message?.take(200)}",
+                code = "DECODE_ERROR",
+            )
         }
     }
 
@@ -151,6 +171,7 @@ class RemoteAgentService(
                     try {
                         incoming.collect { event ->
                             val data = event.data ?: return@collect
+                            if (data.isBlank()) return@collect
                             try {
                                 val eventType = event.event ?: "processing"
                                 val agentEvent = decodeAgentEvent(eventType, data)
@@ -160,7 +181,7 @@ class RemoteAgentService(
                                 }
                             } catch (e: Exception) {
                                 if (e is EndStreamException) throw e
-                                Log.e(TAG, "Failed to parse SSE event: $data", e)
+                                Log.e(TAG, "Failed to process SSE event (length: ${data.length}): ${e.message}", e)
                             }
                         }
                     } catch (e: EndStreamException) {
