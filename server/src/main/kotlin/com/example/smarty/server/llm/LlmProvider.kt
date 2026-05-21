@@ -17,6 +17,8 @@ interface LlmProvider {
         messages: List<LlmMessage>,
         tools: List<ToolDefinition> = emptyList(),
         model: String? = null,
+        externalSessionId: String? = null,
+        onExternalSessionCreated: suspend (String) -> Unit = {}
     ): LlmResponse
 
     /**
@@ -26,6 +28,8 @@ interface LlmProvider {
         messages: List<LlmMessage>,
         tools: List<ToolDefinition> = emptyList(),
         model: String? = null,
+        externalSessionId: String? = null,
+        onExternalSessionCreated: suspend (String) -> Unit = {}
     ): Flow<LlmChunk>
 }
 

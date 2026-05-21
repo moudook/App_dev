@@ -358,7 +358,6 @@ Use for: finding past context, recalling previous discussions, looking up user h
             scheduleTool,
             remindTool,
             deviceTool,
-            searchTool,
             navigateTool,
             generateImageTool,
             askUserTool,

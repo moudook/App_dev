@@ -384,6 +384,13 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         emptyList()
                     }
 
+                // Get opencodeSessionId if session exists
+                val opencodeSessionId = if (chatRepository != null && sessionId != null) {
+                    try {
+                        chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
+                    } catch(e: Exception) { null }
+                } else null
+
                 // Register active session BEFORE creating agent (needed for progressive thinking save)
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
                 com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat")
@@ -491,6 +498,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             clientTimezone = timezoneParam,
                             clientTimeMillis = clientTimeParam,
                             personality = personalityParam,
+                            opencodeSessionId = opencodeSessionId,
+                            onOpencodeSessionCreated = { newOpencodeSessionId ->
+                                if (chatRepository != null && sessionId != null) {
+                                    try {
+                                        chatRepository.updateOpencodeSessionId(userId, sessionId!!, newOpencodeSessionId)
+                                    } catch(e: Exception) {
+                                        call.application.log.error("Failed to update opencodeSessionId", e)
+                                    }
+                                }
+                            }
                         )
 
                     // Save Smarty Response if persistence is enabled

@@ -39,18 +39,23 @@ class OpencodeLlmProvider(
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
     private val daemonJson = Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false }
+    
+    // Tracks how many messages from the history have already been sent to the daemon session
+    private val sessionMessageCount = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?,
+        externalSessionId: String?,
+        onExternalSessionCreated: suspend (String) -> Unit
     ): LlmResponse {
         logger.info("[OpenCode] generate() called — model={}, messages={}, tools={}", model ?: "default", messages.size, tools.size)
         val startTime = System.currentTimeMillis()
         val content = StringBuilder()
         val reasoning = StringBuilder()
         val toolCalls = mutableListOf<LlmToolCall>()
-        stream(messages, tools, model).collect { chunk ->
+        stream(messages, tools, model, externalSessionId, onExternalSessionCreated).collect { chunk ->
             chunk.content?.let { content.append(it) }
             chunk.reasoning?.let { reasoning.append(it) }
             chunk.toolCall?.let { toolCalls.add(it) }
@@ -68,6 +73,8 @@ class OpencodeLlmProvider(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?,
+        externalSessionId: String?,
+        onExternalSessionCreated: suspend (String) -> Unit
     ): Flow<LlmChunk> = flow {
         val inferenceId = java.util.UUID.randomUUID().toString().take(8)
         val context = StreamContext(inferenceId)
@@ -85,19 +92,26 @@ class OpencodeLlmProvider(
             "resolvedModel=$modelId")
 
         val sessionStart = System.currentTimeMillis()
-        val daemonSessionId = createDaemonSession()
+        val daemonSessionId = externalSessionId ?: createDaemonSession().also {
+            onExternalSessionCreated(it)
+        }
+        
+        // Ensure we track this session if we haven't seen it in this memory lifecycle
+        sessionMessageCount.putIfAbsent(daemonSessionId, 0)
+        val previouslySentCount = sessionMessageCount[daemonSessionId] ?: 0
+        
         context.sessionCreateMs = System.currentTimeMillis() - sessionStart
-        logger.info("[OpenCode.Session][inference=$inferenceId] Daemon session created: $daemonSessionId in ${context.sessionCreateMs}ms")
+        logger.info("[OpenCode.Session][inference=$inferenceId] Daemon session: $daemonSessionId in ${context.sessionCreateMs}ms")
 
         var systemPrompt = extractSystemPrompt(messages)
         
         // Inject tools into the system prompt to ensure the model knows about them
         if (tools.isNotEmpty()) {
             val toolsDesc = tools.joinToString("\n") { tool ->
-                val schemaStr = runCatching { 
-                    Json.encodeToString(ToolParameters.serializer(), tool.parameters) 
+                val schemaStr = runCatching {
+                    Json.encodeToString(ToolParameters.serializer(), tool.parameters)
                 }.getOrDefault("{}")
-                "- ${tool.name}: ${tool.description}\n  Parameters JSON schema: $schemaStr" 
+                "- ${tool.name}: ${tool.description}\n  Parameters JSON schema: $schemaStr"
             }
             val toolInstruction = """
                 
@@ -123,36 +137,53 @@ class OpencodeLlmProvider(
         
         logger.info("[OpenCode.Session][inference=$inferenceId] Friday system prompt: ${systemPrompt?.length ?: 0} chars")
 
-        val userMessage = buildUserMessage(messages)
-        logger.info("[OpenCode.Session][inference=$inferenceId] User message: ${userMessage.length} chars, ${tools.size} tools")
+        // Only send the NEW messages (delta) that haven't been sent to this daemon session yet
+        val newMessages = messages.drop(previouslySentCount)
+        val userMessage = buildUserMessage(newMessages)
+        
+        // Update the tracker so next iteration only sends newly appended tool results/messages
+        sessionMessageCount[daemonSessionId] = messages.size
+
+        logger.info("[OpenCode.Session][inference=$inferenceId] User message (delta): ${userMessage.length} chars (${newMessages.size} new msgs), ${tools.size} tools")
 
         val parts = listOf(buildJsonObject {
             put("type", "text")
             put("text", userMessage)
         })
 
-        // We MUST NOT pass custom tools via the tools parameter to the Daemon API, 
-        // as it strictly expects a Map<String, Boolean> of built-in tools, causing a BadRequest.
-        val mappedTools = null
+        // We map OpenCode's native web search instead of our custom search tool,
+        // but leave other custom tools out since the Daemon API strictly expects a Map<String, Boolean>.
+        val mappedTools = buildJsonObject {
+            put("web_search", true)
+        }
 
         logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, system=${systemPrompt?.length ?: 0}chars, tools=${tools.size}")
 
         val flowCollector = this
 
-        client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
-            contentType(ContentType.Application.Json)
-            header("Accept", "text/event-stream")
-            setBody(DaemonMessageRequest(
-                parts = parts,
-                model = buildJsonObject { 
-                    put("providerID", providerId)
-                    put("modelID", modelId)
-                },
-                agent = null, // Disable OpenCode's native agent to prevent it from injecting 'skill', 'todowrite', etc.
-                system = systemPrompt,
-                tools = mappedTools
-            ))
-        }.execute { response ->
+        var attempt = 0
+        val maxAttempts = 3
+        var backoff = 1000L
+
+        while (true) {
+            attempt++
+            try {
+                client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
+                    contentType(ContentType.Application.Json)
+                    header("Accept", "text/event-stream")
+                    setBody(
+                        DaemonMessageRequest(
+                            parts = parts,
+                            model = buildJsonObject {
+                                put("providerID", providerId)
+                                put("modelID", modelId)
+                            },
+                            agent = null, // Disable OpenCode's native agent to prevent it from injecting 'skill', 'todowrite', etc.
+                            system = systemPrompt,
+                            tools = mappedTools,
+                        )
+                    )
+                }.execute { response ->
             context.requestSendMs = System.currentTimeMillis() - context.startTime
 
             val contentType = response.contentType()?.toString() ?: "unknown"
@@ -258,6 +289,17 @@ class OpencodeLlmProvider(
 
             logger.info("[OpenCode.Session][inference=$inferenceId] Stream ended: reason=completed, parts=${context.partCount}, textChars=${context.textChars}, toolCalls=${context.toolCalls}")
         }
+        break // Break out of retry loop on success
+    } catch (e: Exception) {
+        if (attempt >= maxAttempts) {
+            logger.error("[OpenCode.Transport][inference=$inferenceId] Request failed after $maxAttempts attempts: ${e.message}", e)
+            throw e
+        }
+        logger.warn("[OpenCode.Transport][inference=$inferenceId] Network error (attempt $attempt/$maxAttempts): ${e.message}. Retrying in ${backoff}ms...")
+        kotlinx.coroutines.delay(backoff)
+        backoff *= 2
+    }
+}
 
         val totalMs = System.currentTimeMillis() - context.startTime
         logger.info("[OpenCode.Session][inference=$inferenceId] Latency breakdown: " +
@@ -302,8 +344,8 @@ class OpencodeLlmProvider(
 
         if (data.startsWith("{")) {
             // Parse the JSON to determine event type
-            val jsonElement = runCatching { 
-                Json.parseToJsonElement(data) 
+            val jsonElement = runCatching {
+                Json.parseToJsonElement(data)
             }.onFailure { e ->
                 logger.error("[OpenCode.Parser][inference=$inferenceId] JSON parse failed on SSE line", e)
             }.getOrNull()

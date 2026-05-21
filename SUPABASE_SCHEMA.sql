@@ -264,7 +264,8 @@ CREATE TABLE chat_sessions (
     metadata        JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ
+    expires_at      TIMESTAMPTZ,
+    opencode_session_id VARCHAR(255)
 );
 CREATE INDEX idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
 CREATE TRIGGER trg_chat_sessions_updated_at BEFORE UPDATE ON chat_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();

@@ -265,10 +265,26 @@ class ChatRepository(
             updatedAt = rs.getTimestamp("updated_at")?.time ?: 0,
             messageCount = rs.getInt("message_count"),
             lastMessagePreview = rs.getString("last_message_preview") ?: "",
-            isActive = rs.getBoolean("is_active"),
             summary = rs.getString("summary"),
-            summaryGeneratedAt = rs.getTimestamp("summary_generated_at")?.time
+            summaryGeneratedAt = rs.getTimestamp("summary_generated_at")?.time,
+            opencodeSessionId = runCatching { rs.getString("opencode_session_id") }.getOrNull()
         )
+    }
+
+    suspend fun updateOpencodeSessionId(
+        userId: String,
+        sessionId: String,
+        opencodeSessionId: String
+    ) = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "UPDATE chat_sessions SET opencode_session_id = ?, updated_at = now() WHERE id = ? AND user_id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, opencodeSessionId)
+                stmt.setObject(2, UUID.fromString(sessionId))
+                stmt.setObject(3, UUID.fromString(userId))
+                stmt.executeUpdate()
+            }
+        }
     }
 
     suspend fun deleteSession(userId: String, sessionId: String): Boolean =
@@ -526,6 +542,7 @@ data class SessionInfo(
     val isActive: Boolean = true,
     val summary: String? = null,
     val summaryGeneratedAt: Long? = null,
+    val opencodeSessionId: String? = null,
 )
 
 data class MessageRecord(

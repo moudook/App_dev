@@ -76,6 +76,8 @@ class ServerAgent(
         clientTimezone: String? = null,
         clientTimeMillis: Long? = null,
         personality: String? = null,
+        opencodeSessionId: String? = null,
+        onOpencodeSessionCreated: suspend (String) -> Unit = {},
     ): String {
         if (query.length > 10000) {
             throw IllegalArgumentException("Query too long")
@@ -83,7 +85,7 @@ class ServerAgent(
 
         return try {
             withTimeout(MAX_EXECUTION_TIME_MS) {
-                runInternal(query, sessionId, history, modelOverride, clientTimezone, clientTimeMillis, personality)
+                runInternal(query, sessionId, history, modelOverride, clientTimezone, clientTimeMillis, personality, opencodeSessionId, onOpencodeSessionCreated)
             }
         } catch (e: TimeoutCancellationException) {
             logger.error("Agent execution exceeded ${MAX_EXECUTION_TIME_MS / 60000} minute limit for user: $userId")
@@ -107,6 +109,8 @@ class ServerAgent(
         clientTimezone: String?,
         clientTimeMillis: Long?,
         personality: String? = null,
+        opencodeSessionId: String? = null,
+        onOpencodeSessionCreated: suspend (String) -> Unit = {},
     ): String {
         var toolCallCount = 0
 
@@ -198,7 +202,7 @@ class ServerAgent(
             streamProcessor.reset()
 
             try {
-                llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
+                llmProvider.stream(messagesForAgent, tools, modelOverride, opencodeSessionId, onOpencodeSessionCreated).collect { chunk ->
                     streamProcessor.processChunk(chunk)
                 }
 
@@ -269,6 +273,20 @@ class ServerAgent(
                         goalMemoryManager.markFailed("Tool limit exceeded: $toolCallCount calls")
                         return streamProcessor.currentContent.ifEmpty { "Execution limit reached." }
                     }
+
+                    // Finalize and clear current thinking so the next iteration's thought starts fresh in the UI
+                    val finalThinkingForStep = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
+                    if (finalThinkingForStep.isNotEmpty()) {
+                        emit(
+                            AgentEvent.Processing(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                content = "",
+                                thinking = finalThinkingForStep,
+                            ),
+                        )
+                    }
+                    ThinkingStorageManagerSingleton.instance.clear(sessionId)
 
                     // Emit ToolCall SSE event so the client shows "Executing tool..."
                     emit(

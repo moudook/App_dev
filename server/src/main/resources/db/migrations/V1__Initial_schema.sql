@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     metadata        JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ
+    expires_at      TIMESTAMPTZ,
+    opencode_session_id VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -510,4 +511,13 @@ BEGIN
         CREATE TRIGGER trg_notes_updated_at BEFORE UPDATE ON notes FOR EACH ROW EXECUTE FUNCTION set_updated_at();
     END IF;
     -- (Add other triggers if needed)
+END $$;
+
+DO $$ 
+BEGIN
+    BEGIN
+        ALTER TABLE chat_sessions ADD COLUMN opencode_session_id VARCHAR(255);
+    EXCEPTION
+        WHEN duplicate_column THEN RAISE NOTICE 'column opencode_session_id already exists in chat_sessions.';
+    END;
 END $$;
