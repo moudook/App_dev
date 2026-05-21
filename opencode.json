@@ -6,10 +6,12 @@
   "disabled_providers": ["anthropic", "openai", "google", "openrouter"],
   "enabled_providers": ["opencode"],
   "default_agent": "smarty-headless-agent",
-  "mcpServers": {
+  "mcp": {
     "smarty": {
-      "type": "sse",
-      "url": "http://localhost:7860/mcp/sse"
+      "type": "remote",
+      "url": "http://localhost:7860/mcp/sse",
+      "enabled": true,
+      "timeout": 120000
     }
   },
   "agent": {

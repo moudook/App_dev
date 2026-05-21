@@ -222,10 +222,14 @@ sealed class AgentEvent {
     @Serializable @SerialName("tool_call_output") data class ToolCallOutput(override val eventId: String, override val timestamp: Long, val toolId: String, val output: String) : AgentEvent()
     @Serializable @SerialName("tool_call_finished") data class ToolCallFinished(override val eventId: String, override val timestamp: Long, val toolId: String, val durationMs: Long) : AgentEvent()
 
-    // Approvals
-    @Serializable @SerialName("approval_requested") data class ApprovalRequested(override val eventId: String, override val timestamp: Long, val toolId: String) : AgentEvent()
-    @Serializable @SerialName("approval_granted") data class ApprovalGranted(override val eventId: String, override val timestamp: Long, val toolId: String) : AgentEvent()
-    @Serializable @SerialName("approval_denied") data class ApprovalDenied(override val eventId: String, override val timestamp: Long, val toolId: String) : AgentEvent()
+    @Serializable @SerialName("approval_requested") data class ApprovalRequested(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String, @SerialName("tool_name") val toolName: String, @SerialName("tool_title") val toolTitle: String, @SerialName("tool_args") val toolArgs: String) : AgentEvent()
+    @Serializable @SerialName("approval_granted") data class ApprovalGranted(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String) : AgentEvent()
+    @Serializable @SerialName("approval_denied") data class ApprovalDenied(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String) : AgentEvent()
+    // Post-approval: client tells server to resume execution
+    @Serializable @SerialName("approval_response") data class ApprovalResponse(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String, val approved: Boolean, val feedback: String? = null) : AgentEvent()
+
+    // Tool execution completion
+    @Serializable @SerialName("tool_call_completed") data class ToolCallCompleted(override val eventId: String, override val timestamp: Long, val toolId: String, val result: String, val durationMs: Long) : AgentEvent()
 
     // Final Answer
     @Serializable @SerialName("final_answer_started") data class FinalAnswerStarted(override val eventId: String, override val timestamp: Long) : AgentEvent()

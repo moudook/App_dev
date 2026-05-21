@@ -230,11 +230,16 @@ class TimelineNodeAggregator {
 
             // ── Approvals ─────────────────────────────────────────────────────
             is AgentEvent.ApprovalRequested -> {
+                val requiresText = event.toolName.equals("ask_user", ignoreCase = true)
                 val node = TimelineNode.ApprovalGate(
                     id = "approval_${event.toolId}",
                     timestamp = event.timestamp,
                     toolId = event.toolId,
+                    toolName = event.toolName,
+                    toolTitle = event.toolTitle,
+                    toolArgs = event.toolArgs,
                     status = TimelineNode.ApprovalGate.Status.PENDING,
+                    requiresText = requiresText,
                 )
                 approvalNodeIndexByToolId[event.toolId] = _nodes.size
                 _nodes.add(node)

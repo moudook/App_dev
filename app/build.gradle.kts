@@ -52,7 +52,7 @@ android {
                 mappingFileUploadEnabled = true
             }
             // Apply the release signing config
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
             // Production Server URL - Configure via environment variable or update before build
             buildConfigField(
                 "String",

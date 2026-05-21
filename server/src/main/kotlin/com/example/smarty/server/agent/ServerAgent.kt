@@ -43,8 +43,23 @@ class ServerAgent(
 
     // Extracted components
     private val stateManager = AgentStateManager(userId, llmProvider, vectorStore, summarizer)
+
+    // Permission Engine: resume callback fed to ToolExecutor.
+    // Populated by ChatRoutes for each SSE stream; calls resume the waiting
+    // continuation when the user approves or denies via POST /chat/events/approval.
+    private var resumeApprovalHandler: (suspend (com.example.smarty.protocol.AgentEvent.ApprovalResponse) -> Unit)? = null
+
     private val toolExecutor =
-        ToolExecutor(userId, llmProvider, vectorStore, noteRepository, timerRepository, calendarRepository, eventEmitter, noteService)
+        ToolExecutor(
+            userId = userId,
+            llmProvider = llmProvider,
+            vectorStore = vectorStore,
+            noteRepository = noteRepository,
+            timerRepository = timerRepository,
+            calendarRepository = calendarRepository,
+            eventEmitter = eventEmitter,
+            noteService = noteService,
+        )
     private val tracer: AgentTracer =
         CompositeTracer(
             listOf(

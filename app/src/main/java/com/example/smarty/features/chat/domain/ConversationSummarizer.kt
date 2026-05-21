@@ -128,9 +128,8 @@ Bad: "User searched for 'grandma's cookies recipe' and archived the note about l
             .joinToString("\n") { message ->
                 val role = when (message.role) {
                     ChatRole.USER -> "User"
-                    ChatRole.ASSISTANT -> "Assistant"
-                    ChatRole.SYSTEM -> "System"
                     ChatRole.SMARTY -> "Smarty"
+                    ChatRole.SYSTEM -> "System"
                 }
                 val content = message.content.take(MAX_MESSAGE_LENGTH)
                 val truncated = if (message.content.length > MAX_MESSAGE_LENGTH) "..." else ""

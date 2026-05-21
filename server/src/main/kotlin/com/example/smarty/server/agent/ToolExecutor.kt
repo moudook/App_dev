@@ -16,6 +16,21 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /**
+// === PERMISSION ENGINE: Tools that require user approval ===
+// These tools will be paused before execution and sent as ApprovalRequested events.
+// In OpenCode terms, these are the MCP tools that need human sanction.
+// Agent asks "May I?" → stream pauses → user approves/denies → stream resumes.
+// Permission list lives here; add entries to grow gate coverage.
+// In the App layer, ChatViewModel.callApproval() sends back the user decision.
+
+sealed class ToolExecutionResult {
+    data class Completed(val result: String) : ToolExecutionResult()
+    data object RequiresApproval : ToolExecutionResult()
+    data object Denied : ToolExecutionResult()
+}
+// ════════════════════════════════════════════════════════════════════════════════
+
+
  * Extracted tool execution logic from ServerAgent.kt
  * Handles all tool execution, parameter parsing, and result formatting
  *
@@ -885,4 +900,68 @@ class ToolExecutor(
             result
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PERMISSION ENGINE — Approval gating & resume callbacks
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Maps a tool canonical name → optional human-readable title displayed in the approval card. */
+    sealed class ToolApprovalStatus {
+        object ExecutesNormally : ToolApprovalStatus()
+        object RequiresApproval : ToolApprovalStatus()
+        object NoLongerSupported : ToolApprovalStatus()
+    }
+
+    /**
+     * Registry of tool → approval policy.
+     * Extend this map to gate more tools. Adding an entry ensures the agent asks
+     * before the tool runs, and the stream pauses until the client approves/denies.
+     *
+     * "device" → controls app opens, media playback, toggling airplane/wifi etc.
+     * "bash"    → will be added when device shell commands are implemented
+     * "semantic_search_notes"  → off; tool already requires access key
+     */
+    private val TOOL_APPROVAL_REGISTRY: Map<String, ToolApprovalStatus> =
+        mapOf(
+            "device" to ToolApprovalStatus.RequiresApproval, // opens apps, med, device
+        )
+
+    /**
+     * Returns the approval status for a canonical tool name.
+     * Falls back to `ExecutesNormally` for unknown tools.
+     */
+    fun requiresApproval(canonicalToolName: String): ToolApprovalStatus =
+        TOOL_APPROVAL_REGISTRY[canonicalToolName] ?: ToolApprovalStatus.ExecutesNormally
+
+    /**
+     * Approval title factory — used when emitting ApprovalRequested so the UI
+     * shows a human-readable card title instead of just the raw tool name.
+     */
+    fun permissionTitleFor(canonicalToolName: String): String =
+        when (canonicalToolName) {
+            "device" -> "Device Action"
+            else -> canonicalToolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        }
+
+    /**
+     * Short question shown in the approval card — what the tool is about to do.
+     */
+    fun permissionQuestionFor(canonicalToolName: String, argsJson: String): String =
+        when (canonicalToolName) {
+            "device" -> {
+                val args = parseUnifiedArgs(argsJson)
+                val action = args.action ?: "unknown"
+                when (action) {
+                    "open"  -> "Open ${args.app ?: "an app"}?"
+                    "media" -> "Control media (${
+                        args.actionType ?: "unknown"
+                    })?"
+                    "toggle" -> "Toggle ${args.setting ?: "a setting"} to ${if (args.on == true) "ON" else if (args.on == false) "OFF" else "?"}?"
+                    "status" -> "Check device status (${args.info ?: "full"})?"
+                    "capture" -> "Take a screenshot?"
+                    else -> "Execute device action '$action'?"
+                }
+            }
+            else -> "Execute '$canonicalToolName'?"
+        }
 }

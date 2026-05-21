@@ -15,6 +15,7 @@ import com.example.smarty.di.ServiceLocator
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import com.example.smarty.features.chat.domain.state.ChatState
 import com.example.smarty.features.chat.domain.state.ChatUiState
+import com.example.smarty.features.chat.domain.state.PendingApproval
 import com.example.smarty.features.chat.domain.event.ChatEvent
 import com.example.smarty.features.chat.domain.usecase.*
 import com.example.smarty.ui.components.ConnectionStatus
@@ -91,6 +92,35 @@ class ChatViewModel(
     // UI state - separated from domain state
     private val _uiState = MutableStateFlow(ChatUiState.initial())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    // ── Permission Engine ──────────────────────────────────────────────────────
+    // Tracks the currently-pending approval gate so the UI can show
+    // a PermissionCard while the agent stream is paused.
+    private val _pendingApprovalState = MutableStateFlow<PendingApproval?>(null)
+    val pendingApprovalState: StateFlow<PendingApproval?> = _pendingApprovalState.asStateFlow()
+
+    /**
+     * Call when user taps Approve or Deny on the PermissionCard.
+     * Sends the decision back to the server so the agent stream can resume.
+     */
+    fun callApproval(toolId: String, approved: Boolean, feedback: String? = null) {
+        val current = _pendingApprovalState.value ?: return
+        val sessionId = current.sessionId ?: return
+
+        viewModelScope.launch {
+            try {
+                remoteAgentService.sendApproval(
+                    toolId = toolId,
+                    approved = approved,
+                    feedback = feedback,
+                )
+                // Clear pending state
+                _pendingApprovalState.update { null }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send approval response: ${e.message}", e)
+            }
+        }
+    }
 
     init {
         // Collect model preference updates dynamically for perfect real-time sync across viewports
@@ -377,6 +407,34 @@ class ChatViewModel(
                     is com.example.smarty.protocol.AgentEvent.Error -> {
                         Log.e(TAG, "Agent error: ${event.message}")
                         responseBuilder.append("\n[Error: ${event.message}]")
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
+                        Log.i(TAG, "Approval requested: ${event.toolName} — pausing agent stream for user decision")
+                        _pendingApprovalState.update {
+                            PendingApproval(
+                                messageId = streamingMessageId,
+                                sessionId = sessionId,
+                                eventId = event.eventId,
+                                toolId = event.toolId,
+                                toolName = event.toolName,
+                                toolTitle = event.toolTitle,
+                                toolArgs = event.toolArgs,
+                            )
+                        }
+                        _chatState.update { state ->
+                            state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
+                        }
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
+                        Log.i(TAG, "Tool approved: ${event.toolId} — resuming stream")
+                        _pendingApprovalState.update { null }
+                        _chatState.update { state ->
+                            state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
+                        }
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
+                        Log.i(TAG, "Tool denied: ${event.toolId} — stream will continue without executing the tool")
+                        _pendingApprovalState.update { null }
                     }
                     else -> {
                         Log.d(TAG, "Unhandled event: ${event::class.simpleName}")

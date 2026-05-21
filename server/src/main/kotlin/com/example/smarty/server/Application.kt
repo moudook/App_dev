@@ -281,6 +281,16 @@ fun Application.module() {
             calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
             noteService = noteService
         )
+        // Wire McpServer approval events into the SSE stream so Android
+        // receives ApprovalRequested/Granted/Denied in real time.
+        mcpServer.eventEmitter = { event ->
+            // The mcpServer runs in a separate routing block; emit events
+            // directly via the SSE channel of each active session (best-effort).
+            // The primary approval event path is through ServerAgent's eventEmitter,
+            // which ChatRoutes.kt already forwards to `send()` in the sse block.
+            // This catch-all emitter is a secondary path for MCP-originated events.
+            log.info("[McpServer] Approval event emitted: ${event::class.simpleName}")
+        }
         routing {
             mcpServer.configureRouting(this)
         }

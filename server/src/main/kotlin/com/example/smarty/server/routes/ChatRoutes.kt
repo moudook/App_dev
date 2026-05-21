@@ -33,6 +33,8 @@ import io.ktor.sse.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 /**
@@ -806,6 +808,29 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
+                }
+            }
+
+            // === Permission Engine: Approval callback ===
+            post("/api/v1/chat/events/approval") {
+                val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                try {
+                    val bodyText = call.receiveText()
+                    val bodyJson = Json.parseToJsonElement(bodyText).jsonObject
+                    val toolId = bodyJson["toolId"]?.jsonPrimitive?.content
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing toolId"))
+                    val approved = bodyJson["approved"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                    val feedback = bodyJson["feedback"]?.jsonPrimitive?.content
+
+                    val resolved = com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(toolId, approved, feedback)
+                    if (resolved) {
+                        call.respond(HttpStatusCode.OK, mapOf("status" to "resumed", "toolId" to toolId))
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, mapOf("status" to "not_found"))
+                    }
+                } catch (e: Exception) {
+                    call.application.log.error("Approval resolve failed", e)
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Unknown error")))
                 }
             }
         }

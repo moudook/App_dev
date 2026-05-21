@@ -243,6 +243,43 @@ class RemoteAgentService(
     }
 
     /**
+     * Send the user's approval/denial decision back to the paused server agent.
+     * The server resumes the TLSM stream and continues tool execution (or aborts it).
+     *
+     * @param toolId  The unique approval gate ID the server sent in ApprovalRequested
+     * @param approved true = Approve,  false = Deny
+     * @param feedback free-text rationale sent to the agent as tool output
+     */
+    suspend fun sendApproval(
+        toolId: String,
+        approved: Boolean,
+        feedback: String? = null,
+    ) {
+        try {
+            Log.i(TAG, "Sending approval: toolId=$toolId approved=$approved feedback=${feedback?.take(100)}")
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+
+            val response =
+                client.post("$baseUrl/api/v1/chat/events/approval") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(ApprovalRequest(toolId, approved, feedback))
+                }
+
+            if (response.status.isSuccess()) {
+                Log.i(TAG, "Approval sent OK: $approved for $toolId (${response.status})")
+            } else {
+                Log.e(TAG, "Approval send failed: ${response.status}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send approval for $toolId", e)
+        }
+    }
+
+    /**
      * Delete a chat session from the server (Supabase sync).
      */
     suspend fun deleteChatSession(sessionId: String): Boolean {
@@ -952,7 +989,14 @@ class RemoteAgentService(
         }
     }
 
-    companion object {
+    @Serializable
+data class ApprovalRequest(
+    val toolId: String,
+    val approved: Boolean,
+    val feedback: String? = null,
+)
+
+companion object {
         private const val TAG = "RemoteAgentService"
     }
 }

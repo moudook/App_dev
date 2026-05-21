@@ -282,16 +282,20 @@ fun ToolCallCard(
 
 /**
  * Approval gate card — shows a pending/granted/denied state for tool invocations
- * that require user authorization.
+ * that require user authorization. Supports two modes:
+ *  - Boolean approve/deny buttons (default)
+ *  - Free-text input + Submit (when [node.requiresText] is true, e.g. ask_user)
  */
 @Composable
 fun ApprovalCard(
     node: TimelineNode.ApprovalGate,
     onGrant: () -> Unit = {},
     onDeny: () -> Unit = {},
+    onTextSubmit: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val accentColor = LocalAccentColor.current
+    var textInput by remember { mutableStateOf("") }
     val borderColor by animateColorAsState(
         targetValue = when (node.status) {
             TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF4CAF50)
@@ -322,7 +326,7 @@ fun ApprovalCard(
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
-                    text = "Tool Requires Approval",
+                    text = node.toolTitle.ifBlank { "Tool Requires Approval" },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -340,30 +344,62 @@ fun ApprovalCard(
                 }
             }
 
-            Text(
-                text = "Tool: ${node.toolId}",
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            )
+            if (node.toolArgs.isNotBlank()) {
+                Text(
+                    text = node.toolArgs,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+            }
 
-            if (node.status == TimelineNode.ApprovalGate.Status.PENDING) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = onDeny,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Deny", style = MaterialTheme.typography.labelMedium)
+            when {
+                node.status == TimelineNode.ApprovalGate.Status.PENDING && node.requiresText -> {
+                    // Free-text input mode (ask_user)
+                    OutlinedTextField(
+                        value = textInput,
+                        onValueChange = { textInput = it },
+                        label = { Text("Your response") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                    )
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            onClick = onDeny,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text("Cancel")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = { onTextSubmit?.invoke(textInput) },
+                            enabled = textInput.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        ) {
+                            Text("Submit")
+                        }
                     }
-                    Button(
-                        onClick = onGrant,
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        modifier = Modifier.weight(1f),
+                }
+
+                node.status == TimelineNode.ApprovalGate.Status.PENDING -> {
+                    // Boolean approve/deny buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("Approve", style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(
+                            onClick = onDeny,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Deny", style = MaterialTheme.typography.labelMedium)
+                        }
+                        Button(
+                            onClick = onGrant,
+                            colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Approve", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }

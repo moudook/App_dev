@@ -29,7 +29,7 @@ fun AgentRuntimeScreen(
                 items = uiState.timelineNodes,
                 key = { it.id }
             ) { node ->
-                RuntimeTimelineNodeItem(node)
+                RuntimeTimelineNodeItem(node = node, viewModel = viewModel)
             }
             if (uiState.isRunning) {
                 item {
@@ -43,11 +43,16 @@ fun AgentRuntimeScreen(
 }
 
 @Composable
-private fun RuntimeTimelineNodeItem(node: TimelineNode) {
+private fun RuntimeTimelineNodeItem(node: TimelineNode, viewModel: AgentRuntimeViewModel) {
     when (node) {
         is TimelineNode.Thinking -> ThinkingCard(node = node)
         is TimelineNode.ToolExecution -> ToolCallCard(node = node)
-        is TimelineNode.ApprovalGate -> ApprovalCard(node = node)
+        is TimelineNode.ApprovalGate -> ApprovalCard(
+            node = node,
+            onGrant = { viewModel.sendApproval(node.toolId, true) },
+            onDeny = { viewModel.sendApproval(node.toolId, false) },
+            onTextSubmit = { text -> viewModel.sendApproval(node.toolId, true, text) },
+        )
         is TimelineNode.ErrorNode -> ErrorCard(node = node)
         is TimelineNode.RecoveryNode -> RecoveryCard(node = node)
         is TimelineNode.SystemActivity -> SystemActivityCard(node = node)

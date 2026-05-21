@@ -1,7 +1,9 @@
 package com.example.smarty.server.mcp
 
+import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
 import com.example.smarty.server.agent.ToolExecutor
 import com.example.smarty.server.data.CalendarRepository
@@ -37,6 +39,9 @@ class McpServer(
     private val calendarRepository: CalendarRepository?,
     private val noteService: NoteService?
 ) {
+    // Event emitter for approval gating — injected by Application.kt route config
+    var eventEmitter: (suspend (AgentEvent) -> Unit)? = null
+
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
     private val sessions = ConcurrentHashMap<String, Channel<ServerSentEvent>>()
 
@@ -180,6 +185,49 @@ class McpServer(
     private suspend fun handleToolCall(params: JsonObject?): JsonElement {
         val name = params?.get("name")?.jsonPrimitive?.content ?: throw IllegalArgumentException("Missing tool name")
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
+
+        // === PERMISSION ENGINE ===
+        val toolCallId = UUID.randomUUID().toString()
+        val requiresApproval = name.equals("ask_user", ignoreCase = true) || 
+                              name.equals("bash", ignoreCase = true) ||
+                              name.startsWith("device")
+        
+        if (requiresApproval) {
+            val inputSummary = args.toString().take(200)
+            
+            // Emit approval requested event to suspend the stream
+            eventEmitter?.invoke(
+                AgentEvent.ApprovalRequested(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                    toolName = name,
+                    toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    toolArgs = inputSummary,
+                )
+            )
+            
+            // Suspend until UI approves/denies
+            val result = runCatching {
+                ApprovalRegistry.createPendingApproval(toolCallId).await()
+            }.getOrElse { e ->
+                logger.error("[McpServer] Approval await failed for $toolCallId", e)
+                com.example.smarty.server.agent.ApprovalResult(false, "Approval system error: ${e.message}")
+            }
+            
+            if (!result.approved) {
+                return buildJsonObject {
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", "User denied: ${result.feedback ?: "no reason given"}")
+                        })
+                    })
+                }
+            }
+            
+            logger.info("[McpServer] Tool $name approved by user, proceeding with execution")
+        }
 
         // Resolve context from ActiveSessionManager for the local OpenCode Daemon
         val activeSession = ActiveSessionManager.getAllSessions().maxByOrNull { it.lastActivity }

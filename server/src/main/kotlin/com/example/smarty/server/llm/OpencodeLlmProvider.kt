@@ -460,7 +460,22 @@ class OpencodeLlmProvider(
             contentType(ContentType.Application.Json)
             setBody(DaemonSessionRequest())
         }
-        val result: DaemonSessionResponse = response.body()
+
+        if (response.status.value !in 200..299) {
+            val errorText =
+                runCatching { response.body<String>() }.getOrDefault("Unknown error")
+            logger.error("[OpenCode] Daemon session create failed: ${response.status} - $errorText")
+            throw IllegalStateException(
+                "OpenCode daemon failed to start session. Status: ${response.status}"
+            )
+        }
+
+        val result =
+            runCatching { response.body<DaemonSessionResponse>() }.getOrNull()
+                ?: throw IllegalStateException(
+                    "Daemon /session returned invalid JSON (missing 'id' field)."
+                )
+
         return result.id
     }
 

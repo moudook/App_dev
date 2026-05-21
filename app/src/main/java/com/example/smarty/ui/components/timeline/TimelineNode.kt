@@ -54,13 +54,19 @@ sealed class TimelineNode {
 
     /**
      * Approval gate — maps ApprovalRequested / Granted / Denied.
+     * The agent stream is paused while this is in PENDING state.
+     * [requiresText] = true when the tool is "ask_user" (needs free-text input).
      */
     @Immutable
     data class ApprovalGate(
         override val id: String,
         override val timestamp: Long,
         val toolId: String,
+        val toolName: String,
+        val toolTitle: String,
+        val toolArgs: String,
         val status: Status,
+        val requiresText: Boolean = false,
     ) : TimelineNode() {
         enum class Status { PENDING, GRANTED, DENIED }
     }
