@@ -49,6 +49,17 @@ class AgentStreamProcessor(
     var parsedToolCallFound: Boolean = false
         private set
 
+    // === Agentic Step Tracking ===
+    // Each reasoning phase and tool call becomes a discrete step shown in the UI.
+    private var stepIndex = 0
+    private var currentThinkingStepId: String? = null
+    private var currentThinkingStepStart: Long = 0L
+    private val currentThinkingContent = StringBuilder()
+    private var lastOpenCodeToolStepId: String? = null
+    private var lastOpenCodeToolStart: Long = 0L
+    private val THINKING_STEP_THROTTLE_MS = 500L
+    private var lastThinkingStepEmitTime = 0L
+
     /**
      * Throttled emit for Processing events.
      */
@@ -73,6 +84,131 @@ class AgentStreamProcessor(
         }
     }
 
+    // ===================================================================
+    // Agentic Step Helpers — emit AgentStep events for each discrete phase
+    // ===================================================================
+
+    private suspend fun startThinkingStep() {
+        if (currentThinkingStepId != null) return
+        currentThinkingStepId = UUID.randomUUID().toString()
+        currentThinkingStepStart = System.currentTimeMillis()
+        currentThinkingContent.clear()
+        this.emit(
+            AgentEvent.AgentStep(
+                eventId = currentThinkingStepId!!,
+                timestamp = currentThinkingStepStart,
+                stepIndex = stepIndex++,
+                stepType = "thinking",
+                stepTitle = "Thinking\u2026",
+                stepContent = "",
+                stepStatus = "started",
+            )
+        )
+    }
+
+    private suspend fun streamThinkingContent(content: String) {
+        currentThinkingContent.append(content)
+        val now = System.currentTimeMillis()
+        if (now - lastThinkingStepEmitTime < THINKING_STEP_THROTTLE_MS) return
+        lastThinkingStepEmitTime = now
+        currentThinkingStepId?.let { stepId ->
+            this.emit(
+                AgentEvent.AgentStep(
+                    eventId = stepId,
+                    timestamp = now,
+                    stepIndex = stepIndex - 1,
+                    stepType = "thinking",
+                    stepTitle = "Thinking\u2026",
+                    stepContent = currentThinkingContent.toString(),
+                    stepStatus = "streaming",
+                )
+            )
+        }
+    }
+
+    private suspend fun finalizeThinkingStep() {
+        val stepId = currentThinkingStepId ?: return
+        val duration = System.currentTimeMillis() - currentThinkingStepStart
+        val seconds = duration / 1000
+        this.emit(
+            AgentEvent.AgentStep(
+                eventId = stepId,
+                timestamp = System.currentTimeMillis(),
+                stepIndex = stepIndex - 1,
+                stepType = "thinking",
+                stepTitle = if (seconds > 0) "Thought for ${seconds}s" else "Thought",
+                stepContent = currentThinkingContent.toString(),
+                stepStatus = "completed",
+                durationMs = duration,
+            )
+        )
+        currentThinkingStepId = null
+        currentThinkingContent.clear()
+    }
+
+    private suspend fun emitOpenCodeToolStep(toolName: String, status: String, content: String = "") {
+        val displayName = when (toolName.lowercase()) {
+            "web_search", "websearch" -> "Searching the web"
+            "read_file" -> "Reading file"
+            "bash" -> "Running command"
+            "write_file" -> "Writing file"
+            else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        }
+        val stepId = lastOpenCodeToolStepId ?: UUID.randomUUID().toString().also {
+            lastOpenCodeToolStepId = it
+            lastOpenCodeToolStart = System.currentTimeMillis()
+        }
+        val duration = if (status == "completed" || status == "failed")
+            System.currentTimeMillis() - lastOpenCodeToolStart else null
+        this.emit(
+            AgentEvent.AgentStep(
+                eventId = stepId,
+                timestamp = System.currentTimeMillis(),
+                stepIndex = if (status == "started") stepIndex++ else stepIndex - 1,
+                stepType = "opencode_tool",
+                stepTitle = displayName,
+                stepContent = content,
+                stepStatus = status,
+                toolName = toolName,
+                durationMs = duration,
+            )
+        )
+        if (status == "completed" || status == "failed") lastOpenCodeToolStepId = null
+    }
+
+    /** Called from the main agent loop when a Smarty custom tool is dispatched. */
+    suspend fun emitCustomToolStep(
+        toolName: String,
+        status: String,
+        inputSummary: String = "",
+        outputSummary: String = "",
+        durationMs: Long? = null,
+    ) {
+        val displayName = when (toolName.lowercase()) {
+            "read_notes", "search_notes" -> "Reading notes"
+            "create_note", "add_note" -> "Creating note"
+            "read_calendar", "get_events" -> "Checking calendar"
+            "add_event", "create_event" -> "Adding calendar event"
+            "web_search" -> "Searching the web"
+            else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        }
+        val stepId = UUID.randomUUID().toString()
+        this.emit(
+            AgentEvent.AgentStep(
+                eventId = stepId,
+                timestamp = System.currentTimeMillis(),
+                stepIndex = if (status == "started") stepIndex++ else stepIndex - 1,
+                stepType = "tool_call",
+                stepTitle = displayName,
+                stepContent = if (status == "completed") outputSummary.take(300)
+                              else inputSummary.take(300),
+                stepStatus = status,
+                toolName = toolName,
+                durationMs = durationMs,
+            )
+        )
+    }
+
     /**
      * Process a single LLM stream chunk.
      */
@@ -81,6 +217,10 @@ class AgentStreamProcessor(
 
         var reasoningUpdated = false
         if (!chunk.reasoning.isNullOrEmpty()) {
+            // Start agentic thinking step on first reasoning token
+            if (currentThinkingStepId == null) startThinkingStep()
+            streamThinkingContent(chunk.reasoning)
+
             thinkingStorage.addReasoning(sessionId, chunk.reasoning)
             reasoningUpdated = true
 
@@ -111,6 +251,7 @@ class AgentStreamProcessor(
                     val parts = newContent.split(Regex("<(?:think|thought)>"), limit = 2)
                     cleanContent = parts.getOrElse(0) { "" }
                     val afterOpen = parts.getOrElse(1) { "" }
+                    if (currentThinkingStepId == null) startThinkingStep()
                     if (hadThinkEnd || hadFinalClose) {
                         val endParts = afterOpen.split(Regex("</(?:think|thought|final)>|<final>"), limit = 2)
                         thinkingPart = endParts.getOrElse(0) { "" }
@@ -155,9 +296,12 @@ class AgentStreamProcessor(
 
             if (thinkingPart.isNotEmpty()) {
                 thinkingStorage.addReasoning(sessionId, thinkingPart)
+                streamThinkingContent(thinkingPart) // Feed into AgentStep
                 reasoningUpdated = true
             }
             if (cleanContent.isNotEmpty()) {
+                // Finalize any open thinking step when real content arrives
+                if (currentThinkingStepId != null) finalizeThinkingStep()
                 currentContent += cleanContent
             }
 
@@ -173,17 +317,20 @@ class AgentStreamProcessor(
             }
         }
 
-        // Handle native OpenCode tool_use events (e.g., websearch results)
+        // Handle native OpenCode tool_use events (e.g., websearch from daemon)
         val toolCall = chunk.toolCall
         if (toolCall != null) {
             if (!isToolCallInProgress) {
                 isToolCallInProgress = true
+                // Finalize any open thinking step before starting a tool step
+                if (currentThinkingStepId != null) finalizeThinkingStep()
+                emitOpenCodeToolStep(toolCall.functionName, "started")
                 this.emit(
                     AgentEvent.ToolCall(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
                         toolName = toolCall.functionName,
-                        displayName = "Preparing ${toolCall.functionName}...",
+                        displayName = "Running ${toolCall.functionName.replace('_', ' ')}…",
                         status = "started",
                     ),
                 )
@@ -196,12 +343,16 @@ class AgentStreamProcessor(
 
     /**
      * Emit the final response to the client.
+     * Finalizes any open thinking step before emitting the result.
      */
     suspend fun emitFinalResponse(
         content: String,
         confidence: String,
         sourceType: String,
     ) {
+        // Finalize any still-open thinking step
+        if (currentThinkingStepId != null) finalizeThinkingStep()
+
         val finalThinking = thinkingStorage.finalizeAndGetThinking(sessionId)
 
         if (finalThinking.isNotEmpty()) {
@@ -309,6 +460,14 @@ class AgentStreamProcessor(
         parsedToolName = ""
         parsedToolArgs = ""
         parsedToolCallFound = false
+        // Reset agentic step tracking
+        stepIndex = 0
+        currentThinkingStepId = null
+        currentThinkingStepStart = 0L
+        currentThinkingContent.clear()
+        lastOpenCodeToolStepId = null
+        lastOpenCodeToolStart = 0L
+        lastThinkingStepEmitTime = 0L
     }
 
     companion object {

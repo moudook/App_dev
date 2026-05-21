@@ -137,7 +137,7 @@ sealed class AgentEvent {
     ) : AgentEvent()
 
     /**
-     * Agent asks the user a structured question (multiple choice or free text).
+     * Agent asked a structured question (multiple choice or free text).
      * Client renders as interactive question cards.
      */
     @Serializable
@@ -163,5 +163,34 @@ sealed class AgentEvent {
         val title: String,
         val snippet: String,
         val category: String? = null,
+    ) : AgentEvent()
+
+    /**
+     * Agentic step event — shows each discrete step the agent takes.
+     * Enables step-by-step visualization in the UI like:
+     *   [Analyzed request] → [Searched web] → [Read note] → [Final answer]
+     *
+     * stepType values:
+     *   "thinking"     - Agent is reasoning/thinking (streaming thinking text)
+     *   "tool_call"    - Agent invoked a specific tool
+     *   "tool_result"  - Result of a tool call
+     *   "opencode_tool" - Native OpenCode CLI tool (e.g. web_search from daemon)
+     *   "checkpoint"   - Logical milestone (e.g. "Analyzed request", "Synthesizing...")
+     *
+     * stepStatus: "started" | "streaming" | "completed" | "failed"
+     * stepIndex: monotonically increasing per conversation turn (0,1,2,...)
+     */
+    @Serializable
+    @SerialName("agent_step")
+    data class AgentStep(
+        override val eventId: String,
+        override val timestamp: Long,
+        @SerialName("step_index") val stepIndex: Int,
+        @SerialName("step_type") val stepType: String,
+        @SerialName("step_title") val stepTitle: String,
+        @SerialName("step_content") val stepContent: String = "",
+        @SerialName("step_status") val stepStatus: String = "started",
+        @SerialName("tool_name") val toolName: String? = null,
+        @SerialName("duration_ms") val durationMs: Long? = null,
     ) : AgentEvent()
 }

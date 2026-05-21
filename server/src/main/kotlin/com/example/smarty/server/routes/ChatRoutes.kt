@@ -454,6 +454,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         is AgentEvent.ToolBlocked -> "tool_blocked"
                                         is AgentEvent.Question -> "question"
                                         is AgentEvent.NoteBlock -> "note_block"
+                                        is AgentEvent.AgentStep -> "agent_step"
                                     }
                                 call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
                                 send(
