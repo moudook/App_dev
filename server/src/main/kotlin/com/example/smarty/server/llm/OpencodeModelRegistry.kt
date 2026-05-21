@@ -34,12 +34,57 @@ object OpencodeModelRegistry {
     private const val CACHE_TTL_MS = 5 * 60 * 1000L
     private const val MAX_FREE_MODELS = 10
 
-    // Runtime-discovered models — zero hardcoded names
+    /**
+     * Known-free model fallback chain (as of May 2026, per OpenCode Zen pricing page).
+     * These are used when CLI discovery fails or returns empty results.
+     * Order matters: first = preferred. Update this list when Zen deprecates models.
+     * Research verified: these models are free but time-limited (no guaranteed end date).
+     */
+    val KNOWN_FREE_MODELS = listOf(
+        OpencodeModelInfo(
+            id = "opencode/deepseek-v4-flash-free",
+            label = "DeepSeek V4 Flash Free",
+            provider = "opencode",
+            free = true,
+        ),
+        OpencodeModelInfo(
+            id = "opencode/big-pickle-free",
+            label = "Big Pickle Free",
+            provider = "opencode",
+            free = true,
+        ),
+        OpencodeModelInfo(
+            id = "opencode/nemotron-3-super-free",
+            label = "Nemotron 3 Super Free",
+            provider = "opencode",
+            free = true,
+        ),
+    )
+
+    /**
+     * Zen API key for direct calls to gateway.opencode.ai.
+     * When set, Ktor can bypass the CLI subprocess entirely.
+     * Must be set in Hugging Face secrets as: OPENCODE_ZEN_API_KEY
+     */
+    val zenApiKey: String?
+        get() = System.getenv("OPENCODE_ZEN_API_KEY")?.takeIf { it.isNotBlank() }
+
+    val zenBaseUrl: String
+        get() = System.getenv("OPENCODE_ZEN_BASE_URL")?.takeIf { it.isNotBlank() }
+            ?: "https://gateway.opencode.ai/v1"
+
+    val isDirectZenMode: Boolean
+        get() = !zenApiKey.isNullOrBlank()
+
+    // Runtime-discovered models — zero hardcoded names, fallback to KNOWN_FREE_MODELS
     private val discoveredModels = AtomicReference<List<OpencodeModelInfo>>(emptyList())
     private val cachedState = AtomicReference<OpencodeModelState?>(null)
 
     val defaultModel: String
-        get() = discoveredModels.get().firstOrNull()?.id ?: ""
+        get() {
+            val discovered = discoveredModels.get()
+            return discovered.firstOrNull()?.id ?: KNOWN_FREE_MODELS.first().id
+        }
 
     /**
      * Blocking discovery — runs `opencode models` at startup.
