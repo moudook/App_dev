@@ -35,31 +35,20 @@ object OpencodeModelRegistry {
     private const val MAX_FREE_MODELS = 10
 
     /**
-     * Known-free model fallback chain (as of May 2026, per OpenCode Zen pricing page).
-     * These are used when CLI discovery fails or returns empty results.
-     * Order matters: first = preferred. Update this list when Zen deprecates models.
-     * Research verified: these models are free but time-limited (no guaranteed end date).
+     * Fallback model ID patterns — used ONLY if CLI discovery fails entirely.
+     * These are NOT guaranteed to exist. The real source of truth is `opencode models`.
+     * When Zen changes their free models, this list becomes irrelevant — discovery handles it.
+     *
+     * The pattern rule: if a model ID contains "free" and starts with "opencode/", it's treated as free.
+     * We do NOT hardcode specific model names here by design — they rotate.
      */
-    val KNOWN_FREE_MODELS = listOf(
-        OpencodeModelInfo(
-            id = "opencode/deepseek-v4-flash-free",
-            label = "DeepSeek V4 Flash Free",
-            provider = "opencode",
-            free = true,
-        ),
-        OpencodeModelInfo(
-            id = "opencode/big-pickle-free",
-            label = "Big Pickle Free",
-            provider = "opencode",
-            free = true,
-        ),
-        OpencodeModelInfo(
-            id = "opencode/nemotron-3-super-free",
-            label = "Nemotron 3 Super Free",
-            provider = "opencode",
-            free = true,
-        ),
-    )
+    val KNOWN_FREE_MODELS = listOf<OpencodeModelInfo>() // Intentionally empty: rely on CLI discovery
+
+    /**
+     * Sentinel string returned when no models discovered yet.
+     * The daemon will use its own default model (whatever is currently free on Zen).
+     */
+    private const val DAEMON_DECIDE = "opencode/auto"
 
     /**
      * Zen API key for direct calls to gateway.opencode.ai.
@@ -83,7 +72,9 @@ object OpencodeModelRegistry {
     val defaultModel: String
         get() {
             val discovered = discoveredModels.get()
-            return discovered.firstOrNull()?.id ?: KNOWN_FREE_MODELS.first().id
+            // Always prefer what the CLI just told us, never hardcode a name
+            return discovered.firstOrNull()?.id
+                ?: DAEMON_DECIDE // Let the daemon pick its current default free model
         }
 
     /**
@@ -173,11 +164,12 @@ object OpencodeModelRegistry {
 
     /**
      * Validate and return a free model.
-     * Priority: explicit parameter > discovered default.
+     * Priority: explicit parameter > discovered default > daemon decides.
+     * Never falls back to a hardcoded model name — if CLI hasn't run yet, let daemon decide.
      */
     fun requireAllowedFreeModel(model: String?): String {
         val discovered = discoveredModels.get()
-        val fallback = discovered.firstOrNull()?.id ?: ""
+        val discoveredDefault = discovered.firstOrNull()?.id
 
         val paramModel = model?.trim()?.takeIf { it.isNotBlank() }
         if (paramModel != null) {
@@ -185,17 +177,15 @@ object OpencodeModelRegistry {
                 logger.debug("[OpencodeModelRegistry] Model from parameter: {}", paramModel)
                 paramModel
             } else {
-                logger.warn("[OpencodeModelRegistry] Parameter model '{}' rejected (not free) — using default: {}", paramModel, fallback)
-                fallback.ifEmpty { throwNoModelsError() }
+                val fallback = discoveredDefault ?: DAEMON_DECIDE
+                logger.warn("[OpencodeModelRegistry] Parameter model '{}' rejected (not free) — using: {}", paramModel, fallback)
+                fallback
             }
         }
 
-        logger.debug("[OpencodeModelRegistry] Using discovered default model: {}", fallback)
-        return fallback.ifEmpty { throwNoModelsError() }
-    }
-
-    private fun throwNoModelsError(): Nothing {
-        throw IllegalStateException("[OpencodeModelRegistry] NO free models available. Run 'opencode models' to verify CLI installation.")
+        val result = discoveredDefault ?: DAEMON_DECIDE
+        logger.debug("[OpencodeModelRegistry] Using model: {}", result)
+        return result
     }
 
     fun discoveredFreeModels(): List<OpencodeModelInfo> = discoveredModels.get()

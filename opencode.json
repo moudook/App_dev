@@ -5,12 +5,10 @@
   "snapshot": false,
   "disabled_providers": ["anthropic", "openai", "google", "openrouter"],
   "enabled_providers": ["opencode"],
-  "model": "opencode/deepseek-v4-flash-free",
   "default_agent": "smarty-headless-agent",
   "agent": {
     "smarty-headless-agent": {
       "description": "Smarty OpenCode CLI bridge. Model inference only; Ktor owns app tools and persistence.",
-      "model": "opencode/deepseek-v4-flash-free",
       "prompt": "You are the model runtime for the Smarty Ktor server. The server will inject the full Friday system prompt and Smarty tool definitions in every request. When you need to call a Smarty tool, output it using this exact format on its own line: <tool_call>{\"name\":\"tool_name\",\"arguments\":{\"param\":\"value\"}}</tool_call>. Do not use shell, file, edit, write, or bash capabilities. Your only output formats are: <think>...</think> for reasoning, plain text for your answer, and <tool_call>...</tool_call> for tool calls.",
       "permission": {
         "bash": "deny",
