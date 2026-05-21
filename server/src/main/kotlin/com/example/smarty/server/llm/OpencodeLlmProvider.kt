@@ -283,6 +283,10 @@ class OpencodeLlmProvider(
 
         logger.info("[OpenCode.Parser][inference=$inferenceId] processSseEvent: type='$eventType', data=${data.length} chars, preview='${data.take(150).replace("\n", "\\n")}'")
 
+        // === 1. EVENT REPLAY LOGGING ===
+        // We log the raw payload immediately so it's never lost if parsing fails
+        logger.trace("[OpenCode.Replay][inference=$inferenceId] RAW PAYLOAD: $data")
+
         // Check for daemon error response (plain JSON, not SSE-wrapped)
         // Daemon errors come as {"name":"XxxError","data":{"message":"..."}}
         val isDaemonError = runCatching {
@@ -305,27 +309,22 @@ class OpencodeLlmProvider(
             }.getOrNull()
             
             if (jsonElement is JsonObject) {
-                // Phase B - JSON Decode
-                logger.debug("[OpenCode.Parser][inference=$inferenceId] Parsed JSON keys=${jsonElement.keys}")
-                // Phase 10 - Structured part dumping (DEBUG only)
-                logger.debug("[OpenCode.Parser][inference=$inferenceId] Full part payload: ${jsonElement.toString().take(2000)}")
+                // === 2. CANONICAL INTERNAL SCHEMAS & PARSER VERSIONING ===
+                // This shields the orchestration layer from underlying API format changes
+                val canonicalResponse = parseCanonicalResponse(jsonElement, inferenceId)
                 
-                // If it contains a 'parts' array, iterate and emit each part
-                val partsArray = jsonElement["parts"]?.jsonArray
-                if (partsArray != null) {
+                if (canonicalResponse != null && canonicalResponse.parts.isNotEmpty()) {
                     context.partsExisted = true
-                    // Phase C - Semantic Interpretation
-                    logger.debug("[OpenCode.Semantics][inference=$inferenceId] Processing ${partsArray.size} parts")
-                    for (i in 0 until partsArray.size) {
-                        val partEl = partsArray[i]
-                        val partObj = partEl.jsonObject
-                        val partType = partObj["type"]?.jsonPrimitive?.content ?: "unknown"
+                    logger.debug("[OpenCode.Semantics][inference=$inferenceId] Processing ${canonicalResponse.parts.size} canonical parts")
+                    
+                    for (i in 0 until canonicalResponse.parts.size) {
+                        val part = canonicalResponse.parts[i]
                         context.partCount++
                         
-                        logger.debug("[OpenCode.Semantics][inference=$inferenceId] Part[$i] type=$partType")
-                        when (partType) {
+                        logger.debug("[OpenCode.Semantics][inference=$inferenceId] Part[$i] type=${part.type}")
+                        when (part.type) {
                             "text" -> {
-                                val text = partObj["text"]?.jsonPrimitive?.content
+                                val text = part.content
                                 if (!text.isNullOrEmpty()) {
                                     val preview = text.take(80).replace("\n", "\\n")
                                     logger.info("[OpenCode.Semantics][inference=$inferenceId] Extracted text chunk: ${text.length} chars (preview='$preview')")
@@ -345,7 +344,7 @@ class OpencodeLlmProvider(
                                 }
                             }
                             "reasoning" -> {
-                                val reasoning = partObj["text"]?.jsonPrimitive?.content
+                                val reasoning = part.content
                                 if (!reasoning.isNullOrEmpty()) {
                                     val preview = reasoning.take(80).replace("\n", "\\n")
                                     logger.info("[OpenCode.Semantics][inference=$inferenceId] Extracted reasoning chunk: ${reasoning.length} chars (preview='$preview')")
@@ -358,8 +357,8 @@ class OpencodeLlmProvider(
                                 }
                             }
                             "tool_use", "tool" -> {
-                                val toolName = partObj["name"]?.jsonPrimitive?.content ?: "unknown"
-                                val toolInput = partObj["input"]?.toString() ?: ""
+                                val toolName = part.toolName ?: "unknown"
+                                val toolInput = part.toolArgs ?: ""
                                 context.toolCalls++
                                 logger.info("[OpenCode.Tools][inference=$inferenceId] Emitting tool_use: name='$toolName'")
                                 
@@ -372,99 +371,14 @@ class OpencodeLlmProvider(
                                 context.totalEmitTime += System.currentTimeMillis() - emitStart
                             }
                             "step-start", "step-finish" -> {
-                                logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping structural boundary: $partType")
+                                logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping structural boundary: ${part.type}")
                             }
                             else -> {
-                                logger.warn("[OpenCode.Semantics][inference=$inferenceId] Unknown part type='$partType'")
+                                logger.warn("[OpenCode.Semantics][inference=$inferenceId] Unknown part type='${part.type}'")
                             }
                         }
                     }
                     logger.debug("[OpenCode.Semantics][inference=$inferenceId] Accumulator size now=${context.textChars}")
-                    return
-                }
-
-                // If no parts array, fallback to attempting to parse it as a single DaemonPart
-                val part = runCatching { 
-                    daemonJson.decodeFromString<DaemonPart>(data) 
-                }.getOrNull()
-                
-                if (part != null && part.type.isNotBlank()) {
-                    context.partsExisted = true
-                    context.partCount++
-                    logger.info("[OpenCode.Semantics][inference=$inferenceId] Parsed as DaemonPart: type='${part.type}', text=${part.text?.length ?: 0} chars")
-                    when (part.type) {
-                        "text" -> {
-                            val text = part.text ?: run {
-                                logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping metadata object because no assistant content fields present")
-                                return
-                            }
-                            val preview = text.take(80).replace("\n", "\\n")
-                            logger.info("[OpenCode.Semantics][inference=$inferenceId] Extracted text chunk: ${text.length} chars (preview='$preview')")
-                            context.textChars += text.length
-                            if (context.firstTokenMs == 0L) {
-                                context.firstTokenMs = System.currentTimeMillis() - context.startTime
-                            }
-                            
-                            val emitStart = System.currentTimeMillis()
-                            logger.debug("[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${text.length} chars)")
-                            emit(LlmChunk(content = text, reasoning = null))
-                            logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
-                            context.totalEmitTime += System.currentTimeMillis() - emitStart
-                        }
-                        "reasoning" -> {
-                            val reasoning = part.text ?: run {
-                                logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping metadata object because no assistant content fields present")
-                                return
-                            }
-                            val preview = reasoning.take(80).replace("\n", "\\n")
-                            logger.info("[OpenCode.Semantics][inference=$inferenceId] Extracted reasoning chunk: ${reasoning.length} chars (preview='$preview')")
-                            
-                            val emitStart = System.currentTimeMillis()
-                            logger.debug("[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${reasoning.length} chars)")
-                            emit(LlmChunk(content = null, reasoning = reasoning))
-                            logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
-                            context.totalEmitTime += System.currentTimeMillis() - emitStart
-                        }
-                        "tool_use", "tool" -> {
-                            val toolName = part.name ?: "unknown"
-                            val toolInput = part.input?.toString() ?: ""
-                            context.toolCalls++
-                            logger.info("[OpenCode.Tools][inference=$inferenceId] Emitting tool_use: name='$toolName'")
-                            
-                            val emitStart = System.currentTimeMillis()
-                            emit(LlmChunk(content = null, toolCall = LlmToolCall(
-                                id = "tool-${System.currentTimeMillis()}",
-                                functionName = toolName,
-                                arguments = toolInput,
-                            )))
-                            context.totalEmitTime += System.currentTimeMillis() - emitStart
-                        }
-                        else -> {
-                            logger.warn("[OpenCode.Semantics][inference=$inferenceId] Unknown part type='${part.type}'")
-                        }
-                    }
-                    logger.debug("[OpenCode.Semantics][inference=$inferenceId] Accumulator size now=${context.textChars}")
-                    return
-                }
-
-                // Check for tool call format (name field)
-                val toolCall = runCatching { 
-                    daemonJson.decodeFromString<DaemonToolCall>(data) 
-                }.getOrNull()
-                
-                if (toolCall != null && toolCall.name != null) {
-                    context.partsExisted = true
-                    context.partCount++
-                    context.toolCalls++
-                    logger.info("[OpenCode.Tools][inference=$inferenceId] Emitting tool call: name='${toolCall.name}'")
-                    
-                    val emitStart = System.currentTimeMillis()
-                    emit(LlmChunk(content = null, toolCall = LlmToolCall(
-                        id = toolCall.id ?: "tool-${System.currentTimeMillis()}",
-                        functionName = toolCall.name,
-                        arguments = toolCall.input?.toString() ?: "",
-                    )))
-                    context.totalEmitTime += System.currentTimeMillis() - emitStart
                     return
                 }
                 
@@ -568,5 +482,54 @@ private data class DaemonPart(
 private data class DaemonToolCall(
     val id: String? = null,
     val name: String? = null,
-    val input: JsonObject? = null,
+    val arguments: JsonObject? = null,
 )
+
+// === Canonical Internal Schemas ===
+private data class CanonicalPart(
+    val type: String, 
+    val content: String? = null,
+    val toolName: String? = null,
+    val toolArgs: String? = null
+)
+
+private data class CanonicalResponse(
+    val parts: List<CanonicalPart>
+)
+
+/**
+ * Parser Versioning: Attempt multiple schema extractions and normalize to CanonicalResponse
+ */
+private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): CanonicalResponse? {
+    val partsArray = json["parts"]?.jsonArray
+    if (partsArray != null) {
+        // Version 1: OpenCode native parts array
+        val canonicalParts = partsArray.mapNotNull { el ->
+            if (el !is JsonObject) return@mapNotNull null
+            val type = el["type"]?.jsonPrimitive?.content ?: "unknown"
+            when (type) {
+                "text", "reasoning" -> CanonicalPart(type = type, content = el["text"]?.jsonPrimitive?.content)
+                "tool_use", "tool" -> CanonicalPart(type = type, toolName = el["name"]?.jsonPrimitive?.content, toolArgs = el["input"]?.toString())
+                else -> CanonicalPart(type = type)
+            }
+        }
+        return CanonicalResponse(canonicalParts)
+    }
+
+    val contentStr = json["content"]?.jsonPrimitive?.content
+    if (contentStr != null) {
+        // Version 2: Simple content string fallback
+        return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr)))
+    }
+    
+    val messageObj = json["message"]?.jsonObject
+    if (messageObj != null) {
+        // Version 3: OpenAI style choices/message
+        val text = messageObj["content"]?.jsonPrimitive?.content
+        if (text != null) {
+            return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text)))
+        }
+    }
+
+    return null
+}
