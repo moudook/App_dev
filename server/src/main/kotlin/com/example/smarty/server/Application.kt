@@ -31,6 +31,8 @@ import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.llm.LlmProviderFactory
@@ -271,6 +273,18 @@ fun Application.module() {
 
         configureModelRoutes()
         log.info("ModelRoutes configured")
+
+        val mcpServer = com.example.smarty.server.mcp.McpServer(
+            vectorStore = PostgresVectorStore(),
+            noteRepository = noteRepo,
+            timerRepository = TimerRepository(ds),
+            calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
+            noteService = noteService
+        )
+        routing {
+            mcpServer.configureRouting(this)
+        }
+        log.info("McpServer configured")
 
         configureDigestRoutes(digestService, digestScheduler, ds)
     } else {

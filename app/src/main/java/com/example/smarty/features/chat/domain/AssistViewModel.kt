@@ -378,12 +378,35 @@ class AssistViewModel(
         pendingToolCalls.clear()
         val responseBuilder = StringBuilder()
         var finalThinking: String? = null
+        val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
         val streamingMessageId = java.util.UUID.randomUUID().toString()
         chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true))
 
         try {
             val selectedModel = selectedModel.value
             remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value, model = selectedModel).collect { event ->
+                try {
+                    val eventType = event::class.simpleName ?: "Unknown"
+                    val payloadJson = kotlinx.serialization.json.Json.encodeToString(
+                        com.example.smarty.protocol.AgentEvent.serializer(), event
+                    )
+                    chatRepository.saveTimelineEvent(
+                        com.example.smarty.data.local.entity.TimelineEventEntity(
+                            eventId = event.eventId,
+                            traceId = streamingMessageId,
+                            timestamp = event.timestamp,
+                            sessionId = chatManager.currentSessionId.value ?: "unknown",
+                            eventType = eventType,
+                            payloadJson = payloadJson
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to save timeline event: ${e.message}")
+                }
+
+                // 2) Accumulate in-memory for UI timeline
+                agentEventsBuilder.add(event)
+
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         event.content?.let { responseBuilder.append(it) }
@@ -404,7 +427,16 @@ class AssistViewModel(
                 }
             }
             val contentToSave = responseBuilder.toString()
-            val smartyMessage = ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = contentToSave, toolCalls = pendingToolCalls.toList(), timestamp = System.currentTimeMillis(), citations = pendingCitations.toList(), isStreaming = false)
+            val smartyMessage = ChatMessage(
+                id = streamingMessageId,
+                role = ChatRole.SMARTY,
+                content = contentToSave,
+                toolCalls = pendingToolCalls.toList(),
+                timestamp = System.currentTimeMillis(),
+                citations = pendingCitations.toList(),
+                isStreaming = false,
+                agentEvents = agentEventsBuilder.toList()
+            )
             chatManager.replaceMessage(streamingMessageId, smartyMessage)
             chatManager.markApiCallSuccessful()
             chatManager.saveMessagePair(userMessage, smartyMessage)

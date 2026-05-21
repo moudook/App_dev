@@ -25,6 +25,7 @@ class AgentStreamProcessor(
     // State machine for tag detection
     private var inThinkingState = false
     private var inFinalState = false
+    private var hasStartedFinalAnswer = false
 
     // Event throttling
     private var lastProcessingEventTime = 0L
@@ -37,17 +38,6 @@ class AgentStreamProcessor(
     var currentToolArgs = ""
     var isToolCallInProgress = false
     var totalUsage: LlmUsage? = null
-
-    // Tool call XML parsing — accumulated raw text for post-stream parsing
-    private val rawContentBuffer = StringBuilder()
-
-    // Parsed tool call from XML (set by finalizeAndExtractToolCalls)
-    var parsedToolName: String = ""
-        private set
-    var parsedToolArgs: String = ""
-        private set
-    var parsedToolCallFound: Boolean = false
-        private set
 
     // === Agentic Step Tracking ===
     // Each reasoning phase and tool call becomes a discrete step shown in the UI.
@@ -94,6 +84,12 @@ class AgentStreamProcessor(
         currentThinkingStepStart = System.currentTimeMillis()
         currentThinkingContent.clear()
         this.emit(
+            AgentEvent.ReasoningStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = currentThinkingStepStart
+            )
+        )
+        this.emit(
             AgentEvent.AgentStep(
                 eventId = currentThinkingStepId!!,
                 timestamp = currentThinkingStepStart,
@@ -109,6 +105,15 @@ class AgentStreamProcessor(
     private suspend fun streamThinkingContent(content: String) {
         currentThinkingContent.append(content)
         val now = System.currentTimeMillis()
+        
+        this.emit(
+            AgentEvent.ReasoningDelta(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = now,
+                text = content
+            )
+        )
+        
         if (now - lastThinkingStepEmitTime < THINKING_STEP_THROTTLE_MS) return
         lastThinkingStepEmitTime = now
         currentThinkingStepId?.let { stepId ->
@@ -142,6 +147,12 @@ class AgentStreamProcessor(
                 durationMs = duration,
             )
         )
+        this.emit(
+            AgentEvent.ReasoningFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis()
+            )
+        )
         currentThinkingStepId = null
         currentThinkingContent.clear()
     }
@@ -173,6 +184,24 @@ class AgentStreamProcessor(
                 durationMs = duration,
             )
         )
+        
+        if (status == "started") {
+            this.emit(AgentEvent.ToolCallStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = stepId,
+                name = toolName,
+                source = "opencode"
+            ))
+        } else if (status == "completed" || status == "failed") {
+            this.emit(AgentEvent.ToolCallFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = stepId,
+                durationMs = duration ?: 0L
+            ))
+        }
+        
         if (status == "completed" || status == "failed") lastOpenCodeToolStepId = null
     }
 
@@ -207,6 +236,23 @@ class AgentStreamProcessor(
                 durationMs = durationMs,
             )
         )
+        
+        if (status == "started") {
+            this.emit(AgentEvent.ToolCallStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = stepId,
+                name = toolName,
+                source = "custom"
+            ))
+        } else if (status == "completed" || status == "failed") {
+            this.emit(AgentEvent.ToolCallFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = stepId,
+                durationMs = durationMs ?: 0L
+            ))
+        }
     }
 
     /**
@@ -249,9 +295,6 @@ class AgentStreamProcessor(
 
         if (!chunk.content.isNullOrEmpty()) {
             val newContent = chunk.content
-
-            // Buffer raw content for post-stream tool call XML parsing
-            rawContentBuffer.append(newContent)
 
             val hadThinkStart = newContent.contains("<think>") || newContent.contains("<thought>")
             val hadThinkEnd = newContent.contains("</think>") || newContent.contains("</thought>")
@@ -309,7 +352,7 @@ class AgentStreamProcessor(
                     .replace(Regex("</(?:think|thought|final)>"), "")
 
             // Strip tool call XML from user-visible content
-            cleanContent = stripToolCallXml(cleanContent)
+
 
             if (thinkingPart.isNotEmpty()) {
                 thinkingStorage.addReasoning(sessionId, thinkingPart)
@@ -319,6 +362,21 @@ class AgentStreamProcessor(
             if (cleanContent.isNotEmpty()) {
                 // Finalize any open thinking step when real content arrives
                 if (currentThinkingStepId != null) finalizeThinkingStep()
+                
+                if (!hasStartedFinalAnswer) {
+                    hasStartedFinalAnswer = true
+                    this.emit(AgentEvent.FinalAnswerStarted(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis()
+                    ))
+                }
+                
+                this.emit(AgentEvent.FinalAnswerDelta(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    text = cleanContent
+                ))
+                
                 currentContent += cleanContent
             }
 
@@ -355,6 +413,17 @@ class AgentStreamProcessor(
             if (toolCall.id.isNotEmpty()) currentToolId = toolCall.id
             if (toolCall.functionName.isNotEmpty()) currentToolName = toolCall.functionName
             currentToolArgs += toolCall.arguments
+            
+            if (toolCall.arguments.isNotEmpty()) {
+                this.emit(
+                    AgentEvent.ToolCallInput(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        toolId = lastOpenCodeToolStepId ?: currentToolId,
+                        inputDelta = toolCall.arguments
+                    )
+                )
+            }
         }
 
         // Handle native OpenCode tool_result events
@@ -388,6 +457,15 @@ class AgentStreamProcessor(
                     stepStatus = "completed",
                     toolName = toolResult.functionName,
                     durationMs = 0
+                )
+            )
+            
+            this.emit(
+                AgentEvent.ToolCallOutput(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = lastOpenCodeToolStepId ?: currentToolId,
+                    output = toolResult.result
                 )
             )
         }
@@ -446,80 +524,24 @@ class AgentStreamProcessor(
             ),
         )
 
-        thinkingStorage.clear(sessionId)
-    }
-
-    /**
-     * After the LLM stream completes, scan the accumulated raw content for tool call XML.
-     */
-    fun finalizeAndExtractToolCalls(): Boolean {
-        val raw = rawContentBuffer.toString()
-
-        // Try all formats in priority order
-        val candidates = listOf(
-            TOOL_CALL_XML_REGEX,       // <tool_call_json>```json ... ```</tool_call_json>
-            TOOL_CALL_JSON_BARE_REGEX, // <tool_call_json>{...}</tool_call_json>
-            TOOL_CALL_BARE_REGEX,      // <tool_call>{...}</tool_call>
+        this.emit(
+            AgentEvent.FinalAnswerFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis()
+            )
         )
 
-        for (regex in candidates) {
-            val match = regex.find(raw) ?: continue
-            val jsonStr = match.groupValues[1].trim()
-            logger.info("Found tool call (pattern=${regex.pattern.take(30)}): {}", jsonStr.take(200))
-
-            return try {
-                val obj = Json { ignoreUnknownKeys = true }
-                    .parseToJsonElement(jsonStr)
-                    .let { it as? JsonObject }
-                    ?: throw IllegalArgumentException("Not a JSON object")
-
-                parsedToolName = obj["name"]?.let {
-                    (it as? JsonPrimitive)?.contentOrNull
-                } ?: throw IllegalArgumentException("Missing 'name' field")
-
-                parsedToolArgs = obj["arguments"]?.toString()
-                    ?: obj["parameters"]?.toString()
-                    ?: "{}"
-                parsedToolCallFound = true
-
-                // Strip ALL tool call XML from currentContent so it's not shown to the user
-                var cleaned = currentContent
-                for (p in ALL_TOOL_CALL_PATTERNS) cleaned = p.replace(cleaned, "")
-                currentContent = cleaned.trim()
-
-                logger.info("Parsed tool call: {} with args: {}", parsedToolName, parsedToolArgs.take(200))
-                true
-            } catch (e: Exception) {
-                logger.warn("Failed to parse tool call JSON ({} chars): {}", jsonStr.length, e.message)
-                parsedToolCallFound = false
-                continue
-            }
-        }
-
-        logger.debug("No tool call found in accumulated content ({} chars)", raw.length)
-        parsedToolCallFound = false
-        return false
+        thinkingStorage.clear(sessionId)
     }
-
-    /**
-     * Strip tool call XML from content so it's not shown to the user during streaming.
-     */
-    private fun stripToolCallXml(text: String): String {
-        var result = text
-        for (p in ALL_TOOL_CALL_PATTERNS) result = p.replace(result, "")
-        return result
-    }
-
 
     fun extractFinalResponse(content: String): String {
         val finalMatch = Regex("""<final>([\s\S]*?)</final>""").find(content)
         return finalMatch?.groupValues?.getOrNull(1)?.trim()
             ?: run {
-                var cleaned = content
+                content
                     .replace(Regex("""<think>[\s\S]*?</think>"""), "")
                     .replace(Regex("""<final>|</final>"""), "")
-                for (p in ALL_TOOL_CALL_PATTERNS) cleaned = p.replace(cleaned, "")
-                cleaned.trim()
+                    .trim()
             }
     }
 
@@ -541,10 +563,7 @@ class AgentStreamProcessor(
         totalUsage = null
         inThinkingState = false
         inFinalState = false
-        rawContentBuffer.clear()
-        parsedToolName = ""
-        parsedToolArgs = ""
-        parsedToolCallFound = false
+        hasStartedFinalAnswer = false
         // Reset agentic step tracking
         stepIndex = 0
         currentThinkingStepId = null
@@ -553,19 +572,5 @@ class AgentStreamProcessor(
         lastOpenCodeToolStepId = null
         lastOpenCodeToolStart = 0L
         lastThinkingStepEmitTime = 0L
-    }
-
-    companion object {
-        // Format 1 (preferred): <tool_call_json>```json...```</tool_call_json>
-        private val TOOL_CALL_XML_REGEX = Regex("""<tool_call_json>\s*```(?:json)?\s*\n?([\s\S]+?)\n?```[\s\S]*?</tool_call_json>""")
-
-        // Format 2: <tool_call_json>{...}</tool_call_json> (no code block)
-        private val TOOL_CALL_JSON_BARE_REGEX = Regex("""<tool_call_json>\s*([\s\S]*?)\s*</tool_call_json>""")
-
-        // Format 3: <tool_call>{...}</tool_call> (opencode.json legacy format)
-        private val TOOL_CALL_BARE_REGEX = Regex("""<tool_call>\s*([\s\S]*?)\s*</tool_call>""")
-
-        // All strip patterns — used to clean content before display
-        private val ALL_TOOL_CALL_PATTERNS = listOf(TOOL_CALL_XML_REGEX, TOOL_CALL_JSON_BARE_REGEX, TOOL_CALL_BARE_REGEX)
     }
 }

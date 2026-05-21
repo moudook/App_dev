@@ -74,8 +74,9 @@ import com.example.smarty.data.local.dao.AgentStepDao
         // Stacks (Phase 1B)
         StackEntity::class,
         NoteStackEntity::class,
+        com.example.smarty.data.local.entity.TimelineEventEntity::class,
     ],
-    version = 42,
+    version = 43,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -84,6 +85,7 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun chatDao(): ChatDao
     abstract fun agentStepDao(): AgentStepDao
+    abstract fun timelineEventDao(): com.example.smarty.data.local.dao.TimelineEventDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
     abstract fun noteVersionDao(): NoteVersionDao

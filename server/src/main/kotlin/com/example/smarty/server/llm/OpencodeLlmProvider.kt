@@ -105,57 +105,38 @@ class OpencodeLlmProvider(
 
         var systemPrompt = extractSystemPrompt(messages)
         
-        // CRITICAL: Inject tool definitions at the END of system prompt (most influential position).
-        // The daemon may inject its own native tools (skill, todowrite, websearch), but those
-        // are NOT available to you. Our tools MUST be called via XML format in the response text.
-        if (tools.isNotEmpty()) {
-            val toolsDesc = tools.joinToString("\n\n") { tool ->
-                val schemaStr = runCatching {
-                    Json.encodeToString(ToolParameters.serializer(), tool.parameters)
-                }.getOrDefault("{}")
-                "### ${tool.name}\n${tool.description.trimIndent().take(400)}\nParameters: $schemaStr"
-            }
-            val toolInstruction = """
-                
-## YOUR SMARTY TOOLS (MANDATORY — READ CAREFULLY)
-
-You have these tools. Use them proactively when the user's request requires it.
-
-**TO CALL A TOOL:** Output EXACTLY this format in your response text. Nothing else — no markdown, no extra text around the tag:
-
-<tool_call>{"name":"tool_name","arguments":{"param":"value"}}</tool_call>
-
-**ONE-SHOT EXAMPLE:**
-User: "Remember my WiFi password is hungry-cat-42"
-You output: <tool_call>{"name":"memory","arguments":{"action":"save","title":"WiFi Password","content":"hungry-cat-42","category":"home"}}</tool_call>
-
-**RULES:**
-- Output ONLY the <tool_call>...</tool_call> tag when using a tool — no extra prose before calling it
-- After the tool result is returned to you, provide your final answer to the user
-- You may use the SMARTY TOOLS listed below, AS WELL AS native system tools like `web_search` and `webfetch`.
-
-**YOUR SMARTY TOOLS:**
-$toolsDesc
-            """.trimIndent()
-            systemPrompt = (systemPrompt ?: "") + "\n" + toolInstruction
-        }
-
-        
+        // Tool definitions are now handled natively via the MCP server integration.
+        // We no longer inject custom XML tool schemas into the system prompt.
         logger.info("[OpenCode.Session][inference=$inferenceId] Friday system prompt: ${systemPrompt?.length ?: 0} chars")
 
-        // Only send the NEW messages (delta) that haven't been sent to this daemon session yet
         val newMessages = messages.drop(previouslySentCount)
-        val userMessage = buildUserMessage(newMessages)
+        
+        val parts = newMessages.mapNotNull { msg ->
+            when (msg.role) {
+                LlmMessage.Role.USER -> buildJsonObject {
+                    put("type", "text")
+                    put("text", msg.content)
+                }
+                LlmMessage.Role.ASSISTANT -> buildJsonObject {
+                    put("type", "text")
+                    val thinking = msg.thinking?.takeIf { it.isNotBlank() }?.let { "<think>\n$it\n</think>\n" } ?: ""
+                    put("text", "$thinking${msg.content}")
+                }
+                LlmMessage.Role.TOOL -> buildJsonObject {
+                    put("type", "tool_return")
+                    put("name", msg.name ?: "tool")
+                    put("output", buildJsonObject {
+                        put("result", msg.content)
+                    })
+                }
+                LlmMessage.Role.SYSTEM -> null
+            }
+        }
         
         // Update the tracker so next iteration only sends newly appended tool results/messages
         sessionMessageCount[daemonSessionId] = messages.size
 
-        logger.info("[OpenCode.Session][inference=$inferenceId] User message (delta): ${userMessage.length} chars (${newMessages.size} new msgs), ${tools.size} tools")
-
-        val parts = listOf(buildJsonObject {
-            put("type", "text")
-            put("text", userMessage)
-        })
+        logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs, tools: ${tools.size})")
 
         // We map OpenCode's native web search AND webfetch (user requested).
         // Explicitly DISABLE all other daemon-native tools (skill, todowrite, etc.)
@@ -490,20 +471,7 @@ $toolsDesc
             .takeIf { it.isNotBlank() }
     }
 
-    private fun buildUserMessage(messages: List<LlmMessage>): String {
-        val nonSystem = messages.filter { it.role != LlmMessage.Role.SYSTEM }
-        return nonSystem.joinToString("\n\n") { msg ->
-            when (msg.role) {
-                LlmMessage.Role.USER -> "<user>\n${msg.content}\n</user>"
-                LlmMessage.Role.ASSISTANT -> {
-                    val thinking = msg.thinking?.takeIf { it.isNotBlank() }?.let { "<think>\n$it\n</think>\n" } ?: ""
-                    "<assistant>\n$thinking${msg.content}\n</assistant>"
-                }
-                LlmMessage.Role.TOOL -> "<tool_result name=\"${msg.name ?: "tool"}\">\n${msg.content}\n</tool_result>"
-                else -> msg.content
-            }
-        }
-    }
+    // Removed buildUserMessage as we now map directly to parts
 
     private class StreamContext(
         val inferenceId: String,

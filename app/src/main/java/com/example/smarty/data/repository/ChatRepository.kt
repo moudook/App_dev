@@ -29,6 +29,7 @@ class ChatRepository(
     private val chatDao: ChatDao,
     private val chatMessageNotesDao: ChatMessageNotesDao,
     private val agentStepDao: AgentStepDao,
+    private val timelineEventDao: com.example.smarty.data.local.dao.TimelineEventDao,
 ) {
     companion object {
         private const val TAG = "ChatRepository"
@@ -467,5 +468,23 @@ class ChatRepository(
         return agentStepDao.getStepsForMessageFlow(messageId)
             .map { entities -> entities.map { it.toAgentStepEntry() } }
             .distinctUntilChanged()
+    }
+
+    // ==================== Timeline Event Operations ====================
+
+    suspend fun saveTimelineEvent(event: com.example.smarty.data.local.entity.TimelineEventEntity) {
+        timelineEventDao.insertEvent(event)
+    }
+
+    suspend fun saveTimelineEvents(events: List<com.example.smarty.data.local.entity.TimelineEventEntity>) {
+        timelineEventDao.insertEvents(events)
+    }
+
+    suspend fun getTimelineEventsForSession(sessionId: String): List<com.example.smarty.data.local.entity.TimelineEventEntity> {
+        return timelineEventDao.getEventsForSession(sessionId)
+    }
+
+    fun getTimelineEventsForSessionFlow(sessionId: String): Flow<List<com.example.smarty.data.local.entity.TimelineEventEntity>> {
+        return timelineEventDao.getEventsForSessionFlow(sessionId).distinctUntilChanged()
     }
 }

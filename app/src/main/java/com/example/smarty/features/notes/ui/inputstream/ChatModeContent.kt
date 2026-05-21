@@ -71,24 +71,9 @@ data class MessageGroup(
 )
 
 fun groupMessagesByTime(messages: List<ChatMessage>): List<MessageGroup> {
-    val now = System.currentTimeMillis()
-    val groups = mutableMapOf<String, MutableList<ChatMessage>>()
-    val order = mutableListOf<String>()
-    
-    messages.forEach { message ->
-        val label = when {
-            message.timestamp > now - 86_400_000 -> "Today"
-            message.timestamp > now - 172_800_000 -> "Yesterday"
-            message.timestamp > now - 604_800_000 -> "This Week"
-            else -> "Earlier"
-        }
-        if (!groups.containsKey(label)) {
-            order.add(label)
-        }
-        groups.getOrPut(label) { mutableListOf() }.add(message)
-    }
-    
-    return order.map { label -> MessageGroup(label, groups[label] ?: emptyList()) }
+    // For timeline, we just want a continuous flat list, 
+    // but preserving the method signature so we don't break existing calls if any
+    return listOf(MessageGroup("Session", messages))
 }
 
 @Composable
@@ -194,21 +179,10 @@ fun ChatModeContent(
                             { id: String -> notes.find { it.id == id } }
                         }
 
-                        ChatMessageItem(
+                        com.example.smarty.ui.components.AgentTimelineItem(
                             message = message,
-                            groupPosition = groupPosition,
-                            getNote = stableGetNote,
-                            onNoteClick = onNoteClick,
-                            onNoteClickById = onNoteClickById,
-                            onEventClickById = onEventClickById,
-                            onSuggestionClick = { suggestion ->
-                                onSendChatMessage(suggestion, emptyList())
-                            },
                             onCopyMessage = onCopyMessage,
-                            onDeleteMessage = onDeleteMessage,
                             onRegenerateMessage = onRegenerateMessage,
-                            onEditMessage = onEditMessage,
-                            onClarificationSubmit = onClarificationSubmit ?: {},
                             modifier = Modifier.padding(top = topSpacing)
                         )
                     }

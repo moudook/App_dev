@@ -262,11 +262,35 @@ class ChatViewModel(
             val responseBuilder = StringBuilder()
             var finalThinking: String? = null
             val agentStepsBuilder = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
+            val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
                 model = _uiState.value.selectedModel
             ).collect { event ->
+                // 1) Save to unified event log
+                try {
+                    val eventType = event::class.simpleName ?: "Unknown"
+                    val payloadJson = kotlinx.serialization.json.Json.encodeToString(
+                        com.example.smarty.protocol.AgentEvent.serializer(), event
+                    )
+                    chatRepository.saveTimelineEvent(
+                        com.example.smarty.data.local.entity.TimelineEventEntity(
+                            eventId = event.eventId,
+                            traceId = streamingMessageId,
+                            timestamp = event.timestamp,
+                            sessionId = sessionId,
+                            eventType = eventType,
+                            payloadJson = payloadJson
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to save timeline event: ${e.message}")
+                }
+
+                // 2) Accumulate in-memory for UI timeline
+                agentEventsBuilder.add(event)
+
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         // Accumulate streamed content (server sends deltas, not full text)
@@ -279,7 +303,8 @@ class ChatViewModel(
                                     if (msg.id == streamingMessageId) {
                                         msg.copy(
                                             content = responseBuilder.toString(),
-                                            agentSteps = agentStepsBuilder.toList()
+                                            agentSteps = agentStepsBuilder.toList(),
+                                            agentEvents = agentEventsBuilder.toList()
                                         )
                                     } else msg
                                 },
@@ -288,11 +313,8 @@ class ChatViewModel(
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        // Server sends empty content in Result to avoid duplication.
-                        // The accumulated content from Processing events is the final answer.
                         finalThinking = event.thinking ?: finalThinking
                         val finalContent = responseBuilder.toString()
-                        // Mark complete
                         _chatState.update { state ->
                             state.copy(
                                 messages = state.messages.map { msg ->
@@ -301,7 +323,8 @@ class ChatViewModel(
                                             isStreaming = false,
                                             content = finalContent,
                                             thinking = finalThinking,
-                                            agentSteps = agentStepsBuilder.toList()
+                                            agentSteps = agentStepsBuilder.toList(),
+                                            agentEvents = agentEventsBuilder.toList()
                                         )
                                     } else msg
                                 },
@@ -311,7 +334,6 @@ class ChatViewModel(
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.AgentStep -> {
-                        // Track agentic steps for live timeline display
                         val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
                             stepType = event.stepType,
                             stepTitle = event.stepTitle,
@@ -321,12 +343,20 @@ class ChatViewModel(
                             toolName = event.toolName,
                             durationMs = event.durationMs
                         )
-                        agentStepsBuilder.add(uiStep)
+                        val existingIndex = agentStepsBuilder.indexOfFirst { it.stepIndex == event.stepIndex }
+                        if (existingIndex >= 0) {
+                            agentStepsBuilder[existingIndex] = uiStep
+                        } else {
+                            agentStepsBuilder.add(uiStep)
+                        }
                         _chatState.update { state ->
                             state.copy(
                                 messages = state.messages.map { msg ->
                                     if (msg.id == streamingMessageId) {
-                                        msg.copy(agentSteps = agentStepsBuilder.toList())
+                                        msg.copy(
+                                            agentSteps = agentStepsBuilder.toList(),
+                                            agentEvents = agentEventsBuilder.toList()
+                                        )
                                     } else msg
                                 },
                                 lastUpdated = System.currentTimeMillis()
@@ -335,6 +365,14 @@ class ChatViewModel(
                     }
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
                         Log.d(TAG, "ToolCall: ${event.toolName} (${event.status})")
+                        _chatState.update { state ->
+                            state.copy(
+                                messages = state.messages.map { msg ->
+                                    if (msg.id == streamingMessageId) msg.copy(agentEvents = agentEventsBuilder.toList()) else msg
+                                },
+                                lastUpdated = System.currentTimeMillis()
+                            )
+                        }
                     }
                     is com.example.smarty.protocol.AgentEvent.Error -> {
                         Log.e(TAG, "Agent error: ${event.message}")
@@ -351,7 +389,8 @@ class ChatViewModel(
                 content = responseBuilder.toString(),
                 thinking = finalThinking,
                 isStreaming = false,
-                agentSteps = agentStepsBuilder.toList()
+                agentSteps = agentStepsBuilder.toList(),
+                agentEvents = agentEventsBuilder.toList()
             )
             saveMessagePair(userMessage, savedMessage)
 

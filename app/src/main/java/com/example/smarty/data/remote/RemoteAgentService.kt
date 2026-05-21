@@ -67,8 +67,18 @@ class RemoteAgentService(
                 "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
                 "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
                 else -> {
-                    Log.w(TAG, "Unknown SSE event type: '$eventType', falling back to Processing")
-                    json.decodeFromString<AgentEvent.Processing>(data)
+                    // Inject type discriminator if missing for the new canonical events
+                    val jsonStr = if (!data.contains("\"type\"")) {
+                        data.trim().removeSuffix("}") + ",\"type\":\"$eventType\"}"
+                    } else {
+                        data
+                    }
+                    try {
+                        json.decodeFromString<AgentEvent>(jsonStr)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Unknown SSE event type: '$eventType', falling back to Processing")
+                        json.decodeFromString<AgentEvent.Processing>(data)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -781,6 +791,7 @@ class RemoteAgentService(
                 Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
                 false
             }
+            else -> false // Handle all other canonical events seamlessly
         }
     }
 
@@ -842,6 +853,10 @@ class RemoteAgentService(
             }
             is AgentEvent.AgentStep -> {
                 Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
+                flowCollector.emit(event)
+                false
+            }
+            else -> {
                 flowCollector.emit(event)
                 false
             }

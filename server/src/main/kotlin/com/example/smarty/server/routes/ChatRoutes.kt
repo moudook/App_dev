@@ -477,6 +477,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         is AgentEvent.Question -> "question"
                                         is AgentEvent.NoteBlock -> "note_block"
                                         is AgentEvent.AgentStep -> "agent_step"
+                                        else -> event::class.simpleName?.replace(Regex("([a-z])([A-Z]+)"), "$1_$2")?.lowercase() ?: "unknown"
                                     }
                                 call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
                                 send(

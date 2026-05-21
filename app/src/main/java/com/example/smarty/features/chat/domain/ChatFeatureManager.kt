@@ -1862,6 +1862,12 @@ class ChatFeatureManager(
                                 )
                             chatManager.updateMessageNoteReferences(streamingMessageId, noteRef)
                         }
+                        else -> {
+                            // Granular canonical events (Phase 4+): ReasoningStarted, ReasoningDelta,
+                            // ToolCallStarted, ApprovalRequested, SessionError, CacheHit, etc.
+                            // These are persisted in the TimelineEventEntity log and accumulated in
+                            // agentEvents for timeline UI. No additional handling needed here.
+                        }
                     }
                 } // This closes the .collect { event -> block
 

@@ -264,12 +264,13 @@ object ServiceLocator {
     private var chatRepository: com.example.smarty.data.repository.ChatRepository? = null
 
     fun provideChatRepository(application: Application): com.example.smarty.data.repository.ChatRepository {
+        val database = com.example.smarty.data.local.SmartyDatabase.getDatabase(application)
         return chatRepository ?: synchronized(this) {
-            val database = SmartyDatabase.getDatabase(application)
             com.example.smarty.data.repository.ChatRepository(
-                chatDao = database.chatDao(),
-                chatMessageNotesDao = database.chatMessageNotesDao(),
-                agentStepDao = database.agentStepDao(),
+                database.chatDao(),
+                database.chatMessageNotesDao(),
+                database.agentStepDao(),
+                database.timelineEventDao(),
             ).also { chatRepository = it }
         }
     }

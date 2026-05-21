@@ -128,6 +128,10 @@ data class ChatMessage(
     val eventReferences: List<EventReference> = emptyList(), // Clickable event cards in AI response
     val confidence: String? = null, // Server-computed confidence: verified, moderate, model_knowledge
     val sourceType: String? = null, // Source type: web_search, user_data, model_knowledge
+    // Transient — raw canonical AgentEvent stream for this turn (NOT persisted in Room).
+    // The AgentTimelineItem uses a TimelineNodeAggregator to derive UI nodes from this list.
+    @Transient
+    val agentEvents: List<com.example.smarty.protocol.AgentEvent> = emptyList(),
 ) {
     /**
      * Check if this message has a thinking/reasoning section

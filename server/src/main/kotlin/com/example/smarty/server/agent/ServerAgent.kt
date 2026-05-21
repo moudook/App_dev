@@ -216,19 +216,13 @@ class ServerAgent(
                     kv("model", llmProvider.providerName),
                 )
 
-                // Post-stream: parse tool call XML from accumulated content.
-                // Smarty tools come as text (not native OpenCode tool_use events),
-                // so we need to extract them from the LLM's text output.
-                streamProcessor.finalizeAndExtractToolCalls()
-
-                // Determine tool call source: native tool_use event OR parsed XML from text
+                // Determine tool call source: native tool_use event from OpenCode
                 val hasNativeToolCall = streamProcessor.isToolCallInProgress && streamProcessor.currentToolName.isNotEmpty()
-                val hasParsedToolCall = streamProcessor.parsedToolCallFound && streamProcessor.parsedToolName.isNotEmpty()
 
                 // 4. Tool call detected — execute and loop
-                if (hasNativeToolCall || hasParsedToolCall) {
-                    val toolName = if (hasParsedToolCall) streamProcessor.parsedToolName else streamProcessor.currentToolName
-                    val toolArgs = if (hasParsedToolCall) streamProcessor.parsedToolArgs else streamProcessor.currentToolArgs
+                if (hasNativeToolCall) {
+                    val toolName = streamProcessor.currentToolName
+                    val toolArgs = streamProcessor.currentToolArgs
 
                     val argsHash = toolArgs.take(100).hashCode().toString()
                     val sameCallCount = toolCallHistory.count { it.first == toolName && it.second == argsHash }
