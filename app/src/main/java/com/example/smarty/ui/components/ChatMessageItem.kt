@@ -829,56 +829,62 @@ fun CodeBlock(
     var isCopied by remember { mutableStateOf(false) }
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
-    // ElevenLabs Theme: Zinc colors passed from parent
-    val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B) // Zinc-200 / Zinc-950
+    val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B)
     val headerColor = headerBgColor
+    val copyBtnBg = if (isDark) Color(0xFF3F3F46) else Color(0xFFE4E4E7)
+    val copyBtnText = if (isDark) Color(0xFFA1A1AA) else Color(0xFF52525B)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, borderColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
             .background(backgroundColor)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(headerColor)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = language.ifBlank { "code" }.lowercase(),
-                style = MaterialTheme.typography.labelSmall.copy(
+                style = MaterialTheme.typography.labelMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.3.sp
                 ),
-                color = if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666)
+                color = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
             )
 
             Row(
                 modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
                     .clickable {
                         clipboardManager.setText(AnnotatedString(code))
                         isCopied = true
                     }
-                    .padding(4.dp),
+                    .background(if (isCopied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else copyBtnBg)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
                     imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
                     contentDescription = "Copy code",
-                    tint = if (isCopied) MaterialTheme.colorScheme.primary else if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666),
+                    tint = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText,
                     modifier = Modifier.size(14.dp)
                 )
-                if (isCopied) {
-                    Text(
-                        text = "Copied",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                Text(
+                    text = if (isCopied) "Copied!" else "Copy",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText
                     )
+                )
+                if (isCopied) {
                     LaunchedEffect(Unit) {
                         delay(2000)
                         isCopied = false
@@ -887,13 +893,14 @@ fun CodeBlock(
             }
         }
 
-        Box(modifier = Modifier.padding(12.dp)) {
+        Box(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = code,
-                style = MaterialTheme.typography.bodySmall.copy(
+                style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 15.sp,
-                    lineHeight = 23.sp
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    letterSpacing = 0.sp
                 ),
                 color = textColor,
                 modifier = Modifier.horizontalScroll(rememberScrollState())

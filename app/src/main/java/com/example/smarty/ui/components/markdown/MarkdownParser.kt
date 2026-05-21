@@ -46,7 +46,7 @@ internal object MarkdownPatterns {
 
     // Italic: *text* or _text_
     val italicAsterisk = Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")
-    val italicUnderscore = Regex("(?<!_) _([^_]+) _(?!_)")
+    val italicUnderscore = Regex("(?<!_)_([^_]+)_(?!_)")
 
     // Strikethrough: ~~text~~
     val strikethrough = Regex("~~([^~]+)~~")
