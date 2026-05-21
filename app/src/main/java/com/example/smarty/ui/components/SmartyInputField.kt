@@ -1776,131 +1776,116 @@ private fun getBarProperties(
             yOffsetFraction = 0f
         }
         WaveformState.SAD -> {
-            val p = (playTimeMs % 3200) / 3200f
-            val sighFactor = if (p in 0.35f..0.55f) {
-                val t = (p - 0.35f) / 0.2f
-                Math.sin(t * Math.PI).toFloat()
-            } else 0f
+            val p = (playTimeMs % 3600) / 3600f
+            
+            // Soulful slow-sleep deep breathing (sighing) cycle
+            // Inhale expands the chest (bars lift/grow), Exhale collapses heavily (bars droop)
+            val breathRaw = Math.sin(2.0 * Math.PI * p).toFloat()
+            
+            // Asymmetric breathing: inhale is slightly faster/more active, exhale is a slow heavy sigh
+            val breathFactor = if (breathRaw > 0f) {
+                Math.pow(breathRaw.toDouble(), 0.7).toFloat()
+            } else {
+                breathRaw * 0.5f
+            }
 
+            // Squash & Stretch: during inhale, the creature stretches vertically and gets narrower;
+            // during exhale, it squashes vertically and gets wider.
+            widthMultiplier = 1.0f - 0.12f * breathFactor
+            
+            // Slow, heavy head tilt/sway during sleep
+            val slowSway = 0.04f * Math.sin(2.0 * Math.PI * (playTimeMs % 7200) / 7200.0).toFloat()
+            xOffsetFraction = slowSway
+
+            // Height fractions representing heavily drooped ears and sleepy eyes
             heightFraction = when (index) {
-                0, 4 -> 0.12f - 0.06f * sighFactor
-                1, 3 -> 0.35f - 0.33f * sighFactor
-                else -> 0.05f - 0.03f * sighFactor
+                0, 4 -> {
+                    val earHeight = 0.12f - 0.05f * breathFactor // Ears droop heavily
+                    // Left ear reacts one way to sway, right ear the opposite
+                    if (index == 0) earHeight + slowSway * 0.4f else earHeight - slowSway * 0.4f
+                }
+                1, 3 -> 0.28f + 0.10f * breathFactor // Sleepy eyes rise slightly during inhale
+                else -> 0.08f + 0.05f * breathFactor  // Sleepy nose/mouth
             }
 
+            // Heavy vertical droop: during exhale, the bars literally sag downwards in space
             yOffsetFraction = when (index) {
-                0, 4 -> 0.075f + 0.015f * sighFactor
-                1, 3 -> 0f
-                else -> 0.125f + 0.02f * sighFactor
+                0, 4 -> 0.08f - 0.04f * breathFactor  // Left/right ears sag
+                1, 3 -> 0.04f - 0.03f * breathFactor  // Eyes sag down slightly
+                else -> 0.15f - 0.06f * breathFactor  // Nose/mouth sags heavily
             }
-            widthMultiplier = 1.0f
-            xOffsetFraction = 0f
         }
         WaveformState.IDLE -> {
             val p = (playTimeMs % 3000) / 3000f
 
-            // Premium continuous blink (closing and opening smoothly)
-            val eyeHeight = if (p in 0.07f..0.12f) {
-                val t = (p - 0.07f) / 0.05f
-                if (t < 0.3f) {
-                    val subT = t / 0.3f
-                    baseHeight + (0.05f - baseHeight) * subT
-                } else if (t < 0.7f) {
-                    0.05f
-                } else {
-                    val subT = (t - 0.7f) / 0.3f
-                    0.05f + (baseHeight - 0.05f) * subT
-                }
-            } else {
-                baseHeight
-            }
+            // 1. Organic Breathing Pulse (Subtle breathing energy, alert and alive)
+            val breathing = 0.04f * Math.sin(2.0 * Math.PI * (playTimeMs % 1800) / 1800.0).toFloat()
 
-            val earLeftHeight = if (p in 0.0f..0.3f) {
-                val t = p / 0.3f
-                if (t < 0.5f) {
-                    0.3f + 0.18f * (t / 0.5f)
-                } else {
-                    0.48f - 0.28f * ((t - 0.5f) / 0.5f)
-                }
-            } else if (p in 0.3f..0.4f) {
-                val t = (p - 0.3f) / 0.1f
-                0.2f + 0.1f * t
+            // 2. Playful springy ear wiggles (Pixar-style secondary vibration)
+            // Symmetrical envelope starting/ending at 0 ensures absolute mathematical continuity.
+            val earLeftHeight = if (p in 0.35f..0.60f) {
+                val t = (p - 0.35f) / 0.25f
+                val envelope = Math.sin(t * Math.PI).toFloat()
+                val vibration = 0.12f * Math.sin(t * 3.5 * 2.0 * Math.PI).toFloat()
+                0.3f + vibration * envelope
             } else {
                 0.3f
             }
 
-            val earRightHeight = if (p in 0.4f..0.7f) {
-                val t = (p - 0.4f) / 0.3f
-                if (t < 0.5f) {
-                    0.3f + 0.18f * (t / 0.5f)
-                } else {
-                    0.48f - 0.28f * ((t - 0.5f) / 0.5f)
-                }
-            } else if (p in 0.7f..0.8f) {
-                val t = (p - 0.7f) / 0.1f
-                0.2f + 0.1f * t
+            val earRightHeight = if (p in 0.65f..0.90f) {
+                val t = (p - 0.65f) / 0.25f
+                val envelope = Math.sin(t * Math.PI).toFloat()
+                val vibration = 0.12f * Math.sin(t * 3.5 * 2.0 * Math.PI).toFloat()
+                0.3f + vibration * envelope
             } else {
                 0.3f
             }
 
+            // 3. Soulful double-blink (snappy physics, smooth ease-in/ease-out boundaries)
+            val eyeHeight = when {
+                p in 0.10f..0.16f -> {
+                    val t = (p - 0.10f) / 0.06f
+                    val factor = Math.sin(t * Math.PI).toFloat()
+                    baseHeight - (baseHeight - 0.08f) * factor
+                }
+                p in 0.19f..0.23f -> {
+                    val t = (p - 0.19f) / 0.04f
+                    val factor = Math.sin(t * Math.PI).toFloat()
+                    baseHeight - (baseHeight - 0.20f) * factor
+                }
+                else -> baseHeight
+            }
+
+            // 4. Squeeze dip for the nose synced smoothly with the double-blink event
+            val dip = if (p in 0.10f..0.23f) {
+                val t = (p - 0.10f) / 0.13f
+                0.06f * Math.sin(t * Math.PI).toFloat()
+            } else {
+                0f
+            }
+
+            // 5. Combine height fractions seamlessly with the breathing offset (fixing the nose jump bug)
             heightFraction = when (index) {
-                0 -> earLeftHeight
-                4 -> earRightHeight
-                1, 3 -> eyeHeight
-                else -> {
-                    // Continuous nose/mouth height transition
-                    if (p < 0.07f) {
-                        0.2f
-                    } else if (p < 0.09f) {
-                        val t = (p - 0.07f) / 0.02f
-                        0.2f + (0.12f - 0.2f) * t
-                    } else if (p < 0.11f) {
-                        0.12f
-                    } else if (p < 0.20f) {
-                        val t = (p - 0.11f) / 0.09f
-                        0.12f + 0.2f * t
-                    } else if (p < 0.35f) {
-                        val t = (p - 0.20f) / 0.15f
-                        0.32f + (0.2f - 0.32f) * t
-                    } else {
-                        0.2f
-                    }
-                }
+                0 -> earLeftHeight + breathing
+                4 -> earRightHeight + breathing
+                1, 3 -> eyeHeight + breathing
+                else -> 0.2f - dip + breathing // Nose/mouth
             }
 
-            // Continuous nose vertical transition
-            val noseYOffset = if (p < 0.07f) {
-                0f
-            } else if (p < 0.09f) {
-                val t = (p - 0.07f) / 0.02f
-                (1.2f / 24f) * t
-            } else if (p < 0.11f) {
-                1.2f / 24f
-            } else if (p < 0.20f) {
-                val t = (p - 0.11f) / 0.09f
-                (1.2f - 3.4f * t) / 24f
-            } else if (p < 0.35f) {
-                val t = (p - 0.20f) / 0.15f
-                (-2.2f + 2.2f * t) / 24f
-            } else {
-                0f
+            // Nose vertical motion synced with blink squeeze
+            yOffsetFraction = if (index == 2) dip * 0.8f else 0f
+
+            // 6. Playful head sway with ear secondary squish
+            val swayX = 1.8f / 24f * Math.sin(2.0 * Math.PI * p).toFloat()
+            xOffsetFraction = swayX
+
+            // Secondary squish/stretch on ears during sways
+            if (index == 0) {
+                heightFraction += swayX * 0.6f
+            } else if (index == 4) {
+                heightFraction -= swayX * 0.6f
             }
 
-            yOffsetFraction = if (index == 2) noseYOffset else 0f
-
-            val shiftFactor = when {
-                p in 0.35f..0.55f -> {
-                    val t = (p - 0.35f) / 0.2f
-                    Math.sin(t * Math.PI).toFloat() * -1.8f / 24f
-                }
-                p in 0.65f..0.85f -> {
-                    val t = (p - 0.65f) / 0.2f
-                    Math.sin(t * Math.PI).toFloat() * 1.8f / 24f
-                }
-                else -> 0f
-            }
-
-            xOffsetFraction = shiftFactor
             widthMultiplier = 1.0f
         }
     }

@@ -74,7 +74,17 @@ class OpencodeLlmProvider(
         val daemonSessionId = createDaemonSession()
         logger.info("[OpenCode] Daemon session created: {}", daemonSessionId)
 
-        val systemPrompt = extractSystemPrompt(messages)
+        var systemPrompt = extractSystemPrompt(messages)
+        
+        // Inject tools into the system prompt to ensure the model knows about them
+        if (tools.isNotEmpty()) {
+            val toolsDesc = tools.joinToString("\n") { 
+                "- ${it.name}: ${it.description}" 
+            }
+            val toolInstruction = "\n\nYou have access to the following tools. Use them when necessary:\n$toolsDesc"
+            systemPrompt = (systemPrompt ?: "") + toolInstruction
+        }
+        
         logger.info("[OpenCode] Friday system prompt: {} chars", systemPrompt?.length ?: 0)
 
         val userMessage = buildUserMessage(messages)
@@ -85,6 +95,20 @@ class OpencodeLlmProvider(
             put("text", userMessage)
         })
 
+        // Map ToolDefinition list to a JsonObject mapping tool names to schemas
+        val mappedTools = if (tools.isNotEmpty()) {
+            buildJsonObject {
+                tools.forEach { tool ->
+                    put(tool.name, buildJsonObject {
+                        put("description", tool.description)
+                        put("parameters", Json.parseToJsonElement(Json.encodeToString(ToolParameters.serializer(), tool.parameters)))
+                    })
+                }
+            }
+        } else {
+            null
+        }
+
         logger.info("[OpenCode] POST /session/{}/message — agent={}, system={}chars, tools={}", daemonSessionId, agentName, systemPrompt?.length ?: 0, tools.size)
 
         val httpRequest = client.post("$daemonBaseUrl/session/$daemonSessionId/message") {
@@ -94,6 +118,7 @@ class OpencodeLlmProvider(
                 parts = parts,
                 agent = agentName,
                 system = systemPrompt,
+                tools = mappedTools
             ))
         }
 

@@ -31,12 +31,19 @@ object LlmProviderFactory {
     fun getOrCreateHttpClient(): HttpClient {
         return cachedHttpClient ?: synchronized(this) {
             cachedHttpClient ?: HttpClient(OkHttp) {
+                engine {
+                    config {
+                        connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        readTimeout(5, java.util.concurrent.TimeUnit.MINUTES)
+                        writeTimeout(5, java.util.concurrent.TimeUnit.MINUTES)
+                    }
+                }
                 install(ContentNegotiation) {
                     json(daemonJson)
                 }
             }.also {
                 cachedHttpClient = it
-                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation)")
+                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation with timeouts)")
             }
         }
     }
