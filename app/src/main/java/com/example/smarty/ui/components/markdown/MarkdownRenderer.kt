@@ -101,7 +101,7 @@ fun MarkdownRenderer(
                 val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
                 val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 com.example.smarty.ui.components.CodeBlock(
                     code = codeContent,
                     language = language,
@@ -109,7 +109,7 @@ fun MarkdownRenderer(
                     borderColor = codeBorderColor,
                     headerBgColor = codeHeaderBg
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             } else {
                 if (part.isNotBlank()) {
                     RenderMarkdownBlock(
@@ -155,8 +155,8 @@ private fun RenderMarkdownBlock(
                         normalColor = boldColor, boldColor = boldColor,
                         linkColor = linkColor, codeColor = codeColor,
                         style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Bold, fontSize = 30.sp,
-                            lineHeight = 40.sp, letterSpacing = (-0.5).sp, color = boldColor
+                            fontWeight = FontWeight.Bold, fontSize = 28.sp,
+                            lineHeight = 38.sp, letterSpacing = (-0.3).sp, color = boldColor
                         )
                     )
                     // Decorative underline
@@ -167,7 +167,7 @@ private fun RenderMarkdownBlock(
                             .clip(RoundedCornerShape(2.dp))
                             .background(boldColor.copy(alpha = 0.3f))
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     i++
                 }
 
@@ -189,11 +189,11 @@ private fun RenderMarkdownBlock(
                             linkColor = linkColor, codeColor = codeColor,
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold, fontSize = 24.sp,
-                                lineHeight = 34.sp, letterSpacing = (-0.3).sp, color = boldColor
+                                lineHeight = 32.sp, letterSpacing = (-0.2).sp, color = boldColor
                             )
                         )
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     i++
                 }
 
@@ -206,10 +206,10 @@ private fun RenderMarkdownBlock(
                         linkColor = linkColor, codeColor = codeColor,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
-                            lineHeight = 30.sp, letterSpacing = (-0.2).sp, color = boldColor
+                            lineHeight = 28.sp, letterSpacing = (-0.1).sp, color = boldColor
                         )
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     i++
                 }
 
@@ -278,7 +278,7 @@ private fun RenderMarkdownBlock(
                     }
                     val mathContent = mathLines.joinToString(" ")
                     if (mathContent.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = codeBackgroundColor.copy(alpha = 0.25f),
@@ -289,7 +289,7 @@ private fun RenderMarkdownBlock(
                                     textColor = codeColor, backgroundColor = Color.Transparent)
                             }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
 
@@ -322,7 +322,7 @@ private fun RenderMarkdownBlock(
                 // ── Bullet Lists ──
                 trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
                     val itemText = collectContinuationLines(trimmedLine.substring(2), lines, i + 1).also { i = it.second }.first
-                    Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+                    Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
@@ -330,13 +330,11 @@ private fun RenderMarkdownBlock(
                                 .clip(RoundedCornerShape(1.dp))
                                 .background(normalColor.copy(alpha = 0.5f))
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         MarkdownText(
                             content = itemText, normalColor = normalColor, boldColor = boldColor,
                             linkColor = linkColor, codeColor = codeColor,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontSize = 16.sp, lineHeight = 28.sp, color = normalColor
-                            )
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
                         )
                     }
                 }
@@ -351,19 +349,15 @@ private fun RenderMarkdownBlock(
                         Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
                             Text(
                                 text = prefix,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                                    fontFeatureSettings = "tnum", color = linkColor
-                                ),
-                                modifier = Modifier.padding(top = 3.dp)
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
+                                color = normalColor.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(top = 2.dp)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             MarkdownText(
                                 content = itemText, normalColor = normalColor, boldColor = boldColor,
                                 linkColor = linkColor, codeColor = codeColor,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 16.sp, lineHeight = 28.sp, color = normalColor
-                                )
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
                             )
                         }
                     } else {
@@ -398,7 +392,7 @@ private fun RenderMarkdownBlock(
                     val quoteBg = if (isDark) Color(0xFF1E1E2E) else Color(0xFFF8F8FA)
                     Box(
                         modifier = Modifier
-                            .padding(vertical = 8.dp)
+                            .padding(vertical = 6.dp)
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
                             .background(quoteBg)
@@ -417,8 +411,8 @@ private fun RenderMarkdownBlock(
                             content = quoteLines.joinToString("\n"),
                             normalColor = normalColor, boldColor = boldColor,
                             linkColor = linkColor, codeColor = codeColor,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontSize = 16.sp, lineHeight = 28.sp,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 16.sp, lineHeight = 26.sp,
                                 fontStyle = FontStyle.Italic, color = normalColor.copy(alpha = 0.8f)
                             )
                         )
@@ -427,7 +421,7 @@ private fun RenderMarkdownBlock(
 
                 // ── Horizontal Rule ──
                 trimmedLine.matches(RenderPatterns.horizontalRule) -> {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -448,7 +442,7 @@ private fun RenderMarkdownBlock(
                                 drawRect(gradient)
                             }
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     i++
                 }
 
@@ -554,9 +548,9 @@ fun StandardText(
     } else {
         Text(
             text = parseMarkdownToAnnotatedString(text, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming),
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 16.sp, lineHeight = 28.sp, letterSpacing = 0.1.sp,
-                fontWeight = FontWeight.Normal, color = normalColor
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 17.sp, lineHeight = 28.sp, letterSpacing = 0.sp,
+                fontWeight = FontWeight.Medium, color = normalColor
             ),
             modifier = Modifier.padding(vertical = 4.dp)
         )
@@ -570,31 +564,31 @@ private fun TaskListView(
     normalColor: Color, boldColor: Color, linkColor: Color, codeColor: Color,
     accentColor: Color
 ) {
-    Column(modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp)) {
+    Column(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
         tasks.forEach { (isChecked, taskText) ->
-            Row(modifier = Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val checkColor = if (isChecked) accentColor else MaterialTheme.colorScheme.outline
                 Surface(
-                    shape = RoundedCornerShape(5.dp),
+                    shape = RoundedCornerShape(4.dp),
                     color = if (isChecked) checkColor.copy(alpha = 0.15f) else Color.Transparent,
-                    border = BorderStroke(2.dp, checkColor),
-                    modifier = Modifier.size(20.dp)
+                    border = BorderStroke(1.5.dp, checkColor),
+                    modifier = Modifier.size(18.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (isChecked) Icon(
                             Icons.Default.Check, "Checked",
                             tint = checkColor,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 MarkdownText(
                     content = taskText, normalColor = normalColor, boldColor = boldColor,
                     linkColor = linkColor, codeColor = codeColor,
-                    style = MaterialTheme.typography.bodyLarge.copy(
+                    style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 16.sp, lineHeight = 26.sp,
-                        color = if (isChecked) normalColor.copy(alpha = 0.55f) else normalColor
+                        color = if (isChecked) normalColor.copy(alpha = 0.6f) else normalColor
                     )
                 )
             }
@@ -640,11 +634,10 @@ fun MarkdownTable(
     val config = androidx.compose.ui.platform.LocalConfiguration.current
     val minTableWidth = maxOf(minOf((config.screenWidthDp - 48).dp, 640.dp), (maxColumns * 120).dp)
 
-    Spacer(modifier = Modifier.height(12.dp))
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .horizontalScroll(rememberScrollState())
     ) {
         parsedRows.forEachIndexed { index, cells ->
@@ -661,7 +654,7 @@ fun MarkdownTable(
                     Box(
                         modifier = Modifier.weight(1f).drawBehind {
                             if (cellIdx > 0) drawLine(borderColor, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
-                        }.padding(horizontal = 16.dp, vertical = 12.dp)
+                        }.padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
                         val hasMath = cellText.contains(RenderPatterns.inlineMathDetect)
                         if (hasMath) {
@@ -671,12 +664,12 @@ fun MarkdownTable(
                                 content = cellText,
                                 normalColor = if (isHeader) boldColor else normalColor,
                                 boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isHeader) FontWeight.SemiBold else FontWeight.Normal,
-                                    lineHeight = 22.sp,
-                                    color = if (isHeader) boldColor else normalColor
-                                )
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 20.sp,
+                        color = if (isHeader) boldColor else normalColor
+                    )
                             )
                         }
                     }
@@ -684,7 +677,6 @@ fun MarkdownTable(
             }
         }
     }
-    Spacer(modifier = Modifier.height(12.dp))
 }
 
 /**
@@ -717,8 +709,8 @@ private fun RichTextWithLatex(
                         text = parseMarkdownToAnnotatedString(
                             segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
                         ),
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontSize = 16.sp, lineHeight = 28.sp, letterSpacing = 0.1.sp,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
                             fontWeight = FontWeight.Normal, color = normalColor
                         )
                     )

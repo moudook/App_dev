@@ -105,35 +105,41 @@ class OpencodeLlmProvider(
 
         var systemPrompt = extractSystemPrompt(messages)
         
-        // Inject tools into the system prompt to ensure the model knows about them
+        // CRITICAL: Inject tool definitions at the END of system prompt (most influential position).
+        // The daemon may inject its own native tools (skill, todowrite, websearch), but those
+        // are NOT available to you. Our tools MUST be called via XML format in the response text.
         if (tools.isNotEmpty()) {
-            val toolsDesc = tools.joinToString("\n") { tool ->
+            val toolsDesc = tools.joinToString("\n\n") { tool ->
                 val schemaStr = runCatching {
                     Json.encodeToString(ToolParameters.serializer(), tool.parameters)
                 }.getOrDefault("{}")
-                "- ${tool.name}: ${tool.description}\n  Parameters JSON schema: $schemaStr"
+                "### ${tool.name}\n${tool.description.trimIndent().take(400)}\nParameters: $schemaStr"
             }
             val toolInstruction = """
                 
-                You have access to the following tools. Use them when necessary by outputting a tool call in the exact XML format below. 
-                Do NOT use any other format for tool calls.
-                
-                <tool_call_json>
-                ```json
-                {
-                  "name": "tool_name",
-                  "arguments": {
-                    "param_name": "value"
-                  }
-                }
-                ```
-                </tool_call_json>
-                
-                Available tools:
-                $toolsDesc
+## YOUR SMARTY TOOLS (MANDATORY — READ CAREFULLY)
+
+You have these tools. Use them proactively when the user's request requires it.
+
+**TO CALL A TOOL:** Output EXACTLY this format in your response text. Nothing else — no markdown, no extra text around the tag:
+
+<tool_call>{"name":"tool_name","arguments":{"param":"value"}}</tool_call>
+
+**ONE-SHOT EXAMPLE:**
+User: "Remember my WiFi password is hungry-cat-42"
+You output: <tool_call>{"name":"memory","arguments":{"action":"save","title":"WiFi Password","content":"hungry-cat-42","category":"home"}}</tool_call>
+
+**RULES:**
+- Output ONLY the <tool_call>...</tool_call> tag when using a tool — no extra prose before calling it
+- After the tool result is returned to you, provide your final answer to the user
+- DO NOT call daemon tools (skill, todowrite, read_file, write_file, bash) — they are disabled
+
+**YOUR TOOLS:**
+$toolsDesc
             """.trimIndent()
             systemPrompt = (systemPrompt ?: "") + "\n" + toolInstruction
         }
+
         
         logger.info("[OpenCode.Session][inference=$inferenceId] Friday system prompt: ${systemPrompt?.length ?: 0} chars")
 
@@ -151,10 +157,23 @@ class OpencodeLlmProvider(
             put("text", userMessage)
         })
 
-        // We map OpenCode's native web search instead of our custom search tool,
-        // but leave other custom tools out since the Daemon API strictly expects a Map<String, Boolean>.
+        // We map OpenCode's native web search AND webfetch (user requested).
+        // Explicitly DISABLE all other daemon-native tools (skill, todowrite, etc.)
+        // so the agent doesn't get confused about what's available.
         val mappedTools = buildJsonObject {
             put("web_search", true)
+            put("webfetch", true)
+            // Explicitly disable daemon-native tools that we don't want the agent to see/use
+            put("skill", false)
+            put("todowrite", false)
+            put("write_file", false)
+            put("read_file", false)
+            put("bash", false)
+            put("glob", false)
+            put("grep", false)
+            put("task", false)
+            put("question", false)
+            put("external_directory", false)
         }
 
         logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, system=${systemPrompt?.length ?: 0}chars, tools=${tools.size}")

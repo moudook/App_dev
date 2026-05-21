@@ -846,26 +846,25 @@ fun CodeBlock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(headerColor)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = language.ifBlank { "code" }.lowercase(),
-                style = MaterialTheme.typography.labelMedium.copy(
+                style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.3.sp
+                    fontWeight = FontWeight.Bold
                 ),
-                color = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+                color = if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666)
             )
 
             Row(
@@ -902,14 +901,13 @@ fun CodeBlock(
             }
         }
 
-        Box(modifier = Modifier.padding(14.dp)) {
+        Box(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = code,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp,
-                    letterSpacing = 0.sp
+                    fontSize = 15.sp,
+                    lineHeight = 23.sp
                 ),
                 color = textColor,
                 modifier = Modifier.horizontalScroll(rememberScrollState())

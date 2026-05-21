@@ -386,56 +386,73 @@ class AgentStreamProcessor(
      */
     fun finalizeAndExtractToolCalls(): Boolean {
         val raw = rawContentBuffer.toString()
-        val match = TOOL_CALL_XML_REGEX.find(raw)
-        if (match == null) {
-            logger.debug("No tool call XML found in accumulated content ({} chars)", raw.length)
-            parsedToolCallFound = false
-            return false
+
+        // Try all formats in priority order
+        val candidates = listOf(
+            TOOL_CALL_XML_REGEX,       // <tool_call_json>```json ... ```</tool_call_json>
+            TOOL_CALL_JSON_BARE_REGEX, // <tool_call_json>{...}</tool_call_json>
+            TOOL_CALL_BARE_REGEX,      // <tool_call>{...}</tool_call>
+        )
+
+        for (regex in candidates) {
+            val match = regex.find(raw) ?: continue
+            val jsonStr = match.groupValues[1].trim()
+            logger.info("Found tool call (pattern=${regex.pattern.take(30)}): {}", jsonStr.take(200))
+
+            return try {
+                val obj = Json { ignoreUnknownKeys = true }
+                    .parseToJsonElement(jsonStr)
+                    .let { it as? JsonObject }
+                    ?: throw IllegalArgumentException("Not a JSON object")
+
+                parsedToolName = obj["name"]?.let {
+                    (it as? JsonPrimitive)?.contentOrNull
+                } ?: throw IllegalArgumentException("Missing 'name' field")
+
+                parsedToolArgs = obj["arguments"]?.toString()
+                    ?: obj["parameters"]?.toString()
+                    ?: "{}"
+                parsedToolCallFound = true
+
+                // Strip ALL tool call XML from currentContent so it's not shown to the user
+                var cleaned = currentContent
+                for (p in ALL_TOOL_CALL_PATTERNS) cleaned = p.replace(cleaned, "")
+                currentContent = cleaned.trim()
+
+                logger.info("Parsed tool call: {} with args: {}", parsedToolName, parsedToolArgs.take(200))
+                true
+            } catch (e: Exception) {
+                logger.warn("Failed to parse tool call JSON ({} chars): {}", jsonStr.length, e.message)
+                parsedToolCallFound = false
+                continue
+            }
         }
 
-        val jsonStr = match.groupValues[1].trim()
-        logger.info("Found tool call XML: {}", jsonStr.take(200))
-
-        return try {
-            val obj = Json { ignoreUnknownKeys = true }
-                .parseToJsonElement(jsonStr)
-                .let { it as? JsonObject }
-                ?: throw IllegalArgumentException("Not a JSON object")
-
-            parsedToolName = obj["name"]?.let {
-                (it as? JsonPrimitive)?.content
-            } ?: throw IllegalArgumentException("Missing 'name' field")
-
-            parsedToolArgs = obj["arguments"]?.toString() ?: "{}"
-            parsedToolCallFound = true
-
-            // Strip ALL tool call XML from currentContent so it's not shown to the user
-            currentContent = TOOL_CALL_XML_REGEX.replace(currentContent, "").trim()
-
-            logger.info("Parsed tool call: {} with args: {}", parsedToolName, parsedToolArgs.take(200))
-            true
-        } catch (e: Exception) {
-            logger.warn("Failed to parse tool call JSON: {} — error: {}", jsonStr.take(200), e.message)
-            parsedToolCallFound = false
-            false
-        }
+        logger.debug("No tool call found in accumulated content ({} chars)", raw.length)
+        parsedToolCallFound = false
+        return false
     }
 
     /**
      * Strip tool call XML from content so it's not shown to the user during streaming.
      */
     private fun stripToolCallXml(text: String): String {
-        return TOOL_CALL_XML_REGEX.replace(text, "")
+        var result = text
+        for (p in ALL_TOOL_CALL_PATTERNS) result = p.replace(result, "")
+        return result
     }
+
 
     fun extractFinalResponse(content: String): String {
         val finalMatch = Regex("""<final>([\s\S]*?)</final>""").find(content)
         return finalMatch?.groupValues?.getOrNull(1)?.trim()
-            ?: content
-                .replace(Regex("""<think>[\s\S]*?</think>"""), "")
-                .replace(Regex("""<final>|</final>"""), "")
-                .replace(TOOL_CALL_XML_REGEX, "")
-                .trim()
+            ?: run {
+                var cleaned = content
+                    .replace(Regex("""<think>[\s\S]*?</think>"""), "")
+                    .replace(Regex("""<final>|</final>"""), "")
+                for (p in ALL_TOOL_CALL_PATTERNS) cleaned = p.replace(cleaned, "")
+                cleaned.trim()
+            }
     }
 
     fun extractThinking(content: String): String {
@@ -471,6 +488,16 @@ class AgentStreamProcessor(
     }
 
     companion object {
-        private val TOOL_CALL_XML_REGEX = Regex("""<tool_call_json>\s*```.*?\n([\s\S]+?)\n```[\s\S]*?</tool_call_json>""")
+        // Format 1 (preferred): <tool_call_json>```json...```</tool_call_json>
+        private val TOOL_CALL_XML_REGEX = Regex("""<tool_call_json>\s*```(?:json)?\s*\n?([\s\S]+?)\n?```[\s\S]*?</tool_call_json>""")
+
+        // Format 2: <tool_call_json>{...}</tool_call_json> (no code block)
+        private val TOOL_CALL_JSON_BARE_REGEX = Regex("""<tool_call_json>\s*([\s\S]*?)\s*</tool_call_json>""")
+
+        // Format 3: <tool_call>{...}</tool_call> (opencode.json legacy format)
+        private val TOOL_CALL_BARE_REGEX = Regex("""<tool_call>\s*([\s\S]*?)\s*</tool_call>""")
+
+        // All strip patterns — used to clean content before display
+        private val ALL_TOOL_CALL_PATTERNS = listOf(TOOL_CALL_XML_REGEX, TOOL_CALL_JSON_BARE_REGEX, TOOL_CALL_BARE_REGEX)
     }
 }
