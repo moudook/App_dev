@@ -215,10 +215,9 @@ class CompletionSoundManager private constructor(private val context: Context) {
                             .build(),
                     )
 
-                    // Use raw resource
-                    val afd = context.resources.openRawResourceFd(R.raw.completion_sound)
-                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                    afd.close()
+                    // Use Uri for raw resource (safer than AssetFileDescriptor)
+                    val uri = Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}")
+                    setDataSource(context, uri)
 
                     setOnCompletionListener {
                         Log.d(TAG, "Completion sound finished")

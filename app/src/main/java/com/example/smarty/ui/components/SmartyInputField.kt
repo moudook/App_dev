@@ -1433,55 +1433,77 @@ private fun VoiceWaveformIcon(
     mentionState: MentionState,
     modifier: Modifier = Modifier
 ) {
-    var isIdleFor20s by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isListening, isProcessing, isAgentWorking, value.text) {
-        isIdleFor20s = false // Reset idle state on any action or text typing
-        if (!isListening && !isProcessing && !isAgentWorking) {
-            delay(20000) // Wait 20 seconds
-            isIdleFor20s = true
+    // Detect manual typing (writing) and compute smooth typingProgress first (declaring before reference)
+    var isTyping by remember { mutableStateOf(false) }
+    var lastText by remember { mutableStateOf(value.text) }
+ 
+    LaunchedEffect(value.text, isFocused) {
+        if (isFocused) {
+            if (value.text != lastText) {
+                isTyping = true
+                lastText = value.text
+                delay(1500) // Keep typing state for 1.5 seconds after last change
+                isTyping = false
+            }
+        } else {
+            isTyping = false
+            lastText = value.text
         }
     }
 
+    var isIdleFor20s by remember { mutableStateOf(false) }
+ 
+    // Reset idle timer on any active interaction: listening, processing, focused, typing or text entry.
+    LaunchedEffect(isListening, isProcessing, isAgentWorking, value.text, isFocused, isTyping) {
+        isIdleFor20s = false
+        if (!isListening && !isProcessing && !isAgentWorking && !isTyping) {
+            delay(20000) // 20-second timeout
+            isIdleFor20s = true
+        }
+    }
+ 
     var isSuccessActive by remember { mutableStateOf(false) }
     var lastProcessing by remember { mutableStateOf(false) }
-
+ 
     LaunchedEffect(isProcessing, isAgentWorking) {
         val isAnyProcessing = isProcessing || isAgentWorking
         if (lastProcessing && !isAnyProcessing) {
-            // Transitioned from working/thinking to completed!
             isSuccessActive = true
         }
         lastProcessing = isAnyProcessing
     }
-
+ 
     LaunchedEffect(isSuccessActive) {
         if (isSuccessActive) {
             delay(2500) // Show success jump for 2.5 seconds
             isSuccessActive = false
         }
     }
-
+ 
     var hasQuestionBeenAsked by remember { mutableStateOf(false) }
-
-    // Set hasQuestionBeenAsked to true when thinking completes (success triggers)
+ 
     LaunchedEffect(isSuccessActive) {
         if (isSuccessActive) {
             hasQuestionBeenAsked = true
         }
     }
-
-    // Reset hasQuestionBeenAsked when user submits or text is cleared
+ 
     LaunchedEffect(value.text) {
         if (value.text.isEmpty()) {
             hasQuestionBeenAsked = false
         }
     }
-
+ 
+    val typingProgress by animateFloatAsState(
+        targetValue = if (isTyping) 1f else 0f,
+        animationSpec = tween(400, easing = FastOutSlowInEasing),
+        label = "typingProgress"
+    )
+ 
     val isUserAnsweringTool = (hasQuestionBeenAsked && value.text.isNotEmpty() && isFocused) || 
                               (value.text.startsWith("/") || value.text.startsWith("@")) ||
                               mentionState.isActive
-
+ 
     val state = when {
         isListening -> WaveformState.TALK
         isProcessing || isAgentWorking -> WaveformState.THINKING
@@ -1522,7 +1544,8 @@ private fun VoiceWaveformIcon(
         modifier = modifier.size(24.dp),
         color = animatedColor,
         state = state,
-        successProgress = successAnimProgress.value
+        successProgress = successAnimProgress.value,
+        typingProgress = typingProgress
     )
 }
 
@@ -1537,7 +1560,8 @@ private fun getBarProperties(
     state: WaveformState,
     index: Int,
     playTimeMs: Long,
-    successProgress: Float
+    successProgress: Float,
+    typingProgress: Float
 ): BarProperties {
     var widthMultiplier = 1.0f
     var xOffsetFraction = 0f
@@ -1555,83 +1579,39 @@ private fun getBarProperties(
             val p = (playTimeMs % 1200) / 1200f
             val time = 2.0 * Math.PI * (p - index * 0.1f)
             heightFraction = 0.25f + 0.5f * (0.5f + 0.5f * Math.sin(time).toFloat())
-            yOffsetFraction = 0f
-            widthMultiplier = 1.0f
-            xOffsetFraction = 0f
+            yOffsetFraction = -0.03f * Math.cos(time).toFloat() // subtle vertical bounce
+            widthMultiplier = 1.0f + 0.05f * Math.sin(time).toFloat() // subtle squash & stretch
+            xOffsetFraction = 0.04f * Math.sin(time).toFloat() // subtle head sway
         }
         WaveformState.THINKING -> {
-            val p = (playTimeMs % 1100) / 1100f
-            val (h, y) = when (index) {
-                2 -> {
-                    val peak = 0.18f
-                    val valH = if (p < peak) {
-                        0.1f + 0.9f * (p / peak)
-                    } else if (p < 0.45f) {
-                        1.0f - 0.85f * ((p - peak) / (0.45f - peak))
-                    } else {
-                        // Smoothly transition from 0.15f back to 0.1f to prevent wrap jitter
-                        val t = (p - 0.45f) / (1.0f - 0.45f)
-                        0.15f + (0.1f - 0.15f) * t
-                    }
-                    valH to 0f
-                }
-                1, 3 -> {
-                    val valH = if (p < 0.12f) {
-                        0.2f
-                    } else if (p < 0.30f) {
-                        0.2f + 0.75f * ((p - 0.12f) / (0.30f - 0.12f))
-                    } else if (p < 0.55f) {
-                        0.95f - 0.75f * ((p - 0.30f) / (0.55f - 0.30f))
-                    } else {
-                        0.2f
-                    }
-                    val valY = if (p in 0.12f..0.55f) {
-                        val t = (p - 0.12f) / (0.55f - 0.12f)
-                        val displacement = -2f / 24f
-                        displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
-                    } else 0f
-                    valH to valY
-                }
-                else -> {
-                    val valH = if (p < 0.24f) {
-                        0.25f
-                    } else if (p < 0.42f) {
-                        0.25f + 0.63f * ((p - 0.24f) / (0.42f - 0.24f))
-                    } else if (p < 0.68f) {
-                        0.88f - 0.63f * ((p - 0.42f) / (0.68f - 0.42f))
-                    } else {
-                        0.25f
-                    }
-                    val valY = if (p in 0.24f..0.68f) {
-                        val t = (p - 0.24f) / (0.68f - 0.24f)
-                        val displacement = -4f / 24f
-                        displacement * (1f - 4f * (t - 0.5f) * (t - 0.5f))
-                    } else 0f
-                    valH to valY
-                }
-            }
-            heightFraction = h
-            yOffsetFraction = y
-            widthMultiplier = 1.0f
-            xOffsetFraction = 0f
+            val waveSpeed = 0.006f
+            val phaseOffset = index * 0.5f
+            val wave = Math.sin((playTimeMs * waveSpeed - phaseOffset).toDouble()).toFloat()
+            heightFraction = 0.35f + 0.35f * wave
+            yOffsetFraction = -0.1f * wave // subtle vertical bobbing
+            widthMultiplier = 1.0f + 0.1f * Math.cos((playTimeMs * waveSpeed - phaseOffset).toDouble()).toFloat() // organic squash/stretch
+            xOffsetFraction = 0.03f * wave // organic head sway
         }
         WaveformState.SUCCESS -> {
             val p = successProgress
+            val smoothStep = { t: Float -> t * t * (3f - 2f * t) }
             val (h, y) = when {
                 p < 0.12f -> {
                     val t = p / 0.12f
+                    val st = smoothStep(t)
                     val startH = baseHeight
                     val endH = when (index) {
                         0, 4 -> 0.08f
                         1, 3 -> 0.2f
                         else -> 0.06f
                     }
-                    val valH = startH + (endH - startH) * t
-                    val valY = 0.1f * t
+                    val valH = startH + (endH - startH) * st
+                    val valY = 0.1f * st
                     valH to valY
                 }
                 p < 0.32f -> {
                     val t = (p - 0.12f) / 0.20f
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.08f
                         1, 3 -> 0.2f
@@ -1642,14 +1622,15 @@ private fun getBarProperties(
                         1, 3 -> 1.15f
                         else -> 0.45f
                     }
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = 0.1f
                     val endY = -0.75f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
                 p < 0.48f -> {
                     val t = (p - 0.32f) / 0.16f
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.78f
                         1, 3 -> 1.15f
@@ -1660,14 +1641,15 @@ private fun getBarProperties(
                         1, 3 -> 0.9f
                         else -> 0.28f
                     }
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = -0.75f
                     val endY = -0.8f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
                 p < 0.62f -> {
                     val t = (p - 0.48f) / 0.14f
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.4f
                         1, 3 -> 0.9f
@@ -1678,14 +1660,15 @@ private fun getBarProperties(
                         1, 3 -> 0.05f
                         else -> 0.04f
                     }
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = -0.8f
                     val endY = 0.1f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
                 p < 0.75f -> {
                     val t = (p - 0.62f) / 0.13f
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.05f
                         1, 3 -> 0.05f
@@ -1696,14 +1679,15 @@ private fun getBarProperties(
                         1, 3 -> 0.95f
                         else -> 0.3f
                     }
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = 0.1f
                     val endY = -0.08f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
                 p < 0.88f -> {
                     val t = (p - 0.75f) / 0.13f
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.45f
                         1, 3 -> 0.95f
@@ -1714,24 +1698,25 @@ private fun getBarProperties(
                         1, 3 -> 0.75f
                         else -> 0.18f
                     }
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = -0.08f
                     val endY = 0.02f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
                 else -> {
                     val t = minOf(1.0f, (p - 0.88f) / 0.12f)
+                    val st = smoothStep(t)
                     val startH = when (index) {
                         0, 4 -> 0.25f
                         1, 3 -> 0.75f
                         else -> 0.18f
                     }
                     val endH = baseHeight
-                    val hVal = startH + (endH - startH) * t
+                    val hVal = startH + (endH - startH) * st
                     val startY = 0.02f
                     val endY = 0.0f
-                    val yVal = startY + (endY - startY) * t
+                    val yVal = startY + (endY - startY) * st
                     hVal to yVal
                 }
             }
@@ -1742,7 +1727,6 @@ private fun getBarProperties(
         }
         WaveformState.GIGGLE -> {
             val p = (playTimeMs % 1800) / 1800f
-            // Premium smooth transition for Giggle merging/spreading
             val mergeFactor = if (p < 0.1f) {
                 val t = p / 0.1f
                 0.5f - 0.5f * Math.cos(t * Math.PI).toFloat()
@@ -1764,7 +1748,6 @@ private fun getBarProperties(
                 else -> 0.0f
             }
 
-            // Beautiful sine envelope to make wiggle expand and decay cleanly with zero boundary jumps
             heightFraction = if (p in 0.1f..0.85f) {
                 val envelope = Math.sin(((p - 0.1f) / 0.75f) * Math.PI).toFloat()
                 val gigTime = 2.0 * Math.PI * ((p - 0.1f) / 0.75f) * 2.0
@@ -1779,7 +1762,6 @@ private fun getBarProperties(
             val p = (playTimeMs % 3600) / 3600f
             
             // Soulful slow-sleep deep breathing (sighing) cycle
-            // Inhale expands the chest (bars lift/grow), Exhale collapses heavily (bars droop)
             val breathRaw = Math.sin(2.0 * Math.PI * p).toFloat()
             
             // Asymmetric breathing: inhale is slightly faster/more active, exhale is a slow heavy sigh
@@ -1789,94 +1771,94 @@ private fun getBarProperties(
                 breathRaw * 0.5f
             }
 
-            // Squash & Stretch: during inhale, the creature stretches vertically and gets narrower;
-            // during exhale, it squashes vertically and gets wider.
+            // Squash & Stretch physics
             widthMultiplier = 1.0f - 0.12f * breathFactor
             
-            // Slow, heavy head tilt/sway during sleep
+            // Slow, heavy head sway
             val slowSway = 0.04f * Math.sin(2.0 * Math.PI * (playTimeMs % 7200) / 7200.0).toFloat()
             xOffsetFraction = slowSway
 
-            // Height fractions representing heavily drooped ears and sleepy eyes
+            // Safe drooped base heights (ears = 0.20f, nose = 0.22f) preventing any squashed capsules.
+            // Eyes (1, 3) close to slit-like heights for a sleeping expression, slightly breathing.
             heightFraction = when (index) {
                 0, 4 -> {
-                    val earHeight = 0.12f - 0.05f * breathFactor // Ears droop heavily
-                    // Left ear reacts one way to sway, right ear the opposite
+                    val earHeight = 0.20f - 0.05f * breathFactor
                     if (index == 0) earHeight + slowSway * 0.4f else earHeight - slowSway * 0.4f
                 }
-                1, 3 -> 0.28f + 0.10f * breathFactor // Sleepy eyes rise slightly during inhale
-                else -> 0.08f + 0.05f * breathFactor  // Sleepy nose/mouth
+                1, 3 -> 0.20f + 0.04f * breathFactor // Sleeping eyes
+                else -> 0.22f + 0.05f * breathFactor  // Sleepy nose/mouth
             }
 
-            // Heavy vertical droop: during exhale, the bars literally sag downwards in space
             yOffsetFraction = when (index) {
-                0, 4 -> 0.08f - 0.04f * breathFactor  // Left/right ears sag
-                1, 3 -> 0.04f - 0.03f * breathFactor  // Eyes sag down slightly
-                else -> 0.15f - 0.06f * breathFactor  // Nose/mouth sags heavily
+                0, 4 -> 0.08f - 0.04f * breathFactor
+                1, 3 -> 0.04f - 0.03f * breathFactor
+                else -> 0.15f - 0.06f * breathFactor
             }
         }
         WaveformState.IDLE -> {
             val p = (playTimeMs % 3000) / 3000f
 
-            // 1. Organic Breathing Pulse (Subtle breathing energy, alert and alive)
-            val breathing = 0.04f * Math.sin(2.0 * Math.PI * (playTimeMs % 1800) / 1800.0).toFloat()
+            // 1. Organic Breathing Pulse (ALERT but alertly tuned when typing)
+            val breathingAmplitude = 0.04f + 0.02f * typingProgress
+            val breathing = breathingAmplitude * Math.sin(2.0 * Math.PI * (playTimeMs % 1500) / 1500.0).toFloat()
 
-            // 2. Playful springy ear wiggles (Pixar-style secondary vibration)
-            // Symmetrical envelope starting/ending at 0 ensures absolute mathematical continuity.
+            // 2. Playful springy ear wiggles with alert perk ears (base height grows from 0.3f to 0.42f when typing)
+            val baseEarHeight = 0.3f + 0.12f * typingProgress
+
             val earLeftHeight = if (p in 0.35f..0.60f) {
                 val t = (p - 0.35f) / 0.25f
                 val envelope = Math.sin(t * Math.PI).toFloat()
                 val vibration = 0.12f * Math.sin(t * 3.5 * 2.0 * Math.PI).toFloat()
-                0.3f + vibration * envelope
+                baseEarHeight + vibration * envelope
             } else {
-                0.3f
+                baseEarHeight
             }
 
             val earRightHeight = if (p in 0.65f..0.90f) {
                 val t = (p - 0.65f) / 0.25f
                 val envelope = Math.sin(t * Math.PI).toFloat()
                 val vibration = 0.12f * Math.sin(t * 3.5 * 2.0 * Math.PI).toFloat()
-                0.3f + vibration * envelope
+                baseEarHeight + vibration * envelope
             } else {
-                0.3f
+                baseEarHeight
             }
 
-            // 3. Soulful double-blink (snappy physics, smooth ease-in/ease-out boundaries)
+            // 3. Soulful double-blink (wider windows and ease-in-ease-out curve to prevent clamping jitter)
             val eyeHeight = when {
-                p in 0.10f..0.16f -> {
-                    val t = (p - 0.10f) / 0.06f
-                    val factor = Math.sin(t * Math.PI).toFloat()
-                    baseHeight - (baseHeight - 0.08f) * factor
+                p in 0.10f..0.20f -> {
+                    val t = (p - 0.10f) / 0.10f
+                    val smoothT = Math.sin(t * Math.PI).toFloat()
+                    baseHeight - (baseHeight - 0.20f) * smoothT
                 }
-                p in 0.19f..0.23f -> {
-                    val t = (p - 0.19f) / 0.04f
-                    val factor = Math.sin(t * Math.PI).toFloat()
-                    baseHeight - (baseHeight - 0.20f) * factor
+                p in 0.23f..0.30f -> {
+                    val t = (p - 0.23f) / 0.07f
+                    val smoothT = Math.sin(t * Math.PI).toFloat()
+                    baseHeight - (baseHeight - 0.22f) * smoothT
                 }
                 else -> baseHeight
             }
 
-            // 4. Squeeze dip for the nose synced smoothly with the double-blink event
-            val dip = if (p in 0.10f..0.23f) {
-                val t = (p - 0.10f) / 0.13f
-                0.06f * Math.sin(t * Math.PI).toFloat()
+            // 4. Squeeze dip for the nose synced with blink
+            val dip = if (p in 0.10f..0.30f) {
+                val t = (p - 0.10f) / 0.20f
+                0.05f * Math.sin(t * Math.PI).toFloat()
             } else {
                 0f
             }
 
-            // 5. Combine height fractions seamlessly with the breathing offset (fixing the nose jump bug)
+            // 5. Safe height fractions (nose base at 0.22f)
             heightFraction = when (index) {
                 0 -> earLeftHeight + breathing
                 4 -> earRightHeight + breathing
                 1, 3 -> eyeHeight + breathing
-                else -> 0.2f - dip + breathing // Nose/mouth
+                else -> 0.22f - dip + breathing // Nose/mouth
             }
 
             // Nose vertical motion synced with blink squeeze
             yOffsetFraction = if (index == 2) dip * 0.8f else 0f
 
-            // 6. Playful head sway with ear secondary squish
-            val swayX = 1.8f / 24f * Math.sin(2.0 * Math.PI * p).toFloat()
+            // 6. Playful head sway - scaled down by 70% when typing to look focused
+            val swayX = 1.8f / 24f * Math.sin(2.0 * Math.PI * p).toFloat() * (1f - 0.7f * typingProgress)
             xOffsetFraction = swayX
 
             // Secondary squish/stretch on ears during sways
@@ -1898,7 +1880,8 @@ private fun WaveformBars(
     modifier: Modifier = Modifier,
     color: Color,
     state: WaveformState,
-    successProgress: Float = 0f
+    successProgress: Float = 0f,
+    typingProgress: Float = 0f
 ) {
     // Monotonic smooth timer driven by frame ticking
     var playTimeMs by remember { mutableStateOf(0L) }
@@ -1916,8 +1899,34 @@ private fun WaveformBars(
     var currentState by remember { mutableStateOf(state) }
     val transitionAlpha = remember { Animatable(1f) }
 
+    // Stored exact snapshot of properties when transition is initiated to guarantee mathematically continuous, pop-free morphing
+    val transitionStartProps = remember {
+        mutableStateListOf<BarProperties>().apply {
+            repeat(5) { add(BarProperties(0.2f, 0f, 1f, 0f)) }
+        }
+    }
+    var useStoredStartProps by remember { mutableStateOf(false) }
+
     LaunchedEffect(state) {
         if (state != currentState) {
+            val alpha = transitionAlpha.value
+            for (i in 0 until 5) {
+                val prevP = getBarProperties(prevState, i, playTimeMs, successProgress, typingProgress)
+                val currP = getBarProperties(currentState, i, playTimeMs, successProgress, typingProgress)
+                
+                val currentHeight = prevP.heightFraction + (currP.heightFraction - prevP.heightFraction) * alpha
+                val currentYOffset = prevP.yOffsetFraction + (currP.yOffsetFraction - prevP.yOffsetFraction) * alpha
+                val currentWidth = prevP.widthMultiplier + (currP.widthMultiplier - prevP.widthMultiplier) * alpha
+                val currentXOffset = prevP.xOffsetFraction + (currP.xOffsetFraction - prevP.xOffsetFraction) * alpha
+                
+                transitionStartProps[i] = BarProperties(
+                    heightFraction = currentHeight,
+                    yOffsetFraction = currentYOffset,
+                    widthMultiplier = currentWidth,
+                    xOffsetFraction = currentXOffset
+                )
+            }
+            useStoredStartProps = true
             prevState = currentState
             currentState = state
             transitionAlpha.snapTo(0f)
@@ -1925,6 +1934,7 @@ private fun WaveformBars(
                 targetValue = 1f,
                 animationSpec = tween(400, easing = FastOutSlowInEasing) // Smooth state morphing
             )
+            useStoredStartProps = false
         }
     }
 
@@ -1936,22 +1946,27 @@ private fun WaveformBars(
         val alpha = transitionAlpha.value
 
         for (index in 0 until barCount) {
-            val prevProps = getBarProperties(prevState, index, playTimeMs, successProgress)
-            val currProps = getBarProperties(currentState, index, playTimeMs, successProgress)
+            val currProps = getBarProperties(currentState, index, playTimeMs, successProgress, typingProgress)
+            val startProps = if (useStoredStartProps) {
+                transitionStartProps[index]
+            } else {
+                getBarProperties(prevState, index, playTimeMs, successProgress, typingProgress)
+            }
 
             // Smooth linear interpolation (morphing) of vector values
-            val heightFraction = prevProps.heightFraction + (currProps.heightFraction - prevProps.heightFraction) * alpha
-            val yOffsetFraction = prevProps.yOffsetFraction + (currProps.yOffsetFraction - prevProps.yOffsetFraction) * alpha
-            val widthMultiplier = prevProps.widthMultiplier + (currProps.widthMultiplier - prevProps.widthMultiplier) * alpha
-            val xOffsetFraction = prevProps.xOffsetFraction + (currProps.xOffsetFraction - prevProps.xOffsetFraction) * alpha
+            val heightFraction = startProps.heightFraction + (currProps.heightFraction - startProps.heightFraction) * alpha
+            val yOffsetFraction = startProps.yOffsetFraction + (currProps.yOffsetFraction - startProps.yOffsetFraction) * alpha
+            val widthMultiplier = startProps.widthMultiplier + (currProps.widthMultiplier - startProps.widthMultiplier) * alpha
+            val xOffsetFraction = startProps.xOffsetFraction + (currProps.xOffsetFraction - startProps.xOffsetFraction) * alpha
 
             val baseLeft = index * barWidth * 2f
             val targetLeft = baseLeft + (xOffsetFraction * barWidth)
             val targetWidth = widthMultiplier * barWidth
             val targetHeight = heightFraction * maxHeight
 
-            // Safeguard height to prevent capsule compression or corner inversion
-            val finalHeight = maxOf(targetHeight, targetWidth)
+            // Safeguard height to prevent capsule compression to circles or corner inversion (minimum 1.25x width ratio)
+            val minHeight = targetWidth * 1.25f
+            val finalHeight = maxOf(targetHeight, minHeight)
             val targetTop = centerY + (yOffsetFraction * maxHeight) - (finalHeight / 2f)
 
             drawRoundRect(

@@ -78,11 +78,32 @@ class OpencodeLlmProvider(
         
         // Inject tools into the system prompt to ensure the model knows about them
         if (tools.isNotEmpty()) {
-            val toolsDesc = tools.joinToString("\n") { 
-                "- ${it.name}: ${it.description}" 
+            val toolsDesc = tools.joinToString("\n") { tool ->
+                val schemaStr = runCatching { 
+                    Json.encodeToString(ToolParameters.serializer(), tool.parameters) 
+                }.getOrDefault("{}")
+                "- ${tool.name}: ${tool.description}\n  Parameters JSON schema: $schemaStr" 
             }
-            val toolInstruction = "\n\nYou have access to the following tools. Use them when necessary:\n$toolsDesc"
-            systemPrompt = (systemPrompt ?: "") + toolInstruction
+            val toolInstruction = """
+                
+                You have access to the following tools. Use them when necessary by outputting a tool call in the exact XML format below. 
+                Do NOT use any other format for tool calls.
+                
+                <tool_call_json>
+                ```json
+                {
+                  "name": "tool_name",
+                  "arguments": {
+                    "param_name": "value"
+                  }
+                }
+                ```
+                </tool_call_json>
+                
+                Available tools:
+                $toolsDesc
+            """.trimIndent()
+            systemPrompt = (systemPrompt ?: "") + "\n" + toolInstruction
         }
         
         logger.info("[OpenCode] Friday system prompt: {} chars", systemPrompt?.length ?: 0)
@@ -95,19 +116,9 @@ class OpencodeLlmProvider(
             put("text", userMessage)
         })
 
-        // Map ToolDefinition list to a JsonObject mapping tool names to schemas
-        val mappedTools = if (tools.isNotEmpty()) {
-            buildJsonObject {
-                tools.forEach { tool ->
-                    put(tool.name, buildJsonObject {
-                        put("description", tool.description)
-                        put("parameters", Json.parseToJsonElement(Json.encodeToString(ToolParameters.serializer(), tool.parameters)))
-                    })
-                }
-            }
-        } else {
-            null
-        }
+        // We MUST NOT pass custom tools via the tools parameter to the Daemon API, 
+        // as it strictly expects a Map<String, Boolean> of built-in tools, causing a BadRequest.
+        val mappedTools = null
 
         logger.info("[OpenCode] POST /session/{}/message — agent={}, system={}chars, tools={}", daemonSessionId, agentName, systemPrompt?.length ?: 0, tools.size)
 
