@@ -31,6 +31,28 @@ data class AgentActionResult(
 )
 
 /**
+ * A single agentic step in the agent's execution timeline.
+ * Represents one discrete phase: thinking, tool call, checkpoint, etc.
+ *
+ * @param stepType   "thinking" | "tool_call" | "opencode_tool" | "checkpoint"
+ * @param stepTitle  Human-readable title (e.g., "Thinking…", "Searching the web")
+ * @param stepContent Accumulated content (reasoning text, tool output summary)
+ * @param stepStatus "started" | "streaming" | "completed" | "failed"
+ * @param stepIndex  Monotonically increasing per conversation turn
+ * @param toolName   Machine tool name (for tool_call/opencode_tool types)
+ * @param durationMs How long this step took (set on completed/failed)
+ */
+data class AgentStepEntry(
+    val stepType: String,
+    val stepTitle: String,
+    val stepContent: String = "",
+    val stepStatus: String = "started",
+    val stepIndex: Int = 0,
+    val toolName: String? = null,
+    val durationMs: Long? = null,
+)
+
+/**
  * A single search query + its result, used inside an [AgentToolCallEntry].
  * Allows the UI to show expandable result cards for each parallel web search.
  */
@@ -90,6 +112,7 @@ data class ChatMessage(
     val content: String,
     val thinking: String? = null, // AI thinking/reasoning process (collapsible)
     val toolCalls: List<AgentToolCallEntry> = emptyList(), // Structured action blocks
+    val agentSteps: List<AgentStepEntry> = emptyList(), // Agentic step timeline
     val attachments: List<Attachment> = emptyList(),
     val timestamp: Long = 0L, // System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
@@ -117,9 +140,11 @@ data class ChatMessage(
     val hasToolCalls: Boolean get() = toolCalls.isNotEmpty()
 
     /**
-     * Show the full Action Panel if there's thinking OR tool call blocks
+     * Show the full Action Panel if there's thinking, tool call blocks, or agent steps
      */
-    val hasActionPanel: Boolean get() = hasThinking || hasToolCalls
+    val hasActionPanel: Boolean get() = hasThinking || hasToolCalls || hasAgentSteps
+
+    val hasAgentSteps: Boolean get() = agentSteps.isNotEmpty()
 
     /**
      * Check if this is a user message

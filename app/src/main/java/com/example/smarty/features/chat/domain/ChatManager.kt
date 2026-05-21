@@ -318,6 +318,28 @@ class ChatManager(
         }
     }
 
+    suspend fun updateMessageAgentSteps(
+        messageId: String,
+        newStep: com.example.smarty.core.domain.model.AgentStepEntry,
+    ) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    val updated = msg.agentSteps.toMutableList()
+                    val existingIdx = updated.indexOfFirst { it.stepIndex == newStep.stepIndex }
+                    if (existingIdx >= 0) {
+                        updated[existingIdx] = newStep
+                    } else {
+                        updated.add(newStep)
+                    }
+                    msg.copy(agentSteps = updated.toList())
+                } else {
+                    msg
+                }
+            }
+        }
+    }
+
     suspend fun updateMessageNoteReferences(
         messageId: String,
         noteReference: com.example.smarty.core.domain.model.NoteReference,

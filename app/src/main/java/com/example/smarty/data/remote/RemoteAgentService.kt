@@ -755,6 +755,10 @@ class RemoteAgentService(
                 // Note: Full NoteBlock handling requires architectural changes to pass structured events
                 false
             }
+            is AgentEvent.AgentStep -> {
+                Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
+                false
+            }
         }
     }
 
@@ -811,6 +815,11 @@ class RemoteAgentService(
             }
             is AgentEvent.NoteBlock -> {
                 Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
+                flowCollector.emit(event)
+                false
+            }
+            is AgentEvent.AgentStep -> {
+                Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
                 flowCollector.emit(event)
                 false
             }

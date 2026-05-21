@@ -107,6 +107,7 @@ import com.example.smarty.ui.components.chat.ThinkingSection
 import com.example.smarty.ui.components.chat.ThinkingDots
 import com.example.smarty.ui.components.chat.TextEffectPerWord
 import com.example.smarty.ui.components.chat.CitationCards
+import com.example.smarty.ui.components.chat.AgentStepTimeline
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -604,7 +605,15 @@ private fun MessageContent(
                 )
             }
 
-            if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank()) {
+            if (message.agentSteps.isNotEmpty()) {
+                AgentStepTimeline(
+                    steps = message.agentSteps,
+                    isStreaming = message.isStreaming,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+
+            if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank() && message.agentSteps.isEmpty()) {
                 ThinkingDots()
             }
 

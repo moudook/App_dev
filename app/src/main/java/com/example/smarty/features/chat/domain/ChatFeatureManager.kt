@@ -1838,7 +1838,6 @@ class ChatFeatureManager(
                             chatManager.updateMessageClarification(streamingMessageId, clarification)
                         }
                         is AgentEvent.NoteBlock -> {
-                            // Create note reference and add to message
                             val noteRef =
                                 com.example.smarty.core.domain.model.NoteReference(
                                     noteId = event.noteId,
@@ -1847,6 +1846,18 @@ class ChatFeatureManager(
                                     category = event.category,
                                 )
                             chatManager.updateMessageNoteReferences(streamingMessageId, noteRef)
+                        }
+                        is AgentEvent.AgentStep -> {
+                            val stepEntry = com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = event.stepType,
+                                stepTitle = event.stepTitle,
+                                stepContent = event.stepContent,
+                                stepStatus = event.stepStatus,
+                                stepIndex = event.stepIndex,
+                                toolName = event.toolName,
+                                durationMs = event.durationMs,
+                            )
+                            chatManager.updateMessageAgentSteps(streamingMessageId, stepEntry)
                         }
                     }
                 }
