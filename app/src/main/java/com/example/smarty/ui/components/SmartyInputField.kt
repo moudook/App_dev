@@ -112,23 +112,10 @@ import com.example.smarty.ui.components.AttachmentPreviewRow
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.SmartyMotion
 import com.example.smarty.ui.theme.SmartyShadow
-import com.example.smarty.ui.animation.shimmerEffect
 import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
-import com.example.smarty.ui.utils.AnimationLifecycleState
-import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-// Color constants for attachment indicators - Technical Palette (Theme-neutral)
-private val AttachmentRedColor = Color(0xFFEF9A9A)
-private val AttachmentGreenColor = Color(0xFFA5D6A7)
-private val AttachmentBlueColor = Color(0xFF90CAF9)
-private val AttachmentOrangeColor = Color(0xFFFFCC80)
-private val AttachmentGrayColor = Color(0xFFB0BEC5)
-
-// Agent shimmer color - Mapped to tokens
-private val AgentShimmerColor = ComponentColors.assistantPurple
 
 // Design constants for the redesigned input block
 // Design constants for the redesigned input block - Mapped to tokens
@@ -1023,18 +1010,8 @@ private fun InputPill(
         Box(
             modifier = Modifier.fillMaxWidth().wrapContentHeight()
         ) {
-            // Shimmer overlay for voice/agent states
-            val showShimmer = autoSendActive || isVoiceListening || isAgentWorking
-            if (showShimmer) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .shimmerEffect(
-                            shimmerColor = LocalAccentColor.current.copy(alpha = 0.2f),
-                            durationMs = if (autoSendActive) 600 else 1200
-                        )
-                )
-            }
+            // Shimmer overlay removed as per user request
+
 
             Row(
                 modifier = Modifier
@@ -1509,7 +1486,7 @@ private fun VoiceWaveformIcon(
         isProcessing || isAgentWorking -> WaveformState.THINKING
         isSuccessActive -> WaveformState.SUCCESS
         isIdleFor20s -> WaveformState.SAD
-        isUserAnsweringTool -> WaveformState.GIGGLE
+        isTyping || isUserAnsweringTool -> WaveformState.GIGGLE
         else -> WaveformState.IDLE
     }
 
