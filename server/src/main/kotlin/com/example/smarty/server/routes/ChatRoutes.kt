@@ -473,7 +473,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 AgentEvent.Processing(
                                     eventId = UUID.randomUUID().toString(),
                                     timestamp = System.currentTimeMillis(),
-                                    content = "Thinking...",
+                                    content = "",
                                 ),
                             ),
                             event = "processing",
@@ -733,9 +733,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             val testEvents =
                 listOf(
                     AgentEvent.Processing(
-                        eventId = "test-processing",
+                        eventId = "evt_123",
                         timestamp = System.currentTimeMillis(),
-                        content = "Test processing content",
+                        content = "",
                     ),
                     AgentEvent.Command(
                         eventId = "test-command",

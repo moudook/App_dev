@@ -148,7 +148,7 @@ class OpencodeLlmProvider(
                     put("providerID", providerId)
                     put("modelID", modelId)
                 },
-                agent = agentName,
+                agent = null, // Disable OpenCode's native agent to prevent it from injecting 'skill', 'todowrite', etc.
                 system = systemPrompt,
                 tools = mappedTools
             ))
