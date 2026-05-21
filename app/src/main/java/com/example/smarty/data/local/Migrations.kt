@@ -1249,4 +1249,11 @@ object Migrations {
                 db.execSQL("ALTER TABLE chat_messages ADD COLUMN agentStepsJson TEXT NOT NULL DEFAULT '[]'")
             }
         }
+
+    val MIGRATION_40_41 =
+        object : Migration(40, 41) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN personality TEXT")
+            }
+        }
 }

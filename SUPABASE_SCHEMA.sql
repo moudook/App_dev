@@ -253,6 +253,7 @@ CREATE TABLE chat_sessions (
     is_archived     BOOLEAN NOT NULL DEFAULT false,
     is_pinned       BOOLEAN NOT NULL DEFAULT false,
     model_used      TEXT,
+    personality     TEXT,
     temperature     NUMERIC(3,2) DEFAULT 0.7,
     max_tokens      INTEGER DEFAULT 4096,
     system_prompt   TEXT,

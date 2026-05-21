@@ -160,9 +160,9 @@ fun ThinkingSection(
                         isStreaming && toolCalls.isNotEmpty() -> {
                             val lastTool = toolCalls.last()
                             val name = lastTool.displayName.ifBlank { lastTool.toolName }
-                            if (name.length > 30) "Thinking..." else name
+                            if (name.length > 30) "Thinking" else name
                         }
-                        isStreaming -> "Thinking..."
+                        isStreaming -> "Thinking"
                         else -> "Thoughts"
                     },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),

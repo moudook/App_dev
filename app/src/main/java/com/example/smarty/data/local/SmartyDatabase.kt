@@ -72,7 +72,7 @@ import com.example.smarty.features.chat.domain.memory.AIMemoryDao
         StackEntity::class,
         NoteStackEntity::class,
     ],
-    version = 40,
+    version = 41,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -313,8 +313,9 @@ abstract class SmartyDatabase : RoomDatabase() {
                             // Consolidated migration: adds new tables from SmartDatabase
                             Migrations.MIGRATION_38_39,
                             Migrations.MIGRATION_39_40,
+                            Migrations.MIGRATION_40_41,
                         )
-                        // Explicit error handling instead of destructive migration
+                        .fallbackToDestructiveMigration()
                         .build()
                 INSTANCE = instance
                 instance

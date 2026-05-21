@@ -57,6 +57,7 @@ class RemoteAgentService(
             "tool_blocked" -> json.decodeFromString<AgentEvent.ToolBlocked>(data)
             "question" -> json.decodeFromString<AgentEvent.Question>(data)
             "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
+            "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
             else -> json.decodeFromString<AgentEvent.Processing>(data)
         }
     }

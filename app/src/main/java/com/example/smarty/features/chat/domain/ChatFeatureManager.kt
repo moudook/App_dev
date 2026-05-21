@@ -1704,6 +1704,7 @@ class ChatFeatureManager(
             // Collect chunks from the remote stream and update UI live
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
+            val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
@@ -1817,7 +1818,21 @@ class ChatFeatureManager(
                             pendingToolCalls.add(toolCallEntry)
                         }
                         is AgentEvent.Command -> {
-                            // Commands handled by eventSink
+                            Log.d(TAG, "Command received: ${event.command}")
+                        }
+                        is AgentEvent.AgentStep -> {
+                            // Map incoming AgentStep to the UI model and add it to the message
+                            val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = event.stepType,
+                                stepTitle = event.stepTitle,
+                                stepContent = event.stepContent,
+                                stepStatus = event.stepStatus,
+                                stepIndex = event.stepIndex,
+                                toolName = event.toolName,
+                                durationMs = event.durationMs
+                            )
+                            collectedAgentSteps.add(uiStep)
+                            chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
                         }
                         is AgentEvent.StateSync -> {
                             // State sync handled by eventSink

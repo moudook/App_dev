@@ -43,6 +43,7 @@ data class ChatSession(
     val messageCount: Int = 0,
     val lastMessagePreview: String = "",
     val isActive: Boolean = true, // Currently selected session
+    val personality: String? = null, // Custom personality/tone instructions
     /**
      * AI-generated summary of the conversation.
      * Contains abstract description of topics discussed and actions taken.
