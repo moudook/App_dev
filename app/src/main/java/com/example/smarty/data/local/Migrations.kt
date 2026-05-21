@@ -1238,4 +1238,15 @@ object Migrations {
                 """)
             }
         }
+
+    /**
+     * Migration 39 → 40: Add agentStepsJson column to chat_messages.
+     * Stores structured AgentStepEntry list (JSON) for the Agent Timeline UI.
+     */
+    val MIGRATION_39_40 =
+        object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN agentStepsJson TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
 }

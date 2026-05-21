@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.core.domain.model.AgentStepEntry
 import com.example.smarty.core.domain.model.AgentToolCallEntry
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
@@ -108,6 +110,7 @@ internal fun sanitizeThinking(text: String): String {
 @Composable
 fun ThinkingSection(
     thinkingText: String,
+    agentSteps: List<AgentStepEntry> = emptyList(),
     isExpanded: Boolean,
     isStreaming: Boolean,
     onExpandToggle: () -> Unit,
@@ -183,7 +186,8 @@ fun ThinkingSection(
                 exit = shrinkVertically(tween(250)) + fadeOut(tween(150))
             ) {
                 val safeText = sanitizeThinking(thinkingText)
-                if (safeText.isNotBlank() || toolCalls.isNotEmpty()) {
+                val hasContent = agentSteps.isNotEmpty() || safeText.isNotBlank() || toolCalls.isNotEmpty()
+                if (hasContent) {
                     Row(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
                         Box(
                             modifier = Modifier
@@ -194,12 +198,32 @@ fun ThinkingSection(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            if (safeText.isNotBlank()) {
-                                ReasoningBlock(text = safeText, isStreaming = isStreaming, accentColor = accentColor)
-                            }
-                            if (toolCalls.isNotEmpty()) {
-                                toolCalls.forEach { entry ->
-                                    ToolActionCard(entry = entry, accentColor = accentColor)
+                            if (agentSteps.isNotEmpty()) {
+                                agentSteps.forEach { step ->
+                                    if (step.stepType == "thinking" && step.stepContent.isNotBlank()) {
+                                        val safeStep = sanitizeThinking(step.stepContent)
+                                        if (safeStep.isNotBlank()) {
+                                            ReasoningBlock(text = safeStep, isStreaming = step.stepStatus == "streaming", accentColor = accentColor)
+                                        }
+                                    } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool") {
+                                        val toolEntry = toolCalls.find { it.toolName == step.toolName }?.copy(status = step.stepStatus)
+                                            ?: AgentToolCallEntry(
+                                                toolName = step.toolName ?: "",
+                                                displayName = step.stepTitle,
+                                                status = step.stepStatus,
+                                                inputSummary = step.stepContent
+                                            )
+                                        ToolActionCard(entry = toolEntry, accentColor = accentColor)
+                                    }
+                                }
+                            } else {
+                                if (safeText.isNotBlank()) {
+                                    ReasoningBlock(text = safeText, isStreaming = isStreaming, accentColor = accentColor)
+                                }
+                                if (toolCalls.isNotEmpty()) {
+                                    toolCalls.forEach { entry ->
+                                        ToolActionCard(entry = entry, accentColor = accentColor)
+                                    }
                                 }
                             }
                         }
@@ -213,13 +237,41 @@ fun ThinkingSection(
 @Composable
 private fun MinimalThinkingPulse(color: Color) {
     val transition = rememberInfiniteTransition(label = "pulse")
-    val alpha by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "alpha")
-    Box(
-        modifier = Modifier
-            .size(12.dp)
-            .clip(CircleShape)
-            .background(color.copy(alpha = alpha))
+    val scale by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
     )
+    val alpha by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
+        // Outer glowing ring
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .scale(scale)
+                .clip(CircleShape)
+                .background(color.copy(alpha = alpha * 0.25f))
+        )
+        // Solid core
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = alpha))
+        )
+    }
 }
 
 @Composable

@@ -104,10 +104,8 @@ import androidx.compose.ui.text.SpanStyle
 
 // Import extracted chat components for DRY principle
 import com.example.smarty.ui.components.chat.ThinkingSection
-import com.example.smarty.ui.components.chat.ThinkingDots
 import com.example.smarty.ui.components.chat.TextEffectPerWord
 import com.example.smarty.ui.components.chat.CitationCards
-import com.example.smarty.ui.components.chat.AgentStepTimeline
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -594,27 +592,16 @@ private fun MessageContent(
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         if (!isUser) {
-            if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank())) {
+            if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank()) || message.agentSteps.isNotEmpty()) {
                 var thinkingExpanded by remember { mutableStateOf(message.isStreaming || message.hasActionPanel) }
                 ThinkingSection(
                     thinkingText = message.thinking ?: "",
+                    agentSteps = message.agentSteps,
                     isExpanded = thinkingExpanded,
                     isStreaming = message.isStreaming,
                     onExpandToggle = { thinkingExpanded = !thinkingExpanded },
                     toolCalls = message.toolCalls
                 )
-            }
-
-            if (message.agentSteps.isNotEmpty()) {
-                AgentStepTimeline(
-                    steps = message.agentSteps,
-                    isStreaming = message.isStreaming,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-
-            if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank() && message.agentSteps.isEmpty()) {
-                ThinkingDots()
             }
 
             if (message.content.isNotEmpty()) {

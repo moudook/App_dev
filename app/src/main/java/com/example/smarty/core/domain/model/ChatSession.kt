@@ -102,6 +102,7 @@ data class ChatMessageEntity(
     val inlineImagesJson: String = "[]", // JSON serialized inline images from ViewImageTool
     val thinking: String? = null, // AI reasoning/thinking content (SMARTY_TRACE_V2 or plain)
     val toolCallsJson: String = "[]", // JSON serialized AgentToolCallEntry list
+    val agentStepsJson: String = "[]", // JSON serialized AgentStepEntry list
 ) {
     /**
      * Convert to domain model ChatMessage
@@ -171,6 +172,7 @@ data class ChatMessageEntity(
             inlineImages = inlineImages,
             thinking = cleanThinking,
             toolCalls = toolCalls,
+            agentSteps = parseAgentStepsJson(agentStepsJson),
         )
     }
 
@@ -206,6 +208,14 @@ data class ChatMessageEntity(
                     "[]"
                 }
 
+            // Serialize agent steps to JSON
+            val agentStepsJson =
+                if (message.agentSteps.isNotEmpty()) {
+                    serializeAgentStepsToJson(message.agentSteps)
+                } else {
+                    "[]"
+                }
+
             return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
@@ -217,6 +227,7 @@ data class ChatMessageEntity(
                 inlineImagesJson = inlineImagesJson,
                 thinking = message.thinking,
                 toolCallsJson = toolCallsJson,
+                agentStepsJson = agentStepsJson,
             )
         }
 
@@ -475,6 +486,58 @@ data class ChatMessageEntity(
                         append("}")
                     }
                 }
+            return "[${items.joinToString(",")}]"
+        }
+
+        /** Parse AgentStepEntry list from JSON. */
+        fun parseAgentStepsJson(json: String): List<AgentStepEntry> {
+            val entries = mutableListOf<AgentStepEntry>()
+            try {
+                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
+                for (item in items) {
+                    val fields = parseJsonFields(item)
+                    val stepType = fields["stepType"] ?: "thinking"
+                    val stepTitle = fields["stepTitle"] ?: ""
+                    val stepContent = fields["stepContent"] ?: ""
+                    val stepStatus = fields["stepStatus"] ?: "started"
+                    val stepIndex = fields["stepIndex"]?.toIntOrNull() ?: 0
+                    val toolName = fields["toolName"]
+                    val durationMs = fields["durationMs"]?.toLongOrNull()
+                    entries.add(
+                        AgentStepEntry(
+                            stepType = stepType,
+                            stepTitle = stepTitle,
+                            stepContent = stepContent,
+                            stepStatus = stepStatus,
+                            stepIndex = stepIndex,
+                            toolName = toolName,
+                            durationMs = durationMs
+                        )
+                     )
+                }
+            } catch (_: Exception) {
+            }
+            return entries
+        }
+
+        /** Serialize AgentStepEntry list to JSON. */
+        fun serializeAgentStepsToJson(entries: List<AgentStepEntry>): String {
+            if (entries.isEmpty()) return "[]"
+            val items = entries.map { e ->
+                val st = e.stepType.esc()
+                val title = e.stepTitle.esc()
+                val content = e.stepContent.esc()
+                val status = e.stepStatus.esc()
+                val idx = e.stepIndex
+                val tool = e.toolName?.esc()
+                val dur = e.durationMs
+                buildString {
+                    append("{\"stepType\":\"$st\",\"stepTitle\":\"$title\",\"stepContent\":\"$content\",\"stepStatus\":\"$status\",\"stepIndex\":$idx")
+                    if (tool != null) append(",\"toolName\":\"$tool\"")
+                    if (dur != null) append(",\"durationMs\":$dur")
+                    append("}")
+                }
+            }
             return "[${items.joinToString(",")}]"
         }
 

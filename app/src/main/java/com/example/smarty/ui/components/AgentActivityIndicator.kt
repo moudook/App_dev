@@ -1,6 +1,7 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -134,36 +135,50 @@ private fun ActivityBadge(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Animated dots
-            Spacer(modifier = Modifier.width(4.dp))
-            AnimatedDots()
+            // Animated activity pulsing circle
+            Spacer(modifier = Modifier.width(6.dp))
+            ActivityPulseCircle(color = getActivityColor(activity.type))
         }
     }
 }
 
 @Composable
-private fun AnimatedDots() {
-    val infiniteTransition = rememberInfiniteTransition(label = "dots")
-
-    Row {
-        repeat(3) { index ->
-            val delay = index * 200
-            val dotAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.3f,
-                targetValue = 1.0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(600, delayMillis = delay),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "dot_$index"
-            )
-
-            Text(
-                text = ".",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = dotAlpha)
-            )
-        }
+private fun ActivityPulseCircle(color: Color) {
+    val transition = rememberInfiniteTransition(label = "activity_pulse")
+    val scale by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
+        // Outer glowing pulsing ring
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .scale(scale)
+                .clip(CircleShape)
+                .background(color.copy(alpha = alpha * 0.25f))
+        )
+        // Solid pulsing core
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = alpha))
+        )
     }
 }
 

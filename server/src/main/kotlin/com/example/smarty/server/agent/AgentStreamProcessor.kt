@@ -215,6 +215,23 @@ class AgentStreamProcessor(
     suspend fun processChunk(chunk: com.example.smarty.server.llm.LlmChunk) {
         chunk.usage?.let { totalUsage = it }
 
+        // If a tool was in progress, but the daemon has started streaming text or reasoning again,
+        // it means the daemon-native tool execution has completed and the model has resumed!
+        if (isToolCallInProgress && chunk.toolCall == null && (!chunk.content.isNullOrEmpty() || !chunk.reasoning.isNullOrEmpty())) {
+            isToolCallInProgress = false
+            emitOpenCodeToolStep(currentToolName, "completed", currentToolArgs)
+            this.emit(
+                AgentEvent.ToolCall(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolName = currentToolName,
+                    displayName = "Finished ${currentToolName.replace('_', ' ')}",
+                    status = "completed",
+                    inputSummary = currentToolArgs,
+                )
+            )
+        }
+
         var reasoningUpdated = false
         if (!chunk.reasoning.isNullOrEmpty()) {
             // Start agentic thinking step on first reasoning token
@@ -352,6 +369,22 @@ class AgentStreamProcessor(
     ) {
         // Finalize any still-open thinking step
         if (currentThinkingStepId != null) finalizeThinkingStep()
+
+        // Finalize any still-open daemon tool call
+        if (isToolCallInProgress) {
+            isToolCallInProgress = false
+            emitOpenCodeToolStep(currentToolName, "completed", currentToolArgs)
+            this.emit(
+                AgentEvent.ToolCall(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolName = currentToolName,
+                    displayName = "Finished ${currentToolName.replace('_', ' ')}",
+                    status = "completed",
+                    inputSummary = currentToolArgs,
+                )
+            )
+        }
 
         val finalThinking = thinkingStorage.finalizeAndGetThinking(sessionId)
 

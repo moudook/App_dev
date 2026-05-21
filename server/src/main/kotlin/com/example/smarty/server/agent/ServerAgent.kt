@@ -298,6 +298,7 @@ class ServerAgent(
                             status = "started",
                         ),
                     )
+                    streamProcessor.emitCustomToolStep(toolName, "started", inputSummary = toolArgs)
 
                     try {
                         tracer.trace(
@@ -396,12 +397,14 @@ class ServerAgent(
                         val stepDescription = "Executed $toolName"
                         if (isToolError) {
                             goalMemoryManager.addError("Tool $toolName failed: ${toolResult.take(200)}")
+                            streamProcessor.emitCustomToolStep(toolName, "failed", outputSummary = toolResult)
                         } else {
                             goalMemoryManager.markStepCompleted(
                                 description = stepDescription,
                                 toolUsed = toolName,
                                 result = toolResult.take(500),
                             )
+                            streamProcessor.emitCustomToolStep(toolName, "completed", outputSummary = toolResult)
                         }
 
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, toolName)

@@ -132,7 +132,7 @@ You output: <tool_call>{"name":"memory","arguments":{"action":"save","title":"Wi
 **RULES:**
 - Output ONLY the <tool_call>...</tool_call> tag when using a tool — no extra prose before calling it
 - After the tool result is returned to you, provide your final answer to the user
-- DO NOT call daemon tools (skill, todowrite, read_file, write_file, bash) — they are disabled
+- Your ONLY available tools are listed below. Do not attempt to use any other tools.
 
 **YOUR TOOLS:**
 $toolsDesc
@@ -197,7 +197,7 @@ $toolsDesc
                                 put("providerID", providerId)
                                 put("modelID", modelId)
                             },
-                            agent = null, // Disable OpenCode's native agent to prevent it from injecting 'skill', 'todowrite', etc.
+                            agent = agentName,
                             system = systemPrompt,
                             tools = mappedTools,
                         )
