@@ -93,6 +93,18 @@ class ChatViewModel(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     init {
+        // Collect model preference updates dynamically for perfect real-time sync across viewports
+        viewModelScope.launch {
+            securePreferences.selectedModelFlow.collect { model ->
+                _uiState.update { it.copy(selectedModel = model) }
+            }
+        }
+        viewModelScope.launch {
+            securePreferences.availableModelsFlow.collect { models ->
+                _uiState.update { it.copy(availableModels = models) }
+            }
+        }
+
         // Set initial state from cached preferences
         val initialModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
         val initialCachedModels = securePreferences.getAvailableModels(AIConnection.LOCAL_PC)

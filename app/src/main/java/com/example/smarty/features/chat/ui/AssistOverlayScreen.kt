@@ -190,6 +190,8 @@ fun AssistOverlayScreen(
             // Collect ViewModel states
             val vmResearchMode by viewModel.isResearchMode.collectAsState()
             val vmImageGenMode by viewModel.isImageGenMode.collectAsState()
+            val selectedModel by viewModel.selectedModel.collectAsState()
+            val availableModels by viewModel.availableModels.collectAsState()
 
             // Card-like container
             Surface(
@@ -320,7 +322,11 @@ fun AssistOverlayScreen(
                         onToggleImageGenMode = { viewModel.toggleImageGenMode() },
                         onPickFile = { },
                         onOpenCamera = { },
-                        showHistoryOption = false
+                        showHistoryOption = false,
+                        selectedModel = selectedModel,
+                        availableModels = availableModels,
+                        onModelSelected = { viewModel.selectModel(it) },
+                        onRefreshModels = { viewModel.refreshModelsNow() }
                     )
                 }
             }

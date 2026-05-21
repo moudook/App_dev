@@ -256,6 +256,13 @@ class AssistViewModel(
     private val _isImageGenMode = MutableStateFlow(false)
     val isImageGenMode: StateFlow<Boolean> = _isImageGenMode.asStateFlow()
 
+    private val securePreferences: com.example.smarty.data.local.SecurePreferences by lazy {
+        com.example.smarty.data.local.SecurePreferences.getInstance(getApplication())
+    }
+
+    val selectedModel: StateFlow<String> = securePreferences.selectedModelFlow
+    val availableModels: StateFlow<List<Pair<String, String>>> = securePreferences.availableModelsFlow
+
     fun toggleResearchMode() {
         _isResearchMode.value = !_isResearchMode.value
         if (_isResearchMode.value) _isImageGenMode.value = false
@@ -266,7 +273,51 @@ class AssistViewModel(
         if (_isImageGenMode.value) _isResearchMode.value = false
     }
 
+    fun selectModel(modelId: String) {
+        Log.d(TAG, "Model selected in Assist: $modelId")
+        securePreferences.setSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC, modelId)
+    }
+
+    suspend fun refreshModelsNow(): List<Pair<String, String>> {
+        return try {
+            val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+            if (refreshed.isNotEmpty()) {
+                securePreferences.setCachedModels(refreshed)
+                refreshed
+            } else {
+                securePreferences.getAvailableModels(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to refresh models in Assist: ${e.message}")
+            securePreferences.getAvailableModels(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+        }
+    }
+
     init {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Fetching dynamic models from server in Assist...")
+                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = true)
+                Log.d(TAG, "Server returned ${dynamicModels.size} models in Assist: $dynamicModels")
+                
+                if (dynamicModels.isNotEmpty()) {
+                    securePreferences.setCachedModels(dynamicModels)
+                    
+                    val currentModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+                    val activeModel = if (dynamicModels.any { it.first == currentModel }) {
+                        currentModel
+                    } else {
+                        dynamicModels.first().first.also { 
+                            securePreferences.setSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC, it)
+                        }
+                    }
+                    Log.d(TAG, "Models updated in Assist: selected=$activeModel, available=${dynamicModels.size}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize opencode models in Assist: ${e.message}", e)
+            }
+        }
+
         viewModelScope.launch {
             chatManager.enterChatMode()
             _notes.value = noteOperationsManager.getAllNotes().first()
@@ -331,8 +382,7 @@ class AssistViewModel(
         chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true))
 
         try {
-            val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(getApplication())
-            val selectedModel = securePrefs.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+            val selectedModel = selectedModel.value
             remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value, model = selectedModel).collect { event ->
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {

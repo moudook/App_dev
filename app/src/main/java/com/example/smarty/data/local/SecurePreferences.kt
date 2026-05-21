@@ -71,6 +71,20 @@ class SecurePreferences(private val context: Context) {
         _isDarkTheme.asStateFlow()
     }
 
+    private val _selectedModel: MutableStateFlow<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        MutableStateFlow(getSelectedModel(AIConnection.LOCAL_PC))
+    }
+    val selectedModelFlow: StateFlow<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        _selectedModel.asStateFlow()
+    }
+
+    private val _availableModels: MutableStateFlow<List<Pair<String, String>>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        MutableStateFlow(getAvailableModels(AIConnection.LOCAL_PC))
+    }
+    val availableModelsFlow: StateFlow<List<Pair<String, String>>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        _availableModels.asStateFlow()
+    }
+
     fun getConnectionPriority(): List<AIConnection> {
         return listOf(AIConnection.LOCAL_PC)
     }
@@ -170,6 +184,7 @@ class SecurePreferences(private val context: Context) {
         model: String,
     ) {
         encryptedPrefs.edit().putString(KEY_LOCAL_PC_MODEL, model).apply()
+        _selectedModel.value = model
     }
 
     // Theme Management
@@ -256,6 +271,7 @@ class SecurePreferences(private val context: Context) {
         try {
             val jsonStr = gson.toJson(models)
             encryptedPrefs.edit().putString(KEY_CACHED_MODELS, jsonStr).apply()
+            _availableModels.value = models
         } catch (e: Exception) {
             Log.e("SecurePreferences", "Failed to cache models: ${e.message}")
         }

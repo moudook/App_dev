@@ -9,6 +9,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.savedstate.SavedStateRegistryOwner
 import com.example.smarty.data.local.SearchHistoryManager
+import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.CalendarEvent
@@ -179,6 +181,42 @@ class SmartyViewModel(
     // AI Response Cache
     private val aiResponseCache: AIResponseCache by lazy {
         com.example.smarty.di.ServiceLocator.provideAIResponseCache(application)
+    }
+
+    private val securePreferences: SecurePreferences by lazy {
+        SecurePreferences.getInstance(application)
+    }
+
+    private val remoteAgentService by lazy {
+        com.example.smarty.di.ServiceLocator.provideRemoteAgentService(getApplication())
+    }
+
+    // Model Selection State (dynamic, real-time synchronized across Chat / Assist Overlay / Notes Mode)
+    val selectedModel: StateFlow<String> by lazy {
+        securePreferences.selectedModelFlow
+    }
+    val availableModels: StateFlow<List<Pair<String, String>>> by lazy {
+        securePreferences.availableModelsFlow
+    }
+
+    fun selectModel(modelId: String) {
+        Log.d(TAG, "Model selected in Notes Mode: $modelId")
+        securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
+    }
+
+    suspend fun refreshModels(): List<Pair<String, String>> {
+        return try {
+            val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+            if (refreshed.isNotEmpty()) {
+                securePreferences.setCachedModels(refreshed)
+                refreshed
+            } else {
+                securePreferences.getCachedModels()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to refresh models in Notes Mode: ${e.message}")
+            securePreferences.getCachedModels()
+        }
     }
 
     // AI Provider Strategy

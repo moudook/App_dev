@@ -292,6 +292,13 @@ fun InputStreamScreen(
 
     // Shake Blocking
     onSetShakeBlocked: (Boolean) -> Unit = {},
+
+    // Dynamic Model Selection
+    selectedModel: String = "opencode/deepseek-v4-flash-free",
+    availableModels: List<Pair<String, String>> = emptyList(),
+    onModelSelected: (String) -> Unit = {},
+    onRefreshModels: suspend () -> List<Pair<String, String>> = { emptyList() },
+
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1916,7 +1923,11 @@ fun InputStreamScreen(
                                 coroutineScope.launch {
                                     chatListState.animateScrollToItem(0, scrollOffset = -10000)
                                 }
-                            }
+                            },
+                            selectedModel = selectedModel,
+                            availableModels = availableModels,
+                            onModelSelected = onModelSelected,
+                            onRefreshModels = onRefreshModels
                         )
                         }  // Close Box for input field
                     }  // Close if (!showSelectionPill)

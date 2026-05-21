@@ -273,6 +273,8 @@ fun SmartyNavHost(
     val viewModel: com.example.smarty.features.notes.domain.SmartyViewModel = viewModel()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val isSettingsLoading by viewModel.isSettingsLoading.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
+    val availableModels by viewModel.availableModels.collectAsState()
 
     // Handle AI-triggered navigation requests
     androidx.compose.runtime.LaunchedEffect(navigationRequest) {
@@ -530,7 +532,11 @@ fun SmartyNavHost(
                         onBackClick = onDismiss,
                         isEmbedded = true
                     )
-                }
+                },
+                selectedModel = selectedModel,
+                availableModels = availableModels,
+                onModelSelected = { viewModel.selectModel(it) },
+                onRefreshModels = { viewModel.refreshModels() }
             )
         }
 
