@@ -592,221 +592,228 @@ private fun MessageContent(
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         if (!isUser) {
-            if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank()) || message.agentSteps.isNotEmpty()) {
-                var thinkingExpanded by remember { mutableStateOf(message.isStreaming || message.hasActionPanel) }
-                ThinkingSection(
-                    thinkingText = message.thinking ?: "",
-                    agentSteps = message.agentSteps,
-                    isExpanded = thinkingExpanded,
-                    isStreaming = message.isStreaming,
-                    onExpandToggle = { thinkingExpanded = !thinkingExpanded },
-                    toolCalls = message.toolCalls
+            if (message.agentEvents.isNotEmpty()) {
+                AgentTimelineItem(
+                    message = message,
+                    onRegenerateMessage = onRegenerateMessage
                 )
-            }
-
-            if (message.content.isNotEmpty()) {
-                val rawContent = if (isUser) message.content else cleanContent(message.content)
-                val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
-
-                if (parsedAccordion.accordions.isNotEmpty()) {
-                    com.example.smarty.ui.components.chat.AccordionResponse(
-                        parsedContent = parsedAccordion,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    TextEffectPerWord(
-                        text = rawContent,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.SansSerif,
-                            fontSize = 16.sp,
-                            lineHeight = 22.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.sp
-                        ),
-                        normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        boldColor = MaterialTheme.colorScheme.onSurface,
-                        linkColor = accentColor,
-                        codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        isStreaming = message.isStreaming
+            } else {
+                if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank()) || message.agentSteps.isNotEmpty()) {
+                    var thinkingExpanded by remember { mutableStateOf(message.isStreaming || message.hasActionPanel) }
+                    ThinkingSection(
+                        thinkingText = message.thinking ?: "",
+                        agentSteps = message.agentSteps,
+                        isExpanded = thinkingExpanded,
+                        isStreaming = message.isStreaming,
+                        onExpandToggle = { thinkingExpanded = !thinkingExpanded },
+                        toolCalls = message.toolCalls
                     )
                 }
 
-                val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
-                if (generateImageCall != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    val state = when (generateImageCall.status) {
-                        "completed" -> com.example.smarty.ui.components.krea.ImageGenState.Completed
-                        "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
-                        else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
-                    }
+                if (message.content.isNotEmpty()) {
+                    val rawContent = if (isUser) message.content else cleanContent(message.content)
+                    val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
 
-                    val imageUrl = generateImageCall.outputSummary?.let { summary ->
-                        android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
-                        when {
-                            summary.startsWith("http") -> summary
-                            summary.startsWith("{") && summary.contains("\"url\"") -> {
-                                val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
-                                android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
-                                extracted
-                            }
-                            else -> {
-                                android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
-                                null
-                            }
-                        }
-                    }
-                    android.util.Log.d("ChatMessageItem", "Final imageUrl: $imageUrl")
-
-                    com.example.smarty.ui.components.krea.ImageGenerationCard(
-                        state = state,
-                        mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true))
-                            com.example.smarty.ui.components.krea.ImageGenMode.Direct
-                        else
-                            com.example.smarty.ui.components.krea.ImageGenMode.Agent,
-                        prompt = generateImageCall.inputSummary ?: message.content.takeIf { it.isNotBlank() } ?: "Generating image...",
-                        imageUrl = imageUrl,
-                        onRemix = { onRegenerateMessage(message.id) },
-                        onRetry = { onRegenerateMessage(message.id) }
-                    )
-                }
-
-                if (message.hasInlineImages) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    var showFullScreen by remember { mutableStateOf(false) }
-                    var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
-
-                    InlineImagePreview(
-                        images = message.inlineImages,
-                        onExpandImage = { index ->
-                            fullScreenIndex = index
-                            showFullScreen = true
-                        },
-                        modifier = Modifier
-                            .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                            .clip(RoundedCornerShape(16.dp))
-                    )
-
-                    if (showFullScreen && message.inlineImages.isNotEmpty()) {
-                        val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
-                            ?: message.inlineImages.first()
-                        FullScreenImageViewer(
-                            imageUri = currentImage.uri,
-                            onDismiss = { showFullScreen = false },
-                            contentDescription = currentImage.fileName
+                    if (parsedAccordion.accordions.isNotEmpty()) {
+                        com.example.smarty.ui.components.chat.AccordionResponse(
+                            parsedContent = parsedAccordion,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        TextEffectPerWord(
+                            text = rawContent,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 16.sp,
+                                lineHeight = 22.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.sp
+                            ),
+                            normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                            boldColor = MaterialTheme.colorScheme.onSurface,
+                            linkColor = accentColor,
+                            codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                            isStreaming = message.isStreaming
                         )
                     }
-                }
 
-                if (message.referencedNoteIds.isNotEmpty()) {
-                    val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
-                    val relevantNotes = message.referencedNoteIds
-                        .filter { it !in actionNoteIds }
-                        .mapNotNull { getNote(it) }
+                    val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
+                    if (generateImageCall != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        val state = when (generateImageCall.status) {
+                            "completed" -> com.example.smarty.ui.components.krea.ImageGenState.Completed
+                            "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
+                            else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
+                        }
 
-                    if (relevantNotes.isNotEmpty()) {
+                        val imageUrl = generateImageCall.outputSummary?.let { summary ->
+                            android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
+                            when {
+                                summary.startsWith("http") -> summary
+                                summary.startsWith("{") && summary.contains("\"url\"") -> {
+                                    val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
+                                    android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
+                                    extracted
+                                }
+                                else -> {
+                                    android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
+                                    null
+                                }
+                            }
+                        }
+                        android.util.Log.d("ChatMessageItem", "Final imageUrl: $imageUrl")
+
+                        com.example.smarty.ui.components.krea.ImageGenerationCard(
+                            state = state,
+                            mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true))
+                                com.example.smarty.ui.components.krea.ImageGenMode.Direct
+                            else
+                                com.example.smarty.ui.components.krea.ImageGenMode.Agent,
+                            prompt = generateImageCall.inputSummary ?: message.content.takeIf { it.isNotBlank() } ?: "Generating image...",
+                            imageUrl = imageUrl,
+                            onRemix = { onRegenerateMessage(message.id) },
+                            onRetry = { onRegenerateMessage(message.id) }
+                        )
+                    }
+
+                    if (message.hasInlineImages) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        InlineNotePreview(
-                            notes = relevantNotes,
-                            onNoteClick = { onNoteClick(it) },
+                        var showFullScreen by remember { mutableStateOf(false) }
+                        var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+                        InlineImagePreview(
+                            images = message.inlineImages,
+                            onExpandImage = { index ->
+                                fullScreenIndex = index
+                                showFullScreen = true
+                            },
                             modifier = Modifier
                                 .widthIn(max = ComponentSpacing.bubbleMaxWidth)
                                 .clip(RoundedCornerShape(16.dp))
                         )
-                    }
-                }
 
-                val imageAttachments = message.attachments.filter { it.getAttachmentType() == com.example.smarty.core.domain.model.AttachmentType.IMAGE }
-                if (isUser && imageAttachments.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    val inlineImages = imageAttachments.map {
-                        com.example.smarty.core.domain.model.InlineChatImage(
-                            uri = it.uri,
-                            fileName = it.fileName,
-                            noteTitle = ""
-                        )
-                    }
-
-                    var showFullScreen by remember { mutableStateOf(false) }
-                    var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
-
-                    InlineImagePreview(
-                        images = inlineImages,
-                        onExpandImage = { index ->
-                            fullScreenIndex = index
-                            showFullScreen = true
-                        },
-                        modifier = Modifier
-                            .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                            .clip(RoundedCornerShape(16.dp))
-                    )
-
-                    if (showFullScreen) {
-                        val currentImage = inlineImages.getOrNull(fullScreenIndex) ?: inlineImages.first()
-                        FullScreenImageViewer(
-                            imageUri = currentImage.uri,
-                            onDismiss = { showFullScreen = false },
-                            contentDescription = currentImage.fileName
-                        )
-                    }
-                }
-
-                val otherAttachments = message.attachments.filter { it.getAttachmentType() != com.example.smarty.core.domain.model.AttachmentType.IMAGE }
-                if (otherAttachments.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        val count = otherAttachments.size
-                        Text(
-                            text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 0.4.sp
-                            ),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                if (message.noteReferences.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        message.noteReferences.forEach { noteRef ->
-                            NoteBlockCard(
-                                noteReference = noteRef,
-                                onClick = { onNoteClickById(noteRef.noteId) },
-                                accentColor = accentColor
+                        if (showFullScreen && message.inlineImages.isNotEmpty()) {
+                            val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
+                                ?: message.inlineImages.first()
+                            FullScreenImageViewer(
+                                imageUri = currentImage.uri,
+                                onDismiss = { showFullScreen = false },
+                                contentDescription = currentImage.fileName
                             )
                         }
                     }
-                }
 
-                if (message.eventReferences.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        message.eventReferences.forEach { eventRef ->
-                            EventBlockCard(
-                                eventReference = eventRef,
-                                onClick = { onEventClickById(eventRef.eventId) },
-                                accentColor = accentColor
+                    if (message.referencedNoteIds.isNotEmpty()) {
+                        val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+                        val relevantNotes = message.referencedNoteIds
+                            .filter { it !in actionNoteIds }
+                            .mapNotNull { getNote(it) }
+
+                        if (relevantNotes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            InlineNotePreview(
+                                notes = relevantNotes,
+                                onNoteClick = { onNoteClick(it) },
+                                modifier = Modifier
+                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .clip(RoundedCornerShape(16.dp))
                             )
                         }
                     }
-                }
 
-                if (message.hasCitations) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    com.example.smarty.ui.components.chat.CitationCards(
-                        citations = message.citations,
-                        accentColor = accentColor,
-                        onCitationClick = { url ->
-                            // TODO: open URL in browser
+                    val imageAttachments = message.attachments.filter { it.getAttachmentType() == com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    if (isUser && imageAttachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val inlineImages = imageAttachments.map {
+                            com.example.smarty.core.domain.model.InlineChatImage(
+                                uri = it.uri,
+                                fileName = it.fileName,
+                                noteTitle = ""
+                            )
                         }
-                    )
+
+                        var showFullScreen by remember { mutableStateOf(false) }
+                        var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+                        InlineImagePreview(
+                            images = inlineImages,
+                            onExpandImage = { index ->
+                                fullScreenIndex = index
+                                showFullScreen = true
+                            },
+                            modifier = Modifier
+                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+
+                        if (showFullScreen) {
+                            val currentImage = inlineImages.getOrNull(fullScreenIndex) ?: inlineImages.first()
+                            FullScreenImageViewer(
+                                imageUri = currentImage.uri,
+                                onDismiss = { showFullScreen = false },
+                                contentDescription = currentImage.fileName
+                            )
+                        }
+                    }
+
+                    val otherAttachments = message.attachments.filter { it.getAttachmentType() != com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    if (otherAttachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            val count = otherAttachments.size
+                            Text(
+                                text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (message.noteReferences.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            message.noteReferences.forEach { noteRef ->
+                                NoteBlockCard(
+                                    noteReference = noteRef,
+                                    onClick = { onNoteClickById(noteRef.noteId) },
+                                    accentColor = accentColor
+                                )
+                            }
+                        }
+                    }
+
+                    if (message.eventReferences.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            message.eventReferences.forEach { eventRef ->
+                                EventBlockCard(
+                                    eventReference = eventRef,
+                                    onClick = { onEventClickById(eventRef.eventId) },
+                                    accentColor = accentColor
+                                )
+                            }
+                        }
+                    }
+
+                    if (message.hasCitations) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        com.example.smarty.ui.components.chat.CitationCards(
+                            citations = message.citations,
+                            accentColor = accentColor,
+                            onCitationClick = { url ->
+                                // TODO: open URL in browser
+                            }
+                        )
+                    }
                 }
             }
         }

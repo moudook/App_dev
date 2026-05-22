@@ -1280,4 +1280,21 @@ object Migrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_steps_messageId ON agent_steps(messageId)")
             }
         }
+
+    val MIGRATION_42_43 =
+        object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS timeline_events (
+                        eventId TEXT PRIMARY KEY NOT NULL,
+                        traceId TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        sessionId TEXT NOT NULL,
+                        eventType TEXT NOT NULL,
+                        payloadJson TEXT NOT NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_timeline_events_sessionId ON timeline_events(sessionId)")
+            }
+        }
 }

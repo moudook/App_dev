@@ -321,6 +321,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_39_40,
                             Migrations.MIGRATION_40_41,
                             Migrations.MIGRATION_41_42,
+                            Migrations.MIGRATION_42_43,
                         )
                         .fallbackToDestructiveMigration()
                         .build()
