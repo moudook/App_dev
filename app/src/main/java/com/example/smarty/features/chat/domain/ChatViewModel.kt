@@ -286,7 +286,7 @@ class ChatViewModel(
 
             // Actually call the AI service
             val responseBuilder = StringBuilder()
-            var finalThinking: String? = null
+            val thinkingBuilder = StringBuilder()
             val agentStepsBuilder = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             remoteAgentService.sendQuery(
@@ -318,9 +318,9 @@ class ChatViewModel(
                 agentEventsBuilder.add(event)
 
                 when (event) {
-                    is com.example.smarty.protocol.AgentEvent.Processing -> {
-                        event.content?.let { responseBuilder.append(it) }
-                        event.thinking?.let { finalThinking = it }
+                    // ── Content streaming (per-chunk deltas) ──
+                    is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
+                        responseBuilder.append(event.text)
                         currentStreamingMessage = currentStreamingMessage.copy(
                             content = responseBuilder.toString(),
                             agentSteps = agentStepsBuilder.toList(),
@@ -328,12 +328,74 @@ class ChatViewModel(
                         )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
+
+                    // ── Reasoning/thinking streaming (per-chunk deltas) ──
+                    is com.example.smarty.protocol.AgentEvent.ReasoningDelta -> {
+                        thinkingBuilder.append(event.text)
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            thinking = thinkingBuilder.toString(),
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    is com.example.smarty.protocol.AgentEvent.ReasoningStarted -> {
+                        thinkingBuilder.clear()
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            thinking = "",
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    // ── Legacy Processing events — Server sends FULL accumulated content here.
+                    //     Use for content sync + thinking extraction, not for primary accumulation.
+                    is com.example.smarty.protocol.AgentEvent.Processing -> {
+                        if (event.content.isNotEmpty()) {
+                            responseBuilder.clear()
+                            responseBuilder.append(event.content)
+                        }
+                        if (!event.thinking.isNullOrEmpty()) {
+                            thinkingBuilder.clear()
+                            thinkingBuilder.append(event.thinking)
+                        }
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            content = responseBuilder.toString(),
+                            thinking = thinkingBuilder.toString(),
+                            agentSteps = agentStepsBuilder.toList(),
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    // ── Final answer lifecycle ──
+                    is com.example.smarty.protocol.AgentEvent.FinalAnswerStarted -> {
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    is com.example.smarty.protocol.AgentEvent.FinalAnswerFinished -> {
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
+                    // ── Final result (stream complete) ──
                     is com.example.smarty.protocol.AgentEvent.Result -> {
-                        finalThinking = event.thinking ?: finalThinking
                         currentStreamingMessage = currentStreamingMessage.copy(
                             isStreaming = false,
                             content = responseBuilder.toString(),
-                            thinking = finalThinking,
+                            thinking = thinkingBuilder.toString(),
                             agentSteps = agentStepsBuilder.toList(),
                             agentEvents = agentEventsBuilder.toList()
                         )
@@ -345,6 +407,8 @@ class ChatViewModel(
                             )
                         }
                     }
+
+                    // ── Agent step timeline ──
                     is com.example.smarty.protocol.AgentEvent.AgentStep -> {
                         val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
                             stepType = event.stepType,
@@ -367,6 +431,8 @@ class ChatViewModel(
                         )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
+
+                    // ── Tool Call (legacy) ──
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
                         Log.d(TAG, "ToolCall: ${event.toolName} (${event.status})")
                         currentStreamingMessage = currentStreamingMessage.copy(
@@ -374,10 +440,14 @@ class ChatViewModel(
                         )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
+
+                    // ── Errors ──
                     is com.example.smarty.protocol.AgentEvent.Error -> {
                         Log.e(TAG, "Agent error: ${event.message}")
                         responseBuilder.append("\n[Error: ${event.message}]")
                     }
+
+                    // ── Approval flow ──
                     is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
                         Log.i(TAG, "Approval requested: ${event.toolName} — pausing agent stream for user decision")
                         _pendingApprovalState.update {
