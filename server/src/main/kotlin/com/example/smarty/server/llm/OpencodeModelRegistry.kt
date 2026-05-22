@@ -1,6 +1,7 @@
 package com.example.smarty.server.llm
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
@@ -193,17 +194,33 @@ object OpencodeModelRegistry {
     fun currentState(activeModel: String? = null): OpencodeModelState {
         val state = cachedState.get()
         val now = System.currentTimeMillis()
-        val isStale = state == null || (now - state.updatedAt) > CACHE_TTL_MS
 
-        return if (isStale) {
-            logger.info("[OpencodeModelRegistry] Cache stale — refreshing")
-            runBlockingRefresh()
-        } else {
-            state.copy(
-                activeModel = requireAllowedFreeModel(activeModel ?: state.activeModel),
-                source = state.source,
-            )
+        // If completely null (rare), we must block
+        if (state == null) {
+            logger.info("[OpencodeModelRegistry] Cache completely null — forcing blocking refresh")
+            return runBlockingRefresh()
         }
+
+        val isStale = (now - state.updatedAt) > CACHE_TTL_MS
+
+        if (isStale) {
+            logger.info("[OpencodeModelRegistry] Cache stale — triggering background refresh to avoid blocking agent")
+            // Update the timestamp right away so we don't spawn multiple coroutines
+            cachedState.set(state.copy(updatedAt = now))
+            
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    refreshFromCli()
+                } catch (e: Exception) {
+                    logger.error("[OpencodeModelRegistry] Background refresh failed", e)
+                }
+            }
+        }
+
+        return state.copy(
+            activeModel = requireAllowedFreeModel(activeModel ?: state.activeModel),
+            source = state.source,
+        )
     }
 
     suspend fun refreshFromCli(timeoutMs: Long = 12_000L): OpencodeModelState =

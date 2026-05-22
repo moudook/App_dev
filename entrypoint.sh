@@ -37,30 +37,32 @@ echo "  opencode.json exists: $([ -f ./opencode.json ] && echo 'YES' || echo 'NO
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 2: List available free models (VERIFICATION)
+# Step 2: List available free models (VERIFICATION) - Runs in background
 # -----------------------------------------------------------------------------
-echo "[2/5] Discovering free models via 'opencode models'..."
-echo "  Running: opencode models"
-echo "  --- BEGIN opencode models output ---"
-MODELS_OUTPUT=$(opencode models 2>&1 || echo "ERROR: opencode models failed")
-echo "$MODELS_OUTPUT"
-echo "  --- END opencode models output ---"
+echo "[2/5] Discovering free models via 'opencode models' (starting in background)..."
+(
+    echo "  Running: opencode models"
+    echo "  --- BEGIN opencode models output ---"
+    MODELS_OUTPUT=$(opencode models 2>&1 || echo "ERROR: opencode models failed")
+    echo "$MODELS_OUTPUT"
+    echo "  --- END opencode models output ---"
 
-# Count free models
-FREE_COUNT=$(echo "$MODELS_OUTPUT" | grep -i "free" | grep -c "opencode/" || echo "0")
-echo ""
-echo "  Found $FREE_COUNT free model(s) containing 'free' in the name:"
-echo "$MODELS_OUTPUT" | grep -i "free" | grep "opencode/" | while read -r line; do
-    echo "    -> $line"
-done
-echo ""
+    # Count free models
+    FREE_COUNT=$(echo "$MODELS_OUTPUT" | grep -i "free" | grep -c "opencode/" || echo "0")
+    echo ""
+    echo "  Found $FREE_COUNT free model(s) containing 'free' in the name:"
+    echo "$MODELS_OUTPUT" | grep -i "free" | grep "opencode/" | while read -r line; do
+        echo "    -> $line"
+    done
+    echo ""
 
-if [ "$FREE_COUNT" -eq 0 ]; then
-    echo "  WARNING: No free models found! Chat will not work."
-else
-    echo "  SUCCESS: $FREE_COUNT free model(s) available for inference."
-fi
-echo ""
+    if [ "$FREE_COUNT" -eq 0 ]; then
+        echo "  WARNING: No free models found! Chat will not work."
+    else
+        echo "  SUCCESS: $FREE_COUNT free model(s) available for inference."
+    fi
+    echo ""
+) &
 
 # -----------------------------------------------------------------------------
 # Step 3: Launch Ktor server FIRST so MCP routes are available
@@ -170,7 +172,7 @@ echo "  Startup complete — Ktor + daemon running"
 echo "============================================"
 echo "  Ktor PID: $KTOR_PID"
 echo "  Daemon PID: $DAEMON_PID"
-echo "  Free models: $FREE_COUNT"
+echo "  Free models: (discovery running in background)"
 echo ""
 
 # Wait for either process to exit
