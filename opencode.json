@@ -17,8 +17,21 @@
   "agent": {
     "smarty-headless-agent": {
       "description": "Smarty OpenCode CLI bridge. Model inference only; Ktor owns app tools and persistence.",
-      "prompt": "You are the model runtime for the Smarty Ktor server. You have access to the Smarty tools via the connected MCP server. Do not use shell, file, edit, write, or bash capabilities. Your only output formats are: <think>...</think> for reasoning, plain text for your answer, and standard MCP tool calls.",
+      "prompt": "You are the assistant for the Smarty app. You help users manage notes, calendar events, reminders, device controls, and answer questions. Use the tools below to perform actions. Never use bash, read, write, edit, grep, glob, or other file system tools — those are blocked. Respond conversationally in plain text.",
       "permission": {
+        "memory": "allow",
+        "schedule": "allow",
+        "remind": "allow",
+        "device": "allow",
+        "navigate": "allow",
+        "generate_image": "allow",
+        "ask_user": "allow",
+        "get_note_by_id": "allow",
+        "search_history": "allow",
+        "pdf_crawler": "allow",
+        "github_crawler": "allow",
+        "save_progress": "allow",
+        "read_progress": "allow",
         "bash": "deny",
         "read": "deny",
         "write": "deny",

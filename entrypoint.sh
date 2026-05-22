@@ -63,40 +63,73 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 3: Start OpenCode daemon in background
+# Step 3: Launch Ktor server FIRST so MCP routes are available
 # -----------------------------------------------------------------------------
-echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[3/5] Launching Ktor server on port ${SERVER_PORT:-7860}..."
+echo "  JVM heap: -Xmx384m"
+echo "  GC: G1GC"
+echo "  Max RAM: 80%"
+echo "  OOM behavior: ExitOnOutOfMemoryError"
 
-# Ensure opencode.json is in the working directory
+JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
+java $JAVA_OPTS -jar app.jar > /tmp/ktor-server.log 2>&1 &
+KTOR_PID=$!
+echo "  Ktor PID: $KTOR_PID"
+echo "  Ktor log: /tmp/ktor-server.log"
+
+# Wait for Ktor to be healthy
+KTOR_PORT="${SERVER_PORT:-7860}"
+echo "  Waiting for Ktor health endpoint at http://127.0.0.1:${KTOR_PORT}/health..."
+KTOR_READY=false
+for i in $(seq 1 30); do
+    if wget -q --spider --timeout=2 "http://127.0.0.1:${KTOR_PORT}/health" 2>/dev/null; then
+        echo "  Ktor is healthy after $((i * 2)) seconds!"
+        KTOR_READY=true
+        break
+    fi
+    if [ $((i % 5)) -eq 0 ]; then
+        echo "  Still waiting for Ktor... ($((i * 2))s elapsed)"
+    fi
+    sleep 2
+done
+
+if [ "$KTOR_READY" = false ]; then
+    echo "  WARNING: Ktor did not become healthy after 60 seconds."
+    echo "  Ktor log (last 10 lines):"
+    tail -10 /tmp/ktor-server.log 2>/dev/null || echo "  (no log output)"
+fi
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 4: Start OpenCode daemon (Ktor is already running — MCP routes are live)
+# -----------------------------------------------------------------------------
+echo "[4/5] Starting OpenCode daemon on port $DAEMON_PORT..."
+
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
     echo "  opencode.json: FOUND"
 fi
 
-# Launch daemon — redirect output to log file
-# 'opencode serve' is headless by default
 echo "  Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
 opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
 echo "  Daemon log: /tmp/opencode-daemon.log"
 
-# Give daemon a moment to start
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
     echo "  Daemon process: RUNNING"
 else
     echo "  Daemon process: EXITED (check /tmp/opencode-daemon.log)"
-    echo "  Last 5 lines of daemon log:"
     tail -5 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
 fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 4: Health check loop — wait for daemon to respond
+# Step 5: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[4/5] Waiting for OpenCode daemon to be ready..."
+echo "[5/5] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -113,12 +146,10 @@ for i in $(seq 1 $MAX_RETRIES); do
         echo "  WARNING: Daemon did not respond after $((MAX_RETRIES * RETRY_INTERVAL)) seconds."
         echo "  Daemon log (last 10 lines):"
         tail -10 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
-        echo "  Continuing anyway — Ktor will use one-shot CLI mode (no daemon)."
         echo ""
         break
     fi
 
-    # Log progress every 5 retries
     if [ $((i % 5)) -eq 0 ]; then
         echo "  Still waiting... ($((i * RETRY_INTERVAL))s elapsed)"
     fi
@@ -126,38 +157,21 @@ for i in $(seq 1 $MAX_RETRIES); do
     sleep $RETRY_INTERVAL
 done
 
-# Verify daemon responds with actual health data
 if [ "$DAEMON_READY" = true ]; then
-    echo "[4b/5] Verifying daemon responds to requests..."
     HEALTH_RESPONSE=$(wget -q -O - --timeout=2 "$DAEMON_URL/global/health" 2>/dev/null || echo "")
     if [ -n "$HEALTH_RESPONSE" ]; then
         echo "  Daemon health response: $HEALTH_RESPONSE"
-    else
-        echo "  WARNING: Daemon accepted connection but returned empty response"
     fi
-    echo ""
 fi
 
-# -----------------------------------------------------------------------------
-# Step 5: Launch Ktor server
-# -----------------------------------------------------------------------------
-echo "[5/5] Launching Ktor server on port ${SERVER_PORT:-7860}"
-echo "============================================"
-echo ""
-echo "  JVM heap: -Xmx384m"
-echo "  GC: G1GC"
-echo "  Max RAM: 80%"
-echo "  OOM behavior: ExitOnOutOfMemoryError"
-echo "  Daemon status: $([ "$DAEMON_READY" = true ] && echo 'RUNNING' || echo 'NOT RUNNING')"
-echo "  Daemon PID: $([ -n "$DAEMON_PID" ] && echo $DAEMON_PID || echo 'N/A')"
-echo "  Free models available: $FREE_COUNT"
 echo ""
 echo "============================================"
-echo "  All checks complete — starting Ktor server"
+echo "  Startup complete — Ktor + daemon running"
 echo "============================================"
+echo "  Ktor PID: $KTOR_PID"
+echo "  Daemon PID: $DAEMON_PID"
+echo "  Free models: $FREE_COUNT"
 echo ""
 
-# JVM optimizations for 384MB heap on HF Spaces free tier
-JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
-
-exec java $JAVA_OPTS -jar app.jar
+# Wait for either process to exit
+wait
