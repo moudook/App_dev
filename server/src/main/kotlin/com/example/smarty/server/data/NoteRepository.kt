@@ -148,16 +148,24 @@ class NoteRepository(
     ): NoteInfo? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(noteId))
-                    stmt.setObject(2, UUID.fromString(userId))
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) mapRowToNoteInfo(rs) else null
-                    }
-                }
+                getByIdWithConn(conn, userId, noteId)
             }
         }
+
+    private suspend fun getByIdWithConn(
+        conn: Connection,
+        userId: String,
+        noteId: String,
+    ): NoteInfo? {
+        val sql = "SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+        return conn.prepareStatement(sql).use { stmt ->
+            stmt.setObject(1, UUID.fromString(noteId))
+            stmt.setObject(2, UUID.fromString(userId))
+            stmt.executeQuery().use { rs ->
+                if (rs.next()) mapRowToNoteInfo(rs) else null
+            }
+        }
+    }
 
     private val noteVersionRepo = NoteVersionRepository(dataSource)
 
@@ -170,22 +178,27 @@ class NoteRepository(
             val closeConn = connection == null
             val conn = connection ?: dataSource.connection
             try {
-                val existingNote = getById(userId, info.id)
+                val existingNote = if (connection != null) {
+                    getByIdWithConn(connection, userId, info.id)
+                } else {
+                    getById(userId, info.id)
+                }
                 val contentChanged = existingNote != null && existingNote.content != info.content
 
                 if (contentChanged) {
-                    val latestVersionNo = noteVersionRepo.getVersionsForNote(info.id, 1).firstOrNull()?.versionNo ?: 0
+                    val latestVersionNo = noteVersionRepo.getVersionsForNote(info.id, 1, connection).firstOrNull()?.versionNo ?: 0
                     noteVersionRepo.createVersion(
-                        com.example.smarty.server.data.NoteVersion(
+                        version = com.example.smarty.server.data.NoteVersion(
                             id = java.util.UUID.randomUUID().toString(),
                             noteId = info.id,
                             title = existingNote!!.title,
                             content = existingNote.content,
                             versionNo = latestVersionNo + 1,
                             createdAt = null,
-                        )
+                        ),
+                        connection = connection,
                     )
-                    noteVersionRepo.deleteOldVersions(info.id, keepCount = 10)
+                    noteVersionRepo.deleteOldVersions(info.id, keepCount = 10, connection = connection)
                     logger.info("Created version snapshot for note ${info.id} (version ${latestVersionNo + 1})")
                 }
 

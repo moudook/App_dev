@@ -104,7 +104,13 @@ class ChatViewModel(
      * Sends the decision back to the server so the agent stream can resume.
      */
     fun callApproval(toolId: String, approved: Boolean, feedback: String? = null) {
+        // Read pending atomically — if a newer ApprovalRequested arrived between
+        // the user tap and this execution, the toolId won't match and we bail.
         val current = _pendingApprovalState.value ?: return
+        if (current.toolId != toolId) {
+            Log.w(TAG, "callApproval: toolId mismatch — UI sent $toolId but pending is ${current.toolId}. Stale tap discarded.")
+            return
+        }
         val sessionId = current.sessionId ?: return
 
         viewModelScope.launch {

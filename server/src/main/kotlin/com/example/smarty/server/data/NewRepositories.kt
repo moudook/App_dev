@@ -827,9 +827,11 @@ class UserDeviceRepository(private val dataSource: DataSource) {
 class NoteVersionRepository(private val dataSource: DataSource) {
     private val logger = LoggerFactory.getLogger(NoteVersionRepository::class.java)
 
-    suspend fun createVersion(version: NoteVersion): String =
+    suspend fun createVersion(version: NoteVersion, connection: java.sql.Connection? = null): String =
         withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
+            val closeConn = connection == null
+            val conn = connection ?: dataSource.connection
+            try {
                 val sql =
                     """
                     INSERT INTO note_versions (id, note_id, title, content, version_no, created_at)
@@ -844,6 +846,8 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                     stmt.setInt(5, version.versionNo)
                     stmt.executeUpdate()
                 }
+            } finally {
+                if (closeConn) conn.close()
             }
             version.id
         }
@@ -851,10 +855,13 @@ class NoteVersionRepository(private val dataSource: DataSource) {
     suspend fun getVersionsForNote(
         noteId: String,
         limit: Int = 50,
+        connection: java.sql.Connection? = null,
     ): List<NoteVersion> =
         withContext(Dispatchers.IO) {
             val versions = mutableListOf<NoteVersion>()
-            dataSource.connection.use { conn ->
+            val closeConn = connection == null
+            val conn = connection ?: dataSource.connection
+            try {
                 val sql =
                     """
                     SELECT * FROM note_versions
@@ -881,6 +888,8 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                         }
                     }
                 }
+            } finally {
+                if (closeConn) conn.close()
             }
             versions
         }
@@ -912,9 +921,12 @@ class NoteVersionRepository(private val dataSource: DataSource) {
     suspend fun deleteOldVersions(
         noteId: String,
         keepCount: Int = 10,
+        connection: java.sql.Connection? = null,
     ): Int =
         withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
+            val closeConn = connection == null
+            val conn = connection ?: dataSource.connection
+            try {
                 val sql =
                     """
                     DELETE FROM note_versions
@@ -930,9 +942,11 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                     stmt.setInt(3, keepCount)
                     stmt.executeUpdate()
                 }
+            } finally {
+                if (closeConn) conn.close()
             }
         }
-}
+    }
 
 /**
  * Shared Items Repository (v6.0.0 schema)

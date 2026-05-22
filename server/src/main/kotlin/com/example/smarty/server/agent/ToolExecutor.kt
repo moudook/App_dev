@@ -107,6 +107,30 @@ class ToolExecutor(
         val args = parseUnifiedArgs(argsJson)
         val toolName = mapOldToolNames(name)
 
+        // === PERMISSION GATE ===
+        // Check if the resolved canonical tool name requires user approval.
+        // If gated, emit an ApprovalRequested event and return a waiting sentinel
+        // so the ServerAgent loop pauses and waits for the client callback.
+        when (requiresApproval(toolName)) {
+            ToolApprovalStatus.RequiresApproval -> {
+                val approvalEvent = com.example.smarty.protocol.AgentEvent.ApprovalRequested(
+                    eventId = java.util.UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = java.util.UUID.randomUUID().toString(),
+                    toolName = toolName,
+                    toolTitle = permissionTitleFor(toolName),
+                    toolArgs = argsJson.take(200),
+                )
+                emit(approvalEvent)
+                logger.info("[ToolExecutor] Approval required for $toolName (resolved from $name), emitted ApprovalRequested")
+                return "__WAITING_FOR_USER_RESPONSE__"
+            }
+            ToolApprovalStatus.NoLongerSupported -> {
+                return "Tool $toolName is no longer supported."
+            }
+            ToolApprovalStatus.ExecutesNormally -> { }
+        }
+
         return when (toolName) {
             "memory_save" -> executeMemorySave(args)
             "memory_find" -> executeMemoryFind(args)
@@ -227,26 +251,28 @@ class ToolExecutor(
         }
     }
 
-    private fun mapOldToolNames(name: String): String {
-        return when (name) {
-            "save_note", "create_note" -> "memory_save"
-            "find_note", "search_notes" -> "memory_find"
-            "edit_note", "update_note" -> "memory_update"
-            "delete_note" -> "memory_delete"
-            "remember_fact", "store_context" -> "memory_remember"
-            "add_event", "schedule_event" -> "schedule_add"
-            "show_events", "list_events" -> "schedule_list"
-            "remove_event", "delete_event" -> "schedule_remove"
-            "set_reminder" -> "remind_set"
-            "open_app", "launch_app" -> "device_open"
-            "control_music", "control_media" -> "device_media"
-            "toggle_setting" -> "device_toggle"
-            "get_device_info" -> "device_status"
-            "take_screenshot" -> "device_capture"
-            "search_web", "web_search" -> "search_web"
-            "go_to_screen" -> "navigate_go"
-            "share_content", "share" -> "navigate_share"
-            else -> name
+    companion object {
+        fun mapOldToolNames(name: String): String {
+            return when (name) {
+                "save_note", "create_note" -> "memory_save"
+                "find_note", "search_notes" -> "memory_find"
+                "edit_note", "update_note" -> "memory_update"
+                "delete_note" -> "memory_delete"
+                "remember_fact", "store_context" -> "memory_remember"
+                "add_event", "schedule_event" -> "schedule_add"
+                "show_events", "list_events" -> "schedule_list"
+                "remove_event", "delete_event" -> "schedule_remove"
+                "set_reminder" -> "remind_set"
+                "open_app", "launch_app" -> "device_open"
+                "control_music", "control_media" -> "device_media"
+                "toggle_setting" -> "device_toggle"
+                "get_device_info" -> "device_status"
+                "take_screenshot" -> "device_capture"
+                "search_web", "web_search" -> "search_web"
+                "go_to_screen" -> "navigate_go"
+                "share_content", "share" -> "navigate_share"
+                else -> name
+            }
         }
     }
 

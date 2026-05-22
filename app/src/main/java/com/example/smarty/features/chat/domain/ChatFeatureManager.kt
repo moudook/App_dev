@@ -757,6 +757,27 @@ class ChatFeatureManager(
             }
         }
 
+    // Strict allowlist for application launches — rejects any unapproved package
+    private val ALLOWED_LAUNCH_PACKAGES = setOf(
+        "com.spotify.music",
+        "com.google.android.youtube",
+        "com.android.chrome",
+        "com.google.android.apps.maps",
+        "com.google.android.gm",
+        "com.android.camera",
+        "com.android.settings",
+        "com.google.android.calendar",
+        "com.google.android.deskclock",
+        "com.google.android.apps.messaging",
+        "com.google.android.dialer",
+    )
+
+    // Strict allowlist for settings toggles — only safe, non-privileged settings
+    private val ALLOWED_SETTINGS = setOf(
+        "wifi", "bluetooth", "flashlight", "auto_rotate",
+        "location", "dnd", "vibrate", "airplane_mode",
+    )
+
     // Client Command Executor for Koog tools actions
     private val clientCommandExecutor =
         object : ClientCommandExecutor {
@@ -887,6 +908,10 @@ class ChatFeatureManager(
                 setting: String,
                 enable: Boolean,
             ) {
+                if (setting.lowercase() !in ALLOWED_SETTINGS) {
+                    Log.w(TAG, "SECURITY: Blocked toggle of unapproved setting: $setting")
+                    return
+                }
                 systemFeatureManager.toggleSetting(setting, enable)
             }
 
@@ -949,6 +974,10 @@ class ChatFeatureManager(
             }
 
             override fun launchApp(packageName: String) {
+                if (packageName !in ALLOWED_LAUNCH_PACKAGES) {
+                    Log.w(TAG, "SECURITY: Blocked launch of unapproved package: $packageName")
+                    return
+                }
                 systemFeatureManager.launchApp(packageName)
             }
 

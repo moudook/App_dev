@@ -248,8 +248,8 @@ fun Application.module() {
         )
 
         configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
-        configureOptimizedSyncRoutes()
         configureSyncRoutes()
+        configureOptimizedSyncRoutes()
 
         val reasoningRepo = ReasoningTraceRepository(ds)
         val reasoningService = ReasoningService(reasoningRepo)
@@ -360,8 +360,8 @@ fun Application.module() {
         configureHealthRoutes()
         configureProcessingRoutes()
         configureHandshakeRoutes()
-        configureOptimizedSyncRoutes()
         configureSyncRoutes()
+        configureOptimizedSyncRoutes()
         configureModelRoutes()
     }
 

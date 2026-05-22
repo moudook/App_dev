@@ -138,11 +138,7 @@ class OpencodeLlmProvider(
 
         logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs)")
 
-        // Tools are NOT sent to the daemon — they all run via our MCP server.
-        // The daemon's only job is model inference; tool execution, permissions,
-        // and approval gating are handled by the Ktor-side ToolExecutor.
-
-        logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, system=${systemPrompt?.length ?: 0}chars")
+        logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, tools=${tools.size}, system=${systemPrompt?.length ?: 0}chars")
 
         val flowCollector = this
 
@@ -165,6 +161,7 @@ class OpencodeLlmProvider(
                             },
                             agent = agentName,
                             system = systemPrompt,
+                            tools = tools.takeIf { it.isNotEmpty() },
                         )
                     )
                 }.execute { response ->
@@ -508,6 +505,7 @@ private data class DaemonMessageRequest(
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
+    val tools: List<ToolDefinition>? = null,
 )
 
 @Serializable

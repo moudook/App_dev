@@ -49,7 +49,15 @@ class McpServer(
 
     private val json = Json { ignoreUnknownKeys = true }
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
-    private val sessions = ConcurrentHashMap<String, Channel<ServerSentEvent>>()
+
+    private data class McpSession(
+        val channel: Channel<ServerSentEvent>,
+        val createdAt: Long = System.currentTimeMillis()
+    )
+    private val sessions = ConcurrentHashMap<String, McpSession>()
+
+    // TTL for POST-created sessions: 5 minutes
+    private val SESSION_TTL_MS = 300_000L
 
     // All available Smarty tools, filtering out ones handled natively by OpenCode
     private val allTools: List<ToolDefinition> by lazy {
@@ -61,11 +69,14 @@ class McpServer(
 
     fun configureRouting(routing: Routing) {
         routing.route("/mcp") {
+            // Evict stale POST-created sessions before creating new ones
+            evictStaleSessions()
+
             // 1. Establish SSE Connection (GET via standard SSE protocol)
             sse("/sse") {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
-                sessions[sessionId] = channel
+                sessions[sessionId] = McpSession(channel)
 
                 try {
                     // Send the endpoint URL to the client
@@ -93,7 +104,7 @@ class McpServer(
             post("/sse") {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
-                sessions[sessionId] = channel
+                sessions[sessionId] = McpSession(channel)
 
                 call.respondText(
                     contentType = ContentType.Application.Json,
@@ -104,6 +115,9 @@ class McpServer(
             }
 
             // 2. Receive JSON-RPC messages from client (Firebase-authenticated)
+            // Localhost/daemon bypass: unauthenticated requests from 127.0.0.1 are treated as
+            // the OpenCode CLI daemon. This is required because the daemon cannot provide
+            // Firebase JWT tokens but must be able to discover and call MCP tools.
             post("/messages") {
                 val sessionId = call.request.queryParameters["sessionId"]
                 if (sessionId == null || !sessions.containsKey(sessionId)) {
@@ -111,11 +125,20 @@ class McpServer(
                     return@post
                 }
 
-                val user = call.principal<FirebaseUserPrincipal>()
-                if (user == null) {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
-                    return@post
-                }
+                val remoteHost = call.request.local.remoteHost
+                val isLocalhost = remoteHost == "127.0.0.1" || remoteHost == "::1" ||
+                    remoteHost == "0:0:0:0:0:0:0:1" || remoteHost == "localhost"
+
+                val user = if (!isLocalhost) {
+                    call.principal<FirebaseUserPrincipal>().also {
+                        if (it == null) {
+                            call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                            return@post
+                        }
+                    }
+                } else null
+
+                val userId = user?.userId ?: "daemon-localhost"
 
                 val body = call.receiveText()
                 val request = runCatching {
@@ -131,13 +154,18 @@ class McpServer(
                 call.respond(HttpStatusCode.Accepted)
 
                 // Process the message asynchronously with the authenticated user's context
-                handleMcpRequest(sessionId, request, user.userId)
+                handleMcpRequest(sessionId, request, userId)
             }
         }
     }
 
+    private fun evictStaleSessions() {
+        val deadline = System.currentTimeMillis() - SESSION_TTL_MS
+        sessions.entries.removeIf { it.value.createdAt < deadline }
+    }
+
     private suspend fun handleMcpRequest(sessionId: String, request: JsonRpcRequest, userId: String) {
-        val channel = sessions[sessionId] ?: return
+        val channel = sessions[sessionId]?.channel ?: return
 
         try {
             val responseResult = when (request.method) {
@@ -222,10 +250,13 @@ class McpServer(
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
 
         // === PERMISSION ENGINE ===
+        // Apply canonical name mapping so old aliases (open_app, launch_app, etc.)
+        // are evaluated against the resolved name rather than the raw input name.
+        val resolvedName = ToolExecutor.mapOldToolNames(name)
         val toolCallId = UUID.randomUUID().toString()
-        val requiresApproval = name.equals("ask_user", ignoreCase = true) || 
-                              name.equals("bash", ignoreCase = true) ||
-                              name.startsWith("device")
+        val requiresApproval = resolvedName.equals("ask_user", ignoreCase = true) || 
+                              resolvedName.equals("bash", ignoreCase = true) ||
+                              resolvedName.startsWith("device")
 
         if (requiresApproval) {
             val inputSummary = args.toString().take(200)
@@ -247,7 +278,7 @@ class McpServer(
             // Suspend until UI approves/denies
             val result = runCatching {
                 val sessionId = userId
-                ApprovalRegistry.createPendingApproval(toolCallId, sessionId).await()
+                ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
             }.getOrElse { e ->
                 logger.error("[McpServer] Approval await failed for $toolCallId", e)
                 com.example.smarty.server.agent.ApprovalResult(false, "Approval system error")

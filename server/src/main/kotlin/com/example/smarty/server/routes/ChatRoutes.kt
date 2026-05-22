@@ -682,7 +682,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val request = call.receive<ChatRequest>()
                     val userId = user.userId
                     var sessionId = request.sessionId
-                    sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
+
+                    // Input validation
+                    try {
+                        com.example.smarty.server.utils.InputValidation.validateQuery(request.query)
+                        sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
+                    } catch (e: IllegalArgumentException) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid input: ${e.message}"))
+                        return@post
+                    }
+
                     val safeModelOverride = request.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
@@ -863,7 +872,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val approved = bodyJson["approved"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                     val feedback = bodyJson["feedback"]?.jsonPrimitive?.content
 
-                    val resolved = com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(toolId, approved, feedback)
+                    val resolved = com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(
+                        toolCallId = toolId,
+                        approved = approved,
+                        feedback = feedback,
+                        callerUserId = user.userId,
+                    )
                     if (resolved) {
                         call.respond(HttpStatusCode.OK, mapOf("status" to "resumed", "toolId" to toolId))
                     } else {
