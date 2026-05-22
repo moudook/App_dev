@@ -161,7 +161,6 @@ class OpencodeLlmProvider(
                             },
                             agent = agentName,
                             system = systemPrompt,
-                            tools = tools.takeIf { it.isNotEmpty() },
                         )
                     )
                 }.execute { response ->
@@ -505,7 +504,6 @@ private data class DaemonMessageRequest(
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
-    val tools: List<ToolDefinition>? = null,
 )
 
 @Serializable
