@@ -3,7 +3,6 @@ package com.example.smarty.server.mcp
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.AgentToolDefinitions
-import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
 import com.example.smarty.server.agent.ToolExecutor
@@ -15,8 +14,10 @@ import com.example.smarty.server.llm.ToolDefinition
 import com.example.smarty.server.services.NoteService
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.HttpClientSingleton
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -90,11 +91,17 @@ class McpServer(
                 logger.info("[McpServer] POST-SSE session created: $sessionId")
             }
 
-            // 2. Receive JSON-RPC messages from client
+            // 2. Receive JSON-RPC messages from client (Firebase-authenticated)
             post("/messages") {
                 val sessionId = call.request.queryParameters["sessionId"]
                 if (sessionId == null || !sessions.containsKey(sessionId)) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid or missing sessionId")
+                    return@post
+                }
+
+                val user = call.principal<FirebaseUserPrincipal>()
+                if (user == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
                     return@post
                 }
 
@@ -111,13 +118,13 @@ class McpServer(
                 // Immediately accept the POST request
                 call.respond(HttpStatusCode.Accepted)
 
-                // Process the message asynchronously and send response via SSE
-                handleMcpRequest(sessionId, request)
+                // Process the message asynchronously with the authenticated user's context
+                handleMcpRequest(sessionId, request, user.userId)
             }
         }
     }
 
-    private suspend fun handleMcpRequest(sessionId: String, request: JsonRpcRequest) {
+    private suspend fun handleMcpRequest(sessionId: String, request: JsonRpcRequest, userId: String) {
         val channel = sessions[sessionId] ?: return
 
         try {
@@ -125,7 +132,7 @@ class McpServer(
                 "initialize" -> handleInitialize()
                 "notifications/initialized" -> null // Just ack
                 "tools/list" -> handleToolsList()
-                "tools/call" -> handleToolCall(request.params)
+                "tools/call" -> handleToolCall(request.params, userId)
                 else -> throw IllegalArgumentException("Method not supported: ${request.method}")
             }
 
@@ -197,7 +204,7 @@ class McpServer(
         }
     }
 
-    private suspend fun handleToolCall(params: JsonObject?): JsonElement {
+    private suspend fun handleToolCall(params: JsonObject?, userId: String): JsonElement {
         val name = params?.get("name")?.jsonPrimitive?.content ?: throw IllegalArgumentException("Missing tool name")
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
 
@@ -206,11 +213,11 @@ class McpServer(
         val requiresApproval = name.equals("ask_user", ignoreCase = true) || 
                               name.equals("bash", ignoreCase = true) ||
                               name.startsWith("device")
-        
+
         if (requiresApproval) {
             val inputSummary = args.toString().take(200)
             
-            // Emit approval requested event to suspend the stream
+            // Emit approval requested event — user will see it on their active session
             val approvalEvent = AgentEvent.ApprovalRequested(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
@@ -219,17 +226,18 @@ class McpServer(
                 toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
                 toolArgs = inputSummary,
             )
-            // Primary path: forward to the active chat SSE stream (bridged via ChatRoutes)
-            ActiveEventBridge.emit(approvalEvent)
+            // Attempt to deliver via the user's active session SSE stream
+            ActiveEventBridge.emit(userId, approvalEvent)
             // Fallback path: McpServer-bound emitter (set in Application.kt)
             eventEmitter?.invoke(approvalEvent)
             
             // Suspend until UI approves/denies
             val result = runCatching {
-                ApprovalRegistry.createPendingApproval(toolCallId).await()
+                val sessionId = userId
+                ApprovalRegistry.createPendingApproval(toolCallId, sessionId).await()
             }.getOrElse { e ->
                 logger.error("[McpServer] Approval await failed for $toolCallId", e)
-                com.example.smarty.server.agent.ApprovalResult(false, "Approval system error: ${e.message}")
+                com.example.smarty.server.agent.ApprovalResult(false, "Approval system error")
             }
             
             if (!result.approved) {
@@ -242,15 +250,10 @@ class McpServer(
                     })
                 }
             }
-            
             logger.info("[McpServer] Tool $name approved by user, proceeding with execution")
         }
 
-        // Resolve context from ActiveSessionManager for the local OpenCode Daemon
-        val activeSession = ActiveSessionManager.getAllSessions().maxByOrNull { it.lastActivity }
-        val userId = activeSession?.userId ?: "default-user"
-
-        logger.info("Executing MCP Tool: \$name for userId: \$userId")
+        logger.info("Executing MCP Tool: $name for userId: $userId")
 
         val executor = ToolExecutor(
             userId = userId,
@@ -259,7 +262,7 @@ class McpServer(
             noteRepository = noteRepository,
             timerRepository = timerRepository,
             calendarRepository = calendarRepository,
-            eventEmitter = { event -> ActiveEventBridge.emit(event) },
+            eventEmitter = { event -> ActiveEventBridge.emit(userId, event) },
             noteService = noteService
         )
 
@@ -274,13 +277,13 @@ class McpServer(
                 })
             }
         } catch (e: Exception) {
-            logger.error("Tool execution failed for \$name", e)
+            logger.error("Tool execution failed for $name", e)
             buildJsonObject {
                 put("isError", true)
                 put("content", buildJsonArray {
                     add(buildJsonObject {
                         put("type", "text")
-                        put("text", "Error executing tool: \${e.message}")
+                        put("text", "Error executing tool")
                     })
                 })
             }

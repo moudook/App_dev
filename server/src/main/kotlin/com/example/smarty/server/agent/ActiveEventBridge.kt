@@ -2,44 +2,42 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.protocol.AgentEvent
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Bridges [AgentEvent]s from the MCP server layer to the active chat SSE stream.
- *
- * When the OpenCode daemon calls MCP tools (e.g. bash, ask_user), [McpServer]
- * emits [AgentEvent.ApprovalRequested]. That event must reach the Android app's
- * SSE stream which lives in [ChatRoutes]. This bridge connects those two layers.
- *
- * Usage:
- * - [ChatRoutes] calls [register] when an SSE stream starts (passing the same
- *   emitter it gave to [ServerAgent]).
- * - [ChatRoutes] calls [clear] when the SSE stream ends.
- * - [McpServer] calls [emit] to forward approval events to the active stream.
  */
 object ActiveEventBridge {
     private val logger = LoggerFactory.getLogger(ActiveEventBridge::class.java)
 
-    @Volatile
-    private var activeEmitter: (suspend (AgentEvent) -> Unit)? = null
+    private val emitters = ConcurrentHashMap<String, suspend (AgentEvent) -> Unit>()
 
-    fun register(emitter: suspend (AgentEvent) -> Unit) {
-        activeEmitter = emitter
-        logger.info("[ActiveEventBridge] Registered active SSE emitter")
+    fun register(sessionId: String, emitter: suspend (AgentEvent) -> Unit) {
+        emitters[sessionId] = emitter
+        logger.info("[ActiveEventBridge] Registered active SSE emitter for session: $sessionId")
     }
 
-    fun clear() {
-        activeEmitter = null
-        logger.info("[ActiveEventBridge] Cleared active SSE emitter")
+    fun clear(sessionId: String) {
+        emitters.remove(sessionId)
+        logger.info("[ActiveEventBridge] Cleared active SSE emitter for session: $sessionId")
     }
 
-    suspend fun emit(event: AgentEvent) {
-        activeEmitter?.let { emitter ->
+    suspend fun emit(sessionId: String?, event: AgentEvent) {
+        val sid = sessionId
+        if (sid == null) {
+            logger.warn("[ActiveEventBridge] emit() called with null sessionId — refusing to guess target session")
+            return
+        }
+        val emitter = emitters[sid]
+        if (emitter != null) {
             try {
                 emitter(event)
-                logger.debug("[ActiveEventBridge] Forwarded event: ${event::class.simpleName}")
+                logger.debug("[ActiveEventBridge] Forwarded event: ${event::class.simpleName} to session: $sid")
             } catch (e: Exception) {
-                logger.warn("[ActiveEventBridge] Failed to forward event: ${e.message}")
+                logger.warn("[ActiveEventBridge] Failed to forward event to session $sid: ${e.message}")
             }
+        } else {
+            logger.warn("[ActiveEventBridge] No active emitter found for session: $sid")
         }
     }
 }

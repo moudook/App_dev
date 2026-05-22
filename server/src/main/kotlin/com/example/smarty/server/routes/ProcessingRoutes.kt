@@ -69,7 +69,7 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("Content analysis failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Analysis failed: ${e.message}"))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Analysis failed"))
                 }
             }
 
@@ -86,7 +86,7 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("Document analysis failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Analysis failed: ${e.message}"))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Analysis failed"))
                 }
             }
 
@@ -113,7 +113,7 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("Image processing failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Processing failed: ${e.message}"))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Processing failed"))
                 }
             }
 
@@ -131,7 +131,7 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("PDF processing failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Processing failed: ${e.message}"))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Processing failed"))
                 }
             }
 
@@ -178,7 +178,7 @@ fun Application.configureProcessingRoutes() {
                             throw IllegalArgumentException("Invalid analysis type")
                         }
                     } catch (e: IllegalArgumentException) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid input: ${e.message}"))
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid input"))
                         return@post
                     }
 
@@ -217,7 +217,7 @@ fun Application.configureProcessingRoutes() {
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
                     call.application.log.error("File upload processing failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Upload processing failed: ${e.message}"))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Upload processing failed"))
                 }
             }
 
@@ -321,7 +321,7 @@ fun Application.configureProcessingRoutes() {
                     withContext(Dispatchers.IO) {
                         callRef.respond(
                             HttpStatusCode.InternalServerError,
-                            ImageGenerationSuccessResponse("error", "", "error", "", "", e.message),
+                            ImageGenerationSuccessResponse("error", "", "error", "", "", "Image generation failed"),
                         )
                     }
                 }

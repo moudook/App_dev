@@ -41,7 +41,7 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to get search history", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to get search history: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to get search history")
                     }
                 }
 
@@ -76,7 +76,7 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to add search", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to add search: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to add search")
                     }
                 }
 
@@ -108,7 +108,7 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         }
                     } catch (e: Exception) {
                         call.application.log.error("Failed to delete search", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to delete search: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to delete search")
                     }
                 }
 
@@ -133,7 +133,7 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to clear search history", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to clear search history: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to clear search history")
                     }
                 }
 
@@ -172,7 +172,7 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to search chat history", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to search chat history: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to search chat history")
                     }
                 }
             }

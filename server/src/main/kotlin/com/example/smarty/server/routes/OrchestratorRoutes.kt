@@ -39,7 +39,7 @@ fun Application.configureOrchestratorRoutes(orchestratorService: OrchestratorSer
                         )
                     } catch (e: Exception) {
                         logger.error("Orchestrator decision failed", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to make decision: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to make decision")
                     }
                 }
             }

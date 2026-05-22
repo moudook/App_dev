@@ -39,7 +39,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning timeline: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning timeline")
                 }
             }
 
@@ -62,7 +62,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning traces: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning traces")
                 }
             }
 
@@ -83,7 +83,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         call.respond(HttpStatusCode.NotFound, "No summary found for session")
                     }
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning summary: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error retrieving reasoning summary")
                 }
             }
 
@@ -114,7 +114,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error logging reasoning step: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error logging reasoning step")
                 }
             }
 
@@ -135,7 +135,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error logging reasoning steps: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error logging reasoning steps")
                 }
             }
 
@@ -168,7 +168,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error creating reasoning summary: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error creating reasoning summary")
                 }
             }
 
@@ -189,7 +189,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error marking reasoning as revised: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error marking reasoning as revised")
                 }
             }
 
@@ -219,7 +219,7 @@ fun Route.configureReasoningRoutes(reasoningService: ReasoningService) {
                         ),
                     )
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error generating disclosure levels: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, "Error generating disclosure levels")
                 }
             }
         } // End route("/api/reasoning")

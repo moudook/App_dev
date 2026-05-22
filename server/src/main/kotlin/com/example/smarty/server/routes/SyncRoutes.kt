@@ -200,7 +200,7 @@ fun Application.configureSyncRoutes() {
                         )
                     } catch (e: Exception) {
                         logger.error("Sync pull failed", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Sync failed: ${e.message}"))
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Sync failed"))
                     }
                 }
 
@@ -250,7 +250,7 @@ fun Application.configureSyncRoutes() {
                                     createdNotes.add(id)
                                 }
                             } catch (e: Exception) {
-                                errors.add("Note error: ${e.message}")
+                                errors.add("Failed to process note")
                             }
                         }
 
@@ -269,7 +269,7 @@ fun Application.configureSyncRoutes() {
                                     }
                                 }
                             } catch (e: Exception) {
-                                errors.add("Session error: ${e.message}")
+                                errors.add("Failed to process session")
                             }
                         }
 
@@ -301,7 +301,7 @@ fun Application.configureSyncRoutes() {
                                     createdEvents.add(id)
                                 }
                             } catch (e: Exception) {
-                                errors.add("Event error: ${e.message}")
+                                errors.add("Failed to process event")
                             }
                         }
 
@@ -318,7 +318,7 @@ fun Application.configureSyncRoutes() {
                         )
                     } catch (e: Exception) {
                         logger.error("Sync push failed", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Push failed: ${e.message}"))
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Push failed"))
                     }
                 }
 

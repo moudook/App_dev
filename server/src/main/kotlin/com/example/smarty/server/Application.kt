@@ -108,7 +108,16 @@ fun Application.module() {
 
     // Configure CORS (Allow Android client + HF Spaces + common development origins)
     install(CORS) {
-        allowHost("*")  // allowHeaders and allowMethods below restrict it
+        val allowedOrigins = (System.getenv("ALLOWED_ORIGINS")?.split(",")?.map { it.trim() }?.toSet()
+            ?: setOf(
+                "http://localhost:7860",
+                "http://127.0.0.1:7860",
+                "https://huggingface.co",
+                "https://*.huggingface.co",
+            ))
+        for (origin in allowedOrigins) {
+            allowHost(origin)
+        }
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
         allowHeader("X-Smarty-Device-Id")
@@ -124,8 +133,6 @@ fun Application.module() {
         // WebSocket upgrade header
         allowHeader(HttpHeaders.Upgrade)
         allowHeader(HttpHeaders.Connection)
-        // Allow pre-flight requests from any origin (auth is enforced via Firebase JWT)
-        anyHost()
         allowCredentials = true
     }
     install(CallId) {
@@ -303,6 +310,61 @@ fun Application.module() {
         }
         log.info("McpServer configured")
 
+        // Image serving endpoint (Firebase-authenticated)
+        routing {
+            authenticate("firebase") {
+                get("/generated-images/{id}") {
+                    val user = call.principal<FirebaseUserPrincipal>()
+                    if (user == null) {
+                        call.respondText("{\"error\":\"Authentication required\"}", ContentType.Application.Json, HttpStatusCode.Unauthorized)
+                        return@get
+                    }
+
+                    val imageId = call.parameters["id"]
+                    if (imageId.isNullOrBlank()) {
+                        call.respondText("{\"error\": \"Image ID required\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
+                        return@get
+                    }
+
+                    try {
+                        java.util.UUID.fromString(imageId)
+                    } catch (e: IllegalArgumentException) {
+                        call.respondText("{\"error\": \"Invalid image ID format\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
+                        return@get
+                    }
+
+                    val dataSource = DatabaseFactory.getDataSource()
+                    if (dataSource == null) {
+                        call.respondText("{\"error\": \"Database not available\"}", ContentType.Application.Json, HttpStatusCode.ServiceUnavailable)
+                        return@get
+                    }
+
+                    try {
+                        val imageRepo = GeneratedImageRepository(dataSource)
+                        val imageData = imageRepo.getImageBytes(imageId)
+
+                        if (imageData == null) {
+                            call.respondText("{\"error\": \"Image not found\"}", ContentType.Application.Json, HttpStatusCode.NotFound)
+                            return@get
+                        }
+
+                        val (bytes, contentType) = imageData
+                        val mimeType = when {
+                            contentType.contains("png") -> ContentType.Image.PNG
+                            contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
+                            contentType.contains("gif") -> ContentType.Image.GIF
+                            contentType.contains("webp") -> ContentType("image", "webp")
+                            else -> ContentType.Image.Any
+                        }
+                        call.respondBytes(bytes, mimeType)
+                    } catch (e: Exception) {
+                        call.application.log.error("Failed to serve image", e)
+                        call.respondText("{\"error\": \"Failed to serve image\"}", ContentType.Application.Json, HttpStatusCode.InternalServerError)
+                    }
+                }
+            }
+        }
+
         configureDigestRoutes(digestService, digestScheduler, ds)
     } else {
         configureHealthRoutes()
@@ -311,69 +373,6 @@ fun Application.module() {
         configureOptimizedSyncRoutes()
         configureSyncRoutes()
         configureModelRoutes()
-    }
-
-    // Image serving endpoint
-    routing {
-        get("/generated-images/{id}") {
-            val providedApiKey = call.parameters["apiKey"]
-            val expectedApiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
-
-            if (providedApiKey != expectedApiKey && providedApiKey != null) {
-                call.respondText("{\"error\": \"Invalid API key\"}", ContentType.Application.Json, HttpStatusCode.Unauthorized)
-                return@get
-            }
-
-            val imageId = call.parameters["id"]
-            if (imageId.isNullOrBlank()) {
-                call.respondText("{\"error\": \"Image ID required\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
-                return@get
-            }
-
-            try {
-                java.util.UUID.fromString(imageId)
-            } catch (e: IllegalArgumentException) {
-                call.respondText("{\"error\": \"Invalid image ID format\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
-                return@get
-            }
-
-            val dataSource = DatabaseFactory.getDataSource()
-            if (dataSource == null) {
-                call.respondText("{\"error\": \"Database not available\"}", ContentType.Application.Json, HttpStatusCode.ServiceUnavailable)
-                return@get
-            }
-
-            try {
-                val imageRepo = GeneratedImageRepository(dataSource)
-                val imageData = imageRepo.getImageBytes(imageId)
-
-                if (imageData == null) {
-                    call.respondText("{\"error\": \"Image not found\"}", ContentType.Application.Json, HttpStatusCode.NotFound)
-                    return@get
-                }
-
-                if (providedApiKey == null) {
-                    val storedImage = imageRepo.getById(imageId)
-                    if (storedImage == null) {
-                        call.respondText("{\"error\": \"Image not found\"}", ContentType.Application.Json, HttpStatusCode.NotFound)
-                        return@get
-                    }
-                }
-
-                val (bytes, contentType) = imageData
-                val mimeType = when {
-                    contentType.contains("png") -> ContentType.Image.PNG
-                    contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
-                    contentType.contains("gif") -> ContentType.Image.GIF
-                    contentType.contains("webp") -> ContentType("image", "webp")
-                    else -> ContentType.Image.Any
-                }
-                call.respondBytes(bytes, mimeType)
-            } catch (e: Exception) {
-                call.application.log.error("Failed to serve image", e)
-                call.respondText("{\"error\": \"Failed to serve image\"}", ContentType.Application.Json, HttpStatusCode.InternalServerError)
-            }
-        }
     }
 
     // Configure Monitoring

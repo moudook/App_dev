@@ -58,7 +58,7 @@ fun Application.configureUserDeviceRoutes(userDeviceRepository: UserDeviceReposi
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to register device", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to register device: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to register device")
                     }
                 }
 
@@ -104,7 +104,7 @@ fun Application.configureUserDeviceRoutes(userDeviceRepository: UserDeviceReposi
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to update push token", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to update token: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to update token")
                     }
                 }
 
@@ -129,7 +129,7 @@ fun Application.configureUserDeviceRoutes(userDeviceRepository: UserDeviceReposi
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Failed to get devices", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to get devices: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to get devices")
                     }
                 }
 
@@ -161,7 +161,7 @@ fun Application.configureUserDeviceRoutes(userDeviceRepository: UserDeviceReposi
                         }
                     } catch (e: Exception) {
                         call.application.log.error("Failed to delete device", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to delete device: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to delete device")
                     }
                 }
             }

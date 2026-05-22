@@ -628,6 +628,20 @@ class ChatViewModel(
     private fun handleStopGeneration() {
         currentStreamingJob?.cancel()
         currentStreamingJob = null
+        
+        // Notify server to interrupt LLM inference and tool execution (C3 fix)
+        val sessionId = _chatState.value.currentSessionId
+        if (sessionId != null) {
+            viewModelScope.launch {
+                try {
+                    remoteAgentService.interruptSession(sessionId)
+                    Log.d(TAG, "Sent interrupt signal to remote server for session: $sessionId")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to send interrupt signal", e)
+                }
+            }
+        }
+        
         _chatState.update { it.copy(isProcessing = false) }
         Log.d(TAG, "Generation stopped")
     }

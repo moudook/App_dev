@@ -256,7 +256,7 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
                             }
                         } catch (e: Exception) {
                             call.application.log.error("Failed to deactivate timer", e)
-                            call.respond(HttpStatusCode.InternalServerError, "Failed to deactivate timer: ${e.message}")
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to deactivate timer")
                         }
                     }
                 }
@@ -300,7 +300,7 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
                             )
                         } catch (e: Exception) {
                             call.application.log.error("Failed to get FCM tokens", e)
-                            call.respond(HttpStatusCode.InternalServerError, "Failed to get tokens: ${e.message}")
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to get tokens")
                         }
                     }
 
@@ -331,7 +331,7 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
                             }
                         } catch (e: Exception) {
                             call.application.log.error("Failed to delete FCM token", e)
-                            call.respond(HttpStatusCode.InternalServerError, "Failed to delete token: ${e.message}")
+                            call.respond(HttpStatusCode.InternalServerError, "Failed to delete token")
                         }
                     }
                 }
@@ -408,7 +408,7 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
                         call.respond(exportData)
                     } catch (e: Exception) {
                         call.application.log.error("Export failed for user ${user.userId}", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Export failed: ${e.message}"))
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Export failed"))
                     }
                 }
 

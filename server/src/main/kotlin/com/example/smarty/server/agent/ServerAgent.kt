@@ -512,7 +512,7 @@ class ServerAgent(
                         errorMsg.contains("context window", ignoreCase = true) ||
                             errorMsg.contains("max tokens", ignoreCase = true) ->
                             "Conversation is too long. Starting a fresh session."
-                        else -> "Brain freeze: ${errorMsg.take(150)}"
+                        else -> "I encountered an unexpected issue while processing your request. Please try again."
                     }
                 emit(
                     AgentEvent.Error(

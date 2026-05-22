@@ -482,8 +482,7 @@ class KreaImageTool {
             // Get generated image id from database
             val storedImage = GeneratedImageRepository(DatabaseFactory.getDataSource()!!).getByJobId(jobId)
             val serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:7860"
-            val apiKey = System.getenv("SMARTY_API_KEY") ?: "dev-key"
-            val localImageUrl = "$serverUrl/generated-images/${storedImage?.id}?apiKey=$apiKey"
+            val localImageUrl = "$serverUrl/generated-images/${storedImage?.id}"
 
             logger.info("IMAGE STORED: Successfully saved to database")
             logger.info("   Local URL: $localImageUrl")

@@ -50,7 +50,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to start research", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to start research: ${e.message}"),
+                            mapOf("error" to "Failed to start research"),
                         )
                     }
                 }
@@ -94,7 +94,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to get evaluation status", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to get evaluation: ${e.message}"),
+                            mapOf("error" to "Failed to get evaluation"),
                         )
                     }
                 }
@@ -136,7 +136,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to get iteration status", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to get iteration status: ${e.message}"),
+                            mapOf("error" to "Failed to get iteration status"),
                         )
                     }
                 }
@@ -173,7 +173,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to process answers", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to process answers: ${e.message}"),
+                            mapOf("error" to "Failed to process answers"),
                         )
                     }
                 }
@@ -203,7 +203,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to process interruption", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to process interruption: ${e.message}"),
+                            mapOf("error" to "Failed to process interruption"),
                         )
                     }
                 }
@@ -235,7 +235,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to check timeout", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to check timeout: ${e.message}"),
+                            mapOf("error" to "Failed to check timeout"),
                         )
                     }
                 }
@@ -268,7 +268,7 @@ fun Application.configureResearchRoutes(
                         logger.error("Failed to get session", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to get session: ${e.message}"),
+                            mapOf("error" to "Failed to get session"),
                         )
                     }
                 }

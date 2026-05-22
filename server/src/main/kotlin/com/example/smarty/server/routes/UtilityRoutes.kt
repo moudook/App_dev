@@ -55,7 +55,7 @@ fun Application.configureUtilityRoutes(utilityService: UtilityService) {
                         }
                     } catch (e: Exception) {
                         call.application.log.error("Date/time extraction failed", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to extract date/time: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to extract date/time")
                     }
                 }
 
@@ -85,7 +85,7 @@ fun Application.configureUtilityRoutes(utilityService: UtilityService) {
                         )
                     } catch (e: Exception) {
                         call.application.log.error("Categorization failed", e)
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to categorize: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to categorize")
                     }
                 }
             }

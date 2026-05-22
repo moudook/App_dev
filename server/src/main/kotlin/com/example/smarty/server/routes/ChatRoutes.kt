@@ -201,7 +201,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 try {
                     com.example.smarty.server.utils.InputValidation.validateSessionId(sessionId)
                 } catch (e: IllegalArgumentException) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid sessionId: ${e.message}"))
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid sessionId"))
                     return@post
                 }
 
@@ -328,7 +328,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     AgentEvent.Error(
                                         eventId = UUID.randomUUID().toString(),
                                         timestamp = System.currentTimeMillis(),
-                                        message = "Invalid input: ${e.message}",
+                                        message = "Invalid input",
                                         code = "INVALID_INPUT",
                                     ),
                                 ),
@@ -488,7 +488,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 // Register the event emitter with the ActiveEventBridge so McpServer
                 // approval events also reach this SSE stream
-                ActiveEventBridge.register(eventEmitter)
+                ActiveEventBridge.register(activeSessionId, eventEmitter)
 
                 // Create agent instance for this request with userId for multi-tenant isolation
                 val agent =
@@ -609,7 +609,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         AgentEvent.Error(
                                             eventId = UUID.randomUUID().toString(),
                                             timestamp = System.currentTimeMillis(),
-                                            message = "OpenCode CLI could not complete this request: ${e.message?.take(160) ?: "Unknown error"}",
+                                            message = "An internal error occurred.",
                                             code = "OPENCODE_CLI_ERROR",
                                         ),
                                     ),
@@ -621,7 +621,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } finally {
                     // Clear the bridge so stale emitters never fire
-                    ActiveEventBridge.clear()
+                    ActiveEventBridge.clear(activeSessionId)
+                    // Reject pending approvals to prevent hanging coroutines (C2 fix)
+                    com.example.smarty.server.agent.ApprovalRegistry.cancelApprovalsForSession(activeSessionId)
                     // Always end the active session
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                 }
@@ -651,6 +653,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val request = call.receive<ChatRequest>()
                     val userId = user.userId
                     var sessionId = request.sessionId
+                    sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
                     val safeModelOverride = request.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
                     call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
@@ -809,7 +812,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         call.application.log.error("POST chat/query OpenCode agent execution failed", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "OpenCode CLI could not complete this request: ${e.message?.take(160) ?: "Unknown error"}"),
+                            mapOf("error" to "An internal error occurred."),
                         )
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
@@ -839,7 +842,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } catch (e: Exception) {
                     call.application.log.error("Approval resolve failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Unknown error")))
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
                 }
             }
         }
@@ -1056,7 +1059,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 )
             } catch (e: Exception) {
                 call.application.log.error("Debug sessions error", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1098,7 +1101,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     HttpStatusCode.InternalServerError,
                     InterruptResponse(
                         success = false,
-                        message = e.message ?: "Unknown error",
+                        message = "An internal error occurred.",
                     ),
                 )
             }
@@ -1122,7 +1125,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("id" to id, "success" to true))
             } catch (e: Exception) {
                 call.application.log.error("Failed to create stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1139,7 +1142,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("stacks" to stacks, "count" to stacks.size))
             } catch (e: Exception) {
                 call.application.log.error("Failed to list stacks", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1161,7 +1164,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 }
             } catch (e: Exception) {
                 call.application.log.error("Failed to get stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1185,7 +1188,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("success" to updated))
             } catch (e: Exception) {
                 call.application.log.error("Failed to update stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1208,7 +1211,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("success" to deleted))
             } catch (e: Exception) {
                 call.application.log.error("Failed to delete stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1232,7 +1235,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("success" to added))
             } catch (e: Exception) {
                 call.application.log.error("Failed to add note to stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1256,7 +1259,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("success" to removed))
             } catch (e: Exception) {
                 call.application.log.error("Failed to remove note from stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
 
@@ -1279,7 +1282,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.OK, mapOf("stackId" to stackId, "noteIds" to noteIds, "count" to noteIds.size))
             } catch (e: Exception) {
                 call.application.log.error("Failed to list notes in stack", e)
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
      }
