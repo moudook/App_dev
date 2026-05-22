@@ -56,5 +56,9 @@ private fun RuntimeTimelineNodeItem(node: TimelineNode, viewModel: AgentRuntimeV
         is TimelineNode.ErrorNode -> ErrorCard(node = node)
         is TimelineNode.RecoveryNode -> RecoveryCard(node = node)
         is TimelineNode.SystemActivity -> SystemActivityCard(node = node)
+        is TimelineNode.SubagentGroup -> SubagentGroupCard(
+            node = node,
+            nodeRenderer = { childNode -> RuntimeTimelineNodeItem(node = childNode, viewModel = viewModel) }
+        )
     }
 }

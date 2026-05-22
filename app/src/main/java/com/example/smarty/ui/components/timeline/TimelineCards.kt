@@ -669,3 +669,114 @@ private fun toolMeta(toolName: String): Pair<String, ImageVector> {
         else -> "Action" to Icons.Default.Build
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subagent Group Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Collapsible card for parallel subagents. Contains nested timeline nodes.
+ */
+@Composable
+fun SubagentGroupCard(
+    node: TimelineNode.SubagentGroup,
+    nodeRenderer: @Composable (TimelineNode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember(node.id) { mutableStateOf(node.isOngoing) }
+    val accentColor = LocalAccentColor.current
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(0.5.dp, accentColor.copy(alpha = 0.3f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // Icon
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = accentColor.copy(alpha = 0.1f),
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.AccountTree, null,
+                            tint = accentColor,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = node.name,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "Subagent · ${node.nodes.size} events",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                    )
+                }
+
+                if (node.isOngoing) {
+                    val pulse = rememberInfiniteTransition(label = "subagentPulse")
+                    val a by pulse.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(accentColor.copy(alpha = a)))
+                } else {
+                    Icon(Icons.Outlined.CheckCircle, "Done", tint = Color(0xFF4CAF50), modifier = Modifier.size(15.dp))
+                }
+
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+
+            // Expanded content
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(tween(220)) + fadeIn(),
+                exit = shrinkVertically(tween(180)) + fadeOut(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    if (node.nodes.isEmpty()) {
+                        Text(
+                            "Initializing...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                        )
+                    } else {
+                        node.nodes.forEach { childNode ->
+                            nodeRenderer(childNode)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

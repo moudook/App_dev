@@ -475,6 +475,37 @@ Android Setup
 
 Open the project in Android Studio, synchronize Gradle, and run the application on an emulator or device.
 
+### Testing the Integration
+
+To ensure the Smarty Server and OpenCode daemon are running and connected properly:
+
+1. **Check Ktor Health**:
+   ```bash
+   curl http://localhost:7860/health
+   ```
+   *Expected response: `{"status":"ok","module":"smarty-server"}`*
+
+2. **Check OpenCode Daemon Health**:
+   ```bash
+   curl http://localhost:4096/global/health
+   ```
+   *Expected response should indicate the daemon is up.*
+
+3. **Check MCP SSE Endpoint**:
+   ```bash
+   curl -N http://localhost:7860/mcp/sse
+   ```
+   *Expected response: Stream starting with `event: endpoint` and a `data:` payload containing the session URL.*
+
+4. **Simulate a Chat Request**:
+   ```bash
+   curl -X POST http://localhost:7860/chat/stream \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <your-test-token>" \
+     -d '{"message":"hello", "sessionId":"test-123"}'
+   ```
+   *Expected response: SSE stream with agent steps and final answer.*
+
 ## Technology Stack
 
 ### Android Client

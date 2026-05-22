@@ -48,7 +48,11 @@ class McpServer(
     // Event emitter for approval gating — injected by Application.kt route config
     var eventEmitter: (suspend (AgentEvent) -> Unit)? = null
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { 
+        ignoreUnknownKeys = true 
+        encodeDefaults = true
+        explicitNulls = false
+    }
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
 
     private data class McpSession(
@@ -81,7 +85,13 @@ class McpServer(
 
                 try {
                     // Send the endpoint URL to the client
-                    send(ServerSentEvent(event = "endpoint", data = "/mcp/messages?sessionId=$sessionId"))
+                    val host = call.request.local.serverHost
+                    val port = call.request.local.serverPort
+                    val scheme = call.request.local.scheme
+                    
+                    // For HF Spaces, port is typically 7860. The reverse proxy might not forward scheme properly so we fallback to a relative-like approach if needed.
+                    val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
+                    send(ServerSentEvent(event = "endpoint", data = endpointUrl))
 
                     // SSE forwarding loop with heartbeat — detects stale connections
                     while (isActive) {
@@ -101,19 +111,7 @@ class McpServer(
                 }
             }
 
-            // OpenCode daemon sends POST to /sse for MCP init — create session and respond
-            post("/sse") {
-                val sessionId = UUID.randomUUID().toString()
-                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
-                sessions[sessionId] = McpSession(channel)
-
-                call.respondText(
-                    contentType = ContentType.Application.Json,
-                    status = HttpStatusCode.OK,
-                    text = """{"sessionId":"$sessionId","endpoint":"/mcp/messages?sessionId=$sessionId"}"""
-                )
-                logger.info("[McpServer] POST-SSE session created: $sessionId")
-            }
+            // (Removed post("/sse") to allow OpenCode to properly fall back to SSE via GET)
 
             // 2. Receive JSON-RPC messages from client (Firebase-authenticated)
             // Localhost/daemon bypass: unauthenticated requests from 127.0.0.1 are treated as
@@ -139,12 +137,14 @@ class McpServer(
                 val userId = user?.userId 
                     ?: ActiveSessionManager.getAllSessions().find { it.sessionId == sessionId }?.userId 
                     ?: ActiveSessionManager.getAllSessions().maxByOrNull { it.lastActivity }?.userId
-                    ?: "daemon-localhost"
+                    ?: getFallbackUserId()
 
                 val body = call.receiveText()
                 val request = runCatching {
                     json.decodeFromString<JsonRpcRequest>(body)
                 }.getOrNull()
+
+                logger.info("[McpServer] POST /messages: sessionId=$sessionId, hasSession=${sessions.containsKey(sessionId)}, body=$body")
 
                 if (request == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid JSON-RPC payload")
@@ -174,30 +174,36 @@ class McpServer(
                 else -> throw IllegalArgumentException("Method not supported: ${request.method}")
             }
 
-            // If it's a request (has id), send response
             if (request.id != null && responseResult != null) {
                 val response = JsonRpcResponse(
                     id = request.id,
                     result = responseResult
                 )
-                val responseJson = Json.encodeToString(response)
+                val responseJson = json.encodeToString(response)
                 
                 // Send via SSE if channel exists
-                channel?.send(ServerSentEvent(event = "message", data = responseJson))
-                
-                // Send inline HTTP response if call is available
-                call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.OK, text = responseJson)
+                if (channel != null) {
+                    logger.info("[McpServer] Sending SSE event payload: $responseJson")
+                    channel.send(ServerSentEvent(event = "message", data = responseJson))
+                    call?.respondText(contentType = ContentType.Text.Plain, status = HttpStatusCode.Accepted, text = "Accepted")
+                } else {
+                    // Send inline HTTP response if no SSE channel (legacy/direct call)
+                    call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.OK, text = responseJson)
+                }
             } else if (call != null) {
-                call.respond(HttpStatusCode.Accepted)
+                call.respondText(contentType = ContentType.Text.Plain, status = HttpStatusCode.Accepted, text = "Accepted")
             }
         } catch (e: Exception) {
             logger.error("[McpServer] Error processing method ${request.method}: ${e.message}", e)
             if (request.id != null) {
                 val errorResponse = JsonRpcResponse(
                     id = request.id,
-                    error = JsonRpcError(code = -32603, message = e.message ?: "Internal error")
+                    error = JsonRpcError(
+                        code = -32603,
+                        message = e.message ?: "Internal Error"
+                    )
                 )
-                val errorJson = Json.encodeToString(errorResponse)
+                val errorJson = json.encodeToString(errorResponse)
                 channel?.send(ServerSentEvent(event = "message", data = errorJson))
                 call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.InternalServerError, text = errorJson)
             } else {
@@ -336,10 +342,27 @@ class McpServer(
                 put("content", buildJsonArray {
                     add(buildJsonObject {
                         put("type", "text")
-                        put("text", "Error executing tool")
+                        put("text", "Error executing tool: ${e.message}")
                     })
                 })
             }
+        }
+    }
+
+    private fun getFallbackUserId(): String {
+        return try {
+            val ds = com.example.smarty.server.data.DatabaseFactory.getDataSource()
+            if (ds != null) {
+                ds.connection.use { conn ->
+                    conn.prepareStatement("SELECT id::text FROM users LIMIT 1").use { stmt ->
+                        stmt.executeQuery().use { rs ->
+                            if (rs.next()) rs.getString("id") else "daemon-localhost"
+                        }
+                    }
+                }
+            } else "daemon-localhost"
+        } catch (e: Exception) {
+            "daemon-localhost"
         }
     }
 }

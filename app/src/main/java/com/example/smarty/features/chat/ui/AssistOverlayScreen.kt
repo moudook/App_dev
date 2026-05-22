@@ -142,7 +142,6 @@ fun AssistOverlayScreen(
     }
 
     // Bottom sheet state
-    var isResearchMode by remember { mutableStateOf(false) }
     var isImageGenMode by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -188,7 +187,6 @@ fun AssistOverlayScreen(
                 ) { /* Consume */ }
         ) {
             // Collect ViewModel states
-            val vmResearchMode by viewModel.isResearchMode.collectAsState()
             val vmImageGenMode by viewModel.isImageGenMode.collectAsState()
             val selectedModel by viewModel.selectedModel.collectAsState()
             val availableModels by viewModel.availableModels.collectAsState()
@@ -316,8 +314,7 @@ fun AssistOverlayScreen(
                             }
                         },
                         onStopVoiceInput = { speechState.stopListening() },
-                        isResearchMode = vmResearchMode,
-                        onToggleResearchMode = { viewModel.toggleResearchMode() },
+
                         isImageGenMode = vmImageGenMode,
                         onToggleImageGenMode = { viewModel.toggleImageGenMode() },
                         onPickFile = { },

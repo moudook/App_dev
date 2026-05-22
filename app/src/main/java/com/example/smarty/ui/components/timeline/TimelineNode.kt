@@ -31,6 +31,7 @@ sealed class TimelineNode {
         override val timestamp: Long,
         val text: String,               // Accumulated reasoning text so far
         val isStreaming: Boolean,        // True if still receiving deltas
+        val subagentId: String? = null,
     ) : TimelineNode()
 
     /**
@@ -48,6 +49,7 @@ sealed class TimelineNode {
         val inputSummary: String?,
         val outputSummary: String?,
         val durationMs: Long?,
+        val subagentId: String? = null,
     ) : TimelineNode() {
         enum class Status { RUNNING, COMPLETED, FAILED }
     }
@@ -91,6 +93,19 @@ sealed class TimelineNode {
         override val timestamp: Long,
         val reason: String,
         val succeeded: Boolean?,        // null = still running
+    ) : TimelineNode()
+
+    /**
+     * Subagent group - encapsulates parallel tools/reasoning running in a separate agent stream.
+     */
+    @Immutable
+    data class SubagentGroup(
+        override val id: String,
+        override val timestamp: Long,
+        val subagentId: String,
+        val name: String,
+        val nodes: List<TimelineNode>,
+        val isOngoing: Boolean = true,
     ) : TimelineNode()
 
     // ─────────────────────────────────────────────────────────

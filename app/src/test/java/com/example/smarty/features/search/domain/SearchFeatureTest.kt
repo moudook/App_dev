@@ -258,8 +258,10 @@ class SearchFeatureTest {
         )
         val query = ""
 
-        val results = if (query.isEmpty()) items else items.filter { 
-            it.title.contains(query, ignoreCase = true) 
+        val results = if (query.isEmpty()) {
+            items
+        } else {
+            items.filter { it.title.lowercase().contains(query.lowercase()) }
         }
 
         assertEquals(2, results.size)

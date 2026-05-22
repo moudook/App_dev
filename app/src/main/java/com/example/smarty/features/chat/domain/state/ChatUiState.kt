@@ -35,7 +35,6 @@ data class ChatUiState(
     val expandedMessageIds: Set<String> = emptySet(),
     val showContextMenuForMessageId: String? = null,
     val mentionState: MentionState = MentionState(),
-    val isResearchMode: Boolean = false,
     val isHistoryMode: Boolean = false,
     val showScrollToBottom: Boolean = false,
     val isAtLatestMessage: Boolean = true,

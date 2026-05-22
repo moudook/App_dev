@@ -1320,10 +1320,7 @@ private fun LocalBackupListItem(
                         tint = SemanticColors.error.copy(alpha = 0.8f)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        stringResource(R.string.delete), 
-                        color = SemanticColors.error.copy(alpha = 0.8f)
-                    )
+                    Text(stringResource(R.string.delete), color = SemanticColors.error.copy(alpha = 0.8f))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(

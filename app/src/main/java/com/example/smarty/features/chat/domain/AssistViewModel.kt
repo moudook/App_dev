@@ -42,6 +42,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
+import com.example.smarty.data.local.AIConnection
+import com.example.smarty.data.local.SecurePreferences
+
 
 /**
  * ViewModel for AssistActivity - Handles Smarty overlay functionality
@@ -224,7 +227,7 @@ class AssistViewModel(
                 }
             }
         }
-        val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(application)
+        val securePrefs = SecurePreferences.getInstance(application)
         RemoteAgentService(
             client = client,
             eventSink = agentEventSink,
@@ -250,32 +253,25 @@ class AssistViewModel(
     val isDarkTheme: StateFlow<Boolean> = settingsFeatureManager.isDarkTheme
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
 
-    private val _isResearchMode = MutableStateFlow(false)
-    val isResearchMode: StateFlow<Boolean> = _isResearchMode.asStateFlow()
+
 
     private val _isImageGenMode = MutableStateFlow(false)
     val isImageGenMode: StateFlow<Boolean> = _isImageGenMode.asStateFlow()
 
-    private val securePreferences: com.example.smarty.data.local.SecurePreferences by lazy {
-        com.example.smarty.data.local.SecurePreferences.getInstance(getApplication())
+    private val securePreferences: SecurePreferences by lazy {
+        SecurePreferences.getInstance(getApplication())
     }
 
     val selectedModel: StateFlow<String> = securePreferences.selectedModelFlow
     val availableModels: StateFlow<List<Pair<String, String>>> = securePreferences.availableModelsFlow
 
-    fun toggleResearchMode() {
-        _isResearchMode.value = !_isResearchMode.value
-        if (_isResearchMode.value) _isImageGenMode.value = false
-    }
-
     fun toggleImageGenMode() {
         _isImageGenMode.value = !_isImageGenMode.value
-        if (_isImageGenMode.value) _isResearchMode.value = false
     }
 
     fun selectModel(modelId: String) {
         Log.d(TAG, "Model selected in Assist: $modelId")
-        securePreferences.setSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC, modelId)
+        securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
     }
 
     suspend fun refreshModelsNow(): List<Pair<String, String>> {
@@ -285,11 +281,11 @@ class AssistViewModel(
                 securePreferences.setCachedModels(refreshed)
                 refreshed
             } else {
-                securePreferences.getAvailableModels(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+                securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to refresh models in Assist: ${e.message}")
-            securePreferences.getAvailableModels(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+            securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
         }
     }
 
@@ -303,13 +299,13 @@ class AssistViewModel(
                 if (dynamicModels.isNotEmpty()) {
                     securePreferences.setCachedModels(dynamicModels)
                     
-                    val currentModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
+                    val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
                     val activeModel = if (dynamicModels.any { it.first == currentModel }) {
                         currentModel
                     } else {
-                        dynamicModels.first().first.also { 
-                            securePreferences.setSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC, it)
-                        }
+                        val defaultModel = dynamicModels.first().first
+                        securePreferences.setSelectedModel(AIConnection.LOCAL_PC, defaultModel)
+                        defaultModel
                     }
                     Log.d(TAG, "Models updated in Assist: selected=$activeModel, available=${dynamicModels.size}")
                 }
@@ -334,7 +330,7 @@ class AssistViewModel(
             _isProcessing.value = true
             pendingCitations.clear()
             chatManager.ensureSession()
-            val finalContent = if (_isResearchMode.value) "[SEARCH_MODE:DEEP] $content" else content
+            val finalContent = content
             val userMessage = chatManager.addUserMessage(finalContent, attachments)
             
             val commandResult = localCommandProcessor.process(content)

@@ -358,7 +358,7 @@ class OpencodeLlmProvider(
                                     
                                     val emitStart = System.currentTimeMillis()
                                     logger.debug("[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${text.length} chars)")
-                                    emit(LlmChunk(content = text, reasoning = null))
+                                    emit(LlmChunk(content = text, reasoning = null, subagentId = part.subagentId))
                                     logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart
                                 } else {
@@ -373,7 +373,7 @@ class OpencodeLlmProvider(
                                     
                                     val emitStart = System.currentTimeMillis()
                                     logger.debug("[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${reasoning.length} chars)")
-                                    emit(LlmChunk(content = null, reasoning = reasoning))
+                                    emit(LlmChunk(content = null, reasoning = reasoning, subagentId = part.subagentId))
                                     logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart
                                 }
@@ -389,7 +389,7 @@ class OpencodeLlmProvider(
                                     id = "tool-${System.currentTimeMillis()}",
                                     functionName = toolName,
                                     arguments = toolInput
-                                )))
+                                ), subagentId = part.subagentId))
                                 context.totalEmitTime += System.currentTimeMillis() - emitStart
                             }
                             "tool_result", "tool_return" -> {
@@ -402,7 +402,7 @@ class OpencodeLlmProvider(
                                     emit(LlmChunk(content = null, toolResult = LlmToolResult(
                                         functionName = toolName,
                                         result = content
-                                    )))
+                                    ), subagentId = part.subagentId))
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart
                                 }
                             }
@@ -527,7 +527,8 @@ private data class CanonicalPart(
     val type: String, 
     val content: String? = null,
     val toolName: String? = null,
-    val toolArgs: String? = null
+    val toolArgs: String? = null,
+    val subagentId: String? = null
 )
 
 private data class CanonicalResponse(
@@ -538,17 +539,20 @@ private data class CanonicalResponse(
  * Parser Versioning: Attempt multiple schema extractions and normalize to CanonicalResponse
  */
 private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): CanonicalResponse? {
+    val topSubagentId = json["subagent_id"]?.jsonPrimitive?.content
+
     val partsArray = json["parts"]?.jsonArray
     if (partsArray != null) {
         // Version 1: OpenCode native parts array
         val canonicalParts = partsArray.mapNotNull { el ->
             if (el !is JsonObject) return@mapNotNull null
             val type = el["type"]?.jsonPrimitive?.content ?: "unknown"
+            val partSubagentId = el["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
             when (type) {
-                "text", "reasoning" -> CanonicalPart(type = type, content = el["text"]?.jsonPrimitive?.content)
-                "tool_use", "tool" -> CanonicalPart(type = type, toolName = el["name"]?.jsonPrimitive?.content, toolArgs = el["input"]?.toString())
-                "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = el["name"]?.jsonPrimitive?.content, content = el["output"]?.toString() ?: el["text"]?.jsonPrimitive?.content)
-                else -> CanonicalPart(type = type)
+                "text", "reasoning" -> CanonicalPart(type = type, content = el["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
+                "tool_use", "tool" -> CanonicalPart(type = type, toolName = el["name"]?.jsonPrimitive?.content, toolArgs = el["input"]?.toString(), subagentId = partSubagentId)
+                "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = el["name"]?.jsonPrimitive?.content, content = el["output"]?.toString() ?: el["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
+                else -> CanonicalPart(type = type, subagentId = partSubagentId)
             }
         }
         return CanonicalResponse(canonicalParts)
@@ -557,7 +561,7 @@ private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): Canon
     val contentStr = json["content"]?.jsonPrimitive?.content
     if (contentStr != null) {
         // Version 2: Simple content string fallback
-        return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr)))
+        return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr, subagentId = topSubagentId)))
     }
     
     val messageObj = json["message"]?.jsonObject
@@ -565,21 +569,20 @@ private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): Canon
         // Version 3: OpenAI style choices/message
         val text = messageObj["content"]?.jsonPrimitive?.content
         if (text != null) {
-            return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text)))
+            return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text, subagentId = topSubagentId)))
         }
     }
 
     // Version 4: Individual part object (daemon incremental SSE)
-    // e.g. {"type": "reasoning", "text": "..."}
-    //      {"type": "tool_use", "name": "web_search", "input": {...}}
-    //      {"type": "text", "text": "..."}
+    // e.g. {"type": "reasoning", "text": "...", "subagent_id": "sub1"}
     val partType = json["type"]?.jsonPrimitive?.content
     if (partType != null) {
+        val partSubagentId = json["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
         val part = when (partType) {
-            "text" -> CanonicalPart(type = "text", content = json["text"]?.jsonPrimitive?.content)
-            "reasoning" -> CanonicalPart(type = "reasoning", content = json["text"]?.jsonPrimitive?.content)
-            "tool_use", "tool" -> CanonicalPart(type = partType, toolName = json["name"]?.jsonPrimitive?.content, toolArgs = json["input"]?.toString())
-            "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = json["name"]?.jsonPrimitive?.content, content = json["output"]?.toString() ?: json["text"]?.jsonPrimitive?.content)
+            "text" -> CanonicalPart(type = "text", content = json["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
+            "reasoning" -> CanonicalPart(type = "reasoning", content = json["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
+            "tool_use", "tool" -> CanonicalPart(type = partType, toolName = json["name"]?.jsonPrimitive?.content, toolArgs = json["input"]?.toString(), subagentId = partSubagentId)
+            "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = json["name"]?.jsonPrimitive?.content, content = json["output"]?.toString() ?: json["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
             else -> {
                 org.slf4j.LoggerFactory.getLogger("OpencodeLlmProvider").warn("[OpenCode.Schemas][inference=$inferenceId] Unrecognized individual part type: '$partType'")
                 null

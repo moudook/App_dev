@@ -1,5 +1,7 @@
 package com.example.smarty.server.agent
 
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -18,7 +20,24 @@ object ActiveSessionManager {
     private val activeSessions = ConcurrentHashMap<String, SessionInfo>()
     private val mutex = Mutex()
 
-    private const val SESSION_TIMEOUT_MS = 30 * 60 * 1000L // 30 minutes
+    private const val SESSION_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
+
+    private var sweeperJob: kotlinx.coroutines.Job? = null
+
+    fun startSweeper(scope: kotlinx.coroutines.CoroutineScope) {
+        if (sweeperJob?.isActive == true) return
+        sweeperJob = scope.launch {
+            while (isActive) {
+                kotlinx.coroutines.delay(1 * 60 * 1000L) // 1 minute
+                try {
+                    cleanupStaleSessions()
+                } catch (e: Exception) {
+                    logger.error("Error during session cleanup", e)
+                }
+            }
+        }
+        logger.info("ActiveSessionManager sweeper started")
+    }
 
     @Serializable
     data class SessionInfo(
@@ -128,6 +147,7 @@ object ActiveSessionManager {
 
             staleUsers.forEach { userId ->
                 val info = activeSessions.remove(userId)
+                ActiveEventBridge.clear(userId)
                 logger.info("Removed stale session: userId=$userId, sessionId=${info?.sessionId}")
             }
         }

@@ -263,11 +263,9 @@ dependencies {
     debugImplementation(libs.leakcanary)
 }
 
-// Detekt configuration - temporarily disabled for schema integration
-// detekt {
-//     buildUponDefaultConfig = true
-//     allRules = false
-//     config.setFrom("$projectDir/config/detekt/detekt.yml")
-//     baseline = file("$projectDir/config/detekt/baseline.xml")
-//     parallel = true
-// }
+// Detekt configuration
+detekt {
+    ignoreFailures = true
+}
+
+

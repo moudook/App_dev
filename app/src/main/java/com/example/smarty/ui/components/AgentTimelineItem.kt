@@ -28,6 +28,7 @@ import com.example.smarty.ui.components.timeline.ErrorCard
 import com.example.smarty.ui.components.timeline.RecoveryCard
 import com.example.smarty.ui.components.timeline.SystemActivityCard
 import com.example.smarty.ui.components.timeline.ThinkingCard
+import com.example.smarty.ui.components.timeline.SubagentGroupCard
 import com.example.smarty.ui.components.timeline.TimelineNode
 import com.example.smarty.ui.components.timeline.TimelineNodeAggregator
 import com.example.smarty.ui.components.timeline.ToolCallCard
@@ -232,6 +233,7 @@ private fun TimelineNode.isPulsing(): Boolean = when (this) {
     is TimelineNode.RecoveryNode -> succeeded == null
     is TimelineNode.ApprovalGate -> status == TimelineNode.ApprovalGate.Status.PENDING
     is TimelineNode.SystemActivity -> isOngoing
+    is TimelineNode.SubagentGroup -> isOngoing
     else -> false
 }
 
@@ -255,6 +257,8 @@ private fun NodeIcon(node: TimelineNode, accentColor: Color) {
             Icons.Default.Refresh to accentColor
         is TimelineNode.SystemActivity ->
             Icons.Default.Settings to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+        is TimelineNode.SubagentGroup ->
+            Icons.Default.AccountTree to accentColor
     }
     Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = tint)
 }
@@ -268,6 +272,18 @@ private fun NodeCard(node: TimelineNode, accentColor: Color) {
         is TimelineNode.ErrorNode -> ErrorCard(node = node)
         is TimelineNode.RecoveryNode -> RecoveryCard(node = node)
         is TimelineNode.SystemActivity -> SystemActivityCard(node = node)
+        is TimelineNode.SubagentGroup -> SubagentGroupCard(
+            node = node,
+            nodeRenderer = { childNode ->
+                TimelineNodeLayout(
+                    icon = { NodeIcon(childNode, accentColor) },
+                    isLast = false,
+                    isPulsing = childNode.isPulsing(),
+                ) {
+                    NodeCard(node = childNode, accentColor = accentColor)
+                }
+            }
+        )
     }
 }
 

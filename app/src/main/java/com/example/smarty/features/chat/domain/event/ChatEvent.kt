@@ -62,7 +62,6 @@ sealed class ChatEvent {
     
     // Search and filter events
     data object SearchModeToggled : ChatEvent()
-    data object ResearchModeToggled : ChatEvent()
     data class FilterToggled(val filter: AttachmentOption) : ChatEvent()
     data object FiltersCleared : ChatEvent()
     

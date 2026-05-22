@@ -23,6 +23,7 @@ import kotlinx.serialization.Serializable
 sealed class AgentEvent {
     abstract val eventId: String
     abstract val timestamp: Long
+    open val subagentId: String? = null
 
     /**
      * Agent is processing/working.
@@ -35,6 +36,7 @@ sealed class AgentEvent {
         override val timestamp: Long,
         val content: String,
         val thinking: String? = null,
+        @SerialName("subagent_id") override val subagentId: String? = null,
     ) : AgentEvent()
 
     /**
@@ -56,6 +58,7 @@ sealed class AgentEvent {
         @SerialName("input_summary") val inputSummary: String? = null,
         @SerialName("output_summary") val outputSummary: String? = null,
         @SerialName("search_queries") val searchQueries: List<SearchQueryResult> = emptyList(),
+        @SerialName("subagent_id") override val subagentId: String? = null,
     ) : AgentEvent()
 
     /** Individual web-search query + its result (used inside a ToolCall event). */
@@ -192,6 +195,7 @@ sealed class AgentEvent {
         @SerialName("step_status") val stepStatus: String = "started",
         @SerialName("tool_name") val toolName: String? = null,
         @SerialName("duration_ms") val durationMs: Long? = null,
+        @SerialName("subagent_id") override val subagentId: String? = null,
     ) : AgentEvent()
 
     // =========================================================================
@@ -217,10 +221,10 @@ sealed class AgentEvent {
     @Serializable @SerialName("step_finished") data class StepFinished(override val eventId: String, override val timestamp: Long, val success: Boolean) : AgentEvent()
 
     // Tool Call Lifecycle
-    @Serializable @SerialName("tool_call_started") data class ToolCallStarted(override val eventId: String, override val timestamp: Long, val toolId: String, val name: String, val source: String) : AgentEvent()
-    @Serializable @SerialName("tool_call_input") data class ToolCallInput(override val eventId: String, override val timestamp: Long, val toolId: String, val inputDelta: String) : AgentEvent()
-    @Serializable @SerialName("tool_call_output") data class ToolCallOutput(override val eventId: String, override val timestamp: Long, val toolId: String, val output: String) : AgentEvent()
-    @Serializable @SerialName("tool_call_finished") data class ToolCallFinished(override val eventId: String, override val timestamp: Long, val toolId: String, val durationMs: Long) : AgentEvent()
+    @Serializable @SerialName("tool_call_started") data class ToolCallStarted(override val eventId: String, override val timestamp: Long, val toolId: String, val name: String, val source: String, @SerialName("subagent_id") override val subagentId: String? = null) : AgentEvent()
+    @Serializable @SerialName("tool_call_input") data class ToolCallInput(override val eventId: String, override val timestamp: Long, val toolId: String, val inputDelta: String, @SerialName("subagent_id") override val subagentId: String? = null) : AgentEvent()
+    @Serializable @SerialName("tool_call_output") data class ToolCallOutput(override val eventId: String, override val timestamp: Long, val toolId: String, val output: String, @SerialName("subagent_id") override val subagentId: String? = null) : AgentEvent()
+    @Serializable @SerialName("tool_call_finished") data class ToolCallFinished(override val eventId: String, override val timestamp: Long, val toolId: String, val durationMs: Long, @SerialName("subagent_id") override val subagentId: String? = null) : AgentEvent()
 
     @Serializable @SerialName("approval_requested") data class ApprovalRequested(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String, @SerialName("tool_name") val toolName: String, @SerialName("tool_title") val toolTitle: String, @SerialName("tool_args") val toolArgs: String) : AgentEvent()
     @Serializable @SerialName("approval_granted") data class ApprovalGranted(override val eventId: String, override val timestamp: Long, @SerialName("tool_id") val toolId: String) : AgentEvent()

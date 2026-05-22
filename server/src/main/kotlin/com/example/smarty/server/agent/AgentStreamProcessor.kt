@@ -38,6 +38,7 @@ class AgentStreamProcessor(
     var currentToolArgs = ""
     var isToolCallInProgress = false
     var totalUsage: LlmUsage? = null
+    var currentSubagentId: String? = null
 
     // === Agentic Step Tracking ===
     // Each reasoning phase and tool call becomes a discrete step shown in the UI.
@@ -68,6 +69,7 @@ class AgentStreamProcessor(
                     timestamp = now,
                     content = content,
                     thinking = thinking,
+                    subagentId = currentSubagentId,
                 ),
             )
             lastProcessingEventTime = now
@@ -98,6 +100,7 @@ class AgentStreamProcessor(
                 stepTitle = "Thinking\u2026",
                 stepContent = "",
                 stepStatus = "started",
+                subagentId = currentSubagentId,
             )
         )
     }
@@ -126,6 +129,7 @@ class AgentStreamProcessor(
                     stepTitle = "Thinking\u2026",
                     stepContent = currentThinkingContent.toString(),
                     stepStatus = "streaming",
+                    subagentId = currentSubagentId,
                 )
             )
         }
@@ -145,6 +149,7 @@ class AgentStreamProcessor(
                 stepContent = currentThinkingContent.toString(),
                 stepStatus = "completed",
                 durationMs = duration,
+                subagentId = currentSubagentId,
             )
         )
         this.emit(
@@ -182,6 +187,7 @@ class AgentStreamProcessor(
                 stepStatus = status,
                 toolName = toolName,
                 durationMs = duration,
+                subagentId = currentSubagentId,
             )
         )
         
@@ -191,14 +197,16 @@ class AgentStreamProcessor(
                 timestamp = System.currentTimeMillis(),
                 toolId = stepId,
                 name = toolName,
-                source = "opencode"
+                source = "opencode",
+                subagentId = currentSubagentId,
             ))
         } else if (status == "completed" || status == "failed") {
             this.emit(AgentEvent.ToolCallFinished(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
                 toolId = stepId,
-                durationMs = duration ?: 0L
+                durationMs = duration ?: 0L,
+                subagentId = currentSubagentId,
             ))
         }
         
@@ -234,6 +242,7 @@ class AgentStreamProcessor(
                 stepStatus = status,
                 toolName = toolName,
                 durationMs = durationMs,
+                subagentId = currentSubagentId,
             )
         )
         
@@ -243,14 +252,16 @@ class AgentStreamProcessor(
                 timestamp = System.currentTimeMillis(),
                 toolId = stepId,
                 name = toolName,
-                source = "custom"
+                source = "custom",
+                subagentId = currentSubagentId,
             ))
         } else if (status == "completed" || status == "failed") {
             this.emit(AgentEvent.ToolCallFinished(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
                 toolId = stepId,
-                durationMs = durationMs ?: 0L
+                durationMs = durationMs ?: 0L,
+                subagentId = currentSubagentId,
             ))
         }
     }
@@ -260,6 +271,7 @@ class AgentStreamProcessor(
      */
     suspend fun processChunk(chunk: com.example.smarty.server.llm.LlmChunk) {
         chunk.usage?.let { totalUsage = it }
+        chunk.subagentId?.let { currentSubagentId = it }
 
         // If a tool was in progress, but the daemon has started streaming text or reasoning again,
         // it means the daemon-native tool execution has completed and the model has resumed!

@@ -13,7 +13,6 @@ import com.example.smarty.server.routes.configureHealthRoutes
 import com.example.smarty.server.routes.configureChatRoutes
 import com.example.smarty.server.routes.configureOptimizedSyncRoutes
 import com.example.smarty.server.routes.configureDataRoutes
-import com.example.smarty.server.routes.configureResearchRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
@@ -235,19 +234,6 @@ fun Application.module() {
         val chatFolderRepo = ChatFolderRepository(ds)
         configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
 
-        val deepResearchAgent = com.example.smarty.server.agent.DeepResearchAgent(
-            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-            webScrapeTool = WebScrapeTool(),
-            progressFileManager = com.example.smarty.server.agent.ProgressFileManager(),
-        )
-
-        val advancedDeepResearchAgent = com.example.smarty.server.agent.AdvancedDeepResearchAgent(
-            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-            webScrapeTool = WebScrapeTool(),
-            progressTracker = com.example.smarty.server.agent.ResearchProgressTracker(),
-        )
-
-        configureResearchRoutes(deepResearchAgent, advancedDeepResearchAgent)
         configureSyncRoutes()
         configureOptimizedSyncRoutes()
 
@@ -363,10 +349,26 @@ fun Application.module() {
         configureSyncRoutes()
         configureOptimizedSyncRoutes()
         configureModelRoutes()
+
+        // Register MCP even without DB so opencode CLI can connect
+        val mcpServer = com.example.smarty.server.mcp.McpServer(
+            vectorStore = PostgresVectorStore(),
+            noteRepository = null,
+            timerRepository = null,
+            calendarRepository = null,
+            noteService = null
+        )
+        routing {
+            mcpServer.configureRouting(this)
+        }
+        log.info("McpServer configured (no-DB mode)")
     }
 
     // Configure Monitoring
     configureMonitoring()
+
+    // Start background sweeper for stale sessions
+    com.example.smarty.server.agent.ActiveSessionManager.startSweeper(this)
 
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()

@@ -172,10 +172,9 @@ class ChatViewModel(
                     val activeModel = if (dynamicModels.any { it.first == currentModel }) {
                         currentModel
                     } else {
-                        // Selected model no longer available, use first from server
-                        dynamicModels.first().first.also { 
-                            securePreferences.setSelectedModel(AIConnection.LOCAL_PC, it)
-                        }
+                        val defaultModel = dynamicModels.first().first
+                        securePreferences.setSelectedModel(AIConnection.LOCAL_PC, defaultModel)
+                        defaultModel
                     }
                     
                     _uiState.update { 

@@ -670,9 +670,6 @@ fun InputStreamScreen(
     // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
     
-    // Research Mode State
-    var isResearchMode by remember { mutableStateOf(false) }
-    
     // Image Generation Mode State
     var isImageGenMode by remember { mutableStateOf(false) }
 
@@ -1898,16 +1895,10 @@ fun InputStreamScreen(
                                     selection = androidx.compose.ui.text.TextRange(updatedText.length)
                                 )
                             },
-                            // Research mode toggle
-                            isResearchMode = isResearchMode,
-                            onToggleResearchMode = {
-                                isResearchMode = !isResearchMode
-                            },
                             // Image generation mode toggle
                             isImageGenMode = isImageGenMode,
                             onToggleImageGenMode = {
                                 isImageGenMode = !isImageGenMode
-                                if (isImageGenMode) isResearchMode = false // Mutual exclusivity
                             },
                             showScrollButton = chatListState.canScrollForward || chatListState.canScrollBackward,
                             isAtLatest = !chatListState.canScrollBackward,

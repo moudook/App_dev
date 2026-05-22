@@ -198,9 +198,6 @@ fun SmartyInputField(
     // @Mention support (Chat mode only)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion) -> Unit = {},
-    // Research mode toggle
-    isResearchMode: Boolean = false,
-    onToggleResearchMode: () -> Unit = {},
     // Image Generation (Krea) mode toggle
     isImageGenMode: Boolean = false,
     onToggleImageGenMode: () -> Unit = {},
@@ -400,60 +397,7 @@ fun SmartyInputField(
                         }
                     }
                     
-                    // Deep Research Button
                     if (isChatMode) {
-                        val researchAccentColor = LocalAccentColor.current
-                        val researchInteractionSource = remember { MutableInteractionSource() }
-                        val researchIsPressed by researchInteractionSource.collectIsPressedAsState()
-                        val researchScale by animateFloatAsState(
-                            targetValue = if (researchIsPressed) 0.88f else 1f,
-                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-                            label = "researchScale"
-                        )
-                        val researchBg by animateColorAsState(
-                            targetValue = if (isResearchMode) researchAccentColor.copy(alpha = 0.18f) else pillBackground,
-                            animationSpec = tween(200), label = "researchBg"
-                        )
-                        val researchBorder by animateColorAsState(
-                            targetValue = if (isResearchMode) researchAccentColor else pillBorder,
-                            animationSpec = tween(200), label = "researchBorder"
-                        )
-                        val researchIconTint by animateColorAsState(
-                            targetValue = if (isResearchMode) researchAccentColor else monochromeColor,
-                            animationSpec = tween(200), label = "researchIconTint"
-                        )
-
-                        Surface(
-                            modifier = Modifier
-                                .scale(researchScale)
-                                .requiredSize(36.dp)
-                                .clickable(
-                                    interactionSource = researchInteractionSource,
-                                    indication = null,
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onToggleResearchMode()
-                                    }
-                                ),
-                            shape = CircleShape,
-                            color = researchBg,
-                            border = BorderStroke(0.5.dp, researchBorder)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Science,
-                                    contentDescription = "Deep Research",
-                                    tint = researchIconTint,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
                         // Generate Image Button — press scale + spinning star when active
                         val imageGenAccentColor = ComponentColors.assistantPurple
                         val imageGenInteractionSource = remember { MutableInteractionSource() }

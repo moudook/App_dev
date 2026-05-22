@@ -104,7 +104,11 @@ class ServerSyncIntegrationTest {
         assertTrue(result.isSuccess)
         // Verify remoteDataSource was NOT called
         verify(exactly = 0) { 
-            remoteDataSource.createNote(any(), any(), any()) 
+            remoteDataSource.createNote(
+                any(),
+                any(),
+                any()
+            ) 
         }
     }
 
@@ -208,7 +212,11 @@ class ServerSyncIntegrationTest {
         // Then
         // Verify all notes were sent to server
         verify(exactly = 5) { 
-            remoteDataSource.createNote(any(), any(), any()) 
+            remoteDataSource.createNote(
+                any(),
+                any(),
+                any()
+            ) 
         }
     }
 }

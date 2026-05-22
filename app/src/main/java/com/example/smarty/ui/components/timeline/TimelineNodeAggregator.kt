@@ -34,6 +34,10 @@ class TimelineNodeAggregator {
     private var systemActivityIndex: Int = -1
     private var recoveryNodeIndex: Int = -1
 
+    // Subagent tracking
+    private val subagentAggregators = mutableMapOf<String, TimelineNodeAggregator>()
+    private val subagentGroupIndexById = mutableMapOf<String, Int>()
+
     // Tracking state for system activity
     private var sysActivityId: String = "sys_activity"
     private var sysActivityStart: Long = 0L
@@ -60,6 +64,33 @@ class TimelineNodeAggregator {
      * Process a single [AgentEvent] and mutate the node list accordingly.
      */
     fun process(event: AgentEvent) {
+        val subId = event.subagentId
+        if (subId != null) {
+            val subAggregator = subagentAggregators.getOrPut(subId) {
+                TimelineNodeAggregator()
+            }
+            subAggregator.process(event)
+            
+            val groupIndex = subagentGroupIndexById[subId]
+            if (groupIndex == null) {
+                val group = TimelineNode.SubagentGroup(
+                    id = "subagent_$subId",
+                    timestamp = event.timestamp,
+                    subagentId = subId,
+                    name = "Parallel Subagent",
+                    nodes = subAggregator.nodes.toList(),
+                    isOngoing = true
+                )
+                subagentGroupIndexById[subId] = _nodes.size
+                _nodes.add(group)
+            } else {
+                _nodes[groupIndex] = (_nodes[groupIndex] as TimelineNode.SubagentGroup).copy(
+                    nodes = subAggregator.nodes.toList()
+                )
+            }
+            return
+        }
+
         when (event) {
             // ── Reasoning ─────────────────────────────────────────────────────
             is AgentEvent.ReasoningStarted -> {
