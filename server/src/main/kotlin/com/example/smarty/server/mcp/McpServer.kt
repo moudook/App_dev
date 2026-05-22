@@ -141,6 +141,7 @@ class McpServer(
 
                 val userId = user?.userId 
                     ?: ActiveSessionManager.getAllSessions().find { it.sessionId == sessionId }?.userId 
+                    ?: ActiveSessionManager.getAllSessions().maxByOrNull { it.lastActivity }?.userId
                     ?: "daemon-localhost"
 
                 val body = call.receiveText()
