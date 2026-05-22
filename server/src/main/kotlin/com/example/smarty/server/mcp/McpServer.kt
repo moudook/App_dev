@@ -4,7 +4,6 @@ import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.AgentToolDefinitions
-import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
 import com.example.smarty.server.agent.ToolExecutor
 import com.example.smarty.server.data.CalendarRepository
@@ -252,54 +251,6 @@ class McpServer(
     private suspend fun handleToolCall(params: JsonObject?, userId: String): JsonElement {
         val name = params?.get("name")?.jsonPrimitive?.content ?: throw IllegalArgumentException("Missing tool name")
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
-
-        // === PERMISSION ENGINE ===
-        // Apply canonical name mapping so old aliases (open_app, launch_app, etc.)
-        // are evaluated against the resolved name rather than the raw input name.
-        val resolvedName = ToolExecutor.mapOldToolNames(name)
-        val toolCallId = UUID.randomUUID().toString()
-        val requiresApproval = resolvedName.equals("ask_user", ignoreCase = true) || 
-                              resolvedName.equals("bash", ignoreCase = true) ||
-                              resolvedName.startsWith("device")
-
-        if (requiresApproval) {
-            val inputSummary = args.toString().take(200)
-            
-            // Emit approval requested event — user will see it on their active session
-            val approvalEvent = AgentEvent.ApprovalRequested(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = toolCallId,
-                toolName = name,
-                toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                toolArgs = inputSummary,
-            )
-            // Attempt to deliver via the user's active session SSE stream
-            ActiveEventBridge.emit(userId, approvalEvent)
-            // Fallback path: McpServer-bound emitter (set in Application.kt)
-            eventEmitter?.invoke(approvalEvent)
-            
-            // Suspend until UI approves/denies
-            val result = runCatching {
-                val sessionId = userId
-                ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
-            }.getOrElse { e ->
-                logger.error("[McpServer] Approval await failed for $toolCallId", e)
-                com.example.smarty.server.agent.ApprovalResult(false, "Approval system error")
-            }
-            
-            if (!result.approved) {
-                return buildJsonObject {
-                    put("content", buildJsonArray {
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", "User denied: ${result.feedback ?: "no reason given"}")
-                        })
-                    })
-                }
-            }
-            logger.info("[McpServer] Tool $name approved by user, proceeding with execution")
-        }
 
         logger.info("Executing MCP Tool: $name for userId: $userId")
 

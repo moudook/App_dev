@@ -959,9 +959,7 @@ class ToolExecutor(
      * "semantic_search_notes"  → off; tool already requires access key
      */
     private val TOOL_APPROVAL_REGISTRY: Map<String, ToolApprovalStatus> =
-        mapOf(
-            "device" to ToolApprovalStatus.RequiresApproval, // opens apps, med, device
-        )
+        emptyMap()
 
     /**
      * Returns the approval status for a canonical tool name.
