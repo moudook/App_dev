@@ -120,12 +120,9 @@ class McpServer(
             // the OpenCode CLI daemon. This is required because the daemon cannot provide
             // Firebase JWT tokens but must be able to discover and call MCP tools.
             post("/messages") {
-                val sessionId = call.request.queryParameters["sessionId"]
-                if (sessionId == null || !sessions.containsKey(sessionId)) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing sessionId")
-                    return@post
-                }
-
+                val sessionId = call.request.queryParameters["sessionId"] ?: "default"
+                
+                // Allow unauthenticated local requests (from the OpenCode daemon)
                 val remoteHost = call.request.local.remoteHost
                 val isLocalhost = remoteHost == "127.0.0.1" || remoteHost == "::1" ||
                     remoteHost == "0:0:0:0:0:0:0:1" || remoteHost == "localhost"
@@ -154,11 +151,8 @@ class McpServer(
                     return@post
                 }
 
-                // Immediately accept the POST request
-                call.respond(HttpStatusCode.Accepted)
-
-                // Process the message asynchronously with the authenticated user's context
-                handleMcpRequest(sessionId, request, userId)
+                // Process synchronously and respond inline
+                handleMcpRequest(sessionId, request, userId, call)
             }
         }
     }
@@ -168,8 +162,8 @@ class McpServer(
         sessions.entries.removeIf { it.value.createdAt < deadline }
     }
 
-    private suspend fun handleMcpRequest(sessionId: String, request: JsonRpcRequest, userId: String) {
-        val channel = sessions[sessionId]?.channel ?: return
+    private suspend fun handleMcpRequest(sessionId: String, request: JsonRpcRequest, userId: String, call: ApplicationCall? = null) {
+        val channel = sessions[sessionId]?.channel
 
         try {
             val responseResult = when (request.method) {
@@ -187,16 +181,27 @@ class McpServer(
                     result = responseResult
                 )
                 val responseJson = Json.encodeToString(response)
-                channel.send(ServerSentEvent(event = "message", data = responseJson))
+                
+                // Send via SSE if channel exists
+                channel?.send(ServerSentEvent(event = "message", data = responseJson))
+                
+                // Send inline HTTP response if call is available
+                call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.OK, text = responseJson)
+            } else if (call != null) {
+                call.respond(HttpStatusCode.Accepted)
             }
         } catch (e: Exception) {
             logger.error("[McpServer] Error processing method ${request.method}: ${e.message}", e)
             if (request.id != null) {
                 val errorResponse = JsonRpcResponse(
                     id = request.id,
-                    error = JsonRpcError(code = -32603, message = "Internal error")
+                    error = JsonRpcError(code = -32603, message = e.message ?: "Internal error")
                 )
-                channel.send(ServerSentEvent(event = "message", data = Json.encodeToString(errorResponse)))
+                val errorJson = Json.encodeToString(errorResponse)
+                channel?.send(ServerSentEvent(event = "message", data = errorJson))
+                call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.InternalServerError, text = errorJson)
+            } else {
+                call?.respond(HttpStatusCode.InternalServerError)
             }
         }
     }
