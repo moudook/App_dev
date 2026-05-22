@@ -6,7 +6,7 @@ import com.example.smarty.server.llm.ToolProperty
 
 /**
  * Research Agent Tools - Enhanced toolset for advanced research.
- * Includes web search, scraping, PDF extraction, GitHub discovery, and progress tracking.
+ * Includes web search, scraping, and progress tracking.
  */
 object ResearchAgentTools {
     /**
@@ -28,8 +28,6 @@ object ResearchAgentTools {
         return listOf(
             webSearchToolDefinition(),
             webScrapeToolDefinition(),
-            pdfCrawlerToolDefinition(),
-            githubCrawlerToolDefinition(),
             saveProgressToolDefinition(),
             readProgressToolDefinition(),
         )
@@ -143,117 +141,5 @@ object ResearchAgentTools {
         )
     }
 
-    /**
-     * PDF Crawler Tool Definition - Extract text from PDF documents
-     */
-    private fun pdfCrawlerToolDefinition(): ToolDefinition {
-        return ToolDefinition(
-            name = "pdf_crawler",
-            description = """Extract text from PDF documents (academic papers, technical reports, government documents).
-Use this when you find PDF URLs in search results or when the user specifically mentions a PDF.
 
-CAPABILITIES:
-- Extract text from remote PDF URLs
-- Process academic papers, government reports (NIST, CISA, NSA)
-- Extract up to 100 pages (50MB max)
-- Preserve document metadata (title, author, date)
-
-EXAMPLES:
-- pdf_crawler(url="https://arxiv.org/pdf/2301.12345.pdf")
-- pdf_crawler(url="https://cisa.gov/sites/default/files/publications/report.pdf")
-
-Use for: academic research, technical documentation, government reports.""",
-            parameters =
-                ToolParameters(
-                    properties =
-                        mapOf(
-                            "url" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "The PDF URL to extract content from",
-                                ),
-                            "purpose" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Why this PDF is being extracted (for tracking)",
-                                ),
-                        ),
-                    required = listOf("url"),
-                ),
-        )
-    }
-
-    /**
-     * GitHub Crawler Tool Definition - Extract technical information from GitHub
-     */
-    private fun githubCrawlerToolDefinition(): ToolDefinition {
-        return ToolDefinition(
-            name = "github_crawler",
-            description = """Extract technical information from GitHub repositories.
-Use this for technical research, code discovery, vulnerability research, and OSINT.
-
-CAPABILITIES:
-- Get repository metadata (stars, forks, contributors, language)
-- Extract file content (source code, configs, documentation)
-- Search code across repositories
-- Get security advisories and CVE information
-- Fetch release notes and changelogs
-- Analyze issues and pull requests
-
-ACTIONS:
-- repo_info: Get repository metadata (owner, repo)
-- file_content: Extract file content (owner, repo, path)
-- search_code: Search for code patterns (query)
-- security_advisories: Get security advisories (owner, repo)
-- releases: Get release information (owner, repo)
-- issues: Get issues (owner, repo, state)
-
-EXAMPLES:
-- github_crawler(action="repo_info", owner="microsoft", repo="vscode")
-- github_crawler(action="file_content", owner="torvalds", repo="linux", path="README.md")
-- github_crawler(action="search_code", query="CVE-2024-1234 exploit")
-- github_crawler(action="security_advisories", owner="apache", repo="log4j")
-
-Use for: technical research, vulnerability analysis, code discovery, OSINT.""",
-            parameters =
-                ToolParameters(
-                    properties =
-                        mapOf(
-                            "action" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Action: repo_info|file_content|search_code|security_advisories|releases|issues",
-                                    enum = listOf("repo_info", "file_content", "search_code", "security_advisories", "releases", "issues"),
-                                ),
-                            "owner" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "GitHub owner/organization (e.g., 'microsoft', 'apache')",
-                                ),
-                            "repo" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Repository name",
-                                ),
-                            "path" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "File path within repository (for file_content action)",
-                                ),
-                            "query" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Search query (for search_code action)",
-                                ),
-                            "state" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Issue state: open|closed|all (for issues action)",
-                                    enum = listOf("open", "closed", "all"),
-                                ),
-                        ),
-                    required = listOf("action"),
-                ),
-        )
-    }
 }
