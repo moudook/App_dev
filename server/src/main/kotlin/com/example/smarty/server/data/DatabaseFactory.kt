@@ -18,6 +18,7 @@ object DatabaseFactory {
     private val logger = LoggerFactory.getLogger(DatabaseFactory::class.java)
     private var dataSource: HikariDataSource? = null
     private var database: Database? = null
+    private var connectionFailed = false
 
     fun init() {
         val ds = getDataSource()
@@ -104,6 +105,9 @@ object DatabaseFactory {
 
     @Synchronized
     fun getDataSource(): DataSource? {
+        if (connectionFailed) {
+            return null
+        }
         if (dataSource == null) {
             var dbUrl = System.getenv("DB_URL")
             val dbUser = System.getenv("DB_USER")
@@ -138,12 +142,10 @@ object DatabaseFactory {
                     keepaliveTime = 300000
                     connectionTestQuery = "SELECT 1"
                     leakDetectionThreshold = 120000
-                    addDataSourceProperty("prepareThreshold", "1")
-                    addDataSourceProperty("cachePrepStmts", "true")
-                    addDataSourceProperty("prepStmtCacheSize", "250")
-                    addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
                     addDataSourceProperty("tcpKeepAlive", "true")
                     addDataSourceProperty("socketTimeout", "60")
+                    // PgBouncer transaction mode does not support server-side prepared statements
+                    addDataSourceProperty("prepareThreshold", "0")
                 }
 
             dataSource =
@@ -163,6 +165,7 @@ object DatabaseFactory {
                     logger.error("Check that PostgreSQL is running and DB_URL/DB_USER/DB_PASSWORD are correct")
                     logger.error("If using Docker: docker ps (check container), docker logs <container_id>")
                     logger.error("Server will continue without database support")
+                    connectionFailed = true
                     null
                 }
         }
@@ -172,6 +175,7 @@ object DatabaseFactory {
     fun close() {
         dataSource?.close()
         dataSource = null
+        connectionFailed = false
     }
 
     /**
