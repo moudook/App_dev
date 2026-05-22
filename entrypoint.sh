@@ -72,7 +72,7 @@ echo "  Max RAM: 80%"
 echo "  OOM behavior: ExitOnOutOfMemoryError"
 
 JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
-java $JAVA_OPTS -jar app.jar > /tmp/ktor-server.log 2>&1 &
+java $JAVA_OPTS -jar app.jar 2>&1 | tee /tmp/ktor-server.log &
 KTOR_PID=$!
 echo "  Ktor PID: $KTOR_PID"
 echo "  Ktor log: /tmp/ktor-server.log"

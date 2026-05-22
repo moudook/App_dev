@@ -16,6 +16,8 @@ import com.example.smarty.data.local.dao.AgentStepDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.serialization.json.Json
 
 /**
  * Repository for managing chat sessions and messages.
@@ -125,13 +127,47 @@ class ChatRepository(
      * Get messages for a session
      */
     fun getMessagesForSession(sessionId: String): Flow<List<ChatMessage>> {
-        return chatDao.getMessagesForSession(sessionId)
-            .map { entities -> entities.map { it.toChatMessage() } }
-            .distinctUntilChanged()
+        return combine(
+            chatDao.getMessagesForSession(sessionId),
+            timelineEventDao.getEventsForSessionFlow(sessionId)
+        ) { messageEntities, eventEntities ->
+            val eventsByMessageId = eventEntities.groupBy { it.traceId }
+            messageEntities.map { entity ->
+                val baseMessage = entity.toChatMessage()
+                val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                    try {
+                        Json.decodeFromString(
+                            com.example.smarty.protocol.AgentEvent.serializer(),
+                            eventEntity.payloadJson
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                } ?: emptyList()
+                baseMessage.copy(agentEvents = parsedEvents)
+            }
+        }.distinctUntilChanged()
     }
 
     suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
-        return chatDao.getMessagesForSessionOnce(sessionId).map { it.toChatMessage() }
+        val messageEntities = chatDao.getMessagesForSessionOnce(sessionId)
+        val eventEntities = timelineEventDao.getEventsForSession(sessionId)
+        val eventsByMessageId = eventEntities.groupBy { it.traceId }
+
+        return messageEntities.map { entity ->
+            val baseMessage = entity.toChatMessage()
+            val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                try {
+                    Json.decodeFromString(
+                        com.example.smarty.protocol.AgentEvent.serializer(),
+                        eventEntity.payloadJson
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            } ?: emptyList()
+            baseMessage.copy(agentEvents = parsedEvents)
+        }
     }
 
     suspend fun deleteMessage(messageId: String): Boolean {
