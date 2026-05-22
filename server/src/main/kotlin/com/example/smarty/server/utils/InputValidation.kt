@@ -34,7 +34,8 @@ object InputValidation {
             Regex("onclick\\s*=", RegexOption.IGNORE_CASE),
             Regex("eval\\s*\\(", RegexOption.IGNORE_CASE),
             Regex("alert\\s*\\(", RegexOption.IGNORE_CASE),
-            Regex("--\\s*$"), // SQL comment
+            // SQL comment
+            Regex("--\\s*$"),
             Regex(";\\s*DROP\\s+", RegexOption.IGNORE_CASE),
             Regex(";\\s*DELETE\\s+", RegexOption.IGNORE_CASE),
             Regex(";\\s*UPDATE\\s+", RegexOption.IGNORE_CASE),
@@ -42,8 +43,10 @@ object InputValidation {
             Regex("\\bOR\\s+1\\s*=\\s*1\\b", RegexOption.IGNORE_CASE),
             Regex("\\bAND\\s+1\\s*=\\s*1\\b", RegexOption.IGNORE_CASE),
             Regex("UNION\\s+SELECT", RegexOption.IGNORE_CASE),
-            Regex("\\.\\./", RegexOption.IGNORE_CASE), // Path traversal
-            Regex("\\.\\.\\\\", RegexOption.IGNORE_CASE), // Path traversal (Windows)
+            // Path traversal
+            Regex("\\.\\./", RegexOption.IGNORE_CASE),
+            // Path traversal (Windows)
+            Regex("\\.\\.\\\\", RegexOption.IGNORE_CASE),
         )
 
     /**

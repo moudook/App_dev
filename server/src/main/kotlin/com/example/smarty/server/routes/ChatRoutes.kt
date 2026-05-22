@@ -486,9 +486,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 }
 
-                // Register the event emitter with the ActiveEventBridge so McpServer
-                // approval events also reach this SSE stream
-                ActiveEventBridge.register(activeSessionId, eventEmitter)
+                // Register the event emitter with the ActiveEventBridge (keyed by userId)
+                // so McpServer approval events also reach this SSE stream
+                ActiveEventBridge.register(userId, eventEmitter)
 
                 // Create agent instance for this request with userId for multi-tenant isolation
                 val agent =
@@ -621,9 +621,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } finally {
                     // Clear the bridge so stale emitters never fire
-                    ActiveEventBridge.clear(activeSessionId)
+                    ActiveEventBridge.clear(userId)
                     // Reject pending approvals to prevent hanging coroutines (C2 fix)
                     com.example.smarty.server.agent.ApprovalRegistry.cancelApprovalsForSession(activeSessionId)
+                    // Free thinking trace memory for this session
+                    ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
                     // Always end the active session
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                 }

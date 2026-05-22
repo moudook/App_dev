@@ -55,7 +55,9 @@ class UtilityService(
                         listOf(
                             LlmMessage(
                                 role = LlmMessage.Role.USER,
-                                content = "Extract the intended date and time from this text: '$query'. Return ONLY the ISO-8601 string (e.g., 2023-10-25T14:30:00). User is in $userTimezone. If no date, return 'null'.",
+                                content = "Extract the intended date and time from this text: '$query'. " +
+                    "Return ONLY the ISO-8601 string (e.g., 2023-10-25T14:30:00). " +
+                    "User is in $userTimezone. If no date, return 'null'.",
                             ),
                         ),
                 )

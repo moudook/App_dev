@@ -2,10 +2,9 @@ package com.example.smarty.server.utils
 
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.response.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.response.respond
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory

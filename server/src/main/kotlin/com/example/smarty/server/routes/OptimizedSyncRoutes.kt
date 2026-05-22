@@ -277,111 +277,103 @@ fun Application.configureOptimizedSyncRoutes() {
                         val createdEvents = mutableListOf<String>()
                         val errors = mutableListOf<String>()
 
-                        request.notes?.forEach { noteItem ->
-                            try {
-                                val info = com.example.smarty.protocol.NoteInfo(
-                                    id = noteItem.id ?: "",
-                                    title = noteItem.title,
-                                    content = noteItem.content,
-                                    summary = noteItem.summary,
-                                    sourceUrl = noteItem.sourceUrl,
-                                    imageUri = noteItem.imageUri,
-                                    fileUri = noteItem.fileUri,
-                                    fileName = noteItem.fileName,
-                                    fileMimeType = noteItem.fileMimeType,
-                                    fileSize = noteItem.fileSize,
-                                    type = noteItem.type,
-                                    categoryId = noteItem.categoryId,
-                                    categoryName = noteItem.categoryName,
-                                    stackId = noteItem.stackId,
-                                    parentNoteId = noteItem.parentNoteId,
-                                    whySaved = noteItem.whySaved,
-                                    processingStatus = noteItem.processingStatus,
-                                    isArchived = noteItem.isArchived,
-                                    isPinned = noteItem.isPinned,
-                                    isFavorite = noteItem.isFavorite,
-                                    isFullPrivacy = noteItem.isFullPrivacy,
-                                    excludeFromAiChat = noteItem.excludeFromAiChat,
-                                    isAiCreated = noteItem.isAiCreated,
-                                    isViewed = noteItem.isViewed,
-                                    todoContent = noteItem.todoContent,
-                                    attachmentsJson = noteItem.attachmentsJson,
-                                    tagsJson = noteItem.tagsJson,
-                                    chunkAnalysesJson = noteItem.chunkAnalysesJson,
-                                    reminderText = noteItem.reminderText,
-                                    reminderExpiresAt = noteItem.reminderExpiresAt,
-                                    createdAt = System.currentTimeMillis(), // Fallback
-                                    updatedAt = noteItem.updatedAt
-                                )
+                        // Execute push atomically: note/session/event operations + sync status update
+                        // share a single database connection and transaction.
+                        // Individual note version snapshots and session message inserts within
+                        // the push use their own connections but are idempotent (ON CONFLICT DO UPDATE).
+                        com.example.smarty.server.data.DatabaseFactory.withAtomicTransaction { conn ->
 
-                                if (noteItem.id != null) {
-                                    val updated = noteRepository.update(userId, info)
-                                    if (!updated) {
-                                        val id = noteRepository.create(userId, info)
+                            request.notes?.forEach { noteItem ->
+                                try {
+                                    val info = com.example.smarty.protocol.NoteInfo(
+                                        id = noteItem.id ?: "",
+                                        title = noteItem.title,
+                                        content = noteItem.content,
+                                        summary = noteItem.summary,
+                                        sourceUrl = noteItem.sourceUrl,
+                                        imageUri = noteItem.imageUri,
+                                        fileUri = noteItem.fileUri,
+                                        fileName = noteItem.fileName,
+                                        fileMimeType = noteItem.fileMimeType,
+                                        fileSize = noteItem.fileSize,
+                                        type = noteItem.type,
+                                        categoryId = noteItem.categoryId,
+                                        categoryName = noteItem.categoryName,
+                                        stackId = noteItem.stackId,
+                                        parentNoteId = noteItem.parentNoteId,
+                                        whySaved = noteItem.whySaved,
+                                        processingStatus = noteItem.processingStatus,
+                                        isArchived = noteItem.isArchived,
+                                        isPinned = noteItem.isPinned,
+                                        isFavorite = noteItem.isFavorite,
+                                        isFullPrivacy = noteItem.isFullPrivacy,
+                                        excludeFromAiChat = noteItem.excludeFromAiChat,
+                                        isAiCreated = noteItem.isAiCreated,
+                                        isViewed = noteItem.isViewed,
+                                        todoContent = noteItem.todoContent,
+                                        attachmentsJson = noteItem.attachmentsJson,
+                                        tagsJson = noteItem.tagsJson,
+                                        chunkAnalysesJson = noteItem.chunkAnalysesJson,
+                                        reminderText = noteItem.reminderText,
+                                        reminderExpiresAt = noteItem.reminderExpiresAt,
+                                        createdAt = System.currentTimeMillis(),
+                                        updatedAt = noteItem.updatedAt
+                                    )
+
+                                    if (noteItem.id != null) {
+                                        val updated = noteRepository.update(userId, info, connection = conn)
+                                        if (!updated) {
+                                            val id = noteRepository.create(userId, info, connection = conn)
+                                            createdNotes.add(id)
+                                        }
+                                    } else {
+                                        val id = noteRepository.create(userId, info, connection = conn)
                                         createdNotes.add(id)
                                     }
-                                } else {
-                                    val id = noteRepository.create(userId, info)
-                                    createdNotes.add(id)
+                                } catch (e: Exception) {
+                                    errors.add("Failed to process note")
                                 }
-                            } catch (e: Exception) {
-                                errors.add("Failed to process note")
                             }
-                        }
 
-                        request.sessions?.forEach { sessionItem ->
-                            try {
-                                val created = chatRepository.createSessionWithId(userId, sessionItem.id, sessionItem.title)
-                                if (created) {
-                                    createdSessions.add(sessionItem.id)
-                                }
-
-                                sessionItem.messages?.forEach { msg ->
-                                    if (msg.id != null) {
-                                        chatRepository.saveMessageWithId(userId, sessionItem.id, msg.id!!, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson, createdAt = msg.createdAt)
-                                    } else {
-                                        chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson)
+                            request.sessions?.forEach { sessionItem ->
+                                try {
+                                    val created = chatRepository.createSessionWithId(userId, sessionItem.id, sessionItem.title)
+                                    if (created) {
+                                        createdSessions.add(sessionItem.id)
                                     }
+                                    sessionItem.messages?.forEach { msg ->
+                                        if (msg.id != null) {
+                                            chatRepository.saveMessageWithId(userId, sessionItem.id, msg.id!!, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson, createdAt = msg.createdAt)
+                                        } else {
+                                            chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    errors.add("Failed to process session")
                                 }
-                            } catch (e: Exception) {
-                                errors.add("Failed to process session")
                             }
-                        }
 
-                        request.events?.forEach { eventItem ->
-                            try {
-                                if (eventItem.id != null) {
-                                    val nonNullId = eventItem.id!!
-                                    val id =
-                                        calendarRepository.createWithId(
-                                            userId,
-                                            nonNullId,
-                                            eventItem.title,
-                                            eventItem.startTime,
-                                            eventItem.endTime,
-                                            eventItem.description,
-                                        )
-                                    if (id == nonNullId) {
+                            request.events?.forEach { eventItem ->
+                                try {
+                                    if (eventItem.id != null) {
+                                        val nonNullId = eventItem.id!!
+                                        val id = calendarRepository.createWithId(userId, nonNullId, eventItem.title, eventItem.startTime, eventItem.endTime, eventItem.description)
+                                        if (id == nonNullId) {
+                                            createdEvents.add(id)
+                                        }
+                                    } else {
+                                        val id = calendarRepository.create(userId, eventItem.title, eventItem.startTime, eventItem.endTime, eventItem.description, eventItem.reminderMinutes)
                                         createdEvents.add(id)
                                     }
-                                } else {
-                                    val id =
-                                        calendarRepository.create(
-                                            userId,
-                                            eventItem.title,
-                                            eventItem.startTime,
-                                            eventItem.endTime,
-                                            eventItem.description,
-                                            eventItem.reminderMinutes,
-                                        )
-                                    createdEvents.add(id)
+                                } catch (e: Exception) {
+                                    errors.add("Failed to process event")
                                 }
-                            } catch (e: Exception) {
-                                errors.add("Failed to process event")
                             }
-                        }
 
-                        syncRepository.updateSyncStatus(userId)
+                            // Sync status update uses the same transaction — if this succeeds,
+                            // all preceding operations were committed atomically.
+                            syncRepository.updateSyncStatus(userId, connection = conn)
+                        }
 
                         // INVALIDATE CACHE on successful push
                         syncCache.invalidate(userId)

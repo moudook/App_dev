@@ -3,21 +3,12 @@ package com.example.smarty.server.utils
 import java.util.UUID
 
 /**
- * UUID extension functions for consistent and safe UUID conversion.
- *
- * This utility eliminates duplication of UUID parsing and validation
- * across repositories and services.
+ * Convert string to UUID with descriptive error.
  *
  * Usage:
  * ```
  * val uuid = userId.toUuid()
- * val uuidOrNull = maybeId.toUuidOrNull()
- * val uuids = idList.toUuidList()
  * ```
- */
-
-/**
- * Convert string to UUID with descriptive error.
  */
 fun String.toUuid(): UUID =
     try {

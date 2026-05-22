@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.UUID
+import java.sql.Connection
 import javax.sql.DataSource
 import java.sql.ResultSet
 
@@ -26,9 +27,9 @@ class NoteRepository(
     suspend fun create(
         userId: String,
         info: NoteInfo,
+        connection: Connection? = null,
     ): String =
         withContext(Dispatchers.IO) {
-            // CHECK FOR DUPLICATES FIRST
             val existingNoteId = deduplicationManager.findDuplicateNote(userId, info.content, info.title)
             if (existingNoteId != null) {
                 logger.info("Duplicate note detected: returning existing note id={} for user={}", existingNoteId, userId)
@@ -36,7 +37,9 @@ class NoteRepository(
             }
 
             val id = if (info.id.isNotEmpty()) UUID.fromString(info.id) else UUID.randomUUID()
-            dataSource.connection.use { conn ->
+            val closeConn = connection == null
+            val conn = connection ?: dataSource.connection
+            try {
                 val sql =
                     """
                     INSERT INTO notes (
@@ -89,6 +92,8 @@ class NoteRepository(
                     stmt.setObject(idx++, info.wordCount)
                     stmt.executeUpdate()
                 }
+            } finally {
+                if (closeConn) conn.close()
             }
             id.toString()
         }
@@ -159,10 +164,12 @@ class NoteRepository(
     suspend fun update(
         userId: String,
         info: NoteInfo,
+        connection: Connection? = null,
     ): Boolean =
         withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                // PHASE 7: Create version snapshot if content changed
+            val closeConn = connection == null
+            val conn = connection ?: dataSource.connection
+            try {
                 val existingNote = getById(userId, info.id)
                 val contentChanged = existingNote != null && existingNote.content != info.content
 
@@ -178,7 +185,6 @@ class NoteRepository(
                             createdAt = null,
                         )
                     )
-                    // Prune old versions to prevent unbounded growth
                     noteVersionRepo.deleteOldVersions(info.id, keepCount = 10)
                     logger.info("Created version snapshot for note ${info.id} (version ${latestVersionNo + 1})")
                 }
@@ -239,6 +245,8 @@ class NoteRepository(
                     stmt.setObject(idx, UUID.fromString(userId))
                     stmt.executeUpdate() > 0
                 }
+            } finally {
+                if (closeConn) conn.close()
             }
         }
 

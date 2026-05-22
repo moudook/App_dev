@@ -6,10 +6,9 @@ import java.sql.Timestamp
 import java.util.UUID
 
 /**
- * Database query helpers for consistent SQL patterns.
+ * SQL query builder for consistent query construction.
  *
- * This utility eliminates duplication of common database query patterns
- * across repositories.
+ * Eliminates duplication of common database query patterns across repositories.
  *
  * Usage:
  * ```
@@ -20,10 +19,6 @@ import java.util.UUID
  *     .limit(50)
  *     .build()
  * ```
- */
-
-/**
- * SQL query builder for consistent query construction.
  */
 class QueryBuilder private constructor(
     private val tableName: String,

@@ -75,12 +75,10 @@ import com.example.smarty.server.routes.configureModelRoutes
  */
 // import io.ktor.server.plugins.callloging.*
 import io.ktor.server.plugins.callid.*
-import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.auth.*
 import io.ktor.server.routing.*
 import org.slf4j.event.*
 import java.util.UUID
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Server port. Can be overridden via SERVER_PORT environment variable.
@@ -89,8 +87,13 @@ private val serverPort = System.getenv("SERVER_PORT")?.toIntOrNull() ?: 7860
 val serverStartTime = System.currentTimeMillis()
 
 fun main() {
-    embeddedServer(Netty, port = serverPort, host = "0.0.0.0", module = Application::module)
-        .start(wait = true)
+    val server = embeddedServer(Netty, port = serverPort, host = "0.0.0.0", module = Application::module)
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        server.stop(gracePeriodMillis = 5000, timeoutMillis = 10000)
+    })
+
+    server.start(wait = true)
 }
 
 fun Application.module() {
@@ -156,24 +159,6 @@ fun Application.module() {
 
     // Configure Security Monitoring
     configureSecurityMonitoring()
-
-    // Configure Rate Limiting - Simplified for low-memory environment
-    install(RateLimit) {
-        register(RateLimitName("chat")) {
-            rateLimiter(limit = 120, refillPeriod = 1.minutes)
-            requestKey { call ->
-                call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: call.request.local.remoteHost
-            }
-        }
-        global {
-            rateLimiter(limit = 100, refillPeriod = 1.minutes)
-            requestKey { call ->
-                call.principal<FirebaseUserPrincipal>()?.userId
-                    ?: call.request.local.remoteHost
-            }
-        }
-    }
 
     // Configure JSON serialization
     install(ContentNegotiation) {
@@ -387,6 +372,14 @@ fun Application.module() {
         log.info("Digest Scheduler started - daily digests will be generated at configured times")
     } else {
         log.warn("Database not configured - Digest Scheduler disabled")
+    }
+
+    // Graceful shutdown: stop background jobs and close database pool
+    monitor.subscribe(ApplicationStopping) {
+        log.info("Server stopping — cleaning up resources")
+        digestScheduler?.stop()
+        DatabaseFactory.close()
+        log.info("Server shutdown complete")
     }
 }
 

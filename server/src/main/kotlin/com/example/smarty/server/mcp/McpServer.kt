@@ -24,6 +24,9 @@ import io.ktor.server.routing.*
 import io.ktor.server.sse.*
 import io.ktor.sse.ServerSentEvent
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
@@ -44,6 +47,7 @@ class McpServer(
     // Event emitter for approval gating — injected by Application.kt route config
     var eventEmitter: (suspend (AgentEvent) -> Unit)? = null
 
+    private val json = Json { ignoreUnknownKeys = true }
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
     private val sessions = ConcurrentHashMap<String, Channel<ServerSentEvent>>()
 
@@ -60,17 +64,25 @@ class McpServer(
             // 1. Establish SSE Connection (GET via standard SSE protocol)
             sse("/sse") {
                 val sessionId = UUID.randomUUID().toString()
-                val channel = Channel<ServerSentEvent>(Channel.UNLIMITED)
+                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
                 sessions[sessionId] = channel
 
                 try {
                     // Send the endpoint URL to the client
                     send(ServerSentEvent(event = "endpoint", data = "/mcp/messages?sessionId=$sessionId"))
 
-                    // Keep connection alive and forward messages
-                    for (event in channel) {
-                        send(event)
+                    // SSE forwarding loop with heartbeat — detects stale connections
+                    while (isActive) {
+                        val event = withTimeoutOrNull(30000) { channel.receive() }
+                        if (event != null) {
+                            send(event)
+                        } else {
+                            // Heartbeat: if send fails, client disconnected and loop exits
+                            send(ServerSentEvent(event = "heartbeat", data = "ping"))
+                        }
                     }
+                } catch (e: Exception) {
+                    logger.debug("[McpServer] SSE client disconnected from session $sessionId: ${e.message?.take(50)}")
                 } finally {
                     sessions.remove(sessionId)
                     channel.close()
@@ -80,7 +92,7 @@ class McpServer(
             // OpenCode daemon sends POST to /sse for MCP init — create session and respond
             post("/sse") {
                 val sessionId = UUID.randomUUID().toString()
-                val channel = Channel<ServerSentEvent>(Channel.UNLIMITED)
+                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
                 sessions[sessionId] = channel
 
                 call.respondText(
@@ -107,7 +119,7 @@ class McpServer(
 
                 val body = call.receiveText()
                 val request = runCatching {
-                    Json { ignoreUnknownKeys = true }.decodeFromString<JsonRpcRequest>(body)
+                    json.decodeFromString<JsonRpcRequest>(body)
                 }.getOrNull()
 
                 if (request == null) {
@@ -146,10 +158,11 @@ class McpServer(
                 channel.send(ServerSentEvent(event = "message", data = responseJson))
             }
         } catch (e: Exception) {
+            logger.error("[McpServer] Error processing method ${request.method}: ${e.message}", e)
             if (request.id != null) {
                 val errorResponse = JsonRpcResponse(
                     id = request.id,
-                    error = JsonRpcError(code = -32603, message = e.message ?: "Internal error")
+                    error = JsonRpcError(code = -32603, message = "Internal error")
                 )
                 channel.send(ServerSentEvent(event = "message", data = Json.encodeToString(errorResponse)))
             }

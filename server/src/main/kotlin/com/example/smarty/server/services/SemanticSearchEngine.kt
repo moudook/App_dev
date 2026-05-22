@@ -183,7 +183,10 @@ object SemanticSearchEngine {
         return dp[s1.length][s2.length]
     }
 
-    fun jaroWinklerSimilarity(s1: String, s2: String): Double {
+    fun jaroWinklerSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1 == s2) return 1.0
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
         val jaro = jaroSimilarity(s1, s2)
@@ -191,7 +194,10 @@ object SemanticSearchEngine {
         return jaro + (prefixLength * 0.1 * (1 - jaro))
     }
 
-    private fun jaroSimilarity(s1: String, s2: String): Double {
+    private fun jaroSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         val matchWindow = max(s1.length, s2.length) / 2 - 1
         val s1Matches = BooleanArray(s1.length)
         val s2Matches = BooleanArray(s2.length)
@@ -219,7 +225,11 @@ object SemanticSearchEngine {
         return ((matches.toDouble() / s1.length) + (matches.toDouble() / s2.length) + ((matches - transpositions / 2.0) / matches)) / 3.0
     }
 
-    fun ngramSimilarity(s1: String, s2: String, n: Int = 2): Double {
+    fun ngramSimilarity(
+        s1: String,
+        s2: String,
+        n: Int = 2,
+    ): Double {
         if (s1.length < n || s2.length < n) return 0.0
         val ngrams1 = s1.windowed(n).toSet()
         val ngrams2 = s2.windowed(n).toSet()
@@ -228,7 +238,10 @@ object SemanticSearchEngine {
         return if (union == 0) 0.0 else intersection.toDouble() / union
     }
 
-    private fun tokenOverlapScore(queryTokens: List<String>, targetTokens: List<String>): Double {
+    private fun tokenOverlapScore(
+        queryTokens: List<String>,
+        targetTokens: List<String>,
+    ): Double {
         if (queryTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
         var matchedTokens = 0
         for (queryToken in queryTokens) {
@@ -239,7 +252,10 @@ object SemanticSearchEngine {
         return matchedTokens.toDouble() / queryTokens.size
     }
 
-    private fun phoneticMatchScore(querySoundex: List<String>, targetSoundex: List<String>): Double {
+    private fun phoneticMatchScore(
+        querySoundex: List<String>,
+        targetSoundex: List<String>,
+    ): Double {
         if (querySoundex.isEmpty() || targetSoundex.isEmpty()) return 0.0
         val matches = querySoundex.count { qs -> targetSoundex.any { ts -> ts == qs } }
         return (matches.toDouble() / querySoundex.size) * 0.85

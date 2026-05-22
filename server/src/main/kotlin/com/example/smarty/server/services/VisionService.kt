@@ -3,7 +3,7 @@ package com.example.smarty.server.services
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmProviderFactory
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
@@ -104,8 +104,12 @@ class VisionService(
             }
             val ocrDuration = System.currentTimeMillis() - ocrStart
             val extractedText = response.toString().trim()
-            logger.info("[VisionService] OCR completed in {}ms — extracted {} chars, content type: {}",
-                ocrDuration, extractedText.length, detectContentType(extractedText))
+            logger.info(
+                "[VisionService] OCR completed in {}ms — extracted {} chars, content type: {}",
+                ocrDuration,
+                extractedText.length,
+                detectContentType(extractedText),
+            )
 
             OcrResult(
                 extractedText = extractedText,
@@ -141,8 +145,12 @@ class VisionService(
         customPrompt: String? = null,
     ): ImageAnalysisResult {
         val imageBytes = if (base64Image.contains(",")) base64Image.substringAfter(",") else base64Image
-        logger.info("[VisionService] Image analysis requested — mimeType: {}, customPrompt: {}, image size: {} bytes",
-            mimeType, if (customPrompt != null) "yes" else "no", imageBytes.length)
+        logger.info(
+            "[VisionService] Image analysis requested — mimeType: {}, customPrompt: {}, image size: {} bytes",
+            mimeType,
+            if (customPrompt != null) "yes" else "no",
+            imageBytes.length,
+        )
 
         val prompt = customPrompt ?: IMAGE_ANALYSIS_PROMPT
 
@@ -163,8 +171,11 @@ class VisionService(
             }
             val analysisDuration = System.currentTimeMillis() - analysisStart
             val description = response.toString().trim()
-            logger.info("[VisionService] Image analysis completed in {}ms — description: {} chars",
-                analysisDuration, description.length)
+            logger.info(
+                "[VisionService] Image analysis completed in {}ms — description: {} chars",
+                analysisDuration,
+                description.length,
+            )
 
             ImageAnalysisResult(
                 description = description,

@@ -119,5 +119,8 @@ class NoteService(
     
     suspend fun getNote(userId: String, noteId: String): NoteInfo? = noteRepository.getById(userId, noteId)
     
-    suspend fun deleteNote(userId: String, noteId: String): Boolean = noteRepository.delete(userId, noteId)
+    suspend fun deleteNote(
+        userId: String,
+        noteId: String,
+    ): Boolean = noteRepository.delete(userId, noteId)
 }

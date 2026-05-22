@@ -3,38 +3,14 @@ package com.example.smarty.server.utils
 import kotlinx.coroutines.delay
 
 /**
- * Retry Policy with exponential backoff.
- *
- * Single Responsibility: Only handles retry logic.
- * DRY: Replaces repeated retry patterns across services.
+ * Execute a block with retry logic using exponential backoff.
  *
  * Usage:
  * ```
- * // Simple retry
  * val result = withRetry {
  *     callExternalService()
  * }
- *
- * // Retry with custom settings
- * val result = withRetry(
- *     maxRetries = 5,
- *     initialDelayMs = 1000,
- *     maxDelayMs = 10000
- * ) {
- *     callExternalService()
- * }
- *
- * // Retry with specific exceptions
- * val result = withRetry(
- *     retryOn = listOf(IOException::class)
- * ) {
- *     callExternalService()
- * }
  * ```
- */
-
-/**
- * Execute a block with retry logic.
  */
 suspend fun <T> withRetry(
     maxRetries: Int = 3,

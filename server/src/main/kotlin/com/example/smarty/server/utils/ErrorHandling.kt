@@ -1,9 +1,9 @@
 package com.example.smarty.server.utils
 
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.uri
+import io.ktor.server.response.respond
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
@@ -13,22 +13,17 @@ import org.slf4j.LoggerFactory
 class UnauthorizedException(message: String) : Exception(message)
 
 /**
- * Error handling wrapper for consistent error responses across routes.
+ * Handle errors in a route handler with consistent logging and response.
  *
- * This utility eliminates duplication of try-catch blocks by providing
- * a standardized way to handle errors with consistent logging and responses.
+ * Eliminates duplication of try-catch blocks by providing a standardized way
+ * to handle errors with consistent logging and responses.
  *
  * Usage:
  * ```
  * handleRouteErrors(call, "Operation failed") {
- *     // Business logic here
  *     performOperation()
  * }
  * ```
- */
-
-/**
- * Handle errors in a route handler with consistent logging and response.
  *
  * @param call The application call
  * @param errorMessage Base error message for logging

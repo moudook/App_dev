@@ -12,14 +12,14 @@ object ActiveEventBridge {
 
     private val emitters = ConcurrentHashMap<String, suspend (AgentEvent) -> Unit>()
 
-    fun register(sessionId: String, emitter: suspend (AgentEvent) -> Unit) {
-        emitters[sessionId] = emitter
-        logger.info("[ActiveEventBridge] Registered active SSE emitter for session: $sessionId")
+    fun register(userId: String, emitter: suspend (AgentEvent) -> Unit) {
+        emitters[userId] = emitter
+        logger.info("[ActiveEventBridge] Registered active SSE emitter for user: $userId")
     }
 
-    fun clear(sessionId: String) {
-        emitters.remove(sessionId)
-        logger.info("[ActiveEventBridge] Cleared active SSE emitter for session: $sessionId")
+    fun clear(userId: String) {
+        emitters.remove(userId)
+        logger.info("[ActiveEventBridge] Cleared active SSE emitter for user: $userId")
     }
 
     suspend fun emit(sessionId: String?, event: AgentEvent) {
@@ -32,12 +32,12 @@ object ActiveEventBridge {
         if (emitter != null) {
             try {
                 emitter(event)
-                logger.debug("[ActiveEventBridge] Forwarded event: ${event::class.simpleName} to session: $sid")
+                logger.debug("[ActiveEventBridge] Forwarded event: ${event::class.simpleName} for user: $sid")
             } catch (e: Exception) {
-                logger.warn("[ActiveEventBridge] Failed to forward event to session $sid: ${e.message}")
+                logger.warn("[ActiveEventBridge] Failed to forward event for user $sid: ${e.message}")
             }
         } else {
-            logger.warn("[ActiveEventBridge] No active emitter found for session: $sid")
+            logger.warn("[ActiveEventBridge] No active emitter found for user: $sid")
         }
     }
 }

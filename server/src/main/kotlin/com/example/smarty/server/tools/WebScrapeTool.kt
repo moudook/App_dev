@@ -7,14 +7,13 @@
  */
 package com.example.smarty.server.tools
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.engine.okhttp.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
@@ -23,17 +22,16 @@ class WebScrapeTool {
         private val logger = LoggerFactory.getLogger(WebScrapeTool::class.java)
 
         // Blocked IP ranges for SSRF protection
-        private val blockedIpRanges =
-            listOf(
-                "127.0.0.0/8", // localhost
-                "10.0.0.0/8", // private
-                "172.16.0.0/12", // private
-                "192.168.0.0/16", // private
-                "169.254.0.0/16", // link-local
-                "198.18.0.0/15", // benchmark
-                "224.0.0.0/4", // multicast
-                "240.0.0.0/4", // reserved
-            )
+        private val blockedIpRanges = listOf(
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "169.254.0.0/16",
+            "198.18.0.0/15",
+            "224.0.0.0/4",
+            "240.0.0.0/4",
+        )
 
         private val allowedProtocols = setOf("http", "https")
 

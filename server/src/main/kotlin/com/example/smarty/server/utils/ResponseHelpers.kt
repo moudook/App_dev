@@ -1,32 +1,17 @@
 package com.example.smarty.server.utils
 
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-
-/**
- * Response Helpers for standardized API responses.
- *
- * Single Responsibility: Only handles response formatting.
- * DRY: Replaces repeated response patterns across all route files.
- *
- * Usage:
- * ```
- * // Success response
- * call.respondSuccess(data)
- *
- * // Error response
- * call.respondError(HttpStatusCode.BadRequest, "Invalid input")
- *
- * // Specific error types
- * call.respondBadRequest("Missing required field")
- * call.respondNotFound("Resource not found")
- * call.respondInternalServerError("Database error")
- * ```
- */
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.response.respond
 
 /**
  * Respond with a success message and optional data.
+ *
+ * Usage:
+ * ```
+ * call.respondSuccess(data)
+ * ```
  */
 suspend fun ApplicationCall.respondSuccess(data: Any? = null) {
     if (data != null) {

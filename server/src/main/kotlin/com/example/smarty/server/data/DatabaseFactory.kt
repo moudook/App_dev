@@ -6,6 +6,7 @@ import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.sql.Connection
 import javax.sql.DataSource
 
 /**
@@ -172,4 +173,25 @@ object DatabaseFactory {
         dataSource?.close()
         dataSource = null
     }
+
+    /**
+     * Execute a block of operations atomically within a single database transaction.
+     * Opens one connection, begins a transaction, executes [block], and commits.
+     * If [block] throws, the transaction is rolled back and the exception rethrown.
+     */
+    suspend fun <T> withAtomicTransaction(block: suspend (Connection) -> T): T =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val ds = getDataSource() ?: throw IllegalStateException("Database not available")
+            ds.connection.use { conn ->
+                conn.autoCommit = false
+                try {
+                    val result = block(conn)
+                    conn.commit()
+                    result
+                } catch (e: Exception) {
+                    try { conn.rollback() } catch (_: Exception) {}
+                    throw e
+                }
+            }
+        }
 }
