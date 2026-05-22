@@ -3,6 +3,7 @@ package com.example.smarty.server.routes
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
+import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.AgentPersistenceManager
 import com.example.smarty.server.agent.ServerAgent
 import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
@@ -401,6 +402,94 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
                 val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
 
+                val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
+                    try {
+                        // Collect citations from NotifyCitations command
+                        if (event is AgentEvent.Command) {
+                            val command = event.command
+                            if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
+                                collectedCitations.addAll(command.citations)
+                            }
+                        }
+
+                        // Collect Agent Steps
+                        if (event is AgentEvent.AgentStep) {
+                            collectedAgentSteps[event.stepIndex] = event
+                        }
+
+                        // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
+                        // This ensures thinking and tools are persisted even if stream fails
+                        if (event is AgentEvent.Processing || event is AgentEvent.ToolCall || event is AgentEvent.AgentStep) {
+                            val currentThinking =
+                                ThinkingStorageManagerSingleton.instance
+                                    .getCurrentThinking(activeSessionId)
+
+                            // Extract tool calls from thinking trace for progressive save
+                            val currentToolCalls =
+                                if (currentThinking.contains("SMARTY_TRACE_V2")) {
+                                    // Parse tool calls from thinking trace
+                                    currentThinking.substringAfter("SMARTY_TRACE_V2:")
+                                } else {
+                                    null
+                                }
+
+                            val currentAgentStepsJson = if (collectedAgentSteps.isNotEmpty()) {
+                                val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                                    com.example.smarty.core.domain.model.AgentStepEntry(
+                                        stepType = step.stepType,
+                                        stepTitle = step.stepTitle,
+                                        stepContent = step.stepContent,
+                                        stepStatus = step.stepStatus,
+                                        stepIndex = step.stepIndex,
+                                        toolName = step.toolName,
+                                        durationMs = step.durationMs
+                                    )
+                                }
+                                json.encodeToString(entries)
+                            } else null
+
+                            if (currentThinking.isNotBlank() || currentAgentStepsJson != null) {
+                                chatRepository?.updateMessageThinking(
+                                    userId = userId,
+                                    sessionId = activeSessionId,
+                                    thinking = currentThinking,
+                                    toolCalls = currentToolCalls,
+                                    agentStepsJson = currentAgentStepsJson
+                                )
+                            }
+                        }
+
+                        val eventType =
+                            when (event) {
+                                is AgentEvent.Processing -> "processing"
+                                is AgentEvent.ToolCall -> "tool_call"
+                                is AgentEvent.Command -> "command"
+                                is AgentEvent.Result -> "result"
+                                is AgentEvent.Error -> "error"
+                                is AgentEvent.StateSync -> "state_sync"
+                                is AgentEvent.ToolBlocked -> "tool_blocked"
+                                is AgentEvent.Question -> "question"
+                                is AgentEvent.NoteBlock -> "note_block"
+                                is AgentEvent.AgentStep -> "agent_step"
+                                else -> event::class.simpleName?.replace(Regex("([a-z])([A-Z]+)"), "$1_$2")?.lowercase() ?: "unknown"
+                            }
+                        call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
+                        send(
+                            ServerSentEvent(
+                                data = json.encodeToString(event),
+                                event = eventType,
+                            ),
+                        )
+                    } catch (e: Exception) {
+                        // Downgrade to DEBUG to avoid log spamming for expected client-side closures
+                        call.application.log.debug("SSE client disconnected during stream: ${e.message}")
+                    }
+                }
+
+                // Register the event emitter with the ActiveEventBridge so McpServer
+                // approval events also reach this SSE stream
+                ActiveEventBridge.register(eventEmitter)
+
                 // Create agent instance for this request with userId for multi-tenant isolation
                 val agent =
                     ServerAgent(
@@ -410,89 +499,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         noteRepository = noteRepository,
                         timerRepository = timerRepository,
                         calendarRepository = calendarRepository,
-                        eventEmitter = { event ->
-                            try {
-                                // Collect citations from NotifyCitations command
-                                if (event is AgentEvent.Command) {
-                                    val command = event.command
-                                    if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
-                                        collectedCitations.addAll(command.citations)
-                                    }
-                                }
-
-                                // Collect Agent Steps
-                                if (event is AgentEvent.AgentStep) {
-                                    collectedAgentSteps[event.stepIndex] = event
-                                }
-
-                                // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
-                                // This ensures thinking and tools are persisted even if stream fails
-                                if (event is AgentEvent.Processing || event is AgentEvent.ToolCall || event is AgentEvent.AgentStep) {
-                                    val currentThinking =
-                                        ThinkingStorageManagerSingleton.instance
-                                            .getCurrentThinking(activeSessionId)
-
-                                    // Extract tool calls from thinking trace for progressive save
-                                    val currentToolCalls =
-                                        if (currentThinking.contains("SMARTY_TRACE_V2")) {
-                                            // Parse tool calls from thinking trace
-                                            currentThinking.substringAfter("SMARTY_TRACE_V2:")
-                                        } else {
-                                            null
-                                        }
-
-                                    val currentAgentStepsJson = if (collectedAgentSteps.isNotEmpty()) {
-                                        val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                            com.example.smarty.core.domain.model.AgentStepEntry(
-                                                stepType = step.stepType,
-                                                stepTitle = step.stepTitle,
-                                                stepContent = step.stepContent,
-                                                stepStatus = step.stepStatus,
-                                                stepIndex = step.stepIndex,
-                                                toolName = step.toolName,
-                                                durationMs = step.durationMs
-                                            )
-                                        }
-                                        json.encodeToString(entries)
-                                    } else null
-
-                                    if (currentThinking.isNotBlank() || currentAgentStepsJson != null) {
-                                        chatRepository?.updateMessageThinking(
-                                            userId = userId,
-                                            sessionId = activeSessionId,
-                                            thinking = currentThinking,
-                                            toolCalls = currentToolCalls,
-                                            agentStepsJson = currentAgentStepsJson
-                                        )
-                                    }
-                                }
-
-                                val eventType =
-                                    when (event) {
-                                        is AgentEvent.Processing -> "processing"
-                                        is AgentEvent.ToolCall -> "tool_call"
-                                        is AgentEvent.Command -> "command"
-                                        is AgentEvent.Result -> "result"
-                                        is AgentEvent.Error -> "error"
-                                        is AgentEvent.StateSync -> "state_sync"
-                                        is AgentEvent.ToolBlocked -> "tool_blocked"
-                                        is AgentEvent.Question -> "question"
-                                        is AgentEvent.NoteBlock -> "note_block"
-                                        is AgentEvent.AgentStep -> "agent_step"
-                                        else -> event::class.simpleName?.replace(Regex("([a-z])([A-Z]+)"), "$1_$2")?.lowercase() ?: "unknown"
-                                    }
-                                call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
-                                send(
-                                    ServerSentEvent(
-                                        data = json.encodeToString(event),
-                                        event = eventType,
-                                    ),
-                                )
-                            } catch (e: Exception) {
-                                // Downgrade to DEBUG to avoid log spamming for expected client-side closures
-                                call.application.log.debug("SSE client disconnected during stream: ${e.message}")
-                            }
-                        },
+                        eventEmitter = eventEmitter,
                         userId = userId,
                         noteService = noteService,
                     )
@@ -613,6 +620,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         call.application.log.debug("Failed to send error SSE (client already disconnected): ${sendError.message}")
                     }
                 } finally {
+                    // Clear the bridge so stale emitters never fire
+                    ActiveEventBridge.clear()
                     // Always end the active session
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                 }

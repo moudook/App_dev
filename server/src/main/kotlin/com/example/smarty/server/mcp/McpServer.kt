@@ -1,6 +1,7 @@
 package com.example.smarty.server.mcp
 
 import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.ApprovalRegistry
@@ -210,16 +211,18 @@ class McpServer(
             val inputSummary = args.toString().take(200)
             
             // Emit approval requested event to suspend the stream
-            eventEmitter?.invoke(
-                AgentEvent.ApprovalRequested(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    toolId = toolCallId,
-                    toolName = name,
-                    toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    toolArgs = inputSummary,
-                )
+            val approvalEvent = AgentEvent.ApprovalRequested(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = toolCallId,
+                toolName = name,
+                toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                toolArgs = inputSummary,
             )
+            // Primary path: forward to the active chat SSE stream (bridged via ChatRoutes)
+            ActiveEventBridge.emit(approvalEvent)
+            // Fallback path: McpServer-bound emitter (set in Application.kt)
+            eventEmitter?.invoke(approvalEvent)
             
             // Suspend until UI approves/denies
             val result = runCatching {
