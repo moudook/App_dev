@@ -119,7 +119,12 @@ fun Application.module() {
                 "https://*.huggingface.co",
             ))
         for (origin in allowedOrigins) {
-            allowHost(origin)
+            val parts = origin.split("://", limit = 2)
+            if (parts.size == 2) {
+                allowHost(parts[1], schemes = listOf(parts[0]))
+            } else {
+                allowHost(origin)
+            }
         }
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
