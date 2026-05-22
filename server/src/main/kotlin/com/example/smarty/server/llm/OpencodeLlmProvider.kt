@@ -136,28 +136,14 @@ class OpencodeLlmProvider(
         // Update the tracker so next iteration only sends newly appended tool results/messages
         sessionMessageCount[daemonSessionId] = messages.size
 
-        logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs, tools: ${tools.size})")
+        logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs)")
 
-        // We map OpenCode's native web search AND webfetch (user requested).
-        // Explicitly DISABLE all other daemon-native tools (skill, todowrite, etc.)
-        // so the agent doesn't get confused about what's available.
-        val mappedTools = buildJsonObject {
-            put("web_search", true)
-            put("webfetch", true)
-            // Explicitly disable daemon-native tools that we don't want the agent to see/use
-            put("skill", false)
-            put("todowrite", false)
-            put("write_file", false)
-            put("read_file", false)
-            put("bash", false)
-            put("glob", false)
-            put("grep", false)
-            put("task", false)
-            put("question", false)
-            put("external_directory", false)
-        }
+        // Tools are NOT sent to the daemon — they all run via our MCP server.
+        // The daemon's only job is model inference; tool execution, permissions,
+        // and approval gating are handled by the Ktor-side ToolExecutor.
+        val fullModelId = "$providerId/$modelId"
 
-        logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, system=${systemPrompt?.length ?: 0}chars, tools=${tools.size}")
+        logger.info("[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, system=${systemPrompt?.length ?: 0}chars, model=$fullModelId")
 
         val flowCollector = this
 
@@ -174,13 +160,9 @@ class OpencodeLlmProvider(
                     setBody(
                         DaemonMessageRequest(
                             parts = parts,
-                            model = buildJsonObject {
-                                put("providerID", providerId)
-                                put("modelID", modelId)
-                            },
+                            model = fullModelId,
                             agent = agentName,
                             system = systemPrompt,
-                            tools = mappedTools,
                         )
                     )
                 }.execute { response ->
@@ -520,11 +502,10 @@ private data class DaemonSessionResponse(
 @Serializable
 private data class DaemonMessageRequest(
     val parts: List<JsonObject>,
-    val model: JsonObject? = null,
+    val model: String? = null,
     val agent: String? = null,
     val noReply: Boolean? = null,
     val system: String? = null,
-    val tools: JsonObject? = null,
 )
 
 @Serializable
