@@ -31,6 +31,7 @@ class CRDTManager {
         vectorClockLocal: VectorClock,
         vectorClockRemote: VectorClock,
     ): ConflictResolution<T> {
+        @Suppress("UNCHECKED_CAST")
         val strategy = (mergeStrategies[entityType] as? MergeStrategy<T>) ?: DefaultMergeStrategy<T>()
         
         return when {

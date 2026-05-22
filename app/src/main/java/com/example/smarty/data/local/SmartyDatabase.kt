@@ -323,7 +323,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_41_42,
                             Migrations.MIGRATION_42_43,
                         )
-                        .fallbackToDestructiveMigration()
+                        .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance
                 instance

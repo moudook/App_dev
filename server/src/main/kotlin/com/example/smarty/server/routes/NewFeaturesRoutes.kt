@@ -1,6 +1,13 @@
 package com.example.smarty.server.routes
 
-import com.example.smarty.server.data.*
+import com.example.smarty.server.data.ChatFolder
+import com.example.smarty.server.data.ChatFolderRepository
+import com.example.smarty.server.data.Notification
+import com.example.smarty.server.data.NotificationRepository
+import com.example.smarty.server.data.Tag
+import com.example.smarty.server.data.TagRepository
+import com.example.smarty.server.data.Task
+import com.example.smarty.server.data.TaskRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import io.ktor.http.*
 import io.ktor.server.application.*

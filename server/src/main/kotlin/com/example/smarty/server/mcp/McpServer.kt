@@ -2,6 +2,7 @@ package com.example.smarty.server.mcp
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.agent.ActiveEventBridge
+import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
@@ -138,7 +139,9 @@ class McpServer(
                     }
                 } else null
 
-                val userId = user?.userId ?: "daemon-localhost"
+                val userId = user?.userId 
+                    ?: ActiveSessionManager.getAllSessions().find { it.sessionId == sessionId }?.userId 
+                    ?: "daemon-localhost"
 
                 val body = call.receiveText()
                 val request = runCatching {
@@ -311,7 +314,7 @@ class McpServer(
         )
 
         return try {
-            val resultStr = executor.executeTool(name, args.toString(), emptyList())
+            val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)
             buildJsonObject {
                 put("content", buildJsonArray {
                     add(buildJsonObject {

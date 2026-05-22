@@ -57,10 +57,12 @@ fun Application.configureModelRoutes() {
              */
             get("/default") {
                 val defaultModel = OpencodeModelRegistry.defaultModel
-                call.respond(mapOf(
-                    "modelId" to defaultModel,
-                    "available" to defaultModel.isNotBlank()
-                ))
+                call.respond(
+                    mapOf(
+                        "modelId" to defaultModel,
+                        "available" to defaultModel.isNotBlank(),
+                    )
+                )
             }
             
             /**

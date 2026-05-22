@@ -323,6 +323,10 @@ class ChatViewModel(
 
                 // 2) Accumulate in-memory for UI timeline
                 agentEventsBuilder.add(event)
+                currentStreamingMessage = currentStreamingMessage.copy(
+                    agentEvents = agentEventsBuilder.toList()
+                )
+                _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
 
                 when (event) {
                     // ── Content streaming (per-chunk deltas) ──

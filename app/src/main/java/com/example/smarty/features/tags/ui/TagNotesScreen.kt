@@ -8,8 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Note
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.Note
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,7 +82,7 @@ fun TagNotesScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else if (notes.isEmpty()) {
                 EmptyStatePlaceholder(
-                    icon = Icons.Outlined.Note,
+                    icon = Icons.AutoMirrored.Outlined.Note,
                     title = "No Notes",
                     subtitle = "No notes are tagged with \"${uiState.tagName}\""
                 )
