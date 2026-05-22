@@ -1715,6 +1715,7 @@ class ChatFeatureManager(
                 sessionId = sessionId,
                 personality = personality,
                 model = selectedModel,
+                messageId = streamingMessageId,
             )
                 .collect { event ->
                     when (event) {

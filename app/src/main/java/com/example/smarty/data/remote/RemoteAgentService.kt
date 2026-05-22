@@ -142,6 +142,7 @@ class RemoteAgentService(
         model: String? = null,
         sessionId: String? = null,
         personality: String? = null,
+        messageId: String? = null,
     ): Flow<AgentEvent> =
         flow {
             val baseUrl = serverUrlProvider()
@@ -159,6 +160,7 @@ class RemoteAgentService(
                     if (model != null) append("&model=${model.encodeURLParameter()}")
                     if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
                     if (personality != null) append("&personality=${personality.encodeURLParameter()}")
+                    if (messageId != null) append("&messageId=${messageId.encodeURLParameter()}")
                     append("&timezone=${timezone.encodeURLParameter()}")
                     append("&clientTime=$clientTime")
                 }

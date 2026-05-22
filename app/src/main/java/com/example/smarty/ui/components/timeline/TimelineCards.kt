@@ -49,9 +49,8 @@ fun ThinkingCard(
     modifier: Modifier = Modifier,
 ) {
     val accentColor = LocalAccentColor.current
-    var expanded by remember(node.id) { mutableStateOf(node.isStreaming) }
+    var expanded by remember(node.id) { mutableStateOf(node.isStreaming || node.text.isNotBlank()) }
 
-    // Auto-expand while streaming, collapse when done
     LaunchedEffect(node.isStreaming) {
         if (node.isStreaming) expanded = true
     }

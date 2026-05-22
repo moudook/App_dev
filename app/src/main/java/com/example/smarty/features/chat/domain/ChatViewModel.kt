@@ -292,7 +292,8 @@ class ChatViewModel(
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
-                model = _uiState.value.selectedModel
+                model = _uiState.value.selectedModel,
+                messageId = streamingMessageId,
             ).collect { event ->
                 // 1) Save to unified event log
                 try {

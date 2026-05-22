@@ -306,6 +306,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val timezoneParam = call.request.queryParameters["timezone"]
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
                 val personalityParam = call.request.queryParameters["personality"]
+                val messageIdParam = call.request.queryParameters["messageId"]
 
                 // Input validation
                 try {
@@ -449,13 +450,26 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             } else null
 
                             if (currentThinking.isNotBlank() || currentAgentStepsJson != null) {
-                                chatRepository?.updateMessageThinking(
-                                    userId = userId,
-                                    sessionId = activeSessionId,
-                                    thinking = currentThinking,
-                                    toolCalls = currentToolCalls,
-                                    agentStepsJson = currentAgentStepsJson
-                                )
+                                if (messageIdParam != null) {
+                                    chatRepository?.saveMessageWithId(
+                                        userId = userId,
+                                        sessionId = activeSessionId,
+                                        messageId = messageIdParam,
+                                        role = "assistant",
+                                        content = "",
+                                        thinking = currentThinking,
+                                        toolCalls = currentToolCalls,
+                                        agentStepsJson = currentAgentStepsJson
+                                    )
+                                } else {
+                                    chatRepository?.updateMessageThinking(
+                                        userId = userId,
+                                        sessionId = activeSessionId,
+                                        thinking = currentThinking,
+                                        toolCalls = currentToolCalls,
+                                        agentStepsJson = currentAgentStepsJson
+                                    )
+                                }
                             }
                         }
 
@@ -583,15 +597,28 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId!!,
-                                role = LlmMessage.Role.ASSISTANT.name,
-                                content = assistantResponse,
-                                thinking = thinkingTrace,
-                                toolCalls = citationsJson,
-                                agentStepsJson = agentStepsJson,
-                            )
+                            if (messageIdParam != null) {
+                                chatRepository.saveMessageWithId(
+                                    userId = userId,
+                                    sessionId = sessionId!!,
+                                    messageId = messageIdParam,
+                                    role = LlmMessage.Role.ASSISTANT.name,
+                                    content = assistantResponse,
+                                    thinking = thinkingTrace,
+                                    toolCalls = citationsJson,
+                                    agentStepsJson = agentStepsJson,
+                                )
+                            } else {
+                                chatRepository.saveMessage(
+                                    userId = userId,
+                                    sessionId = sessionId!!,
+                                    role = LlmMessage.Role.ASSISTANT.name,
+                                    content = assistantResponse,
+                                    thinking = thinkingTrace,
+                                    toolCalls = citationsJson,
+                                    agentStepsJson = agentStepsJson,
+                                )
+                            }
                             call.application.log.info(
                                 "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}, steps=${collectedAgentSteps.size}",
                             )
