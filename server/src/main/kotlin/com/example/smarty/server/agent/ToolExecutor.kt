@@ -540,14 +540,18 @@ class ToolExecutor(
     }
 
     private suspend fun executeSearchTool(args: UnifiedToolArgs): String {
-        return when (args.action) {
-            "web" -> {
-                // OpenCode CLI has built-in websearch — the LLM uses it internally.
-                // This tool is a no-op redirect telling the LLM to use its own websearch.
-                "[OpenCode websearch is handled internally by the LLM. Use your built-in websearch tool to search for: ${args.query}]"
+        val query = args.query?.takeIf { it.isNotBlank() } ?: args.info?.takeIf { it.isNotBlank() }
+        if (args.action == "web" || args.action == null) {
+            if (query != null) {
+                logger.info("[ToolExecutor] web_search triggered for query: ${query.take(100)}")
+                emitProcessing("Searching the web...", "Query: ${query.take(100)}")
+                // OpenCode CLI daemon handles web_search natively via the connected MCP.
+                // Return a directive for the LLM to use its internal websearch capability.
+                return "[Use your built-in websearch tool to search for: ${query}]"
             }
-            else -> "Unknown search action: ${args.action}"
+            return "No query provided for web search."
         }
+        return "Unknown search action: ${args.action}"
     }
 
     private suspend fun executeAskUser(args: UnifiedToolArgs): String {

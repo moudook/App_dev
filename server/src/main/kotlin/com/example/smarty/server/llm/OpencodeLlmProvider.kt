@@ -486,7 +486,7 @@ class OpencodeLlmProvider(
         var textChars: Int = 0
         var toolCalls: Int = 0
         var partsExisted: Boolean = false
-        var sampleRawResponse: StringBuilder? = if (kotlin.random.Random.nextInt(100) == 0) StringBuilder() else null
+        var sampleRawResponse: StringBuilder? = StringBuilder()
     }
 }
 
@@ -570,6 +570,27 @@ private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): Canon
         val text = messageObj["content"]?.jsonPrimitive?.content
         if (text != null) {
             return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text)))
+        }
+    }
+
+    // Version 4: Individual part object (daemon incremental SSE)
+    // e.g. {"type": "reasoning", "text": "..."}
+    //      {"type": "tool_use", "name": "web_search", "input": {...}}
+    //      {"type": "text", "text": "..."}
+    val partType = json["type"]?.jsonPrimitive?.content
+    if (partType != null) {
+        val part = when (partType) {
+            "text" -> CanonicalPart(type = "text", content = json["text"]?.jsonPrimitive?.content)
+            "reasoning" -> CanonicalPart(type = "reasoning", content = json["text"]?.jsonPrimitive?.content)
+            "tool_use", "tool" -> CanonicalPart(type = partType, toolName = json["name"]?.jsonPrimitive?.content, toolArgs = json["input"]?.toString())
+            "tool_result", "tool_return" -> CanonicalPart(type = "tool_result", toolName = json["name"]?.jsonPrimitive?.content, content = json["output"]?.toString() ?: json["text"]?.jsonPrimitive?.content)
+            else -> {
+                org.slf4j.LoggerFactory.getLogger("OpencodeLlmProvider").warn("[OpenCode.Schemas][inference=$inferenceId] Unrecognized individual part type: '$partType'")
+                null
+            }
+        }
+        if (part != null) {
+            return CanonicalResponse(listOf(part))
         }
     }
 

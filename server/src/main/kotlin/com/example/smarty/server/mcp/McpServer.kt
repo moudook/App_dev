@@ -259,7 +259,7 @@ class McpServer(
             noteRepository = noteRepository,
             timerRepository = timerRepository,
             calendarRepository = calendarRepository,
-            eventEmitter = {}, // No-op: OpenCode's SSE stream handles the tool lifecycle UI nodes
+            eventEmitter = { event -> ActiveEventBridge.emit(event) },
             noteService = noteService
         )
 
