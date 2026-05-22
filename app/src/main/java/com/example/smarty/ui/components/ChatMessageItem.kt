@@ -477,7 +477,6 @@ if (isUser) {
             val clipboardManager = LocalClipboardManager.current
             var showCopied by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
-            val context = androidx.compose.ui.platform.LocalContext.current
 
             LaunchedEffect(showCopied) {
                 if (showCopied) {
@@ -501,11 +500,8 @@ if (isUser) {
                     modifier = Modifier
                         .size(IconSize.small)
                         .clickable {
-                            val textToCopy = cleanContent(message.content)
-                            clipboardManager.setText(AnnotatedString(textToCopy))
+                            clipboardManager.setText(AnnotatedString(if (isUser) message.content else cleanContent(message.content)))
                             showCopied = true
-                            android.widget.Toast.makeText(context, "Copied AI Response", android.widget.Toast.LENGTH_SHORT).show()
-                            onCopyMessage(textToCopy)
                         },
                     tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
                 )
