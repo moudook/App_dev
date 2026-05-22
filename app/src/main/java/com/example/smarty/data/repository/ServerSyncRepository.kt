@@ -38,7 +38,7 @@ class ServerSyncRepository(
 ) : SyncRepository {
     companion object {
         private const val TAG = "ServerSyncRepo"
-        private const val MIN_SYNC_INTERVAL_MS = 30_000L
+        private const val MIN_SYNC_INTERVAL_MS = 5_000L
         private const val PREFS_NAME = "server_sync_prefs"
         private const val KEY_IS_FRESH_INSTALL = "is_fresh_install"
 

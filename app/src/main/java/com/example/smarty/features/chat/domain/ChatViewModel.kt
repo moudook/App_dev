@@ -416,6 +416,13 @@ class ChatViewModel(
                                 isProcessing = false
                             )
                         }
+                        
+                        // Trigger a background sync so notes created by the agent show up live
+                        try {
+                            com.example.smarty.di.ServiceLocator.provideEventSink().onStateSync("chat_finished", "")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to trigger sync", e)
+                        }
                     }
 
                     // ── Agent step timeline ──

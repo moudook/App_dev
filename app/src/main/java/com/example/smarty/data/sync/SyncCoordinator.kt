@@ -99,7 +99,7 @@ class SyncCoordinator(
         val now = System.currentTimeMillis()
         if (now - lastPullTime < pullDebounceMs) {
             Log.d(TAG, "Pull debounced: last pull was ${now - lastPullTime}ms ago")
-            return PullResult.Offline // Treat as temporarily unavailable
+            return PullResult.Success(0, 0, 0) // Treat as success to avoid 'Not Connected' errors
         }
 
         Log.i(TAG, "Starting pull from server...")
@@ -110,7 +110,7 @@ class SyncCoordinator(
             val nowAfterLock = System.currentTimeMillis()
             if (nowAfterLock - lastPullTime < pullDebounceMs) {
                 Log.d(TAG, "Pull debounced (post-lock): last pull was ${nowAfterLock - lastPullTime}ms ago")
-                return@withLock PullResult.Offline
+                return@withLock PullResult.Success(0, 0, 0)
             }
 
             lastPullTime = nowAfterLock
