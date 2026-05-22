@@ -11,6 +11,8 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import java.io.File
 import io.ktor.http.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Health check response model.
@@ -175,7 +177,7 @@ fun Application.configureHealthRoutes() {
                 call.respondText("Daemon log not found at /tmp/opencode-daemon.log", status = HttpStatusCode.NotFound)
                 return@get
             }
-            val allLines = logFile.readLines()
+            val allLines = withContext(Dispatchers.IO) { logFile.readLines() }
             val lastLines = allLines.takeLast(lines)
             call.respondText(lastLines.joinToString("\n"), contentType = ContentType.Text.Plain)
         }

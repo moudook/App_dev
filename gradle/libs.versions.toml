@@ -125,6 +125,7 @@ koog-ktor = { group = "ai.koog", name = "koog-ktor", version.ref = "koog" }
 # Ktor Server Plugins
 ktor-server-call-id = { group = "io.ktor", name = "ktor-server-call-id", version.ref = "ktor" }
 ktor-server-rate-limit = { group = "io.ktor", name = "ktor-server-rate-limit", version.ref = "ktor" }
+ktor-server-compression = { group = "io.ktor", name = "ktor-server-compression", version.ref = "ktor" }
 
 # Logging for server
 logback-classic = { group = "ch.qos.logback", name = "logback-classic", version = "1.4.14" }

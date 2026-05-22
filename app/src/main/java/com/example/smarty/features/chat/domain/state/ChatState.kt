@@ -15,6 +15,7 @@ import com.example.smarty.ui.components.ConnectionStatus
  */
 data class ChatState(
     val messages: List<ChatMessage> = emptyList(),
+    val streamingMessage: ChatMessage? = null,
     val currentSessionId: String? = null,
     val isChatMode: Boolean = false,
     val isProcessing: Boolean = false,

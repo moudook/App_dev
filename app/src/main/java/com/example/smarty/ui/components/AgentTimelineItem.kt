@@ -192,7 +192,7 @@ private fun GranularEventTimeline(
     // Aggregate raw events into stable TimelineNodes.
     // `remember(message.id)` scopes the aggregator to this message ID.
     val aggregator = remember(message.id) { TimelineNodeAggregator() }
-    val nodes = remember(message.agentEvents.size) {
+    val nodes = remember(message.agentEvents) {
         aggregator.processAll(message.agentEvents)
     }
 

@@ -38,12 +38,19 @@ class TimelineNodeAggregator {
     private var sysActivityId: String = "sys_activity"
     private var sysActivityStart: Long = 0L
 
+    // Tracks how many events have been processed — enables idempotent
+    // processAll() calls without duplicates
+    private var lastProcessedIndex: Int = 0
+
     /**
-     * Process a new batch of events (append-only). Only processes events
-     * beyond the last processed index.
+     * Process a new batch of events (append-only). Internally tracks
+     * [lastProcessedIndex] so repeated calls with the same events are
+     * idempotent — only new events are processed, preventing duplicate nodes.
      */
-    fun processAll(events: List<AgentEvent>, fromIndex: Int = 0): List<TimelineNode> {
-        for (i in fromIndex until events.size) {
+    fun processAll(events: List<AgentEvent>): List<TimelineNode> {
+        val start = lastProcessedIndex
+        lastProcessedIndex = events.size
+        for (i in start until events.size) {
             process(events[i])
         }
         return _nodes
@@ -81,19 +88,21 @@ class TimelineNodeAggregator {
 
             // Legacy: Processing event maps to a thinking update
             is AgentEvent.Processing -> {
-                val content = event.content
-                if (content.isBlank()) return
+                // Use event.thinking when available (reasoning content),
+                // fall back to event.content (legacy behavior)
+                val text = event.thinking ?: event.content
+                if (text.isBlank()) return
                 if (thinkingNodeIndex < 0) {
                     val node = TimelineNode.Thinking(
                         id = "thinking_processing_${event.eventId}",
                         timestamp = event.timestamp,
-                        text = content,
+                        text = text,
                         isStreaming = true,
                     )
                     thinkingNodeIndex = _nodes.size
                     _nodes.add(node)
                 } else {
-                    updateThinkingNode { it.copy(text = it.text + content, isStreaming = true) }
+                    updateThinkingNode { it.copy(text = it.text + text, isStreaming = true) }
                 }
             }
 
@@ -423,6 +432,7 @@ class TimelineNodeAggregator {
         systemActivityIndex = -1
         recoveryNodeIndex = -1
         sysActivityStart = 0L
+        lastProcessedIndex = 0
     }
 
     companion object {

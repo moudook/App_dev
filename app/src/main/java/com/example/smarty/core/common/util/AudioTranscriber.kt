@@ -336,7 +336,11 @@ object AudioTranscriber {
             extractor.selectTrack(audioTrackIndex)
 
             // Create decoder
-            val mime = format.getString(MediaFormat.KEY_MIME)!!
+            val mime = format.getString(MediaFormat.KEY_MIME) ?: run {
+                Log.e(TAG, "No MIME type in audio format")
+                extractor.release()
+                return null
+            }
             val codec = MediaCodec.createDecoderByType(mime)
             codec.configure(format, null, null, 0)
             codec.start()
@@ -351,7 +355,7 @@ object AudioTranscriber {
                 if (!sawInputEOS) {
                     val inputBufferIndex = codec.dequeueInputBuffer(10000)
                     if (inputBufferIndex >= 0) {
-                        val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
+                        val inputBuffer = codec.getInputBuffer(inputBufferIndex) ?: continue
                         val sampleSize = extractor.readSampleData(inputBuffer, 0)
 
                         if (sampleSize < 0) {
@@ -367,7 +371,7 @@ object AudioTranscriber {
                 // Get output
                 val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
                 if (outputBufferIndex >= 0) {
-                    val buffer = codec.getOutputBuffer(outputBufferIndex)!!
+                    val buffer = codec.getOutputBuffer(outputBufferIndex) ?: continue
                     val chunk = ByteArray(bufferInfo.size)
                     buffer.get(chunk)
                     outputBuffer.addAll(chunk.toList())

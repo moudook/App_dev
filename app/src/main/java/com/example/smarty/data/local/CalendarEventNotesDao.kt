@@ -63,10 +63,12 @@ interface CalendarEventNotesDao {
         eventId: String,
         noteIds: List<String>,
     ) {
-        noteIds.forEach { noteId ->
-            linkEventToNote(eventId, noteId)
-        }
+        if (noteIds.isEmpty()) return
+        insertAll(noteIds.map { CalendarEventNote(eventId, it) })
     }
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(notes: List<CalendarEventNote>)
 
     @Transaction
     suspend fun unlinkEventFromNote(

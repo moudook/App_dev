@@ -134,10 +134,10 @@ object DatabaseFactory {
                     idleTimeout = 300000
                     connectionTimeout = 30000
                     maxLifetime = 1800000
-                    keepaliveTime = 0
+                    keepaliveTime = 300000
                     connectionTestQuery = "SELECT 1"
                     leakDetectionThreshold = 120000
-                    addDataSourceProperty("prepareThreshold", "0")
+                    addDataSourceProperty("prepareThreshold", "1")
                     addDataSourceProperty("cachePrepStmts", "true")
                     addDataSourceProperty("prepStmtCacheSize", "250")
                     addDataSourceProperty("prepStmtCacheSqlLimit", "2048")

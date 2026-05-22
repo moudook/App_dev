@@ -32,6 +32,7 @@ class DatabaseWriteBatcher(
     private val insertQueue = ConcurrentLinkedQueue<Note>()
     private val updateQueue = ConcurrentLinkedQueue<Note>()
     private val mutex = Mutex()
+    private val maxQueueSize = 500
 
     private var flushJob: Job? = null
     private var isRunning = false
@@ -71,6 +72,10 @@ class DatabaseWriteBatcher(
      * The note will be inserted in the next batch flush.
      */
     fun queueInsert(note: Note) {
+        if (insertQueue.size >= maxQueueSize) {
+            Log.w(TAG, "Insert queue full ($maxQueueSize) — dropping oldest")
+            insertQueue.poll()
+        }
         insertQueue.offer(note)
         checkImmediateFlush()
     }
@@ -79,10 +84,15 @@ class DatabaseWriteBatcher(
      * Queue a note for update.
      * The note will be updated in the next batch flush.
      */
-    fun queueUpdate(note: Note) {
-        // Remove any pending update for the same note ID to avoid duplicates
-        updateQueue.removeIf { it.id == note.id }
-        updateQueue.offer(note)
+    suspend fun queueUpdate(note: Note) {
+        mutex.withLock {
+            if (updateQueue.size >= maxQueueSize) {
+                Log.w(TAG, "Update queue full ($maxQueueSize) — dropping oldest")
+                updateQueue.poll()
+            }
+            updateQueue.removeIf { it.id == note.id }
+            updateQueue.offer(note)
+        }
         checkImmediateFlush()
     }
 

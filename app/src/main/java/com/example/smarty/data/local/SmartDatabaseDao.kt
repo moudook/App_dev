@@ -100,7 +100,7 @@ interface SmartDatabaseDao {
     @Delete
     suspend fun deleteNoteTag(noteTag: NoteTagEntity)
 
-    @Query("DELETE FROM note_versions WHERE note_id = :noteId")
+    @Query("DELETE FROM note_tags WHERE note_id = :noteId")
     suspend fun deleteNoteTagsForNote(noteId: String)
 
     @Query("DELETE FROM note_versions WHERE note_id = :noteId")
@@ -491,7 +491,7 @@ interface SmartDatabaseDao {
 
     @Transaction
     suspend fun clearAllUserData(userId: String) {
-        deleteAllNotesForUser()
+        deleteAllNotesForUser(userId)
         deleteAllTagsForUser(userId)
         deleteAllTasksForUser(userId)
         deleteAllReasoningTracesForUser(userId)
@@ -501,8 +501,8 @@ interface SmartDatabaseDao {
         deleteAllSharedItemsForUser(userId)
     }
 
-    @Query("DELETE FROM notes")
-    suspend fun deleteAllNotesForUser()
+    @Query("DELETE FROM notes WHERE id IN (SELECT note_id FROM note_tags WHERE user_id = :userId)")
+    suspend fun deleteAllNotesForUser(userId: String)
 
     @Query("DELETE FROM tags WHERE user_id = :userId")
     suspend fun deleteAllTagsForUser(userId: String)

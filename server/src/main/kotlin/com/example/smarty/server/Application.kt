@@ -3,6 +3,7 @@ package com.example.smarty.server
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.sse.*
 import io.ktor.server.response.*
@@ -176,6 +177,12 @@ fun Application.module() {
                 explicitNulls = false
             },
         )
+    }
+
+    // Enable response compression
+    install(Compression) {
+        gzip { }
+        deflate { }
     }
 
     // Configure SSE plugin for streaming

@@ -63,10 +63,12 @@ interface ChatMessageNotesDao {
         messageId: String,
         noteIds: List<String>,
     ) {
-        noteIds.forEach { noteId ->
-            linkMessageToNote(messageId, noteId)
-        }
+        if (noteIds.isEmpty()) return
+        insertAll(noteIds.map { ChatMessageNote(messageId, it) })
     }
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(notes: List<ChatMessageNote>)
 
     @Transaction
     suspend fun unlinkMessageFromNote(

@@ -771,7 +771,7 @@ object Migrations {
                 // Note versions: Optimize version lookup
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_note_versions_noteId_versionNumber " +
-                        "ON note_versions(noteId, versionNumber DESC)",
+                        "ON note_versions(noteId, version_no DESC)",
                 )
 
                 // Impressed log: Optimize analytics queries

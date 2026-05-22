@@ -9,7 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.smarty.core.domain.model.ChatMessage
+import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.features.chat.domain.ChatViewModel
 import com.example.smarty.features.chat.domain.event.ChatEvent
 import com.example.smarty.features.chat.domain.state.ChatState
@@ -52,32 +52,50 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     
-    // Input text state - synced with UI state
-    var inputText by remember { mutableStateOf(uiState.inputText) }
+    // Input text state - initialized once from ViewModel, then local-first
+    val initialText = remember { uiState.inputText }
+    var inputText by remember { mutableStateOf(initialText) }
     
-    // Sync input text with UI state changes
-    LaunchedEffect(uiState.inputText) {
-        inputText = uiState.inputText
-    }
-    
-    // Auto-scroll to bottom when new messages arrive
+    // Auto-scroll to bottom when new messages arrive or streaming updates
+    val streamingMessage = chatState.streamingMessage
+    val hasStreaming = streamingMessage != null
+    var prevMessageCount by remember { mutableStateOf(messages.size) }
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && uiState.isAtLatestMessage) {
+        if (messages.size > prevMessageCount && uiState.isAtLatestMessage) {
             listState.animateScrollToItem(messages.size - 1)
+        }
+        prevMessageCount = messages.size
+    }
+    // Keep scrolling during streaming — no animation to avoid jitter on every token
+    LaunchedEffect(hasStreaming, streamingMessage?.content?.length) {
+        if (hasStreaming && uiState.isAtLatestMessage && messages.size > 0) {
+            listState.scrollToItem(messages.size)
         }
     }
     
-    // Handle scroll position changes
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (!listState.isScrollInProgress) {
-            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-            val isAtLatest = lastVisibleItem?.index == messages.size - 1
-            viewModel.onEvent(
-                ChatEvent.ScrollPositionChanged(
-                    position = listState.firstVisibleItemIndex,
-                    isAtLatest = isAtLatest
-                )
-            )
+    // Pre-compute group positions once per list change — avoids O(n²) per recomposition
+    val groupPositions by remember {
+        derivedStateOf {
+            val map = mutableMapOf<String, MessageGroupPosition>()
+            messages.forEachIndexed { index, msg ->
+                val isUser = msg.role == ChatRole.USER
+                val prevSameRole = index > 0 && messages[index - 1].role == msg.role
+                val nextSameRole = index < messages.size - 1 && messages[index + 1].role == msg.role
+                map[msg.id] = when {
+                    !prevSameRole && !nextSameRole -> MessageGroupPosition.SINGLE
+                    !prevSameRole && nextSameRole -> MessageGroupPosition.TOP
+                    prevSameRole && !nextSameRole -> MessageGroupPosition.BOTTOM
+                    else -> MessageGroupPosition.MIDDLE
+                }
+            }
+            map
+        }
+    }
+    
+    // Memoize clarification message lookup — avoids full list scan on every recomposition
+    val msgWithClarification by remember {
+        derivedStateOf {
+            messages.find { it.clarificationRequest != null }
         }
     }
     
@@ -103,14 +121,12 @@ fun ChatScreen(
                     items = messages,
                     key = { message -> message.id }
                 ) { message ->
-                    val groupPosition = calculateGroupPosition(message, messages)
-                    
                     ChatMessageItem(
                         message = message,
-                        groupPosition = groupPosition,
+                        groupPosition = groupPositions[message.id] ?: MessageGroupPosition.SINGLE,
                         onNoteClick = { onNoteClick(it.id) },
-                        onNoteClickById = { noteId -> onNoteClickById(noteId) },
-                        onEventClickById = { eventId -> onEventClickById(eventId) },
+                        onNoteClickById = onNoteClickById,
+                        onEventClickById = onEventClickById,
                         onCopyMessage = { content ->
                             viewModel.onEvent(ChatEvent.MessageCopied(message.id, content))
                         },
@@ -121,10 +137,9 @@ fun ChatScreen(
                             viewModel.onEvent(ChatEvent.MessageEdited(editedMessage))
                         },
                         onClarificationSubmit = { response ->
-                            // Find the message with clarification request and submit response
-                            val msgWithClarification = messages.find { it.clarificationRequest != null }
-                            if (msgWithClarification != null) {
-                                viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, response))
+                            val clarificationMsg = msgWithClarification
+                            if (clarificationMsg != null) {
+                                viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                             }
                         },
                         onRegenerateMessage = {
@@ -134,6 +149,26 @@ fun ChatScreen(
                             viewModel.onEvent(ChatEvent.SuggestionClicked(suggestion))
                         }
                         // modifier = Modifier.animateItemPlacement() // Removed experimental API
+                    )
+                }
+            }
+            // Streaming message rendered as last item — stable list means
+            // only this item recomposes on each token
+            val sm = chatState.streamingMessage
+            if (sm != null) {
+                item(key = "streaming") {
+                    ChatMessageItem(
+                        message = sm,
+                        groupPosition = MessageGroupPosition.SINGLE,
+                        onNoteClick = { onNoteClick(it.id) },
+                        onNoteClickById = onNoteClickById,
+                        onEventClickById = onEventClickById,
+                        onCopyMessage = {},
+                        onDeleteMessage = {},
+                        onEditMessage = {},
+                        onClarificationSubmit = {},
+                        onRegenerateMessage = {},
+                        onSuggestionClick = {}
                     )
                 }
             }
@@ -161,15 +196,15 @@ fun ChatScreen(
         }
         
         // Input area: If there's an active clarification request, show the interactive question block
-        val msgWithClarification = messages.find { it.clarificationRequest != null }
-        if (msgWithClarification?.clarificationRequest != null) {
+        val clarificationMsg = msgWithClarification
+        if (clarificationMsg?.clarificationRequest != null) {
             com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                request = msgWithClarification.clarificationRequest!!,
+                request = clarificationMsg.clarificationRequest!!,
                 onSubmit = { response ->
-                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, response))
+                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                 },
                 onSkip = {
-                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(msgWithClarification.id, ""))
+                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, ""))
                 },
                 modifier = Modifier.padding(16.dp)
             )
@@ -204,30 +239,6 @@ fun ChatScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
-    }
-}
-
-/**
- * Calculate message group position for bubble styling.
- * Groups consecutive messages from the same role.
- */
-private fun calculateGroupPosition(
-    message: ChatMessage,
-    messages: List<ChatMessage>
-): MessageGroupPosition {
-    val index = messages.indexOfFirst { it.id == message.id }
-    
-    if (index == -1) return MessageGroupPosition.SINGLE
-    
-    val isUser = message.role == com.example.smarty.core.domain.model.ChatRole.USER
-    val prevSameRole = if (index > 0) messages[index - 1].role == message.role else false
-    val nextSameRole = if (index < messages.size - 1) messages[index + 1].role == message.role else false
-    
-    return when {
-        !prevSameRole && !nextSameRole -> MessageGroupPosition.SINGLE
-        !prevSameRole && nextSameRole -> MessageGroupPosition.TOP
-        prevSameRole && !nextSameRole -> MessageGroupPosition.BOTTOM
-        else -> MessageGroupPosition.MIDDLE
     }
 }
 

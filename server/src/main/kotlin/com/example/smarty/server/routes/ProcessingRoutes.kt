@@ -182,12 +182,13 @@ fun Application.configureProcessingRoutes() {
                         return@post
                     }
 
+                    val safeBytes = fileBytes!!
                     call.application.log.info("File upload: $fileName ($contentType) from user: ${user.userId}")
 
                     val result: Any =
                         when {
                             contentType?.startsWith("application/pdf") == true -> {
-                                val pdfResult = fileProcessingService.processPdf(fileBytes!!, fileName)
+                                val pdfResult = fileProcessingService.processPdf(safeBytes, fileName)
                                 if (analysisType == "document") {
                                     contentAnalysisService.analyzeDocument(
                                         pdfResult.text,
@@ -198,12 +199,12 @@ fun Application.configureProcessingRoutes() {
                                 }
                             }
                             contentType?.startsWith("image/") == true -> {
-                                val base64 = Base64.getEncoder().encodeToString(fileBytes!!)
+                                val base64 = Base64.getEncoder().encodeToString(safeBytes)
                                 val ocrResult = visionService.performOcr(base64, contentType!!)
                                 if (analysisType == "content") contentAnalysisService.analyzeContent(ocrResult.extractedText) else ocrResult
                             }
                             contentType?.startsWith("text/") == true -> {
-                                contentAnalysisService.analyzeContent(String(fileBytes!!, Charsets.UTF_8))
+                                contentAnalysisService.analyzeContent(String(safeBytes, Charsets.UTF_8))
                             }
                             else -> {
                                 call.respond(
