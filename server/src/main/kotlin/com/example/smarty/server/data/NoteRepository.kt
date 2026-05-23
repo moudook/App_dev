@@ -24,16 +24,16 @@ class NoteRepository(
     /**
      * Create a new note with all fields.
      */
-    suspend fun create(
+    suspend fun createWithDuplicateStatus(
         userId: String,
         info: NoteInfo,
         connection: Connection? = null,
-    ): String =
+    ): Pair<String, Boolean> =
         withContext(Dispatchers.IO) {
             val existingNoteId = deduplicationManager.findDuplicateNote(userId, info.content, info.title)
             if (existingNoteId != null) {
                 logger.info("Duplicate note detected: returning existing note id={} for user={}", existingNoteId, userId)
-                return@withContext existingNoteId
+                return@withContext Pair(existingNoteId, true)
             }
 
             val id = if (info.id.isNotEmpty()) UUID.fromString(info.id) else UUID.randomUUID()
@@ -95,8 +95,14 @@ class NoteRepository(
             } finally {
                 if (closeConn) conn.close()
             }
-            id.toString()
+            Pair(id.toString(), false)
         }
+
+    suspend fun create(
+        userId: String,
+        info: NoteInfo,
+        connection: Connection? = null,
+    ): String = createWithDuplicateStatus(userId, info, connection).first
 
     suspend fun listByUser(
         userId: String,

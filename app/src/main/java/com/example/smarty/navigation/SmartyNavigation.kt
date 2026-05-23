@@ -217,6 +217,7 @@ fun SmartyNavHost(
     // Cloud sync
     cloudSyncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState = com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle,
     onSyncCloud: () -> Unit = {},
+    onSyncCloudSilent: () -> Unit = {},
     syncSnackbarMessage: kotlinx.coroutines.flow.SharedFlow<String> = kotlinx.coroutines.flow.MutableSharedFlow(),
     // Camera trigger from widget
     cameraTriggered: Boolean = false,
@@ -473,6 +474,7 @@ fun SmartyNavHost(
                 connectionStatus = connectionStatus,
                 cloudSyncState = cloudSyncState,
                 onSyncCloud = onSyncCloud,
+                onSyncCloudSilent = onSyncCloudSilent,
                 syncSnackbarMessage = syncSnackbarMessage,
                 // Camera trigger from widget
                 cameraTriggered = cameraTriggered,

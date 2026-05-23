@@ -421,49 +421,54 @@ class SmartyViewModel(
     private val _syncSnackbarMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val syncSnackbarMessage = _syncSnackbarMessage.asSharedFlow()
 
-    fun syncCloudNow() {
+    fun syncCloudNow(silent: Boolean = false) {
         viewModelScope.launch {
-            _cloudSyncState.value = CloudSyncState.Syncing
+            if (!silent) _cloudSyncState.value = CloudSyncState.Syncing
             try {
                 val app = getApplication<Application>()
                 val syncCoordinator = com.example.smarty.di.ServiceLocator.provideSyncCoordinator(app)
 
-                // Push local changes first, then pull from server
-                val pushResult = syncCoordinator.pushPendingChanges()
-                val pullResult = syncCoordinator.pullFromServer()
+                // Unified debounced sync (push then pull)
+                val (pushResult, pullResult) = syncCoordinator.syncAll()
 
-                when {
-                    pullResult is com.example.smarty.data.sync.PullResult.Success -> {
-                        val total = pullResult.notes + pullResult.sessions + pullResult.events
-                        _cloudSyncState.value = CloudSyncState.Success(
-                            notesUpdated = pullResult.notes,
-                            sessionsUpdated = pullResult.sessions,
-                            eventsUpdated = pullResult.events
-                        )
-                        _syncSnackbarMessage.emit("Synced: ${pullResult.notes} notes, ${pullResult.sessions} chats, ${pullResult.events} events")
-                        kotlinx.coroutines.delay(3000)
-                        _cloudSyncState.value = CloudSyncState.Idle
-                    }
-                    pullResult is com.example.smarty.data.sync.PullResult.Offline -> {
-                        _cloudSyncState.value = CloudSyncState.Error("No internet connection")
-                        _syncSnackbarMessage.emit("No internet connection")
-                        kotlinx.coroutines.delay(3000)
-                        _cloudSyncState.value = CloudSyncState.Idle
-                    }
-                    else -> {
-                        val errorMsg = (pullResult as? com.example.smarty.data.sync.PullResult.Error)?.message ?: "Sync failed"
-                        _cloudSyncState.value = CloudSyncState.Error(errorMsg)
-                        _syncSnackbarMessage.emit("Sync failed: $errorMsg")
-                        kotlinx.coroutines.delay(3000)
-                        _cloudSyncState.value = CloudSyncState.Idle
+                if (!silent) {
+                    when {
+                        pullResult is com.example.smarty.data.sync.PullResult.Success -> {
+                            val total = pullResult.notes + pullResult.sessions + pullResult.events
+                            _cloudSyncState.value = CloudSyncState.Success(
+                                notesUpdated = pullResult.notes,
+                                sessionsUpdated = pullResult.sessions,
+                                eventsUpdated = pullResult.events
+                            )
+                            if (total > 0) {
+                                _syncSnackbarMessage.emit("Synced: ${pullResult.notes} notes, ${pullResult.sessions} chats, ${pullResult.events} events")
+                            }
+                            kotlinx.coroutines.delay(3000)
+                            _cloudSyncState.value = CloudSyncState.Idle
+                        }
+                        pullResult is com.example.smarty.data.sync.PullResult.Offline -> {
+                            _cloudSyncState.value = CloudSyncState.Error("No internet connection")
+                            _syncSnackbarMessage.emit("No internet connection")
+                            kotlinx.coroutines.delay(3000)
+                            _cloudSyncState.value = CloudSyncState.Idle
+                        }
+                        else -> {
+                            val errorMsg = (pullResult as? com.example.smarty.data.sync.PullResult.Error)?.message ?: "Sync failed"
+                            _cloudSyncState.value = CloudSyncState.Error(errorMsg)
+                            _syncSnackbarMessage.emit("Sync failed: $errorMsg")
+                            kotlinx.coroutines.delay(3000)
+                            _cloudSyncState.value = CloudSyncState.Idle
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Cloud sync failed", e)
-                _cloudSyncState.value = CloudSyncState.Error(e.message ?: "Unknown error")
-                _syncSnackbarMessage.emit("Sync error: ${e.message}")
-                kotlinx.coroutines.delay(3000)
-                _cloudSyncState.value = CloudSyncState.Idle
+                if (!silent) {
+                    _cloudSyncState.value = CloudSyncState.Error(e.message ?: "Unknown error")
+                    _syncSnackbarMessage.emit("Sync error: ${e.message}")
+                    kotlinx.coroutines.delay(3000)
+                    _cloudSyncState.value = CloudSyncState.Idle
+                }
             }
         }
     }

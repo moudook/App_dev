@@ -40,8 +40,39 @@ class OpencodeLlmProvider(
 
     private val daemonJson = Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false }
     
+    private val stateFile = java.io.File(System.getProperty("java.io.tmpdir"), "opencode_session_state.json")
+    
     // Tracks how many messages from the history have already been sent to the daemon session
-    private val sessionMessageCount = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val sessionMessageCount = loadSessionMessageCount()
+
+    private fun loadSessionMessageCount(): java.util.concurrent.ConcurrentHashMap<String, Int> {
+        val map = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        try {
+            if (stateFile.exists()) {
+                val jsonStr = stateFile.readText()
+                val jsonObj = kotlinx.serialization.json.Json.parseToJsonElement(jsonStr).jsonObject
+                jsonObj.forEach { (k, v) ->
+                    map[k] = v.jsonPrimitive.content.toInt()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to load OpenCode session state: ${e.message}")
+        }
+        return map
+    }
+
+    private fun saveSessionMessageCount() {
+        try {
+            val jsonObj = kotlinx.serialization.json.buildJsonObject {
+                sessionMessageCount.forEach { (k, v) ->
+                    put(k, kotlinx.serialization.json.JsonPrimitive(v))
+                }
+            }
+            stateFile.writeText(jsonObj.toString())
+        } catch (e: Exception) {
+            logger.warn("Failed to save OpenCode session state: ${e.message}")
+        }
+    }
 
     override suspend fun generate(
         messages: List<LlmMessage>,
@@ -97,7 +128,10 @@ class OpencodeLlmProvider(
         }
         
         // Ensure we track this session if we haven't seen it in this memory lifecycle
-        sessionMessageCount.putIfAbsent(daemonSessionId, 0)
+        if (!sessionMessageCount.containsKey(daemonSessionId)) {
+            sessionMessageCount[daemonSessionId] = 0
+            saveSessionMessageCount()
+        }
         val previouslySentCount = sessionMessageCount[daemonSessionId] ?: 0
         
         context.sessionCreateMs = System.currentTimeMillis() - sessionStart
@@ -135,6 +169,7 @@ class OpencodeLlmProvider(
         
         // Update the tracker so next iteration only sends newly appended tool results/messages
         sessionMessageCount[daemonSessionId] = messages.size
+        saveSessionMessageCount()
 
         logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs)")
 
@@ -271,6 +306,25 @@ class OpencodeLlmProvider(
         }
         break // Break out of retry loop on success
     } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) {
+            logger.info("[OpenCode.Transport][inference=$inferenceId] Request was cancelled by client")
+            // Try to abort on daemon if possible
+            runCatching {
+                val url = java.net.URL("$daemonBaseUrl/session/$daemonSessionId/abort")
+                val con = url.openConnection() as java.net.HttpURLConnection
+                con.requestMethod = "POST"
+                con.connectTimeout = 2000
+                con.readTimeout = 2000
+                con.responseCode // Trigger request
+            }.onFailure { err ->
+                logger.debug("[OpenCode.Transport][inference=$inferenceId] Failed to call abort endpoint: ${err.message}")
+            }
+            throw e
+        }
+        if (context.firstByteMs > 0L) {
+            logger.error("[OpenCode.Transport][inference=$inferenceId] Connection lost mid-stream. Aborting to prevent duplicate message submission: ${e.message}", e)
+            throw e
+        }
         if (attempt >= maxAttempts) {
             logger.error("[OpenCode.Transport][inference=$inferenceId] Request failed after $maxAttempts attempts: ${e.message}", e)
             throw e

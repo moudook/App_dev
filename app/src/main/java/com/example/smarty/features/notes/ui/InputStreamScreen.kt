@@ -237,6 +237,7 @@ fun InputStreamScreen(
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
     cloudSyncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState = com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle,
     onSyncCloud: () -> Unit = {},
+    onSyncCloudSilent: () -> Unit = {},
     syncSnackbarMessage: kotlinx.coroutines.flow.SharedFlow<String> = kotlinx.coroutines.flow.MutableSharedFlow(),
     // Camera trigger from widget
     cameraTriggered: Boolean = false,
@@ -427,6 +428,13 @@ fun InputStreamScreen(
             // Exiting chat mode - reset to notes view
             showChatHistoryInline = false
             onSelectedTabChange(NavigationTab.NOTES)
+        }
+    }
+
+    // Auto-sync silently when user navigates to NOTES tab
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == NavigationTab.NOTES && !isChatMode) {
+            onSyncCloudSilent()
         }
     }
 

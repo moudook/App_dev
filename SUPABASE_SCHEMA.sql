@@ -47,8 +47,6 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vector_embeddings CASCADE;
 DROP TABLE IF EXISTS ai_cache CASCADE;
 DROP TABLE IF EXISTS user_vaults CASCADE;
-DROP TABLE IF EXISTS conflict_records CASCADE;
-DROP TABLE IF EXISTS sync_queue CASCADE;
 DROP TABLE IF EXISTS impressed_log CASCADE;
 
 -- Drop trigger function if exists
@@ -571,37 +569,6 @@ CREATE TABLE user_vaults (
     updated_at      BIGINT NOT NULL
 );
 
-CREATE TABLE sync_queue (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    operation        TEXT NOT NULL,
-    entity_type      TEXT NOT NULL,
-    entity_id        TEXT NOT NULL,
-    payload_json     TEXT NOT NULL,
-    base_version     BIGINT DEFAULT 0,
-    created_at       BIGINT NOT NULL,
-    retry_count      INTEGER DEFAULT 0,
-    status           TEXT DEFAULT 'PENDING',
-    last_error       TEXT,
-    server_timestamp BIGINT
-);
-CREATE INDEX idx_sync_queue_user_status ON sync_queue(user_id, status);
-CREATE INDEX idx_sync_queue_pending ON sync_queue(status, created_at ASC) WHERE status = 'PENDING';
-
-CREATE TABLE conflict_records (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    entity_id           TEXT NOT NULL,
-    entity_type         TEXT NOT NULL,
-    local_payload_json  TEXT NOT NULL,
-    server_payload_json TEXT NOT NULL,
-    local_timestamp     BIGINT NOT NULL,
-    server_timestamp    BIGINT NOT NULL,
-    resolved_at         BIGINT NOT NULL,
-    resolution          TEXT NOT NULL
-);
-CREATE INDEX idx_conflict_records_user ON conflict_records(user_id);
-
 CREATE TABLE user_fcm_tokens (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -777,12 +744,6 @@ CREATE POLICY "Users can manage own search history" ON search_history FOR ALL US
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own notifications" ON notifications FOR ALL USING (user_id = auth.uid());
-
-ALTER TABLE sync_queue ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can manage own sync queue" ON sync_queue FOR ALL USING (user_id = auth.uid());
-
-ALTER TABLE conflict_records ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own conflict records" ON conflict_records FOR SELECT USING (user_id = auth.uid());
 
 ALTER TABLE impressed_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own impressed log" ON impressed_log FOR SELECT USING (user_id = auth.uid());

@@ -1812,6 +1812,15 @@ class ChatFeatureManager(
                                 capturedConfidence,
                                 capturedSourceType,
                             )
+                            
+                            // Trigger unified sync to pull down any server-side generated content
+                            scope.launch {
+                                try {
+                                    com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to sync after AgentEvent.Result", e)
+                                }
+                            }
                         }
                         is AgentEvent.Error -> {
                             responseBuilder.append("\n[Error: ${event.message}]")
@@ -1846,6 +1855,15 @@ class ChatFeatureManager(
                                 )
                             pendingToolCalls.removeAll { it.toolName == event.toolName }
                             pendingToolCalls.add(toolCallEntry)
+
+                            // Trigger unified sync to ensure tool actions are reflected immediately
+                            scope.launch {
+                                try {
+                                    com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to sync after AgentEvent.ToolCall", e)
+                                }
+                            }
                         }
                         is AgentEvent.Command -> {
                             Log.d(TAG, "Command received: ${event.command}")

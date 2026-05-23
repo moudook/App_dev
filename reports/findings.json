@@ -1,146 +1,84 @@
 [
   {
-    "id": "V-001",
-    "title": "Uncontrolled Subprocess Spawning via OpencodeModelRegistry",
+    "id": "MDASH-001",
+    "title": "Note Deduplication Triggers Redundant AI Processing",
+    "severity": "High",
+    "confidence": "Confirmed",
+    "affected_layers": ["Backend Services"],
+    "file_paths": [
+      "server/src/main/kotlin/com/example/smarty/server/services/NoteService.kt",
+      "server/src/main/kotlin/com/example/smarty/server/data/NoteRepository.kt"
+    ],
+    "schema_entities": ["notes.processing_status"],
+    "evidence": "NoteService.createNote unconditionally calls serviceScope.launch { enrichNote(...) } using the ID returned from noteRepository.create, even if NoteDeduplicationManager returned an existing ID.",
+    "root_cause": "The repository layer hides the distinction between an 'inserted' note and a 'retrieved duplicate' note. The service layer assumes all returned IDs require processing.",
+    "reproduction_steps": "Send POST /data/notes with the same content multiple times. Observe the server re-running content analysis and overwriting the database row.",
+    "status": "Resolved",
+    "notes": "Hidden processing defect."
+  },
+  {
+    "id": "MDASH-002",
+    "title": "OpenCode CLI Network Retry Duplicates Messages",
     "severity": "Critical",
     "confidence": "Confirmed",
-    "affected_layers": ["Server Core", "LLM Infrastructure", "Process Execution"],
-    "root_cause": "Three code paths (discoverAtStartup, refreshFromCli, runBlockingRefresh) spawn `opencode` subprocess using ProcessBuilder without PATH validation, binary verification, or working directory isolation. Timeout via waitFor + destroyForcibly can leave orphaned processes. Silent empty-list fallback on failure loses model governance.",
-    "reproduction_steps": [
-      "Place a malicious `opencode` script earlier in PATH than the real CLI binary",
-      "Start the Friday server",
-      "Observe that the malicious binary executes with full JVM process permissions during `discoverAtStartup()`"
-    ]
+    "affected_layers": ["Agent Transport", "Orchestration"],
+    "file_paths": [
+      "server/src/main/kotlin/com/example/smarty/server/llm/OpencodeLlmProvider.kt"
+    ],
+    "schema_entities": [],
+    "evidence": "OpencodeLlmProvider.kt contains a 'while(true)' loop around client.preparePost. Exceptions thrown during stream read trigger a full retry.",
+    "root_cause": "Retrying an HTTP POST to an stateful session endpoint without idempotency keys appends a duplicate message to the daemon's context window.",
+    "reproduction_steps": "Initiate a chat session. Terminate the Ktor client connection mid-stream. Observe the daemon logs receiving the same prompt twice.",
+    "status": "Resolved",
+    "notes": "Runtime stability defect."
   },
   {
-    "id": "V-002",
-    "title": "Session State Race Condition Across Concurrent SSE Streams",
-    "severity": "Critical",
+    "id": "MDASH-003",
+    "title": "Streaming Parser Swallows Intermediate Text",
+    "severity": "Medium",
     "confidence": "Confirmed",
-    "affected_layers": ["Routing", "Session Management", "Event Routing"],
-    "root_cause": "ActiveEventBridge, ActiveSessionManager, and chat event emitter all use userId as the key with overwrite semantics. Multiple concurrent SSE connections from the same Firebase user cause event misrouting, session info overwrite, and progressive database saves targeting the wrong session.",
-    "reproduction_steps": [
-      "Obtain a valid Firebase token for a test user",
-      "Open two concurrent SSE connections to `/chat/stream` with same token",
-      "Trigger an approval-requiring tool in the first session",
-      "Observe the ApprovalRequested event arriving in the second session's stream"
-    ]
+    "affected_layers": ["Stream Parsing", "Agent Representation"],
+    "file_paths": [
+      "server/src/main/kotlin/com/example/smarty/server/agent/AgentStreamProcessor.kt"
+    ],
+    "schema_entities": [],
+    "evidence": "In the regex logic for '</think>|<final>', any text between the closing think tag and the opening final tag is incorrectly assigned to thinkingPart instead of cleanContent.",
+    "root_cause": "Incorrect array indexing and state assignment in the regex split block.",
+    "reproduction_steps": "Simulate an LLM chunk containing '</think> Intermediate <final>'. The word 'Intermediate' will be invisible in the final output.",
+    "status": "Resolved",
+    "notes": "Agent transparency defect."
   },
   {
-    "id": "V-003",
-    "title": "Unbounded SSE Event Buffer with No Backpressure",
-    "severity": "Critical",
+    "id": "MDASH-004",
+    "title": "Database Schema Desync: Sync Queue Ignored",
+    "severity": "Low",
     "confidence": "Confirmed",
-    "affected_layers": ["Agent Orchestration", "LLM Bridging", "Memory Management"],
-    "root_cause": "The LLM streaming pipeline (Flow.collect -> EventEmitter -> SSE send) has no backpressure mechanism. Fast LLM generation can overflow memory via in-flight event accumulation, unbounded thinking trace growth, and raw response sample StringBuilder with no size cap. SSE disconnect detection is not propagated to stop the Flow collector.",
-    "reproduction_steps": [
-      "Send a query that triggers a long generation (e.g., 'write a 50-page essay')",
-      "Disconnect the SSE client mid-stream",
-      "Observe server memory growing as Flow.collect continues accumulating events"
-    ]
+    "affected_layers": ["Database Schema", "Sync Engine"],
+    "file_paths": [
+      "SUPABASE_SCHEMA.sql",
+      "server/src/main/kotlin/com/example/smarty/server/routes/OptimizedSyncRoutes.kt"
+    ],
+    "schema_entities": ["sync_queue", "conflict_records"],
+    "evidence": "SUPABASE_SCHEMA.sql defines sync_queue and conflict_records, but no Kotlin backend code references them. OptimizedSyncRoutes uses direct UPSERTs.",
+    "root_cause": "Schema was designed for an asynchronous queue-based sync, but the backend implementation shifted to synchronous delta-syncs.",
+    "reproduction_steps": "N/A (Structural issue)",
+    "status": "Resolved",
+    "notes": "Design choice or tech debt."
   },
   {
-    "id": "V-004",
-    "title": "Approval Resolution Not Scoped to Authenticated User",
-    "severity": "Major",
-    "confidence": "Confirmed",
-    "affected_layers": ["Permission Engine", "Routing"],
-    "root_cause": "POST /api/v1/chat/events/approval resolves approvals by toolId only, without verifying that the requesting user owns the approval. ApprovalRegistry is a global ConcurrentHashMap with no per-user scoping. Any authenticated user who knows a toolId can approve or deny another user's pending tool execution.",
-    "reproduction_steps": [
-      "User A triggers a tool requiring approval (e.g., device action)",
-      "User A's SSE stream emits ApprovalRequested with toolId 'abc-123'",
-      "User B (different Firebase account) sends POST /api/v1/chat/events/approval with toolId='abc-123' and approved=true",
-      "The tool executes for User A despite User B providing the approval"
-    ]
-  },
-  {
-    "id": "V-005",
-    "title": "LlmCacheKey Uses ByteArray in Data Class Breaking Equals/HashCode",
-    "severity": "Major",
-    "confidence": "Confirmed",
-    "affected_layers": ["LLM Infrastructure", "Caching"],
-    "root_cause": "LlmCacheKey contains List<LlmMessage> which has a List<ByteArray>? field. ByteArray on JVM uses referential identity (not structural equality) for equals()/hashCode(). The LLM response cache silently never hits for any request with image attachments, and hash computation is O(n) on ByteArray content for no benefit.",
-    "reproduction_steps": [
-      "Send query A with an image to the chat endpoint",
-      "Send the identical query A with the same image again",
-      "Observe that the cache log shows no cache hit (the second request processes fully)"
-    ]
-  },
-  {
-    "id": "V-007",
-    "title": "Interrupt Endpoint Does Not Cancel Running Agent Coroutines",
-    "severity": "Major",
-    "confidence": "Confirmed",
-    "affected_layers": ["Agent Orchestration", "Routing"],
-    "root_cause": "POST /chat/interrupt clears the session checkpoint but has no mechanism to cancel the running ServerAgent coroutine. No Job handle is stored for the agent execution. Between the checkpoint being cleared and the agent's next loop iteration checking it, one additional tool call can execute without protection.",
-    "reproduction_steps": [
-      "Send a deep research query that triggers a long chain of tool calls",
-      "Immediately send POST /chat/interrupt with the session ID",
-      "Observe that the agent may still execute 1-2 more tool calls before the loop condition detects the cleared checkpoint"
-    ]
-  },
-  {
-    "id": "V-010",
-    "title": "SQL Migration Parser Desync on Dollar-Quoted Strings",
-    "severity": "Minor",
-    "confidence": "Confirmed",
-    "affected_layers": ["Data", "Migrations"],
-    "root_cause": "The SQL statement splitter uses a naive $$ toggle state machine that can desync if dollar-quoted strings contain $$ in comments or string literals. If desynced, statement boundaries are misidentified and SQL execution errors are silently swallowed by the catch(Exception) block.",
-    "reproduction_steps": [
-      "Add a migration SQL file containing a function body with a comment containing '$$'",
-      "Observe only on careful inspection: the function body straddling a split boundary causes a SQL syntax error that is caught and logged at debug level"
-    ]
-  },
-  {
-    "id": "V-011",
-    "title": "ThinkingStorageManager Mutex Doesn't Cover DB Write",
-    "severity": "Minor",
-    "confidence": "Confirmed",
-    "affected_layers": ["Agent State", "Persistence"],
-    "root_cause": "The ThinkingStorageManager mutex protects only the in-memory block list, but the database write of the thinking trace happens outside the mutex. A rapid tool result arriving between the mutex release and DB write causes the stored thinking trace to be stale.",
-    "reproduction_steps": [
-      "Send a query that triggers two rapid tool calls in succession",
-      "Examine the stored thinking trace in the database",
-      "The final thinking trace may not include the second tool call's output"
-    ]
-  },
-  {
-    "id": "V-012",
-    "title": "POST /chat/events Accepts Arbitrary Deserialized ClientEvent Types",
-    "severity": "Minor",
-    "confidence": "Confirmed",
-    "affected_layers": ["Routing", "Client Communication"],
-    "root_cause": "The /chat/events endpoint deserializes ClientEvent sealed class with classDiscriminator, accepting any subtype. The else branch silently ignores unhandled types, but ToolResult events are written to chat history without validation beyond the deserialization. An authenticated user could inject fabricated tool results into their own conversation history.",
-    "reproduction_steps": [
-      "Authenticate as a valid Firebase user",
-      "POST /chat/events?sessionId=abc with body: {\"type\":\"tool_result\",\"commandId\":\"x\",\"result\":\"FAKE DATA\",\"isError\":false,\"timestamp\":0}",
-      "The injected data appears in the conversation history loaded on the next agent request"
-    ]
-  },
-  {
-    "id": "V-013",
-    "title": "HTML-Entity Sanitization Irrelevant for JSON API Architecture",
-    "severity": "Minor",
-    "confidence": "Confirmed",
-    "affected_layers": ["Security Utilities"],
-    "root_cause": "InputValidation.sanitizeInput() encodes HTML entities (< -> &lt; etc.) and checks for XSS patterns. The application uses JSON serialization + native Compose UI rendering, where HTML entity encoding has no effect and XSS patterns are not exploitable. The sanitization is architecturally irrelevant.",
-    "reproduction_steps": [
-      "Send a query with <script>alert('xss')</script> to the chat endpoint",
-      "Observe that the input is either rejected by validateQuery (if it matches injection patterns) or passed through",
-      "The stored value in JSON format cannot inject JavaScript into native Compose UI rendering"
-    ]
-  },
-  {
-    "id": "V-014",
-    "title": "sessionMessageCount Map Grows Without Eviction",
-    "severity": "Minor",
-    "confidence": "Confirmed",
-    "affected_layers": ["LLM Infrastructure"],
-    "root_cause": "OpencodeLlmProvider.sessionMessageCount is a ConcurrentHashMap<String, Int> with no cleanup, TTL, or eviction policy. Each daemon session creates a persistent entry. Sustained session churn causes unbounded map growth.",
-    "reproduction_steps": [
-      "Rapidly create and destroy chat sessions (e.g., script 10,000 requests)",
-      "Observe sessionMessageCount growing monotonically without removal",
-      "Each entry persists until JVM restart"
-    ]
+    "id": "MDASH-005",
+    "title": "Missing Cancellation Propagation to Daemon",
+    "severity": "High",
+    "confidence": "Likely",
+    "affected_layers": ["Server Runtime", "OpenCode Daemon"],
+    "file_paths": [
+      "server/src/main/kotlin/com/example/smarty/server/llm/OpencodeLlmProvider.kt"
+    ],
+    "schema_entities": [],
+    "evidence": "No code exists to send an abort/cancel signal to the OpenCode HTTP server if the Ktor request is cancelled.",
+    "root_cause": "Unidirectional HTTP POST assumption for streams.",
+    "reproduction_steps": "Start a long-running generation. Disconnect the client. Observe the daemon continuing to use CPU.",
+    "status": "Resolved",
+    "notes": "Resource leak defect."
   }
 ]

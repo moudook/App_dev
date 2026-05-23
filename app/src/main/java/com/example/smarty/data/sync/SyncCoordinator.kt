@@ -36,13 +36,42 @@ class SyncCoordinator(
     // MUTEX LOCK: Prevents duplicate concurrent pull requests
     // This fixes the issue where 3 identical pull requests fire within ~2 seconds
     private val pullMutex = Mutex()
+    private val pushMutex = Mutex()
+    private val syncAllMutex = Mutex()
 
     // Track last pull time for debouncing (5 second window)
     @Volatile
     private var lastPullTime = 0L
+    @Volatile
+    private var lastSyncAllTime = 0L
     private val pullDebounceMs = 5000L // 5 seconds
 
     val isOnline = networkMonitor.connectionStatus.map { it == ConnectionStatus.CONNECTED }
+
+    /**
+     * Unified sync operation with a hard 5-second debounce limit.
+     * Prevents spamming the server when multiple events request sync.
+     */
+    suspend fun syncAll(): Pair<PushResult, PullResult> {
+        val now = System.currentTimeMillis()
+        if (now - lastSyncAllTime < pullDebounceMs) {
+            Log.d(TAG, "SyncAll debounced: last sync was ${now - lastSyncAllTime}ms ago")
+            return Pair(PushResult.Success(0, 0, 0), PullResult.Success(0, 0, 0))
+        }
+
+        return syncAllMutex.withLock {
+            val nowAfterLock = System.currentTimeMillis()
+            if (nowAfterLock - lastSyncAllTime < pullDebounceMs) {
+                return@withLock Pair(PushResult.Success(0, 0, 0), PullResult.Success(0, 0, 0))
+            }
+            lastSyncAllTime = nowAfterLock
+
+            Log.i(TAG, "Executing unified debounced syncAll...")
+            val pushResult = pushPendingChanges()
+            val pullResult = pullFromServer()
+            Pair(pushResult, pullResult)
+        }
+    }
 
     /**
      * Get all stored generated images from local cache.

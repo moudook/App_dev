@@ -31,7 +31,7 @@ class NoteProcessingQueueManager(
 ) {
     companion object {
         private const val TAG = "NoteProcessingQueue"
-        private const val PROCESSING_TIMEOUT_MS = 300_000L
+        private const val PROCESSING_TIMEOUT_MS = 120_000L
         private const val QUEUE_CHECK_INTERVAL_MS = 5_000L
         private const val PROCESSING_DELAY_MS = 1_000L
         private const val MAX_RETRY_ATTEMPTS = 3
@@ -72,13 +72,13 @@ class NoteProcessingQueueManager(
     }
 
     private suspend fun forceCompleteVeryOldStuckNotes() {
-        val veryOldThreshold = System.currentTimeMillis() - (5 * 60 * 1000L)
+        val veryOldThreshold = System.currentTimeMillis() - (10 * 60 * 1000L)
         val stuckProcessing = repository.getStuckProcessingNotes(veryOldThreshold)
         val stuckPending = repository.getNotesByProcessingStatus(ProcessingStatus.PENDING)
             .filter { it.updatedAt < veryOldThreshold }
         val allStuck = stuckProcessing + stuckPending
         if (allStuck.isNotEmpty()) {
-            Log.w(TAG, "Force completing ${allStuck.size} notes stuck for over 5 minutes")
+            Log.w(TAG, "Force completing ${allStuck.size} notes stuck for over 10 minutes")
             for (note in allStuck) {
                 val contentHash = note.content.sha256()
                 saveWithDefaultCategory(note, contentHash)

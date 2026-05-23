@@ -613,6 +613,7 @@ class MainActivity : ComponentActivity() {
                                     connectionStatus = connectionStatus,
                                     cloudSyncState = viewModel.cloudSyncState.collectAsState().value,
                                     onSyncCloud = { viewModel.syncCloudNow() },
+                                    onSyncCloudSilent = { viewModel.syncCloudNow(silent = true) },
                                     syncSnackbarMessage = viewModel.syncSnackbarMessage,
                                     // Camera trigger from widget
                                     cameraTriggered = cameraTriggered,

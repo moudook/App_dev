@@ -22,22 +22,33 @@ class NoteService(
     /**
      * Create a note and trigger background enrichment.
      */
-    suspend fun createNote(userId: String, title: String, content: String, categoryId: String? = null): String {
+    suspend fun createNote(
+        userId: String, 
+        title: String, 
+        content: String, 
+        categoryId: String? = null,
+        isAiCreated: Boolean = false
+    ): String {
         val initialNote = NoteInfo(
             id = "", // Will be generated
             title = title,
             content = content,
             categoryId = categoryId,
             processingStatus = "PROCESSING",
+            isAiCreated = isAiCreated,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )
         
-        val noteId = noteRepository.create(userId, initialNote)
+        val (noteId, isDuplicate) = noteRepository.createWithDuplicateStatus(userId, initialNote)
         
-        // Trigger background enrichment
-        serviceScope.launch {
-            enrichNote(userId, noteId, title, content)
+        if (!isDuplicate) {
+            // Trigger background enrichment
+            serviceScope.launch {
+                enrichNote(userId, noteId, title, content)
+            }
+        } else {
+            logger.info("Skipping background enrichment for duplicate note {}", noteId)
         }
         
         return noteId
@@ -120,6 +131,18 @@ class NoteService(
             }
         } catch (e: Exception) {
             logger.error("Failed to enrich note $noteId", e)
+            try {
+                val existingFailed = noteRepository.getById(userId, noteId)
+                if (existingFailed != null) {
+                    val failedNote = existingFailed.copy(
+                        processingStatus = "FAILED",
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    noteRepository.update(userId, failedNote)
+                }
+            } catch (inner: Exception) {
+                logger.error("Failed to update status to FAILED for note $noteId", inner)
+            }
         }
     }
 

@@ -285,7 +285,7 @@ class ToolExecutor(
 
     private suspend fun executeMemorySave(args: UnifiedToolArgs): String {
         return if (noteService != null && args.title != null && args.content != null) {
-            val noteId = noteService.createNote(userId, args.title, args.content, args.category)
+            val noteId = noteService.createNote(userId, args.title, args.content, args.category, isAiCreated = true)
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId). AI enrichment started in background."
         } else if (noteRepository != null && args.title != null && args.content != null) {
@@ -295,6 +295,7 @@ class ToolExecutor(
                 content = args.content,
                 categoryId = args.category,
                 processingStatus = "COMPLETED",
+                isAiCreated = true,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )

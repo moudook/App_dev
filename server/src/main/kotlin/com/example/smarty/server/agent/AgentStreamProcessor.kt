@@ -308,60 +308,64 @@ class AgentStreamProcessor(
         if (!chunk.content.isNullOrEmpty()) {
             val newContent = chunk.content
 
-            val hadThinkStart = newContent.contains("<think>") || newContent.contains("<thought>")
-            val hadThinkEnd = newContent.contains("</think>") || newContent.contains("</thought>")
-            val hadFinalOpen = newContent.contains("<final>")
-            val hadFinalClose = newContent.contains("</final>")
-
             var cleanContent = ""
             var thinkingPart = ""
 
-            when {
-                hadThinkStart -> {
-                    inThinkingState = true
-                    inFinalState = false
-                    val parts = newContent.split(Regex("<(?:think|thought)>"), limit = 2)
-                    cleanContent = parts.getOrElse(0) { "" }
-                    val afterOpen = parts.getOrElse(1) { "" }
-                    if (currentThinkingStepId == null) startThinkingStep()
-                    if (hadThinkEnd || hadFinalClose) {
-                        val endParts = afterOpen.split(Regex("</(?:think|thought|final)>|<final>"), limit = 2)
-                        thinkingPart = endParts.getOrElse(0) { "" }
-                        cleanContent += endParts.getOrElse(1) { "" }
-                        inThinkingState = false
-                        inFinalState = true
+            var i = 0
+            while (i < newContent.length) {
+                if (!inThinkingState) {
+                    val nextThinkIdx = newContent.indexOf("<think>", i)
+                    val nextThoughtIdx = newContent.indexOf("<thought>", i)
+                    val nextStart = listOf(nextThinkIdx, nextThoughtIdx).filter { it >= 0 }.minOrNull() ?: -1
+
+                    if (nextStart >= 0) {
+                        cleanContent += newContent.substring(i, nextStart)
+                        inThinkingState = true
+                        val tagLen = if (nextStart == nextThinkIdx) 7 else 9
+                        i = nextStart + tagLen
+                        if (currentThinkingStepId == null) startThinkingStep()
                     } else {
-                        thinkingPart = afterOpen
+                        val nextFinalOpenIdx = newContent.indexOf("<final>", i)
+                        if (nextFinalOpenIdx >= 0) {
+                            cleanContent += newContent.substring(i, nextFinalOpenIdx)
+                            inFinalState = true
+                            i = nextFinalOpenIdx + 7
+                        } else {
+                            val nextFinalCloseIdx = newContent.indexOf("</final>", i)
+                            if (nextFinalCloseIdx >= 0) {
+                                cleanContent += newContent.substring(i, nextFinalCloseIdx)
+                                inFinalState = false
+                                i = nextFinalCloseIdx + 8
+                            } else {
+                                cleanContent += newContent.substring(i)
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    val nextEndThinkIdx = newContent.indexOf("</think>", i)
+                    val nextEndThoughtIdx = newContent.indexOf("</thought>", i)
+                    val nextEnd = listOf(nextEndThinkIdx, nextEndThoughtIdx).filter { it >= 0 }.minOrNull() ?: -1
+
+                    if (nextEnd >= 0) {
+                        thinkingPart += newContent.substring(i, nextEnd)
+                        inThinkingState = false
+                        val tagLen = if (nextEnd == nextEndThinkIdx) 8 else 10
+                        i = nextEnd + tagLen
+                    } else {
+                        val nextFinalIdx = newContent.indexOf("<final>", i)
+                        if (nextFinalIdx >= 0) {
+                            thinkingPart += newContent.substring(i, nextFinalIdx)
+                            inThinkingState = false
+                            inFinalState = true
+                            i = nextFinalIdx + 7
+                        } else {
+                            thinkingPart += newContent.substring(i)
+                            break
+                        }
                     }
                 }
-                inThinkingState && (hadThinkEnd || hadFinalClose) -> {
-                    val endParts = newContent.split(Regex("</(?:think|thought|final)>|<final>"), limit = 2)
-                    thinkingPart = endParts.getOrElse(0) { "" }
-                    cleanContent = endParts.getOrElse(1) { "" }
-                    inThinkingState = false
-                    inFinalState = true
-                }
-                inThinkingState -> {
-                    thinkingPart = newContent
-                }
-                else -> {
-                    cleanContent =
-                        newContent
-                            .replace(Regex("<(?:think|thought|final)>"), "")
-                            .replace(Regex("</(?:think|thought|final)>"), "")
-                    if (hadFinalOpen) inFinalState = true
-                }
             }
-
-            // Strip thinking/final tags
-            cleanContent =
-                cleanContent
-                    .replace(Regex("<(?:think|thought|final)>"), "")
-                    .replace(Regex("</(?:think|thought|final)>"), "")
-            thinkingPart =
-                thinkingPart
-                    .replace(Regex("<(?:think|thought|final)>"), "")
-                    .replace(Regex("</(?:think|thought|final)>"), "")
 
             // Strip tool call XML from user-visible content
 
