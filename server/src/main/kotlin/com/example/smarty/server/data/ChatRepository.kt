@@ -130,7 +130,7 @@ class ChatRepository(
                     stmt.setString(1, messageId)
                     stmt.setString(2, sessionId)
                     stmt.setString(3, userId)
-                    stmt.setString(4, role)
+                    stmt.setString(4, role.lowercase())
                     stmt.setString(5, content)
                     stmt.setString(6, thinking)
                     stmt.setString(7, toolCalls)

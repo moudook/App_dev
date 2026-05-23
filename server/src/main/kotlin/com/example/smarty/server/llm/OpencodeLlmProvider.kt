@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /**
- * Resilient JSON content extraction.
+ * Resilient JSON content extraction extension properties.
  */
 private val JsonElement?.safeStr: String?
     get() = (this as? JsonPrimitive)?.contentOrNull
@@ -30,10 +30,14 @@ private fun JsonElement?.deepStr(): String? {
     if (this == null || this is JsonNull) return null
     if (this is JsonPrimitive) return this.contentOrNull
     if (this is JsonObject) {
-        // Search common fields recursively
-        return this["delta"]?.deepStr() ?: this["text"]?.deepStr() ?: this["content"]?.deepStr()
-            ?: this["result"]?.deepStr() ?: this["output"]?.deepStr() ?: this["data"]?.deepStr()
-            ?: this.toString()
+        // Search common fields recursively for any value that might be a string
+        return this["delta"]?.deepStr() 
+            ?: this["text"]?.deepStr() 
+            ?: this["content"]?.deepStr() 
+            ?: this["result"]?.deepStr() 
+            ?: this["output"]?.deepStr() 
+            ?: this["data"]?.deepStr()
+            ?: if (this.keys.size == 1 && this.values.first() is JsonPrimitive) this.values.first().jsonPrimitive.contentOrNull else this.toString()
     }
     return this.toString()
 }
@@ -127,7 +131,7 @@ class OpencodeLlmProvider(
         sessionMessageCount[daemonSessionId] = messages.size
         saveSessionMessageCount()
 
-        logger.info("[OpenCode.Request][inference=$inferenceId] Sending request: model=$providerId/$modelId, parts=${parts.size}")
+        logger.info("[OpenCode.Request][inference=$inferenceId] model=$providerId/$modelId, parts=${parts.size}")
 
         val flowCollector = this
         client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
@@ -140,13 +144,14 @@ class OpencodeLlmProvider(
                 system = systemPrompt
             ))
         }.execute { response ->
-            val isSse = response.headers["Content-Type"]?.contains("event-stream") == true
-            logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, isSse=$isSse")
+            val contentType = response.headers["Content-Type"] ?: "unknown"
+            logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
 
             val channel = response.bodyAsChannel()
             var currentEvent: String? = null
             val currentData = StringBuilder()
 
+            // ADAPTIVE PARSER: Handle both SSE stream and single large JSON batch
             while (!channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: break
                 
@@ -163,8 +168,7 @@ class OpencodeLlmProvider(
                     currentEvent = line.substringAfter("event:").trim()
                 } else if (line.startsWith("data:")) {
                     val data = line.substringAfter("data:").trim()
-                    // IMMEDIATE PROCESS: If the data line itself is a complete JSON object, process it.
-                    // This handles daemons that don't send empty lines between events.
+                    // Detect NDJSON (line-delimited JSON) inside SSE data
                     if (data.startsWith("{") && data.endsWith("}")) {
                         flowCollector.processSseEvent(currentEvent ?: "message", data, context)
                     } else {
@@ -172,11 +176,12 @@ class OpencodeLlmProvider(
                         currentData.append(data)
                     }
                 } else if (line.startsWith("{")) {
-                    // Handle NDJSON or direct JSON batches
+                    // This is a direct batch JSON response, not SSE
                     flowCollector.processSseEvent("message", line, context)
                 }
             }
             
+            // Final flush for remaining data
             if (currentData.isNotEmpty()) {
                 flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
             }
@@ -189,9 +194,9 @@ class OpencodeLlmProvider(
         context: StreamContext,
     ) {
         val inferenceId = context.inferenceId
-        logger.trace("[OpenCode.SSE][inference=$inferenceId] Event: $eventType, Data: $data")
+        logger.trace("[OpenCode.SSE][inference=$inferenceId] Raw data: $data")
 
-        // 1. Guaranteed Raw Emission
+        // 1. Guaranteed Raw Emission (Immediate)
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
         // 2. Resilient Semantic Parsing
@@ -208,13 +213,13 @@ class OpencodeLlmProvider(
                 val chunk = when (part.type) {
                     "text" -> LlmChunk(content = part.content, reasoning = null, subagentId = part.subagentId, sseEvent = eventType)
                     "reasoning" -> LlmChunk(content = null, reasoning = part.content, subagentId = part.subagentId, sseEvent = eventType)
-                    "tool_use", "tool" -> LlmChunk(
+                    "tool_use", "tool", "call" -> LlmChunk(
                         content = null,
                         toolCall = LlmToolCall("tool-${System.currentTimeMillis()}-$i", part.toolName ?: "unknown", part.toolArgs ?: ""),
                         subagentId = part.subagentId,
                         sseEvent = eventType
                     )
-                    "tool_result" -> LlmChunk(
+                    "tool_result", "result" -> LlmChunk(
                         content = null,
                         toolResult = LlmToolResult(part.toolName ?: "unknown", part.content ?: ""),
                         subagentId = part.subagentId,
@@ -230,7 +235,7 @@ class OpencodeLlmProvider(
     private fun parseCanonicalResponse(json: JsonObject): CanonicalResponse? {
         val topSubagentId = json["subagent_id"].safeStr
         
-        // V1: Array of parts
+        // V1: Parts Array (Batch/NDJSON responses)
         val partsArray = json["parts"]?.jsonArray
         if (partsArray != null) {
             val parts = partsArray.mapNotNull { el ->
@@ -241,22 +246,22 @@ class OpencodeLlmProvider(
                     "text", "reasoning", "content" -> CanonicalPart(type = if(type=="content") "text" else type, content = obj.deepStr(), subagentId = sid)
                     "tool_use", "tool", "call" -> {
                         val call = obj["call"]?.jsonObject ?: obj
-                        CanonicalPart("tool_use", toolName = (call["name"] ?: call["tool"]).deepStr(), toolArgs = (call["arguments"] ?: call["input"])?.toString(), subagentId = sid)
+                        CanonicalPart("tool_use", toolName = (call["name"] ?: call["tool"] ?: call["function"]).deepStr(), toolArgs = (call["arguments"] ?: call["input"])?.toString(), subagentId = sid)
                     }
-                    "tool_result", "result" -> CanonicalPart("tool_result", toolName = obj["name"].safeStr, content = obj.deepStr(), subagentId = sid)
+                    "tool_result", "result" -> CanonicalPart("tool_result", toolName = (obj["name"] ?: obj["tool"]).safeStr, content = obj.deepStr(), subagentId = sid)
                     else -> CanonicalPart(type, subagentId = sid)
                 }
             }
             return CanonicalResponse(parts)
         }
 
-        // V2: Individual part or Delta
+        // V2: Individual SSE Part (Daemon incremental)
         val type = json["type"].safeStr
         if (type != null) {
             val part = json["part"]?.jsonObject ?: json
             val sid = part["subagent_id"].safeStr ?: topSubagentId
             val content = part.deepStr()
-            val toolName = (part["tool"] ?: part["name"] ?: json["name"]).deepStr()
+            val toolName = (part["tool"] ?: part["name"] ?: part["function"] ?: json["name"]).deepStr()
             val toolArgs = (part["input"] ?: part["arguments"] ?: json["input"] ?: json["arguments"])?.toString()
 
             return when (type) {
@@ -271,6 +276,13 @@ class OpencodeLlmProvider(
                 else -> null
             }
         }
+        
+        // V3: Top-level fallback
+        val content = json.deepStr()
+        if (content != null && content != json.toString()) {
+            return CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = topSubagentId)))
+        }
+        
         return null
     }
 
