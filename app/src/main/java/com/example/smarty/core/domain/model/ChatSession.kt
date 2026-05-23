@@ -3,10 +3,10 @@ package com.example.smarty.core.domain.model
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import java.util.UUID
+import com.example.smarty.protocol.AgentEvent
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.example.smarty.protocol.AgentEvent
+import java.util.UUID
 
 /**
  * Represents a chat session/conversation.
@@ -165,15 +165,16 @@ data class ChatMessageEntity(
                 else -> thinking
             }
 
-        val agentEvents: List<AgentEvent> = try {
-            if (agentEventsJson.isNotBlank() && agentEventsJson != "[]") {
-                Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
-            } else {
+        val agentEvents: List<AgentEvent> =
+            try {
+                if (agentEventsJson.isNotBlank() && agentEventsJson != "[]") {
+                    Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
                 emptyList()
             }
-        } catch (e: Exception) {
-            emptyList()
-        }
 
         return ChatMessage(
             id = id,
@@ -232,7 +233,7 @@ data class ChatMessageEntity(
                     "[]"
                 }
 
-            val agentEventsJson = 
+            val agentEventsJson =
                 if (message.agentEvents.isNotEmpty()) {
                     Json.encodeToString(message.agentEvents)
                 } else {
@@ -535,9 +536,9 @@ data class ChatMessageEntity(
                             stepStatus = stepStatus,
                             stepIndex = stepIndex,
                             toolName = toolName,
-                            durationMs = durationMs
-                        )
-                     )
+                            durationMs = durationMs,
+                        ),
+                    )
                 }
             } catch (_: Exception) {
             }
@@ -547,21 +548,24 @@ data class ChatMessageEntity(
         /** Serialize AgentStepEntry list to JSON. */
         fun serializeAgentStepsToJson(entries: List<AgentStepEntry>): String {
             if (entries.isEmpty()) return "[]"
-            val items = entries.map { e ->
-                val st = e.stepType.esc()
-                val title = e.stepTitle.esc()
-                val content = e.stepContent.esc()
-                val status = e.stepStatus.esc()
-                val idx = e.stepIndex
-                val tool = e.toolName?.esc()
-                val dur = e.durationMs
-                buildString {
-                    append("{\"stepType\":\"$st\",\"stepTitle\":\"$title\",\"stepContent\":\"$content\",\"stepStatus\":\"$status\",\"stepIndex\":$idx")
-                    if (tool != null) append(",\"toolName\":\"$tool\"")
-                    if (dur != null) append(",\"durationMs\":$dur")
-                    append("}")
+            val items =
+                entries.map { e ->
+                    val st = e.stepType.esc()
+                    val title = e.stepTitle.esc()
+                    val content = e.stepContent.esc()
+                    val status = e.stepStatus.esc()
+                    val idx = e.stepIndex
+                    val tool = e.toolName?.esc()
+                    val dur = e.durationMs
+                    buildString {
+                        append(
+                            "{\"stepType\":\"$st\",\"stepTitle\":\"$title\",\"stepContent\":\"$content\",\"stepStatus\":\"$status\",\"stepIndex\":$idx",
+                        )
+                        if (tool != null) append(",\"toolName\":\"$tool\"")
+                        if (dur != null) append(",\"durationMs\":$dur")
+                        append("}")
+                    }
                 }
-            }
             return "[${items.joinToString(",")}]"
         }
 

@@ -21,53 +21,42 @@ import kotlinx.serialization.Serializable
 data class UserEntity(
     @PrimaryKey
     val id: String,
-    
     @ColumnInfo(name = "firebase_uid")
     val firebaseUid: String,
-    
     val email: String?,
-    
     @ColumnInfo(name = "display_name")
     val displayName: String?,
-    
     @ColumnInfo(name = "avatar_url")
     val avatarUrl: String?,
-    
     @ColumnInfo(name = "is_active")
     val isActive: Boolean = true,
-    
     @ColumnInfo(name = "is_premium")
     val isPremium: Boolean = false,
-    
     @ColumnInfo(name = "subscription_expires_at")
     val subscriptionExpiresAt: Long? = null,
-    
     @ColumnInfo(name = "feature_flags")
     val featureFlags: String = "{}",
-    
     @ColumnInfo(name = "sync_state")
     val syncState: String = SyncState.PENDING.name,
-    
     @ColumnInfo(name = "device_fingerprint")
     val deviceFingerprint: String? = null,
-    
     @ColumnInfo(name = "last_device_id")
     val lastDeviceId: String? = null,
-    
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
-    
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long = System.currentTimeMillis(),
-    
     @ColumnInfo(name = "last_login_at")
     val lastLoginAt: Long = System.currentTimeMillis(),
 ) {
-    
     enum class SyncState {
-        PENDING, SYNCING, SYNCED, CONFLICT, ERROR
+        PENDING,
+        SYNCING,
+        SYNCED,
+        CONFLICT,
+        ERROR,
     }
-    
+
     /**
      * Device context for user-aware operations
      */
@@ -95,25 +84,18 @@ data class SyncStateEntity(
     @PrimaryKey
     @ColumnInfo(name = "user_id")
     val userId: String,
-    
     @ColumnInfo(name = "last_sync_at")
     val lastSyncAt: Long? = null,
-    
     @ColumnInfo(name = "last_pull_at")
     val lastPullAt: Long? = null,
-    
     @ColumnInfo(name = "last_push_at")
     val lastPushAt: Long? = null,
-    
     @ColumnInfo(name = "pending_operations")
     val pendingOperations: Int = 0,
-    
     @ColumnInfo(name = "conflict_count")
     val conflictCount: Int = 0,
-    
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
-    
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long = System.currentTimeMillis(),
 )

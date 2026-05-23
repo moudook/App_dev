@@ -1,7 +1,6 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.local.NoteVersionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao

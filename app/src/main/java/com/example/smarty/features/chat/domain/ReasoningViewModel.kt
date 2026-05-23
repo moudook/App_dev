@@ -4,12 +4,9 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.smarty.data.model.LogReasoningRequest
 import com.example.smarty.data.model.ProgressiveDisclosureResponse
-import com.example.smarty.data.model.ReasoningStepType
 import com.example.smarty.data.model.ReasoningTimelineResponse
 import com.example.smarty.data.model.ReasoningTrace
-import com.example.smarty.data.model.ReasoningTracesResponse
 import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.di.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,13 +17,12 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for reasoning traces and thinking logs.
- * 
+ *
  * Manages UI state for displaying AI reasoning process with progressive disclosure.
  */
 class ReasoningViewModel(
-    application: Application
+    application: Application,
 ) : AndroidViewModel(application) {
-
     companion object {
         private const val TAG = "ReasoningViewModel"
     }
@@ -44,13 +40,13 @@ class ReasoningViewModel(
         val timeline: ReasoningTimelineResponse? = null,
         val traces: List<ReasoningTrace> = emptyList(),
         val disclosure: ProgressiveDisclosureResponse? = null,
-        val disclosureLevel: DisclosureLevel = DisclosureLevel.BRIEF
+        val disclosureLevel: DisclosureLevel = DisclosureLevel.BRIEF,
     )
 
     enum class DisclosureLevel {
-        ONE_LINER,   // Just the conclusion
-        BRIEF,       // Key steps only (3-5)
-        DETAILED     // All steps with full content
+        ONE_LINER, // Just the conclusion
+        BRIEF, // Key steps only (3-5)
+        DETAILED, // All steps with full content
     }
 
     // State flow
@@ -63,26 +59,26 @@ class ReasoningViewModel(
     fun loadTimeline(sessionId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null, sessionId = sessionId) }
-            
+
             try {
                 val timeline = remoteDataSource.getReasoningTimeline(sessionId)
                 if (timeline != null) {
                     _uiState.update { it.copy(timeline = timeline, isLoading = false) }
                     Log.d(TAG, "Loaded timeline: ${timeline.totalSteps} steps")
                 } else {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = "No reasoning traces found for this session"
+                            error = "No reasoning traces found for this session",
                         )
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading timeline: ${e.message}", e)
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Failed to load reasoning: ${e.message}"
+                        error = "Failed to load reasoning: ${e.message}",
                     )
                 }
             }
@@ -92,35 +88,38 @@ class ReasoningViewModel(
     /**
      * Load reasoning traces for a session (with optional message filter)
      */
-    fun loadTraces(sessionId: String, messageId: String? = null) {
+    fun loadTraces(
+        sessionId: String,
+        messageId: String? = null,
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null, sessionId = sessionId) }
-            
+
             try {
                 val response = remoteDataSource.getReasoningTraces(sessionId, messageId)
                 if (response != null) {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             traces = response.traces,
-                            isLoading = false
+                            isLoading = false,
                         )
                     }
                     Log.d(TAG, "Loaded traces: ${response.traces.size} traces")
                 } else {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             isLoading = false,
                             traces = emptyList(),
-                            error = "No reasoning traces found"
+                            error = "No reasoning traces found",
                         )
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading traces: ${e.message}", e)
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Failed to load traces: ${e.message}"
+                        error = "Failed to load traces: ${e.message}",
                     )
                 }
             }
@@ -133,31 +132,31 @@ class ReasoningViewModel(
     fun loadDisclosure(sessionId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null, sessionId = sessionId) }
-            
+
             try {
                 val disclosure = remoteDataSource.getProgressiveDisclosure(sessionId)
                 if (disclosure != null) {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             disclosure = disclosure,
-                            isLoading = false
+                            isLoading = false,
                         )
                     }
                     Log.d(TAG, "Loaded disclosure: ${disclosure.statistics.totalSteps} total steps")
                 } else {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = "No disclosure data available"
+                            error = "No disclosure data available",
                         )
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading disclosure: ${e.message}", e)
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Failed to load disclosure: ${e.message}"
+                        error = "Failed to load disclosure: ${e.message}",
                     )
                 }
             }
@@ -176,11 +175,12 @@ class ReasoningViewModel(
      */
     fun toggleDisclosureLevel() {
         val current = _uiState.value.disclosureLevel
-        val next = when (current) {
-            DisclosureLevel.ONE_LINER -> DisclosureLevel.BRIEF
-            DisclosureLevel.BRIEF -> DisclosureLevel.DETAILED
-            DisclosureLevel.DETAILED -> DisclosureLevel.ONE_LINER
-        }
+        val next =
+            when (current) {
+                DisclosureLevel.ONE_LINER -> DisclosureLevel.BRIEF
+                DisclosureLevel.BRIEF -> DisclosureLevel.DETAILED
+                DisclosureLevel.DETAILED -> DisclosureLevel.ONE_LINER
+            }
         setDisclosureLevel(next)
     }
 
@@ -204,7 +204,7 @@ class ReasoningViewModel(
     fun getDisplayContent(): List<String> {
         val disclosure = _uiState.value.disclosure ?: return emptyList()
         val level = _uiState.value.disclosureLevel
-        
+
         return when (level) {
             DisclosureLevel.ONE_LINER -> listOf(disclosure.oneLiner)
             DisclosureLevel.BRIEF -> disclosure.briefSteps
@@ -234,39 +234,49 @@ class ReasoningViewModel(
      */
     sealed class StepTypeDisplay {
         object Analysis : StepTypeDisplay()
+
         object Planning : StepTypeDisplay()
+
         object Hypothesis : StepTypeDisplay()
+
         object Research : StepTypeDisplay()
+
         object Verification : StepTypeDisplay()
+
         object Synthesis : StepTypeDisplay()
+
         object Reflection : StepTypeDisplay()
+
         object Correction : StepTypeDisplay()
+
         data class Unknown(val type: String) : StepTypeDisplay()
 
         val icon: String
-            get() = when (this) {
-                is Analysis -> "🔍"
-                is Planning -> "📋"
-                is Hypothesis -> "💡"
-                is Research -> "📚"
-                is Verification -> "✅"
-                is Synthesis -> "🧩"
-                is Reflection -> "🤔"
-                is Correction -> "🔄"
-                is Unknown -> "📝"
-            }
+            get() =
+                when (this) {
+                    is Analysis -> "🔍"
+                    is Planning -> "📋"
+                    is Hypothesis -> "💡"
+                    is Research -> "📚"
+                    is Verification -> "✅"
+                    is Synthesis -> "🧩"
+                    is Reflection -> "🤔"
+                    is Correction -> "🔄"
+                    is Unknown -> "📝"
+                }
 
         val color: Int
-            get() = when (this) {
-                is Analysis -> 0xFF2196F3.toInt()  // Blue
-                is Planning -> 0xFF9C27B0.toInt()  // Purple
-                is Hypothesis -> 0xFFFFC107.toInt() // Amber
-                is Research -> 0xFF4CAF50.toInt()  // Green
-                is Verification -> 0xFF00BCD4.toInt() // Cyan
-                is Synthesis -> 0xFFFF9800.toInt()  // Orange
-                is Reflection -> 0xFF607D8B.toInt() // Blue Grey
-                is Correction -> 0xFFF44336.toInt() // Red
-                is Unknown -> 0xFF9E9E9E.toInt()    // Grey
-            }
+            get() =
+                when (this) {
+                    is Analysis -> 0xFF2196F3.toInt() // Blue
+                    is Planning -> 0xFF9C27B0.toInt() // Purple
+                    is Hypothesis -> 0xFFFFC107.toInt() // Amber
+                    is Research -> 0xFF4CAF50.toInt() // Green
+                    is Verification -> 0xFF00BCD4.toInt() // Cyan
+                    is Synthesis -> 0xFFFF9800.toInt() // Orange
+                    is Reflection -> 0xFF607D8B.toInt() // Blue Grey
+                    is Correction -> 0xFFF44336.toInt() // Red
+                    is Unknown -> 0xFF9E9E9E.toInt() // Grey
+                }
     }
 }

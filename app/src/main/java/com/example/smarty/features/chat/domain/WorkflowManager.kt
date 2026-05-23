@@ -2,16 +2,10 @@ package com.example.smarty.features.chat.domain
 
 import android.util.Log
 import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.domain.model.NoteType
-import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.data.repository.SmartyRepository
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * Manages complex, multi-step AI workflows.
@@ -34,7 +28,7 @@ import java.util.UUID
 class WorkflowManager(
     private val repository: SmartyRepository,
     private val scope: CoroutineScope,
-    private val onStatusUpdate: (String) -> Unit = {}
+    private val onStatusUpdate: (String) -> Unit = {},
 ) {
     companion object {
         private const val TAG = "WorkflowManager"
@@ -52,7 +46,7 @@ class WorkflowManager(
     suspend fun batchProcessNotes(
         noteIds: List<String>,
         operation: suspend (Note) -> Boolean,
-        onProgress: (Int, Int) -> Unit = { _, _ -> }
+        onProgress: (Int, Int) -> Unit = { _, _ -> },
     ): Int {
         if (noteIds.isEmpty()) return 0
 
@@ -89,7 +83,10 @@ class WorkflowManager(
      * @param delayMs Delay in milliseconds before execution
      * @param workflow The workflow to execute
      */
-    fun scheduleWorkflow(delayMs: Long, workflow: suspend () -> Unit) {
+    fun scheduleWorkflow(
+        delayMs: Long,
+        workflow: suspend () -> Unit,
+    ) {
         scope.launch {
             try {
                 delay(delayMs)
@@ -100,7 +97,10 @@ class WorkflowManager(
         }
     }
 
-    private fun truncateContent(content: String, wordCount: Int): String {
+    private fun truncateContent(
+        content: String,
+        wordCount: Int,
+    ): String {
         if (content.isBlank()) return ""
         val words = content.trim().split("\\s+".toRegex())
         return if (words.size <= wordCount) {
@@ -110,4 +110,3 @@ class WorkflowManager(
         }
     }
 }
-

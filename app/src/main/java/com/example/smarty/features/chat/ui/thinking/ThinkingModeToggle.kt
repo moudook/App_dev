@@ -27,35 +27,38 @@ import androidx.compose.ui.unit.dp
 fun ThinkingModeToggle(
     isEnabled: Boolean,
     onToggle: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val icon = if (isEnabled) {
-        Icons.Filled.Assistant
-    } else {
-        Icons.Outlined.Assistant
-    }
-    
-    val desc = if (isEnabled) {
-        "thinking_mode_on"
-    } else {
-        "thinking_mode_off"
-    }
-    
-    val tintColor = if (isEnabled) {
-        MaterialTheme.colorScheme.primary  // Highlighted when enabled
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)  // Dimmed when disabled
-    }
+    val icon =
+        if (isEnabled) {
+            Icons.Filled.Assistant
+        } else {
+            Icons.Outlined.Assistant
+        }
+
+    val desc =
+        if (isEnabled) {
+            "thinking_mode_on"
+        } else {
+            "thinking_mode_off"
+        }
+
+    val tintColor =
+        if (isEnabled) {
+            MaterialTheme.colorScheme.primary // Highlighted when enabled
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) // Dimmed when disabled
+        }
 
     IconButton(
         onClick = onToggle,
-        modifier = modifier
+        modifier = modifier,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = desc,
             tint = tintColor,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(24.dp),
         )
     }
 }

@@ -7,6 +7,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.smarty.core.domain.model.AgentStepEntity
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessageEntity
@@ -14,27 +15,9 @@ import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.ImpressedEntry
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.SmartyTimer
-import com.example.smarty.data.local.NoteStackEntity
-import com.example.smarty.data.local.StackEntity
-import com.example.smarty.data.local.SyncQueueItem
-import com.example.smarty.data.local.ConflictRecord
-import com.example.smarty.data.local.UserEntity
-import com.example.smarty.data.local.SyncStateEntity
-import com.example.smarty.data.local.TagEntity
-import com.example.smarty.data.local.ChatFolderEntity
-import com.example.smarty.data.local.TaskEntity
-import com.example.smarty.data.local.ReasoningTraceEntity
-import com.example.smarty.data.local.ReasoningSummaryEntity
-import com.example.smarty.data.local.AgentCheckpointEntity
-import com.example.smarty.data.local.SearchHistoryEntity
-import com.example.smarty.data.local.UserFcmTokenEntity
-import com.example.smarty.data.local.DailyDigestEntity
-import com.example.smarty.data.local.SharedItemEntity
-import com.example.smarty.data.local.NoteTaskEntity
+import com.example.smarty.data.local.dao.AgentStepDao
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.features.chat.domain.memory.AIMemoryDao
-import com.example.smarty.core.domain.model.AgentStepEntity
-import com.example.smarty.data.local.dao.AgentStepDao
 
 @Database(
     entities = [
@@ -82,19 +65,32 @@ import com.example.smarty.data.local.dao.AgentStepDao
 @TypeConverters(Converters::class)
 abstract class SmartyDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
+
     abstract fun categoryDao(): CategoryDao
+
     abstract fun chatDao(): ChatDao
+
     abstract fun agentStepDao(): AgentStepDao
+
     abstract fun timelineEventDao(): com.example.smarty.data.local.dao.TimelineEventDao
+
     abstract fun impressedLogDao(): ImpressedLogDao
+
     abstract fun calendarDao(): CalendarDao
+
     abstract fun noteVersionDao(): NoteVersionDao
+
     abstract fun timerDao(): TimerDao
+
     abstract fun aiCacheDao(): AICacheDao
+
     abstract fun aiMemoryDao(): AIMemoryDao
+
     abstract fun syncQueueDao(): SyncQueueDao
+
     // Junction table DAOs (v4.2.0)
     abstract fun chatMessageNotesDao(): ChatMessageNotesDao
+
     abstract fun calendarEventNotesDao(): CalendarEventNotesDao
 
     // ── Consolidated DAOs (from SmartDatabaseDao) ──

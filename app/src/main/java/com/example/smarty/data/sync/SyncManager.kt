@@ -1,7 +1,6 @@
 package com.example.smarty.data.sync
 
 import android.util.Log
-import com.example.smarty.core.domain.model.getTags
 import com.example.smarty.data.local.*
 import com.example.smarty.data.remote.RemoteAgentService
 import kotlinx.coroutines.*
@@ -22,7 +21,9 @@ import kotlinx.serialization.json.Json
  */
 sealed class SyncResult {
     data class Success(val serverTimestamp: Long) : SyncResult()
+
     data class Conflict(val serverData: String, val localData: String) : SyncResult()
+
     data class Error(val message: String, val retryable: Boolean) : SyncResult()
 }
 
@@ -201,14 +202,15 @@ class SyncManager(
             }
 
             if (notesToPush.isNotEmpty() || sessionsToPush.isNotEmpty() || eventsToPush.isNotEmpty()) {
-                val request = com.example.smarty.protocol.SyncPushRequest(
-                    notes = notesToPush.ifEmpty { null },
-                    sessions = sessionsToPush.ifEmpty { null },
-                    events = eventsToPush.ifEmpty { null }
-                )
+                val request =
+                    com.example.smarty.protocol.SyncPushRequest(
+                        notes = notesToPush.ifEmpty { null },
+                        sessions = sessionsToPush.ifEmpty { null },
+                        events = eventsToPush.ifEmpty { null },
+                    )
 
                 val response = remoteAgentService.pushSync(request)
-                
+
                 if (response?.success == true) {
                     val now = System.currentTimeMillis()
                     pendingItems.forEach { item ->
@@ -327,7 +329,7 @@ data class NotePayload(
             chunkAnalysesJson = chunkAnalysesJson,
             reminderText = reminderText,
             reminderExpiresAt = reminderExpiresAt,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
         )
     }
 
@@ -398,7 +400,7 @@ data class EventPayload(
             reminderMinutes = reminderMinutes ?: 15,
             linkedNoteId = linkedNoteId,
             googleEventId = googleEventId,
-            isEventPrivate = isEventPrivate
+            isEventPrivate = isEventPrivate,
         )
     }
 

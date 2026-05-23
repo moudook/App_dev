@@ -19,23 +19,25 @@ data class Tag(
         const val TYPE_AUTO = "AUTO"
         const val TYPE_AI = "AI"
 
-        val defaultColors = listOf(
-            "#6200EE", "#03DAC6", "#FF6B6B", "#4ECDC4",
-            "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD",
-            "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
-            "#F8C471", "#82E0AA", "#F1948A", "#AED6F1",
-        )
+        val defaultColors =
+            listOf(
+                "#6200EE", "#03DAC6", "#FF6B6B", "#4ECDC4",
+                "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD",
+                "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
+                "#F8C471", "#82E0AA", "#F1948A", "#AED6F1",
+            )
     }
 
     val displayName: String
         get() = name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
     val typeLabel: String
-        get() = when (tagType) {
-            TYPE_AUTO -> "Auto"
-            TYPE_AI -> "AI"
-            else -> "Manual"
-        }
+        get() =
+            when (tagType) {
+                TYPE_AUTO -> "Auto"
+                TYPE_AI -> "AI"
+                else -> "Manual"
+            }
 }
 
 @Serializable

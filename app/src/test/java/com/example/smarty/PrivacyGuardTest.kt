@@ -1,9 +1,9 @@
 package com.example.smarty
 
+import com.example.smarty.core.common.util.PrivacyAware
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.core.domain.model.ProcessingStatus
-import com.example.smarty.core.common.util.PrivacyAware
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -14,7 +14,6 @@ import org.junit.Test
  * CRITICAL: These tests must PASS to ensure user privacy.
  */
 class PrivacyGuardTest {
-
     // =========================================================================
     // TEST DATA HELPERS
     // =========================================================================
@@ -25,7 +24,7 @@ class PrivacyGuardTest {
         content: String = "Test content",
         isFullPrivacy: Boolean = false,
         excludeFromAiChat: Boolean = false,
-        isArchived: Boolean = false
+        isArchived: Boolean = false,
     ): Note {
         return Note(
             id = id,
@@ -35,7 +34,7 @@ class PrivacyGuardTest {
             processingStatus = ProcessingStatus.COMPLETED,
             isFullPrivacy = isFullPrivacy,
             excludeFromAiChat = excludeFromAiChat,
-            isArchived = isArchived
+            isArchived = isArchived,
         )
     }
 
@@ -95,12 +94,13 @@ class PrivacyGuardTest {
 
     @Test
     fun `filter removes all private notes`() {
-        val notes = listOf(
-            createNote(id = "1", isFullPrivacy = true),
-            createNote(id = "2", excludeFromAiChat = true),
-            createNote(id = "3"),  // public
-            createNote(id = "4")   // public
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isFullPrivacy = true),
+                createNote(id = "2", excludeFromAiChat = true),
+                createNote(id = "3"), // public
+                createNote(id = "4"), // public
+            )
 
         val visible = notes.filter { !it.isPrivate }
 
@@ -113,10 +113,11 @@ class PrivacyGuardTest {
 
     @Test
     fun `filter excludes archived notes when checking AI accessibility`() {
-        val notes = listOf(
-            createNote(id = "1", isArchived = true),  // archived
-            createNote(id = "2"),  // public, not archived
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isArchived = true), // archived
+                createNote(id = "2"), // public, not archived
+            )
 
         // AI accessible = not private AND not archived
         val accessible = notes.filter { !it.isPrivate && !it.isArchived }
@@ -134,11 +135,12 @@ class PrivacyGuardTest {
 
     @Test
     fun `all private notes returns empty filtered list`() {
-        val notes = listOf(
-            createNote(id = "1", isFullPrivacy = true),
-            createNote(id = "2", excludeFromAiChat = true),
-            createNote(id = "3", isFullPrivacy = true, excludeFromAiChat = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isFullPrivacy = true),
+                createNote(id = "2", excludeFromAiChat = true),
+                createNote(id = "3", isFullPrivacy = true, excludeFromAiChat = true),
+            )
 
         val visible = notes.filter { !it.isPrivate }
 
@@ -147,11 +149,12 @@ class PrivacyGuardTest {
 
     @Test
     fun `all public notes returns all notes`() {
-        val notes = listOf(
-            createNote(id = "1"),
-            createNote(id = "2"),
-            createNote(id = "3")
-        )
+        val notes =
+            listOf(
+                createNote(id = "1"),
+                createNote(id = "2"),
+                createNote(id = "3"),
+            )
 
         val visible = notes.filter { !it.isPrivate }
 
@@ -199,20 +202,22 @@ class PrivacyGuardTest {
 
     @Test
     fun `filter note IDs excludes private note IDs`() {
-        val notes = listOf(
-            createNote(id = "1", isFullPrivacy = true),
-            createNote(id = "2"),
-            createNote(id = "3", excludeFromAiChat = true),
-            createNote(id = "4")
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isFullPrivacy = true),
+                createNote(id = "2"),
+                createNote(id = "3", excludeFromAiChat = true),
+                createNote(id = "4"),
+            )
 
         val inputIds = listOf("1", "2", "3", "4")
 
         // Simulating PrivacyGuard.filterNoteIds behavior
-        val filteredIds = inputIds.filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate
-        }
+        val filteredIds =
+            inputIds.filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate
+            }
 
         assertEquals("Should have 2 visible note IDs", 2, filteredIds.size)
         assertTrue("Should contain ID 2", filteredIds.contains("2"))
@@ -227,13 +232,14 @@ class PrivacyGuardTest {
 
     @Test
     fun `mixed privacy states are filtered correctly`() {
-        val notes = listOf(
-            createNote(id = "full-privacy", isFullPrivacy = true, excludeFromAiChat = false),
-            createNote(id = "ai-excluded", isFullPrivacy = false, excludeFromAiChat = true),
-            createNote(id = "both-flags", isFullPrivacy = true, excludeFromAiChat = true),
-            createNote(id = "archived-only", isFullPrivacy = false, excludeFromAiChat = false, isArchived = true),
-            createNote(id = "public", isFullPrivacy = false, excludeFromAiChat = false, isArchived = false)
-        )
+        val notes =
+            listOf(
+                createNote(id = "full-privacy", isFullPrivacy = true, excludeFromAiChat = false),
+                createNote(id = "ai-excluded", isFullPrivacy = false, excludeFromAiChat = true),
+                createNote(id = "both-flags", isFullPrivacy = true, excludeFromAiChat = true),
+                createNote(id = "archived-only", isFullPrivacy = false, excludeFromAiChat = false, isArchived = true),
+                createNote(id = "public", isFullPrivacy = false, excludeFromAiChat = false, isArchived = false),
+            )
 
         // Privacy filter (not private)
         val notPrivate = notes.filter { !it.isPrivate }
@@ -252,27 +258,29 @@ class PrivacyGuardTest {
     @Test
     fun `private notes never appear in filtered results regardless of other flags`() {
         // Test that privacy flags take precedence
-        val noteWithEverything = createNote(
-            id = "complex",
-            isFullPrivacy = true,
-            isArchived = false  // Not archived, but should still be filtered out due to privacy
-        )
+        val noteWithEverything =
+            createNote(
+                id = "complex",
+                isFullPrivacy = true,
+                isArchived = false, // Not archived, but should still be filtered out due to privacy
+            )
 
         assertFalse(
             "Private note should not pass privacy filter",
-            !noteWithEverything.isPrivate
+            !noteWithEverything.isPrivate,
         )
     }
 
     @Test
     fun `count of private notes is accurate`() {
-        val notes = listOf(
-            createNote(id = "1", isFullPrivacy = true),
-            createNote(id = "2", excludeFromAiChat = true),
-            createNote(id = "3"),
-            createNote(id = "4"),
-            createNote(id = "5", isFullPrivacy = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isFullPrivacy = true),
+                createNote(id = "2", excludeFromAiChat = true),
+                createNote(id = "3"),
+                createNote(id = "4"),
+                createNote(id = "5", isFullPrivacy = true),
+            )
 
         val privateCount = notes.count { it.isPrivate }
         val publicCount = notes.count { !it.isPrivate }
@@ -288,20 +296,22 @@ class PrivacyGuardTest {
 
     @Test
     fun `sanitizeReferencedNoteIds removes private note IDs`() {
-        val notes = listOf(
-            createNote(id = "public-1"),
-            createNote(id = "private-1", isFullPrivacy = true),
-            createNote(id = "public-2"),
-            createNote(id = "private-2", excludeFromAiChat = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "public-1"),
+                createNote(id = "private-1", isFullPrivacy = true),
+                createNote(id = "public-2"),
+                createNote(id = "private-2", excludeFromAiChat = true),
+            )
 
         val inputIds = listOf("public-1", "private-1", "public-2", "private-2")
 
         // Simulating sanitizeReferencedNoteIds
-        val sanitized = inputIds.filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate && !note.isArchived
-        }
+        val sanitized =
+            inputIds.filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate && !note.isArchived
+            }
 
         assertEquals("Should have 2 sanitized IDs", 2, sanitized.size)
         assertTrue("Should contain public-1", sanitized.contains("public-1"))
@@ -312,17 +322,19 @@ class PrivacyGuardTest {
 
     @Test
     fun `sanitizeReferencedNoteIds removes non-existent note IDs`() {
-        val notes = listOf(
-            createNote(id = "existing-public"),
-            createNote(id = "existing-private", isFullPrivacy = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "existing-public"),
+                createNote(id = "existing-private", isFullPrivacy = true),
+            )
 
         val inputIds = listOf("existing-public", "non-existent", "existing-private")
 
-        val sanitized = inputIds.filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate && !note.isArchived
-        }
+        val sanitized =
+            inputIds.filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate && !note.isArchived
+            }
 
         assertEquals("Should only have 1 sanitized ID", 1, sanitized.size)
         assertEquals("Should be existing-public", "existing-public", sanitized[0])
@@ -333,10 +345,11 @@ class PrivacyGuardTest {
         val notes = listOf(createNote(id = "some-note"))
         val inputIds = emptyList<String>()
 
-        val sanitized = inputIds.filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate && !note.isArchived
-        }
+        val sanitized =
+            inputIds.filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate && !note.isArchived
+            }
 
         assertTrue("Empty input should return empty output", sanitized.isEmpty())
     }
@@ -354,20 +367,22 @@ class PrivacyGuardTest {
         var notes = listOf(noteBeforePrivacy, createNote(id = "other"))
 
         // Before: note is public
-        val refsBefore = listOf("dynamic-note", "other").filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate
-        }
+        val refsBefore =
+            listOf("dynamic-note", "other").filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate
+            }
         assertEquals("Before privacy, both should be included", 2, refsBefore.size)
 
         // After: note becomes private
         val noteAfterPrivacy = noteBeforePrivacy.copy(isFullPrivacy = true)
         notes = listOf(noteAfterPrivacy, createNote(id = "other"))
 
-        val refsAfter = listOf("dynamic-note", "other").filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate
-        }
+        val refsAfter =
+            listOf("dynamic-note", "other").filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate
+            }
         assertEquals("After privacy, only 'other' should be included", 1, refsAfter.size)
         assertEquals("Should be 'other'", "other", refsAfter[0])
     }
@@ -407,23 +422,26 @@ class PrivacyGuardTest {
 
     @Test
     fun `containsPrivateNoteIds detects private notes`() {
-        val notes = listOf(
-            createNote(id = "public-1"),
-            createNote(id = "private-1", isFullPrivacy = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "public-1"),
+                createNote(id = "private-1", isFullPrivacy = true),
+            )
 
         val idsWithPrivate = listOf("public-1", "private-1")
         val idsWithoutPrivate = listOf("public-1")
 
-        val hasPrivate = idsWithPrivate.any { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && note.isPrivate
-        }
+        val hasPrivate =
+            idsWithPrivate.any { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && note.isPrivate
+            }
 
-        val hasNoPrivate = idsWithoutPrivate.any { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && note.isPrivate
-        }
+        val hasNoPrivate =
+            idsWithoutPrivate.any { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && note.isPrivate
+            }
 
         assertTrue("Should detect private note in list", hasPrivate)
         assertFalse("Should not detect private note when none exist", hasNoPrivate)
@@ -435,11 +453,12 @@ class PrivacyGuardTest {
 
     @Test
     fun `all notes private leaves zero AI accessible`() {
-        val notes = listOf(
-            createNote(id = "1", isFullPrivacy = true),
-            createNote(id = "2", excludeFromAiChat = true),
-            createNote(id = "3", isFullPrivacy = true, excludeFromAiChat = true)
-        )
+        val notes =
+            listOf(
+                createNote(id = "1", isFullPrivacy = true),
+                createNote(id = "2", excludeFromAiChat = true),
+                createNote(id = "3", isFullPrivacy = true, excludeFromAiChat = true),
+            )
 
         val accessible = notes.filter { !it.isPrivate && !it.isArchived }
 
@@ -473,10 +492,11 @@ class PrivacyGuardTest {
 
         val inputIds = listOf("dup", "dup", "dup")
 
-        val sanitized = inputIds.filter { noteId ->
-            val note = notes.find { it.id == noteId }
-            note != null && !note.isPrivate
-        }
+        val sanitized =
+            inputIds.filter { noteId ->
+                val note = notes.find { it.id == noteId }
+                note != null && !note.isPrivate
+            }
 
         assertEquals("Duplicates should be preserved in output", 3, sanitized.size)
     }

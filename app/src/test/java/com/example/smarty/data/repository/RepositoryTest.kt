@@ -266,8 +266,7 @@ class NoteRepository(private val dao: NoteDao) {
 }
 
 class CalendarRepository(private val dao: CalendarDao) {
-    suspend fun create(event: com.example.smarty.core.domain.model.CalendarEvent) =
-        dao.insert(event)
+    suspend fun create(event: com.example.smarty.core.domain.model.CalendarEvent) = dao.insert(event)
 
     suspend fun getById(id: String) = dao.getById(id)
 
@@ -282,8 +281,7 @@ class CalendarRepository(private val dao: CalendarDao) {
 }
 
 class ChatRepository(private val dao: ChatDao) {
-    suspend fun saveMessage(message: com.example.smarty.core.domain.model.ChatMessage) =
-        dao.insert(message)
+    suspend fun saveMessage(message: com.example.smarty.core.domain.model.ChatMessage) = dao.insert(message)
 
     suspend fun getMessagesBySession(sessionId: String) = dao.getBySession(sessionId)
 
@@ -320,9 +318,7 @@ interface CalendarDao {
 interface ChatDao {
     suspend fun insert(message: com.example.smarty.core.domain.model.ChatMessage)
 
-    suspend fun getBySession(
-        sessionId: String,
-    ): List<com.example.smarty.core.domain.model.ChatMessage>
+    suspend fun getBySession(sessionId: String): List<com.example.smarty.core.domain.model.ChatMessage>
 
     suspend fun deleteBySession(sessionId: String): Int
 

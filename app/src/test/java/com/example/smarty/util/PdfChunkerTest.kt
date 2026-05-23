@@ -6,7 +6,7 @@ import org.junit.Test
 
 /**
  * Unit tests for PdfChunker.
- * 
+ *
  * Tests cover:
  * - Chunking algorithm correctness
  * - Overlap handling
@@ -15,7 +15,6 @@ import org.junit.Test
  * - Metadata accuracy
  */
 class PdfChunkerTest {
-
     @Test
     fun chunkLazy_producesCorrectNumberOfChunks() {
         // Given
@@ -57,7 +56,7 @@ class PdfChunkerTest {
         for (i in 1 until chunks.size) {
             val prevChunk = chunks[i - 1]
             val currentChunk = chunks[i]
-            
+
             // The end of previous should overlap with start of current
             if (prevChunk.length >= 200) {
                 val overlapRegion = prevChunk.takeLast(200)
@@ -105,7 +104,7 @@ class PdfChunkerTest {
         // Then
         assertTrue(chunks.isNotEmpty())
         val totalChunks = chunks.size
-        
+
         chunks.forEachIndexed { index, chunk ->
             assertEquals(index, chunk.index)
             assertEquals(totalChunks, chunk.totalChunks)
@@ -134,9 +133,10 @@ class PdfChunkerTest {
     @Test
     fun chunkWithOverlap_findsWordBoundaries() {
         // Given
-        val text = buildString {
-            repeat(100) { append("This is a test sentence. ") }
-        }
+        val text =
+            buildString {
+                repeat(100) { append("This is a test sentence. ") }
+            }
         val chunker = PdfChunker(maxChunkSize = 500, overlap = 50)
 
         // When
@@ -147,8 +147,8 @@ class PdfChunkerTest {
         chunks.dropLast(1).forEach { chunk ->
             // Should end at space or near end of text
             assertTrue(
-                chunk.endsWith(" ") || 
-                chunk.length < 50 // Small last chunk is OK
+                chunk.endsWith(" ") ||
+                    chunk.length < 50, // Small last chunk is OK
             )
         }
     }
@@ -167,7 +167,7 @@ class PdfChunkerTest {
         assertFailsWith<IllegalArgumentException> {
             PdfChunker(maxChunkSize = 1000, overlap = -1)
         }
-        
+
         assertFailsWith<IllegalArgumentException> {
             PdfChunker(maxChunkSize = 1000, overlap = 1000) // overlap >= maxChunkSize
         }
@@ -197,7 +197,7 @@ class PdfChunkerTest {
         // Then
         assertTrue(chunks.isNotEmpty())
         assertTrue(chunks.all { it is DocumentChunk })
-        
+
         // Verify metadata
         val totalChunks = chunks.size
         chunks.forEachIndexed { index, chunk ->

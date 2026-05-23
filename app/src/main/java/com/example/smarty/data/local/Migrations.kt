@@ -930,7 +930,8 @@ object Migrations {
         object : Migration(38, 39) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // ── Users table ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS users (
                         id TEXT NOT NULL PRIMARY KEY,
                         firebase_uid TEXT NOT NULL,
@@ -948,13 +949,15 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         last_login_at INTEGER NOT NULL DEFAULT 0
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)")
 
                 // ── Sync state table ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS sync_state (
                         user_id TEXT NOT NULL PRIMARY KEY,
                         last_sync_at INTEGER,
@@ -966,10 +969,12 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
 
                 // ── Tags table ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS tags (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -982,12 +987,14 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_tags_user_name ON tags(user_id, name)")
 
                 // ── Note tags junction ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS note_tags (
                         note_id TEXT NOT NULL,
                         tag_id TEXT NOT NULL,
@@ -999,13 +1006,15 @@ object Migrations {
                         FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
                         FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tags_user ON note_tags(user_id)")
 
                 // ── Chat folders ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS chat_folders (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1016,11 +1025,13 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_chat_folders_user ON chat_folders(user_id)")
 
                 // ── Tasks ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS tasks (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1041,12 +1052,14 @@ object Migrations {
                         deleted_at INTEGER,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
 
                 // ── Note tasks junction ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS note_tasks (
                         note_id TEXT NOT NULL,
                         task_id TEXT NOT NULL,
@@ -1056,12 +1069,14 @@ object Migrations {
                         FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
                         FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tasks_note ON note_tasks(note_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_note_tasks_task ON note_tasks(task_id)")
 
                 // ── Reasoning traces ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS reasoning_traces (
                         id TEXT NOT NULL PRIMARY KEY,
                         session_id TEXT NOT NULL,
@@ -1086,13 +1101,15 @@ object Migrations {
                         created_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_user ON reasoning_traces(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_session ON reasoning_traces(session_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_reasoning_entity ON reasoning_traces(entity_type, entity_id)")
 
                 // ── Reasoning summaries ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS reasoning_summaries (
                         id TEXT NOT NULL PRIMARY KEY,
                         session_id TEXT NOT NULL,
@@ -1113,12 +1130,14 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_summary_user ON reasoning_summaries(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_summary_session ON reasoning_summaries(session_id)")
 
                 // ── Agent checkpoints ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS agent_checkpoints (
                         id TEXT NOT NULL PRIMARY KEY,
                         session_id TEXT NOT NULL,
@@ -1133,12 +1152,14 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_checkpoint_user ON agent_checkpoints(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_checkpoint_session ON agent_checkpoints(session_id)")
 
                 // ── Search history ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS search_history (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1151,11 +1172,13 @@ object Migrations {
                         created_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_search_user ON search_history(user_id)")
 
                 // ── User FCM tokens ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS user_fcm_tokens (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1168,12 +1191,14 @@ object Migrations {
                         created_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_fcm_user ON user_fcm_tokens(user_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_fcm_token ON user_fcm_tokens(token)")
 
                 // ── Daily digests ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS daily_digests (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1187,11 +1212,13 @@ object Migrations {
                         created_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_digest_user ON daily_digests(user_id)")
 
                 // ── Shared items ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS shared_items (
                         id TEXT NOT NULL PRIMARY KEY,
                         owner_id TEXT NOT NULL,
@@ -1204,12 +1231,14 @@ object Migrations {
                         created_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_shared_owner ON shared_items(owner_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_shared_token ON shared_items(share_token)")
 
                 // ── Stacks (Phase 1B) ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS stacks (
                         id TEXT NOT NULL PRIMARY KEY,
                         user_id TEXT NOT NULL,
@@ -1223,11 +1252,13 @@ object Migrations {
                         updated_at INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_stacks_user ON stacks(user_id)")
 
                 // ── Note-stacks junction ──
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS note_stacks (
                         note_id TEXT NOT NULL,
                         stack_id TEXT NOT NULL,
@@ -1235,7 +1266,8 @@ object Migrations {
                         FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
                         FOREIGN KEY(stack_id) REFERENCES stacks(id) ON DELETE CASCADE
                     )
-                """)
+                """,
+                )
             }
         }
 
@@ -1275,7 +1307,7 @@ object Migrations {
                         timestamp INTEGER NOT NULL,
                         FOREIGN KEY(messageId) REFERENCES chat_messages(id) ON DELETE CASCADE
                     )
-                    """
+                    """,
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_steps_messageId ON agent_steps(messageId)")
             }
@@ -1284,7 +1316,8 @@ object Migrations {
     val MIGRATION_42_43 =
         object : Migration(42, 43) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS timeline_events (
                         eventId TEXT PRIMARY KEY NOT NULL,
                         traceId TEXT NOT NULL,
@@ -1293,7 +1326,8 @@ object Migrations {
                         eventType TEXT NOT NULL,
                         payloadJson TEXT NOT NULL
                     )
-                """)
+                """,
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_timeline_events_sessionId ON timeline_events(sessionId)")
             }
         }

@@ -40,10 +40,10 @@ data class AgentStepEntity(
     @PrimaryKey
     val stepId: String,
     val messageId: String,
-    val stepType: String,       // "thinking", "tool_call", "tool_result", "opencode_tool", "checkpoint"
+    val stepType: String, // "thinking", "tool_call", "tool_result", "opencode_tool", "checkpoint"
     val stepTitle: String,
     val stepContent: String,
-    val stepStatus: String,     // "started", "streaming", "completed", "failed"
+    val stepStatus: String, // "started", "streaming", "completed", "failed"
     val stepIndex: Int,
     val toolName: String?,
     val durationMs: Long?,
@@ -52,15 +52,16 @@ data class AgentStepEntity(
     /**
      * Convert to domain model AgentStepEntry.
      */
-    fun toAgentStepEntry(): AgentStepEntry = AgentStepEntry(
-        stepType = stepType,
-        stepTitle = stepTitle,
-        stepContent = stepContent,
-        stepStatus = stepStatus,
-        stepIndex = stepIndex,
-        toolName = toolName,
-        durationMs = durationMs,
-    )
+    fun toAgentStepEntry(): AgentStepEntry =
+        AgentStepEntry(
+            stepType = stepType,
+            stepTitle = stepTitle,
+            stepContent = stepContent,
+            stepStatus = stepStatus,
+            stepIndex = stepIndex,
+            toolName = toolName,
+            durationMs = durationMs,
+        )
 
     companion object {
         /**
@@ -70,17 +71,18 @@ data class AgentStepEntity(
             entry: AgentStepEntry,
             messageId: String,
             stepId: String = java.util.UUID.randomUUID().toString(),
-        ): AgentStepEntity = AgentStepEntity(
-            stepId = stepId,
-            messageId = messageId,
-            stepType = entry.stepType,
-            stepTitle = entry.stepTitle,
-            stepContent = entry.stepContent,
-            stepStatus = entry.stepStatus,
-            stepIndex = entry.stepIndex,
-            toolName = entry.toolName,
-            durationMs = entry.durationMs,
-        )
+        ): AgentStepEntity =
+            AgentStepEntity(
+                stepId = stepId,
+                messageId = messageId,
+                stepType = entry.stepType,
+                stepTitle = entry.stepTitle,
+                stepContent = entry.stepContent,
+                stepStatus = entry.stepStatus,
+                stepIndex = entry.stepIndex,
+                toolName = entry.toolName,
+                durationMs = entry.durationMs,
+            )
 
         /**
          * Bulk-convert a list of AgentStepEntry to entities.
@@ -88,8 +90,9 @@ data class AgentStepEntity(
         fun fromAgentStepEntries(
             entries: List<AgentStepEntry>,
             messageId: String,
-        ): List<AgentStepEntity> = entries.map { entry ->
-            fromAgentStepEntry(entry, messageId)
-        }
+        ): List<AgentStepEntity> =
+            entries.map { entry ->
+                fromAgentStepEntry(entry, messageId)
+            }
     }
 }

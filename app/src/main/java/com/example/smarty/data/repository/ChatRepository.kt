@@ -14,9 +14,9 @@ import com.example.smarty.data.local.ChatDao
 import com.example.smarty.data.local.ChatMessageNotesDao
 import com.example.smarty.data.local.dao.AgentStepDao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 
 /**
@@ -129,21 +129,22 @@ class ChatRepository(
     fun getMessagesForSession(sessionId: String): Flow<List<ChatMessage>> {
         return combine(
             chatDao.getMessagesForSession(sessionId),
-            timelineEventDao.getEventsForSessionFlow(sessionId)
+            timelineEventDao.getEventsForSessionFlow(sessionId),
         ) { messageEntities, eventEntities ->
             val eventsByMessageId = eventEntities.groupBy { it.traceId }
             messageEntities.map { entity ->
                 val baseMessage = entity.toChatMessage()
-                val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
-                    try {
-                        Json.decodeFromString(
-                            com.example.smarty.protocol.AgentEvent.serializer(),
-                            eventEntity.payloadJson
-                        )
-                    } catch (e: Exception) {
-                        null
-                    }
-                } ?: emptyList()
+                val parsedEvents =
+                    eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                        try {
+                            Json.decodeFromString(
+                                com.example.smarty.protocol.AgentEvent.serializer(),
+                                eventEntity.payloadJson,
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } ?: emptyList()
                 baseMessage.copy(agentEvents = parsedEvents)
             }
         }.distinctUntilChanged()
@@ -156,16 +157,17 @@ class ChatRepository(
 
         return messageEntities.map { entity ->
             val baseMessage = entity.toChatMessage()
-            val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
-                try {
-                    Json.decodeFromString(
-                        com.example.smarty.protocol.AgentEvent.serializer(),
-                        eventEntity.payloadJson
-                    )
-                } catch (e: Exception) {
-                    null
-                }
-            } ?: emptyList()
+            val parsedEvents =
+                eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                    try {
+                        Json.decodeFromString(
+                            com.example.smarty.protocol.AgentEvent.serializer(),
+                            eventEntity.payloadJson,
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                } ?: emptyList()
             baseMessage.copy(agentEvents = parsedEvents)
         }
     }
@@ -483,7 +485,10 @@ class ChatRepository(
      * Called after message_end so the trace survives app restarts.
      */
     @Transaction
-    suspend fun saveAgentSteps(messageId: String, steps: List<AgentStepEntry>) {
+    suspend fun saveAgentSteps(
+        messageId: String,
+        steps: List<AgentStepEntry>,
+    ) {
         if (steps.isEmpty()) return
         val entities = AgentStepEntity.fromAgentStepEntries(steps, messageId)
         agentStepDao.insertSteps(entities)

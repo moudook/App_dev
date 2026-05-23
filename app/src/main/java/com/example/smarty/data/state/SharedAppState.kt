@@ -44,14 +44,43 @@ class SharedAppState {
     private val _smartSuggestions = MutableStateFlow<List<Note>>(emptyList())
     val smartSuggestions: StateFlow<List<Note>> = _smartSuggestions.asStateFlow()
 
-    fun setNoteStreak(count: Int) { _noteStreak.value = count }
-    fun setNoteOfTheDay(note: Note?) { _noteOfTheDay.value = note }
-    fun setSmartSuggestions(notes: List<Note>) { _smartSuggestions.value = notes }
-    fun setCurrentScreen(screen: String) { _currentScreen.value = screen }
-    fun setActiveNoteId(id: String?) { _activeNoteId.value = id }
-    fun setDarkTheme(isDark: Boolean) { _isDarkTheme.value = isDark }
-    fun setConnectionStatus(status: ConnectionStatus) { _connectionStatus.value = status }
-    fun setNavigationRequest(screen: String?) { _navigationRequest.value = screen }
-    fun setCacheSizeBytes(size: Long) { _cacheSizeBytes.value = size }
-    fun setSelectedTab(tab: NavigationTab) { _selectedTab.value = tab }
+    fun setNoteStreak(count: Int) {
+        _noteStreak.value = count
+    }
+
+    fun setNoteOfTheDay(note: Note?) {
+        _noteOfTheDay.value = note
+    }
+
+    fun setSmartSuggestions(notes: List<Note>) {
+        _smartSuggestions.value = notes
+    }
+
+    fun setCurrentScreen(screen: String) {
+        _currentScreen.value = screen
+    }
+
+    fun setActiveNoteId(id: String?) {
+        _activeNoteId.value = id
+    }
+
+    fun setDarkTheme(isDark: Boolean) {
+        _isDarkTheme.value = isDark
+    }
+
+    fun setConnectionStatus(status: ConnectionStatus) {
+        _connectionStatus.value = status
+    }
+
+    fun setNavigationRequest(screen: String?) {
+        _navigationRequest.value = screen
+    }
+
+    fun setCacheSizeBytes(size: Long) {
+        _cacheSizeBytes.value = size
+    }
+
+    fun setSelectedTab(tab: NavigationTab) {
+        _selectedTab.value = tab
+    }
 }

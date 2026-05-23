@@ -30,18 +30,19 @@ import java.util.concurrent.TimeoutException
 fun <T> LiveData<T>.getOrAwaitValue(
     time: Long = 2,
     timeUnit: TimeUnit = TimeUnit.SECONDS,
-    afterObserve: () -> Unit = {}
+    afterObserve: () -> Unit = {},
 ): T {
     var data: T? = null
     val latch = CountDownLatch(1)
 
-    val observer = object : Observer<T> {
-        override fun onChanged(value: T) {
-            data = value
-            latch.countDown()
-            removeObserver(this)
+    val observer =
+        object : Observer<T> {
+            override fun onChanged(value: T) {
+                data = value
+                latch.countDown()
+                removeObserver(this)
+            }
         }
-    }
 
     observeForever(observer)
 
@@ -53,7 +54,6 @@ fun <T> LiveData<T>.getOrAwaitValue(
         if (!latch.await(time, timeUnit)) {
             throw TimeoutException("LiveData value was never set.")
         }
-
     } finally {
         removeObserver(observer)
     }
@@ -84,7 +84,7 @@ fun <T> LiveData<T>.getOrAwaitValue(
  */
 suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstValue(
     time: Long = 2,
-    timeUnit: TimeUnit = TimeUnit.SECONDS
+    timeUnit: TimeUnit = TimeUnit.SECONDS,
 ): T {
     return kotlinx.coroutines.withTimeout(timeUnit.toMillis(time)) {
         first()
@@ -108,12 +108,13 @@ suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstValue(
  */
 suspend fun <T> kotlinx.coroutines.flow.Flow<T>.collectAllValues(
     time: Long = 2,
-    timeUnit: TimeUnit = TimeUnit.SECONDS
+    timeUnit: TimeUnit = TimeUnit.SECONDS,
 ): List<T> {
     val values = mutableListOf<T>()
-    val job = kotlinx.coroutines.launch {
-        collect { values.add(it) }
-    }
+    val job =
+        kotlinx.coroutines.launch {
+            collect { values.add(it) }
+        }
 
     kotlinx.coroutines.delay(timeUnit.toMillis(time))
     job.cancel()

@@ -739,41 +739,57 @@ private fun parseCanonicalResponse(
 
     // Version 4: Individual part object (daemon incremental SSE)
     // e.g. {"type": "reasoning", "text": "...", "subagent_id": "sub1"}
+    // Also handles nested "part" object from newer OpenCode CLI format
     val partType = json["type"]?.jsonPrimitive?.content
     if (partType != null) {
-        val partSubagentId = json["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
-        val part =
-            when (partType) {
-                "text" -> CanonicalPart(type = "text", content = json["text"]?.jsonPrimitive?.content, subagentId = partSubagentId)
-                "reasoning" ->
-                    CanonicalPart(
-                        type = "reasoning",
-                        content = json["text"]?.jsonPrimitive?.content,
-                        subagentId = partSubagentId,
+        val innerPart = json["part"]?.jsonObject ?: json
+        val partSubagentId = innerPart["subagent_id"]?.jsonPrimitive?.content ?: json["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
+
+        val textContent = innerPart["text"]?.jsonPrimitive?.content ?: json["text"]?.jsonPrimitive?.content
+        val toolName = innerPart["tool"]?.jsonPrimitive?.content ?: innerPart["name"]?.jsonPrimitive?.content ?: json["name"]?.jsonPrimitive?.content
+
+        val stateObj = innerPart["state"]?.jsonObject
+        val rawInput = stateObj?.get("input") ?: innerPart["input"] ?: json["input"]
+        val toolArgs = if (rawInput != null && rawInput !is kotlinx.serialization.json.JsonNull) rawInput.toString() else null
+
+        val rawOutput = stateObj?.get("output") ?: innerPart["output"] ?: json["output"]
+        val toolOutput =
+            if (rawOutput != null && rawOutput !is kotlinx.serialization.json.JsonNull) {
+                if (rawOutput is kotlinx.serialization.json.JsonPrimitive && rawOutput.isString) rawOutput.content else rawOutput.toString()
+            } else {
+                textContent
+            }
+
+        val partsToReturn = mutableListOf<CanonicalPart>()
+
+        when (partType) {
+            "text" -> partsToReturn.add(CanonicalPart(type = "text", content = textContent, subagentId = partSubagentId))
+            "reasoning" -> partsToReturn.add(CanonicalPart(type = "reasoning", content = textContent, subagentId = partSubagentId))
+            "tool_use", "tool" -> {
+                partsToReturn.add(CanonicalPart(type = "tool_use", toolName = toolName, toolArgs = toolArgs, subagentId = partSubagentId))
+                if (toolOutput != null && toolOutput != textContent) {
+                    partsToReturn.add(
+                        CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput, subagentId = partSubagentId),
                     )
-                "tool_use", "tool" ->
-                    CanonicalPart(
-                        type = partType,
-                        toolName = json["name"]?.jsonPrimitive?.content,
-                        toolArgs = json["input"]?.toString(),
-                        subagentId = partSubagentId,
-                    )
-                "tool_result", "tool_return" ->
-                    CanonicalPart(
-                        type = "tool_result",
-                        toolName = json["name"]?.jsonPrimitive?.content,
-                        content = json["output"]?.toString() ?: json["text"]?.jsonPrimitive?.content,
-                        subagentId = partSubagentId,
-                    )
-                else -> {
-                    org.slf4j.LoggerFactory.getLogger(
-                        "OpencodeLlmProvider",
-                    ).warn("[OpenCode.Schemas][inference=$inferenceId] Unrecognized individual part type: '$partType'")
-                    null
                 }
             }
-        if (part != null) {
-            return CanonicalResponse(listOf(part))
+            "tool_result", "tool_return" -> {
+                partsToReturn.add(
+                    CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput, subagentId = partSubagentId),
+                )
+            }
+            "step_start", "step_finish", "step-start", "step-finish" -> {
+                // Ignore these structural events
+            }
+            else -> {
+                org.slf4j.LoggerFactory.getLogger(
+                    "OpencodeLlmProvider",
+                ).warn("[OpenCode.Schemas][inference=\$inferenceId] Unrecognized individual part type: '\$partType'")
+            }
+        }
+
+        if (partsToReturn.isNotEmpty()) {
+            return CanonicalResponse(partsToReturn)
         }
     }
 

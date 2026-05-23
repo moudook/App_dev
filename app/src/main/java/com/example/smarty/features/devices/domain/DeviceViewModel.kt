@@ -23,20 +23,19 @@ import kotlinx.serialization.Serializable
  * Manages registered devices state and operations
  */
 class DeviceViewModel(application: Application) : AndroidViewModel(application) {
-    
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
-    
+
     private val _uiState = MutableStateFlow(DeviceUiState())
     val uiState: StateFlow<DeviceUiState> = _uiState.asStateFlow()
-    
+
     private val _devices = MutableStateFlow<List<DeviceItem>>(emptyList())
     val devices: StateFlow<List<DeviceItem>> = _devices.asStateFlow()
-    
+
     init {
         loadDevices()
     }
-    
+
     fun loadDevices() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -46,11 +45,12 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Not authenticated")
                     return@launch
                 }
-                
-                val response: HttpResponse = client.get("$serverUrl/api/devices") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.get("$serverUrl/api/devices") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     val result: DevicesResponse = response.body()
                     _devices.value = result.devices.map { it.toItem() }
@@ -63,8 +63,11 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-    
-    fun registerDevice(deviceName: String, deviceType: String = "android") {
+
+    fun registerDevice(
+        deviceName: String,
+        deviceType: String = "android",
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
             try {
@@ -73,18 +76,20 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = _uiState.value.copy(isSaving = false, error = "Not authenticated")
                     return@launch
                 }
-                
-                val request = RegisterDeviceRequest(
-                    deviceName = deviceName,
-                    deviceType = deviceType
-                )
-                
-                val response: HttpResponse = client.post("$serverUrl/api/devices/register") {
-                    header("Authorization", "Bearer $token")
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
-                }
-                
+
+                val request =
+                    RegisterDeviceRequest(
+                        deviceName = deviceName,
+                        deviceType = deviceType,
+                    )
+
+                val response: HttpResponse =
+                    client.post("$serverUrl/api/devices/register") {
+                        header("Authorization", "Bearer $token")
+                        contentType(ContentType.Application.Json)
+                        setBody(request)
+                    }
+
                 if (response.status.isSuccess()) {
                     loadDevices()
                     _uiState.value = _uiState.value.copy(isSaving = false)
@@ -96,17 +101,18 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-    
+
     fun removeDevice(deviceId: String) {
         viewModelScope.launch {
             try {
                 val token = getFirebaseToken()
                 if (token == null) return@launch
-                
-                val response: HttpResponse = client.delete("$serverUrl/api/devices/$deviceId") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.delete("$serverUrl/api/devices/$deviceId") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     loadDevices()
                 }
@@ -115,7 +121,7 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-    
+
     private suspend fun getFirebaseToken(): String? {
         return try {
             val user = FirebaseAuth.getInstance().currentUser
@@ -129,13 +135,13 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
 data class DeviceUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @Serializable
 data class DevicesResponse(
     val success: Boolean,
-    val devices: List<DeviceItem> = emptyList()
+    val devices: List<DeviceItem> = emptyList(),
 )
 
 @Serializable
@@ -146,13 +152,13 @@ data class DeviceItem(
     val deviceType: String?,
     val pushToken: String?,
     val lastActiveAt: String?,
-    val appVersion: String?
+    val appVersion: String?,
 )
 
 @Serializable
 data class RegisterDeviceRequest(
     val deviceName: String,
-    val deviceType: String = "android"
+    val deviceType: String = "android",
 )
 
 fun DeviceItem.toItem(): DeviceItem = this
@@ -163,6 +169,6 @@ fun DeviceItem.toUiModel(): com.example.smarty.features.devices.ui.DeviceItem {
         id = id,
         name = deviceName ?: "Unknown Device",
         type = deviceType ?: "unknown",
-        lastActive = lastActiveAt ?: "Unknown"
+        lastActive = lastActiveAt ?: "Unknown",
     )
 }

@@ -336,11 +336,12 @@ object AudioTranscriber {
             extractor.selectTrack(audioTrackIndex)
 
             // Create decoder
-            val mime = format.getString(MediaFormat.KEY_MIME) ?: run {
-                Log.e(TAG, "No MIME type in audio format")
-                extractor.release()
-                return null
-            }
+            val mime =
+                format.getString(MediaFormat.KEY_MIME) ?: run {
+                    Log.e(TAG, "No MIME type in audio format")
+                    extractor.release()
+                    return null
+                }
             val codec = MediaCodec.createDecoderByType(mime)
             codec.configure(format, null, null, 0)
             codec.start()

@@ -2,15 +2,15 @@ package com.example.smarty.data.remote
 
 import android.util.Log
 import com.example.smarty.BuildConfig
+import com.example.smarty.core.domain.model.Task
+import com.example.smarty.core.domain.model.TaskCreateResponse
+import com.example.smarty.core.domain.model.TaskResponse
+import com.example.smarty.core.domain.model.TasksResponse
 import com.example.smarty.data.model.LogReasoningRequest
 import com.example.smarty.data.model.LogReasoningResponse
 import com.example.smarty.data.model.ProgressiveDisclosureResponse
 import com.example.smarty.data.model.ReasoningTimelineResponse
 import com.example.smarty.data.model.ReasoningTracesResponse
-import com.example.smarty.core.domain.model.Task
-import com.example.smarty.core.domain.model.TaskCreateResponse
-import com.example.smarty.core.domain.model.TaskResponse
-import com.example.smarty.core.domain.model.TasksResponse
 import com.example.smarty.protocol.*
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
@@ -243,8 +243,8 @@ class RemoteDataSource(
                             "summary" to note.summary,
                             "sourceUrl" to note.sourceUrl,
                             "type" to note.type.name,
-                            "processingStatus" to note.processingStatus.name
-                        )
+                            "processingStatus" to note.processingStatus.name,
+                        ),
                     )
                 }
 
@@ -278,8 +278,8 @@ class RemoteDataSource(
                             "summary" to note.summary,
                             "sourceUrl" to note.sourceUrl,
                             "type" to note.type.name,
-                            "processingStatus" to note.processingStatus.name
-                        )
+                            "processingStatus" to note.processingStatus.name,
+                        ),
                     )
                 }
 
@@ -649,9 +649,10 @@ class RemoteDataSource(
             val token = getFirebaseToken() ?: return null
 
             val url = if (status != null) "$baseUrl/api/tasks?status=$status" else "$baseUrl/api/tasks"
-            val response = client.get(url) {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get(url) {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -670,9 +671,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/tasks/$taskId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/tasks/$taskId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -691,11 +693,12 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/tasks") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(task)
-            }
+            val response =
+                client.post("$baseUrl/api/tasks") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(task)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -709,16 +712,20 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun updateTaskStatus(taskId: String, status: String): TaskResponse? {
+    suspend fun updateTaskStatus(
+        taskId: String,
+        status: String,
+    ): TaskResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.patch("$baseUrl/api/tasks/$taskId/status") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("status" to status))
-            }
+            val response =
+                client.patch("$baseUrl/api/tasks/$taskId/status") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("status" to status))
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -737,9 +744,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.delete("$baseUrl/api/tasks/$taskId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/tasks/$taskId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -760,9 +768,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/tags") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/tags") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -776,16 +785,19 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun createTag(request: com.example.smarty.core.domain.model.TagCreateRequest): com.example.smarty.core.domain.model.TagCreateResponse? {
+    suspend fun createTag(
+        request: com.example.smarty.core.domain.model.TagCreateRequest,
+    ): com.example.smarty.core.domain.model.TagCreateResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/tags") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
+            val response =
+                client.post("$baseUrl/api/tags") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -804,11 +816,12 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.put("$baseUrl/api/tags/${tag.id}") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(tag)
-            }
+            val response =
+                client.put("$baseUrl/api/tags/${tag.id}") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(tag)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -827,9 +840,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.delete("$baseUrl/api/tags/$tagId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/tags/$tagId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -848,9 +862,10 @@ class RemoteDataSource(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.get("$baseUrl/api/tags/$tagId/notes") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/tags/$tagId/notes") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -864,14 +879,18 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun assignTagToNote(tagId: String, noteId: String): com.example.smarty.core.domain.model.TagResponse? {
+    suspend fun assignTagToNote(
+        tagId: String,
+        noteId: String,
+    ): com.example.smarty.core.domain.model.TagResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.post("$baseUrl/api/tags/$tagId/notes/$noteId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.post("$baseUrl/api/tags/$tagId/notes/$noteId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -885,14 +904,18 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun removeTagFromNote(tagId: String, noteId: String): com.example.smarty.core.domain.model.TagResponse? {
+    suspend fun removeTagFromNote(
+        tagId: String,
+        noteId: String,
+    ): com.example.smarty.core.domain.model.TagResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = client.delete("$baseUrl/api/tags/$tagId/notes/$noteId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/tags/$tagId/notes/$noteId") {
+                    addAuthHeaders(token)
+                }
 
             if (response.status.isSuccess()) {
                 response.body()
@@ -912,9 +935,10 @@ class RemoteDataSource(
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
-            val response = client.get("$baseUrl/api/chat/folders") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.get("$baseUrl/api/chat/folders") {
+                    addAuthHeaders(token)
+                }
             if (response.status.isSuccess()) {
                 response.body()
             } else {
@@ -927,15 +951,18 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun createChatFolder(request: com.example.smarty.core.domain.model.ChatFolderCreateRequest): com.example.smarty.core.domain.model.ChatFolderCreateResponse? {
+    suspend fun createChatFolder(
+        request: com.example.smarty.core.domain.model.ChatFolderCreateRequest,
+    ): com.example.smarty.core.domain.model.ChatFolderCreateResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
-            val response = client.post("$baseUrl/api/chat/folders") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
+            val response =
+                client.post("$baseUrl/api/chat/folders") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
             if (response.status.isSuccess()) {
                 response.body()
             } else {
@@ -948,15 +975,18 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun updateChatFolder(folder: com.example.smarty.core.domain.model.ChatFolder): com.example.smarty.core.domain.model.ChatFolderResponse? {
+    suspend fun updateChatFolder(
+        folder: com.example.smarty.core.domain.model.ChatFolder,
+    ): com.example.smarty.core.domain.model.ChatFolderResponse? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
-            val response = client.put("$baseUrl/api/chat/folders/${folder.id}") {
-                addAuthHeaders(token)
-                contentType(ContentType.Application.Json)
-                setBody(folder)
-            }
+            val response =
+                client.put("$baseUrl/api/chat/folders/${folder.id}") {
+                    addAuthHeaders(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(folder)
+                }
             if (response.status.isSuccess()) {
                 response.body()
             } else {
@@ -973,9 +1003,10 @@ class RemoteDataSource(
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
-            val response = client.delete("$baseUrl/api/chat/folders/$folderId") {
-                addAuthHeaders(token)
-            }
+            val response =
+                client.delete("$baseUrl/api/chat/folders/$folderId") {
+                    addAuthHeaders(token)
+                }
             if (response.status.isSuccess()) {
                 response.body()
             } else {

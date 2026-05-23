@@ -1,14 +1,10 @@
 package com.example.smarty.features.chat.domain
 
-import android.util.Log
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.common.util.PrivacyGuard
-import kotlinx.serialization.Serializable
-
 // Import the StyleAnalysisReport and WritingStylePattern from the common module
 import com.example.smarty.core.domain.model.StyleAnalysisReport
 import com.example.smarty.core.domain.model.WritingStylePattern
-
 
 /**
  * Manages stylistic analysis of user content.
@@ -27,22 +23,27 @@ class StyleFeatureManager {
     /**
      * Analyze a set of notes to determine writing patterns.
      */
-    fun analyzeStyle(notes: List<Note>, limit: Int = 10): StyleAnalysisReport {
+    fun analyzeStyle(
+        notes: List<Note>,
+        limit: Int = 10,
+    ): StyleAnalysisReport {
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(notes)
         if (visibleNotes.isEmpty()) {
             return StyleAnalysisReport(0, emptyList(), "No notes available for analysis.")
         }
 
-        val notesToAnalyze = visibleNotes
-            .sortedByDescending { it.updatedAt }
-            .take(limit)
+        val notesToAnalyze =
+            visibleNotes
+                .sortedByDescending { it.updatedAt }
+                .take(limit)
 
         val patterns = mutableListOf<WritingStylePattern>()
 
         // 1. Analyze Structure
-        val bulletPointRatio = calculateRatio(notesToAnalyze) {
-            it.content?.contains(Regex("^\\s*[-•*]\\s|^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
-        }
+        val bulletPointRatio =
+            calculateRatio(notesToAnalyze) {
+                it.content?.contains(Regex("^\\s*[-•*]\\s|^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
+            }
         if (bulletPointRatio > 0.3) {
             patterns.add(WritingStylePattern("structure", "Prefers bullet-point lists", bulletPointRatio.toFloat()))
         }
@@ -54,11 +55,12 @@ class StyleFeatureManager {
 
         // 2. Analyze Length
         val avgLength = notesToAnalyze.mapNotNull { it.content?.length }.average()
-        val lengthDesc = when {
-            avgLength < 150 -> "Writes short, concise notes"
-            avgLength < 600 -> "Writes moderate-length notes"
-            else -> "Writes detailed, comprehensive notes"
-        }
+        val lengthDesc =
+            when {
+                avgLength < 150 -> "Writes short, concise notes"
+                avgLength < 600 -> "Writes moderate-length notes"
+                else -> "Writes detailed, comprehensive notes"
+            }
         patterns.add(WritingStylePattern("length", lengthDesc, (avgLength / 1200).toFloat().coerceIn(0f, 1f)))
 
         // 3. Analyze Tone
@@ -77,16 +79,22 @@ class StyleFeatureManager {
         return StyleAnalysisReport(
             totalNotesAnalyzed = notesToAnalyze.size,
             writingPatterns = patterns,
-            summary = summary
+            summary = summary,
         )
     }
 
-    private fun calculateRatio(notes: List<Note>, predicate: (Note) -> Boolean): Double {
+    private fun calculateRatio(
+        notes: List<Note>,
+        predicate: (Note) -> Boolean,
+    ): Double {
         if (notes.isEmpty()) return 0.0
         return notes.count(predicate).toDouble() / notes.size
     }
 
-    private fun buildSummary(count: Int, patterns: List<WritingStylePattern>): String {
+    private fun buildSummary(
+        count: Int,
+        patterns: List<WritingStylePattern>,
+    ): String {
         val sb = StringBuilder("Analyzed $count recent notes. ")
         if (patterns.isEmpty()) return sb.append("No distinct patterns found.").toString()
 
@@ -95,4 +103,3 @@ class StyleFeatureManager {
         return sb.toString()
     }
 }
-

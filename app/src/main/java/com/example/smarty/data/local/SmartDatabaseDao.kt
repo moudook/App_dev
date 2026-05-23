@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface SmartDatabaseDao {
-
     // ============================================================
     // USER OPERATIONS
     // ============================================================
@@ -35,13 +34,25 @@ interface SmartDatabaseDao {
     fun getActiveUsers(): Flow<List<UserEntity>>
 
     @Query("UPDATE users SET last_login_at = :timestamp, updated_at = :timestamp WHERE id = :userId")
-    suspend fun updateLastLogin(userId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateLastLogin(
+        userId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("UPDATE users SET sync_state = :state, updated_at = :timestamp WHERE id = :userId")
-    suspend fun updateUserSyncState(userId: String, state: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateUserSyncState(
+        userId: String,
+        state: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("UPDATE users SET device_fingerprint = :fingerprint, last_device_id = :deviceId, updated_at = :timestamp WHERE id = :userId")
-    suspend fun updateUserDevice(userId: String, fingerprint: String, deviceId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateUserDevice(
+        userId: String,
+        fingerprint: String,
+        deviceId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // ============================================================
     // SYNC STATE OPERATIONS
@@ -57,13 +68,26 @@ interface SmartDatabaseDao {
     suspend fun getSyncState(userId: String): SyncStateEntity?
 
     @Query("UPDATE sync_state SET last_sync_at = :timestamp, updated_at = :timestamp WHERE user_id = :userId")
-    suspend fun updateLastSync(userId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateLastSync(
+        userId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("UPDATE sync_state SET last_pull_at = :timestamp, updated_at = :timestamp WHERE user_id = :userId")
-    suspend fun updateLastPull(userId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateLastPull(
+        userId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
-    @Query("UPDATE sync_state SET last_push_at = :timestamp, pending_operations = :pending, conflict_count = :conflicts, updated_at = :timestamp WHERE user_id = :userId")
-    suspend fun updateSyncMetrics(userId: String, pending: Int, conflicts: Int, timestamp: Long = System.currentTimeMillis())
+    @Query(
+        "UPDATE sync_state SET last_push_at = :timestamp, pending_operations = :pending, conflict_count = :conflicts, updated_at = :timestamp WHERE user_id = :userId",
+    )
+    suspend fun updateSyncMetrics(
+        userId: String,
+        pending: Int,
+        conflicts: Int,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // ============================================================
     // TAG OPERATIONS (Proper tag system)
@@ -82,13 +106,22 @@ interface SmartDatabaseDao {
     fun getUserTags(userId: String): Flow<List<TagEntity>>
 
     @Query("SELECT * FROM tags WHERE user_id = :userId AND name = :name LIMIT 1")
-    suspend fun getTagByName(userId: String, name: String): TagEntity?
+    suspend fun getTagByName(
+        userId: String,
+        name: String,
+    ): TagEntity?
 
     @Query("UPDATE tags SET usage_count = usage_count + 1, updated_at = :timestamp WHERE id = :tagId")
-    suspend fun incrementTagUsage(tagId: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun incrementTagUsage(
+        tagId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     @Query("SELECT * FROM tags WHERE user_id = :userId AND tag_type = :type ORDER BY usage_count DESC")
-    suspend fun getTagsByType(userId: String, type: String): List<TagEntity>
+    suspend fun getTagsByType(
+        userId: String,
+        type: String,
+    ): List<TagEntity>
 
     // ============================================================
     // NOTE_TAG JUNCTION OPERATIONS
@@ -116,7 +149,11 @@ interface SmartDatabaseDao {
     suspend fun getTagNotes(tagId: String): List<NoteTagEntity>
 
     @Query("SELECT * FROM note_tags WHERE user_id = :userId AND tag_id = :tagId AND note_id = :noteId")
-    suspend fun getNoteTag(userId: String, tagId: String, noteId: String): NoteTagEntity?
+    suspend fun getNoteTag(
+        userId: String,
+        tagId: String,
+        noteId: String,
+    ): NoteTagEntity?
 
     // ============================================================
     // Note OPERATIONS (Enhanced with tags)
@@ -193,13 +230,20 @@ interface SmartDatabaseDao {
     fun getUserTasks(userId: String): Flow<List<TaskEntity>>
 
     @Query("SELECT * FROM tasks WHERE user_id = :userId AND status = :status ORDER BY due_date ASC")
-    fun getUserTasksByStatus(userId: String, status: String): Flow<List<TaskEntity>>
+    fun getUserTasksByStatus(
+        userId: String,
+        status: String,
+    ): Flow<List<TaskEntity>>
 
     @Query("SELECT * FROM tasks WHERE user_id = :userId AND is_recurring = 1")
     suspend fun getUserRecurringTasks(userId: String): List<TaskEntity>
 
     @Query("UPDATE tasks SET status = :status, updated_at = :timestamp WHERE id = :taskId")
-    suspend fun updateTaskStatus(taskId: String, status: String, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateTaskStatus(
+        taskId: String,
+        status: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     // ============================================================
     // NOTE_TASK JUNCTION OPERATIONS
@@ -248,10 +292,16 @@ interface SmartDatabaseDao {
     fun getSessionReasoningTraces(sessionId: String): Flow<List<ReasoningTraceEntity>>
 
     @Query("SELECT * FROM reasoning_traces WHERE user_id = :userId ORDER BY created_at DESC LIMIT :limit")
-    suspend fun getUserRecentReasoningTraces(userId: String, limit: Int = 50): List<ReasoningTraceEntity>
+    suspend fun getUserRecentReasoningTraces(
+        userId: String,
+        limit: Int = 50,
+    ): List<ReasoningTraceEntity>
 
     @Query("SELECT * FROM reasoning_traces WHERE entity_id = :entityId AND entity_type = :entityType ORDER BY step_index ASC")
-    fun getEntityReasoningTraces(entityId: String, entityType: String): Flow<List<ReasoningTraceEntity>>
+    fun getEntityReasoningTraces(
+        entityId: String,
+        entityType: String,
+    ): Flow<List<ReasoningTraceEntity>>
 
     @Query("SELECT * FROM reasoning_traces WHERE session_id = :sessionId AND is_final = 1 ORDER BY created_at DESC LIMIT 1")
     suspend fun getFinalReasoningForSession(sessionId: String): ReasoningTraceEntity?
@@ -273,10 +323,16 @@ interface SmartDatabaseDao {
     suspend fun getLatestSummaryForSession(sessionId: String): ReasoningSummaryEntity?
 
     @Query("SELECT * FROM reasoning_summaries WHERE user_id = :userId ORDER BY created_at DESC LIMIT :limit")
-    fun getUserReasoningSummaries(userId: String, limit: Int = 20): Flow<List<ReasoningSummaryEntity>>
+    fun getUserReasoningSummaries(
+        userId: String,
+        limit: Int = 20,
+    ): Flow<List<ReasoningSummaryEntity>>
 
     @Query("SELECT * FROM reasoning_summaries WHERE user_id = :userId AND reasoning_type = :type ORDER BY created_at DESC")
-    fun getUserSummariesByType(userId: String, type: String): Flow<List<ReasoningSummaryEntity>>
+    fun getUserSummariesByType(
+        userId: String,
+        type: String,
+    ): Flow<List<ReasoningSummaryEntity>>
 
     // ============================================================
     // AGENT CHECKPOINT OPERATIONS (Session continuity)
@@ -295,14 +351,20 @@ interface SmartDatabaseDao {
     suspend fun getLatestCheckpointForSession(sessionId: String): AgentCheckpointEntity?
 
     @Query("SELECT * FROM agent_checkpoints WHERE user_id = :userId AND workflow_id = :workflowId ORDER BY created_at DESC LIMIT 1")
-    suspend fun getLatestCheckpointForWorkflow(userId: String, workflowId: String): AgentCheckpointEntity?
+    suspend fun getLatestCheckpointForWorkflow(
+        userId: String,
+        workflowId: String,
+    ): AgentCheckpointEntity?
 
     @Transaction
     @Query("SELECT * FROM agent_checkpoints WHERE id = :checkpointId")
     suspend fun getCheckpointWithContext(checkpointId: String): AgentCheckpointWithContext?
 
     @Query("DELETE FROM agent_checkpoints WHERE session_id = :sessionId AND created_at < :olderThan")
-    suspend fun deleteOldCheckpoints(sessionId: String, olderThan: Long): Int
+    suspend fun deleteOldCheckpoints(
+        sessionId: String,
+        olderThan: Long,
+    ): Int
 
     // ============================================================
     // SEARCH HISTORY OPERATIONS (Persistent search tracking)
@@ -315,16 +377,28 @@ interface SmartDatabaseDao {
     suspend fun getSearchHistory(searchId: String): SearchHistoryEntity?
 
     @Query("SELECT * FROM search_history WHERE user_id = :userId ORDER BY created_at DESC LIMIT :limit")
-    fun getUserSearchHistory(userId: String, limit: Int = 50): Flow<List<SearchHistoryEntity>>
+    fun getUserSearchHistory(
+        userId: String,
+        limit: Int = 50,
+    ): Flow<List<SearchHistoryEntity>>
 
     @Query("SELECT * FROM search_history WHERE user_id = :userId AND search_type = :type ORDER BY created_at DESC")
-    fun getUserSearchesByType(userId: String, type: String): Flow<List<SearchHistoryEntity>>
+    fun getUserSearchesByType(
+        userId: String,
+        type: String,
+    ): Flow<List<SearchHistoryEntity>>
 
     @Query("SELECT * FROM search_history WHERE user_id = :userId AND query LIKE '%' || :query || '%' ORDER BY created_at DESC")
-    suspend fun searchHistoryByQuery(userId: String, query: String): List<SearchHistoryEntity>
+    suspend fun searchHistoryByQuery(
+        userId: String,
+        query: String,
+    ): List<SearchHistoryEntity>
 
     @Query("DELETE FROM search_history WHERE user_id = :userId AND created_at < :olderThan")
-    suspend fun deleteOldSearchHistory(userId: String, olderThan: Long): Int
+    suspend fun deleteOldSearchHistory(
+        userId: String,
+        olderThan: Long,
+    ): Int
 
     // ============================================================
     // FCM TOKEN OPERATIONS (Push notifications)
@@ -343,10 +417,16 @@ interface SmartDatabaseDao {
     suspend fun getFcmToken(token: String): UserFcmTokenEntity?
 
     @Query("UPDATE user_fcm_tokens SET is_active = 0 WHERE user_id = :userId AND device_id = :deviceId")
-    suspend fun deactivateDeviceTokens(userId: String, deviceId: String)
+    suspend fun deactivateDeviceTokens(
+        userId: String,
+        deviceId: String,
+    )
 
     @Query("DELETE FROM user_fcm_tokens WHERE user_id = :userId AND device_id = :deviceId")
-    suspend fun deleteDeviceTokens(userId: String, deviceId: String)
+    suspend fun deleteDeviceTokens(
+        userId: String,
+        deviceId: String,
+    )
 
     // ============================================================
     // DAILY DIGEST OPERATIONS
@@ -362,10 +442,19 @@ interface SmartDatabaseDao {
     suspend fun getDailyDigest(digestId: String): DailyDigestEntity?
 
     @Query("SELECT * FROM daily_digests WHERE user_id = :userId AND digest_date = :date ORDER BY created_at DESC")
-    suspend fun getUserDigestForDate(userId: String, date: Long): DailyDigestEntity?
+    suspend fun getUserDigestForDate(
+        userId: String,
+        date: Long,
+    ): DailyDigestEntity?
 
-    @Query("SELECT * FROM daily_digests WHERE user_id = :userId AND digest_date >= :startDate AND digest_date <= :endDate ORDER BY digest_date DESC")
-    fun getUserDigestsInRange(userId: String, startDate: Long, endDate: Long): Flow<List<DailyDigestEntity>>
+    @Query(
+        "SELECT * FROM daily_digests WHERE user_id = :userId AND digest_date >= :startDate AND digest_date <= :endDate ORDER BY digest_date DESC",
+    )
+    fun getUserDigestsInRange(
+        userId: String,
+        startDate: Long,
+        endDate: Long,
+    ): Flow<List<DailyDigestEntity>>
 
     @Query("SELECT * FROM daily_digests WHERE user_id = :userId AND notification_sent = 0 ORDER BY digest_date ASC")
     suspend fun getUnsentDigests(userId: String): List<DailyDigestEntity>
@@ -396,13 +485,19 @@ interface SmartDatabaseDao {
     fun getItemsSharedWithUser(userId: String): Flow<List<SharedItemEntity>>
 
     @Query("SELECT * FROM shared_items WHERE item_type = :type AND item_id = :itemId")
-    suspend fun getItemShares(type: String, itemId: String): List<SharedItemEntity>
+    suspend fun getItemShares(
+        type: String,
+        itemId: String,
+    ): List<SharedItemEntity>
 
     @Query("DELETE FROM shared_items WHERE id = :shareId")
     suspend fun deleteSharedItem(shareId: String)
 
     @Query("DELETE FROM shared_items WHERE item_type = :type AND item_id = :itemId")
-    suspend fun deleteSharesForItem(type: String, itemId: String)
+    suspend fun deleteSharesForItem(
+        type: String,
+        itemId: String,
+    )
 
     // ============================================================
     // Note VERSION OPERATIONS (Git-like versioning)
@@ -418,7 +513,10 @@ interface SmartDatabaseDao {
     fun getNoteVersions(noteId: String): Flow<List<NoteVersionEntity>>
 
     @Query("SELECT * FROM note_versions WHERE note_id = :noteId AND version_no = :versionNo")
-    suspend fun getNoteVersionByNumber(noteId: String, versionNo: Int): NoteVersionEntity?
+    suspend fun getNoteVersionByNumber(
+        noteId: String,
+        versionNo: Int,
+    ): NoteVersionEntity?
 
     @Query("SELECT * FROM note_versions WHERE note_id = :noteId ORDER BY version_no DESC LIMIT 1")
     suspend fun getLatestNoteVersion(noteId: String): NoteVersionEntity?
@@ -427,7 +525,10 @@ interface SmartDatabaseDao {
     suspend fun getNoteVersionCount(noteId: String): Int
 
     @Query("DELETE FROM note_versions WHERE note_id = :noteId AND version_no < :keepFromVersion")
-    suspend fun pruneNoteVersions(noteId: String, keepFromVersion: Int): Int
+    suspend fun pruneNoteVersions(
+        noteId: String,
+        keepFromVersion: Int,
+    ): Int
 
     // ============================================================
     // CREATIVE CROSS-FEATURE QUERIES
@@ -450,7 +551,8 @@ interface SmartDatabaseDao {
     /**
      * Find related notes based on tags (creative recommendation)
      */
-    @Query("""
+    @Query(
+        """
         SELECT n.* FROM notes n
         JOIN note_tags nt ON n.id = nt.note_id
         WHERE nt.tag_id IN (
@@ -461,20 +563,26 @@ interface SmartDatabaseDao {
         GROUP BY n.id
         ORDER BY COUNT(nt.tag_id) DESC
         LIMIT :limit
-    """)
-    suspend fun findRelatedNotesByTags(noteId: String, limit: Int = 10): List<Note>
+    """,
+    )
+    suspend fun findRelatedNotesByTags(
+        noteId: String,
+        limit: Int = 10,
+    ): List<Note>
 
     /**
      * Get all user data summary for sync status
      */
-    @Query("""
+    @Query(
+        """
         SELECT 
             (SELECT COUNT(*) FROM notes) as note_count,
             (SELECT COUNT(*) FROM tags WHERE user_id = :userId) as tag_count,
             (SELECT COUNT(*) FROM tasks WHERE user_id = :userId AND status != 'COMPLETED') as pending_task_count,
             (SELECT COUNT(*) FROM reasoning_traces WHERE user_id = :userId) as reasoning_count,
             (SELECT COUNT(*) FROM shared_items WHERE owner_id = :userId) as shared_count
-    """)
+    """,
+    )
     suspend fun getUserSummary(userId: String): UserSummary
 
     data class UserSummary(
@@ -482,7 +590,7 @@ interface SmartDatabaseDao {
         val tag_count: Int,
         val pending_task_count: Int,
         val reasoning_count: Int,
-        val shared_count: Int
+        val shared_count: Int,
     )
 
     // ============================================================

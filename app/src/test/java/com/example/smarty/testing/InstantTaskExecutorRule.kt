@@ -33,7 +33,6 @@ import org.junit.runner.Description
  * - Works with Room, Lifecycle, and other Architecture Components
  */
 class InstantTaskExecutorRule : TestWatcher() {
-
     /**
      * Called before each test. Sets up the synchronous executor.
      */
@@ -42,9 +41,11 @@ class InstantTaskExecutorRule : TestWatcher() {
         ArchTaskExecutor.getInstance().setDelegate(
             object : TaskExecutor() {
                 override fun executeOnDiskIO(runnable: Runnable) = runnable.run()
+
                 override fun postToMainThread(runnable: Runnable) = runnable.run()
+
                 override fun isMainThread(): Boolean = true
-            }
+            },
         )
     }
 

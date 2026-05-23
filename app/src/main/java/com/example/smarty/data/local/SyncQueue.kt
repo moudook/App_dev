@@ -35,11 +35,11 @@ enum class SyncEntityType {
  * Status of a sync queue item.
  */
 enum class SyncStatus {
-    PENDING,      // Queued, waiting to be sent
-    IN_FLIGHT,    // Currently being sent to server
-    SYNCED,       // Successfully synced to server
-    FAILED,       // Failed after max retries
-    CONFLICT,     // Conflict detected, needs resolution
+    PENDING, // Queued, waiting to be sent
+    IN_FLIGHT, // Currently being sent to server
+    SYNCED, // Successfully synced to server
+    FAILED, // Failed after max retries
+    CONFLICT, // Conflict detected, needs resolution
 }
 
 @Entity(

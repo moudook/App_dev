@@ -1,7 +1,6 @@
 package com.example.smarty.protocol
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonObject
 
 /**
  * Normalizes all agent lifecycle events for the timeline UI and persistence layer.
@@ -18,7 +17,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val sessionId: String
+        val sessionId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -28,7 +27,7 @@ sealed class TimelineEvent {
         override val eventId: String,
         val requested: String,
         val resolved: String,
-        val fallbackReason: String? = null
+        val fallbackReason: String? = null,
     ) : TimelineEvent()
 
     // === Reasoning & Steps ===
@@ -36,7 +35,7 @@ sealed class TimelineEvent {
     data class ReasoningStarted(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -44,7 +43,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val text: String
+        val text: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -52,7 +51,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val fullText: String
+        val fullText: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -61,7 +60,7 @@ sealed class TimelineEvent {
         override val timestamp: Long,
         override val eventId: String,
         val stepType: String, // e.g. "thinking", "tool_call", "web_search"
-        val title: String
+        val title: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -69,7 +68,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val durationMs: Long
+        val durationMs: Long,
     ) : TimelineEvent()
 
     // === Tools ===
@@ -80,7 +79,7 @@ sealed class TimelineEvent {
         override val eventId: String,
         val toolId: String,
         val name: String,
-        val source: String // "opencode", "mcp", "custom"
+        val source: String, // "opencode", "mcp", "custom"
     ) : TimelineEvent()
 
     @Serializable
@@ -89,7 +88,7 @@ sealed class TimelineEvent {
         override val timestamp: Long,
         override val eventId: String,
         val toolId: String,
-        val inputDelta: String
+        val inputDelta: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -98,7 +97,7 @@ sealed class TimelineEvent {
         override val timestamp: Long,
         override val eventId: String,
         val toolId: String,
-        val output: String
+        val output: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -108,7 +107,7 @@ sealed class TimelineEvent {
         override val eventId: String,
         val toolId: String,
         val durationMs: Long,
-        val status: String // "completed", "failed", "aborted"
+        val status: String, // "completed", "failed", "aborted"
     ) : TimelineEvent()
 
     // === Approvals ===
@@ -119,7 +118,7 @@ sealed class TimelineEvent {
         override val eventId: String,
         val toolId: String,
         val toolName: String,
-        val parameters: String
+        val parameters: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -127,7 +126,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val toolId: String
+        val toolId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -136,7 +135,7 @@ sealed class TimelineEvent {
         override val timestamp: Long,
         override val eventId: String,
         val toolId: String,
-        val reason: String?
+        val reason: String?,
     ) : TimelineEvent()
 
     // === Final Answer ===
@@ -144,7 +143,7 @@ sealed class TimelineEvent {
     data class FinalAnswerStarted(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -152,7 +151,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val text: String
+        val text: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -160,7 +159,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val fullText: String
+        val fullText: String,
     ) : TimelineEvent()
 
     // === End Lifecycle & Errors ===
@@ -168,7 +167,7 @@ sealed class TimelineEvent {
     data class SessionCompleted(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -177,7 +176,7 @@ sealed class TimelineEvent {
         override val timestamp: Long,
         override val eventId: String,
         val errorType: String,
-        val message: String
+        val message: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -185,7 +184,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val reason: String
+        val reason: String,
     ) : TimelineEvent()
 
     // === Recovery & System ===
@@ -194,7 +193,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val reason: String
+        val reason: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -202,21 +201,21 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val success: Boolean
+        val success: Boolean,
     ) : TimelineEvent()
 
     @Serializable
     data class CacheHit(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
     data class CacheMiss(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -224,7 +223,7 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val table: String
+        val table: String,
     ) : TimelineEvent()
 
     @Serializable
@@ -232,20 +231,20 @@ sealed class TimelineEvent {
         override val traceId: String,
         override val timestamp: Long,
         override val eventId: String,
-        val table: String
+        val table: String,
     ) : TimelineEvent()
 
     @Serializable
     data class SyncStarted(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 
     @Serializable
     data class SyncFinished(
         override val traceId: String,
         override val timestamp: Long,
-        override val eventId: String
+        override val eventId: String,
     ) : TimelineEvent()
 }

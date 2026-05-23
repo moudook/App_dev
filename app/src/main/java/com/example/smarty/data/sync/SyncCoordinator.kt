@@ -5,12 +5,12 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.smarty.core.common.util.NetworkMonitor
 import com.example.smarty.core.domain.model.CalendarEvent
-import com.example.smarty.core.domain.model.NoteType
-import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.data.local.*
 import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.protocol.*
@@ -42,6 +42,7 @@ class SyncCoordinator(
     // Track last pull time for debouncing (5 second window)
     @Volatile
     private var lastPullTime = 0L
+
     @Volatile
     private var lastSyncAllTime = 0L
     private val pullDebounceMs = 5000L // 5 seconds
@@ -174,10 +175,11 @@ class SyncCoordinator(
                     if (existing == null) {
                         // New note from server - check for content-based duplicates
                         val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
-                        val isDuplicateByContent = recentNotes.any { recentNote ->
-                            recentNote.content.trim() == note.content.trim() &&
-                                recentNote.title.trim() == note.title.trim()
-                        }
+                        val isDuplicateByContent =
+                            recentNotes.any { recentNote ->
+                                recentNote.content.trim() == note.content.trim() &&
+                                    recentNote.title.trim() == note.title.trim()
+                            }
                         if (isDuplicateByContent) {
                             Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
                         } else {
@@ -306,7 +308,10 @@ class SyncCoordinator(
                                     content = cleanContent,
                                     thinking = thinking,
                                     timestamp = msgData.createdAt,
-                                    agentSteps = com.example.smarty.core.domain.model.ChatMessageEntity.parseAgentStepsJson(msgData.agentStepsJson ?: "[]")
+                                    agentSteps =
+                                        com.example.smarty.core.domain.model.ChatMessageEntity.parseAgentStepsJson(
+                                            msgData.agentStepsJson ?: "[]",
+                                        ),
                                 )
                             val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
                             chatDao.insertMessage(entity)
@@ -526,13 +531,23 @@ class SyncCoordinator(
             fileName = info.fileName,
             fileMimeType = info.fileMimeType,
             fileSize = info.fileSize,
-            type = try { NoteType.valueOf(info.type) } catch (e: Exception) { NoteType.BRAIN_DUMP },
+            type =
+                try {
+                    NoteType.valueOf(info.type)
+                } catch (e: Exception) {
+                    NoteType.BRAIN_DUMP
+                },
             categoryId = info.categoryId,
             categoryName = info.categoryName,
             stackId = info.stackId,
             parentNoteId = info.parentNoteId,
             whySaved = info.whySaved,
-            processingStatus = try { ProcessingStatus.valueOf(info.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
+            processingStatus =
+                try {
+                    ProcessingStatus.valueOf(info.processingStatus)
+                } catch (e: Exception) {
+                    ProcessingStatus.COMPLETED
+                },
             contentHash = info.contentHash,
             processedContentHash = info.processedContentHash,
             metadata = info.metadata,

@@ -474,12 +474,13 @@ class CalendarManager(
         repeat: String? = null,
     ) {
         alarmScheduler?.let { scheduler ->
-            val repeatDaysJson = when (repeat?.lowercase()?.trim()) {
-                "daily", "everyday", "every day" -> """["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]"""
-                "weekdays", "every weekday" -> """["monday", "tuesday", "wednesday", "thursday", "friday"]"""
-                "weekends", "every weekend" -> """["saturday", "sunday"]"""
-                else -> repeat
-            }
+            val repeatDaysJson =
+                when (repeat?.lowercase()?.trim()) {
+                    "daily", "everyday", "every day" -> """["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]"""
+                    "weekdays", "every weekday" -> """["monday", "tuesday", "wednesday", "thursday", "friday"]"""
+                    "weekends", "every weekend" -> """["saturday", "sunday"]"""
+                    else -> repeat
+                }
             val timer =
                 SmartyTimer(
                     name = name,

@@ -1,5 +1,6 @@
 package com.example.smarty.features.chatfolders.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,13 +28,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.ChatFolder
 import com.example.smarty.features.chatfolders.domain.ChatFoldersViewModel
 import com.example.smarty.ui.components.common.EmptyStatePlaceholder
-import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatFoldersScreen(
     onNavigateBack: () -> Unit = {},
-    viewModel: ChatFoldersViewModel = viewModel()
+    viewModel: ChatFoldersViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val folders by viewModel.folders.collectAsState()
@@ -53,12 +53,12 @@ fun ChatFoldersScreen(
                         Text(
                             text = "Chat Folders",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "${folders.size} folders",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
@@ -66,26 +66,27 @@ fun ChatFoldersScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Default.Add, "Add Folder")
             }
-        }
+        },
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("Search folders...") },
                 leadingIcon = { Icon(Icons.Default.Search, "Search") },
                 singleLine = true,
-                shape = MaterialTheme.shapes.medium
+                shape = MaterialTheme.shapes.medium,
             )
 
             uiState.error?.let { error ->
@@ -95,7 +96,7 @@ fun ChatFoldersScreen(
                         TextButton(onClick = { viewModel.clearError() }) {
                             Text("Dismiss")
                         }
-                    }
+                    },
                 ) {
                     Text(error)
                 }
@@ -108,19 +109,19 @@ fun ChatFoldersScreen(
                     EmptyStatePlaceholder(
                         icon = Icons.Outlined.Folder,
                         title = if (uiState.searchQuery.isNotEmpty()) "No matching folders" else "No Folders",
-                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try a different search" else "Tap + to create your first folder"
+                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try a different search" else "Tap + to create your first folder",
                     )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(filteredFolders, key = { it.id }) { folder ->
                             FolderItem(
                                 folder = folder,
                                 onEdit = { folderToEdit = folder },
-                                onDelete = { folderToDelete = folder }
+                                onDelete = { folderToDelete = folder },
                             )
                         }
                     }
@@ -136,7 +137,7 @@ fun ChatFoldersScreen(
             onSave = { name, color ->
                 viewModel.createFolder(name, color)
                 showCreateDialog = false
-            }
+            },
         )
     }
 
@@ -149,7 +150,7 @@ fun ChatFoldersScreen(
             onSave = { name, color ->
                 viewModel.updateFolder(folder.copy(name = name, color = color))
                 folderToEdit = null
-            }
+            },
         )
     }
 
@@ -164,7 +165,7 @@ fun ChatFoldersScreen(
                     onClick = {
                         viewModel.deleteFolder(folder.id)
                         folderToDelete = null
-                    }
+                    },
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
@@ -173,7 +174,7 @@ fun ChatFoldersScreen(
                 TextButton(onClick = { folderToDelete = null }) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 }
@@ -182,40 +183,44 @@ fun ChatFoldersScreen(
 fun FolderItem(
     folder: ChatFolder,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(
-                        color = runCatching { Color(android.graphics.Color.parseColor(folder.color)) }.getOrDefault(Color.Gray),
-                        shape = CircleShape
-                    )
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .background(
+                            color = runCatching { Color(android.graphics.Color.parseColor(folder.color)) }.getOrDefault(Color.Gray),
+                            shape = CircleShape,
+                        ),
             )
 
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp),
             ) {
                 Text(
                     text = folder.name,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
@@ -237,7 +242,7 @@ fun FolderDialog(
     initialName: String = "",
     initialColor: String = "#6200EE",
     onDismiss: () -> Unit,
-    onSave: (name: String, color: String) -> Unit
+    onSave: (name: String, color: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedColor by remember { mutableStateOf(initialColor) }
@@ -254,37 +259,44 @@ fun FolderDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onDone = { if (name.isNotBlank()) onSave(name, selectedColor) }
-                    )
+                    keyboardActions =
+                        KeyboardActions(
+                            onDone = { if (name.isNotBlank()) onSave(name, selectedColor) },
+                        ),
                 )
 
                 Text("Color", style = MaterialTheme.typography.labelMedium)
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(ChatFolder.defaultColors) { colorHex ->
                         val color = runCatching { Color(android.graphics.Color.parseColor(colorHex)) }.getOrDefault(Color.Gray)
                         val isSelected = colorHex == selectedColor
                         Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(color, CircleShape)
-                                .clickable { selectedColor = colorHex }
-                                .then(
-                                    if (isSelected) {
-                                        Modifier.padding(2.dp).background(MaterialTheme.colorScheme.onSurface, CircleShape).padding(2.dp)
-                                    } else Modifier
-                                )
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .background(color, CircleShape)
+                                    .clickable { selectedColor = colorHex }
+                                    .then(
+                                        if (isSelected) {
+                                            Modifier.padding(
+                                                2.dp,
+                                            ).background(MaterialTheme.colorScheme.onSurface, CircleShape).padding(2.dp)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                         ) {
                             if (isSelected) {
                                 Icon(
                                     Icons.Default.Check,
                                     null,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(18.dp),
-                                    tint = if (color.luminance() > 0.5f) Color.Black else Color.White
+                                    modifier =
+                                        Modifier
+                                            .align(Alignment.Center)
+                                            .size(18.dp),
+                                    tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
                                 )
                             }
                         }
@@ -295,7 +307,7 @@ fun FolderDialog(
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onSave(name, selectedColor) },
-                enabled = name.isNotBlank()
+                enabled = name.isNotBlank(),
             ) {
                 Text(if (initialName.isNotEmpty()) "Update" else "Create")
             }
@@ -304,6 +316,6 @@ fun FolderDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
-        }
+        },
     )
 }

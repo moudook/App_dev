@@ -594,11 +594,12 @@ class ToolExecutor(
                         enable = args.on ?: false,
                     ),
                 )
-                val statusStr = when (args.on) {
-                    true -> "on"
-                    false -> "off"
-                    null -> "toggle request sent"
-                }
+                val statusStr =
+                    when (args.on) {
+                        true -> "on"
+                        false -> "off"
+                        null -> "toggle request sent"
+                    }
                 "${args.setting} $statusStr"
             }
             "status" -> {
@@ -975,7 +976,6 @@ class ToolExecutor(
             }
         }
     }
-
 
     fun truncateToolResult(result: String): String {
         return if (result.length > 4000) {

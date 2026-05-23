@@ -40,11 +40,12 @@ class RemoteAgentService(
     constructor(client: HttpClient, eventSink: AgentEventSink, serverUrl: String) :
         this(client, eventSink, { serverUrl }, { "smarty-test-device" })
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
+        }
 
     /**
      * Decode an SSE event into the correct AgentEvent subclass.
@@ -53,7 +54,10 @@ class RemoteAgentService(
      * Self-healing: If decoding fails for any reason (malformed JSON, oversized payload,
      * unknown type), we return a synthetic Error event instead of crashing the stream.
      */
-    private fun decodeAgentEvent(eventType: String, data: String): AgentEvent {
+    private fun decodeAgentEvent(
+        eventType: String,
+        data: String,
+    ): AgentEvent {
         return try {
             when (eventType) {
                 "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
@@ -68,11 +72,12 @@ class RemoteAgentService(
                 "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
                 else -> {
                     // Inject type discriminator if missing for the new canonical events
-                    val jsonStr = if (!data.contains("\"type\"")) {
-                        data.trim().removeSuffix("}") + ",\"type\":\"$eventType\"}"
-                    } else {
-                        data
-                    }
+                    val jsonStr =
+                        if (!data.contains("\"type\"")) {
+                            data.trim().removeSuffix("}") + ",\"type\":\"$eventType\"}"
+                        } else {
+                            data
+                        }
                     try {
                         json.decodeFromString<AgentEvent>(jsonStr)
                     } catch (e: Exception) {
@@ -339,33 +344,34 @@ class RemoteAgentService(
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
-            
+
             Log.d(TAG, "Fetching opencode models: refresh=$refresh, url=$baseUrl/api/v1/opencode/models")
-            
-            val response = client.get("$baseUrl/api/v1/opencode/models") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+
+            val response =
+                client.get("$baseUrl/api/v1/opencode/models") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    parameter("refresh", refresh)
                 }
-                parameter("refresh", refresh)
-            }
-            
+
             Log.d(TAG, "Models API response status: ${response.status}")
-            
+
             if (response.status.isSuccess()) {
                 val body = response.bodyAsText()
                 Log.d(TAG, "Models API response body (first 500 chars): ${body.take(500)}")
-                
+
                 val jsonObject = com.google.gson.JsonParser.parseString(body).asJsonObject
-                
+
                 // Check if models array exists
                 if (!jsonObject.has("models")) {
                     Log.e(TAG, "Response missing 'models' field: ${body.take(200)}")
                     return emptyList()
                 }
-                
+
                 val modelsArray = jsonObject.getAsJsonArray("models")
                 Log.d(TAG, "Models array size: ${modelsArray.size()}")
-                
+
                 val resultList = mutableListOf<Pair<String, String>>()
                 for (i in 0 until modelsArray.size()) {
                     val element = modelsArray.get(i)
@@ -373,7 +379,7 @@ class RemoteAgentService(
                         val mObj = element.asJsonObject
                         val id = mObj.get("id")?.asString
                         val label = mObj.get("label")?.asString
-                        
+
                         if (id != null && label != null) {
                             resultList.add(id to label)
                             Log.d(TAG, "  Model[$i]: $id -> $label")
@@ -384,7 +390,7 @@ class RemoteAgentService(
                         Log.w(TAG, "  Model[$i] is not a JSON object: $element")
                     }
                 }
-                
+
                 Log.d(TAG, "Successfully parsed ${resultList.size} models from server")
                 resultList
             } else {
@@ -992,13 +998,13 @@ class RemoteAgentService(
     }
 
     @Serializable
-data class ApprovalRequest(
-    val toolId: String,
-    val approved: Boolean,
-    val feedback: String? = null,
-)
+    data class ApprovalRequest(
+        val toolId: String,
+        val approved: Boolean,
+        val feedback: String? = null,
+    )
 
-companion object {
+    companion object {
         private const val TAG = "RemoteAgentService"
     }
 }

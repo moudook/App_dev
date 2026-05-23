@@ -176,8 +176,119 @@ fun AgentTimelineItem(
                     }
                 }
             }
+            
+            // Copy Timeline Button
+            val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+            var showCopied by remember { mutableStateOf(false) }
+
+            LaunchedEffect(showCopied) {
+                if (showCopied) {
+                    kotlinx.coroutines.delay(1500)
+                    showCopied = false
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Surface(
+                    onClick = {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(formatTimelineAsText(message)))
+                        showCopied = true
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (showCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                            contentDescription = "Copy Timeline",
+                            modifier = Modifier.size(14.dp),
+                            tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (showCopied) "Copied!" else "Copy Timeline",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+private fun formatTimelineAsText(message: ChatMessage): String {
+    val builder = StringBuilder()
+    
+    // New granular events
+    if (message.agentEvents.isNotEmpty()) {
+        val aggregator = TimelineNodeAggregator()
+        val nodes = aggregator.processAll(message.agentEvents)
+        nodes.forEach { node ->
+            when (node) {
+                is TimelineNode.Thinking -> {
+                    if (node.text.isNotBlank()) {
+                        builder.append("[THINKING]\n${node.text}\n\n")
+                    }
+                }
+                is TimelineNode.ToolExecution -> {
+                    builder.append("[TOOL: ${node.toolName}]\n")
+                    if (node.inputSummary != null) builder.append("Input: ${node.inputSummary}\n")
+                    if (node.outputSummary != null) builder.append("Output: ${node.outputSummary}\n")
+                    builder.append("\n")
+                }
+                is TimelineNode.ApprovalGate -> {
+                    builder.append("[APPROVAL PENDING]\n\n")
+                }
+                is TimelineNode.ErrorNode -> {
+                    builder.append("[ERROR]\n${node.message}\n\n")
+                }
+                is TimelineNode.RecoveryNode -> {
+                    builder.append("[RECOVERY]\n${node.reason}\n\n")
+                }
+                is TimelineNode.SystemActivity -> {
+                    builder.append("[SYSTEM]\nTotal Ops: ${node.totalOps}\n\n")
+                }
+                is TimelineNode.SubagentGroup -> {
+                    builder.append("[SUBAGENTS]\nGroup: ${node.name}\n\n")
+                }
+            }
+        }
+    } else if (message.agentSteps.isNotEmpty()) {
+        // Legacy support
+        message.agentSteps.forEach { step ->
+            builder.append("[${step.stepType.uppercase()}] ${step.stepTitle}\n")
+            if (step.stepContent.isNotBlank()) {
+                builder.append("${step.stepContent}\n")
+            }
+            builder.append("\n")
+        }
+    } else if (message.toolCalls.isNotEmpty()) {
+        message.toolCalls.forEach { tool ->
+            builder.append("[TOOL: ${tool.displayName}]\n")
+            if (tool.inputSummary != null) builder.append("Input: ${tool.inputSummary}\n")
+            if (tool.outputSummary != null) builder.append("Output: ${tool.outputSummary}\n")
+            builder.append("\n")
+        }
+    }
+    
+    // Final answer
+    if (message.content.isNotBlank()) {
+        builder.append("[FINAL RESPONSE]\n")
+        builder.append(message.content)
+        builder.append("\n")
+    }
+    
+    return builder.toString().trim()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

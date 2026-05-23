@@ -3,22 +3,20 @@ package com.example.smarty.features.chat.domain.usecase
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.data.repository.ChatRepository
-import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import kotlinx.coroutines.flow.Flow
 
 /**
  * Use Case: Send a chat message.
- * 
+ *
  * Single Responsibility: Only handles sending user messages.
  * Encapsulates business logic for message creation and persistence.
  */
 class SendMessageUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Create and save a user message.
-     * 
+     *
      * @param sessionId The chat session ID
      * @param content The message content
      * @param attachments Optional attachments
@@ -27,20 +25,21 @@ class SendMessageUseCase(
     suspend fun execute(
         sessionId: String,
         content: String,
-        attachments: List<com.example.smarty.core.domain.model.Attachment> = emptyList()
+        attachments: List<com.example.smarty.core.domain.model.Attachment> = emptyList(),
     ): ChatMessage {
         require(content.isNotBlank() || attachments.isNotEmpty()) {
             "Message must have content or attachments"
         }
-        
-        val message = ChatMessage(
-            id = java.util.UUID.randomUUID().toString(),
-            role = ChatRole.USER,
-            content = content,
-            timestamp = System.currentTimeMillis(),
-            attachments = attachments
-        )
-        
+
+        val message =
+            ChatMessage(
+                id = java.util.UUID.randomUUID().toString(),
+                role = ChatRole.USER,
+                content = content,
+                timestamp = System.currentTimeMillis(),
+                attachments = attachments,
+            )
+
         chatRepository.saveMessage(sessionId, message)
         return message
     }
@@ -48,13 +47,12 @@ class SendMessageUseCase(
 
 /**
  * Use Case: Update a chat message.
- * 
+ *
  * Single Responsibility: Only handles message updates.
  */
 class UpdateMessageUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Update message content by ID.
      */
@@ -63,16 +61,17 @@ class UpdateMessageUseCase(
         messageId: String,
         content: String,
         thinking: String? = null,
-        isStreaming: Boolean = true
+        isStreaming: Boolean = true,
     ) {
         // Get existing message and update it
         val existingMessage = chatRepository.getMessageById(messageId)
         if (existingMessage != null) {
-            val updatedMessage = existingMessage.copy(
-                content = content,
-                thinking = thinking ?: existingMessage.thinking,
-                isStreaming = isStreaming
-            )
+            val updatedMessage =
+                existingMessage.copy(
+                    content = content,
+                    thinking = thinking ?: existingMessage.thinking,
+                    isStreaming = isStreaming,
+                )
             chatRepository.saveMessage(sessionId, updatedMessage)
         }
     }
@@ -80,20 +79,19 @@ class UpdateMessageUseCase(
 
 /**
  * Use Case: Get chat messages flow.
- * 
+ *
  * Single Responsibility: Only provides message stream.
  */
 class GetMessagesUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Get flow of messages for a session.
      */
     fun execute(sessionId: String): kotlinx.coroutines.flow.Flow<List<ChatMessage>> {
         return chatRepository.getMessagesForSession(sessionId)
     }
-    
+
     /**
      * Execute: Get all messages for a session (one-time).
      */
@@ -104,13 +102,12 @@ class GetMessagesUseCase(
 
 /**
  * Use Case: Clear chat messages.
- * 
+ *
  * Single Responsibility: Only handles message cleanup.
  */
 class ClearMessagesUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Clear all messages (not directly supported, delete individually).
      */
@@ -125,13 +122,12 @@ class ClearMessagesUseCase(
 
 /**
  * Use Case: Delete a chat message.
- * 
+ *
  * Single Responsibility: Only handles message deletion.
  */
 class DeleteMessageUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Delete a specific message.
      */
@@ -142,17 +138,19 @@ class DeleteMessageUseCase(
 
 /**
  * Use Case: Delete a chat message by session.
- * 
+ *
  * Single Responsibility: Only handles message deletion by session.
  */
 class DeleteMessageBySessionUseCase(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
 ) {
-    
     /**
      * Execute: Delete a specific message from a session.
      */
-    suspend fun execute(sessionId: String, messageId: String): Boolean {
+    suspend fun execute(
+        sessionId: String,
+        messageId: String,
+    ): Boolean {
         return chatRepository.deleteMessage(messageId)
     }
 }

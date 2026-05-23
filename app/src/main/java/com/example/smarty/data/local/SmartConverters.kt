@@ -11,62 +11,62 @@ import java.util.Date
  */
 class SmartConverters {
     private val gson = Gson()
-    
+
     // ============================================================
     // LIST CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
     fun fromStringList(value: List<String>?): String {
         return gson.toJson(value ?: emptyList<String>())
     }
-    
+
     @TypeConverter
     fun toStringList(value: String?): List<String> {
         if (value == null) return emptyList()
         val type = object : TypeToken<List<String>>() {}.type
         return gson.fromJson(value, type)
     }
-    
+
     // ============================================================
     // MAP CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
     fun fromStringMap(value: Map<String, String>?): String {
         return gson.toJson(value ?: emptyMap<String, String>())
     }
-    
+
     @TypeConverter
     fun toStringMap(value: String?): Map<String, String> {
         if (value == null) return emptyMap()
         val type = object : TypeToken<Map<String, String>>() {}.type
         return gson.fromJson(value, type)
     }
-    
+
     // ============================================================
     // DATE CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
     fun fromDate(date: Date?): Long? {
         return date?.time
     }
-    
+
     @TypeConverter
     fun toDate(timestamp: Long?): Date? {
         return timestamp?.let { Date(it) }
     }
-    
+
     // ============================================================
     // ENUM CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
     fun fromTagType(type: TagEntity.TagType?): String? {
         return type?.name
     }
-    
+
     @TypeConverter
     fun toTagType(value: String?): TagEntity.TagType {
         return try {
@@ -75,12 +75,12 @@ class SmartConverters {
             TagEntity.TagType.MANUAL
         }
     }
-    
+
     @TypeConverter
     fun fromTaskStatus(status: TaskEntity.TaskStatus?): String? {
         return status?.name
     }
-    
+
     @TypeConverter
     fun toTaskStatus(value: String?): TaskEntity.TaskStatus {
         return try {
@@ -89,12 +89,12 @@ class SmartConverters {
             TaskEntity.TaskStatus.TODO
         }
     }
-    
+
     @TypeConverter
     fun fromPermission(permission: SharedItemEntity.Permission?): String? {
         return permission?.name
     }
-    
+
     @TypeConverter
     fun toPermission(value: String?): SharedItemEntity.Permission {
         return try {
@@ -103,12 +103,12 @@ class SmartConverters {
             SharedItemEntity.Permission.VIEW
         }
     }
-    
+
     @TypeConverter
     fun fromCheckpointType(type: AgentCheckpointEntity.CheckpointType?): String? {
         return type?.name
     }
-    
+
     @TypeConverter
     fun toCheckpointType(value: String?): AgentCheckpointEntity.CheckpointType {
         return try {
@@ -117,12 +117,12 @@ class SmartConverters {
             AgentCheckpointEntity.CheckpointType.MANUAL
         }
     }
-    
+
     @TypeConverter
     fun fromDigestType(type: DailyDigestEntity.DigestType?): String? {
         return type?.name
     }
-    
+
     @TypeConverter
     fun toDigestType(value: String?): DailyDigestEntity.DigestType {
         return try {
@@ -131,12 +131,12 @@ class SmartConverters {
             DailyDigestEntity.DigestType.DAILY
         }
     }
-    
+
     @TypeConverter
     fun fromSearchType(type: SearchHistoryEntity.SearchType?): String? {
         return type?.name
     }
-    
+
     @TypeConverter
     fun toSearchType(value: String?): SearchHistoryEntity.SearchType {
         return try {
@@ -145,35 +145,36 @@ class SmartConverters {
             SearchHistoryEntity.SearchType.TEXT
         }
     }
-    
+
     // ============================================================
     // BOOLEAN CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
     fun fromBoolean(value: Boolean?): Int {
         return if (value == true) 1 else 0
     }
-    
+
     @TypeConverter
     fun toBoolean(value: Int?): Boolean {
         return value == 1
     }
-    
+
     // ============================================================
     // JSON OBJECT CONVERTERS
     // ============================================================
-    
+
     @TypeConverter
-    fun <T> fromJson(json: String?, classOfT: Class<T>): T? {
+    fun <T> fromJson(
+        json: String?,
+        classOfT: Class<T>,
+    ): T? {
         if (json == null) return null
         return gson.fromJson(json, classOfT)
     }
-    
+
     @TypeConverter
     fun <T> toJson(obj: T?): String? {
         return gson.toJson(obj)
     }
 }
-
-

@@ -267,5 +267,3 @@ dependencies {
 detekt {
     ignoreFailures = true
 }
-
-

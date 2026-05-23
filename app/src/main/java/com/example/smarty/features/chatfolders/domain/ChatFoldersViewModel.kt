@@ -27,23 +27,26 @@ data class ChatFoldersUiState(
 )
 
 class ChatFoldersViewModel(application: Application) : AndroidViewModel(application) {
-
     private val serverUrl = SecurePreferences.getInstance(application).getServerUrl()
 
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
+    private val client =
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(
+                    Json {
+                        ignoreUnknownKeys = true
+                        isLenient = true
+                    },
+                )
+            }
         }
-    }
 
-    private val remoteDataSource = RemoteDataSource(
-        client = client,
-        serverUrlProvider = { serverUrl },
-        deviceIdProvider = { "android-client" },
-    )
+    private val remoteDataSource =
+        RemoteDataSource(
+            client = client,
+            serverUrlProvider = { serverUrl },
+            deviceIdProvider = { "android-client" },
+        )
 
     private val repository = ChatFoldersRepository(remoteDataSource)
 
@@ -74,7 +77,10 @@ class ChatFoldersViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun createFolder(name: String, color: String) {
+    fun createFolder(
+        name: String,
+        color: String,
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
             try {

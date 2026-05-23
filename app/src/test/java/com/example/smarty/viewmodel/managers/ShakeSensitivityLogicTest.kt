@@ -1,8 +1,6 @@
 package com.example.smarty.core.domain.model
 
 import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.data.remote.AIService
-import com.example.smarty.core.common.util.api.RateLimiter
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -13,7 +11,6 @@ import org.junit.Before
 import org.junit.Test
 
 class ShakeSensitivityLogicTest {
-
     private lateinit var securePreferences: SecurePreferences
     private lateinit var settingsManager: SettingsFeatureManager
     private val scope = CoroutineScope(Dispatchers.Unconfined)
@@ -35,10 +32,14 @@ class ShakeSensitivityLogicTest {
 
         settingsManager.setShakeSensitivity(1.0f)
 
-        verify { securePreferences.setShakeSensitivity(withArg { logicValue ->
-            // Allow for small float point differences
-            assertEquals(0.5f, logicValue, 0.01f)
-        }) }
+        verify {
+            securePreferences.setShakeSensitivity(
+                withArg { logicValue ->
+                    // Allow for small float point differences
+                    assertEquals(0.5f, logicValue, 0.01f)
+                },
+            )
+        }
     }
 
     @Test
@@ -47,9 +48,13 @@ class ShakeSensitivityLogicTest {
 
         settingsManager.setShakeSensitivity(0.0f)
 
-        verify { securePreferences.setShakeSensitivity(withArg { logicValue ->
-            assertEquals(5.0f, logicValue, 0.01f)
-        }) }
+        verify {
+            securePreferences.setShakeSensitivity(
+                withArg { logicValue ->
+                    assertEquals(5.0f, logicValue, 0.01f)
+                },
+            )
+        }
     }
 
     @Test
@@ -58,13 +63,12 @@ class ShakeSensitivityLogicTest {
         every { securePreferences.getShakeSensitivity() } returns 0.5f
 
         // Re-init manager to trigger init block
-        val newManager = SettingsFeatureManager(
-            securePreferences,
-            scope
-        )
+        val newManager =
+            SettingsFeatureManager(
+                securePreferences,
+                scope,
+            )
 
         assertEquals(1.0f, newManager.shakeSensitivity.value, 0.01f)
     }
 }
-
-

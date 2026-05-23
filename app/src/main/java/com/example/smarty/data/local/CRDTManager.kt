@@ -1,24 +1,24 @@
 package com.example.smarty.data.local
 
+import com.example.smarty.core.domain.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
-import com.example.smarty.core.domain.model.*
 
 /**
  * CRDT Manager - Conflict-free Replicated Data Types
  * Enables intelligent merge strategies for offline-first sync
  */
 class CRDTManager {
-    
     // Vector clocks for tracking causality
     private val vectorClocks = ConcurrentHashMap<String, VectorClock>()
-    
+
     // Merge strategies per entity type
-    private val mergeStrategies = mapOf<String, MergeStrategy<*>>(
-        "notes" to NoteMergeStrategy(),
-    )
-    
+    private val mergeStrategies =
+        mapOf<String, MergeStrategy<*>>(
+            "notes" to NoteMergeStrategy(),
+        )
+
     /**
      * Resolve conflict between local and remote versions
      */
@@ -33,15 +33,15 @@ class CRDTManager {
     ): ConflictResolution<T> {
         @Suppress("UNCHECKED_CAST")
         val strategy = (mergeStrategies[entityType] as? MergeStrategy<T>) ?: DefaultMergeStrategy<T>()
-        
+
         return when {
             // If one clearly dominates (happened-before relationship)
             vectorClockLocal.happensBefore(vectorClockRemote) ->
                 ConflictResolution.RemoteWins(remote)
-            
+
             vectorClockRemote.happensBefore(vectorClockLocal) ->
                 ConflictResolution.LocalWins(local)
-            
+
             // Concurrent modifications - use custom merge
             else -> {
                 val merged = strategy.merge(local, remote, localTimestamp, remoteTimestamp)
@@ -49,84 +49,105 @@ class CRDTManager {
             }
         }
     }
-    
+
     /**
      * Update vector clock for an entity
      */
-    fun updateVectorClock(entityId: String, nodeId: String) {
+    fun updateVectorClock(
+        entityId: String,
+        nodeId: String,
+    ) {
         val clock = vectorClocks.getOrPut(entityId) { VectorClock() }
         clock.increment(nodeId)
     }
-    
+
     /**
      * Get current vector clock for an entity
      */
     fun getVectorClock(entityId: String): VectorClock {
         return vectorClocks.getOrPut(entityId) { VectorClock() }
     }
-    
+
     /**
      * Vector clock for tracking causality
      */
     data class VectorClock(
-        private val clock: MutableMap<String, Long> = ConcurrentHashMap()
+        private val clock: MutableMap<String, Long> = ConcurrentHashMap(),
     ) {
         fun increment(nodeId: String) {
             clock[nodeId] = (clock[nodeId] ?: 0) + 1
         }
-        
+
         fun update(other: VectorClock) {
             other.clock.forEach { (nodeId, count) ->
                 clock[nodeId] = maxOf(clock[nodeId] ?: 0, count)
             }
         }
-        
+
         fun happensBefore(other: VectorClock): Boolean {
             val allNodes = clock.keys + other.clock.keys
             return allNodes.all { nodeId ->
                 (clock[nodeId] ?: 0) <= (other.clock[nodeId] ?: 0)
-            } && clock.any { (nodeId, count) ->
-                count < (other.clock[nodeId] ?: 0)
-            }
+            } &&
+                clock.any { (nodeId, count) ->
+                    count < (other.clock[nodeId] ?: 0)
+                }
         }
-        
+
         fun concurrentWith(other: VectorClock): Boolean {
             return !happensBefore(other) && !other.happensBefore(this)
         }
     }
-    
+
     /**
      * Conflict resolution result
      */
     sealed class ConflictResolution<T> {
         data class LocalWins<T>(val data: T) : ConflictResolution<T>()
+
         data class RemoteWins<T>(val data: T) : ConflictResolution<T>()
+
         data class Merged<T>(val data: T) : ConflictResolution<T>()
     }
-    
+
     /**
      * Merge strategy interface
      */
     interface MergeStrategy<T> {
-        suspend fun merge(local: T, remote: T, localTs: Long, remoteTs: Long): T
+        suspend fun merge(
+            local: T,
+            remote: T,
+            localTs: Long,
+            remoteTs: Long,
+        ): T
     }
-    
+
     /**
      * Default merge strategy - last write wins with field-level merge
      */
     class DefaultMergeStrategy<T> : MergeStrategy<T> {
-        override suspend fun merge(local: T, remote: T, localTs: Long, remoteTs: Long): T {
+        override suspend fun merge(
+            local: T,
+            remote: T,
+            localTs: Long,
+            remoteTs: Long,
+        ): T {
             // For generic types, prefer remote (server) version
             // In production, implement field-level merging
             return remote
         }
     }
-    
+
     /**
      * Note-specific merge strategy
      */
     class NoteMergeStrategy : MergeStrategy<Note> {
-        override suspend fun merge(local: Note, remote: Note, localTs: Long, remoteTs: Long): Note {
+        override suspend fun merge(
+            local: Note,
+            remote: Note,
+            localTs: Long,
+            remoteTs: Long,
+        ): Note {
             return Note(
                 id = local.id,
                 title = if (localTs > remoteTs) local.title else remote.title,
@@ -142,8 +163,12 @@ class CRDTManager {
                 categoryId = local.categoryId ?: remote.categoryId,
                 categoryName = local.categoryName ?: remote.categoryName,
                 whySaved = local.whySaved ?: remote.whySaved,
-                processingStatus = if (local.processingStatus == ProcessingStatus.COMPLETED) 
-                    local.processingStatus else remote.processingStatus,
+                processingStatus =
+                    if (local.processingStatus == ProcessingStatus.COMPLETED) {
+                        local.processingStatus
+                    } else {
+                        remote.processingStatus
+                    },
                 createdAt = minOf(local.createdAt, remote.createdAt),
                 updatedAt = maxOf(localTs, remoteTs),
                 isArchived = local.isArchived && remote.isArchived,
@@ -160,17 +185,21 @@ class CRDTManager {
                 chunkAnalysesJson = mergeChunkAnalyses(local.chunkAnalysesJson, remote.chunkAnalysesJson),
             )
         }
-        
-        private fun mergeTagsJson(local: String?, remote: String?): String? {
+
+        private fun mergeTagsJson(
+            local: String?,
+            remote: String?,
+        ): String? {
             // Merge tag arrays, removing duplicates
             return local ?: remote
         }
-        
-        private fun mergeChunkAnalyses(local: String?, remote: String?): String? {
+
+        private fun mergeChunkAnalyses(
+            local: String?,
+            remote: String?,
+        ): String? {
             // Merge chunk analyses, combining unique entries
             return local ?: remote
         }
     }
-    
-
 }

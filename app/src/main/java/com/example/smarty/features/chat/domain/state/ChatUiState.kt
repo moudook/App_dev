@@ -8,20 +8,21 @@ import com.example.smarty.core.domain.model.MentionState
  * Fallback model list — used only before the server responds with the real list.
  * The server discovers free models at runtime via `opencode models`, so this
  * list is a best-effort default that may be stale.
- * 
+ *
  * IMPORTANT: ONLY include models that the server actually discovers.
  * Current server-discovered models: deepseek-v4-flash-free, nemotron-3-super-free, qwen3.6-plus-free.
  */
-val DEFAULT_FREE_MODELS = listOf(
-    "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
-    "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
-    "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
-)
+val DEFAULT_FREE_MODELS =
+    listOf(
+        "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
+        "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
+        "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
+    )
 
 /**
  * UI-specific state for chat screen.
  * Separated from domain state to avoid leaking UI concerns.
- * 
+ *
  * Principles:
  * - UI-only state (input text, focus, expanded states)
  * - Derived from domain state where possible
@@ -46,12 +47,12 @@ data class ChatUiState(
     val autoSendActive: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val selectedModel: String = "opencode/deepseek-v4-flash-free",
-    val availableModels: List<Pair<String, String>> = DEFAULT_FREE_MODELS
+    val availableModels: List<Pair<String, String>> = DEFAULT_FREE_MODELS,
 ) {
     val canSend: Boolean = inputText.text.isNotEmpty() || attachments.isNotEmpty()
     val hasActiveFilters: Boolean = selectedFilters.isNotEmpty()
     val isThinkingExpanded: Boolean = expandedMessageIds.isNotEmpty()
-    
+
     companion object {
         fun initial() = ChatUiState()
     }
@@ -63,12 +64,17 @@ data class ChatUiState(
  */
 sealed class AttachmentOption {
     data object Image : AttachmentOption()
+
     data object Video : AttachmentOption()
+
     data object Document : AttachmentOption()
+
     data object Audio : AttachmentOption()
+
     data object Link : AttachmentOption()
+
     data object Research : AttachmentOption()
-    
+
     companion object {
         fun fromAttachmentType(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentOption {
             return when (type.name) {

@@ -12,10 +12,9 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
-import com.example.smarty.features.chat.ui.AssistOverlayScreen
-import com.example.smarty.ui.theme.SmartyTheme
 import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.chat.domain.AssistViewModelFactory
+import com.example.smarty.ui.theme.SmartyTheme
 
 /**
  * Assistant Overlay Activity - "Soft Tech" Floating Pill
@@ -27,7 +26,6 @@ import com.example.smarty.features.chat.domain.AssistViewModelFactory
  * - Voice and text input
  */
 class AssistActivity : ComponentActivity() {
-
     companion object {
         private const val TAG = "AssistActivity"
     }
@@ -52,7 +50,7 @@ class AssistActivity : ComponentActivity() {
             SmartyTheme(darkTheme = isDarkTheme, isTransparent = true) {
                 AssistOverlayScreen(
                     viewModel = viewModel,
-                    onDismiss = { finishWithAnimation() }
+                    onDismiss = { finishWithAnimation() },
                 )
             }
         }
@@ -66,9 +64,10 @@ class AssistActivity : ComponentActivity() {
         // Note: EXTRA_ASSIST_BUNDLE is "android.intent.extra.ASSIST_BUNDLE"
         try {
             val assistBundle = intent.getBundleExtra("android.intent.extra.ASSIST_BUNDLE")
-            val selectedText = assistBundle?.getString(Intent.EXTRA_TEXT)
-                ?: intent.getStringExtra(Intent.EXTRA_TEXT)
-                ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+            val selectedText =
+                assistBundle?.getString(Intent.EXTRA_TEXT)
+                    ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+                    ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
 
             val referringPackage = referrer?.host ?: ""
 

@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface AgentStepDao {
-
     /**
      * Get all agent steps for a message, ordered by stepIndex.
      */
@@ -48,13 +47,19 @@ interface AgentStepDao {
      * Update the status of a specific step (e.g., streaming -> completed).
      */
     @Query("UPDATE agent_steps SET stepStatus = :status WHERE stepId = :stepId")
-    suspend fun updateStepStatus(stepId: String, status: String)
+    suspend fun updateStepStatus(
+        stepId: String,
+        status: String,
+    )
 
     /**
      * Update the content of a streaming step (live token append).
      */
     @Query("UPDATE agent_steps SET stepContent = :content WHERE stepId = :stepId")
-    suspend fun updateStepContent(stepId: String, content: String)
+    suspend fun updateStepContent(
+        stepId: String,
+        content: String,
+    )
 
     /**
      * Delete all steps for a message (cascade handles this automatically, but explicit for safety).
@@ -72,7 +77,10 @@ interface AgentStepDao {
      * Get all steps of a specific type for a message (e.g., only tool calls).
      */
     @Query("SELECT * FROM agent_steps WHERE messageId = :messageId AND stepType = :stepType ORDER BY stepIndex ASC")
-    suspend fun getStepsByType(messageId: String, stepType: String): List<AgentStepEntity>
+    suspend fun getStepsByType(
+        messageId: String,
+        stepType: String,
+    ): List<AgentStepEntity>
 
     /**
      * Get failed steps for debugging/diagnostics.

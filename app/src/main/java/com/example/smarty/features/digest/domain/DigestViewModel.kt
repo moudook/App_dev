@@ -16,27 +16,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.Serializable
 
 /**
  * Digest Preferences ViewModel
  * Manages digest settings and operations
  */
 class DigestViewModel(application: Application) : AndroidViewModel(application) {
-    
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
-    
+
     private val _uiState = MutableStateFlow(DigestUiState())
     val uiState: StateFlow<DigestUiState> = _uiState.asStateFlow()
-    
+
     private val _preferences = MutableStateFlow<DigestPreferences?>(null)
     val preferences: StateFlow<DigestPreferences?> = _preferences.asStateFlow()
-    
+
     init {
         loadPreferences()
     }
-    
+
     fun loadPreferences() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -46,7 +44,7 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Not authenticated")
                     return@launch
                 }
-                
+
                 // For now, use default preferences since backend endpoint may not exist
                 _preferences.value = DigestPreferences()
                 _uiState.value = _uiState.value.copy(isLoading = false)
@@ -56,7 +54,7 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-    
+
     fun savePreferences(preferences: DigestPreferences) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
@@ -66,19 +64,20 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = _uiState.value.copy(isSaving = false, error = "Not authenticated")
                     return@launch
                 }
-                
+
                 // Store locally for now
                 _preferences.value = preferences
-                _uiState.value = _uiState.value.copy(
-                    isSaving = false,
-                    lastSavedAt = System.currentTimeMillis()
-                )
+                _uiState.value =
+                    _uiState.value.copy(
+                        isSaving = false,
+                        lastSavedAt = System.currentTimeMillis(),
+                    )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
     }
-    
+
     private suspend fun getFirebaseToken(): String? {
         return try {
             val user = FirebaseAuth.getInstance().currentUser
@@ -93,5 +92,5 @@ data class DigestUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val lastSavedAt: Long? = null,
-    val error: String? = null
+    val error: String? = null,
 )

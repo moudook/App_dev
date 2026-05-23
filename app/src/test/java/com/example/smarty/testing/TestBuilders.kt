@@ -11,20 +11,20 @@ import java.util.UUID
 
 /**
  * Test Data Builders - Centralized test data creation utilities.
- * 
+ *
  * Purpose:
  * - Reduce code duplication in tests
  * - Provide sensible defaults
  * - Allow easy customization for specific test scenarios
  * - Improve test readability
- * 
+ *
  * Usage:
  * ```kotlin
  * val note = TestBuilders.note {
  *     title = "Custom Title"
  *     categoryName = "Work"
  * }
- * 
+ *
  * val category = TestBuilders.category {
  *     name = "Personal"
  *     color = "#FF0000"
@@ -32,12 +32,11 @@ import java.util.UUID
  * ```
  */
 object TestBuilders {
-
     // ==================== Note Builders ====================
 
     /**
      * Build a Note with customizable fields.
-     * 
+     *
      * @param block DSL builder lambda for customization
      * @return Note instance with configured values
      */
@@ -49,12 +48,15 @@ object TestBuilders {
 
     /**
      * Build a list of Notes for batch testing.
-     * 
+     *
      * @param count Number of notes to create
      * @param block Optional customization applied to all notes
      * @return List of Note instances
      */
-    fun noteList(count: Int, block: NoteBuilder.() -> Unit = {}): List<Note> {
+    fun noteList(
+        count: Int,
+        block: NoteBuilder.() -> Unit = {},
+    ): List<Note> {
         return (1..count).map { note(block) }
     }
 
@@ -87,36 +89,47 @@ object TestBuilders {
                 isAiCreated = isAiCreated,
                 createdAt = createdAt,
                 updatedAt = updatedAt,
-                attachments = attachments
+                attachments = attachments,
             )
         }
 
         // Pre-configured templates for common scenarios
-        fun archived(): NoteBuilder = apply {
-            isArchived = true
-            title = "Archived: $title"
-        }
+        fun archived(): NoteBuilder =
+            apply {
+                isArchived = true
+                title = "Archived: $title"
+            }
 
-        fun pinned(): NoteBuilder = apply {
-            isPinned = true
-        }
+        fun pinned(): NoteBuilder =
+            apply {
+                isPinned = true
+            }
 
-        fun private(): NoteBuilder = apply {
-            isPrivate = true
-            title = "Private: $title"
-        }
+        fun private(): NoteBuilder =
+            apply {
+                isPrivate = true
+                title = "Private: $title"
+            }
 
-        fun withAttachment(type: AttachmentType, url: String = "test://url"): NoteBuilder = apply {
-            attachments = listOf(attachment { 
-                this.type = type
-                this.url = url
-            })
-        }
+        fun withAttachment(
+            type: AttachmentType,
+            url: String = "test://url",
+        ): NoteBuilder =
+            apply {
+                attachments =
+                    listOf(
+                        attachment {
+                            this.type = type
+                            this.url = url
+                        },
+                    )
+            }
 
-        fun aiCreated(): NoteBuilder = apply {
-            isAiCreated = true
-            processingStatus = ProcessingStatus.COMPLETED
-        }
+        fun aiCreated(): NoteBuilder =
+            apply {
+                isAiCreated = true
+                processingStatus = ProcessingStatus.COMPLETED
+            }
     }
 
     // ==================== Category Builders ====================
@@ -127,7 +140,10 @@ object TestBuilders {
         return builder.build()
     }
 
-    fun categoryList(count: Int, block: CategoryBuilder.() -> Unit = {}): List<Category> {
+    fun categoryList(
+        count: Int,
+        block: CategoryBuilder.() -> Unit = {},
+    ): List<Category> {
         return (1..count).map { category(block) }
     }
 
@@ -142,14 +158,17 @@ object TestBuilders {
                 id = id,
                 name = name,
                 color = color,
-                noteCount = noteCount
+                noteCount = noteCount,
             )
         }
 
         // Pre-configured templates
         fun red(): CategoryBuilder = apply { color = "#F44336" }
+
         fun green(): CategoryBuilder = apply { color = "#4CAF50" }
+
         fun orange(): CategoryBuilder = apply { color = "#FF9800" }
+
         fun purple(): CategoryBuilder = apply { color = "#9C27B0" }
     }
 
@@ -186,7 +205,7 @@ object TestBuilders {
                 googleEventId = googleEventId,
                 isAllDay = isAllDay,
                 createdAt = createdAt,
-                updatedAt = updatedAt
+                updatedAt = updatedAt,
             )
         }
     }
@@ -214,34 +233,38 @@ object TestBuilders {
                 url = url,
                 fileName = fileName,
                 fileSize = fileSize,
-                mimeType = mimeType
+                mimeType = mimeType,
             )
         }
 
         // Pre-configured templates
-        fun image(): AttachmentBuilder = apply {
-            type = AttachmentType.IMAGE
-            mimeType = "image/jpeg"
-            fileName = "test_image.jpg"
-        }
+        fun image(): AttachmentBuilder =
+            apply {
+                type = AttachmentType.IMAGE
+                mimeType = "image/jpeg"
+                fileName = "test_image.jpg"
+            }
 
-        fun pdf(): AttachmentBuilder = apply {
-            type = AttachmentType.DOCUMENT
-            mimeType = "application/pdf"
-            fileName = "test_document.pdf"
-        }
+        fun pdf(): AttachmentBuilder =
+            apply {
+                type = AttachmentType.DOCUMENT
+                mimeType = "application/pdf"
+                fileName = "test_document.pdf"
+            }
 
-        fun audio(): AttachmentBuilder = apply {
-            type = AttachmentType.AUDIO
-            mimeType = "audio/mpeg"
-            fileName = "test_audio.mp3"
-        }
+        fun audio(): AttachmentBuilder =
+            apply {
+                type = AttachmentType.AUDIO
+                mimeType = "audio/mpeg"
+                fileName = "test_audio.mp3"
+            }
 
-        fun video(): AttachmentBuilder = apply {
-            type = AttachmentType.VIDEO
-            mimeType = "video/mp4"
-            fileName = "test_video.mp4"
-        }
+        fun video(): AttachmentBuilder =
+            apply {
+                type = AttachmentType.VIDEO
+                mimeType = "video/mp4"
+                fileName = "test_video.mp4"
+            }
     }
 
     // ==================== Constants for Testing ====================
@@ -274,7 +297,7 @@ object TestBuilders {
         const val VALID_TOKEN = "fcm_token_abc123xyz789"
         const val INVALID_TOKEN = "invalid_token"
         const val EXPIRED_TOKEN = "expired_token_old123"
-        
+
         fun validTokenWithTimestamp(): Pair<String, Long> {
             return VALID_TOKEN to System.currentTimeMillis()
         }
@@ -286,8 +309,11 @@ object TestBuilders {
         const val EMPTY_PDF_TEXT = ""
         const val SHORT_PDF_TEXT = "This is a short PDF content."
         const val LONG_PDF_TEXT = "A".repeat(50000) // 50KB of text
-        
-        fun generateChunkedText(chunkSize: Int = 1000, chunks: Int = 10): String {
+
+        fun generateChunkedText(
+            chunkSize: Int = 1000,
+            chunks: Int = 10,
+        ): String {
             return buildString {
                 repeat(chunks) { i ->
                     if (i > 0) append(" ") // Word boundary

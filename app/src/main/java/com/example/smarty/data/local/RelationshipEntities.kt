@@ -14,11 +14,10 @@ import com.example.smarty.core.domain.model.Note
 data class NoteWithTags(
     @Embedded
     val note: Note,
-
     @Relation(
         parentColumn = "id",
         entityColumn = "id",
-        associateBy = Junction(NoteTagEntity::class, parentColumn = "note_id", entityColumn = "tag_id")
+        associateBy = Junction(NoteTagEntity::class, parentColumn = "note_id", entityColumn = "tag_id"),
     )
     val tags: List<TagEntity> = emptyList(),
 )
@@ -29,12 +28,11 @@ data class NoteWithTags(
 data class TagWithNotes(
     @Embedded
     val tag: TagEntity,
-
     @Relation(
         entity = Note::class,
         parentColumn = "id",
         entityColumn = "id",
-        associateBy = Junction(NoteTagEntity::class, parentColumn = "tag_id", entityColumn = "note_id")
+        associateBy = Junction(NoteTagEntity::class, parentColumn = "tag_id", entityColumn = "note_id"),
     )
     val notes: List<Note> = emptyList(),
 )
@@ -45,10 +43,9 @@ data class TagWithNotes(
 data class ChatSessionWithMessages(
     @Embedded
     val session: com.example.smarty.core.domain.model.ChatSession,
-
     @Relation(
         parentColumn = "id",
-        entityColumn = "session_id"
+        entityColumn = "session_id",
     )
     val messages: List<com.example.smarty.core.domain.model.ChatMessageEntity> = emptyList(),
 )
@@ -59,12 +56,11 @@ data class ChatSessionWithMessages(
 data class ChatMessageWithNotes(
     @Embedded
     val message: com.example.smarty.core.domain.model.ChatMessageEntity,
-
     @Relation(
         entity = Note::class,
         parentColumn = "id",
         entityColumn = "id",
-        associateBy = Junction(ChatMessageNote::class, parentColumn = "chat_message_id", entityColumn = "note_id")
+        associateBy = Junction(ChatMessageNote::class, parentColumn = "chat_message_id", entityColumn = "note_id"),
     )
     val linkedNotes: List<Note> = emptyList(),
 )
@@ -75,12 +71,11 @@ data class ChatMessageWithNotes(
 data class CalendarEventWithNotes(
     @Embedded
     val event: com.example.smarty.core.domain.model.CalendarEvent,
-
     @Relation(
         entity = Note::class,
         parentColumn = "id",
         entityColumn = "id",
-        associateBy = Junction(CalendarEventNote::class, parentColumn = "event_id", entityColumn = "note_id")
+        associateBy = Junction(CalendarEventNote::class, parentColumn = "event_id", entityColumn = "note_id"),
     )
     val linkedNotes: List<Note> = emptyList(),
 )
@@ -91,10 +86,9 @@ data class CalendarEventWithNotes(
 data class NoteWithLinkedEvents(
     @Embedded
     val note: Note,
-
     @Relation(
         parentColumn = "id",
-        entityColumn = "linked_note_id"
+        entityColumn = "linked_note_id",
     )
     val linkedEvents: List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList(),
 )
@@ -105,10 +99,9 @@ data class NoteWithLinkedEvents(
 data class TaskWithNotes(
     @Embedded
     val task: TaskEntity,
-
     @Relation(
         parentColumn = "id",
-        entityColumn = "task_id"
+        entityColumn = "task_id",
     )
     val noteLinks: List<NoteTaskEntity> = emptyList(),
 )
@@ -119,10 +112,9 @@ data class TaskWithNotes(
 data class NoteWithTasks(
     @Embedded
     val note: Note,
-
     @Relation(
         parentColumn = "id",
-        entityColumn = "note_id"
+        entityColumn = "note_id",
     )
     val taskLinks: List<NoteTaskEntity> = emptyList(),
 )
@@ -133,7 +125,6 @@ data class NoteWithTasks(
 data class ReasoningTraceWithEntity(
     @Embedded
     val trace: ReasoningTraceEntity,
-
     // The linked entity is determined by entityType and entityId
     // This would be resolved in the repository layer
     val linkedNote: Note? = null,
@@ -148,10 +139,9 @@ data class ReasoningTraceWithEntity(
 data class AgentCheckpointWithContext(
     @Embedded
     val checkpoint: AgentCheckpointEntity,
-
     @Relation(
         parentColumn = "session_id",
-        entityColumn = "session_id"
+        entityColumn = "session_id",
     )
     val recentTraces: List<ReasoningTraceEntity> = emptyList(),
 )
@@ -162,12 +152,9 @@ data class AgentCheckpointWithContext(
 data class SearchHistoryWithResults(
     @Embedded
     val search: SearchHistoryEntity,
-
     // Results are stored as JSON in entitiesFound field
     // This would be parsed in the repository layer
 )
-
-
 
 // ============================================================
 // USER_WITH_SYNC_STATE - User with sync information
@@ -175,10 +162,9 @@ data class SearchHistoryWithResults(
 data class UserWithSyncState(
     @Embedded
     val user: UserEntity,
-
     @Relation(
         parentColumn = "id",
-        entityColumn = "user_id"
+        entityColumn = "user_id",
     )
     val syncState: SyncStateEntity? = null,
 )
@@ -189,16 +175,14 @@ data class UserWithSyncState(
 data class SharedItemWithDetails(
     @Embedded
     val sharedItem: SharedItemEntity,
-
     @Relation(
         parentColumn = "owner_id",
-        entityColumn = "id"
+        entityColumn = "id",
     )
     val owner: UserEntity? = null,
-
     @Relation(
         parentColumn = "shared_with_id",
-        entityColumn = "id"
+        entityColumn = "id",
     )
     val sharedWith: UserEntity? = null,
 )

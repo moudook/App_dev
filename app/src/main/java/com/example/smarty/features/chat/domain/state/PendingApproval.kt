@@ -1,7 +1,5 @@
 package com.example.smarty.features.chat.domain.state
 
-import com.example.smarty.protocol.AgentEvent
-
 /**
  * Mutable approval state for the ChatViewModel.
  * Tracked per StreamingMessageId so we can route the approval response

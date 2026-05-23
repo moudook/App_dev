@@ -12,7 +12,11 @@ class ChatFoldersRepository(
 ) {
     suspend fun getFolders(): ChatFoldersResponse? = remoteDataSource.getChatFolders()
 
-    suspend fun createFolder(name: String, color: String, sortOrder: Int = 0): ChatFolderCreateResponse? {
+    suspend fun createFolder(
+        name: String,
+        color: String,
+        sortOrder: Int = 0,
+    ): ChatFolderCreateResponse? {
         return remoteDataSource.createChatFolder(ChatFolderCreateRequest(name = name, color = color, sortOrder = sortOrder))
     }
 

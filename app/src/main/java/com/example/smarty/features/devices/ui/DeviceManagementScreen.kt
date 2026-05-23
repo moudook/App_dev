@@ -25,7 +25,7 @@ fun DeviceManagementScreen(
     devices: List<DeviceItem>,
     isLoading: Boolean = false,
     onRemoveDevice: (String) -> Unit = {},
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -35,12 +35,12 @@ fun DeviceManagementScreen(
                         Text(
                             text = "My Devices",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "${devices.size} devices registered",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
@@ -48,38 +48,40 @@ fun DeviceManagementScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
                 )
             } else if (devices.isEmpty()) {
                 EmptyStatePlaceholder(
                     icon = Icons.Default.Devices,
                     title = "No Devices",
                     subtitle = "Your registered devices will appear here.",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(devices, key = { it.id }) { device ->
                         DeviceItemCard(
                             device = device,
-                            onRemoveClick = { onRemoveDevice(device.id) }
+                            onRemoveClick = { onRemoveDevice(device.id) },
                         )
                     }
                 }
@@ -91,43 +93,45 @@ fun DeviceManagementScreen(
 @Composable
 private fun DeviceItemCard(
     device: DeviceItem,
-    onRemoveClick: () -> Unit
+    onRemoveClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(
-                    imageVector = when (device.type) {
-                        "mobile" -> Icons.Default.PhoneAndroid
-                        "tablet" -> Icons.Default.TabletAndroid
-                        "desktop" -> Icons.Default.DesktopMac
-                        else -> Icons.Default.Devices
-                    },
+                    imageVector =
+                        when (device.type) {
+                            "mobile" -> Icons.Default.PhoneAndroid
+                            "tablet" -> Icons.Default.TabletAndroid
+                            "desktop" -> Icons.Default.DesktopMac
+                            else -> Icons.Default.Devices
+                        },
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(32.dp),
                 )
                 Column {
                     Text(
                         text = device.name,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = "Last active: ${device.lastActive}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -136,7 +140,7 @@ private fun DeviceItemCard(
                     Icons.Default.DeleteOutline,
                     "Remove",
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
@@ -148,5 +152,5 @@ data class DeviceItem(
     val name: String,
     val type: String,
     val lastActive: String,
-    val pushToken: String? = null
+    val pushToken: String? = null,
 )

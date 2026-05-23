@@ -253,13 +253,23 @@ class ServerSyncRepository(
             fileName = this.fileName,
             fileMimeType = this.fileMimeType,
             fileSize = this.fileSize,
-            type = try { NoteType.valueOf(this.type) } catch (e: Exception) { NoteType.BRAIN_DUMP },
+            type =
+                try {
+                    NoteType.valueOf(this.type)
+                } catch (e: Exception) {
+                    NoteType.BRAIN_DUMP
+                },
             categoryId = this.categoryId,
             categoryName = this.categoryName,
             stackId = this.stackId,
             parentNoteId = this.parentNoteId,
             whySaved = this.whySaved,
-            processingStatus = try { ProcessingStatus.valueOf(this.processingStatus) } catch (e: Exception) { ProcessingStatus.COMPLETED },
+            processingStatus =
+                try {
+                    ProcessingStatus.valueOf(this.processingStatus)
+                } catch (e: Exception) {
+                    ProcessingStatus.COMPLETED
+                },
             contentHash = this.contentHash,
             processedContentHash = this.processedContentHash,
             metadata = this.metadata,
@@ -278,7 +288,7 @@ class ServerSyncRepository(
             reminderText = this.reminderText,
             reminderExpiresAt = this.reminderExpiresAt,
             createdAt = this.createdAt,
-            updatedAt = this.updatedAt
+            updatedAt = this.updatedAt,
         )
     }
 

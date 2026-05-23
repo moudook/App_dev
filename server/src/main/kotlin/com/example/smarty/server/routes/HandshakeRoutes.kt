@@ -5,20 +5,20 @@ import com.example.smarty.protocol.HandshakeRequest
 import com.example.smarty.protocol.HandshakeResponse
 import com.example.smarty.protocol.HybridActionPolicy
 import com.example.smarty.protocol.RemoteSyncState
+import com.example.smarty.server.plugins.firebaseUser
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.util.*
-import com.example.smarty.server.plugins.firebaseUser
 
 fun Application.configureHandshakeRoutes() {
     routing {
         authenticate("firebase") {
             post("/api/v1/session/init") {
                 val request = call.receive<HandshakeRequest>()
-                
+
                 val user = call.firebaseUser()
                 if (user != null) {
                     com.example.smarty.server.agent.DeviceRegistry.registerDevice(user.userId, request.capabilities)

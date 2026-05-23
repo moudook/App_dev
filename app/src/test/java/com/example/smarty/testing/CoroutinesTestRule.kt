@@ -43,9 +43,8 @@ import org.junit.runner.Description
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CoroutinesTestRule(
-    private val dispatcher: TestDispatcher = StandardTestDispatcher()
+    private val dispatcher: TestDispatcher = StandardTestDispatcher(),
 ) : TestWatcher() {
-
     /**
      * Get the test dispatcher for use in tests.
      */

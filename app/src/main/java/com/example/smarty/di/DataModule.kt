@@ -1,9 +1,7 @@
 package com.example.smarty.di
 
 import android.content.Context
-import androidx.room.Room
 import com.example.smarty.data.local.*
-import com.example.smarty.data.remote.RemoteAgentService
 import com.example.smarty.data.repository.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +11,6 @@ import kotlinx.coroutines.SupervisorJob
  * Dependency Injection Module for Database Components
  */
 object DatabaseModule {
-
     fun provideSmartDatabase(context: Context): SmartyDatabase {
         return SmartyDatabase.getDatabase(context)
     }
@@ -62,7 +59,6 @@ object DatabaseModule {
  * Repository Module
  */
 object RepositoryModule {
-
     fun provideSmartRepository(
         database: SmartyDatabase,
         crdtManager: CRDTManager,
@@ -92,7 +88,6 @@ object RepositoryModule {
  * Application Component
  */
 object ApplicationModule {
-
     fun provideApplicationScope(): CoroutineScope {
         return CoroutineScope(Dispatchers.IO + SupervisorJob())
     }

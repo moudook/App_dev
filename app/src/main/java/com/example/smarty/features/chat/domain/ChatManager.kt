@@ -9,8 +9,8 @@ import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.Citation
 import com.example.smarty.core.domain.model.ClarificationRequest
-import com.example.smarty.core.domain.model.NoteReference
 import com.example.smarty.core.domain.model.EventReference
+import com.example.smarty.core.domain.model.NoteReference
 import com.example.smarty.data.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -309,14 +309,15 @@ class ChatManager(
         newCitations: List<Citation>,
     ) {
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value.map { msg ->
-                if (msg.id == messageId) {
-                    val merged = (msg.citations + newCitations).distinctBy { it.url }
-                    msg.copy(citations = merged)
-                } else {
-                    msg
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) {
+                        val merged = (msg.citations + newCitations).distinctBy { it.url }
+                        msg.copy(citations = merged)
+                    } else {
+                        msg
+                    }
                 }
-            }
         }
     }
 
@@ -325,20 +326,21 @@ class ChatManager(
         newStep: com.example.smarty.core.domain.model.AgentStepEntry,
     ) {
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value.map { msg ->
-                if (msg.id == messageId) {
-                    val updated = msg.agentSteps.toMutableList()
-                    val existingIdx = updated.indexOfFirst { it.stepIndex == newStep.stepIndex }
-                    if (existingIdx >= 0) {
-                        updated[existingIdx] = newStep
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) {
+                        val updated = msg.agentSteps.toMutableList()
+                        val existingIdx = updated.indexOfFirst { it.stepIndex == newStep.stepIndex }
+                        if (existingIdx >= 0) {
+                            updated[existingIdx] = newStep
+                        } else {
+                            updated.add(newStep)
+                        }
+                        msg.copy(agentSteps = updated.toList())
                     } else {
-                        updated.add(newStep)
+                        msg
                     }
-                    msg.copy(agentSteps = updated.toList())
-                } else {
-                    msg
                 }
-            }
         }
     }
 
@@ -500,14 +502,17 @@ class ChatManager(
                 _currentSessionId.value?.let { sessionId ->
                     val userSaveAllowed = shouldSaveChat(isUserMessage = true)
                     val smartySaveAllowed = shouldSaveChat(isUserMessage = false)
-                    
-                    Log.d(TAG, "saveMessagePair: Invoking repository. sessionId: $sessionId, userSave: $userSaveAllowed, smartySave: $smartySaveAllowed")
-                    
+
+                    Log.d(
+                        TAG,
+                        "saveMessagePair: Invoking repository. sessionId: $sessionId, userSave: $userSaveAllowed, smartySave: $smartySaveAllowed",
+                    )
+
                     // Save user message if allowed and has content
                     if (userSaveAllowed && userMessage.content.isNotBlank()) {
                         chatRepository.saveMessage(sessionId, userMessage)
                     }
-                    
+
                     // Save Smarty response only if allowed and has content/actions
                     if (smartySaveAllowed) {
                         chatRepository.saveMessage(sessionId, smartyMessage)

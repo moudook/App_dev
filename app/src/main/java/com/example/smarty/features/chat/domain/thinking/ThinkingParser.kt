@@ -2,19 +2,18 @@ package com.example.smarty.features.chat.domain.thinking
 
 data class ParsedResponse(
     val thinking: String?,
-    val answer: String
+    val answer: String,
 )
 
 object ThinkingParser {
-    
     private val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
     private val finalRegex = Regex("<final>(.*?)</final>", RegexOption.DOT_MATCHES_ALL)
-    
+
     fun parse(content: String): ParsedResponse {
         // First try to find <final> tags (new format)
         val finalMatch = finalRegex.find(content)
         val thinkMatch = thinkRegex.find(content)
-        
+
         return when {
             // Both thinking and final tags present
             thinkMatch != null && finalMatch != null -> {
@@ -37,15 +36,15 @@ object ThinkingParser {
             else -> ParsedResponse(null, content)
         }
     }
-    
+
     fun hasThinking(content: String): Boolean {
         return thinkRegex.containsMatchIn(content)
     }
-    
+
     fun extractThinking(content: String): String? {
         return thinkRegex.find(content)?.groupValues?.get(1)?.trim()
     }
-    
+
     fun extractAnswer(content: String): String {
         // Remove thinking tags first
         var answer = thinkRegex.replace(content, "")

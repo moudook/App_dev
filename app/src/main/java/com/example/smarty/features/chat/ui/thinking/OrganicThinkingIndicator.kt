@@ -26,7 +26,7 @@ import kotlin.math.sin
 fun OrganicThinkingIndicator(
     modifier: Modifier = Modifier,
     size: Dp = 28.dp,
-    baseColor: Color = Color.Gray.copy(alpha = 0.6f)
+    baseColor: Color = Color.Gray.copy(alpha = 0.6f),
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "OrganicThinking")
 
@@ -34,22 +34,24 @@ fun OrganicThinkingIndicator(
     val phase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "BreathePhase"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(2500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "BreathePhase",
     )
 
     // Secondary wobble phase for organic feel
     val wobble by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "WobblePhase"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(4000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "WobblePhase",
     )
 
     Canvas(modifier = modifier.size(size)) {
@@ -69,16 +71,18 @@ fun OrganicThinkingIndicator(
         val outerAlpha = (0.1f + breatheFactor * 0.15f).coerceIn(0f, 0.3f)
 
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    baseColor.copy(alpha = outerAlpha),
-                    Color.Transparent
+            brush =
+                Brush.radialGradient(
+                    colors =
+                        listOf(
+                            baseColor.copy(alpha = outerAlpha),
+                            Color.Transparent,
+                        ),
+                    center = center,
+                    radius = outerRadius,
                 ),
-                center = center,
-                radius = outerRadius
-            ),
             radius = outerRadius,
-            center = center
+            center = center,
         )
 
         // 2. Inner Core (Fluid)
@@ -86,17 +90,19 @@ fun OrganicThinkingIndicator(
         val coreAlpha = (0.4f + breatheFactor * 0.2f).coerceIn(0f, 0.8f)
 
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    baseColor.copy(alpha = coreAlpha),
-                    baseColor.copy(alpha = coreAlpha * 0.5f),
-                    Color.Transparent
+            brush =
+                Brush.radialGradient(
+                    colors =
+                        listOf(
+                            baseColor.copy(alpha = coreAlpha),
+                            baseColor.copy(alpha = coreAlpha * 0.5f),
+                            Color.Transparent,
+                        ),
+                    center = center,
+                    radius = coreRadius * 1.5f,
                 ),
-                center = center,
-                radius = coreRadius * 1.5f
-            ),
             radius = coreRadius * 1.5f,
-            center = center
+            center = center,
         )
 
         // 3. Solid Center (The "Heart")
@@ -104,14 +110,14 @@ fun OrganicThinkingIndicator(
         drawCircle(
             color = baseColor.copy(alpha = coreAlpha + 0.1f),
             radius = heartRadius,
-            center = center
+            center = center,
         )
 
         // Highlight (makes it feel 3D/glassy)
         drawCircle(
             color = Color.White.copy(alpha = 0.3f),
             radius = heartRadius * 0.4f,
-            center = Offset(centerX - heartRadius * 0.2f, centerY - heartRadius * 0.2f)
+            center = Offset(centerX - heartRadius * 0.2f, centerY - heartRadius * 0.2f),
         )
     }
 }

@@ -10,7 +10,10 @@ import java.util.concurrent.ConcurrentHashMap
 object DeviceRegistry {
     private val userCapabilities = ConcurrentHashMap<String, DeviceCapabilities>()
 
-    fun registerDevice(userId: String, capabilities: DeviceCapabilities) {
+    fun registerDevice(
+        userId: String,
+        capabilities: DeviceCapabilities,
+    ) {
         userCapabilities[userId] = capabilities
     }
 

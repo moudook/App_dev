@@ -6,17 +6,14 @@ import com.example.smarty.BuildConfig
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import io.ktor.client.plugins.contentnegotiation.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
@@ -26,23 +23,25 @@ import kotlinx.serialization.json.Json
 class DigestFeatureManager(
     private val application: Application,
     private val serverUrlProvider: () -> String,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
 ) {
     companion object {
         private const val TAG = "DigestFeatureManager"
     }
 
-    private val json = Json { 
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-    }
-
-    private val httpClient = HttpClient {
-        install(ContentNegotiation) {
-            this.json(json)
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
         }
-    }
+
+    private val httpClient =
+        HttpClient {
+            install(ContentNegotiation) {
+                this.json(json)
+            }
+        }
 
     // State
     private val _digests = MutableStateFlow<List<DigestResult>>(emptyList())
@@ -91,19 +90,20 @@ class DigestFeatureManager(
         try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
-            
+
             if (token == null) {
                 _error.value = "Not authenticated"
                 _isLoading.value = false
                 return
             }
 
-            val response = httpClient.get("$baseUrl/digests?limit=$limit") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-            }
-            
+            val response =
+                httpClient.get("$baseUrl/digests?limit=$limit") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                }
+
             if (response.status.isSuccess()) {
                 val responseBody: String = response.body()
                 val digestList = json.decodeFromString<DigestListResponse>(responseBody)
@@ -129,12 +129,13 @@ class DigestFeatureManager(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return null
 
-            val response = httpClient.get("$baseUrl/digests/$digestId") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-            }
-            
+            val response =
+                httpClient.get("$baseUrl/digests/$digestId") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                }
+
             if (response.status.isSuccess()) {
                 val responseBody: String = response.body()
                 json.decodeFromString<DigestResult>(responseBody)
@@ -153,34 +154,35 @@ class DigestFeatureManager(
      */
     suspend fun triggerDigest(type: String = "daily"): TriggerDigestResponse? {
         _isLoading.value = true
-        
+
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
-            
+
             if (token == null) {
                 _error.value = "Not authenticated"
                 _isLoading.value = false
                 return null
             }
 
-            val response = httpClient.post("$baseUrl/digests/trigger") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-                contentType(ContentType.Application.Json)
-                setBody(TriggerDigestRequest(type = type))
-            }
-            
+            val response =
+                httpClient.post("$baseUrl/digests/trigger") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                    contentType(ContentType.Application.Json)
+                    setBody(TriggerDigestRequest(type = type))
+                }
+
             if (response.status.isSuccess()) {
                 val responseBody: String = response.body()
                 val result = json.decodeFromString<TriggerDigestResponse>(responseBody)
-                
+
                 // Refresh digests if successful
                 if (result.success && result.digest != null) {
                     fetchDigests()
                 }
-                
+
                 result
             } else {
                 _error.value = "Failed to trigger digest: ${response.status}"
@@ -203,12 +205,13 @@ class DigestFeatureManager(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return
 
-            val response = httpClient.get("$baseUrl/digests/preferences") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-            }
-            
+            val response =
+                httpClient.get("$baseUrl/digests/preferences") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                }
+
             if (response.status.isSuccess()) {
                 val responseBody: String = response.body()
                 _preferences.value = json.decodeFromString<DigestPreferences>(responseBody)
@@ -226,14 +229,15 @@ class DigestFeatureManager(
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
 
-            val response = httpClient.put("$baseUrl/digests/preferences") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
-            
+            val response =
+                httpClient.put("$baseUrl/digests/preferences") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+
             if (response.status.isSuccess()) {
                 // Refresh preferences
                 fetchPreferences()

@@ -23,12 +23,12 @@ object OpencodeDaemonManager {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var monitorJob: Job? = null
     private var daemonProcess: Process? = null
-    
+
     private const val DAEMON_PORT = 4096
     private const val DAEMON_HOST = "127.0.0.1"
     private const val HEALTH_URL = "http://$DAEMON_HOST:$DAEMON_PORT/global/health"
     private const val CHECK_INTERVAL_MS = 15000L // Check every 15 seconds
-    
+
     private val client get() = HttpClientSingleton.client
 
     /**
@@ -36,18 +36,19 @@ object OpencodeDaemonManager {
      */
     fun startMonitoring() {
         if (monitorJob?.isActive == true) return
-        
+
         log.info("Starting OpenCode daemon monitor. Health endpoint: $HEALTH_URL")
-        monitorJob = scope.launch {
-            while (isActive) {
-                try {
-                    checkAndRecover()
-                } catch (e: Exception) {
-                    log.error("Error in daemon monitor loop", e)
+        monitorJob =
+            scope.launch {
+                while (isActive) {
+                    try {
+                        checkAndRecover()
+                    } catch (e: Exception) {
+                        log.error("Error in daemon monitor loop", e)
+                    }
+                    delay(CHECK_INTERVAL_MS)
                 }
-                delay(CHECK_INTERVAL_MS)
             }
-        }
     }
 
     /**
@@ -57,7 +58,7 @@ object OpencodeDaemonManager {
         log.info("Stopping OpenCode daemon monitor")
         monitorJob?.cancel()
         monitorJob = null
-        
+
         daemonProcess?.let {
             log.info("Terminating managed OpenCode daemon process (PID: ${it.pid()})")
             it.destroy()
@@ -73,16 +74,17 @@ object OpencodeDaemonManager {
     }
 
     private suspend fun checkAndRecover() {
-        val isHealthy = try {
-            val response: HttpResponse = client.get(HEALTH_URL)
-            response.status.isSuccess()
-        } catch (e: Exception) {
-            false
-        }
+        val isHealthy =
+            try {
+                val response: HttpResponse = client.get(HEALTH_URL)
+                response.status.isSuccess()
+            } catch (e: Exception) {
+                false
+            }
 
         if (!isHealthy) {
             log.warn("OpenCode daemon at $HEALTH_URL is not responding. Attempting to start/restart...")
-            
+
             // Clean up old process reference if it exists
             daemonProcess?.let {
                 if (it.isAlive) {
@@ -95,14 +97,15 @@ object OpencodeDaemonManager {
             // Launch new process
             try {
                 val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-                val command = if (isWindows) {
-                    listOf("cmd.exe", "/c", "opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST")
-                } else {
-                    listOf("opencode", "serve", "--port", "$DAEMON_PORT", "--hostname", "$DAEMON_HOST")
-                }
-                
+                val command =
+                    if (isWindows) {
+                        listOf("cmd.exe", "/c", "opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST")
+                    } else {
+                        listOf("opencode", "serve", "--port", "$DAEMON_PORT", "--hostname", "$DAEMON_HOST")
+                    }
+
                 val pb = ProcessBuilder(command)
-                
+
                 // Set working directory to project root if possible (up two levels from server module if running from there)
                 val currentDir = File(System.getProperty("user.dir"))
                 if (File(currentDir, "opencode.json").exists()) {
@@ -110,16 +113,16 @@ object OpencodeDaemonManager {
                 } else if (File(currentDir.parentFile, "opencode.json").exists()) {
                     pb.directory(currentDir.parentFile)
                 }
-                
+
                 val logFile = File(System.getProperty("java.io.tmpdir"), "opencode-daemon-recovery.log")
                 pb.redirectOutput(logFile)
                 pb.redirectErrorStream(true)
-                
+
                 log.info("Executing: ${command.joinToString(" ")}")
                 daemonProcess = pb.start()
-                
+
                 log.info("Started new OpenCode daemon process (PID: ${daemonProcess?.pid()}). Logs at ${logFile.absolutePath}")
-                
+
                 // Wait briefly to see if it immediately crashes
                 delay(2000)
                 if (daemonProcess?.isAlive == false) {

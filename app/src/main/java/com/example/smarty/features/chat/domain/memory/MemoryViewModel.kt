@@ -3,21 +3,9 @@ package com.example.smarty.features.chat.domain.memory
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.data.local.SmartyDatabase
-import com.example.smarty.data.remote.AIService
-import com.example.smarty.features.chat.domain.memory.GetMemoriesUseCase
-import com.example.smarty.features.chat.domain.memory.ManageMemoriesUseCase
-import com.example.smarty.features.chat.domain.memory.SyncMemoriesUseCase
-import com.example.smarty.viewmodel.managers.MemoryFeatureManager
-import com.example.smarty.features.chat.domain.memory.MemorySyncManager
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MemoryViewModel(application: Application) : AndroidViewModel(application) {
-
     // Managers from ServiceLocator to ensure singleton state across ViewModels
     private val memorySyncManager = com.example.smarty.di.ServiceLocator.provideMemorySyncManager(application)
     val memoryFeatureManager = com.example.smarty.di.ServiceLocator.provideMemoryFeatureManager(application)

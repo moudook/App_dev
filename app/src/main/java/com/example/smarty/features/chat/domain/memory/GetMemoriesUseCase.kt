@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
  * Use case for retrieving AI memories.
  */
 class GetMemoriesUseCase(
-    private val memoryFeatureManager: MemoryFeatureManager
+    private val memoryFeatureManager: MemoryFeatureManager,
 ) {
     val allMemories: StateFlow<List<AIMemory>> = memoryFeatureManager.allMemories
 
-    suspend fun retrieve(query: String?, limit: Int = 10): List<AIMemory> {
+    suspend fun retrieve(
+        query: String?,
+        limit: Int = 10,
+    ): List<AIMemory> {
         return memoryFeatureManager.retrieveMemories(query, limit)
     }
 }

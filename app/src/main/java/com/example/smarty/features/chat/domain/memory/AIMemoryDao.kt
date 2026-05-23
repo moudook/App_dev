@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface AIMemoryDao {
-
     // =========================================================================
     // CRUD OPERATIONS
     // =========================================================================
@@ -87,11 +86,13 @@ interface AIMemoryDao {
      *
      * @param limit Maximum number of memories to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         ORDER BY lastUsedAt DESC
         LIMIT :limit
-    """)
+    """,
+    )
     suspend fun getRecentMemories(limit: Int): List<AIMemory>
 
     /**
@@ -100,11 +101,13 @@ interface AIMemoryDao {
      *
      * @param limit Maximum number of memories to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         ORDER BY usageCount DESC, confidence DESC
         LIMIT :limit
-    """)
+    """,
+    )
     suspend fun getMostUsedMemories(limit: Int): List<AIMemory>
 
     /**
@@ -114,13 +117,18 @@ interface AIMemoryDao {
      * @param minConfidence Minimum confidence threshold (0.0-1.0)
      * @param limit Maximum number of memories to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         WHERE confidence >= :minConfidence
         ORDER BY confidence DESC, lastUsedAt DESC
         LIMIT :limit
-    """)
-    suspend fun getHighConfidenceMemories(minConfidence: Float, limit: Int): List<AIMemory>
+    """,
+    )
+    suspend fun getHighConfidenceMemories(
+        minConfidence: Float,
+        limit: Int,
+    ): List<AIMemory>
 
     /**
      * Get memories by type.
@@ -134,13 +142,18 @@ interface AIMemoryDao {
     /**
      * Get memories by type with limit.
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         WHERE type = :type
         ORDER BY lastUsedAt DESC
         LIMIT :limit
-    """)
-    suspend fun getMemoriesByType(type: MemoryType, limit: Int): List<AIMemory>
+    """,
+    )
+    suspend fun getMemoriesByType(
+        type: MemoryType,
+        limit: Int,
+    ): List<AIMemory>
 
     /**
      * Search memories by content.
@@ -148,11 +161,13 @@ interface AIMemoryDao {
      *
      * @param query Search term
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         WHERE content LIKE '%' || :query || '%'
         ORDER BY lastUsedAt DESC
-    """)
+    """,
+    )
     suspend fun searchMemories(query: String): List<AIMemory>
 
     /**
@@ -162,14 +177,19 @@ interface AIMemoryDao {
      * @param query The user's query to match against
      * @param limit Maximum number of memories to return
      */
-    @Query("""
+    @Query(
+        """
         SELECT * FROM ai_memories
         WHERE content LIKE '%' || :query || '%'
         OR :query LIKE '%' || content || '%'
         ORDER BY confidence DESC, lastUsedAt DESC
         LIMIT :limit
-    """)
-    suspend fun getRelevantMemories(query: String, limit: Int): List<AIMemory>
+    """,
+    )
+    suspend fun getRelevantMemories(
+        query: String,
+        limit: Int,
+    ): List<AIMemory>
 
     // =========================================================================
     // USAGE TRACKING
@@ -181,13 +201,18 @@ interface AIMemoryDao {
      *
      * @param memoryId ID of the memory being used
      */
-    @Query("""
+    @Query(
+        """
         UPDATE ai_memories
         SET usageCount = usageCount + 1,
             lastUsedAt = :timestamp
         WHERE id = :memoryId
-    """)
-    suspend fun incrementUsage(memoryId: String, timestamp: Long = System.currentTimeMillis())
+    """,
+    )
+    suspend fun incrementUsage(
+        memoryId: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
 
     /**
      * Update confidence level for a memory.
@@ -196,12 +221,17 @@ interface AIMemoryDao {
      * @param memoryId ID of the memory to update
      * @param newConfidence New confidence value (0.0-1.0)
      */
-    @Query("""
+    @Query(
+        """
         UPDATE ai_memories
         SET confidence = :newConfidence
         WHERE id = :memoryId
-    """)
-    suspend fun updateConfidence(memoryId: String, newConfidence: Float)
+    """,
+    )
+    suspend fun updateConfidence(
+        memoryId: String,
+        newConfidence: Float,
+    )
 
     /**
      * Decrease confidence for a memory (when user contradicts it).
@@ -209,11 +239,13 @@ interface AIMemoryDao {
      *
      * @param memoryId ID of the memory to decrease confidence
      */
-    @Query("""
+    @Query(
+        """
         UPDATE ai_memories
         SET confidence = MAX(0.1, confidence - 0.2)
         WHERE id = :memoryId
-    """)
+    """,
+    )
     suspend fun decreaseConfidence(memoryId: String)
 
     // =========================================================================
@@ -234,23 +266,31 @@ interface AIMemoryDao {
      * @param maxConfidence Maximum confidence threshold
      * @param maxUsageCount Maximum usage count threshold
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM ai_memories
         WHERE lastUsedAt < :maxAge
         AND confidence < :maxConfidence
         AND usageCount < :maxUsageCount
-    """)
-    suspend fun pruneOldMemories(maxAge: Long, maxConfidence: Float, maxUsageCount: Int)
+    """,
+    )
+    suspend fun pruneOldMemories(
+        maxAge: Long,
+        maxConfidence: Float,
+        maxUsageCount: Int,
+    )
 
     /**
      * Delete memories older than a certain age.
      *
      * @param maxAge Maximum age in milliseconds (from current time)
      */
-    @Query("""
+    @Query(
+        """
         DELETE FROM ai_memories
         WHERE lastUsedAt < :cutoffTime
-    """)
+    """,
+    )
     suspend fun deleteMemoriesOlderThan(cutoffTime: Long)
 
     /**
@@ -260,14 +300,19 @@ interface AIMemoryDao {
      * @param content Content to check for
      * @param type Memory type
      */
-    @Query("""
+    @Query(
+        """
         SELECT EXISTS(
             SELECT 1 FROM ai_memories
             WHERE type = :type
             AND content = :content
         )
-    """)
-    suspend fun memoryExists(content: String, type: MemoryType): Boolean
+    """,
+    )
+    suspend fun memoryExists(
+        content: String,
+        type: MemoryType,
+    ): Boolean
 
     /**
      * Get count of memories by type.

@@ -167,10 +167,12 @@ class ChatFeatureManager(
             // === TIMERS ===
             is AgentCommand.ListTimers -> CommandValidationResult.Valid
             is AgentCommand.CancelTimer -> {
-                if (command.id.isBlank()) CommandValidationResult.Invalid("id cannot be blank", "id")
-                else CommandValidationResult.Valid
+                if (command.id.isBlank()) {
+                    CommandValidationResult.Invalid("id cannot be blank", "id")
+                } else {
+                    CommandValidationResult.Valid
+                }
             }
-
 
             is AgentCommand.UpdateNote -> {
                 val contentVal = command.content
@@ -767,25 +769,33 @@ class ChatFeatureManager(
         }
 
     // Strict allowlist for application launches — rejects any unapproved package
-    private val ALLOWED_LAUNCH_PACKAGES = setOf(
-        "com.spotify.music",
-        "com.google.android.youtube",
-        "com.android.chrome",
-        "com.google.android.apps.maps",
-        "com.google.android.gm",
-        "com.android.camera",
-        "com.android.settings",
-        "com.google.android.calendar",
-        "com.google.android.deskclock",
-        "com.google.android.apps.messaging",
-        "com.google.android.dialer",
-    )
+    private val ALLOWED_LAUNCH_PACKAGES =
+        setOf(
+            "com.spotify.music",
+            "com.google.android.youtube",
+            "com.android.chrome",
+            "com.google.android.apps.maps",
+            "com.google.android.gm",
+            "com.android.camera",
+            "com.android.settings",
+            "com.google.android.calendar",
+            "com.google.android.deskclock",
+            "com.google.android.apps.messaging",
+            "com.google.android.dialer",
+        )
 
     // Strict allowlist for settings toggles — only safe, non-privileged settings
-    private val ALLOWED_SETTINGS = setOf(
-        "wifi", "bluetooth", "flashlight", "auto_rotate",
-        "location", "dnd", "vibrate", "airplane_mode",
-    )
+    private val ALLOWED_SETTINGS =
+        setOf(
+            "wifi",
+            "bluetooth",
+            "flashlight",
+            "auto_rotate",
+            "location",
+            "dnd",
+            "vibrate",
+            "airplane_mode",
+        )
 
     // Client Command Executor for Koog tools actions
     private val clientCommandExecutor =
@@ -1134,7 +1144,7 @@ class ChatFeatureManager(
                 triggerTime: Long?,
             ) {
                 val finalTriggerTime = triggerTime ?: calendarFeatureManager.parseDateTime(timeStr) ?: return
-                // We're delegating to calendarFeatureManager for now. 
+                // We're delegating to calendarFeatureManager for now.
                 calendarFeatureManager.setTimer(name, finalTriggerTime, isAlarm, repeat)
             }
 
@@ -1445,14 +1455,15 @@ class ChatFeatureManager(
                         content = "",
                         timestamp = System.currentTimeMillis(),
                         isStreaming = true,
-                        toolCalls = listOf(
-                            com.example.smarty.core.domain.model.AgentToolCallEntry(
-                                toolName = "generate_image",
-                                status = "started",
-                                displayName = "Direct Request",
-                                inputSummary = prompt,
+                        toolCalls =
+                            listOf(
+                                com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                    toolName = "generate_image",
+                                    status = "started",
+                                    displayName = "Direct Request",
+                                    inputSummary = prompt,
+                                ),
                             ),
-                        ),
                     ),
                 )
 
@@ -1477,15 +1488,16 @@ class ChatFeatureManager(
                             role = ChatRole.SMARTY,
                             content = "",
                             timestamp = System.currentTimeMillis(),
-                            toolCalls = listOf(
-                                com.example.smarty.core.domain.model.AgentToolCallEntry(
-                                    toolName = "generate_image",
-                                    status = "completed",
-                                    displayName = "Direct Request",
-                                    inputSummary = prompt,
-                                    outputSummary = result.url,
+                            toolCalls =
+                                listOf(
+                                    com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                        toolName = "generate_image",
+                                        status = "completed",
+                                        displayName = "Direct Request",
+                                        inputSummary = prompt,
+                                        outputSummary = result.url,
+                                    ),
                                 ),
-                            ),
                         )
                     chatManager.replaceMessage(streamingMessageId, smartyMessage)
                     chatManager.markApiCallSuccessful()
@@ -1790,7 +1802,7 @@ class ChatFeatureManager(
                                 streamingMessageId,
                                 responseBuilder.toString(),
                                 thinkingBuilder.toString().ifEmpty { null },
-                                agentEvents = agentEventsBuilder.toList()
+                                agentEvents = agentEventsBuilder.toList(),
                             )
                         }
                         is AgentEvent.Result -> {
@@ -1833,9 +1845,9 @@ class ChatFeatureManager(
                                 thinkingBuilder.toString().ifEmpty { null },
                                 capturedConfidence,
                                 capturedSourceType,
-                                agentEventsBuilder.toList()
+                                agentEventsBuilder.toList(),
                             )
-                            
+
                             // Trigger unified sync to pull down any server-side generated content
                             scope.launch {
                                 try {
@@ -1869,12 +1881,13 @@ class ChatFeatureManager(
                                     status = event.status,
                                     inputSummary = event.inputSummary,
                                     outputSummary = event.outputSummary,
-                                    searchQueries = event.searchQueries.map {
-                                        com.example.smarty.core.domain.model.SearchQueryEntry(
-                                            query = it.query,
-                                            result = it.result,
-                                        )
-                                    },
+                                    searchQueries =
+                                        event.searchQueries.map {
+                                            com.example.smarty.core.domain.model.SearchQueryEntry(
+                                                query = it.query,
+                                                result = it.result,
+                                            )
+                                        },
                                 )
                             pendingToolCalls.removeAll { it.toolName == event.toolName }
                             pendingToolCalls.add(toolCallEntry)
@@ -1893,15 +1906,16 @@ class ChatFeatureManager(
                         }
                         is AgentEvent.AgentStep -> {
                             // Map incoming AgentStep to the UI model and add it to the message
-                            val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
-                                stepType = event.stepType,
-                                stepTitle = event.stepTitle,
-                                stepContent = event.stepContent,
-                                stepStatus = event.stepStatus,
-                                stepIndex = event.stepIndex,
-                                toolName = event.toolName,
-                                durationMs = event.durationMs
-                            )
+                            val uiStep =
+                                com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = event.stepType,
+                                    stepTitle = event.stepTitle,
+                                    stepContent = event.stepContent,
+                                    stepStatus = event.stepStatus,
+                                    stepIndex = event.stepIndex,
+                                    toolName = event.toolName,
+                                    durationMs = event.durationMs,
+                                )
                             collectedAgentSteps.add(uiStep)
                             chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
                         }
