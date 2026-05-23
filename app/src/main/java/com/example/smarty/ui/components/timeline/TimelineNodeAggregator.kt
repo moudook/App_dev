@@ -57,7 +57,7 @@ class TimelineNodeAggregator {
         for (i in start until events.size) {
             process(events[i])
         }
-        return _nodes
+        return _nodes.toList()
     }
 
     /**

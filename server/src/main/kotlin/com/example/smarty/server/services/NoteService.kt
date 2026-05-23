@@ -74,6 +74,25 @@ class NoteService(
         try {
             logger.info("Enriching note $noteId for user $userId")
             
+            val existing = noteRepository.getById(userId, noteId) ?: return
+            
+            if (existing.isAiCreated) {
+                logger.info("Skipping enrichment for AI-created note $noteId to prevent infinite processing loops")
+                val markedNote = existing.copy(
+                    processingStatus = "COMPLETED",
+                    updatedAt = System.currentTimeMillis()
+                )
+                noteRepository.update(userId, markedNote)
+                
+                vectorStore.store(userId, content, mapOf(
+                    "id" to noteId,
+                    "title" to title,
+                    "summary" to (existing.summary ?: ""),
+                    "category" to (existing.categoryName ?: "note")
+                ))
+                return
+            }
+            
             val analysis = contentAnalysisService.analyzeContent(content)
             
             if (analysis.success) {

@@ -528,6 +528,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     eventId = UUID.randomUUID().toString(),
                                     timestamp = System.currentTimeMillis(),
                                     content = "",
+                                    thinking = "Activating OpenCode CLI..."
                                 ),
                             ),
                             event = "processing",

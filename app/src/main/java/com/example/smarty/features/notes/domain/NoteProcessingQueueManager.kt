@@ -210,6 +210,20 @@ class NoteProcessingQueueManager(
     private suspend fun processNote(note: Note): Boolean {
         Log.d(TAG, "Processing note: ${note.id}")
         val currentContentHash = note.content.sha256()
+        
+        // Skip AI-created notes to prevent infinite processing loops
+        if (note.isAiCreated) {
+            Log.d(TAG, "Note is AI-created, skipping processing to prevent infinite loops: ${note.id}")
+            val updatedNote = note.copy(
+                processingStatus = ProcessingStatus.COMPLETED,
+                contentHash = currentContentHash,
+                processedContentHash = currentContentHash,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateNote(updatedNote)
+            return true
+        }
+
         if (note.processedContentHash != null && note.processedContentHash == currentContentHash) {
             Log.d(TAG, "Note already processed (content hash match), skipping: ${note.id}")
             val updatedNote = note.copy(
