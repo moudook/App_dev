@@ -50,7 +50,7 @@ class OpencodeLlmProvider(
 
     private val stateFile = java.io.File(System.getProperty("java.io.tmpdir"), "opencode_session_state.json")
 
-    // Tracks how many messages from the history have already been sent to the daemon session
+    // Tracks how many messages from the history have already been sent to the daemon session 
     private val sessionMessageCount = loadSessionMessageCount()
 
     private fun loadSessionMessageCount(): java.util.concurrent.ConcurrentHashMap<String, Int> {
@@ -135,10 +135,7 @@ class OpencodeLlmProvider(
             val modelId = if (slashIndex > 0) selectedModel.substring(slashIndex + 1) else selectedModel
 
             logger.info(
-                "[OpenCode.Session][inference=$inferenceId] Model resolution: " +
-                    "requestedModel=${model ?: "default"}, " +
-                    "resolvedProvider=$providerId, " +
-                    "resolvedModel=$modelId",
+                "[OpenCode.Session][inference=$inferenceId] Model resolution: requestedModel=${model ?: "default"}, resolvedProvider=$providerId, resolvedModel=$modelId",
             )
 
             val sessionStart = System.currentTimeMillis()
@@ -147,7 +144,6 @@ class OpencodeLlmProvider(
                     onExternalSessionCreated(it)
                 }
 
-            // Ensure we track this session if we haven't seen it in this memory lifecycle
             if (!sessionMessageCount.containsKey(daemonSessionId)) {
                 sessionMessageCount[daemonSessionId] = 0
                 saveSessionMessageCount()
@@ -158,11 +154,6 @@ class OpencodeLlmProvider(
             logger.info("[OpenCode.Session][inference=$inferenceId] Daemon session: $daemonSessionId in ${context.sessionCreateMs}ms")
 
             var systemPrompt = extractSystemPrompt(messages)
-
-            // Tool definitions are now handled natively via the MCP server integration.
-            // We no longer inject custom XML tool schemas into the system prompt.
-            logger.info("[OpenCode.Session][inference=$inferenceId] Friday system prompt: ${systemPrompt?.length ?: 0} chars")
-
             val newMessages = messages.drop(previouslySentCount)
 
             val parts =
@@ -194,18 +185,12 @@ class OpencodeLlmProvider(
                     }
                 }
 
-            // Update the tracker so next iteration only sends newly appended tool results/messages
             sessionMessageCount[daemonSessionId] = messages.size
             saveSessionMessageCount()
 
             logger.info("[OpenCode.Session][inference=$inferenceId] Sending ${parts.size} parts (delta: ${newMessages.size} msgs)")
 
-            logger.info(
-                "[OpenCode.Session][inference=$inferenceId] POST /session/$daemonSessionId/message — agent=$agentName, tools=${tools.size}, system=${systemPrompt?.length ?: 0}chars",
-            )
-
             val flowCollector = this
-
             var attempt = 0
             val maxAttempts = 3
             var backoff = 1000L
@@ -213,7 +198,7 @@ class OpencodeLlmProvider(
             while (true) {
                 attempt++
                 try {
-                    client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
+                    client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {   
                         contentType(ContentType.Application.Json)
                         header("Accept", "text/event-stream")
                         setBody(
@@ -230,27 +215,11 @@ class OpencodeLlmProvider(
                         )
                     }.execute { response ->
                         context.requestSendMs = System.currentTimeMillis() - context.startTime
-
-                        val contentType = response.contentType()?.toString() ?: "unknown"
-                        val streamFraming =
-                            when {
-                                contentType.contains("event-stream", ignoreCase = true) -> "SSE_EVENT_STREAM"
-                                contentType.contains("json", ignoreCase = true) -> "SINGLE_JSON"
-                                else -> "UNKNOWN"
-                            }
-
-                        logger.info(
-                            "[OpenCode.Transport][inference=$inferenceId] HTTP response: status=${response.status.value}, contentType=$contentType, contentLength=${response.headers["Content-Length"]}",
-                        )
-                        logger.info("[OpenCode.Transport][inference=$inferenceId] Stream framing detected: $streamFraming")
-
                         val channel = response.bodyAsChannel()
                         var currentEvent: String? = null
                         val currentData = StringBuilder()
                         var lineCount = 0
                         var eventCount = 0
-
-                        logger.info("[OpenCode.Transport][inference=$inferenceId] === SSE STREAM STARTED ===")
 
                         while (!channel.isClosedForRead) {
                             val line = channel.readUTF8Line() ?: break
@@ -260,26 +229,13 @@ class OpencodeLlmProvider(
                                 context.firstByteMs = System.currentTimeMillis() - context.startTime
                             }
 
-                            if (context.sampleRawResponse != null) {
-                                context.sampleRawResponse?.append(line)?.append("\n")
-                            }
-
-                            // Phase A - Transport Read
-                            logger.trace("[OpenCode.Parser][inference=$inferenceId] Transport line #$lineCount (${line.length} chars)")
-
                             if (line.isEmpty()) {
                                 if (currentData.isNotEmpty()) {
                                     val eventType = currentEvent ?: "message"
                                     eventCount++
-                                    logger.info(
-                                        "[OpenCode.Parser][inference=$inferenceId] SSE EVENT #$eventCount: type='$eventType', data=${currentData.length} chars",
-                                    )
-
                                     val parseStart = System.currentTimeMillis()
                                     flowCollector.processSseEvent(eventType, currentData.toString(), context)
                                     context.totalParseTime += System.currentTimeMillis() - parseStart
-                                } else {
-                                    logger.debug("[OpenCode.Parser][inference=$inferenceId] SSE: empty line (no data to process)")
                                 }
                                 currentEvent = null
                                 currentData.setLength(0)
@@ -288,120 +244,34 @@ class OpencodeLlmProvider(
 
                             if (line.startsWith("event:")) {
                                 currentEvent = line.substringAfter("event:").trim()
-                                logger.debug("[OpenCode.Parser][inference=$inferenceId] SSE: event type set to '$currentEvent'")
                             } else if (line.startsWith("data:")) {
                                 val data = line.substringAfter("data:").trim()
                                 if (data.isNotEmpty()) {
-                                    if (currentData.isNotEmpty()) currentData.append("\n")
+                                    if (currentData.isNotEmpty()) currentData.append("\n")    
                                     currentData.append(data)
-                                    logger.debug(
-                                        "[OpenCode.Parser][inference=$inferenceId] SSE: data appended (${currentData.length} chars total)",
-                                    )
                                 }
-                            } else if (line.startsWith("id:") || line.startsWith("retry:") || line.startsWith(":")) {
-                                logger.debug("[OpenCode.Parser][inference=$inferenceId] SSE: skipping metadata/comment line")
                             } else if (line.startsWith("{")) {
-                                logger.info("[OpenCode.Parser][inference=$inferenceId] SSE: raw JSON line detected (not SSE-wrapped)")
                                 val parseStart = System.currentTimeMillis()
-                                flowCollector.processSseEvent("message", line, context)
+                                flowCollector.processSseEvent("message", line, context)       
                                 context.totalParseTime += System.currentTimeMillis() - parseStart
-                            } else {
-                                logger.debug("[OpenCode.Parser][inference=$inferenceId] SSE: unrecognized line format: '${line.take(100)}'")
                             }
                         }
 
                         if (currentData.isNotEmpty()) {
                             val eventType = currentEvent ?: "message"
-                            eventCount++
-                            logger.info(
-                                "[OpenCode.Parser][inference=$inferenceId] SSE FINAL EVENT: type='$eventType', data=${currentData.length} chars",
-                            )
                             val parseStart = System.currentTimeMillis()
                             flowCollector.processSseEvent(eventType, currentData.toString(), context)
-                            context.totalParseTime += System.currentTimeMillis() - parseStart
+                            context.totalParseTime += System.currentTimeMillis() - parseStart 
                         }
-
-                        logger.info("[OpenCode.Transport][inference=$inferenceId] === SSE STREAM COMPLETE ===")
-
-                        // Assertion warning
-                        if (context.partsExisted && context.textChars == 0) {
-                            logger.error(
-                                "[OpenCode.Semantics][inference=$inferenceId] Parts existed but no text emitted — parser mismatch likely",
-                            )
-                        }
-
-                        // Save raw response sample if enabled
-                        if (context.sampleRawResponse != null) {
-                            runCatching {
-                                val sampleDir =
-                                    java.io.File(
-                                        "C:\\Users\\gbust\\.gemini\\antigravity\\brain\\e2e50583-2f36-4d7b-b40d-a5a1189e8acf\\scratch",
-                                    )
-                                if (!sampleDir.exists()) sampleDir.mkdirs()
-                                val sampleFile = java.io.File(sampleDir, "raw_response_$inferenceId.json")
-                                sampleFile.writeText(context.sampleRawResponse.toString())
-                                logger.info(
-                                    "[OpenCode.Session][inference=$inferenceId] Raw response sample saved to: ${sampleFile.absolutePath}",
-                                )
-                            }.onFailure { e ->
-                                logger.warn("[OpenCode.Session][inference=$inferenceId] Failed to save raw response sample: ${e.message}")
-                            }
-                        }
-
-                        logger.info(
-                            "[OpenCode.Session][inference=$inferenceId] Stream ended: reason=completed, parts=${context.partCount}, textChars=${context.textChars}, toolCalls=${context.toolCalls}",
-                        )
                     }
-                    break // Break out of retry loop on success
+                    break
                 } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) {
-                        logger.info("[OpenCode.Transport][inference=$inferenceId] Request was cancelled by client")
-                        // Try to abort on daemon if possible
-                        runCatching {
-                            val url = java.net.URL("$daemonBaseUrl/session/$daemonSessionId/abort")
-                            val con = url.openConnection() as java.net.HttpURLConnection
-                            con.requestMethod = "POST"
-                            con.connectTimeout = 2000
-                            con.readTimeout = 2000
-                            con.responseCode // Trigger request
-                        }.onFailure { err ->
-                            logger.debug("[OpenCode.Transport][inference=$inferenceId] Failed to call abort endpoint: ${err.message}")
-                        }
-                        throw e
-                    }
-                    if (context.firstByteMs > 0L) {
-                        logger.error(
-                            "[OpenCode.Transport][inference=$inferenceId] Connection lost mid-stream. Aborting to prevent duplicate message submission: ${e.message}",
-                            e,
-                        )
-                        throw e
-                    }
-                    if (attempt >= maxAttempts) {
-                        logger.error(
-                            "[OpenCode.Transport][inference=$inferenceId] Request failed after $maxAttempts attempts: ${e.message}",
-                            e,
-                        )
-                        throw e
-                    }
-                    logger.warn(
-                        "[OpenCode.Transport][inference=$inferenceId] Network error (attempt $attempt/$maxAttempts): ${e.message}. Retrying in ${backoff}ms...",
-                    )
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    if (attempt >= maxAttempts) throw e
                     kotlinx.coroutines.delay(backoff)
                     backoff *= 2
                 }
             }
-
-            val totalMs = System.currentTimeMillis() - context.startTime
-            logger.info(
-                "[OpenCode.Session][inference=$inferenceId] Latency breakdown: " +
-                    "sessionCreateMs=${context.sessionCreateMs}, " +
-                    "requestSendMs=${context.requestSendMs}, " +
-                    "firstByteMs=${context.firstByteMs}, " +
-                    "firstTokenMs=${context.firstTokenMs}, " +
-                    "parseMs=${context.totalParseTime}, " +
-                    "emitMs=${context.totalEmitTime}, " +
-                    "totalMs=$totalMs",
-            )
         }.flowOn(Dispatchers.IO)
 
     private suspend fun FlowCollector<LlmChunk>.processSseEvent(
@@ -410,23 +280,10 @@ class OpencodeLlmProvider(
         context: StreamContext,
     ) {
         val inferenceId = context.inferenceId
-        if (data.isBlank()) {
-            logger.debug("[OpenCode.Parser][inference=$inferenceId] processSseEvent: blank data, skipping")
-            return
-        }
+        if (data.isBlank()) return
 
-        logger.info(
-            "[OpenCode.Parser][inference=$inferenceId] processSseEvent: type='$eventType', data=${data.length} chars, preview='${data.take(
-                150,
-            ).replace("\n", "\\n")}'",
-        )
-
-        // === 1. EVENT REPLAY LOGGING ===
-        // We log the raw payload immediately so it's never lost if parsing fails
         logger.trace("[OpenCode.Replay][inference=$inferenceId] RAW PAYLOAD: $data")
 
-        // Check for daemon error response (plain JSON, not SSE-wrapped)
-        // Daemon errors come as {"name":"XxxError","data":{"message":"..."}}
         val isDaemonError =
             runCatching {
                 val el = Json.parseToJsonElement(data)
@@ -434,153 +291,86 @@ class OpencodeLlmProvider(
                 val name = (el["name"] as? JsonPrimitive)?.content ?: ""
                 name.endsWith("Error") || name.endsWith("Request")
             }.getOrDefault(false)
+            
         if (isDaemonError) {
-            logger.error("[OpenCode.Parser][inference=$inferenceId] Daemon error detected: ${data.take(500)}")
+            emit(LlmChunk(content = null, rawJson = data, sseEvent = "error"))
             return
         }
 
         if (data.startsWith("{")) {
-            // Parse the JSON to determine event type
-            val jsonElement =
-                runCatching {
-                    Json.parseToJsonElement(data)
-                }.onFailure { e ->
-                    logger.error("[OpenCode.Parser][inference=$inferenceId] JSON parse failed on SSE line", e)
-                }.getOrNull()
+            val jsonElement = runCatching { Json.parseToJsonElement(data) }.getOrNull()
 
             if (jsonElement is JsonObject) {
-                // === 2. CANONICAL INTERNAL SCHEMAS & PARSER VERSIONING ===
-                // This shields the orchestration layer from underlying API format changes
                 val canonicalResponse = parseCanonicalResponse(jsonElement, inferenceId)
 
                 if (canonicalResponse != null && canonicalResponse.parts.isNotEmpty()) {
                     context.partsExisted = true
-                    logger.debug("[OpenCode.Semantics][inference=$inferenceId] Processing ${canonicalResponse.parts.size} canonical parts")
-
                     for (i in 0 until canonicalResponse.parts.size) {
                         val part = canonicalResponse.parts[i]
                         context.partCount++
 
-                        logger.debug("[OpenCode.Semantics][inference=$inferenceId] Part[$i] type=${part.type}")
-                        when (part.type) {
+                        // Only attach rawJson to the first emitted chunk of a multi-part frame 
+                        // to prevent duplicate raw events in the client.
+                        val rawDataForChunk = if (i == 0) data else null
+
+                        val chunk = when (part.type) {
                             "text" -> {
-                                val text = part.content
-                                if (!text.isNullOrEmpty()) {
-                                    val preview = text.take(80).replace("\n", "\\n")
-                                    logger.info(
-                                        "[OpenCode.Semantics][inference=$inferenceId] Extracted text chunk: ${text.length} chars (preview='$preview')",
-                                    )
-
-                                    context.textChars += text.length
-                                    if (context.firstTokenMs == 0L) {
-                                        context.firstTokenMs = System.currentTimeMillis() - context.startTime
-                                    }
-
-                                    val emitStart = System.currentTimeMillis()
-                                    logger.debug(
-                                        "[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${text.length} chars)",
-                                    )
-                                    emit(LlmChunk(content = text, reasoning = null, subagentId = part.subagentId, rawJson = data))
-                                    logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
-                                    context.totalEmitTime += System.currentTimeMillis() - emitStart
-                                } else {
-                                    logger.debug(
-                                        "[OpenCode.Semantics][inference=$inferenceId] Skipping metadata object because no assistant content fields present",
-                                    )
-                                }
+                                if (!part.content.isNullOrEmpty()) {
+                                    context.textChars += part.content.length
+                                    if (context.firstTokenMs == 0L) context.firstTokenMs = System.currentTimeMillis() - context.startTime
+                                    LlmChunk(content = part.content, reasoning = null, subagentId = part.subagentId, rawJson = rawDataForChunk, sseEvent = eventType)
+                                } else null
                             }
                             "reasoning" -> {
-                                val reasoning = part.content
-                                if (!reasoning.isNullOrEmpty()) {
-                                    val preview = reasoning.take(80).replace("\n", "\\n")
-                                    logger.info(
-                                        "[OpenCode.Semantics][inference=$inferenceId] Extracted reasoning chunk: ${reasoning.length} chars (preview='$preview')",
-                                    )
-
-                                    val emitStart = System.currentTimeMillis()
-                                    logger.debug(
-                                        "[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${reasoning.length} chars)",
-                                    )
-                                    emit(LlmChunk(content = null, reasoning = reasoning, subagentId = part.subagentId, rawJson = data))
-                                    logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
-                                    context.totalEmitTime += System.currentTimeMillis() - emitStart
-                                }
+                                if (!part.content.isNullOrEmpty()) {
+                                    LlmChunk(content = null, reasoning = part.content, subagentId = part.subagentId, rawJson = rawDataForChunk, sseEvent = eventType)
+                                } else null
                             }
                             "tool_use", "tool" -> {
-                                val toolName = part.toolName ?: "unknown"
-                                val toolInput = part.toolArgs ?: ""
                                 context.toolCalls++
-                                logger.info("[OpenCode.Tools][inference=$inferenceId] Emitting tool_use: name='$toolName'")
-
-                                val emitStart = System.currentTimeMillis()
-                                emit(
+                                LlmChunk(
+                                    content = null,
+                                    toolCall = LlmToolCall(
+                                        id = "tool-${System.currentTimeMillis()}-$i",
+                                        functionName = part.toolName ?: "unknown",
+                                        arguments = part.toolArgs ?: "",
+                                    ),
+                                    subagentId = part.subagentId,
+                                    rawJson = rawDataForChunk,
+                                    sseEvent = eventType,
+                                )
+                            }
+                            "tool_result", "tool_result_delta", "tool_return" -> {
+                                if (!part.content.isNullOrEmpty()) {
                                     LlmChunk(
                                         content = null,
-                                        toolCall =
-                                            LlmToolCall(
-                                                id = "tool-${System.currentTimeMillis()}",
-                                                functionName = toolName,
-                                                arguments = toolInput,
-                                            ),
-                                        subagentId = part.subagentId,
-                                        rawJson = data,
-                                    ),
-                                )
-                                context.totalEmitTime += System.currentTimeMillis() - emitStart
-                            }
-                            "tool_result", "tool_return" -> {
-                                val content = part.content
-                                if (!content.isNullOrEmpty()) {
-                                    val toolName = part.toolName ?: "unknown"
-                                    logger.info(
-                                        "[OpenCode.Tools][inference=$inferenceId] Emitting tool_result: name='$toolName', length=${content.length}",
-                                    )
-
-                                    val emitStart = System.currentTimeMillis()
-                                    emit(
-                                        LlmChunk(
-                                            content = null,
-                                            toolResult =
-                                                LlmToolResult(
-                                                    functionName = toolName,
-                                                    result = content,
-                                                ),
-                                            subagentId = part.subagentId,
-                                            rawJson = data,
+                                        toolResult = LlmToolResult(
+                                            functionName = part.toolName ?: "unknown",
+                                            result = part.content,
                                         ),
+                                        subagentId = part.subagentId,
+                                        rawJson = rawDataForChunk,
+                                        sseEvent = eventType,
                                     )
-                                    context.totalEmitTime += System.currentTimeMillis() - emitStart
-                                }
+                                } else null
                             }
-                            "step-start", "step-finish" -> {
-                                logger.debug("[OpenCode.Semantics][inference=$inferenceId] Skipping structural boundary: ${part.type}")
-                            }
-                            else -> {
-                                logger.warn("[OpenCode.Semantics][inference=$inferenceId] Unknown part type='${part.type}'")
-                            }
+                            else -> null
+                        }
+
+                        if (chunk != null) {
+                            val emitStart = System.currentTimeMillis()
+                            emit(chunk)
+                            context.totalEmitTime += System.currentTimeMillis() - emitStart
                         }
                     }
-                    logger.debug("[OpenCode.Semantics][inference=$inferenceId] Accumulator size now=${context.textChars}")
                     return
                 }
-
-                logger.warn(
-                    "[OpenCode.Semantics][inference=$inferenceId] Unknown part or JSON object not recognized: keys=${jsonElement.keys}",
-                )
             }
         }
 
-        when (eventType) {
-            "error" -> {
-                logger.error("[OpenCode.Parser][inference=$inferenceId] SSE error event: $data")
-            }
-            "end", "message_end", "done", "session-update", "part-start", "part-end" -> {
-                logger.debug("[OpenCode.Parser][inference=$inferenceId] SSE control event: $eventType")
-            }
-            else -> {
-                logger.warn("[OpenCode.Parser][inference=$inferenceId] Unknown SSE event type: '$eventType' (data=${data.length} chars)")
-            }
-        }
+        val rawEmitStart = System.currentTimeMillis()
+        emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
+        context.totalEmitTime += System.currentTimeMillis() - rawEmitStart
     }
 
     private suspend fun createDaemonSession(): String {
@@ -589,38 +379,16 @@ class OpencodeLlmProvider(
                 contentType(ContentType.Application.Json)
                 setBody(DaemonSessionRequest())
             }
-
-        if (response.status.value !in 200..299) {
-            val errorText =
-                runCatching { response.body<String>() }.getOrDefault("Unknown error")
-            logger.error("[OpenCode] Daemon session create failed: ${response.status} - $errorText")
-            throw IllegalStateException(
-                "OpenCode daemon failed to start session. Status: ${response.status}",
-            )
-        }
-
-        val result =
-            runCatching { response.body<DaemonSessionResponse>() }.getOrNull()
-                ?: throw IllegalStateException(
-                    "Daemon /session returned invalid JSON (missing 'id' field).",
-                )
-
+        if (response.status.value !in 200..299) throw IllegalStateException("OpenCode daemon failed to start session")
+        val result = response.body<DaemonSessionResponse>()
         return result.id
     }
 
     private fun extractSystemPrompt(messages: List<LlmMessage>): String? {
-        return messages
-            .filter { it.role == LlmMessage.Role.SYSTEM }
-            .joinToString("\n\n") { it.content }
-            .takeIf { it.isNotBlank() }
+        return messages.filter { it.role == LlmMessage.Role.SYSTEM }.joinToString("\n\n") { it.content }.takeIf { it.isNotBlank() }
     }
 
-    // Removed buildUserMessage as we now map directly to parts
-
-    private class StreamContext(
-        val inferenceId: String,
-        val startTime: Long = System.currentTimeMillis(),
-    ) {
+    private class StreamContext(val inferenceId: String, val startTime: Long = System.currentTimeMillis()) {
         var sessionCreateMs: Long = 0L
         var requestSendMs: Long = 0L
         var firstByteMs: Long = 0L
@@ -636,168 +404,62 @@ class OpencodeLlmProvider(
 }
 
 @Serializable
-private data class DaemonSessionRequest(
-    val parentID: String? = null,
-    val title: String? = null,
-)
+private data class DaemonSessionRequest(val parentID: String? = null, val title: String? = null)
 
 @Serializable
-private data class DaemonSessionResponse(
-    val id: String,
-)
+private data class DaemonSessionResponse(val id: String)
 
 @Serializable
-private data class DaemonMessageRequest(
-    val parts: List<JsonObject>,
-    val model: JsonObject? = null,
-    val agent: String? = null,
-    val noReply: Boolean? = null,
-    val system: String? = null,
-)
+private data class DaemonMessageRequest(val parts: List<JsonObject>, val model: JsonObject? = null, val agent: String? = null, val noReply: Boolean? = null, val system: String? = null)
 
-@Serializable
-private data class DaemonPart(
-    val type: String,
-    val text: String? = null,
-    val name: String? = null,
-    val input: JsonObject? = null,
-    val output: JsonObject? = null,
-)
+private data class CanonicalPart(val type: String, val content: String? = null, val toolName: String? = null, val toolArgs: String? = null, val subagentId: String? = null)
 
-@Serializable
-private data class DaemonToolCall(
-    val id: String? = null,
-    val name: String? = null,
-    val arguments: JsonObject? = null,
-)
+private data class CanonicalResponse(val parts: List<CanonicalPart>)
 
-// === Canonical Internal Schemas ===
-private data class CanonicalPart(
-    val type: String,
-    val content: String? = null,
-    val toolName: String? = null,
-    val toolArgs: String? = null,
-    val subagentId: String? = null,
-)
-
-private data class CanonicalResponse(
-    val parts: List<CanonicalPart>,
-)
-
-/**
- * Parser Versioning: Attempt multiple schema extractions and normalize to CanonicalResponse
- */
-private fun parseCanonicalResponse(
-    json: JsonObject,
-    inferenceId: String,
-): CanonicalResponse? {
+private fun parseCanonicalResponse(json: JsonObject, inferenceId: String): CanonicalResponse? {
     val topSubagentId = json["subagent_id"]?.jsonPrimitive?.content
-
     val partsArray = json["parts"]?.jsonArray
     if (partsArray != null) {
-        // Version 1: OpenCode native parts array
-        val canonicalParts =
-            partsArray.mapNotNull { el ->
-                if (el !is JsonObject) return@mapNotNull null
-                val type = el["type"]?.jsonPrimitive?.content ?: "unknown"
-                val partSubagentId = el["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
-                when (type) {
-                    "text", "reasoning" ->
-                        CanonicalPart(
-                            type = type,
-                            content = el["text"]?.jsonPrimitive?.content,
-                            subagentId = partSubagentId,
-                        )
-                    "tool_use", "tool" ->
-                        CanonicalPart(
-                            type = type,
-                            toolName = el["name"].safeContent,
-                            toolArgs = el["input"]?.toString(),
-                            subagentId = partSubagentId,
-                        )
-                    "tool_result", "tool_return" ->
-                        CanonicalPart(
-                            type = "tool_result",
-                            toolName = el["name"].safeContent,
-                            content = el["output"]?.toString() ?: el["text"].safeContent,
-                            subagentId = partSubagentId,
-                        )
-                    else -> CanonicalPart(type = type, subagentId = partSubagentId)
+        val canonicalParts = partsArray.mapNotNull { el ->
+            if (el !is JsonObject) return@mapNotNull null
+            val type = el["type"]?.jsonPrimitive?.content ?: "unknown"
+            val partSubagentId = el["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
+            when (type) {
+                "text", "reasoning", "content" -> CanonicalPart(type = if (type == "content") "text" else type, content = el["text"].safeContent ?: el["delta"].safeContent ?: el["content"].safeContent, subagentId = partSubagentId)
+                "tool_use", "tool", "call" -> {
+                    val callObj = el["call"]?.jsonObject
+                    CanonicalPart(type = "tool_use", toolName = callObj?.get("name").safeContent ?: el["name"].safeContent ?: el["tool"].safeContent, toolArgs = callObj?.get("arguments")?.toString() ?: el["input"]?.toString() ?: el["arguments"]?.toString(), subagentId = partSubagentId)
                 }
+                "tool_result", "tool_return", "result" -> CanonicalPart(type = "tool_result", toolName = el["name"].safeContent ?: el["tool"].safeContent, content = el["output"]?.toString() ?: el["result"]?.toString() ?: el["text"].safeContent, subagentId = partSubagentId)
+                else -> CanonicalPart(type = type, subagentId = partSubagentId)
             }
+        }
         return CanonicalResponse(canonicalParts)
     }
-
-    val contentStr = json["content"].safeContent
-    if (contentStr != null) {
-        // Version 2: Simple content string fallback
-        return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr, subagentId = topSubagentId)))
-    }
-
-    val messageObj = json["message"]?.jsonObject
-    if (messageObj != null) {
-        // Version 3: OpenAI style choices/message
-        val text = messageObj["content"].safeContent
-        if (text != null) {
-            return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text, subagentId = topSubagentId)))
-        }
-    }
-
-    // Version 4: Individual part object (daemon incremental SSE)
-    // e.g. {"type": "reasoning", "text": "...", "subagent_id": "sub1"}
-    // Also handles nested "part" object from newer OpenCode CLI format
     val partType = json["type"].safeContent
     if (partType != null) {
         val innerPart = json["part"]?.jsonObject ?: json
         val partSubagentId = innerPart["subagent_id"].safeContent ?: json["subagent_id"].safeContent ?: topSubagentId
-
-        val textContent = innerPart["text"].safeContent ?: json["text"].safeContent
+        val content = innerPart["delta"].safeContent ?: innerPart["text"].safeContent ?: innerPart["content"].safeContent ?: json["delta"].safeContent ?: json["text"].safeContent
         val toolName = innerPart["tool"].safeContent ?: innerPart["name"].safeContent ?: json["name"].safeContent
-
-        val stateObj = innerPart["state"]?.jsonObject
-        val rawInput = stateObj?.get("input") ?: innerPart["input"] ?: json["input"]
+        val rawInput = innerPart["input"] ?: innerPart["arguments"] ?: json["input"] ?: json["arguments"]
         val toolArgs = if (rawInput != null && rawInput !is kotlinx.serialization.json.JsonNull) rawInput.toString() else null
-
-        val rawOutput = stateObj?.get("output") ?: innerPart["output"] ?: json["output"]
-        val toolOutput =
-            if (rawOutput != null && rawOutput !is kotlinx.serialization.json.JsonNull) {
-                if (rawOutput is kotlinx.serialization.json.JsonPrimitive && rawOutput.isString) rawOutput.content else rawOutput.toString()
-            } else {
-                textContent
-            }
-
+        val rawOutput = innerPart["output"] ?: innerPart["result"] ?: json["output"] ?: json["result"]
+        val toolOutput = if (rawOutput != null && rawOutput !is kotlinx.serialization.json.JsonNull) { if (rawOutput is kotlinx.serialization.json.JsonPrimitive && rawOutput.isString) rawOutput.content else rawOutput.toString() } else { null }
         val partsToReturn = mutableListOf<CanonicalPart>()
-
         when (partType) {
-            "text" -> partsToReturn.add(CanonicalPart(type = "text", content = textContent, subagentId = partSubagentId))
-            "reasoning" -> partsToReturn.add(CanonicalPart(type = "reasoning", content = textContent, subagentId = partSubagentId))
-            "tool_use", "tool" -> {
+            "text", "content" -> partsToReturn.add(CanonicalPart(type = "text", content = content, subagentId = partSubagentId))
+            "reasoning", "thought" -> partsToReturn.add(CanonicalPart(type = "reasoning", content = content, subagentId = partSubagentId))
+            "tool_use", "tool", "call" -> {
                 partsToReturn.add(CanonicalPart(type = "tool_use", toolName = toolName, toolArgs = toolArgs, subagentId = partSubagentId))
-                if (toolOutput != null && toolOutput != textContent) {
-                    partsToReturn.add(
-                        CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput, subagentId = partSubagentId),
-                    )
-                }
+                if (toolOutput != null) partsToReturn.add(CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput, subagentId = partSubagentId))
             }
-            "tool_result", "tool_return" -> {
-                partsToReturn.add(
-                    CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput, subagentId = partSubagentId),
-                )
-            }
-            "step_start", "step_finish", "step-start", "step-finish" -> {
-                // Ignore these structural events
-            }
-            else -> {
-                org.slf4j.LoggerFactory.getLogger(
-                    "OpencodeLlmProvider",
-                ).warn("[OpenCode.Schemas][inference=\$inferenceId] Unrecognized individual part type: '\$partType'")
-            }
+            "tool_result", "tool_return", "result" -> partsToReturn.add(CanonicalPart(type = "tool_result", toolName = toolName, content = toolOutput ?: content, subagentId = partSubagentId))
+            "part-delta", "part_delta" -> { val subType = json["part_type"].safeContent ?: "text"; partsToReturn.add(CanonicalPart(type = subType, content = content, subagentId = partSubagentId)) }
         }
-
-        if (partsToReturn.isNotEmpty()) {
-            return CanonicalResponse(partsToReturn)
-        }
+        if (partsToReturn.isNotEmpty()) return CanonicalResponse(partsToReturn)
     }
-
+    val contentStr = json["content"].safeContent ?: json["text"].safeContent
+    if (contentStr != null) return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr, subagentId = topSubagentId)))
     return null
 }

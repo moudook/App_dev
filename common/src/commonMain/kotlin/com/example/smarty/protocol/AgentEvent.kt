@@ -419,6 +419,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val data: String,
+        @SerialName("event_name") val eventName: String? = null,
         @SerialName("subagent_id") override val subagentId: String? = null,
     ) : AgentEvent()
 }
