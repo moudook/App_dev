@@ -265,13 +265,23 @@ class SyncCoordinator(
 
                             // Check by content hash (normalized)
                             val normalizedServerContent = normalizeContentForDedup(msgData.content)
-                            val existingByContent =
-                                existingLocalMessages.any { local ->
+                            val existingLocal =
+                                existingLocalMessages.find { local ->
                                     local.role == msgData.role.uppercase() &&
                                         normalizeContentForDedup(local.content) == normalizedServerContent
                                 }
-                            if (existingByContent) {
-                                // Message already exists by content, skip
+                            if (existingLocal != null) {
+                                // Message already exists by content. Merge rich data before skipping.
+                                if (existingLocal.thinking == null && msgData.thinking != null) {
+                                    chatDao.updateMessageThinkingOnly(existingLocal.id, msgData.thinking)
+                                }
+                                if (existingLocal.agentStepsJson == "[]" && !msgData.agentStepsJson.isNullOrEmpty()) {
+                                    chatDao.updateMessageAgentStepsOnly(existingLocal.id, msgData.agentStepsJson)
+                                }
+                                if (existingLocal.agentEventsJson == "[]" && !msgData.agentEventsJson.isNullOrEmpty()) {
+                                    chatDao.updateMessageEventsOnly(existingLocal.id, msgData.agentEventsJson)
+                                }
+                                // Skip insertion
                                 return@forEach
                             }
 

@@ -284,6 +284,7 @@ class ChatManager(
         newThinking: String?,
         confidence: String? = null,
         sourceType: String? = null,
+        agentEvents: List<com.example.smarty.protocol.AgentEvent> = emptyList(),
     ) {
         chatMutex.withLock {
             _chatMessages.value =
@@ -294,6 +295,7 @@ class ChatManager(
                             thinking = newThinking.takeIf { !it.isNullOrBlank() },
                             confidence = confidence ?: msg.confidence,
                             sourceType = sourceType ?: msg.sourceType,
+                            agentEvents = agentEvents,
                         )
                     } else {
                         msg

@@ -555,7 +555,7 @@ fun SystemActivityCard(
                 )
                 Text(
                     text = buildString {
-                        append("⚙ ${node.totalOps} background op${if (node.totalOps != 1) "s" else ""}")
+                        append("${node.totalOps} background op${if (node.totalOps != 1) "s" else ""}")
                         if (node.durationMs > 0L) append(" · ${node.durationMs}ms")
                         if (node.isOngoing) append(" · syncing…")
                     },

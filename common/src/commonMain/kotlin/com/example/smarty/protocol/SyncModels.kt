@@ -116,6 +116,7 @@ data class MessageInfoData(
     val createdAt: Long,
     val linkedNoteIds: List<String> = emptyList(),
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
 )
 
 @Serializable
@@ -182,6 +183,7 @@ data class MessagePushItem(
     val createdAt: Long,
     val linkedNoteIds: List<String> = emptyList(),
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
 )
 
 @Serializable

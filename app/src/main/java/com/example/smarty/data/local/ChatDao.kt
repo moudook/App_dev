@@ -161,6 +161,15 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity)
 
+    @Query("UPDATE chat_messages SET thinking = :thinking WHERE id = :messageId")
+    suspend fun updateMessageThinkingOnly(messageId: String, thinking: String?)
+
+    @Query("UPDATE chat_messages SET agentStepsJson = :agentStepsJson WHERE id = :messageId")
+    suspend fun updateMessageAgentStepsOnly(messageId: String, agentStepsJson: String?)
+
+    @Query("UPDATE chat_messages SET agentEventsJson = :agentEventsJson WHERE id = :messageId")
+    suspend fun updateMessageEventsOnly(messageId: String, agentEventsJson: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<ChatMessageEntity>)
 

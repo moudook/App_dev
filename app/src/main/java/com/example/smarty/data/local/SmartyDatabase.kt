@@ -76,7 +76,7 @@ import com.example.smarty.data.local.dao.AgentStepDao
         NoteStackEntity::class,
         com.example.smarty.data.local.entity.TimelineEventEntity::class,
     ],
-    version = 43,
+    version = 44,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -322,6 +322,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_40_41,
                             Migrations.MIGRATION_41_42,
                             Migrations.MIGRATION_42_43,
+                            Migrations.MIGRATION_43_44,
                         )
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()

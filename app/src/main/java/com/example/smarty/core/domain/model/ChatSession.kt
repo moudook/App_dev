@@ -4,6 +4,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import com.example.smarty.protocol.AgentEvent
 
 /**
  * Represents a chat session/conversation.
@@ -104,6 +107,7 @@ data class ChatMessageEntity(
     val thinking: String? = null, // AI reasoning/thinking content (SMARTY_TRACE_V2 or plain)
     val toolCallsJson: String = "[]", // JSON serialized AgentToolCallEntry list
     val agentStepsJson: String = "[]", // JSON serialized AgentStepEntry list
+    val agentEventsJson: String = "[]", // JSON serialized List<AgentEvent>
 ) {
     /**
      * Convert to domain model ChatMessage
@@ -161,6 +165,16 @@ data class ChatMessageEntity(
                 else -> thinking
             }
 
+        val agentEvents: List<AgentEvent> = try {
+            if (agentEventsJson.isNotBlank() && agentEventsJson != "[]") {
+                Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+
         return ChatMessage(
             id = id,
             role = ChatRole.valueOf(role),
@@ -174,6 +188,7 @@ data class ChatMessageEntity(
             thinking = cleanThinking,
             toolCalls = toolCalls,
             agentSteps = parseAgentStepsJson(agentStepsJson),
+            agentEvents = agentEvents,
         )
     }
 
@@ -217,6 +232,13 @@ data class ChatMessageEntity(
                     "[]"
                 }
 
+            val agentEventsJson = 
+                if (message.agentEvents.isNotEmpty()) {
+                    Json.encodeToString(message.agentEvents)
+                } else {
+                    "[]"
+                }
+
             return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
@@ -229,6 +251,7 @@ data class ChatMessageEntity(
                 thinking = message.thinking,
                 toolCallsJson = toolCallsJson,
                 agentStepsJson = agentStepsJson,
+                agentEventsJson = agentEventsJson,
             )
         }
 

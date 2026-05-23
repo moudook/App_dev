@@ -283,6 +283,7 @@ CREATE TABLE chat_messages (
     tool_calls        JSONB DEFAULT '[]'::jsonb,
     tool_call_id      TEXT,
     agent_steps_json  JSONB DEFAULT '[]'::jsonb,
+    agent_events_json JSONB DEFAULT '[]'::jsonb,
     token_count       INTEGER DEFAULT 0,
     is_edited         BOOLEAN NOT NULL DEFAULT false,
     is_starred        BOOLEAN NOT NULL DEFAULT false,
@@ -751,6 +752,11 @@ CREATE POLICY "Users can view own impressed log" ON impressed_log FOR SELECT USI
 
 ALTER TABLE user_vaults ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own vaults" ON user_vaults FOR ALL USING (user_id = auth.uid());
+
+-- ============================================================
+-- MIGRATIONS
+-- ============================================================
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_events_json JSONB DEFAULT '[]'::jsonb;
 
 -- ============================================================
 -- COMPLETE

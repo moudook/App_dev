@@ -1434,7 +1434,7 @@ class ChatFeatureManager(
                 chatManager.ensureSession()
 
                 // Add user message
-                val userMessage = chatManager.addUserMessage("🎨 Generate image: $prompt")
+                val userMessage = chatManager.addUserMessage("Generate image: $prompt")
 
                 // Show streaming placeholder with tool call card
                 val streamingMessageId = java.util.UUID.randomUUID().toString()
@@ -1500,7 +1500,7 @@ class ChatFeatureManager(
                         ChatMessage(
                             id = streamingMessageId,
                             role = ChatRole.SMARTY,
-                            content = "❌ Image generation failed: $errorMsg",
+                            content = "Image generation failed: $errorMsg",
                             timestamp = System.currentTimeMillis(),
                             isError = true,
                         )
@@ -1519,7 +1519,7 @@ class ChatFeatureManager(
                     ChatMessage(
                         id = java.util.UUID.randomUUID().toString(),
                         role = ChatRole.SMARTY,
-                        content = "❌ Image generation failed: ${e.message}",
+                        content = "Image generation failed: ${e.message}",
                         timestamp = System.currentTimeMillis(),
                     )
                 chatManager.addSmartyMessage(errorMessage)
@@ -1753,6 +1753,7 @@ class ChatFeatureManager(
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
             val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
+            val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
@@ -1766,6 +1767,7 @@ class ChatFeatureManager(
                 messageId = streamingMessageId,
             )
                 .collect { event ->
+                    agentEventsBuilder.add(event)
                     when (event) {
                         is AgentEvent.Processing -> {
                             responseBuilder.append(event.content)
@@ -1788,6 +1790,7 @@ class ChatFeatureManager(
                                 streamingMessageId,
                                 responseBuilder.toString(),
                                 thinkingBuilder.toString().ifEmpty { null },
+                                agentEvents = agentEventsBuilder.toList()
                             )
                         }
                         is AgentEvent.Result -> {
@@ -1830,6 +1833,7 @@ class ChatFeatureManager(
                                 thinkingBuilder.toString().ifEmpty { null },
                                 capturedConfidence,
                                 capturedSourceType,
+                                agentEventsBuilder.toList()
                             )
                             
                             // Trigger unified sync to pull down any server-side generated content
@@ -1987,6 +1991,7 @@ class ChatFeatureManager(
                     citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                     inlineImages = pendingInlineImages.toList(),
                     isStreaming = false,
+                    agentEvents = agentEventsBuilder.toList(),
                     // Fix #3: Use captured confidence from Result event (not from streamingMsg which may be stale)
                     confidence = capturedConfidence ?: streamingMsg?.confidence,
                     sourceType = capturedSourceType ?: streamingMsg?.sourceType,

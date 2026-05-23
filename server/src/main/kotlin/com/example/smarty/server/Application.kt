@@ -396,6 +396,9 @@ fun Application.module() {
     // Start background sweeper for stale sessions
     com.example.smarty.server.agent.ActiveSessionManager.startSweeper(this)
 
+    // Start OpenCode Daemon Monitor
+    com.example.smarty.server.agent.OpencodeDaemonManager.startMonitoring()
+
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
 
@@ -411,6 +414,7 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopping) {
         log.info("Server stopping — cleaning up resources")
         digestScheduler?.stop()
+        com.example.smarty.server.agent.OpencodeDaemonManager.stopMonitoring()
         DatabaseFactory.close()
         log.info("Server shutdown complete")
     }

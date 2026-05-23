@@ -381,7 +381,7 @@ class AssistViewModel(
 
         try {
             val selectedModel = selectedModel.value
-            remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value, model = selectedModel).collect { event ->
+            remoteAgentService.sendQuery(content, sessionId = chatManager.currentSessionId.value, model = selectedModel, messageId = streamingMessageId).collect { event ->
                 try {
                     val eventType = event::class.simpleName ?: "Unknown"
                     val payloadJson = kotlinx.serialization.json.Json.encodeToString(
@@ -408,19 +408,22 @@ class AssistViewModel(
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         event.content?.let { responseBuilder.append(it) }
                         event.thinking?.let { finalThinking = it }
-                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), event.thinking)
+                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), event.thinking, agentEvents = agentEventsBuilder.toList())
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
                         // Server sends empty content in Result to avoid duplication.
                         // The accumulated content from Processing events is the final answer.
                         finalThinking = event.thinking ?: finalThinking
-                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), finalThinking)
+                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), finalThinking, agentEvents = agentEventsBuilder.toList())
                         if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
                     }
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
                         pendingToolCalls.add(AgentToolCallEntry(toolName = event.toolName, status = event.status, displayName = event.displayName, inputSummary = event.inputSummary, outputSummary = event.outputSummary, timestamp = event.timestamp))
+                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), finalThinking, agentEvents = agentEventsBuilder.toList())
                     }
-                    else -> {}
+                    else -> {
+                        chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), finalThinking, agentEvents = agentEventsBuilder.toList())
+                    }
                 }
             }
             val contentToSave = responseBuilder.toString()
@@ -432,7 +435,8 @@ class AssistViewModel(
                 timestamp = System.currentTimeMillis(),
                 citations = pendingCitations.toList(),
                 isStreaming = false,
-                agentEvents = agentEventsBuilder.toList()
+                agentEvents = agentEventsBuilder.toList(),
+                thinking = finalThinking
             )
             chatManager.replaceMessage(streamingMessageId, smartyMessage)
             chatManager.markApiCallSuccessful()

@@ -1297,4 +1297,11 @@ object Migrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_timeline_events_sessionId ON timeline_events(sessionId)")
             }
         }
+
+    val MIGRATION_43_44 =
+        object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN agentEventsJson TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
 }
