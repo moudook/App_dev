@@ -25,6 +25,10 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
+import java.util.UUID
+
+private val kotlinx.serialization.json.JsonElement?.safeContent: String?
+    get() = if (this == null || this is kotlinx.serialization.json.JsonNull) null else this.jsonPrimitive.content
 
 class OpencodeLlmProvider(
     private val client: HttpClient,
@@ -705,15 +709,15 @@ private fun parseCanonicalResponse(
                     "tool_use", "tool" ->
                         CanonicalPart(
                             type = type,
-                            toolName = el["name"]?.jsonPrimitive?.content,
+                            toolName = el["name"].safeContent,
                             toolArgs = el["input"]?.toString(),
                             subagentId = partSubagentId,
                         )
                     "tool_result", "tool_return" ->
                         CanonicalPart(
                             type = "tool_result",
-                            toolName = el["name"]?.jsonPrimitive?.content,
-                            content = el["output"]?.toString() ?: el["text"]?.jsonPrimitive?.content,
+                            toolName = el["name"].safeContent,
+                            content = el["output"]?.toString() ?: el["text"].safeContent,
                             subagentId = partSubagentId,
                         )
                     else -> CanonicalPart(type = type, subagentId = partSubagentId)
@@ -722,7 +726,7 @@ private fun parseCanonicalResponse(
         return CanonicalResponse(canonicalParts)
     }
 
-    val contentStr = json["content"]?.jsonPrimitive?.content
+    val contentStr = json["content"].safeContent
     if (contentStr != null) {
         // Version 2: Simple content string fallback
         return CanonicalResponse(listOf(CanonicalPart(type = "text", content = contentStr, subagentId = topSubagentId)))
@@ -731,7 +735,7 @@ private fun parseCanonicalResponse(
     val messageObj = json["message"]?.jsonObject
     if (messageObj != null) {
         // Version 3: OpenAI style choices/message
-        val text = messageObj["content"]?.jsonPrimitive?.content
+        val text = messageObj["content"].safeContent
         if (text != null) {
             return CanonicalResponse(listOf(CanonicalPart(type = "text", content = text, subagentId = topSubagentId)))
         }
@@ -740,13 +744,13 @@ private fun parseCanonicalResponse(
     // Version 4: Individual part object (daemon incremental SSE)
     // e.g. {"type": "reasoning", "text": "...", "subagent_id": "sub1"}
     // Also handles nested "part" object from newer OpenCode CLI format
-    val partType = json["type"]?.jsonPrimitive?.content
+    val partType = json["type"].safeContent
     if (partType != null) {
         val innerPart = json["part"]?.jsonObject ?: json
-        val partSubagentId = innerPart["subagent_id"]?.jsonPrimitive?.content ?: json["subagent_id"]?.jsonPrimitive?.content ?: topSubagentId
+        val partSubagentId = innerPart["subagent_id"].safeContent ?: json["subagent_id"].safeContent ?: topSubagentId
 
-        val textContent = innerPart["text"]?.jsonPrimitive?.content ?: json["text"]?.jsonPrimitive?.content
-        val toolName = innerPart["tool"]?.jsonPrimitive?.content ?: innerPart["name"]?.jsonPrimitive?.content ?: json["name"]?.jsonPrimitive?.content
+        val textContent = innerPart["text"].safeContent ?: json["text"].safeContent
+        val toolName = innerPart["tool"].safeContent ?: innerPart["name"].safeContent ?: json["name"].safeContent
 
         val stateObj = innerPart["state"]?.jsonObject
         val rawInput = stateObj?.get("input") ?: innerPart["input"] ?: json["input"]

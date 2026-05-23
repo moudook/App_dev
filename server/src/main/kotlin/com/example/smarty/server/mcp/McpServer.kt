@@ -112,7 +112,26 @@ class McpServer(
                 }
             }
 
-            // (Removed post("/sse") to allow OpenCode to properly fall back to SSE via GET)
+            // OpenCode daemon sends POST to /sse for MCP init — create session and respond
+            post("/sse") {
+                val sessionId = UUID.randomUUID().toString()
+                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
+                sessions[sessionId] = McpSession(channel)
+
+                val host = call.request.local.serverHost
+                val port = call.request.local.serverPort
+                val scheme = call.request.local.scheme
+                
+                // For HF Spaces, port is typically 7860. The reverse proxy might not forward scheme properly so we fallback to a relative-like approach if needed.
+                val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
+
+                call.respondText(
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.OK,
+                    text = """{"sessionId":"$sessionId","endpoint":"$endpointUrl"}"""
+                )
+                logger.info("[McpServer] POST-SSE session created: $sessionId")
+            }
 
             // 2. Receive JSON-RPC messages from client (Firebase-authenticated)
             // Localhost/daemon bypass: unauthenticated requests from 127.0.0.1 are treated as
