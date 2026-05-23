@@ -411,4 +411,14 @@ sealed class AgentEvent {
     @Serializable
     @SerialName("sync_finished")
     data class SyncFinished(override val eventId: String, override val timestamp: Long) : AgentEvent()
+
+    // Raw OpenCode CLI Output
+    @Serializable
+    @SerialName("opencode_raw")
+    data class OpencodeRawEvent(
+        override val eventId: String,
+        override val timestamp: Long,
+        val data: String,
+        @SerialName("subagent_id") override val subagentId: String? = null,
+    ) : AgentEvent()
 }

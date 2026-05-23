@@ -480,7 +480,7 @@ class OpencodeLlmProvider(
                                     logger.debug(
                                         "[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${text.length} chars)",
                                     )
-                                    emit(LlmChunk(content = text, reasoning = null, subagentId = part.subagentId))
+                                    emit(LlmChunk(content = text, reasoning = null, subagentId = part.subagentId, rawJson = data))
                                     logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart
                                 } else {
@@ -501,7 +501,7 @@ class OpencodeLlmProvider(
                                     logger.debug(
                                         "[OpenCode.Emit][inference=$inferenceId] Emitting delta to flow collector (${reasoning.length} chars)",
                                     )
-                                    emit(LlmChunk(content = null, reasoning = reasoning, subagentId = part.subagentId))
+                                    emit(LlmChunk(content = null, reasoning = reasoning, subagentId = part.subagentId, rawJson = data))
                                     logger.trace("[OpenCode.Emit][inference=$inferenceId] Collector accepted chunk")
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart
                                 }
@@ -523,6 +523,7 @@ class OpencodeLlmProvider(
                                                 arguments = toolInput,
                                             ),
                                         subagentId = part.subagentId,
+                                        rawJson = data,
                                     ),
                                 )
                                 context.totalEmitTime += System.currentTimeMillis() - emitStart
@@ -545,6 +546,7 @@ class OpencodeLlmProvider(
                                                     result = content,
                                                 ),
                                             subagentId = part.subagentId,
+                                            rawJson = data,
                                         ),
                                     )
                                     context.totalEmitTime += System.currentTimeMillis() - emitStart

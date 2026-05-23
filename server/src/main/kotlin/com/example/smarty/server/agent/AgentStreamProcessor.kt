@@ -261,6 +261,15 @@ class AgentStreamProcessor(
             ),
         )
 
+        // Record in thinking storage for the rich trace
+        thinkingStorage.addToolCall(
+            sessionId = sessionId,
+            toolName = toolName,
+            status = status,
+            inputSummary = inputSummary,
+            outputSummary = if (status == "completed") outputSummary else null,
+        )
+
         if (status == "started") {
             this.emit(
                 AgentEvent.ToolCallStarted(
@@ -292,11 +301,32 @@ class AgentStreamProcessor(
         chunk.usage?.let { totalUsage = it }
         chunk.subagentId?.let { currentSubagentId = it }
 
+        // Emit raw OpenCode event if data is available — provides "everything" to the client
+        chunk.rawJson?.let { raw ->
+            this.emit(
+                AgentEvent.OpencodeRawEvent(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    data = raw,
+                    subagentId = currentSubagentId,
+                ),
+            )
+        }
+
         // If a tool was in progress, but the daemon has started streaming text or reasoning again,
         // it means the daemon-native tool execution has completed and the model has resumed!
         if (isToolCallInProgress && chunk.toolCall == null && (!chunk.content.isNullOrEmpty() || !chunk.reasoning.isNullOrEmpty())) {
             isToolCallInProgress = false
             emitOpenCodeToolStep(currentToolName, "completed", currentToolArgs)
+
+            // Record completion in thinking storage
+            thinkingStorage.addToolCall(
+                sessionId = sessionId,
+                toolName = currentToolName,
+                status = "completed",
+                inputSummary = currentToolArgs,
+            )
+
             this.emit(
                 AgentEvent.ToolCall(
                     eventId = UUID.randomUUID().toString(),
@@ -318,10 +348,9 @@ class AgentStreamProcessor(
             thinkingStorage.addReasoning(sessionId, chunk.reasoning)
             reasoningUpdated = true
 
-            if (!isToolCallInProgress) {
-                val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
-                emitThrottledProcessing("", currentThinking)
-            }
+            // Send throttled update to client even if tool is in progress (multi-tasking support)
+            val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
+            emitThrottledProcessing("", currentThinking)
         }
 
         if (!chunk.content.isNullOrEmpty()) {
@@ -438,6 +467,15 @@ class AgentStreamProcessor(
                 // Finalize any open thinking step before starting a tool step
                 if (currentThinkingStepId != null) finalizeThinkingStep()
                 emitOpenCodeToolStep(toolCall.functionName, "started")
+
+                // Record start in thinking storage
+                thinkingStorage.addToolCall(
+                    sessionId = sessionId,
+                    toolName = toolCall.functionName,
+                    status = "started",
+                    inputSummary = toolCall.arguments,
+                )
+
                 this.emit(
                     AgentEvent.ToolCall(
                         eventId = UUID.randomUUID().toString(),
@@ -471,6 +509,16 @@ class AgentStreamProcessor(
             if (isToolCallInProgress) {
                 isToolCallInProgress = false
                 emitOpenCodeToolStep(currentToolName, "completed", currentToolArgs)
+
+                // Record completion in thinking storage
+                thinkingStorage.addToolCall(
+                    sessionId = sessionId,
+                    toolName = currentToolName,
+                    status = "completed",
+                    inputSummary = currentToolArgs,
+                    outputSummary = toolResult.result,
+                )
+
                 this.emit(
                     AgentEvent.ToolCall(
                         eventId = UUID.randomUUID().toString(),
