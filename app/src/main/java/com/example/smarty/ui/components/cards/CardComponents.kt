@@ -232,6 +232,24 @@ fun ChatMessageCard(
     isUser: Boolean = false,
     senderName: String? = null
 ) {
+    val surfaceColor = if (isUser) {
+        MaterialTheme.colorScheme.primary 
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    
+    val textColor = if (isUser) {
+        MaterialTheme.colorScheme.onPrimary 
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
+    val timestampColor = if (isUser) {
+        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) 
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -254,10 +272,7 @@ fun ChatMessageCard(
                 bottomStart = if (isUser) 16.dp else 4.dp,
                 bottomEnd = if (isUser) 4.dp else 16.dp
             ),
-            color = if (isUser) 
-                MaterialTheme.colorScheme.primary 
-            else 
-                MaterialTheme.colorScheme.surfaceVariant
+            color = surfaceColor
         ) {
             Column(
                 modifier = Modifier.padding(12.dp)
@@ -265,10 +280,7 @@ fun ChatMessageCard(
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isUser) 
-                        MaterialTheme.colorScheme.onPrimary 
-                    else 
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    color = textColor
                 )
                 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -276,10 +288,7 @@ fun ChatMessageCard(
                 Text(
                     text = timestamp,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isUser) 
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) 
-                    else 
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    color = timestampColor
                 )
             }
         }

@@ -140,6 +140,4 @@ object ResearchAgentTools {
                 ),
         )
     }
-
-
 }

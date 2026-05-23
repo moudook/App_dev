@@ -86,6 +86,12 @@ fun CompactIconButton(
         ButtonSize.Large -> 44.dp
     }
     
+    val tintColor = if (enabled) {
+        MaterialTheme.colorScheme.onSurfaceVariant 
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+    }
+
     IconButton(
         onClick = onClick,
         modifier = modifier.size(containerSize),
@@ -95,10 +101,7 @@ fun CompactIconButton(
             imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(iconSize),
-            tint = if (enabled) 
-                MaterialTheme.colorScheme.onSurfaceVariant 
-            else 
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            tint = tintColor
         )
     }
 }
@@ -150,29 +153,32 @@ fun StatCard(
             )
             
             if (trend != null) {
+                val trendIcon = if (trend.isPositive) {
+                    Icons.AutoMirrored.Filled.TrendingUp
+                } else {
+                    Icons.AutoMirrored.Filled.TrendingDown
+                }
+                
+                val trendColor = if (trend.isPositive) {
+                    MaterialTheme.colorScheme.primary 
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
+                
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (trend.isPositive) 
-                            Icons.AutoMirrored.Filled.TrendingUp
-                        else 
-                            Icons.AutoMirrored.Filled.TrendingDown,
+                        imageVector = trendIcon,
                         contentDescription = null,
-                        tint = if (trend.isPositive) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.error,
+                        tint = trendColor,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = trend.value,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (trend.isPositive) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.error
+                        color = trendColor
                     )
                 }
             }

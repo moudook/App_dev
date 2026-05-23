@@ -29,6 +29,7 @@ class TimerRepository(private val dataSource: DataSource) {
         durationMs: Long = 0,
         triggerAt: Long? = null,
         isAlarm: Boolean = false,
+        repeat: String? = null,
     ): String =
         withContext(Dispatchers.IO) {
             val id = UUID.randomUUID()
@@ -37,8 +38,8 @@ class TimerRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    INSERT INTO timers (id, user_id, name, duration_ms, trigger_at, is_alarm)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO timers (id, user_id, name, duration_ms, trigger_at, is_alarm, repeat)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, id)
@@ -47,10 +48,11 @@ class TimerRepository(private val dataSource: DataSource) {
                     stmt.setLong(4, durationMs)
                     stmt.setTimestamp(5, Timestamp(actualTriggerAt))
                     stmt.setBoolean(6, isAlarm)
+                    stmt.setString(7, repeat)
                     stmt.executeUpdate()
                 }
             }
-            logger.info("Timer created: id={}, user={}, name={}, triggerAt={}", id, userId, name, actualTriggerAt)
+            logger.info("Timer created: id={}, user={}, name={}, triggerAt={}, repeat={}", id, userId, name, actualTriggerAt, repeat)
             id.toString()
         }
 
@@ -63,7 +65,7 @@ class TimerRepository(private val dataSource: DataSource) {
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    SELECT id, name, duration_ms, trigger_at, is_alarm, is_active, created_at
+                    SELECT id, name, duration_ms, trigger_at, is_alarm, is_active, created_at, repeat
                     FROM timers
                     WHERE user_id = ? AND is_active = TRUE
                     ORDER BY trigger_at ASC
@@ -81,6 +83,7 @@ class TimerRepository(private val dataSource: DataSource) {
                                     isAlarm = rs.getBoolean("is_alarm"),
                                     isActive = rs.getBoolean("is_active"),
                                     createdAt = rs.getTimestamp("created_at").time,
+                                    repeat = rs.getString("repeat"),
                                 ),
                             )
                         }

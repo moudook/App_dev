@@ -26,16 +26,17 @@ object ActiveSessionManager {
 
     fun startSweeper(scope: kotlinx.coroutines.CoroutineScope) {
         if (sweeperJob?.isActive == true) return
-        sweeperJob = scope.launch {
-            while (isActive) {
-                kotlinx.coroutines.delay(1 * 60 * 1000L) // 1 minute
-                try {
-                    cleanupStaleSessions()
-                } catch (e: Exception) {
-                    logger.error("Error during session cleanup", e)
+        sweeperJob =
+            scope.launch {
+                while (isActive) {
+                    kotlinx.coroutines.delay(1 * 60 * 1000L) // 1 minute
+                    try {
+                        cleanupStaleSessions()
+                    } catch (e: Exception) {
+                        logger.error("Error during session cleanup", e)
+                    }
                 }
             }
-        }
         logger.info("ActiveSessionManager sweeper started")
     }
 

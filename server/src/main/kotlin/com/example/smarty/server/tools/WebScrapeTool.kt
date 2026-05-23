@@ -22,16 +22,17 @@ class WebScrapeTool {
         private val logger = LoggerFactory.getLogger(WebScrapeTool::class.java)
 
         // Blocked IP ranges for SSRF protection
-        private val blockedIpRanges = listOf(
-            "127.0.0.0/8",
-            "10.0.0.0/8",
-            "172.16.0.0/12",
-            "192.168.0.0/16",
-            "169.254.0.0/16",
-            "198.18.0.0/15",
-            "224.0.0.0/4",
-            "240.0.0.0/4",
-        )
+        private val blockedIpRanges =
+            listOf(
+                "127.0.0.0/8",
+                "10.0.0.0/8",
+                "172.16.0.0/12",
+                "192.168.0.0/16",
+                "169.254.0.0/16",
+                "198.18.0.0/15",
+                "224.0.0.0/4",
+                "240.0.0.0/4",
+            )
 
         private val allowedProtocols = setOf("http", "https")
 

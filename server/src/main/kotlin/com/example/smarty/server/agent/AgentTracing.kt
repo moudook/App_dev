@@ -5,9 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -108,14 +105,15 @@ class PostgresTracer(private val userId: String) : AgentTracer {
         com.example.smarty.server.services.ReasoningService(com.example.smarty.server.data.ReasoningTraceRepository(ds))
     }
 
-    private fun AgentStepType.toReasoningStepType(): com.example.smarty.server.data.ReasoningStepType = when (this) {
-        AgentStepType.THOUGHT -> com.example.smarty.server.data.ReasoningStepType.ANALYSIS
-        AgentStepType.TOOL_CALL -> com.example.smarty.server.data.ReasoningStepType.RESEARCH
-        AgentStepType.TOOL_RESULT -> com.example.smarty.server.data.ReasoningStepType.VERIFICATION
-        AgentStepType.FINAL -> com.example.smarty.server.data.ReasoningStepType.SYNTHESIS
-        AgentStepType.ERROR -> com.example.smarty.server.data.ReasoningStepType.REFLECTION
-        AgentStepType.CHECKPOINT -> com.example.smarty.server.data.ReasoningStepType.PLANNING
-    }
+    private fun AgentStepType.toReasoningStepType(): com.example.smarty.server.data.ReasoningStepType =
+        when (this) {
+            AgentStepType.THOUGHT -> com.example.smarty.server.data.ReasoningStepType.ANALYSIS
+            AgentStepType.TOOL_CALL -> com.example.smarty.server.data.ReasoningStepType.RESEARCH
+            AgentStepType.TOOL_RESULT -> com.example.smarty.server.data.ReasoningStepType.VERIFICATION
+            AgentStepType.FINAL -> com.example.smarty.server.data.ReasoningStepType.SYNTHESIS
+            AgentStepType.ERROR -> com.example.smarty.server.data.ReasoningStepType.REFLECTION
+            AgentStepType.CHECKPOINT -> com.example.smarty.server.data.ReasoningStepType.PLANNING
+        }
 
     override suspend fun trace(event: AgentTraceEvent) {
         val service = reasoningService
@@ -194,10 +192,11 @@ class AgentPersistenceManager(private val userId: String) {
 
         try {
             dataSource.connection.use { conn ->
-                val stateJson = buildJsonObject {
-                    put("messages", buildJsonArray { })
-                    put("context", kotlinx.serialization.json.JsonPrimitive(context))
-                }.toString()
+                val stateJson =
+                    buildJsonObject {
+                        put("messages", buildJsonArray { })
+                        put("context", kotlinx.serialization.json.JsonPrimitive(context))
+                    }.toString()
 
                 val stmt =
                     conn.prepareStatement(

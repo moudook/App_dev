@@ -171,7 +171,9 @@ fun Application.configureMonitoring() {
                         ServerMonitor.isOpenCodeDaemonReachable = true
                         ServerMonitor.openCodeDaemonStatusMsg = "Online (${conn.responseCode})"
                         if (wasDown) {
-                            monitorLogger.info("[OpenCodeMonitor] Daemon RECOVERED — now healthy (check took ${System.currentTimeMillis() - daemonCheckStart}ms)")
+                            monitorLogger.info(
+                                "[OpenCodeMonitor] Daemon RECOVERED — now healthy (check took ${System.currentTimeMillis() - daemonCheckStart}ms)",
+                            )
                         }
                         consecutiveFailures = 0
                     } else {

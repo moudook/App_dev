@@ -98,7 +98,12 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
                     route("/{id}") {
                         get {
                             val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-                            if (noteService == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
+                            if (noteService == null) {
+                                return@get call.respond(
+                                    HttpStatusCode.ServiceUnavailable,
+                                    "Note service not available",
+                                )
+                            }
 
                             val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                             val note = noteService.getNote(user.userId, id)
@@ -107,7 +112,12 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
 
                         put {
                             val user = call.firebaseUser() ?: return@put call.respond(HttpStatusCode.Unauthorized)
-                            if (noteService == null) return@put call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
+                            if (noteService == null) {
+                                return@put call.respond(
+                                    HttpStatusCode.ServiceUnavailable,
+                                    "Note service not available",
+                                )
+                            }
 
                             val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                             try {
@@ -125,7 +135,12 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
 
                         delete {
                             val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
-                            if (noteService == null) return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
+                            if (noteService == null) {
+                                return@delete call.respond(
+                                    HttpStatusCode.ServiceUnavailable,
+                                    "Note service not available",
+                                )
+                            }
 
                             val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                             val deleted = noteService.deleteNote(user.userId, id)

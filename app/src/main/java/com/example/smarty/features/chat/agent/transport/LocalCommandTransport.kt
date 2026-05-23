@@ -66,6 +66,15 @@ class LocalCommandTransport(
                         timestamp = System.currentTimeMillis(),
                     )
                 }
+                is AgentCommand.GetDeviceInfo -> {
+                    // Map GetDeviceInfo to GetSystemStatus as per ToolTax doc
+                    val status = executor.getSystemStatus()
+                    ClientEvent.SystemStatusResponse(
+                        commandId = command.commandId,
+                        status = status,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                }
                 is AgentCommand.GetScreenContext -> {
                     val context = executor.getScreenContext()
                     ClientEvent.ScreenContextResponse(
@@ -122,8 +131,9 @@ class LocalCommandTransport(
 
             // === SYSTEM & APP CONTROL ===
             is AgentCommand.LaunchApp -> {
-                executor.launchApp(command.packageName)
-                "Launched ${command.packageName}"
+                val pkg = executor.findPackageName(command.packageName) ?: command.packageName
+                executor.launchApp(pkg)
+                "Launched $pkg"
             }
             is AgentCommand.TakeScreenshot -> {
                 executor.takeScreenshot(command.save)
@@ -134,8 +144,16 @@ class LocalCommandTransport(
                 "Setting ${command.setting} set to ${command.enable}"
             }
             is AgentCommand.SetTimer -> {
-                executor.setTimer(command.name, command.timeStr, command.isAlarm)
+                executor.setTimer(command.name, command.timeStr, command.isAlarm, command.repeat, command.triggerTime)
                 "Timer set: ${command.name}"
+            }
+            is AgentCommand.ListTimers -> {
+                executor.listTimers()
+                "Timers listed"
+            }
+            is AgentCommand.CancelTimer -> {
+                executor.cancelTimer(command.id)
+                "Timer canceled: ${command.id}"
             }
 
             // === AUDIO CONTROL ===

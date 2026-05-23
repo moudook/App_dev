@@ -4,9 +4,9 @@ import com.example.smarty.protocol.CalendarEventInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.sql.ResultSet
 import java.util.UUID
 import javax.sql.DataSource
-import java.sql.ResultSet
 
 class CalendarRepository(
     private val dataSource: DataSource,
@@ -19,7 +19,7 @@ class CalendarRepository(
      */
     suspend fun create(
         userId: String,
-        info: CalendarEventInfo
+        info: CalendarEventInfo,
     ): String =
         withContext(Dispatchers.IO) {
             val id = if (info.id.isNotEmpty()) UUID.fromString(info.id) else UUID.randomUUID()
@@ -85,8 +85,8 @@ class CalendarRepository(
                 linkedNoteId = null,
                 googleEventId = null,
                 isEventPrivate = false,
-                createdAt = System.currentTimeMillis()
-            )
+                createdAt = System.currentTimeMillis(),
+            ),
         )
 
     suspend fun listAllEvents(
@@ -145,11 +145,14 @@ class CalendarRepository(
             linkedNoteId = rs.getObject("linked_note_id")?.toString(),
             googleEventId = rs.getString("google_event_id"),
             isEventPrivate = rs.getBoolean("is_event_private"),
-            createdAt = rs.getTimestamp("created_at").time
+            createdAt = rs.getTimestamp("created_at").time,
         )
     }
 
-    suspend fun delete(userId: String, eventId: String): Boolean =
+    suspend fun delete(
+        userId: String,
+        eventId: String,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql = "DELETE FROM calendar_events WHERE id = ? AND user_id = ?"
@@ -172,33 +175,40 @@ class CalendarRepository(
         endTime: Long,
         description: String? = null,
         location: String? = null,
-    ): String = create(
-        userId,
-        CalendarEventInfo(
-            id = eventId,
-            title = title,
-            startTime = startTime,
-            endTime = endTime,
-            description = description,
-            location = location,
-            reminderMinutes = 15,
-            linkedNoteId = null,
-            googleEventId = null,
-            isEventPrivate = false,
-            createdAt = System.currentTimeMillis()
+    ): String =
+        create(
+            userId,
+            CalendarEventInfo(
+                id = eventId,
+                title = title,
+                startTime = startTime,
+                endTime = endTime,
+                description = description,
+                location = location,
+                reminderMinutes = 15,
+                linkedNoteId = null,
+                googleEventId = null,
+                isEventPrivate = false,
+                createdAt = System.currentTimeMillis(),
+            ),
         )
-    )
 
     /**
      * List upcoming events from now.
      */
-    suspend fun listUpcoming(userId: String, limit: Int = 100): List<CalendarEventInfo> =
-        listAllEvents(userId, limit)
+    suspend fun listUpcoming(
+        userId: String,
+        limit: Int = 100,
+    ): List<CalendarEventInfo> = listAllEvents(userId, limit)
 
     /**
      * Link a note to a calendar event.
      */
-    suspend fun linkNoteToEvent(userId: String, eventId: String, noteId: String) {
+    suspend fun linkNoteToEvent(
+        userId: String,
+        eventId: String,
+        noteId: String,
+    ) {
         val eventUuid = UUID.fromString(eventId)
         val noteUuid = UUID.fromString(noteId)
         // Verify ownership
@@ -218,7 +228,11 @@ class CalendarRepository(
     /**
      * Unlink a note from a calendar event.
      */
-    suspend fun unlinkNoteFromEvent(userId: String, eventId: String, noteId: String): Boolean {
+    suspend fun unlinkNoteFromEvent(
+        userId: String,
+        eventId: String,
+        noteId: String,
+    ): Boolean {
         val eventUuid = UUID.fromString(eventId)
         val noteUuid = UUID.fromString(noteId)
         // Verify ownership
@@ -238,19 +252,23 @@ class CalendarRepository(
     /**
      * Get all note IDs linked to a calendar event.
      */
-    suspend fun getLinkedNotes(userId: String, eventId: String): List<String> = withContext(Dispatchers.IO) {
-        // Verify ownership
-        dataSource.connection.use { conn ->
-            val checkSql = "SELECT 1 FROM calendar_events WHERE id = ? AND user_id = ?"
-            conn.prepareStatement(checkSql).use { stmt ->
-                stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setObject(2, UUID.fromString(userId))
-                stmt.executeQuery().use { rs ->
-                    if (!rs.next()) return@withContext emptyList()
+    suspend fun getLinkedNotes(
+        userId: String,
+        eventId: String,
+    ): List<String> =
+        withContext(Dispatchers.IO) {
+            // Verify ownership
+            dataSource.connection.use { conn ->
+                val checkSql = "SELECT 1 FROM calendar_events WHERE id = ? AND user_id = ?"
+                conn.prepareStatement(checkSql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(eventId))
+                    stmt.setObject(2, UUID.fromString(userId))
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return@withContext emptyList()
+                    }
                 }
             }
+            calendarEventNotesRepo.getLinkedNotes(UUID.fromString(eventId))
+                .map { it.toString() }
         }
-        calendarEventNotesRepo.getLinkedNotes(UUID.fromString(eventId))
-            .map { it.toString() }
-    }
 }

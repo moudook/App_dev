@@ -394,11 +394,13 @@ private fun TodoItemRow(
         animationSpec = spring(stiffness = 400f),
         label = "checkScale"
     )
+    val targetBgColor = if (todo.isCompleted) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        LocalAccentColor.current.copy(alpha = 0.1f) // Electric Blue tint
+    }
     val backgroundColor by animateColorAsState(
-        targetValue = if (todo.isCompleted) 
-            MaterialTheme.colorScheme.surfaceContainerLow
-        else 
-            LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
+        targetValue = targetBgColor,
         animationSpec = tween(200),
         label = "bgColor"
     )

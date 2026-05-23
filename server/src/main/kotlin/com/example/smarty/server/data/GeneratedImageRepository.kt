@@ -210,13 +210,14 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
      */
     suspend fun clearQueuedForUser(userId: String): Int =
         withConnection {
-            val sql = """
+            val sql =
+                """
                 UPDATE generated_images
                 SET status = 'failed',
                     updated_at = now()
                 WHERE user_id = ?::uuid
                 AND status IN ('queued', 'processing', 'pending')
-            """.trimIndent()
+                """.trimIndent()
 
             it.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, userId)
@@ -227,14 +228,18 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
     /**
      * Mark a specific job as failed.
      */
-    suspend fun markJobFailed(kreaJobId: String, errorMessage: String? = null): Unit =
+    suspend fun markJobFailed(
+        kreaJobId: String,
+        errorMessage: String? = null,
+    ): Unit =
         withConnection {
-            val sql = """
+            val sql =
+                """
                 UPDATE generated_images
                 SET status = 'failed',
                     updated_at = now()
                 WHERE krea_job_id = ?
-            """.trimIndent()
+                """.trimIndent()
 
             it.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, kreaJobId)

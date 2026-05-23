@@ -926,9 +926,7 @@ private fun CosmicWheel(
                 val centerIndex = index + 2 // Middle of visible 5 items
                 val actualIndex = centerIndex % items.size
                 val value = items[actualIndex]
-                if (value != initialValue) { 
-                     onValueChange(value)
-                }
+                value.takeIf { it != initialValue }?.let { onValueChange(it) }
             }
     }
     
@@ -944,9 +942,7 @@ private fun CosmicWheel(
              val rawIndex = it.index
              val dataIndex = rawIndex % items.size
              val value = items[dataIndex]
-             if (value != initialValue) {
-                 onValueChange(value)
-             }
+             value.takeIf { it != initialValue }?.let { onValueChange(it) }
          }
     }
 

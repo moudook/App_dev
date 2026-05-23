@@ -22,14 +22,15 @@ object SemanticSearchEngine {
     private val SPECIAL_CHAR_REGEX = Regex("[^a-z0-9\\s]")
     private val MULTI_SPACE_REGEX = Regex("\\s+")
 
-    private val SOUNDEX_MAP = mapOf(
-        'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
-        'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
-        'D' to '3', 'T' to '3',
-        'L' to '4',
-        'M' to '5', 'N' to '5',
-        'R' to '6',
-    )
+    private val SOUNDEX_MAP =
+        mapOf(
+            'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
+            'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
+            'D' to '3', 'T' to '3',
+            'L' to '4',
+            'M' to '5', 'N' to '5',
+            'R' to '6',
+        )
 
     data class SearchResult<T>(
         val item: T,
@@ -39,7 +40,14 @@ object SemanticSearchEngine {
     )
 
     enum class MatchType {
-        EXACT, CONTAINS, FUZZY_HIGH, FUZZY_MEDIUM, FUZZY_LOW, TOKEN_MATCH, PHONETIC, PARTIAL,
+        EXACT,
+        CONTAINS,
+        FUZZY_HIGH,
+        FUZZY_MEDIUM,
+        FUZZY_LOW,
+        TOKEN_MATCH,
+        PHONETIC,
+        PARTIAL,
     }
 
     fun <T> search(
@@ -75,7 +83,10 @@ object SemanticSearchEngine {
         return results.sortedByDescending { it.score }
     }
 
-    fun calculateSimilarity(query: String, target: String): Double {
+    fun calculateSimilarity(
+        query: String,
+        target: String,
+    ): Double {
         val normalizedQuery = normalizeText(query)
         val normalizedTarget = normalizeText(target)
 
@@ -138,12 +149,13 @@ object SemanticSearchEngine {
             val fuzzySimilarity = combinedSimilarity(query, normalizedText)
             if (fuzzySimilarity > bestScore) {
                 bestScore = fuzzySimilarity
-                bestMatchType = when {
-                    fuzzySimilarity >= HIGH_SIMILARITY_THRESHOLD -> MatchType.FUZZY_HIGH
-                    fuzzySimilarity >= MEDIUM_SIMILARITY_THRESHOLD -> MatchType.FUZZY_MEDIUM
-                    fuzzySimilarity >= LOW_SIMILARITY_THRESHOLD -> MatchType.FUZZY_LOW
-                    else -> MatchType.PARTIAL
-                }
+                bestMatchType =
+                    when {
+                        fuzzySimilarity >= HIGH_SIMILARITY_THRESHOLD -> MatchType.FUZZY_HIGH
+                        fuzzySimilarity >= MEDIUM_SIMILARITY_THRESHOLD -> MatchType.FUZZY_MEDIUM
+                        fuzzySimilarity >= LOW_SIMILARITY_THRESHOLD -> MatchType.FUZZY_LOW
+                        else -> MatchType.PARTIAL
+                    }
                 matchedTerms.clear()
                 matchedTerms.add(text)
             }
@@ -161,7 +173,10 @@ object SemanticSearchEngine {
         return MatchResult(bestScore, bestMatchType, matchedTerms)
     }
 
-    private fun combinedSimilarity(s1: String, s2: String): Double {
+    private fun combinedSimilarity(
+        s1: String,
+        s2: String,
+    ): Double {
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
         val jaroWinkler = jaroWinklerSimilarity(s1, s2)
         val levenshtein = 1.0 - (levenshteinDistance(s1, s2).toDouble() / max(s1.length, s2.length))
@@ -169,7 +184,10 @@ object SemanticSearchEngine {
         return (jaroWinkler * 0.4) + (levenshtein * 0.3) + (ngram * 0.3)
     }
 
-    fun levenshteinDistance(s1: String, s2: String): Int {
+    fun levenshteinDistance(
+        s1: String,
+        s2: String,
+    ): Int {
         if (s1 == s2) return 0
         val dp = Array(s1.length + 1) { IntArray(s2.length + 1) }
         for (i in 0..s1.length) dp[i][0] = i

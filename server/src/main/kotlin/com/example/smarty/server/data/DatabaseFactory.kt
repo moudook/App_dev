@@ -73,7 +73,7 @@ object DatabaseFactory {
                                 currentStmt.clear()
                             }
                         }
-                        
+
                         // Add any remaining statement
                         val remaining = currentStmt.toString().trim()
                         if (remaining.isNotEmpty() && !remaining.startsWith("--")) {
@@ -193,7 +193,10 @@ object DatabaseFactory {
                     conn.commit()
                     result
                 } catch (e: Exception) {
-                    try { conn.rollback() } catch (_: Exception) {}
+                    try {
+                        conn.rollback()
+                    } catch (_: Exception) {
+                    }
                     throw e
                 }
             }

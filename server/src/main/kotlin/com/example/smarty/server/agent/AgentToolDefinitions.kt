@@ -128,7 +128,7 @@ ACTIONS:
 - open: Launch app (app: name)
 - media: Control playback (action: play|pause|stop|next|previous|volume_up|volume_down)
 - toggle: Turn settings on/off (setting: wifi|bluetooth|flashlight|dnd|airplane, on: true|false)
-- status: Get device info (info: battery|storage|network|all)
+- status: Get device info (info: battery|all)
 - capture: Take screenshot (no args)
 
 EXAMPLES:
@@ -148,7 +148,7 @@ Use for: opening apps, media control, settings, device status.""",
                             "actionType" to ToolProperty("string", "Media action: play|pause|stop|next|previous|volume_up|volume_down", enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")),
                             "setting" to ToolProperty("string", "Setting: wifi|bluetooth|flashlight|dnd|airplane", enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")),
                             "on" to ToolProperty("boolean", "true=ON, false=OFF (toggle action)"),
-                            "info" to ToolProperty("string", "Info type: battery|storage|network|all", enum = listOf("battery", "storage", "network", "all")),
+                            "info" to ToolProperty("string", "Info type: battery|all", enum = listOf("battery", "all")),
                         ),
                     required = listOf("action"),
                 ),

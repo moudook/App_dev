@@ -206,10 +206,11 @@ class AssistViewModel(
         override fun deleteCalendarEvent(eventId: String) { calendarFeatureManager.deleteCalendarEvent(eventId) }
         override suspend fun queryCalendarEvents(query: String?): List<CalendarEvent> = if (query.isNullOrBlank()) calendarFeatureManager.getTodayEvents() else calendarFeatureManager.searchEvents(query)
         override fun bulkDeleteEvents(eventIds: List<String>) { eventIds.forEach { calendarFeatureManager.deleteCalendarEvent(it) } }
-        override fun setTimer(name: String, timeStr: String, isAlarm: Boolean) {
-            val triggerTime = calendarFeatureManager.parseDateTime(timeStr) ?: return
-            calendarFeatureManager.setTimer(name, triggerTime, isAlarm)
+        override fun setTimer(name: String, timeStr: String, isAlarm: Boolean, repeat: String?, triggerTime: Long?) {
+            val finalTriggerTime = triggerTime ?: calendarFeatureManager.parseDateTime(timeStr) ?: return
+            calendarFeatureManager.setTimer(name, finalTriggerTime, isAlarm, repeat)
         }
+        override fun listTimers() { /* No-op on thin client */ }
         override fun cancelTimer(timerId: String) { calendarFeatureManager.cancelTimer(timerId) }
         override fun bulkArchiveNotes(noteIds: List<String>) { noteOperationsManager.bulkArchiveNotes(noteIds) }
         override fun bulkDeleteNotes(noteIds: List<String>) { noteOperationsManager.bulkDeleteNotes(noteIds, _notes.value, _archivedNotes.value) }

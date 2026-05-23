@@ -272,6 +272,7 @@ CREATE TABLE IF NOT EXISTS timers (
     trigger_at TIMESTAMPTZ NOT NULL,
     is_alarm BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
+    repeat TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

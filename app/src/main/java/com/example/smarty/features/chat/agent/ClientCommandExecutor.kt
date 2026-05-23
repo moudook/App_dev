@@ -209,7 +209,11 @@ interface ClientCommandExecutor {
         name: String,
         timeStr: String,
         isAlarm: Boolean,
+        repeat: String? = null,
+        triggerTime: Long? = null,
     )
+
+    fun listTimers()
 
     fun cancelTimer(timerId: String)
 

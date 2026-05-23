@@ -24,12 +24,11 @@ import java.util.UUID
 // In the App layer, ChatViewModel.callApproval() sends back the user decision.
 
 sealed class ToolExecutionResult {
-    data class Completed(val result: String) : ToolExecutionResult()
-    data object RequiresApproval : ToolExecutionResult()
-    data object Denied : ToolExecutionResult()
+ data class Completed(val result: String) : ToolExecutionResult()
+ data object RequiresApproval : ToolExecutionResult()
+ data object Denied : ToolExecutionResult()
 }
 // ════════════════════════════════════════════════════════════════════════════════
-
 
  * Extracted tool execution logic from ServerAgent.kt
  * Handles all tool execution, parameter parsing, and result formatting
@@ -46,6 +45,7 @@ class ToolExecutor(
     private val calendarRepository: CalendarRepository?,
     private val eventEmitter: suspend (com.example.smarty.protocol.AgentEvent) -> Unit,
     private val noteService: com.example.smarty.server.services.NoteService? = null,
+    private val capabilities: com.example.smarty.protocol.DeviceCapabilities? = null,
 ) {
     private val logger = LoggerFactory.getLogger(ToolExecutor::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -117,14 +117,15 @@ class ToolExecutor(
         if (!skipApprovalGate) {
             when (requiresApproval(toolName)) {
                 ToolApprovalStatus.RequiresApproval -> {
-                    val approvalEvent = com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                        eventId = java.util.UUID.randomUUID().toString(),
-                        timestamp = System.currentTimeMillis(),
-                        toolId = java.util.UUID.randomUUID().toString(),
-                        toolName = toolName,
-                        toolTitle = permissionTitleFor(toolName),
-                        toolArgs = argsJson.take(200),
-                    )
+                    val approvalEvent =
+                        com.example.smarty.protocol.AgentEvent.ApprovalRequested(
+                            eventId = java.util.UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            toolId = java.util.UUID.randomUUID().toString(),
+                            toolName = toolName,
+                            toolTitle = permissionTitleFor(toolName),
+                            toolArgs = argsJson.take(200),
+                        )
                     emit(approvalEvent)
                     logger.info("[ToolExecutor] Approval required for $toolName (resolved from $name), emitted ApprovalRequested")
                     return "__WAITING_FOR_USER_RESPONSE__"
@@ -269,7 +270,7 @@ class ToolExecutor(
                 "add_event", "schedule_event" -> "schedule_add"
                 "show_events", "list_events" -> "schedule_list"
                 "remove_event", "delete_event" -> "schedule_remove"
-                "set_reminder" -> "remind_set"
+                "set_reminder" -> "remind"
                 "open_app", "launch_app" -> "device_open"
                 "control_music", "control_media" -> "device_media"
                 "toggle_setting" -> "device_toggle"
@@ -289,16 +290,17 @@ class ToolExecutor(
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId). AI enrichment started in background."
         } else if (noteRepository != null && args.title != null && args.content != null) {
-            val noteInfo = com.example.smarty.protocol.NoteInfo(
-                id = "",
-                title = args.title,
-                content = args.content,
-                categoryId = args.category,
-                processingStatus = "COMPLETED",
-                isAiCreated = true,
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
-            )
+            val noteInfo =
+                com.example.smarty.protocol.NoteInfo(
+                    id = "",
+                    title = args.title,
+                    content = args.content,
+                    categoryId = args.category,
+                    processingStatus = "COMPLETED",
+                    isAiCreated = true,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis(),
+                )
             val noteId = noteRepository.create(userId, noteInfo)
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId)"
@@ -323,9 +325,10 @@ class ToolExecutor(
                 results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.summary ?: it.content.take(80)}" }
             }
         } else if (noteRepository != null && args.query != null) {
-            val results = noteRepository.listByUser(userId, limit = 100).filter {
-                it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true)
-            }.take(20)
+            val results =
+                noteRepository.listByUser(userId, limit = 100).filter {
+                    it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true)
+                }.take(20)
             if (results.isEmpty()) {
                 "No notes found for '${args.query}'."
             } else {
@@ -346,11 +349,12 @@ class ToolExecutor(
     private suspend fun executeMemoryUpdate(args: UnifiedToolArgs): String {
         return if (noteRepository != null && args.id != null) {
             val existing = noteRepository.getById(userId, args.id) ?: return "Note not found: ${args.id}"
-            val updatedNote = existing.copy(
-                title = args.title ?: existing.title,
-                content = args.content ?: existing.content,
-                updatedAt = System.currentTimeMillis()
-            )
+            val updatedNote =
+                existing.copy(
+                    title = args.title ?: existing.title,
+                    content = args.content ?: existing.content,
+                    updatedAt = System.currentTimeMillis(),
+                )
             val success = noteRepository.update(userId, updatedNote)
             emitStateSync("note_updated", """{"id":"${args.id}"}""")
             if (success) "Updated note ${args.id}" else "Failed to update note ${args.id}"
@@ -411,22 +415,23 @@ class ToolExecutor(
     ): String {
         return when (args.action) {
             "add" -> {
-                val startTime = parseNaturalTime(args.`when` ?: "", clientTimezone, clientTimeMillis)
+                val startTime = parseNaturalTime(args.`when` ?: "", clientTimezone, clientTimeMillis) ?: System.currentTimeMillis()
                 val durationMs = parseDurationToMs(args.duration ?: "1 hour")
                 val endTime = startTime + durationMs
                 if (calendarRepository != null && args.title != null) {
-                    val eventInfo = com.example.smarty.protocol.CalendarEventInfo(
-                        id = "",
-                        title = args.title,
-                        startTime = startTime,
-                        endTime = endTime,
-                        description = args.description,
-                        reminderMinutes = 15,
-                        linkedNoteId = null,
-                        googleEventId = null,
-                        isEventPrivate = false,
-                        createdAt = System.currentTimeMillis()
-                    )
+                    val eventInfo =
+                        com.example.smarty.protocol.CalendarEventInfo(
+                            id = "",
+                            title = args.title,
+                            startTime = startTime,
+                            endTime = endTime,
+                            description = args.description,
+                            reminderMinutes = 15,
+                            linkedNoteId = null,
+                            googleEventId = null,
+                            isEventPrivate = false,
+                            createdAt = System.currentTimeMillis(),
+                        )
                     val eventId = calendarRepository.create(userId, eventInfo)
                     emitStateSync("event_scheduled", """{"id":"$eventId","title":"${args.title}"}""")
                     "Event added: '${args.title}'"
@@ -491,9 +496,21 @@ class ToolExecutor(
             "set" -> {
                 val whenStr = args.`when` ?: ""
                 val triggerTime = parseNaturalTime(whenStr, clientTimezone, clientTimeMillis)
-                val isAlarm = !whenStr.contains("in ") && !whenStr.contains("after ")
+                if (triggerTime == null) {
+                    return "Could not understand the time '$whenStr'. Please specify a valid time or duration."
+                }
+                val isAlarm = !whenStr.contains("in ") && !whenStr.contains("after ") && !whenStr.contains("from now") && !whenStr.matches(Regex("^(\\d+)\\s*(m(?:in)?|h(?:our|r)?|s(?:ec)?)\\b.*"))
                 if (timerRepository != null && args.what != null) {
-                    val timerId = timerRepository.create(userId, args.what, triggerAt = triggerTime, isAlarm = isAlarm)
+                    val durationMs = maxOf(0L, triggerTime - System.currentTimeMillis())
+                    val timerId =
+                        timerRepository.create(
+                            userId,
+                            args.what,
+                            durationMs = durationMs,
+                            triggerAt = triggerTime,
+                            isAlarm = isAlarm,
+                            repeat = args.repeat,
+                        )
                     emitStateSync("timer_set", """{"id":"$timerId"}""")
                     "${if (isAlarm) "Reminder" else "Timer"} set: '${args.what}'"
                 } else {
@@ -503,17 +520,42 @@ class ToolExecutor(
                             name = args.what ?: "",
                             timeStr = args.`when` ?: "",
                             isAlarm = isAlarm,
+                            repeat = args.repeat,
+                            triggerTime = triggerTime,
                         ),
                     )
                     "Reminder sent to device: ${args.what}"
                 }
             }
-            "list" -> "Listing reminders..."
+            "list" -> {
+                if (timerRepository != null) {
+                    val timers = timerRepository.listActive(userId)
+                    if (timers.isEmpty()) {
+                        "No active timers or reminders."
+                    } else {
+                        timers.joinToString("\n") { "- [${it.id}] ${it.name} at ${java.time.Instant.ofEpochMilli(it.triggerAt)}" }
+                    }
+                } else {
+                    emitDeviceCommand(
+                        AgentCommand.ListTimers(
+                            commandId = UUID.randomUUID().toString(),
+                        ),
+                    )
+                    "Listing reminders from device."
+                }
+            }
             "cancel" -> {
                 if (timerRepository != null && args.id != null) {
-                    timerRepository.delete(userId, args.id)
+                    timerRepository.deactivate(userId, args.id)
+                    emitStateSync("timer_cancelled", """{"id":"${args.id}"}""")
                     "Reminder cancelled."
                 } else {
+                    emitDeviceCommand(
+                        AgentCommand.CancelTimer(
+                            commandId = UUID.randomUUID().toString(),
+                            id = args.id ?: "",
+                        ),
+                    )
                     "Cancel request sent to device."
                 }
             }
@@ -524,11 +566,10 @@ class ToolExecutor(
     private suspend fun executeDeviceTool(args: UnifiedToolArgs): String {
         return when (args.action) {
             "open" -> {
-                val packageName = resolveAppPackage(args.app ?: "")
                 emitDeviceCommand(
                     AgentCommand.LaunchApp(
                         commandId = UUID.randomUUID().toString(),
-                        packageName = packageName,
+                        packageName = args.app ?: "",
                     ),
                 )
                 "Opening: ${args.app}"
@@ -543,6 +584,9 @@ class ToolExecutor(
                 "Media: ${args.actionType}"
             }
             "toggle" -> {
+                if (args.setting == "flashlight" && capabilities?.hardware?.flashlight == false) {
+                    return "Device does not have a flashlight."
+                }
                 emitDeviceCommand(
                     AgentCommand.ToggleSetting(
                         commandId = UUID.randomUUID().toString(),
@@ -550,7 +594,12 @@ class ToolExecutor(
                         enable = args.on ?: false,
                     ),
                 )
-                "${args.setting} ${if (args.on == true) "on" else "off"}"
+                val statusStr = when (args.on) {
+                    true -> "on"
+                    false -> "off"
+                    null -> "toggle request sent"
+                }
+                "${args.setting} $statusStr"
             }
             "status" -> {
                 emitDeviceCommand(
@@ -562,6 +611,9 @@ class ToolExecutor(
                 "Getting device ${args.info}..."
             }
             "capture" -> {
+                if (capabilities?.hardware?.screenCapture == false) {
+                    return "Device does not support screen capture."
+                }
                 emitDeviceCommand(
                     AgentCommand.TakeScreenshot(
                         commandId = UUID.randomUUID().toString(),
@@ -581,7 +633,7 @@ class ToolExecutor(
                 emitProcessing("Searching the web...", "Query: ${query.take(100)}")
                 // OpenCode CLI daemon handles web_search natively via the connected MCP.
                 // Return a directive for the LLM to use its internal websearch capability.
-                return "[Use your built-in websearch tool to search for: ${query}]"
+                return "[Use your built-in websearch tool to search for: $query]"
             }
             return "No query provided for web search."
         }
@@ -590,13 +642,14 @@ class ToolExecutor(
 
     private suspend fun executeAskUser(args: UnifiedToolArgs): String {
         val question = args.question ?: "What would you like?"
-        val options = args.options?.let { element ->
-            when (element) {
-                is kotlinx.serialization.json.JsonArray -> element.map { it.jsonPrimitive.content }
-                is kotlinx.serialization.json.JsonPrimitive -> element.content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
-                else -> emptyList()
-            }
-        } ?: emptyList()
+        val options =
+            args.options?.let { element ->
+                when (element) {
+                    is kotlinx.serialization.json.JsonArray -> element.map { it.jsonPrimitive.content }
+                    is kotlinx.serialization.json.JsonPrimitive -> element.content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+                    else -> emptyList()
+                }
+            } ?: emptyList()
         val allowCustom = args.allowCustom ?: false
         emit(
             com.example.smarty.protocol.AgentEvent.Question(
@@ -775,7 +828,7 @@ class ToolExecutor(
         expression: String,
         clientTimezone: String?,
         clientTimeMillis: Long?,
-    ): Long {
+    ): Long? {
         val now = clientTimeMillis ?: System.currentTimeMillis()
         val tz =
             try {
@@ -813,6 +866,9 @@ class ToolExecutor(
                 "saturday" to 6,
                 "sunday" to 7,
             )
+
+        var matchedAnything = isTomorrow || isNextWeek || isNextMonth
+
         var targetDay: Int? = null
         for ((day, offset) in dayOffsets) {
             if (cleanExpr.contains(day)) {
@@ -820,6 +876,7 @@ class ToolExecutor(
                 var daysUntil = offset - currentDayOfWeek
                 if (daysUntil <= 0) daysUntil += 7
                 targetDay = daysUntil
+                matchedAnything = true
                 break
             }
         }
@@ -837,6 +894,7 @@ class ToolExecutor(
         for (pattern in timePatterns) {
             val match = pattern.find(cleanExpr)
             if (match != null) {
+                matchedAnything = true
                 hour = match.groupValues[1].toInt()
                 if (match.groupValues.size > 2 && match.groupValues[2].isNotEmpty()) {
                     if (match.groupValues[2].all { it.isDigit() }) {
@@ -860,6 +918,10 @@ class ToolExecutor(
                 }
                 break
             }
+        }
+
+        if (!matchedAnything) {
+            return null
         }
 
         var resultTime = zonedNow.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
@@ -908,28 +970,12 @@ class ToolExecutor(
                 start.toInstant().toEpochMilli() to end.toInstant().toEpochMilli()
             }
             else -> {
-                val point = parseNaturalTime(whenStr, clientTimezone, clientTimeMillis)
+                val point = parseNaturalTime(whenStr, clientTimezone, clientTimeMillis) ?: now
                 point to point + 86400000
             }
         }
     }
 
-    private fun resolveAppPackage(appName: String): String {
-        return when (appName.lowercase().trim()) {
-            "spotify" -> "com.spotify.music"
-            "youtube", "yt" -> "com.google.android.youtube"
-            "chrome" -> "com.android.chrome"
-            "maps", "google maps" -> "com.google.android.apps.maps"
-            "gmail" -> "com.google.android.gm"
-            "camera" -> "com.android.camera"
-            "settings" -> "com.android.settings"
-            "calendar" -> "com.google.android.calendar"
-            "clock", "alarm" -> "com.google.android.deskclock"
-            "messages", "sms" -> "com.google.android.apps.messaging"
-            "phone", "dialer" -> "com.google.android.dialer"
-            else -> appName
-        }
-    }
 
     fun truncateToolResult(result: String): String {
         return if (result.length > 4000) {
@@ -946,7 +992,9 @@ class ToolExecutor(
     /** Maps a tool canonical name → optional human-readable title displayed in the approval card. */
     sealed class ToolApprovalStatus {
         object ExecutesNormally : ToolApprovalStatus()
+
         object RequiresApproval : ToolApprovalStatus()
+
         object NoLongerSupported : ToolApprovalStatus()
     }
 
@@ -984,17 +1032,27 @@ class ToolExecutor(
     /**
      * Short question shown in the approval card — what the tool is about to do.
      */
-    fun permissionQuestionFor(canonicalToolName: String, argsJson: String): String =
+    fun permissionQuestionFor(
+        canonicalToolName: String,
+        argsJson: String,
+    ): String =
         when (canonicalToolName) {
             "device" -> {
                 val args = parseUnifiedArgs(argsJson)
                 val action = args.action ?: "unknown"
                 when (action) {
-                    "open"  -> "Open ${args.app ?: "an app"}?"
-                    "media" -> "Control media (${
-                        args.actionType ?: "unknown"
-                    })?"
-                    "toggle" -> "Toggle ${args.setting ?: "a setting"} to ${if (args.on == true) "ON" else if (args.on == false) "OFF" else "?"}?"
+                    "open" -> "Open ${args.app ?: "an app"}?"
+                    "media" ->
+                        "Control media (${
+                            args.actionType ?: "unknown"
+                        })?"
+                    "toggle" -> "Toggle ${args.setting ?: "a setting"} to ${if (args.on == true) {
+                        "ON"
+                    } else if (args.on == false) {
+                        "OFF"
+                    } else {
+                        "?"
+                    }}?"
                     "status" -> "Check device status (${args.info ?: "full"})?"
                     "capture" -> "Take a screenshot?"
                     else -> "Execute device action '$action'?"
@@ -1013,26 +1071,28 @@ class ToolExecutor(
         val category = args.category ?: "general"
 
         val file = getProgressFile()
-        val findingsList = if (file.exists()) {
-            try {
-                json.decodeFromString<List<Map<String, String>>>(file.readText())
-            } catch (e: Exception) {
+        val findingsList =
+            if (file.exists()) {
+                try {
+                    json.decodeFromString<List<Map<String, String>>>(file.readText())
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            } else {
                 emptyList()
             }
-        } else {
-            emptyList()
-        }
 
-        val newFinding = mapOf(
-            "timestamp" to java.time.Instant.now().toString(),
-            "finding" to finding,
-            "source" to source,
-            "category" to category
-        )
+        val newFinding =
+            mapOf(
+                "timestamp" to java.time.Instant.now().toString(),
+                "finding" to finding,
+                "source" to source,
+                "category" to category,
+            )
 
         val updatedList = findingsList + newFinding
         file.writeText(json.encodeToString(updatedList))
-        
+
         return "Progress saved successfully. Finding added to category '$category'."
     }
 
@@ -1044,21 +1104,23 @@ class ToolExecutor(
             return "No research progress saved yet."
         }
 
-        val findingsList = try {
-            json.decodeFromString<List<Map<String, String>>>(file.readText())
-        } catch (e: Exception) {
-            return "Error reading progress file: ${e.message}"
-        }
+        val findingsList =
+            try {
+                json.decodeFromString<List<Map<String, String>>>(file.readText())
+            } catch (e: Exception) {
+                return "Error reading progress file: ${e.message}"
+            }
 
         if (findingsList.isEmpty()) {
             return "Research progress is empty."
         }
 
-        val filteredList = if (categoryFilter == null || categoryFilter.isBlank()) {
-            findingsList
-        } else {
-            findingsList.filter { it["category"]?.equals(categoryFilter, ignoreCase = true) == true }
-        }
+        val filteredList =
+            if (categoryFilter == null || categoryFilter.isBlank()) {
+                findingsList
+            } else {
+                findingsList.filter { it["category"]?.equals(categoryFilter, ignoreCase = true) == true }
+            }
 
         if (filteredList.isEmpty()) {
             return "No findings found in category '$categoryFilter'."

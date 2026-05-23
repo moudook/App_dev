@@ -18,7 +18,7 @@ interface LlmProvider {
         tools: List<ToolDefinition> = emptyList(),
         model: String? = null,
         externalSessionId: String? = null,
-        onExternalSessionCreated: suspend (String) -> Unit = {}
+        onExternalSessionCreated: suspend (String) -> Unit = {},
     ): LlmResponse
 
     /**
@@ -29,7 +29,7 @@ interface LlmProvider {
         tools: List<ToolDefinition> = emptyList(),
         model: String? = null,
         externalSessionId: String? = null,
-        onExternalSessionCreated: suspend (String) -> Unit = {}
+        onExternalSessionCreated: suspend (String) -> Unit = {},
     ): Flow<LlmChunk>
 }
 
@@ -69,7 +69,7 @@ data class LlmChunk(
 @Serializable
 data class LlmToolResult(
     val functionName: String,
-    val result: String
+    val result: String,
 )
 
 @Serializable

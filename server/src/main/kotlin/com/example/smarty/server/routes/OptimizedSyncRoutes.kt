@@ -285,40 +285,41 @@ fun Application.configureOptimizedSyncRoutes() {
 
                             request.notes?.forEach { noteItem ->
                                 try {
-                                    val info = com.example.smarty.protocol.NoteInfo(
-                                        id = noteItem.id ?: "",
-                                        title = noteItem.title,
-                                        content = noteItem.content,
-                                        summary = noteItem.summary,
-                                        sourceUrl = noteItem.sourceUrl,
-                                        imageUri = noteItem.imageUri,
-                                        fileUri = noteItem.fileUri,
-                                        fileName = noteItem.fileName,
-                                        fileMimeType = noteItem.fileMimeType,
-                                        fileSize = noteItem.fileSize,
-                                        type = noteItem.type,
-                                        categoryId = noteItem.categoryId,
-                                        categoryName = noteItem.categoryName,
-                                        stackId = noteItem.stackId,
-                                        parentNoteId = noteItem.parentNoteId,
-                                        whySaved = noteItem.whySaved,
-                                        processingStatus = noteItem.processingStatus,
-                                        isArchived = noteItem.isArchived,
-                                        isPinned = noteItem.isPinned,
-                                        isFavorite = noteItem.isFavorite,
-                                        isFullPrivacy = noteItem.isFullPrivacy,
-                                        excludeFromAiChat = noteItem.excludeFromAiChat,
-                                        isAiCreated = noteItem.isAiCreated,
-                                        isViewed = noteItem.isViewed,
-                                        todoContent = noteItem.todoContent,
-                                        attachmentsJson = noteItem.attachmentsJson,
-                                        tagsJson = noteItem.tagsJson,
-                                        chunkAnalysesJson = noteItem.chunkAnalysesJson,
-                                        reminderText = noteItem.reminderText,
-                                        reminderExpiresAt = noteItem.reminderExpiresAt,
-                                        createdAt = System.currentTimeMillis(),
-                                        updatedAt = noteItem.updatedAt
-                                    )
+                                    val info =
+                                        com.example.smarty.protocol.NoteInfo(
+                                            id = noteItem.id ?: "",
+                                            title = noteItem.title,
+                                            content = noteItem.content,
+                                            summary = noteItem.summary,
+                                            sourceUrl = noteItem.sourceUrl,
+                                            imageUri = noteItem.imageUri,
+                                            fileUri = noteItem.fileUri,
+                                            fileName = noteItem.fileName,
+                                            fileMimeType = noteItem.fileMimeType,
+                                            fileSize = noteItem.fileSize,
+                                            type = noteItem.type,
+                                            categoryId = noteItem.categoryId,
+                                            categoryName = noteItem.categoryName,
+                                            stackId = noteItem.stackId,
+                                            parentNoteId = noteItem.parentNoteId,
+                                            whySaved = noteItem.whySaved,
+                                            processingStatus = noteItem.processingStatus,
+                                            isArchived = noteItem.isArchived,
+                                            isPinned = noteItem.isPinned,
+                                            isFavorite = noteItem.isFavorite,
+                                            isFullPrivacy = noteItem.isFullPrivacy,
+                                            excludeFromAiChat = noteItem.excludeFromAiChat,
+                                            isAiCreated = noteItem.isAiCreated,
+                                            isViewed = noteItem.isViewed,
+                                            todoContent = noteItem.todoContent,
+                                            attachmentsJson = noteItem.attachmentsJson,
+                                            tagsJson = noteItem.tagsJson,
+                                            chunkAnalysesJson = noteItem.chunkAnalysesJson,
+                                            reminderText = noteItem.reminderText,
+                                            reminderExpiresAt = noteItem.reminderExpiresAt,
+                                            createdAt = System.currentTimeMillis(),
+                                            updatedAt = noteItem.updatedAt,
+                                        )
 
                                     if (noteItem.id != null) {
                                         val updated = noteRepository.update(userId, info, connection = conn)
@@ -343,9 +344,25 @@ fun Application.configureOptimizedSyncRoutes() {
                                     }
                                     sessionItem.messages?.forEach { msg ->
                                         if (msg.id != null) {
-                                            chatRepository.saveMessageWithId(userId, sessionItem.id, msg.id!!, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson, createdAt = msg.createdAt)
+                                            chatRepository.saveMessageWithId(
+                                                userId,
+                                                sessionItem.id,
+                                                msg.id!!,
+                                                msg.role,
+                                                msg.content,
+                                                msg.thinking,
+                                                agentStepsJson = msg.agentStepsJson,
+                                                createdAt = msg.createdAt,
+                                            )
                                         } else {
-                                            chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson)
+                                            chatRepository.saveMessage(
+                                                userId,
+                                                sessionItem.id,
+                                                msg.role,
+                                                msg.content,
+                                                msg.thinking,
+                                                agentStepsJson = msg.agentStepsJson,
+                                            )
                                         }
                                     }
                                 } catch (e: Exception) {
@@ -357,12 +374,28 @@ fun Application.configureOptimizedSyncRoutes() {
                                 try {
                                     if (eventItem.id != null) {
                                         val nonNullId = eventItem.id!!
-                                        val id = calendarRepository.createWithId(userId, nonNullId, eventItem.title, eventItem.startTime, eventItem.endTime, eventItem.description)
+                                        val id =
+                                            calendarRepository.createWithId(
+                                                userId,
+                                                nonNullId,
+                                                eventItem.title,
+                                                eventItem.startTime,
+                                                eventItem.endTime,
+                                                eventItem.description,
+                                            )
                                         if (id == nonNullId) {
                                             createdEvents.add(id)
                                         }
                                     } else {
-                                        val id = calendarRepository.create(userId, eventItem.title, eventItem.startTime, eventItem.endTime, eventItem.description, eventItem.reminderMinutes)
+                                        val id =
+                                            calendarRepository.create(
+                                                userId,
+                                                eventItem.title,
+                                                eventItem.startTime,
+                                                eventItem.endTime,
+                                                eventItem.description,
+                                                eventItem.reminderMinutes,
+                                            )
                                         createdEvents.add(id)
                                     }
                                 } catch (e: Exception) {

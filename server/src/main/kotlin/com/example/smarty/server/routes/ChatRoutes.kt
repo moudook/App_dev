@@ -15,9 +15,9 @@ import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.Stack
 import com.example.smarty.server.data.StackRepository
 import com.example.smarty.server.data.TimerRepository
-import com.example.smarty.server.data.Stack
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
@@ -164,6 +164,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             eventEmitter = { /* No streaming for briefing yet */ },
                             userId = userId,
                             noteService = noteService,
+                            capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
                         )
 
                     // Run the agent (no modelOverride - provider already selected)
@@ -293,7 +294,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val modelParam =
                     call.request.queryParameters["model"]
                         ?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
-                
+
                 // CRITICAL FIX: If client specifically requests an OpenCode free model,
                 // force the provider to OPENCODE, overriding whatever the default/fallback is.
                 val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
@@ -389,11 +390,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
 
                 // Get opencodeSessionId if session exists
-                val opencodeSessionId = if (chatRepository != null && sessionId != null) {
-                    try {
-                        chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
-                    } catch(e: Exception) { null }
-                } else null
+                val opencodeSessionId =
+                    if (chatRepository != null && sessionId != null) {
+                        try {
+                            chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
 
                 // Register active session BEFORE creating agent (needed for progressive thinking save)
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
@@ -434,20 +440,24 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
-                            val currentAgentStepsJson = if (collectedAgentSteps.isNotEmpty()) {
-                                val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                    com.example.smarty.core.domain.model.AgentStepEntry(
-                                        stepType = step.stepType,
-                                        stepTitle = step.stepTitle,
-                                        stepContent = step.stepContent,
-                                        stepStatus = step.stepStatus,
-                                        stepIndex = step.stepIndex,
-                                        toolName = step.toolName,
-                                        durationMs = step.durationMs
-                                    )
+                            val currentAgentStepsJson =
+                                if (collectedAgentSteps.isNotEmpty()) {
+                                    val entries =
+                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                                            com.example.smarty.core.domain.model.AgentStepEntry(
+                                                stepType = step.stepType,
+                                                stepTitle = step.stepTitle,
+                                                stepContent = step.stepContent,
+                                                stepStatus = step.stepStatus,
+                                                stepIndex = step.stepIndex,
+                                                toolName = step.toolName,
+                                                durationMs = step.durationMs,
+                                            )
+                                        }
+                                    json.encodeToString(entries)
+                                } else {
+                                    null
                                 }
-                                json.encodeToString(entries)
-                            } else null
 
                             if (currentThinking.isNotBlank() || currentAgentStepsJson != null) {
                                 if (messageIdParam != null) {
@@ -459,7 +469,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         content = "",
                                         thinking = currentThinking,
                                         toolCalls = currentToolCalls,
-                                        agentStepsJson = currentAgentStepsJson
+                                        agentStepsJson = currentAgentStepsJson,
                                     )
                                 } else {
                                     chatRepository?.updateMessageThinking(
@@ -467,7 +477,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         sessionId = activeSessionId,
                                         thinking = currentThinking,
                                         toolCalls = currentToolCalls,
-                                        agentStepsJson = currentAgentStepsJson
+                                        agentStepsJson = currentAgentStepsJson,
                                     )
                                 }
                             }
@@ -516,6 +526,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         eventEmitter = eventEmitter,
                         userId = userId,
                         noteService = noteService,
+                        capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
                     )
 
                 try {
@@ -523,14 +534,15 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     // This prevents timeout issues when LLM providers take 1-3 minutes to start responding
                     send(
                         ServerSentEvent(
-                            data = json.encodeToString(
-                                AgentEvent.Processing(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    content = "",
-                                    thinking = "Activating OpenCode CLI..."
+                            data =
+                                json.encodeToString(
+                                    AgentEvent.Processing(
+                                        eventId = UUID.randomUUID().toString(),
+                                        timestamp = System.currentTimeMillis(),
+                                        content = "",
+                                        thinking = "Activating OpenCode CLI...",
+                                    ),
                                 ),
-                            ),
                             event = "processing",
                         ),
                     )
@@ -551,11 +563,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 if (chatRepository != null && sessionId != null) {
                                     try {
                                         chatRepository.updateOpencodeSessionId(userId, sessionId!!, newOpencodeSessionId)
-                                    } catch(e: Exception) {
+                                    } catch (e: Exception) {
                                         call.application.log.error("Failed to update opencodeSessionId", e)
                                     }
                                 }
-                            }
+                            },
                         )
 
                     // Save Smarty Response if persistence is enabled
@@ -582,17 +594,18 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             // Convert agent steps to JSON
                             val agentStepsJson =
                                 if (collectedAgentSteps.isNotEmpty()) {
-                                    val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                        com.example.smarty.core.domain.model.AgentStepEntry(
-                                            stepType = step.stepType,
-                                            stepTitle = step.stepTitle,
-                                            stepContent = step.stepContent,
-                                            stepStatus = step.stepStatus,
-                                            stepIndex = step.stepIndex,
-                                            toolName = step.toolName,
-                                            durationMs = step.durationMs
-                                        )
-                                    }
+                                    val entries =
+                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                                            com.example.smarty.core.domain.model.AgentStepEntry(
+                                                stepType = step.stepType,
+                                                stepTitle = step.stepTitle,
+                                                stepContent = step.stepContent,
+                                                stepStatus = step.stepStatus,
+                                                stepIndex = step.stepIndex,
+                                                toolName = step.toolName,
+                                                durationMs = step.durationMs,
+                                            )
+                                        }
                                     json.encodeToString(entries)
                                 } else {
                                     null
@@ -770,6 +783,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             },
                             userId = userId,
                             noteService = noteService,
+                            capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
                         )
 
                     // Register active session to prevent digest scheduler interference
@@ -808,17 +822,18 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             // Convert agent steps to JSON
                             val agentStepsJson =
                                 if (collectedAgentSteps.isNotEmpty()) {
-                                    val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                        com.example.smarty.core.domain.model.AgentStepEntry(
-                                            stepType = step.stepType,
-                                            stepTitle = step.stepTitle,
-                                            stepContent = step.stepContent,
-                                            stepStatus = step.stepStatus,
-                                            stepIndex = step.stepIndex,
-                                            toolName = step.toolName,
-                                            durationMs = step.durationMs
-                                        )
-                                    }
+                                    val entries =
+                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                                            com.example.smarty.core.domain.model.AgentStepEntry(
+                                                stepType = step.stepType,
+                                                stepTitle = step.stepTitle,
+                                                stepContent = step.stepContent,
+                                                stepStatus = step.stepStatus,
+                                                stepIndex = step.stepIndex,
+                                                toolName = step.toolName,
+                                                durationMs = step.durationMs,
+                                            )
+                                        }
                                     json.encodeToString(entries)
                                 } else {
                                     null
@@ -868,17 +883,19 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 try {
                     val bodyText = call.receiveText()
                     val bodyJson = Json.parseToJsonElement(bodyText).jsonObject
-                    val toolId = bodyJson["toolId"]?.jsonPrimitive?.content
-                        ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing toolId"))
+                    val toolId =
+                        bodyJson["toolId"]?.jsonPrimitive?.content
+                            ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing toolId"))
                     val approved = bodyJson["approved"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                     val feedback = bodyJson["feedback"]?.jsonPrimitive?.content
 
-                    val resolved = com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(
-                        toolCallId = toolId,
-                        approved = approved,
-                        feedback = feedback,
-                        callerUserId = user.userId,
-                    )
+                    val resolved =
+                        com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(
+                            toolCallId = toolId,
+                            approved = approved,
+                            feedback = feedback,
+                            callerUserId = user.userId,
+                        )
                     if (resolved) {
                         call.respond(HttpStatusCode.OK, mapOf("status" to "resumed", "toolId" to toolId))
                     } else {
@@ -1329,8 +1346,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
-     }
- }
+    }
+}
 
 @Serializable
 data class InterruptRequest(

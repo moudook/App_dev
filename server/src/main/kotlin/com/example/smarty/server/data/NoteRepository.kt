@@ -4,10 +4,10 @@ import com.example.smarty.protocol.NoteInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import java.util.UUID
 import java.sql.Connection
-import javax.sql.DataSource
 import java.sql.ResultSet
+import java.util.UUID
+import javax.sql.DataSource
 
 /**
  * Server-side repository for notes.
@@ -184,24 +184,26 @@ class NoteRepository(
             val closeConn = connection == null
             val conn = connection ?: dataSource.connection
             try {
-                val existingNote = if (connection != null) {
-                    getByIdWithConn(connection, userId, info.id)
-                } else {
-                    getById(userId, info.id)
-                }
+                val existingNote =
+                    if (connection != null) {
+                        getByIdWithConn(connection, userId, info.id)
+                    } else {
+                        getById(userId, info.id)
+                    }
                 val contentChanged = existingNote != null && existingNote.content != info.content
 
                 if (contentChanged) {
                     val latestVersionNo = noteVersionRepo.getVersionsForNote(info.id, 1, connection).firstOrNull()?.versionNo ?: 0
                     noteVersionRepo.createVersion(
-                        version = com.example.smarty.server.data.NoteVersion(
-                            id = java.util.UUID.randomUUID().toString(),
-                            noteId = info.id,
-                            title = existingNote!!.title,
-                            content = existingNote.content,
-                            versionNo = latestVersionNo + 1,
-                            createdAt = null,
-                        ),
+                        version =
+                            com.example.smarty.server.data.NoteVersion(
+                                id = java.util.UUID.randomUUID().toString(),
+                                noteId = info.id,
+                                title = existingNote!!.title,
+                                content = existingNote.content,
+                                versionNo = latestVersionNo + 1,
+                                createdAt = null,
+                            ),
                         connection = connection,
                     )
                     noteVersionRepo.deleteOldVersions(info.id, keepCount = 10, connection = connection)
@@ -310,7 +312,10 @@ class NoteRepository(
         )
     }
 
-    suspend fun delete(userId: String, noteId: String): Boolean =
+    suspend fun delete(
+        userId: String,
+        noteId: String,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql = "UPDATE notes SET deleted_at = now(), updated_at = now() WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
@@ -322,11 +327,16 @@ class NoteRepository(
             }
         }
 
-    suspend fun search(userId: String, query: String, limit: Int = 20): List<NoteInfo> =
+    suspend fun search(
+        userId: String,
+        query: String,
+        limit: Int = 20,
+    ): List<NoteInfo> =
         withContext(Dispatchers.IO) {
             val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql = """
+                val sql =
+                    """
                     SELECT * FROM notes 
                     WHERE user_id = ?::uuid 
                     AND deleted_at IS NULL 
@@ -338,7 +348,7 @@ class NoteRepository(
                     )
                     ORDER BY updated_at DESC 
                     LIMIT ?
-                """.trimIndent()
+                    """.trimIndent()
                 val searchPattern = "%$query%"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
@@ -365,18 +375,19 @@ class NoteRepository(
         title: String,
         content: String,
         categoryId: String? = null,
-    ): String = create(
-        userId,
-        NoteInfo(
-            id = "",
-            title = title,
-            content = content,
-            categoryId = categoryId,
-            processingStatus = "COMPLETED",
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis(),
+    ): String =
+        create(
+            userId,
+            NoteInfo(
+                id = "",
+                title = title,
+                content = content,
+                categoryId = categoryId,
+                processingStatus = "COMPLETED",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            ),
         )
-    )
 
     /**
      * Backward-compatible overload: update note with individual fields.
@@ -390,12 +401,13 @@ class NoteRepository(
         categoryId: String?,
     ): Boolean {
         val existing = getById(userId, id) ?: return false
-        val updated = existing.copy(
-            title = title ?: existing.title,
-            content = content ?: existing.content,
-            categoryId = categoryId ?: existing.categoryId,
-            updatedAt = System.currentTimeMillis()
-        )
+        val updated =
+            existing.copy(
+                title = title ?: existing.title,
+                content = content ?: existing.content,
+                categoryId = categoryId ?: existing.categoryId,
+                updatedAt = System.currentTimeMillis(),
+            )
         return update(userId, updated)
     }
 

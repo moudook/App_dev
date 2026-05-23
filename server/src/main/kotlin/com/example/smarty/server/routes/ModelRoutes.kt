@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory
  */
 fun Application.configureModelRoutes() {
     val logger = LoggerFactory.getLogger("ModelRoutes")
-    
+
     routing {
         route("/api/v1/models") {
             /**
@@ -24,16 +24,17 @@ fun Application.configureModelRoutes() {
              */
             get {
                 val refresh = call.request.queryParameters["refresh"] == "true"
-                val state = if (refresh) {
-                    OpencodeModelRegistry.refreshFromCli()
-                } else {
-                    OpencodeModelRegistry.currentState()
-                }
-                
+                val state =
+                    if (refresh) {
+                        OpencodeModelRegistry.refreshFromCli()
+                    } else {
+                        OpencodeModelRegistry.currentState()
+                    }
+
                 logger.info("[ModelRoutes] GET models: {} models available", state.models.size)
                 call.respond(state)
             }
-            
+
             /**
              * POST /api/v1/models/validate - Validate if a model is available
              * Body: {"modelId": "opencode/deepseek-v4-flash-free"}
@@ -42,16 +43,19 @@ fun Application.configureModelRoutes() {
             post("/validate") {
                 val request = call.receive<ModelValidateRequest>()
                 val isValid = OpencodeModelRegistry.isAllowedFreeModel(request.modelId)
-                val model = OpencodeModelRegistry.discoveredFreeModels()
-                    .find { it.id == request.modelId }
-                
-                call.respond(ModelValidateResponse(
-                    valid = isValid,
-                    model = model,
-                    availableModels = OpencodeModelRegistry.discoveredFreeModels()
-                ))
+                val model =
+                    OpencodeModelRegistry.discoveredFreeModels()
+                        .find { it.id == request.modelId }
+
+                call.respond(
+                    ModelValidateResponse(
+                        valid = isValid,
+                        model = model,
+                        availableModels = OpencodeModelRegistry.discoveredFreeModels(),
+                    ),
+                )
             }
-            
+
             /**
              * GET /api/v1/models/default - Get the default model
              */
@@ -61,10 +65,10 @@ fun Application.configureModelRoutes() {
                     mapOf(
                         "modelId" to defaultModel,
                         "available" to defaultModel.isNotBlank(),
-                    )
+                    ),
                 )
             }
-            
+
             /**
              * POST /api/v1/models/refresh - Force refresh model list from CLI
              */
@@ -79,12 +83,12 @@ fun Application.configureModelRoutes() {
 
 @Serializable
 data class ModelValidateRequest(
-    val modelId: String
+    val modelId: String,
 )
 
 @Serializable
 data class ModelValidateResponse(
     val valid: Boolean,
     val model: com.example.smarty.server.llm.OpencodeModelInfo?,
-    val availableModels: List<com.example.smarty.server.llm.OpencodeModelInfo>
+    val availableModels: List<com.example.smarty.server.llm.OpencodeModelInfo>,
 )

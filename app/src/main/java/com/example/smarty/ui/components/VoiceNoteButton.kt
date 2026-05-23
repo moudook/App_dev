@@ -544,14 +544,16 @@ private fun LargeAmplitudeVisualizer(
                 ),
             contentAlignment = Alignment.Center
         ) {
+            val iconTint = if (isRecording) {
+                accentColor
+            } else {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            }
+            
             Icon(
                 imageVector = Icons.Default.Mic,
                 contentDescription = null, // Decorative icon - microphone button for voice recording
-                tint = if (isRecording) {
-                    accentColor
-                } else {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                },
+                tint = iconTint,
                 modifier = Modifier.size(32.dp)
             )
         }

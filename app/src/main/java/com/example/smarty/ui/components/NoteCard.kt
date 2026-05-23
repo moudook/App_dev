@@ -508,10 +508,11 @@ fun CategoryChip(
     val bg = MaterialTheme.colorScheme.surfaceVariant
     val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
 
+    val cardColor = if (isNew) accentColor.copy(alpha = Alpha.medium) else bg
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(50), 
-        color = if (isNew) accentColor.copy(alpha = Alpha.medium) else bg
+        shape = RoundedCornerShape(50),
+        color = cardColor
     ) {
         Text(
             text = name.lowercase(),

@@ -1,6 +1,5 @@
 package com.example.smarty.server.agent
 
-import com.example.smarty.protocol.AgentEvent
 import kotlinx.coroutines.CompletableDeferred
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -17,14 +16,23 @@ object ApprovalRegistry {
     private val logger = LoggerFactory.getLogger(ApprovalRegistry::class.java)
     private val pendingApprovals = ConcurrentHashMap<String, ApprovalEntry>()
 
-    fun createPendingApproval(toolCallId: String, sessionId: String, userId: String = ""): CompletableDeferred<ApprovalResult> {
+    fun createPendingApproval(
+        toolCallId: String,
+        sessionId: String,
+        userId: String = "",
+    ): CompletableDeferred<ApprovalResult> {
         val deferred = CompletableDeferred<ApprovalResult>()
         pendingApprovals[toolCallId] = ApprovalEntry(deferred, sessionId, userId)
         logger.info("[ApprovalRegistry] Created pending approval for toolCallId=$toolCallId in session=$sessionId user=$userId")
         return deferred
     }
 
-    fun resolveApproval(toolCallId: String, approved: Boolean, feedback: String?, callerUserId: String? = null): Boolean {
+    fun resolveApproval(
+        toolCallId: String,
+        approved: Boolean,
+        feedback: String?,
+        callerUserId: String? = null,
+    ): Boolean {
         val entry = pendingApprovals.remove(toolCallId)
         val deferred = entry?.deferred
         if (deferred == null) {
@@ -33,7 +41,9 @@ object ApprovalRegistry {
         }
         // Cross-user check: only the user who owns the approval can resolve it
         if (callerUserId != null && entry.userId.isNotBlank() && callerUserId != entry.userId) {
-            logger.warn("[ApprovalRegistry] CROSS-USER BLOCKED: user=$callerUserId tried to resolve toolCallId=$toolCallId owned by user=${entry.userId}")
+            logger.warn(
+                "[ApprovalRegistry] CROSS-USER BLOCKED: user=$callerUserId tried to resolve toolCallId=$toolCallId owned by user=${entry.userId}",
+            )
             pendingApprovals[toolCallId] = entry
             return false
         }

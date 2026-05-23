@@ -141,9 +141,8 @@ fun SettingsScreen(
     val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
     
     // Use passed values as defaults, but override with stored values
-    var currentPersonality by remember { 
-        mutableStateOf(if (personality != "DEFAULT") personality else securePrefs.getPersonality()) 
-    }
+    val initialPersonality = if (personality != "DEFAULT") personality else securePrefs.getPersonality()
+    var currentPersonality by remember { mutableStateOf(initialPersonality) }
     var currentProviderStrategy by remember {
         mutableStateOf(securePrefs.getProviderStrategy())
     }
@@ -335,15 +334,16 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
+                                val handleCalendarSync: (Boolean) -> Unit = { checked ->
+                                    onSetCalendarSyncEnabled(checked)
+                                    if (checked) onLoadDeviceCalendars()
+                                }
                                 SmartySettingsCard {
                                     SmartySettingsSwitchRow(
                                         label = stringResource(R.string.sync_to_google_calendar),
                                         icon = SmartyIcons.Refresh,
                                         checked = isCalendarSyncEnabled,
-                                        onCheckedChange = { 
-                                            onSetCalendarSyncEnabled(it) 
-                                            if (it) onLoadDeviceCalendars() 
-                                        }
+                                        onCheckedChange = handleCalendarSync
                                     )
 
                                     if (isCalendarSyncEnabled) {
@@ -568,13 +568,14 @@ fun SettingsScreen(
                         AboutView(onBack = { currentView = SettingsView.Main })
                     }
                     SettingsView.CalendarSelector -> {
+                         val handleSelect: (Long) -> Unit = { id ->
+                             onSetTargetCalendarId(id)
+                             currentView = SettingsView.Main 
+                         }
                          CalendarSelectorView(
                              calendars = deviceCalendars,
                              selectedId = targetCalendarId,
-                             onSelect = { 
-                                 onSetTargetCalendarId(it)
-                                 currentView = SettingsView.Main 
-                             },
+                             onSelect = handleSelect,
                              onBack = { currentView = SettingsView.Main }
                          )
                     }

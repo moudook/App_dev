@@ -49,11 +49,17 @@ class SyncRepository(private val dataSource: DataSource) {
      * Update sync status using a pre-existing connection (for transactional pushes).
      * Does NOT manage connection lifecycle — caller must commit/rollback.
      */
-    suspend fun updateSyncStatus(userId: String, connection: Connection): Unit {
+    suspend fun updateSyncStatus(
+        userId: String,
+        connection: Connection,
+    ) {
         syncStatusSql(connection, userId)
     }
 
-    private fun syncStatusSql(conn: Connection, userId: String) {
+    private fun syncStatusSql(
+        conn: Connection,
+        userId: String,
+    ) {
         val now = Timestamp(System.currentTimeMillis())
         val sql =
             """

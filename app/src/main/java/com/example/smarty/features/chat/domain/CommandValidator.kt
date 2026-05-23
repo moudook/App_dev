@@ -147,6 +147,17 @@ object CommandValidator {
             }
         }
 
+        is AgentCommand.ListTimers -> {
+            Result.Valid
+        }
+
+        is AgentCommand.CancelTimer -> {
+            when {
+                command.id.isBlank() -> Result.Invalid("id cannot be blank", "id")
+                else -> Result.Valid
+            }
+        }
+
         // === AUDIO CONTROL ===
         is AgentCommand.PlayAudio -> {
             when {
@@ -281,6 +292,8 @@ object CommandValidator {
         is AgentCommand.GetDeviceInfo -> "infoType=${command.infoType}"
         is AgentCommand.GetScreenContext -> "(no params)"
         is AgentCommand.SetTimer -> "name.len=${command.name.length} | timeStr.len=${command.timeStr.length} | isAlarm=${command.isAlarm}"
+        is AgentCommand.ListTimers -> "(no params)"
+        is AgentCommand.CancelTimer -> "id=${command.id}"
 
         // Audio control
         is AgentCommand.PlayAudio -> "query.len=${command.query.length} | service=${command.service != null}"

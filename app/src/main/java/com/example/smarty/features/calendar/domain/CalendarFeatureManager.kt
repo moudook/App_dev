@@ -196,8 +196,9 @@ class CalendarFeatureManager(
         name: String,
         triggerTime: Long,
         isAlarm: Boolean,
+        repeat: String? = null,
     ) {
-        calendarManager.setTimer(name, triggerTime, isAlarm)
+        calendarManager.setTimer(name, triggerTime, isAlarm, repeat)
     }
 
     /**

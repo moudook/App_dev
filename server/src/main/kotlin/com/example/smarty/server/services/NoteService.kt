@@ -23,25 +23,26 @@ class NoteService(
      * Create a note and trigger background enrichment.
      */
     suspend fun createNote(
-        userId: String, 
-        title: String, 
-        content: String, 
+        userId: String,
+        title: String,
+        content: String,
         categoryId: String? = null,
-        isAiCreated: Boolean = false
+        isAiCreated: Boolean = false,
     ): String {
-        val initialNote = NoteInfo(
-            id = "", // Will be generated
-            title = title,
-            content = content,
-            categoryId = categoryId,
-            processingStatus = "PROCESSING",
-            isAiCreated = isAiCreated,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
-        )
-        
+        val initialNote =
+            NoteInfo(
+                id = "", // Will be generated
+                title = title,
+                content = content,
+                categoryId = categoryId,
+                processingStatus = "PROCESSING",
+                isAiCreated = isAiCreated,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+
         val (noteId, isDuplicate) = noteRepository.createWithDuplicateStatus(userId, initialNote)
-        
+
         if (!isDuplicate) {
             // Trigger background enrichment
             serviceScope.launch {
@@ -50,83 +51,105 @@ class NoteService(
         } else {
             logger.info("Skipping background enrichment for duplicate note {}", noteId)
         }
-        
+
         return noteId
     }
 
     /**
      * Update a note and re-trigger enrichment if content changed.
      */
-    suspend fun updateNote(userId: String, noteId: String, title: String?, content: String?, categoryId: String? = null): Boolean {
+    suspend fun updateNote(
+        userId: String,
+        noteId: String,
+        title: String?,
+        content: String?,
+        categoryId: String? = null,
+    ): Boolean {
         val existing = noteRepository.getById(userId, noteId) ?: return false
-        
-        val updatedNote = existing.copy(
-            title = title ?: existing.title,
-            content = content ?: existing.content,
-            categoryId = categoryId ?: existing.categoryId,
-            updatedAt = System.currentTimeMillis()
-        )
-        
+
+        val updatedNote =
+            existing.copy(
+                title = title ?: existing.title,
+                content = content ?: existing.content,
+                categoryId = categoryId ?: existing.categoryId,
+                updatedAt = System.currentTimeMillis(),
+            )
+
         val success = noteRepository.update(userId, updatedNote)
-        
+
         if (success && (content != null || title != null)) {
             serviceScope.launch {
                 enrichNote(userId, noteId, updatedNote.title, updatedNote.content)
             }
         }
-        
+
         return success
     }
 
     /**
      * Background job to enrich note metadata using AI.
      */
-    private suspend fun enrichNote(userId: String, noteId: String, title: String, content: String) {
+    private suspend fun enrichNote(
+        userId: String,
+        noteId: String,
+        title: String,
+        content: String,
+    ) {
         try {
             logger.info("Enriching note $noteId for user $userId")
-            
+
             val existing = noteRepository.getById(userId, noteId) ?: return
-            
+
             if (existing.isAiCreated) {
                 logger.info("Skipping enrichment for AI-created note $noteId to prevent infinite processing loops")
-                val markedNote = existing.copy(
-                    processingStatus = "COMPLETED",
-                    updatedAt = System.currentTimeMillis()
-                )
+                val markedNote =
+                    existing.copy(
+                        processingStatus = "COMPLETED",
+                        updatedAt = System.currentTimeMillis(),
+                    )
                 noteRepository.update(userId, markedNote)
-                
-                vectorStore.store(userId, content, mapOf(
-                    "id" to noteId,
-                    "title" to title,
-                    "summary" to (existing.summary ?: ""),
-                    "category" to (existing.categoryName ?: "note")
-                ))
+
+                vectorStore.store(
+                    userId,
+                    content,
+                    mapOf(
+                        "id" to noteId,
+                        "title" to title,
+                        "summary" to (existing.summary ?: ""),
+                        "category" to (existing.categoryName ?: "note"),
+                    ),
+                )
                 return
             }
-            
+
             val analysis = contentAnalysisService.analyzeContent(content)
-            
+
             if (analysis.success) {
                 val existing = noteRepository.getById(userId, noteId) ?: return
-                val enrichedNote = existing.copy(
-                    summary = analysis.summary,
-                    categoryName = analysis.category,
-                    whySaved = analysis.whySaved,
-                    todoContent = analysis.todos.joinToString("\n"),
-                    processingStatus = "COMPLETED",
-                    updatedAt = System.currentTimeMillis()
-                )
-                
+                val enrichedNote =
+                    existing.copy(
+                        summary = analysis.summary,
+                        categoryName = analysis.category,
+                        whySaved = analysis.whySaved,
+                        todoContent = analysis.todos.joinToString("\n"),
+                        processingStatus = "COMPLETED",
+                        updatedAt = System.currentTimeMillis(),
+                    )
+
                 noteRepository.update(userId, enrichedNote)
-                
+
                 // Also update the vector store for semantic search
-                vectorStore.store(userId, content, mapOf(
-                    "id" to noteId,
-                    "title" to title,
-                    "summary" to (analysis.summary ?: ""),
-                    "category" to (analysis.category ?: "note")
-                ))
-                
+                vectorStore.store(
+                    userId,
+                    content,
+                    mapOf(
+                        "id" to noteId,
+                        "title" to title,
+                        "summary" to (analysis.summary ?: ""),
+                        "category" to (analysis.category ?: "note"),
+                    ),
+                )
+
                 logger.info("Successfully enriched note $noteId")
             }
         } catch (e: Exception) {
@@ -134,10 +157,11 @@ class NoteService(
             try {
                 val existingFailed = noteRepository.getById(userId, noteId)
                 if (existingFailed != null) {
-                    val failedNote = existingFailed.copy(
-                        processingStatus = "FAILED",
-                        updatedAt = System.currentTimeMillis()
-                    )
+                    val failedNote =
+                        existingFailed.copy(
+                            processingStatus = "FAILED",
+                            updatedAt = System.currentTimeMillis(),
+                        )
                     noteRepository.update(userId, failedNote)
                 }
             } catch (inner: Exception) {
@@ -149,18 +173,25 @@ class NoteService(
     /**
      * Advanced hybrid search (FTS + Semantic).
      */
-    suspend fun searchNotes(userId: String, query: String, limit: Int = 20): List<NoteInfo> {
+    suspend fun searchNotes(
+        userId: String,
+        query: String,
+        limit: Int = 20,
+    ): List<NoteInfo> {
         // 1. Get all candidates from DB using FTS
         val dbResults = noteRepository.listByUser(userId, limit = 100)
-        
+
         // 2. Apply adaptive semantic search on candidates
         return adaptiveSearchService.search(query, dbResults, limit)
     }
 
     suspend fun getNotes(userId: String): List<NoteInfo> = noteRepository.listByUser(userId)
-    
-    suspend fun getNote(userId: String, noteId: String): NoteInfo? = noteRepository.getById(userId, noteId)
-    
+
+    suspend fun getNote(
+        userId: String,
+        noteId: String,
+    ): NoteInfo? = noteRepository.getById(userId, noteId)
+
     suspend fun deleteNote(
         userId: String,
         noteId: String,

@@ -12,7 +12,10 @@ object ActiveEventBridge {
 
     private val emitters = ConcurrentHashMap<String, suspend (AgentEvent) -> Unit>()
 
-    fun register(userId: String, emitter: suspend (AgentEvent) -> Unit) {
+    fun register(
+        userId: String,
+        emitter: suspend (AgentEvent) -> Unit,
+    ) {
         emitters[userId] = emitter
         logger.info("[ActiveEventBridge] Registered active SSE emitter for user: $userId")
     }
@@ -22,7 +25,10 @@ object ActiveEventBridge {
         logger.info("[ActiveEventBridge] Cleared active SSE emitter for user: $userId")
     }
 
-    suspend fun emit(sessionId: String?, event: AgentEvent) {
+    suspend fun emit(
+        sessionId: String?,
+        event: AgentEvent,
+    ) {
         val sid = sessionId
         if (sid == null) {
             logger.warn("[ActiveEventBridge] emit() called with null sessionId — refusing to guess target session")

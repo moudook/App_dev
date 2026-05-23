@@ -5,14 +5,14 @@ import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
-import java.io.File
-import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import java.io.File
 
 /**
  * Health check response model.
@@ -92,11 +92,14 @@ fun Application.configureHealthRoutes() {
                 } else {
                     OpencodeModelRegistry.currentState()
                 }
-            
+
             // Log what we're returning
-            call.application.log.info("[ModelsAPI] Returning {} models: {}", 
-                state.models.size, state.models.map { it.id })
-            
+            call.application.log.info(
+                "[ModelsAPI] Returning {} models: {}",
+                state.models.size,
+                state.models.map { it.id },
+            )
+
             call.respond(state)
         }
 
@@ -128,12 +131,13 @@ fun Application.configureHealthRoutes() {
                     server = health,
                     activeSessions = activeSessions.map { it.toString() },
                     recentActivities = recentActivities.map { it.toString() },
-                    environment = EnvironmentInfo(
-                        jvmVersion = System.getProperty("java.version"),
-                        availableProcessors = Runtime.getRuntime().availableProcessors().toString(),
-                        freeMemoryMb = (Runtime.getRuntime().freeMemory() / (1024 * 1024)).toString(),
-                        totalMemoryMb = (Runtime.getRuntime().totalMemory() / (1024 * 1024)).toString(),
-                    ),
+                    environment =
+                        EnvironmentInfo(
+                            jvmVersion = System.getProperty("java.version"),
+                            availableProcessors = Runtime.getRuntime().availableProcessors().toString(),
+                            freeMemoryMb = (Runtime.getRuntime().freeMemory() / (1024 * 1024)).toString(),
+                            totalMemoryMb = (Runtime.getRuntime().totalMemory() / (1024 * 1024)).toString(),
+                        ),
                 ),
             )
         }

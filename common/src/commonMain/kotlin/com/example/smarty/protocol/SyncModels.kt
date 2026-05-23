@@ -51,6 +51,7 @@ data class TimerInfo(
     val isAlarm: Boolean,
     val isActive: Boolean,
     val createdAt: Long,
+    val repeat: String? = null,
 )
 
 @Serializable

@@ -38,6 +38,7 @@ class ServerAgent(
     private val eventEmitter: suspend (AgentEvent) -> Unit,
     private val userId: String = "dev-user",
     private val noteService: com.example.smarty.server.services.NoteService? = null,
+    private val capabilities: com.example.smarty.protocol.DeviceCapabilities? = null,
 ) {
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
 
@@ -59,6 +60,7 @@ class ServerAgent(
             calendarRepository = calendarRepository,
             eventEmitter = eventEmitter,
             noteService = noteService,
+            capabilities = capabilities,
         )
     private val tracer: AgentTracer =
         CompositeTracer(

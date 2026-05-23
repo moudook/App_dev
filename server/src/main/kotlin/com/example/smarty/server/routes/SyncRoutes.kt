@@ -263,9 +263,25 @@ fun Application.configureSyncRoutes() {
 
                                 sessionItem.messages?.forEach { msg ->
                                     if (msg.id != null) {
-                                        chatRepository.saveMessageWithId(userId, sessionItem.id, msg.id!!, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson, createdAt = msg.createdAt)
+                                        chatRepository.saveMessageWithId(
+                                            userId,
+                                            sessionItem.id,
+                                            msg.id!!,
+                                            msg.role,
+                                            msg.content,
+                                            msg.thinking,
+                                            agentStepsJson = msg.agentStepsJson,
+                                            createdAt = msg.createdAt,
+                                        )
                                     } else {
-                                        chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking, agentStepsJson = msg.agentStepsJson)
+                                        chatRepository.saveMessage(
+                                            userId,
+                                            sessionItem.id,
+                                            msg.role,
+                                            msg.content,
+                                            msg.thinking,
+                                            agentStepsJson = msg.agentStepsJson,
+                                        )
                                     }
                                 }
                             } catch (e: Exception) {
@@ -417,7 +433,7 @@ fun Application.configureSyncRoutes() {
                             request.role,
                             request.content,
                             request.thinking,
-                            agentStepsJson = request.agentStepsJson
+                            agentStepsJson = request.agentStepsJson,
                         )
                         call.respond(HttpStatusCode.OK)
                     } catch (e: Exception) {

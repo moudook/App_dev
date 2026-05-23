@@ -458,6 +458,20 @@ class ChatViewModel(
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
 
+                    // ── Question flow ──
+                    is com.example.smarty.protocol.AgentEvent.Question -> {
+                        val clarificationRequest = com.example.smarty.core.domain.model.ClarificationRequest(
+                            question = event.question,
+                            options = event.options,
+                            allowCustomInput = event.allowCustom
+                        )
+                        currentStreamingMessage = currentStreamingMessage.copy(
+                            clarificationRequest = clarificationRequest,
+                            agentEvents = agentEventsBuilder.toList()
+                        )
+                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                    }
+
                     // ── Errors ──
                     is com.example.smarty.protocol.AgentEvent.Error -> {
                         Log.e(TAG, "Agent error: ${event.message}")

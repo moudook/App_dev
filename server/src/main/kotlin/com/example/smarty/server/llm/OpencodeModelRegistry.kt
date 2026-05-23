@@ -60,8 +60,9 @@ object OpencodeModelRegistry {
         get() = System.getenv("OPENCODE_ZEN_API_KEY")?.takeIf { it.isNotBlank() }
 
     val zenBaseUrl: String
-        get() = System.getenv("OPENCODE_ZEN_BASE_URL")?.takeIf { it.isNotBlank() }
-            ?: "https://gateway.opencode.ai/v1"
+        get() =
+            System.getenv("OPENCODE_ZEN_BASE_URL")?.takeIf { it.isNotBlank() }
+                ?: "https://gateway.opencode.ai/v1"
 
     val isDirectZenMode: Boolean
         get() = !zenApiKey.isNullOrBlank()
@@ -87,67 +88,77 @@ object OpencodeModelRegistry {
         logger.info("[OpencodeModelRegistry] === PHASE 1: Model Discovery ===")
         logger.info("[OpencodeModelRegistry] Running 'opencode models' to discover free models at runtime...")
 
-        val models = runCatching {
-            val workDir = java.io.File(System.getProperty("user.dir"))
-            logger.info("[OpencodeModelRegistry] Working directory: {}", workDir.absolutePath)
+        val models =
+            runCatching {
+                val workDir = java.io.File(System.getProperty("user.dir"))
+                logger.info("[OpencodeModelRegistry] Working directory: {}", workDir.absolutePath)
 
-            val cliStart = System.currentTimeMillis()
-            val process = ProcessBuilder(listOf("opencode", "models"))
-                .directory(workDir)
-                .redirectErrorStream(true)
-                .start()
+                val cliStart = System.currentTimeMillis()
+                val process =
+                    ProcessBuilder(listOf("opencode", "models"))
+                        .directory(workDir)
+                        .redirectErrorStream(true)
+                        .start()
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val lines = mutableListOf<String>()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                lines.add(line!!)
+                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                val lines = mutableListOf<String>()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    lines.add(line!!)
+                }
+
+                val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+                val cliDuration = System.currentTimeMillis() - cliStart
+
+                if (!completed) {
+                    process.destroyForcibly()
+                    throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
+                }
+
+                val exitCode = process.exitValue()
+                logger.info(
+                    "[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
+                    cliDuration,
+                    exitCode,
+                    lines.size,
+                )
+
+                if (exitCode != 0) {
+                    logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+                    lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
+                } else {
+                    lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
+                }
+
+                parseAndSortFreeModels(lines)
+            }.getOrElse { error ->
+                logger.error("[OpencodeModelRegistry] Discovery failed: {}", error.message)
+                emptyList()
             }
-
-            val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
-            val cliDuration = System.currentTimeMillis() - cliStart
-
-            if (!completed) {
-                process.destroyForcibly()
-                throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
-            }
-
-            val exitCode = process.exitValue()
-            logger.info("[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
-                cliDuration, exitCode, lines.size)
-
-            if (exitCode != 0) {
-                logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
-                lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
-            } else {
-                lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
-            }
-
-            parseAndSortFreeModels(lines)
-        }.getOrElse { error ->
-            logger.error("[OpencodeModelRegistry] Discovery failed: {}", error.message)
-            emptyList()
-        }
 
         discoveredModels.set(models)
 
         if (models.isEmpty()) {
             logger.error("[OpencodeModelRegistry] CRITICAL: ZERO free models discovered! Chat will fail.")
         } else {
-            logger.info("[OpencodeModelRegistry] Discovery complete in {}ms — {} free models:",
-                System.currentTimeMillis() - start, models.size)
+            logger.info(
+                "[OpencodeModelRegistry] Discovery complete in {}ms — {} free models:",
+                System.currentTimeMillis() - start,
+                models.size,
+            )
             models.forEachIndexed { i, m ->
                 logger.info("[OpencodeModelRegistry]   [${i + 1}] {} ({})", m.id, m.label)
             }
             logger.info("[OpencodeModelRegistry] Default model (first discovered): {}", models.first().id)
         }
 
-        val state = OpencodeModelState(
-            defaultModel = models.firstOrNull()?.id ?: "",
-            activeModel = models.firstOrNull()?.id ?: "",
-            models = models,
-            source = if (models.isEmpty()) "none" else "cli-discovered",
-        )
+        val state =
+            OpencodeModelState(
+                defaultModel = models.firstOrNull()?.id ?: "",
+                activeModel = models.firstOrNull()?.id ?: "",
+                models = models,
+                source = if (models.isEmpty()) "none" else "cli-discovered",
+            )
         cachedState.set(state)
         logger.info("[OpencodeModelRegistry] === PHASE 1 COMPLETE ===")
     }
@@ -207,7 +218,7 @@ object OpencodeModelRegistry {
             logger.info("[OpencodeModelRegistry] Cache stale — triggering background refresh to avoid blocking agent")
             // Update the timestamp right away so we don't spawn multiple coroutines
             cachedState.set(state.copy(updatedAt = now))
-            
+
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
                     refreshFromCli()
@@ -228,14 +239,84 @@ object OpencodeModelRegistry {
             val refreshStart = System.currentTimeMillis()
             logger.info("[OpencodeModelRegistry] === PHASE: Runtime Model Refresh ===")
 
-            val discovered = runCatching {
-                val workDir = java.io.File(System.getProperty("user.dir"))
-                val cliStart = System.currentTimeMillis()
+            val discovered =
+                runCatching {
+                    val workDir = java.io.File(System.getProperty("user.dir"))
+                    val cliStart = System.currentTimeMillis()
 
-                val process = ProcessBuilder(listOf("opencode", "models"))
-                    .directory(workDir)
-                    .redirectErrorStream(true)
-                    .start()
+                    val process =
+                        ProcessBuilder(listOf("opencode", "models"))
+                            .directory(workDir)
+                            .redirectErrorStream(true)
+                            .start()
+
+                    val reader = BufferedReader(InputStreamReader(process.inputStream))
+                    val lines = mutableListOf<String>()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        lines.add(line!!)
+                    }
+
+                    val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+                    val cliDuration = System.currentTimeMillis() - cliStart
+
+                    if (!completed) {
+                        process.destroyForcibly()
+                        throw IllegalStateException("opencode models timed out")
+                    }
+
+                    val exitCode = process.exitValue()
+                    logger.info(
+                        "[OpencodeModelRegistry] CLI exited in {}ms — code: {}, lines: {}",
+                        cliDuration,
+                        exitCode,
+                        lines.size,
+                    )
+
+                    if (exitCode != 0) {
+                        lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
+                    }
+
+                    parseAndSortFreeModels(lines)
+                }.getOrElse { error ->
+                    logger.warn("[OpencodeModelRegistry] Refresh failed: {}", error.message)
+                    emptyList()
+                }
+
+            val finalModels = discovered.ifEmpty { discoveredModels.get() }
+            discoveredModels.set(finalModels)
+
+            val newState =
+                OpencodeModelState(
+                    defaultModel = finalModels.firstOrNull()?.id ?: "",
+                    activeModel = requireAllowedFreeModel(null),
+                    models = finalModels,
+                    source = if (discovered.isEmpty()) "cached" else "cli-discovered",
+                    updatedAt = System.currentTimeMillis(),
+                )
+            cachedState.set(newState)
+
+            logger.info(
+                "[OpencodeModelRegistry] Refresh complete in {}ms — {} models (source: {})",
+                System.currentTimeMillis() - refreshStart,
+                finalModels.size,
+                newState.source,
+            )
+            finalModels.forEach { logger.info("[OpencodeModelRegistry]   - {} ({})", it.id, it.label) }
+            logger.info("[OpencodeModelRegistry] === PHASE COMPLETE ===")
+            newState
+        }
+
+    private fun runBlockingRefresh(): OpencodeModelState {
+        val start = System.currentTimeMillis()
+        val discovered =
+            runCatching {
+                val workDir = java.io.File(System.getProperty("user.dir"))
+                val process =
+                    ProcessBuilder(listOf("opencode", "models"))
+                        .directory(workDir)
+                        .redirectErrorStream(true)
+                        .start()
 
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
                 val lines = mutableListOf<String>()
@@ -244,93 +325,40 @@ object OpencodeModelRegistry {
                     lines.add(line!!)
                 }
 
-                val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
-                val cliDuration = System.currentTimeMillis() - cliStart
-
+                val completed = process.waitFor(12_000L, TimeUnit.MILLISECONDS)
                 if (!completed) {
                     process.destroyForcibly()
                     throw IllegalStateException("opencode models timed out")
                 }
 
-                val exitCode = process.exitValue()
-                logger.info("[OpencodeModelRegistry] CLI exited in {}ms — code: {}, lines: {}",
-                    cliDuration, exitCode, lines.size)
-
-                if (exitCode != 0) {
-                    lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
+                if (process.exitValue() != 0) {
+                    logger.warn("[OpencodeModelRegistry] CLI exited with code ${process.exitValue()}")
                 }
 
                 parseAndSortFreeModels(lines)
             }.getOrElse { error ->
-                logger.warn("[OpencodeModelRegistry] Refresh failed: {}", error.message)
+                logger.warn("[OpencodeModelRegistry] Blocking refresh failed: {}", error.message)
                 emptyList()
             }
-
-            val finalModels = discovered.ifEmpty { discoveredModels.get() }
-            discoveredModels.set(finalModels)
-
-            val newState = OpencodeModelState(
-                defaultModel = finalModels.firstOrNull()?.id ?: "",
-                activeModel = requireAllowedFreeModel(null),
-                models = finalModels,
-                source = if (discovered.isEmpty()) "cached" else "cli-discovered",
-                updatedAt = System.currentTimeMillis(),
-            )
-            cachedState.set(newState)
-
-            logger.info("[OpencodeModelRegistry] Refresh complete in {}ms — {} models (source: {})",
-                System.currentTimeMillis() - refreshStart, finalModels.size, newState.source)
-            finalModels.forEach { logger.info("[OpencodeModelRegistry]   - {} ({})", it.id, it.label) }
-            logger.info("[OpencodeModelRegistry] === PHASE COMPLETE ===")
-            newState
-        }
-
-    private fun runBlockingRefresh(): OpencodeModelState {
-        val start = System.currentTimeMillis()
-        val discovered = runCatching {
-            val workDir = java.io.File(System.getProperty("user.dir"))
-            val process = ProcessBuilder(listOf("opencode", "models"))
-                .directory(workDir)
-                .redirectErrorStream(true)
-                .start()
-
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val lines = mutableListOf<String>()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                lines.add(line!!)
-            }
-
-            val completed = process.waitFor(12_000L, TimeUnit.MILLISECONDS)
-            if (!completed) {
-                process.destroyForcibly()
-                throw IllegalStateException("opencode models timed out")
-            }
-
-            if (process.exitValue() != 0) {
-                logger.warn("[OpencodeModelRegistry] CLI exited with code ${process.exitValue()}")
-            }
-
-            parseAndSortFreeModels(lines)
-        }.getOrElse { error ->
-            logger.warn("[OpencodeModelRegistry] Blocking refresh failed: {}", error.message)
-            emptyList()
-        }
 
         val finalModels = discovered.ifEmpty { discoveredModels.get() }
         discoveredModels.set(finalModels)
 
-        val newState = OpencodeModelState(
-            defaultModel = finalModels.firstOrNull()?.id ?: "",
-            activeModel = finalModels.firstOrNull()?.id ?: "",
-            models = finalModels,
-            source = if (discovered.isEmpty()) "cached" else "cli-discovered",
-            updatedAt = System.currentTimeMillis(),
-        )
+        val newState =
+            OpencodeModelState(
+                defaultModel = finalModels.firstOrNull()?.id ?: "",
+                activeModel = finalModels.firstOrNull()?.id ?: "",
+                models = finalModels,
+                source = if (discovered.isEmpty()) "cached" else "cli-discovered",
+                updatedAt = System.currentTimeMillis(),
+            )
         cachedState.set(newState)
 
-        logger.info("[OpencodeModelRegistry] Blocking refresh complete in {}ms — {} models",
-            System.currentTimeMillis() - start, finalModels.size)
+        logger.info(
+            "[OpencodeModelRegistry] Blocking refresh complete in {}ms — {} models",
+            System.currentTimeMillis() - start,
+            finalModels.size,
+        )
         return newState
     }
 
@@ -364,11 +392,12 @@ object OpencodeModelRegistry {
         logger.info("[OpencodeModelRegistry] Parsed {} total free models from CLI, taking top {}", sorted.size, top3.size)
 
         return top3.map { modelId ->
-            val label = modelId
-                .removePrefix("opencode/")
-                .replace(Regex("[-.]+"), " ")
-                .split(" ")
-                .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
+            val label =
+                modelId
+                    .removePrefix("opencode/")
+                    .replace(Regex("[-.]+"), " ")
+                    .split(" ")
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
             OpencodeModelInfo(id = modelId, label = label)
         }
     }

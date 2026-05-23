@@ -119,4 +119,3 @@ abstract class BaseRepository(protected val dataSource: DataSource) {
             }
         }
 }
-

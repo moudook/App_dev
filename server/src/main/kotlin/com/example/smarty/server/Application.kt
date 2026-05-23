@@ -37,7 +37,6 @@ import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
-import com.example.smarty.server.tools.WebScrapeTool
 import com.example.smarty.server.routes.configureNewFeaturesRoutes
 import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.data.TaskRepository
@@ -88,9 +87,11 @@ val serverStartTime = System.currentTimeMillis()
 fun main() {
     val server = embeddedServer(Netty, port = serverPort, host = "0.0.0.0", module = Application::module)
 
-    Runtime.getRuntime().addShutdownHook(Thread {
-        server.stop(gracePeriodMillis = 5000, timeoutMillis = 10000)
-    })
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            server.stop(gracePeriodMillis = 5000, timeoutMillis = 10000)
+        },
+    )
 
     server.start(wait = true)
 }
@@ -110,13 +111,15 @@ fun Application.module() {
 
     // Configure CORS (Allow Android client + HF Spaces + common development origins)
     install(CORS) {
-        val allowedOrigins = (System.getenv("ALLOWED_ORIGINS")?.split(",")?.map { it.trim() }?.toSet()
-            ?: setOf(
-                "http://localhost:7860",
-                "http://127.0.0.1:7860",
-                "https://huggingface.co",
-                "https://*.huggingface.co",
-            ))
+        val allowedOrigins = (
+            System.getenv("ALLOWED_ORIGINS")?.split(",")?.map { it.trim() }?.toSet()
+                ?: setOf(
+                    "http://localhost:7860",
+                    "http://127.0.0.1:7860",
+                    "https://huggingface.co",
+                    "https://*.huggingface.co",
+                )
+        )
         for (origin in allowedOrigins) {
             val parts = origin.split("://", limit = 2)
             if (parts.size == 2) {
@@ -194,32 +197,35 @@ fun Application.module() {
         val calendarEventNotesRepo = CalendarEventNotesRepository(ds)
         val chatRepo = ChatRepository(ds, chatMessageNotesRepo)
 
-        digestService = DigestService(
-            dataSource = ds,
-            chatRepository = chatRepo,
-            vectorStore = PostgresVectorStore(),
-            llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-        )
+        digestService =
+            DigestService(
+                dataSource = ds,
+                chatRepository = chatRepo,
+                vectorStore = PostgresVectorStore(),
+                llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
+            )
 
         val fcmService = FcmNotificationService.fromEnvironment(ds)
-        digestScheduler = DigestScheduler(
-            application = this,
-            dataSource = ds,
-            digestService = digestService,
-            fcmService = fcmService,
-        )
+        digestScheduler =
+            DigestScheduler(
+                application = this,
+                dataSource = ds,
+                digestService = digestService,
+                fcmService = fcmService,
+            )
         digestScheduler.start()
 
         val noteRepo = NoteRepository(ds, chatMessageNotesRepo, calendarEventNotesRepo)
-        val noteService = com.example.smarty.server.services.NoteService(
-            noteRepo,
-            com.example.smarty.server.services.ContentAnalysisService(
-                HttpClientSingleton.client,
-                VisionService(HttpClientSingleton.client)
-            ),
-            PostgresVectorStore(),
-            com.example.smarty.server.services.AdaptiveSearchService()
-        )
+        val noteService =
+            com.example.smarty.server.services.NoteService(
+                noteRepo,
+                com.example.smarty.server.services.ContentAnalysisService(
+                    HttpClientSingleton.client,
+                    VisionService(HttpClientSingleton.client),
+                ),
+                PostgresVectorStore(),
+                com.example.smarty.server.services.AdaptiveSearchService(),
+            )
 
         // Configure routes
         configureHealthRoutes()
@@ -246,10 +252,11 @@ fun Application.module() {
         configureUtilityRoutes(utilityService)
         log.info("UtilityRoutes configured")
 
-        val orchestratorService = OrchestratorService(
-            visionService = VisionService(HttpClientSingleton.client),
-            kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
-        )
+        val orchestratorService =
+            OrchestratorService(
+                visionService = VisionService(HttpClientSingleton.client),
+                kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
+            )
         configureOrchestratorRoutes(orchestratorService)
         log.info("OrchestratorRoutes configured")
 
@@ -264,13 +271,14 @@ fun Application.module() {
         configureModelRoutes()
         log.info("ModelRoutes configured")
 
-        val mcpServer = com.example.smarty.server.mcp.McpServer(
-            vectorStore = PostgresVectorStore(),
-            noteRepository = noteRepo,
-            timerRepository = TimerRepository(ds),
-            calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
-            noteService = noteService
-        )
+        val mcpServer =
+            com.example.smarty.server.mcp.McpServer(
+                vectorStore = PostgresVectorStore(),
+                noteRepository = noteRepo,
+                timerRepository = TimerRepository(ds),
+                calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
+                noteService = noteService,
+            )
         // Wire McpServer approval events into the SSE stream so Android
         // receives ApprovalRequested/Granted/Denied in real time.
         mcpServer.eventEmitter = { event ->
@@ -292,7 +300,11 @@ fun Application.module() {
                 get("/generated-images/{id}") {
                     val user = call.principal<FirebaseUserPrincipal>()
                     if (user == null) {
-                        call.respondText("{\"error\":\"Authentication required\"}", ContentType.Application.Json, HttpStatusCode.Unauthorized)
+                        call.respondText(
+                            "{\"error\":\"Authentication required\"}",
+                            ContentType.Application.Json,
+                            HttpStatusCode.Unauthorized,
+                        )
                         return@get
                     }
 
@@ -305,13 +317,21 @@ fun Application.module() {
                     try {
                         java.util.UUID.fromString(imageId)
                     } catch (e: IllegalArgumentException) {
-                        call.respondText("{\"error\": \"Invalid image ID format\"}", ContentType.Application.Json, HttpStatusCode.BadRequest)
+                        call.respondText(
+                            "{\"error\": \"Invalid image ID format\"}",
+                            ContentType.Application.Json,
+                            HttpStatusCode.BadRequest,
+                        )
                         return@get
                     }
 
                     val dataSource = DatabaseFactory.getDataSource()
                     if (dataSource == null) {
-                        call.respondText("{\"error\": \"Database not available\"}", ContentType.Application.Json, HttpStatusCode.ServiceUnavailable)
+                        call.respondText(
+                            "{\"error\": \"Database not available\"}",
+                            ContentType.Application.Json,
+                            HttpStatusCode.ServiceUnavailable,
+                        )
                         return@get
                     }
 
@@ -325,17 +345,22 @@ fun Application.module() {
                         }
 
                         val (bytes, contentType) = imageData
-                        val mimeType = when {
-                            contentType.contains("png") -> ContentType.Image.PNG
-                            contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
-                            contentType.contains("gif") -> ContentType.Image.GIF
-                            contentType.contains("webp") -> ContentType("image", "webp")
-                            else -> ContentType.Image.Any
-                        }
+                        val mimeType =
+                            when {
+                                contentType.contains("png") -> ContentType.Image.PNG
+                                contentType.contains("jpg") || contentType.contains("jpeg") -> ContentType.Image.JPEG
+                                contentType.contains("gif") -> ContentType.Image.GIF
+                                contentType.contains("webp") -> ContentType("image", "webp")
+                                else -> ContentType.Image.Any
+                            }
                         call.respondBytes(bytes, mimeType)
                     } catch (e: Exception) {
                         call.application.log.error("Failed to serve image", e)
-                        call.respondText("{\"error\": \"Failed to serve image\"}", ContentType.Application.Json, HttpStatusCode.InternalServerError)
+                        call.respondText(
+                            "{\"error\": \"Failed to serve image\"}",
+                            ContentType.Application.Json,
+                            HttpStatusCode.InternalServerError,
+                        )
                     }
                 }
             }
@@ -351,13 +376,14 @@ fun Application.module() {
         configureModelRoutes()
 
         // Register MCP even without DB so opencode CLI can connect
-        val mcpServer = com.example.smarty.server.mcp.McpServer(
-            vectorStore = PostgresVectorStore(),
-            noteRepository = null,
-            timerRepository = null,
-            calendarRepository = null,
-            noteService = null
-        )
+        val mcpServer =
+            com.example.smarty.server.mcp.McpServer(
+                vectorStore = PostgresVectorStore(),
+                noteRepository = null,
+                timerRepository = null,
+                calendarRepository = null,
+                noteService = null,
+            )
         routing {
             mcpServer.configureRouting(this)
         }
@@ -401,5 +427,3 @@ fun Application.configureSecurityMonitoring() {
     logger.info("  - SecurityHeaders: Security header management")
     logger.info("  - SecurityMonitor: Security event tracking and monitoring")
 }
-
-

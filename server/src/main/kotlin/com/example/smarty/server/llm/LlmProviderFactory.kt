@@ -15,12 +15,13 @@ import org.slf4j.LoggerFactory
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
 
-    private val daemonJson = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        explicitNulls = false
-        isLenient = true
-    }
+    private val daemonJson =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+            explicitNulls = false
+            isLenient = true
+        }
 
     @Volatile
     private var cachedProvider: LlmProvider? = null
@@ -63,8 +64,11 @@ object LlmProviderFactory {
 
     fun create(client: HttpClient): LlmProvider {
         val resolvedModel = OpencodeModelRegistry.requireAllowedFreeModel(null)
-        logger.info("[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, daemon port={}",
-            resolvedModel, 4096)
+        logger.info(
+            "[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, daemon port={}",
+            resolvedModel,
+            4096,
+        )
 
         return OpencodeLlmProvider(
             client = client,

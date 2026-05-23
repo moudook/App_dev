@@ -314,7 +314,12 @@ class TagRepository(private val dataSource: DataSource) {
             notes
         }
 
-    suspend fun addTagToNote(noteId: String, tagId: String, userId: String, assignedBy: String = "user"): Boolean =
+    suspend fun addTagToNote(
+        noteId: String,
+        tagId: String,
+        userId: String,
+        assignedBy: String = "user",
+    ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql =
@@ -335,7 +340,10 @@ class TagRepository(private val dataSource: DataSource) {
             }
         }
 
-    suspend fun removeTagFromNote(noteId: String, tagId: String): Boolean =
+    suspend fun removeTagFromNote(
+        noteId: String,
+        tagId: String,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
                 val sql = "DELETE FROM note_tags WHERE note_id = ? AND tag_id = ?"
@@ -391,8 +399,8 @@ class TagRepository(private val dataSource: DataSource) {
                 } finally {
                     conn.autoCommit = true
                 }
+            }
         }
-    }
 
     private fun ResultSet.toTag(): Tag {
         return Tag(
@@ -827,7 +835,10 @@ class UserDeviceRepository(private val dataSource: DataSource) {
 class NoteVersionRepository(private val dataSource: DataSource) {
     private val logger = LoggerFactory.getLogger(NoteVersionRepository::class.java)
 
-    suspend fun createVersion(version: NoteVersion, connection: java.sql.Connection? = null): String =
+    suspend fun createVersion(
+        version: NoteVersion,
+        connection: java.sql.Connection? = null,
+    ): String =
         withContext(Dispatchers.IO) {
             val closeConn = connection == null
             val conn = connection ?: dataSource.connection
@@ -946,7 +957,7 @@ class NoteVersionRepository(private val dataSource: DataSource) {
                 if (closeConn) conn.close()
             }
         }
-    }
+}
 
 /**
  * Shared Items Repository (v6.0.0 schema)

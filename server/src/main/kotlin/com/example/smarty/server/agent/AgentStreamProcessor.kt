@@ -2,10 +2,6 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.llm.LlmUsage
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -88,8 +84,8 @@ class AgentStreamProcessor(
         this.emit(
             AgentEvent.ReasoningStarted(
                 eventId = UUID.randomUUID().toString(),
-                timestamp = currentThinkingStepStart
-            )
+                timestamp = currentThinkingStepStart,
+            ),
         )
         this.emit(
             AgentEvent.AgentStep(
@@ -101,22 +97,22 @@ class AgentStreamProcessor(
                 stepContent = "",
                 stepStatus = "started",
                 subagentId = currentSubagentId,
-            )
+            ),
         )
     }
 
     private suspend fun streamThinkingContent(content: String) {
         currentThinkingContent.append(content)
         val now = System.currentTimeMillis()
-        
+
         this.emit(
             AgentEvent.ReasoningDelta(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = now,
-                text = content
-            )
+                text = content,
+            ),
         )
-        
+
         if (now - lastThinkingStepEmitTime < THINKING_STEP_THROTTLE_MS) return
         lastThinkingStepEmitTime = now
         currentThinkingStepId?.let { stepId ->
@@ -130,7 +126,7 @@ class AgentStreamProcessor(
                     stepContent = currentThinkingContent.toString(),
                     stepStatus = "streaming",
                     subagentId = currentSubagentId,
-                )
+                ),
             )
         }
     }
@@ -150,32 +146,42 @@ class AgentStreamProcessor(
                 stepStatus = "completed",
                 durationMs = duration,
                 subagentId = currentSubagentId,
-            )
+            ),
         )
         this.emit(
             AgentEvent.ReasoningFinished(
                 eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis()
-            )
+                timestamp = System.currentTimeMillis(),
+            ),
         )
         currentThinkingStepId = null
         currentThinkingContent.clear()
     }
 
-    private suspend fun emitOpenCodeToolStep(toolName: String, status: String, content: String = "") {
-        val displayName = when (toolName.lowercase()) {
-            "web_search", "websearch" -> "Searching the web"
-            "read_file" -> "Reading file"
-            "bash" -> "Running command"
-            "write_file" -> "Writing file"
-            else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
-        }
-        val stepId = lastOpenCodeToolStepId ?: UUID.randomUUID().toString().also {
-            lastOpenCodeToolStepId = it
-            lastOpenCodeToolStart = System.currentTimeMillis()
-        }
-        val duration = if (status == "completed" || status == "failed")
-            System.currentTimeMillis() - lastOpenCodeToolStart else null
+    private suspend fun emitOpenCodeToolStep(
+        toolName: String,
+        status: String,
+        content: String = "",
+    ) {
+        val displayName =
+            when (toolName.lowercase()) {
+                "web_search", "websearch" -> "Searching the web"
+                "read_file" -> "Reading file"
+                "bash" -> "Running command"
+                "write_file" -> "Writing file"
+                else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            }
+        val stepId =
+            lastOpenCodeToolStepId ?: UUID.randomUUID().toString().also {
+                lastOpenCodeToolStepId = it
+                lastOpenCodeToolStart = System.currentTimeMillis()
+            }
+        val duration =
+            if (status == "completed" || status == "failed") {
+                System.currentTimeMillis() - lastOpenCodeToolStart
+            } else {
+                null
+            }
         this.emit(
             AgentEvent.AgentStep(
                 eventId = stepId,
@@ -188,28 +194,32 @@ class AgentStreamProcessor(
                 toolName = toolName,
                 durationMs = duration,
                 subagentId = currentSubagentId,
-            )
+            ),
         )
-        
+
         if (status == "started") {
-            this.emit(AgentEvent.ToolCallStarted(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = stepId,
-                name = toolName,
-                source = "opencode",
-                subagentId = currentSubagentId,
-            ))
+            this.emit(
+                AgentEvent.ToolCallStarted(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = stepId,
+                    name = toolName,
+                    source = "opencode",
+                    subagentId = currentSubagentId,
+                ),
+            )
         } else if (status == "completed" || status == "failed") {
-            this.emit(AgentEvent.ToolCallFinished(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = stepId,
-                durationMs = duration ?: 0L,
-                subagentId = currentSubagentId,
-            ))
+            this.emit(
+                AgentEvent.ToolCallFinished(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = stepId,
+                    durationMs = duration ?: 0L,
+                    subagentId = currentSubagentId,
+                ),
+            )
         }
-        
+
         if (status == "completed" || status == "failed") lastOpenCodeToolStepId = null
     }
 
@@ -221,14 +231,15 @@ class AgentStreamProcessor(
         outputSummary: String = "",
         durationMs: Long? = null,
     ) {
-        val displayName = when (toolName.lowercase()) {
-            "read_notes", "search_notes" -> "Reading notes"
-            "create_note", "add_note" -> "Creating note"
-            "read_calendar", "get_events" -> "Checking calendar"
-            "add_event", "create_event" -> "Adding calendar event"
-            "web_search" -> "Searching the web"
-            else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
-        }
+        val displayName =
+            when (toolName.lowercase()) {
+                "read_notes", "search_notes" -> "Reading notes"
+                "create_note", "add_note" -> "Creating note"
+                "read_calendar", "get_events" -> "Checking calendar"
+                "add_event", "create_event" -> "Adding calendar event"
+                "web_search" -> "Searching the web"
+                else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            }
         val stepId = UUID.randomUUID().toString()
         this.emit(
             AgentEvent.AgentStep(
@@ -237,32 +248,40 @@ class AgentStreamProcessor(
                 stepIndex = if (status == "started") stepIndex++ else stepIndex - 1,
                 stepType = "tool_call",
                 stepTitle = displayName,
-                stepContent = if (status == "completed") outputSummary.take(300)
-                              else inputSummary.take(300),
+                stepContent =
+                    if (status == "completed") {
+                        outputSummary.take(300)
+                    } else {
+                        inputSummary.take(300)
+                    },
                 stepStatus = status,
                 toolName = toolName,
                 durationMs = durationMs,
                 subagentId = currentSubagentId,
-            )
+            ),
         )
-        
+
         if (status == "started") {
-            this.emit(AgentEvent.ToolCallStarted(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = stepId,
-                name = toolName,
-                source = "custom",
-                subagentId = currentSubagentId,
-            ))
+            this.emit(
+                AgentEvent.ToolCallStarted(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = stepId,
+                    name = toolName,
+                    source = "custom",
+                    subagentId = currentSubagentId,
+                ),
+            )
         } else if (status == "completed" || status == "failed") {
-            this.emit(AgentEvent.ToolCallFinished(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = stepId,
-                durationMs = durationMs ?: 0L,
-                subagentId = currentSubagentId,
-            ))
+            this.emit(
+                AgentEvent.ToolCallFinished(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = stepId,
+                    durationMs = durationMs ?: 0L,
+                    subagentId = currentSubagentId,
+                ),
+            )
         }
     }
 
@@ -286,7 +305,7 @@ class AgentStreamProcessor(
                     displayName = "Finished ${currentToolName.replace('_', ' ')}",
                     status = "completed",
                     inputSummary = currentToolArgs,
-                )
+                ),
             )
         }
 
@@ -369,7 +388,6 @@ class AgentStreamProcessor(
 
             // Strip tool call XML from user-visible content
 
-
             if (thinkingPart.isNotEmpty()) {
                 thinkingStorage.addReasoning(sessionId, thinkingPart)
                 streamThinkingContent(thinkingPart) // Feed into AgentStep
@@ -378,21 +396,25 @@ class AgentStreamProcessor(
             if (cleanContent.isNotEmpty()) {
                 // Finalize any open thinking step when real content arrives
                 if (currentThinkingStepId != null) finalizeThinkingStep()
-                
+
                 if (!hasStartedFinalAnswer) {
                     hasStartedFinalAnswer = true
-                    this.emit(AgentEvent.FinalAnswerStarted(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = System.currentTimeMillis()
-                    ))
+                    this.emit(
+                        AgentEvent.FinalAnswerStarted(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                        ),
+                    )
                 }
-                
-                this.emit(AgentEvent.FinalAnswerDelta(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    text = cleanContent
-                ))
-                
+
+                this.emit(
+                    AgentEvent.FinalAnswerDelta(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        text = cleanContent,
+                    ),
+                )
+
                 currentContent += cleanContent
             }
 
@@ -429,15 +451,15 @@ class AgentStreamProcessor(
             if (toolCall.id.isNotEmpty()) currentToolId = toolCall.id
             if (toolCall.functionName.isNotEmpty()) currentToolName = toolCall.functionName
             currentToolArgs += toolCall.arguments
-            
+
             if (toolCall.arguments.isNotEmpty()) {
                 this.emit(
                     AgentEvent.ToolCallInput(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
                         toolId = lastOpenCodeToolStepId ?: currentToolId,
-                        inputDelta = toolCall.arguments
-                    )
+                        inputDelta = toolCall.arguments,
+                    ),
                 )
             }
         }
@@ -459,7 +481,7 @@ class AgentStreamProcessor(
                     ),
                 )
             }
-            
+
             // Emit the tool result itself as a discrete agent step so the UI can display the output
             val stepId = UUID.randomUUID().toString()
             this.emit(
@@ -472,17 +494,17 @@ class AgentStreamProcessor(
                     stepContent = toolResult.result,
                     stepStatus = "completed",
                     toolName = toolResult.functionName,
-                    durationMs = 0
-                )
+                    durationMs = 0,
+                ),
             )
-            
+
             this.emit(
                 AgentEvent.ToolCallOutput(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
                     toolId = lastOpenCodeToolStepId ?: currentToolId,
-                    output = toolResult.result
-                )
+                    output = toolResult.result,
+                ),
             )
         }
     }
@@ -511,7 +533,7 @@ class AgentStreamProcessor(
                     displayName = "Finished ${currentToolName.replace('_', ' ')}",
                     status = "completed",
                     inputSummary = currentToolArgs,
-                )
+                ),
             )
         }
 
@@ -543,8 +565,8 @@ class AgentStreamProcessor(
         this.emit(
             AgentEvent.FinalAnswerFinished(
                 eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis()
-            )
+                timestamp = System.currentTimeMillis(),
+            ),
         )
 
         thinkingStorage.clear(sessionId)

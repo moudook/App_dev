@@ -112,6 +112,21 @@ sealed class AgentCommand {
         val name: String,
         @SerialName("time_str") val timeStr: String,
         @SerialName("is_alarm") val isAlarm: Boolean,
+        val repeat: String? = null,
+        @SerialName("trigger_time") val triggerTime: Long? = null,
+    ) : AgentCommand()
+
+    @Serializable
+    @SerialName("list_timers")
+    data class ListTimers(
+        override val commandId: String,
+    ) : AgentCommand()
+
+    @Serializable
+    @SerialName("cancel_timer")
+    data class CancelTimer(
+        override val commandId: String,
+        val id: String,
     ) : AgentCommand()
 
     @Serializable
