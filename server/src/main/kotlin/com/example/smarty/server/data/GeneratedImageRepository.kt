@@ -144,7 +144,7 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             val sql =
                 """
                 SELECT * FROM generated_images 
-                WHERE user_id = ?
+                WHERE user_id = ?::uuid
                 ORDER BY created_at DESC
                 LIMIT ?
                 """.trimIndent()
