@@ -280,7 +280,7 @@ class AgentStateManager(
 
                 **HOW TO USE `ask_user`:**
                 ```json
-                {"question": "Clear, specific question", "options": ["Option 1", "Option 2", "Option 3"], "allow_custom": true/false}
+                {"questions": [{"question": "Clear, specific question", "options": ["Option 1", "Option 2"], "allow_custom": true}]}
                 ```
 
                 **WRONG (will be penalized):**

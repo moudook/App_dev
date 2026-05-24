@@ -21,11 +21,18 @@ import com.example.smarty.core.domain.model.ClarificationRequest
 
 @Composable
 fun InteractiveQuestionBlock(
-    request: ClarificationRequest,
+    requests: List<ClarificationRequest>,
     onSubmit: (String) -> Unit,
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (requests.isEmpty()) return
+
+    var currentIndex by remember { mutableIntStateOf(0) }
+    val answers = remember { mutableStateListOf<String>() }
+
+    val currentRequest = requests.getOrNull(currentIndex) ?: return
+
     // Dynamic theme colors instead of forced dark mode as per user request
     val backgroundColor = MaterialTheme.colorScheme.surfaceVariant
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -48,7 +55,7 @@ fun InteractiveQuestionBlock(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = request.question,
+                    text = currentRequest.question,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Medium,
                         fontSize = 18.sp
@@ -62,7 +69,7 @@ fun InteractiveQuestionBlock(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "< 1 of 1 >",
+                        text = "< ${currentIndex + 1} of ${requests.size} >",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = textColor.copy(alpha = 0.6f)
                         )
@@ -80,14 +87,25 @@ fun InteractiveQuestionBlock(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            val handleSubmit = { answer: String ->
+                answers.add(answer)
+                if (currentIndex < requests.size - 1) {
+                    currentIndex++
+                } else {
+                    // Combine all answers into a single string for now
+                    val finalResponse = answers.joinToString("\n") { it }
+                    onSubmit(finalResponse)
+                }
+            }
+
             // Options List
-            request.options.forEachIndexed { index, option ->
+            currentRequest.options.forEachIndexed { index, option ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { onSubmit(option) }
+                        .clickable { handleSubmit(option) }
                         .padding(vertical = 12.dp)
                 ) {
                     Box(
@@ -126,7 +144,7 @@ fun InteractiveQuestionBlock(
             }
 
             // Custom Input Option
-            if (request.allowCustomInput) {
+            if (currentRequest.allowCustomInput) {
                 var isEditing by remember { mutableStateOf(false) }
                 var customText by remember { mutableStateOf("") }
                 
@@ -166,7 +184,7 @@ fun InteractiveQuestionBlock(
                             )
                         )
                         Button(
-                            onClick = { if (customText.isNotBlank()) onSubmit(customText) },
+                            onClick = { if (customText.isNotBlank()) handleSubmit(customText) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Transparent,
                                 contentColor = textColor

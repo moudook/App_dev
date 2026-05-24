@@ -200,7 +200,7 @@ fun ChatScreen(
         val clarificationMsg = msgWithClarification
         if (clarificationMsg?.clarificationRequest != null) {
             com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                request = clarificationMsg.clarificationRequest!!,
+                requests = listOf(clarificationMsg.clarificationRequest!!),
                 onSubmit = { response ->
                     viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                 },
@@ -211,34 +211,62 @@ fun ChatScreen(
             )
         } else if (pendingApproval != null && pendingApproval!!.toolName == "ask_user") {
             val approval = pendingApproval!!
-            var parsedQuestion = "Please provide input:"
-            var parsedOptions = emptyList<String>()
-            var parsedAllowCustom = true
+            val parsedRequests = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
             
             try {
                 val json = org.json.JSONObject(approval.toolArgs)
-                parsedQuestion = json.optString("question", parsedQuestion)
-                parsedAllowCustom = json.optBoolean("allow_custom", true)
+                val questionsArray = json.optJSONArray("questions")
                 
-                val optionsArray = json.optJSONArray("options")
-                if (optionsArray != null) {
-                    val list = mutableListOf<String>()
-                    for (i in 0 until optionsArray.length()) {
-                        list.add(optionsArray.getString(i))
+                if (questionsArray != null && questionsArray.length() > 0) {
+                    for (i in 0 until questionsArray.length()) {
+                        val qObj = questionsArray.getJSONObject(i)
+                        val qText = qObj.optString("question", "Please provide input:")
+                        val qAllowCustom = qObj.optBoolean("allow_custom", true)
+                        val qOptions = mutableListOf<String>()
+                        
+                        val optArr = qObj.optJSONArray("options")
+                        if (optArr != null) {
+                            for (j in 0 until optArr.length()) {
+                                qOptions.add(optArr.getString(j))
+                            }
+                        }
+                        
+                        parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                            question = qText,
+                            options = qOptions,
+                            allowCustomInput = qAllowCustom
+                        ))
                     }
-                    parsedOptions = list
+                } else {
+                    // Fallback to old format if 'questions' array is missing
+                    val qText = json.optString("question", "Please provide input:")
+                    val qAllowCustom = json.optBoolean("allow_custom", true)
+                    val qOptions = mutableListOf<String>()
+                    val optArr = json.optJSONArray("options")
+                    if (optArr != null) {
+                        for (j in 0 until optArr.length()) {
+                            qOptions.add(optArr.getString(j))
+                        }
+                    }
+                    parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                        question = qText,
+                        options = qOptions,
+                        allowCustomInput = qAllowCustom
+                    ))
                 }
             } catch (e: Exception) {
                 // Ignore parsing errors and use defaults
+                if (parsedRequests.isEmpty()) {
+                    parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                        question = "Please provide input:",
+                        options = emptyList(),
+                        allowCustomInput = true
+                    ))
+                }
             }
             
-            val syntheticRequest = com.example.smarty.core.domain.model.ClarificationRequest(
-                question = parsedQuestion,
-                options = parsedOptions,
-                allowCustomInput = parsedAllowCustom
-            )
             com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                request = syntheticRequest,
+                requests = parsedRequests,
                 onSubmit = { response ->
                     viewModel.callApproval(approval.toolId, true, response)
                 },

@@ -111,4 +111,7 @@ data class ToolProperty(
     val type: String,
     val description: String? = null,
     val enum: List<String>? = null,
+    val items: ToolProperty? = null,
+    val properties: Map<String, ToolProperty>? = null,
+    val required: List<String>? = null,
 )

@@ -1711,7 +1711,7 @@ fun InputStreamScreen(
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
                     if (showClarificationBlock) {
                         com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                            request = activeClarificationMessage!!.clarificationRequest!!,
+                            requests = listOf(activeClarificationMessage!!.clarificationRequest!!),
                             onSubmit = { response ->
                                 onClarificationSubmit(activeClarificationMessage.id, response)
                             },

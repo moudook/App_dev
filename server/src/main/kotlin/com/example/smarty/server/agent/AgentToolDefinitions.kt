@@ -243,39 +243,44 @@ Use for: generating images, creating artwork, visualizing scenes, drawing, paint
                 ),
         )
 
-    /**
-     * Ask user tool for structured questions (multiple choice).
-     * Sends a Question event to the client which renders interactive cards.
-     */
     val askUserTool: ToolDefinition =
         ToolDefinition(
             name = "ask_user",
-            description = """Ask the user a structured question with multiple choice options.
+            description = """Ask the user one or more structured questions with multiple choice options.
 
 Use this when you need clarification, preferences, or choices from the user.
-The question will appear as interactive cards in the chat.
+The questions will appear sequentially as interactive cards in the chat, with options and an optional text input block.
 
 RULES:
-- Provide 2-5 clear options
-- Keep question concise (1 sentence)
-- Options should be distinct and non-overlapping
-- Set allow_custom=true if free-text input should also be accepted
+- Provide 1 or more questions in the 'questions' array.
+- For each question, provide 2-5 clear, distinct, non-overlapping options.
+- Keep questions concise (1 sentence).
+- Set allow_custom=true if free-text input should also be accepted.
 
 EXAMPLES:
-- ask_user(question='What type of notes do you want to create?', options=['Meeting notes', 'Daily journal', 'Research notes', 'Quick ideas'], allow_custom=false)
-- ask_user(question='How detailed should the summary be?', options=['Brief overview', 'Detailed analysis', 'Bullet points'], allow_custom=true)
-- ask_user(question='Which time works best?', options=['Morning (9am)', 'Afternoon (2pm)', 'Evening (6pm)'], allow_custom=false)
+- ask_user(questions=[{"question": "What type of notes do you want to create?", "options": ["Meeting notes", "Daily journal", "Research notes"], "allow_custom": false}])
+- ask_user(questions=[{"question": "Which time works best?", "options": ["Morning", "Afternoon"], "allow_custom": false}, {"question": "How long should the session be?", "options": ["30 mins", "1 hour"], "allow_custom": true}])
 
 Use for: clarification, preference gathering, scoping research, multi-choice decisions.""",
             parameters =
                 ToolParameters(
                     properties =
                         mapOf(
-                            "question" to ToolProperty("string", "The question to ask the user"),
-                            "options" to ToolProperty("array", "List of 2-5 multiple choice options"),
-                            "allow_custom" to ToolProperty("boolean", "Whether to allow free-text input (default: false)"),
+                            "questions" to ToolProperty(
+                                type = "array",
+                                description = "List of questions to ask sequentially.",
+                                items = ToolProperty(
+                                    type = "object",
+                                    properties = mapOf(
+                                        "question" to ToolProperty("string", "The question to ask the user"),
+                                        "options" to ToolProperty("array", "List of 2-5 multiple choice options", items = ToolProperty("string")),
+                                        "allow_custom" to ToolProperty("boolean", "Whether to allow free-text input (default: false)")
+                                    ),
+                                    required = listOf("question", "options")
+                                )
+                            )
                         ),
-                    required = listOf("question", "options"),
+                    required = listOf("questions"),
                 ),
         )
 
