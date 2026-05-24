@@ -109,8 +109,22 @@ class ToolExecutor(
             return executeGenerateImage(argsJson)
         }
 
-        val args = parseUnifiedArgs(argsJson)
-        val toolName = mapOldToolNames(name)
+        val originalArgs = parseUnifiedArgs(argsJson)
+        val mappedName = mapOldToolNames(name)
+
+        val (toolName, args) = when (mappedName) {
+            "schedule_add" -> "schedule" to originalArgs.copy(action = "add")
+            "schedule_list" -> "schedule" to originalArgs.copy(action = "list")
+            "schedule_remove" -> "schedule" to originalArgs.copy(action = "remove")
+            "device_open" -> "device" to originalArgs.copy(action = "open")
+            "device_media" -> "device" to originalArgs.copy(action = "media")
+            "device_toggle" -> "device" to originalArgs.copy(action = "toggle")
+            "device_status" -> "device" to originalArgs.copy(action = "status")
+            "device_capture" -> "device" to originalArgs.copy(action = "capture")
+            "navigate_go" -> "navigate" to originalArgs.copy(action = "go")
+            "navigate_share" -> "navigate" to originalArgs.copy(action = "share")
+            else -> mappedName to originalArgs
+        }
 
         // === PERMISSION GATE ===
         // Check if the resolved canonical tool name requires user approval.

@@ -42,6 +42,12 @@ private fun JsonElement?.deepStr(): String? {
     return this.toString()
 }
 
+private fun JsonElement?.rawJsonStr(): String? {
+    if (this == null || this is JsonNull) return null
+    if (this is JsonPrimitive) return this.contentOrNull
+    return this.toString()
+}
+
 class OpencodeLlmProvider(
     private val client: HttpClient,
     override val providerName: String = "OpenCode CLI",
@@ -293,7 +299,7 @@ class OpencodeLlmProvider(
                             CanonicalPart(
                                 "tool_use",
                                 toolName = (call["name"] ?: call["tool"] ?: call["function"]).deepStr(),
-                                toolArgs = (call["arguments"] ?: call["input"])?.toString(),
+                                toolArgs = (call["arguments"] ?: call["args"] ?: call["input"])?.rawJsonStr(),
                                 subagentId = sid,
                             )
                         }
@@ -317,7 +323,7 @@ class OpencodeLlmProvider(
             val sid = part["subagent_id"].safeStr ?: topSubagentId
             val content = part.deepStr()
             val toolName = (part["tool"] ?: part["name"] ?: part["function"] ?: json["name"]).deepStr()
-            val toolArgs = (part["input"] ?: part["arguments"] ?: json["input"] ?: json["arguments"])?.toString()
+            val toolArgs = (part["arguments"] ?: part["args"] ?: part["input"] ?: json["arguments"] ?: json["args"] ?: json["input"])?.rawJsonStr()
 
             return when (type) {
                 "text", "content" -> CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = sid)))

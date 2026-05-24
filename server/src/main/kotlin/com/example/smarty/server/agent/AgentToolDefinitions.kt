@@ -248,8 +248,10 @@ Use for: generating images, creating artwork, visualizing scenes, drawing, paint
             name = "ask_user",
             description = """Ask the user one or more structured questions with multiple choice options.
 
-Use this when you need clarification, preferences, or choices from the user.
-The questions will appear sequentially as interactive cards in the chat, with options and an optional text input block.
+IMPORTANT UI BEHAVIOR:
+When you call this tool, it modifies and replaces the user's standard chat input block with an interactive UI card.
+This card displays your question alongside the selectable options and an optional text input block.
+There can be multiple questions in a single ask_user tool call, which will appear sequentially.
 
 RULES:
 - Provide 1 or more questions in the 'questions' array.

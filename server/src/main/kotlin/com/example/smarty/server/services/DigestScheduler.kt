@@ -45,8 +45,8 @@ class DigestScheduler(
     // Track users being processed for weekly digests to prevent duplicates
     private val processingWeeklyUsers = ConcurrentHashMap<String, Boolean>()
 
-    // Check interval (5 minutes)
-    private val checkIntervalMs = 5 * 60 * 1000L
+    // Check interval (5 hours)
+    private val checkIntervalMs = 5 * 60 * 60 * 1000L
 
     /**
      * Start the scheduler. Called on server startup.
@@ -76,7 +76,7 @@ class DigestScheduler(
     }
 
     /**
-     * Main check loop - runs every 5 minutes.
+     * Main check loop - runs every 5 hours.
      * Checks all users and generates digests if due.
      *
      * FIXED: Uses atomic putIfAbsent to prevent race condition

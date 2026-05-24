@@ -59,7 +59,7 @@ object ActiveSessionManager {
     ) {
         mutex.withLock {
             val now = System.currentTimeMillis()
-            activeSessions[userId] =
+            activeSessions[sessionId] =
                 SessionInfo(
                     sessionId = sessionId,
                     userId = userId,
@@ -76,8 +76,9 @@ object ActiveSessionManager {
      */
     suspend fun updateActivity(userId: String) {
         mutex.withLock {
-            activeSessions[userId]?.let { info ->
-                activeSessions[userId] = info.copy(lastActivity = System.currentTimeMillis())
+            // Update all sessions for this user
+            activeSessions.values.filter { it.userId == userId }.forEach { info ->
+                activeSessions[info.sessionId] = info.copy(lastActivity = System.currentTimeMillis())
             }
         }
     }
@@ -90,9 +91,9 @@ object ActiveSessionManager {
         sessionId: String,
     ) {
         mutex.withLock {
-            val info = activeSessions[userId]
-            if (info?.sessionId == sessionId) {
-                activeSessions.remove(userId)
+            val info = activeSessions[sessionId]
+            if (info?.userId == userId) {
+                activeSessions.remove(sessionId)
                 logger.debug("Session ended: userId=$userId, sessionId=$sessionId")
             }
         }
@@ -103,7 +104,7 @@ object ActiveSessionManager {
      */
     suspend fun hasActiveSession(userId: String): Boolean {
         cleanupStaleSessions()
-        return activeSessions.containsKey(userId)
+        return activeSessions.values.any { it.userId == userId }
     }
 
     /**
@@ -119,7 +120,7 @@ object ActiveSessionManager {
      */
     suspend fun getActiveUsers(): Set<String> {
         cleanupStaleSessions()
-        return activeSessions.keys.toSet()
+        return activeSessions.values.mapNotNull { it.userId }.toSet()
     }
 
     /**
@@ -133,7 +134,7 @@ object ActiveSessionManager {
     /**
      * Get session info for a user.
      */
-    fun getSessionInfo(userId: String): SessionInfo? = activeSessions[userId]
+    fun getSessionInfo(userId: String): SessionInfo? = activeSessions.values.find { it.userId == userId }
 
     /**
      * Remove stale sessions that have timed out.
@@ -141,15 +142,17 @@ object ActiveSessionManager {
     private suspend fun cleanupStaleSessions() {
         mutex.withLock {
             val now = System.currentTimeMillis()
-            val staleUsers =
+            val staleSessions =
                 activeSessions.entries
                     .filter { now - it.value.lastActivity > SESSION_TIMEOUT_MS }
                     .map { it.key }
 
-            staleUsers.forEach { userId ->
-                val info = activeSessions.remove(userId)
-                ActiveEventBridge.clear(userId)
-                logger.info("Removed stale session: userId=$userId, sessionId=${info?.sessionId}")
+            staleSessions.forEach { sessionId ->
+                val info = activeSessions.remove(sessionId)
+                if (info?.userId != null && !activeSessions.values.any { it.userId == info.userId }) {
+                    ActiveEventBridge.clear(info.userId)
+                }
+                logger.info("Removed stale session: userId=${info?.userId}, sessionId=$sessionId")
             }
         }
     }

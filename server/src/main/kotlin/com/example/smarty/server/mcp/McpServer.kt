@@ -15,6 +15,7 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.ToolDefinition
+import com.example.smarty.server.llm.ToolProperty
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.services.NoteService
 import io.ktor.http.*
@@ -207,6 +208,21 @@ class McpServer(
             )
         }
 
+    private fun ToolProperty.toJsonSchema(): JsonObject = buildJsonObject {
+        put("type", type)
+        description?.let { put("description", it) }
+        enum?.let { enumList -> put("enum", buildJsonArray { enumList.forEach { add(it) } }) }
+        items?.let { put("items", it.toJsonSchema()) }
+        properties?.let { props ->
+            put("properties", buildJsonObject {
+                props.forEach { (k, v) -> put(k, v.toJsonSchema()) }
+            })
+        }
+        required?.takeIf { it.isNotEmpty() }?.let { reqList ->
+            put("required", buildJsonArray { reqList.forEach { add(it) } })
+        }
+    }
+
     private fun handleToolsList() =
         buildJsonObject {
             put(
@@ -225,19 +241,7 @@ class McpServer(
                                             "properties",
                                             buildJsonObject {
                                                 tool.parameters.properties.forEach { (key, prop) ->
-                                                    put(
-                                                        key,
-                                                        buildJsonObject {
-                                                            put("type", prop.type)
-                                                            put("description", prop.description)
-                                                            if (prop.enum != null) {
-                                                                put(
-                                                                    "enum",
-                                                                    buildJsonArray { prop.enum.forEach { add(it) } },
-                                                                )
-                                                            }
-                                                        },
-                                                    )
+                                                    put(key, prop.toJsonSchema())
                                                 }
                                             },
                                         )
@@ -269,7 +273,7 @@ class McpServer(
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
         thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "started", args.toString())
 
-        val requiresApproval = resolvedName == "ask_user" || resolvedName == "bash" || resolvedName.startsWith("device")
+        val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device")
         if (requiresApproval) {
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
@@ -289,8 +293,8 @@ class McpServer(
             eventEmitter?.invoke(approvalEvent)
 
             val result =
-                runCatching { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() }
-                    .getOrElse { com.example.smarty.server.agent.ApprovalResult(false, "Approval system error") }
+                runCatching { withTimeoutOrNull(60_000L) { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() } }
+                    .getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out or system error")
 
             if (!result.approved) {
                 val denial = "User denied: ${result.feedback ?: "no reason given"}"

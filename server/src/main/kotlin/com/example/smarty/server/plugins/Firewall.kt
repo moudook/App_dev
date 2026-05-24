@@ -4,6 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
+import io.ktor.server.plugins.ratelimit.*
+import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
 
 /**
@@ -32,6 +34,12 @@ private const val DEVICE_ID_HEADER = "X-Smarty-Device-Id"
  * This should be called early in the plugin chain.
  */
 fun Application.configureFirewall() {
+    install(RateLimit) {
+        global {
+            rateLimiter(limit = 1000, refillPeriod = 60.seconds)
+        }
+    }
+
     intercept(ApplicationCallPipeline.Plugins) {
         val path = call.request.path()
 

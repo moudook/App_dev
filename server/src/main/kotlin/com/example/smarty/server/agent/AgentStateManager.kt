@@ -40,6 +40,7 @@ class AgentStateManager(
         sessionId: String,
         history: List<LlmMessage> = emptyList(),
     ): ChatSession {
+        cleanupOldSessions()
         return sessions.getOrPut(sessionId) {
             ChatSession(
                 sessionId = sessionId,
@@ -351,7 +352,7 @@ class AgentStateManager(
                 User Profile: $userProfile
                 Query Context: $queryContext
                 $timeContext
-                ${goalMemoryManager.getProgressContext()}goalMemoryManager.getProgressContext()}
+                ${goalMemoryManager.getProgressContext()}
                 </context>
 
                 ---
