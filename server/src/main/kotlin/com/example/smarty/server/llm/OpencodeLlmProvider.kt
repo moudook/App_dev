@@ -116,17 +116,18 @@ class OpencodeLlmProvider(
             val providerId = if (slashIndex > 0) selectedModel.substring(0, slashIndex) else "opencode"
             val modelId = if (slashIndex > 0) selectedModel.substring(slashIndex + 1) else selectedModel
 
-            val daemonSessionId = externalSessionId ?: createDaemonSession().also { onExternalSessionCreated(it) }
-            val previouslySentCount = sessionMessageCount.getOrPut(daemonSessionId) { 0 }
+            var activeSessionId = externalSessionId ?: createDaemonSession().also { onExternalSessionCreated(it) }
+            val flowCollector = this
 
-            val systemPrompt =
-                messages.filter { it.role == LlmMessage.Role.SYSTEM }.joinToString(
-                    "\n\n",
-                ) { it.content }.takeIf { it.isNotBlank() }
-            val newMessages = messages.drop(previouslySentCount)
+            var isNotFound = false
 
-            val parts =
-                newMessages.mapNotNull { msg ->
+            suspend fun tryExecuteStream(sessId: String, isRetry: Boolean): Boolean {
+                var localIsNotFound = false
+                val previouslySentCount = if (isRetry) 0 else sessionMessageCount.getOrPut(sessId) { 0 }
+                val systemPrompt = messages.filter { it.role == LlmMessage.Role.SYSTEM }.joinToString("\n\n") { it.content }.takeIf { it.isNotBlank() }
+                val newMessages = if (isRetry) messages else messages.drop(previouslySentCount)
+
+                val parts = newMessages.mapNotNull { msg ->
                     when (msg.role) {
                         LlmMessage.Role.USER ->
                             buildJsonObject {
@@ -149,72 +150,80 @@ class OpencodeLlmProvider(
                     }
                 }
 
-            sessionMessageCount[daemonSessionId] = messages.size
-            saveSessionMessageCount()
+                sessionMessageCount[sessId] = messages.size
+                saveSessionMessageCount()
 
-            logger.info("[OpenCode.Request][inference=$inferenceId] model=$providerId/$modelId, parts=${parts.size}")
+                logger.info("[OpenCode.Request][inference=$inferenceId][session=$sessId] model=$providerId/$modelId, parts=${parts.size}, isRetry=$isRetry")
 
-            val flowCollector = this
-            client.preparePost("$daemonBaseUrl/session/$daemonSessionId/message") {
-                contentType(ContentType.Application.Json)
-                header("Accept", "text/event-stream")
-                setBody(
-                    DaemonMessageRequest(
-                        parts = parts,
-                        model =
-                            buildJsonObject {
+                client.preparePost("$daemonBaseUrl/session/$sessId/message") {
+                    contentType(ContentType.Application.Json)
+                    header("Accept", "text/event-stream")
+                    setBody(
+                        DaemonMessageRequest(
+                            parts = parts,
+                            model = buildJsonObject {
                                 put("providerID", providerId)
                                 put("modelID", modelId)
                             },
-                        agent = agentName,
-                        system = systemPrompt,
-                    ),
-                )
-            }.execute { response ->
-                val contentType = response.headers["Content-Type"] ?: "unknown"
-                logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
-
-                val channel = response.bodyAsChannel()
-                var currentEvent: String? = null
-                val currentData = StringBuilder()
-
-                // ADAPTIVE PARSER: Handle both SSE stream and single large JSON batch
-                while (!channel.isClosedForRead) {
-                    val line = channel.readUTF8Line() ?: break
-
-                    // UNFILTERED DEBUG LOGGING: Print exactly what the daemon spits out
-                    logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
-
-                    if (line.isBlank()) {
-                        if (currentData.isNotEmpty()) {
-                            flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
-                            currentData.setLength(0)
-                            currentEvent = null
-                        }
-                        continue
+                            agent = agentName,
+                            system = systemPrompt,
+                        ),
+                    )
+                }.execute { response ->
+                    if (response.status.value == 404) {
+                        logger.warn("[OpenCode.LlmProvider][inference=$inferenceId] Session $sessId not found (404) on daemon.")
+                        localIsNotFound = true
+                        return@execute
                     }
 
-                    if (line.startsWith("event:")) {
-                        currentEvent = line.substringAfter("event:").trim()
-                    } else if (line.startsWith("data:")) {
-                        val data = line.substringAfter("data:").trim()
-                        // Detect NDJSON (line-delimited JSON) inside SSE data
-                        if (data.startsWith("{") && data.endsWith("}")) {
-                            flowCollector.processSseEvent(currentEvent ?: "message", data, context)
-                        } else {
-                            if (currentData.isNotEmpty()) currentData.append("\n")
-                            currentData.append(data)
+                    val contentType = response.headers["Content-Type"] ?: "unknown"
+                    logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
+
+                    val channel = response.bodyAsChannel()
+                    var currentEvent: String? = null
+                    val currentData = StringBuilder()
+
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readUTF8Line() ?: break
+                        logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
+
+                        if (line.isBlank()) {
+                            if (currentData.isNotEmpty()) {
+                                flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
+                                currentData.setLength(0)
+                                currentEvent = null
+                            }
+                            continue
                         }
-                    } else if (line.startsWith("{")) {
-                        // This is a direct batch JSON response, not SSE
-                        flowCollector.processSseEvent("message", line, context)
+
+                        if (line.startsWith("event:")) {
+                            currentEvent = line.substringAfter("event:").trim()
+                        } else if (line.startsWith("data:")) {
+                            val data = line.substringAfter("data:").trim()
+                            if (data.startsWith("{") && data.endsWith("}")) {
+                                flowCollector.processSseEvent(currentEvent ?: "message", data, context)
+                            } else {
+                                if (currentData.isNotEmpty()) currentData.append("\n")
+                                currentData.append(data)
+                            }
+                        } else if (line.startsWith("{")) {
+                            flowCollector.processSseEvent("message", line, context)
+                        }
+                    }
+
+                    if (currentData.isNotEmpty()) {
+                        flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
                     }
                 }
+                isNotFound = localIsNotFound
+                return !localIsNotFound
+            }
 
-                // Final flush for remaining data
-                if (currentData.isNotEmpty()) {
-                    flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
-                }
+            val success = tryExecuteStream(activeSessionId, isRetry = false)
+            if (!success && isNotFound) {
+                logger.info("[OpenCode.LlmProvider] Recreating session after 404 for inference=$inferenceId")
+                activeSessionId = createDaemonSession().also { onExternalSessionCreated(it) }
+                tryExecuteStream(activeSessionId, isRetry = true)
             }
         }.flowOn(Dispatchers.IO)
 
@@ -283,34 +292,46 @@ class OpencodeLlmProvider(
         val partsArray = json["parts"]?.jsonArray
         if (partsArray != null) {
             val parts =
-                partsArray.mapNotNull { el ->
-                    val obj = el as? JsonObject ?: return@mapNotNull null
+                partsArray.flatMap { el ->
+                    val obj = el as? JsonObject ?: return@flatMap emptyList<CanonicalPart>()
                     val type = obj["type"].safeStr ?: "unknown"
                     val sid = obj["subagent_id"].safeStr ?: topSubagentId
                     when (type) {
                         "text", "reasoning", "content" ->
-                            CanonicalPart(
-                                type = if (type == "content") "text" else type,
-                                content = obj.deepStr(),
-                                subagentId = sid,
+                            listOf(
+                                CanonicalPart(
+                                    type = if (type == "content") "text" else type,
+                                    content = obj.deepStr(),
+                                    subagentId = sid,
+                                )
                             )
                         "tool_use", "tool", "call" -> {
                             val call = obj["call"]?.jsonObject ?: obj
-                            CanonicalPart(
-                                "tool_use",
-                                toolName = (call["name"] ?: call["tool"] ?: call["function"]).deepStr(),
-                                toolArgs = (call["arguments"] ?: call["args"] ?: call["input"])?.rawJsonStr(),
-                                subagentId = sid,
-                            )
+                            val toolName = (call["name"] ?: call["tool"] ?: call["function"]).deepStr()
+                            
+                            val stateObj = call["state"]?.jsonObject
+                            val inputElement = stateObj?.get("input") ?: call["arguments"] ?: call["args"] ?: call["input"]
+                            val outputElement = stateObj?.get("output")
+                            val toolArgs = inputElement?.rawJsonStr()
+                            val toolOutput = outputElement?.deepStr() ?: outputElement?.rawJsonStr()
+                            
+                            val toolParts = mutableListOf<CanonicalPart>()
+                            toolParts.add(CanonicalPart("tool_use", null, toolName, toolArgs, subagentId = sid))
+                            if (toolOutput != null) {
+                                toolParts.add(CanonicalPart("tool_result", toolOutput, toolName, subagentId = sid))
+                            }
+                            toolParts
                         }
                         "tool_result", "result" ->
-                            CanonicalPart(
-                                "tool_result",
-                                toolName = (obj["name"] ?: obj["tool"]).safeStr,
-                                content = obj.deepStr(),
-                                subagentId = sid,
+                            listOf(
+                                CanonicalPart(
+                                    "tool_result",
+                                    toolName = (obj["name"] ?: obj["tool"]).safeStr,
+                                    content = obj.deepStr(),
+                                    subagentId = sid,
+                                )
                             )
-                        else -> CanonicalPart(type, subagentId = sid)
+                        else -> listOf(CanonicalPart(type, subagentId = sid))
                     }
                 }
             return CanonicalResponse(parts)
@@ -323,15 +344,24 @@ class OpencodeLlmProvider(
             val sid = part["subagent_id"].safeStr ?: topSubagentId
             val content = part.deepStr()
             val toolName = (part["tool"] ?: part["name"] ?: part["function"] ?: json["name"]).deepStr()
-            val toolArgs = (part["arguments"] ?: part["args"] ?: part["input"] ?: json["arguments"] ?: json["args"] ?: json["input"])?.rawJsonStr()
+
+            val stateObj = part["state"]?.jsonObject
+            val inputElement = stateObj?.get("input") ?: part["arguments"] ?: part["args"] ?: part["input"] ?: json["arguments"] ?: json["args"] ?: json["input"]
+            val outputElement = stateObj?.get("output")
+            val toolArgs = inputElement?.rawJsonStr()
+            val toolOutput = outputElement?.deepStr() ?: outputElement?.rawJsonStr()
 
             return when (type) {
                 "text", "content" -> CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = sid)))
                 "reasoning", "thought" -> CanonicalResponse(listOf(CanonicalPart("reasoning", content, subagentId = sid)))
-                "tool_use", "tool", "call" ->
-                    CanonicalResponse(
-                        listOf(CanonicalPart("tool_use", content, toolName, toolArgs, subagentId = sid)),
-                    )
+                "tool_use", "tool", "call" -> {
+                    val parts = mutableListOf<CanonicalPart>()
+                    parts.add(CanonicalPart("tool_use", content, toolName, toolArgs, subagentId = sid))
+                    if (toolOutput != null) {
+                        parts.add(CanonicalPart("tool_result", toolOutput, toolName, subagentId = sid))
+                    }
+                    CanonicalResponse(parts)
+                }
                 "tool_result", "result" -> CanonicalResponse(listOf(CanonicalPart("tool_result", content, toolName, subagentId = sid)))
                 "part-delta", "delta" -> {
                     val subType = json["part_type"].safeStr ?: "text"
