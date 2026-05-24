@@ -305,12 +305,13 @@ class OpencodeLlmProvider(
                                     subagentId = sid,
                                 )
                             )
-                        "tool_use", "tool", "call" -> {
+                        "tool_use", "tool", "call", "web_search", "search" -> {
                             val call = obj["call"]?.jsonObject ?: obj
-                            val toolName = (call["name"] ?: call["tool"] ?: call["function"]).deepStr()
+                            val rawToolName = (call["name"] ?: call["tool"] ?: call["function"])?.deepStr() ?: type
+                            val toolName = if (rawToolName == "askuser") "ask_user" else rawToolName
                             
                             val stateObj = call["state"]?.jsonObject
-                            val inputElement = stateObj?.get("input") ?: call["arguments"] ?: call["args"] ?: call["input"]
+                            val inputElement = stateObj?.get("input") ?: call["arguments"] ?: call["args"] ?: call["input"] ?: call["query"]
                             val outputElement = stateObj?.get("output")
                             val toolArgs = inputElement?.rawJsonStr()
                             val toolOutput = outputElement?.deepStr() ?: outputElement?.rawJsonStr()
@@ -322,11 +323,11 @@ class OpencodeLlmProvider(
                             }
                             toolParts
                         }
-                        "tool_result", "result" ->
+                        "tool_result", "result", "web_search_result", "search_result" ->
                             listOf(
                                 CanonicalPart(
                                     "tool_result",
-                                    toolName = (obj["name"] ?: obj["tool"]).safeStr,
+                                    toolName = (obj["name"] ?: obj["tool"])?.safeStr ?: type.replace("_result", ""),
                                     content = obj.deepStr(),
                                     subagentId = sid,
                                 )
@@ -354,15 +355,20 @@ class OpencodeLlmProvider(
             return when (type) {
                 "text", "content" -> CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = sid)))
                 "reasoning", "thought" -> CanonicalResponse(listOf(CanonicalPart("reasoning", content, subagentId = sid)))
-                "tool_use", "tool", "call" -> {
+                "tool_use", "tool", "call", "web_search", "search" -> {
                     val parts = mutableListOf<CanonicalPart>()
-                    parts.add(CanonicalPart("tool_use", content, toolName, toolArgs, subagentId = sid))
+                    val rawToolName = if (toolName == "null" || toolName.isBlank()) type else toolName
+                    val actualToolName = if (rawToolName == "askuser") "ask_user" else rawToolName
+                    parts.add(CanonicalPart("tool_use", content, actualToolName, toolArgs, subagentId = sid))
                     if (toolOutput != null) {
-                        parts.add(CanonicalPart("tool_result", toolOutput, toolName, subagentId = sid))
+                        parts.add(CanonicalPart("tool_result", toolOutput, actualToolName, subagentId = sid))
                     }
                     CanonicalResponse(parts)
                 }
-                "tool_result", "result" -> CanonicalResponse(listOf(CanonicalPart("tool_result", content, toolName, subagentId = sid)))
+                "tool_result", "result", "web_search_result", "search_result" -> {
+                    val actualToolName = if (toolName == "null" || toolName.isBlank()) type.replace("_result", "") else toolName
+                    CanonicalResponse(listOf(CanonicalPart("tool_result", content, actualToolName, subagentId = sid)))
+                }
                 "part-delta", "delta" -> {
                     val subType = json["part_type"].safeStr ?: "text"
                     CanonicalResponse(listOf(CanonicalPart(subType, content, subagentId = sid)))

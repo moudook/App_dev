@@ -271,7 +271,7 @@ class McpServer(
         val toolCallId = "mcp-${UUID.randomUUID()}"
 
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
-        thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "started", args.toString())
+        thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "started", args.toString())
 
         val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device") || resolvedName == "ask_user"
         if (requiresApproval) {
@@ -280,8 +280,8 @@ class McpServer(
                     UUID.randomUUID().toString(),
                     System.currentTimeMillis(),
                     toolCallId,
-                    name,
-                    name.replace(
+                    resolvedName,
+                    resolvedName.replace(
                         '_',
                         ' ',
                     ).replaceFirstChar {
@@ -298,7 +298,7 @@ class McpServer(
 
             if (!result.approved) {
                 val denial = "User denied: ${result.feedback ?: "no reason given"}"
-                thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "failed", args.toString(), denial)
+                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, deniedEvent)
                 eventEmitter?.invoke(deniedEvent)
@@ -321,7 +321,7 @@ class McpServer(
             // We bypass ToolExecutor entirely.
             if (resolvedName == "ask_user") {
                 val userResponse = result.feedback ?: "User provided no answer"
-                thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "completed", args.toString(), userResponse)
+                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
                 val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, grantedEvent)
                 eventEmitter?.invoke(grantedEvent)
@@ -358,7 +358,7 @@ class McpServer(
             )
         return try {
             val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)
-            thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "completed", args.toString(), resultStr)
+            thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "completed", args.toString(), resultStr)
             buildJsonObject {
                 put(
                     "content",
@@ -374,7 +374,7 @@ class McpServer(
             }
         } catch (e: Exception) {
             val errorMsg = "Error executing tool: ${e.message}"
-            thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "failed", args.toString(), errorMsg)
+            thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
             buildJsonObject {
                 put("isError", true)
                 put(

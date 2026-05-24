@@ -209,7 +209,7 @@ fun ChatScreen(
                 },
                 modifier = Modifier.padding(16.dp)
             )
-        } else if (pendingApproval != null && pendingApproval!!.toolName == "ask_user") {
+        } else if (pendingApproval != null && (pendingApproval!!.toolName == "ask_user" || pendingApproval!!.toolName == "askuser")) {
             val approval = pendingApproval!!
             val parsedRequests = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
             
