@@ -155,6 +155,9 @@ class OpencodeLlmProvider(
             while (!channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: break
                 
+                // UNFILTERED DEBUG LOGGING: Print exactly what the daemon spits out
+                logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
+                
                 if (line.isBlank()) {
                     if (currentData.isNotEmpty()) {
                         flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
