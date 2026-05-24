@@ -313,8 +313,7 @@ private fun GranularEventTimeline(
 
     // Separate semantic (Tier 1) and system (Tier 2) nodes
     val semanticNodes = nodes.filterNot { 
-        it is TimelineNode.SystemActivity || 
-        (it is TimelineNode.ApprovalGate && (it.toolName == "ask_user" || it.toolName == "askuser"))
+        it is TimelineNode.SystemActivity 
     }
     val systemNode = nodes.filterIsInstance<TimelineNode.SystemActivity>().firstOrNull()
 

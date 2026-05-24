@@ -46,6 +46,10 @@ class TimelineNodeAggregator {
     // processAll() calls without duplicates
     private var lastProcessedIndex: Int = 0
 
+    // Flags to prefer granular events over legacy events
+    private var hasGranularReasoning: Boolean = false
+    private var hasGranularTools: Boolean = false
+
     /**
      * Process a new batch of events (append-only). Internally tracks
      * [lastProcessedIndex] so repeated calls with the same events are
@@ -94,6 +98,7 @@ class TimelineNodeAggregator {
         when (event) {
             // ── Reasoning ─────────────────────────────────────────────────────
             is AgentEvent.ReasoningStarted -> {
+                hasGranularReasoning = true
                 val node = TimelineNode.Thinking(
                     id = "thinking_${event.eventId}",
                     timestamp = event.timestamp,
@@ -105,6 +110,7 @@ class TimelineNodeAggregator {
             }
 
             is AgentEvent.ReasoningDelta -> {
+                hasGranularReasoning = true
                 updateThinkingNode { existing ->
                     existing.copy(text = existing.text + event.text, isStreaming = true)
                 }
@@ -119,6 +125,8 @@ class TimelineNodeAggregator {
 
             // Legacy: Processing event maps to a thinking update
             is AgentEvent.Processing -> {
+                // If the stream contains granular reasoning events, ignore the legacy Processing accumulation
+                if (hasGranularReasoning) return
                 // Use event.thinking when available (reasoning content),
                 // fall back to event.content (legacy behavior)
                 val text = event.thinking ?: event.content
@@ -139,6 +147,7 @@ class TimelineNodeAggregator {
 
             // ── Tool Lifecycle ────────────────────────────────────────────────
             is AgentEvent.ToolCallStarted -> {
+                hasGranularTools = true
                 val node = TimelineNode.ToolExecution(
                     id = event.toolId,
                     timestamp = event.timestamp,
@@ -155,6 +164,7 @@ class TimelineNodeAggregator {
             }
 
             is AgentEvent.ToolCallInput -> {
+                hasGranularTools = true
                 updateToolNode(event.toolId) { existing ->
                     val appended = if (existing.inputSummary.isNullOrBlank()) {
                         event.inputDelta
@@ -166,6 +176,7 @@ class TimelineNodeAggregator {
             }
 
             is AgentEvent.ToolCallOutput -> {
+                hasGranularTools = true
                 updateToolNode(event.toolId) { existing ->
                     val appended = if (existing.outputSummary.isNullOrBlank()) {
                         event.output
@@ -177,6 +188,7 @@ class TimelineNodeAggregator {
             }
 
             is AgentEvent.ToolCallFinished -> {
+                hasGranularTools = true
                 updateToolNode(event.toolId) { existing ->
                     existing.copy(
                         status = TimelineNode.ToolExecution.Status.COMPLETED,
@@ -220,6 +232,7 @@ class TimelineNodeAggregator {
                 val stepId = "step_${event.stepIndex}"
                 when (event.stepType) {
                     "thinking" -> {
+                        if (hasGranularReasoning) return
                         if (thinkingNodeIndex < 0) {
                             val node = TimelineNode.Thinking(
                                 id = "thinking_step_${event.stepIndex}",
@@ -234,6 +247,7 @@ class TimelineNodeAggregator {
                         }
                     }
                     "tool_call", "opencode_tool", "tool_result" -> {
+                        if (hasGranularTools) return
                         val existing = toolNodeIndexByToolId[stepId]
                         if (existing == null) {
                             val node = TimelineNode.ToolExecution(
@@ -464,6 +478,8 @@ class TimelineNodeAggregator {
         recoveryNodeIndex = -1
         sysActivityStart = 0L
         lastProcessedIndex = 0
+        hasGranularReasoning = false
+        hasGranularTools = false
     }
 
     companion object {

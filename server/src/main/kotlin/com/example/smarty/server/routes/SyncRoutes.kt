@@ -46,6 +46,7 @@ data class MessageInfoData(
     val content: String,
     val thinking: String? = null,
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
     val createdAt: Long,
 )
 
@@ -80,6 +81,7 @@ data class MessagePushItem(
     val content: String,
     val thinking: String? = null,
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
     val createdAt: Long,
 )
 
@@ -181,6 +183,7 @@ fun Application.configureSyncRoutes() {
                                                 content = msg.content,
                                                 thinking = msg.thinking,
                                                 agentStepsJson = msg.agentStepsJson,
+                                                agentEventsJson = msg.agentEventsJson,
                                                 createdAt = msg.createdAt,
                                             )
                                         },
@@ -271,6 +274,7 @@ fun Application.configureSyncRoutes() {
                                             msg.content,
                                             msg.thinking,
                                             agentStepsJson = msg.agentStepsJson,
+                                            agentEventsJson = msg.agentEventsJson,
                                             createdAt = msg.createdAt,
                                         )
                                     } else {
@@ -281,6 +285,7 @@ fun Application.configureSyncRoutes() {
                                             msg.content,
                                             msg.thinking,
                                             agentStepsJson = msg.agentStepsJson,
+                                            agentEventsJson = msg.agentEventsJson,
                                         )
                                     }
                                 }
@@ -434,6 +439,7 @@ fun Application.configureSyncRoutes() {
                             request.content,
                             request.thinking,
                             agentStepsJson = request.agentStepsJson,
+                            agentEventsJson = request.agentEventsJson,
                         )
                         call.respond(HttpStatusCode.OK)
                     } catch (e: Exception) {
@@ -485,4 +491,5 @@ data class SaveMessageRequest(
     val content: String,
     val thinking: String? = null, //  Added thinking field for AI reasoning persistence
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
 )

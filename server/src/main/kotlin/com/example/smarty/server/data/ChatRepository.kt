@@ -52,6 +52,7 @@ class ChatRepository(
         thinking: String? = null,
         toolCalls: String? = null,
         agentStepsJson: String? = null,
+        agentEventsJson: String? = null,
         toolCallId: String? = null,
         tokenCount: Int = 0,
     ): MessageRecord =
@@ -60,10 +61,10 @@ class ChatRepository(
                 val sql =
                     """
                     INSERT INTO chat_messages (
-                        session_id, user_id, role, content, thinking, tool_calls, agent_steps_json,
+                        session_id, user_id, role, content, thinking, tool_calls, agent_steps_json, agent_events_json,
                         tool_call_id, token_count, is_edited, is_starred, metadata,
                         created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, false, false, '{}', now(), now())
+                    ) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, false, false, '{}', now(), now())
                     RETURNING *
                     """.trimIndent()
                 val messageRecord =
@@ -75,8 +76,9 @@ class ChatRepository(
                         stmt.setString(5, thinking)
                         stmt.setString(6, toolCalls ?: "null")
                         stmt.setString(7, agentStepsJson ?: "[]")
-                        stmt.setString(8, toolCallId)
-                        stmt.setInt(9, tokenCount)
+                        stmt.setString(8, agentEventsJson ?: "[]")
+                        stmt.setString(9, toolCallId)
+                        stmt.setInt(10, tokenCount)
                         stmt.executeQuery().use { rs ->
                             if (rs.next()) mapRowToMessageRecord(rs) else throw Exception("Failed to insert message")
                         }
@@ -109,6 +111,7 @@ class ChatRepository(
         thinking: String? = null,
         toolCalls: String? = null,
         agentStepsJson: String? = null,
+        agentEventsJson: String? = null,
         createdAt: Long? = null,
         updatedAt: Long? = null,
     ): MessageRecord =
@@ -116,13 +119,14 @@ class ChatRepository(
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    INSERT INTO chat_messages (id, session_id, user_id, role, content, thinking, tool_calls, agent_steps_json, created_at, updated_at) 
-                    VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, COALESCE(?, now()), COALESCE(?, now()))
+                    INSERT INTO chat_messages (id, session_id, user_id, role, content, thinking, tool_calls, agent_steps_json, agent_events_json, created_at, updated_at) 
+                    VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, COALESCE(?, now()), COALESCE(?, now()))
                     ON CONFLICT (id) DO UPDATE SET 
                         content = EXCLUDED.content,
                         thinking = EXCLUDED.thinking,
                         tool_calls = EXCLUDED.tool_calls,
                         agent_steps_json = EXCLUDED.agent_steps_json,
+                        agent_events_json = EXCLUDED.agent_events_json,
                         updated_at = EXCLUDED.updated_at
                     RETURNING *
                     """.trimIndent()
@@ -135,8 +139,9 @@ class ChatRepository(
                     stmt.setString(6, thinking)
                     stmt.setString(7, toolCalls)
                     stmt.setString(8, agentStepsJson)
-                    stmt.setTimestamp(9, createdAt?.let { java.sql.Timestamp(it) })
-                    stmt.setTimestamp(10, updatedAt?.let { java.sql.Timestamp(it) })
+                    stmt.setString(9, agentEventsJson)
+                    stmt.setTimestamp(10, createdAt?.let { java.sql.Timestamp(it) })
+                    stmt.setTimestamp(11, updatedAt?.let { java.sql.Timestamp(it) })
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) mapRowToMessageRecord(rs) else throw Exception("Failed to save message")
                     }
@@ -254,6 +259,7 @@ class ChatRepository(
             thinking = rs.getString("thinking"),
             toolCalls = rs.getString("tool_calls"),
             agentStepsJson = rs.getString("agent_steps_json"),
+            agentEventsJson = rs.getString("agent_events_json"),
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at")?.time ?: rs.getTimestamp("created_at").time,
         )
@@ -352,6 +358,7 @@ class ChatRepository(
         thinking: String,
         toolCalls: String? = null,
         agentStepsJson: String? = null,
+        agentEventsJson: String? = null,
     ): MessageRecord? =
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
@@ -369,12 +376,13 @@ class ChatRepository(
 
                 if (latestMsgId == null) return@withContext null
 
-                val updateSql = "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), agent_steps_json = COALESCE(?::jsonb, agent_steps_json), updated_at = now() WHERE id = ? RETURNING *"
+                val updateSql = "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), agent_steps_json = COALESCE(?::jsonb, agent_steps_json), agent_events_json = COALESCE(?::jsonb, agent_events_json), updated_at = now() WHERE id = ? RETURNING *"
                 conn.prepareStatement(updateSql).use { stmt ->
                     stmt.setString(1, thinking)
                     stmt.setString(2, toolCalls)
                     stmt.setString(3, agentStepsJson)
-                    stmt.setObject(4, latestMsgId)
+                    stmt.setString(4, agentEventsJson)
+                    stmt.setObject(5, latestMsgId)
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) mapRowToMessageRecord(rs) else null
                     }
@@ -568,6 +576,7 @@ data class MessageRecord(
     val thinking: String? = null,
     val toolCalls: String? = null,
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val linkedNoteIds: List<String> = emptyList(),

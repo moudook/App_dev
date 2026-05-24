@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 
 class SyncCoordinator(
@@ -312,6 +313,15 @@ class SyncCoordinator(
                                         com.example.smarty.core.domain.model.ChatMessageEntity.parseAgentStepsJson(
                                             msgData.agentStepsJson ?: "[]",
                                         ),
+                                    agentEvents =
+                                        try {
+                                            val agentEventsJson = msgData.agentEventsJson
+                                            if (!agentEventsJson.isNullOrBlank() && agentEventsJson != "[]") {
+                                                Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
+                                            } else emptyList()
+                                        } catch (e: Exception) {
+                                            emptyList()
+                                        },
                                 )
                             val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
                             chatDao.insertMessage(entity)

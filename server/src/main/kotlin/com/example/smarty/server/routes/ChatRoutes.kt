@@ -408,9 +408,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 // Collect citations and agent steps during stream
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
                 val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
+                val collectedAgentEvents = mutableListOf<AgentEvent>()
 
                 val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
                     try {
+                        collectedAgentEvents.add(event)
+
                         // Collect citations from NotifyCitations command
                         if (event is AgentEvent.Command) {
                             val command = event.command
@@ -440,6 +443,18 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
+                            // Collect raw AgentEvents (exclude massive/noisy ones like Processing/OpencodeRawEvent)
+                            val currentAgentEventsJson =
+                                if (collectedAgentSteps.isNotEmpty() || event !is AgentEvent.Processing) {
+                                    // Use the shared list of all events, but filter out the huge ones to save DB space
+                                    val filteredEvents = collectedAgentEvents.filter { 
+                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
+                                    }
+                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
+                                } else {
+                                    null
+                                }
+
                             val currentAgentStepsJson =
                                 if (collectedAgentSteps.isNotEmpty()) {
                                     val entries =
@@ -459,7 +474,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
-                            if (currentThinking.isNotBlank() || currentAgentStepsJson != null) {
+                            if (currentThinking.isNotBlank() || currentAgentStepsJson != null || currentAgentEventsJson != null) {
                                 if (messageIdParam != null) {
                                     chatRepository?.saveMessageWithId(
                                         userId = userId,
@@ -470,6 +485,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         thinking = currentThinking,
                                         toolCalls = currentToolCalls,
                                         agentStepsJson = currentAgentStepsJson,
+                                        agentEventsJson = currentAgentEventsJson,
                                     )
                                 } else {
                                     chatRepository?.updateMessageThinking(
@@ -478,9 +494,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         thinking = currentThinking,
                                         toolCalls = currentToolCalls,
                                         agentStepsJson = currentAgentStepsJson,
+                                        agentEventsJson = currentAgentEventsJson,
                                     )
                                 }
                             }
+
                         }
 
                         val eventType =
@@ -635,6 +653,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
+                            val finalAgentEventsJson =
+                                if (collectedAgentEvents.isNotEmpty()) {
+                                    val filteredEvents = collectedAgentEvents.filter { 
+                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
+                                    }
+                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
+                                } else {
+                                    null
+                                }
+
                             if (messageIdParam != null) {
                                 chatRepository.saveMessageWithId(
                                     userId = userId,
@@ -645,6 +673,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     thinking = thinkingTrace,
                                     toolCalls = citationsJson,
                                     agentStepsJson = agentStepsJson,
+                                    agentEventsJson = finalAgentEventsJson,
                                 )
                             } else {
                                 chatRepository.saveMessage(
@@ -655,8 +684,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     thinking = thinkingTrace,
                                     toolCalls = citationsJson,
                                     agentStepsJson = agentStepsJson,
+                                    agentEventsJson = finalAgentEventsJson,
                                 )
                             }
+
                             call.application.log.info(
                                 "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}, steps=${collectedAgentSteps.size}",
                             )
@@ -863,6 +894,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
+                            val finalAgentEventsJson =
+                                if (events.isNotEmpty()) {
+                                    val filteredEvents = events.filter { 
+                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
+                                    }
+                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
+                                } else {
+                                    null
+                                }
+
                             chatRepository.saveMessage(
                                 userId = userId,
                                 sessionId = sessionId!!,
@@ -871,6 +912,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 thinking = thinkingTrace,
                                 toolCalls = citationsJson,
                                 agentStepsJson = agentStepsJson,
+                                agentEventsJson = finalAgentEventsJson,
                             )
                             call.application.log.info(
                                 "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}, steps=${collectedAgentSteps.size}",

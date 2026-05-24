@@ -54,6 +54,7 @@ data class OptimizedMessageInfo(
     val content: String,
     val thinking: String? = null,
     val agentStepsJson: String? = null,
+    val agentEventsJson: String? = null,
     val createdAt: Long,
 )
 
@@ -216,6 +217,7 @@ fun Application.configureOptimizedSyncRoutes() {
                                                     content = msg.content,
                                                     thinking = msg.thinking,
                                                     agentStepsJson = msg.agentStepsJson,
+                                                    agentEventsJson = msg.agentEventsJson,
                                                     createdAt = msg.createdAt,
                                                 )
                                             },
@@ -352,6 +354,7 @@ fun Application.configureOptimizedSyncRoutes() {
                                                 msg.content,
                                                 msg.thinking,
                                                 agentStepsJson = msg.agentStepsJson,
+                                                agentEventsJson = msg.agentEventsJson,
                                                 createdAt = msg.createdAt,
                                             )
                                         } else {
@@ -362,6 +365,7 @@ fun Application.configureOptimizedSyncRoutes() {
                                                 msg.content,
                                                 msg.thinking,
                                                 agentStepsJson = msg.agentStepsJson,
+                                                agentEventsJson = msg.agentEventsJson,
                                             )
                                         }
                                     }
