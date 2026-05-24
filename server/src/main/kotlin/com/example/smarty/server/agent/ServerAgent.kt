@@ -389,7 +389,7 @@ class ServerAgent(
                                 name = toolName,
                             )
 
-                        if (toolName == "ask_user" && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
+                        if ((toolName == "ask_user" || toolName == "askuser") && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
                             val finalThinking = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
                             emit(
                                 AgentEvent.Result(

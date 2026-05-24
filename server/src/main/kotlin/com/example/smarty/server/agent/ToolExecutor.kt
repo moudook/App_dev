@@ -93,6 +93,7 @@ class ToolExecutor(
         val source: String? = null,
         val url: String? = null,
         val note: String? = null,
+        val questions: kotlinx.serialization.json.JsonArray? = null,
     )
 
     suspend fun executeTool(
@@ -656,21 +657,42 @@ class ToolExecutor(
     }
 
     private suspend fun executeAskUser(args: UnifiedToolArgs): String {
-        val question = args.question ?: "What would you like?"
+        var questionStr = args.question ?: "What would you like?"
+        var optionsEl = args.options
+        var allowCustom = args.allowCustom ?: false
+
+        if (args.questions != null && args.questions.isNotEmpty()) {
+            val firstQuestion = args.questions[0] as? kotlinx.serialization.json.JsonObject
+            if (firstQuestion != null) {
+                if (firstQuestion.containsKey("question")) {
+                    questionStr = (firstQuestion["question"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: questionStr
+                }
+                if (firstQuestion.containsKey("options")) {
+                    optionsEl = firstQuestion["options"]
+                }
+                if (firstQuestion.containsKey("allowcustom")) {
+                    allowCustom = (firstQuestion["allowcustom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: allowCustom
+                }
+                if (firstQuestion.containsKey("allow_custom")) {
+                    allowCustom = (firstQuestion["allow_custom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: allowCustom
+                }
+            }
+        }
+
         val options =
-            args.options?.let { element ->
+            optionsEl?.let { element ->
                 when (element) {
-                    is kotlinx.serialization.json.JsonArray -> element.map { it.jsonPrimitive.content }
+                    is kotlinx.serialization.json.JsonArray -> element.map { (it as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "" }
                     is kotlinx.serialization.json.JsonPrimitive -> element.content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
                     else -> emptyList()
                 }
             } ?: emptyList()
-        val allowCustom = args.allowCustom ?: false
+
         emit(
             com.example.smarty.protocol.AgentEvent.Question(
-                eventId = UUID.randomUUID().toString(),
+                eventId = java.util.UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
-                question = question,
+                question = questionStr,
                 options = options,
                 allowCustom = allowCustom,
             ),

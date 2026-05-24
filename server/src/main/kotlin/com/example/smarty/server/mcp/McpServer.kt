@@ -273,7 +273,7 @@ class McpServer(
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
         thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "started", args.toString())
 
-        val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device")
+        val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device") || resolvedName == "ask_user"
         if (requiresApproval) {
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
@@ -287,7 +287,7 @@ class McpServer(
                     ).replaceFirstChar {
                         it.uppercase()
                     },
-                    args.toString().take(200),
+                    args.toString(),
                 )
             ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
@@ -310,6 +310,29 @@ class McpServer(
                                 buildJsonObject {
                                     put("type", "text")
                                     put("text", denial)
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+
+            // If it's ask_user, the user's text response IS the result.
+            // We bypass ToolExecutor entirely.
+            if (resolvedName == "ask_user") {
+                val userResponse = result.feedback ?: "User provided no answer"
+                thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "completed", args.toString(), userResponse)
+                val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
+                ActiveEventBridge.emit(userId, grantedEvent)
+                eventEmitter?.invoke(grantedEvent)
+                return buildJsonObject {
+                    put(
+                        "content",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", userResponse)
                                 },
                             )
                         },

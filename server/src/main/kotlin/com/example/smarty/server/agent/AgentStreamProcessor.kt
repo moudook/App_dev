@@ -171,12 +171,13 @@ class AgentStreamProcessor(
 
                 thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", toolCall.arguments)
                 this.emit(
-                    AgentEvent.ToolCall(
-                        UUID.randomUUID().toString(),
-                        System.currentTimeMillis(),
-                        currentToolName,
-                        "Running $currentToolName…",
-                        "started",
+                    AgentEvent.ToolCallStarted(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        toolId = currentToolId!!,
+                        name = currentToolName,
+                        source = "opencode",
+                        subagentId = currentSubagentId
                     ),
                 )
             }
@@ -210,13 +211,12 @@ class AgentStreamProcessor(
         val tid = currentToolId ?: "unknown"
         thinkingStorage.updateToolCall(sessionId, tid, currentToolName, status, currentToolArgs, result)
         this.emit(
-            AgentEvent.ToolCall(
-                UUID.randomUUID().toString(),
-                System.currentTimeMillis(),
-                currentToolName,
-                "Finished $currentToolName",
-                status,
-                currentToolArgs,
+            AgentEvent.ToolCallFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = tid,
+                durationMs = 0L,
+                subagentId = currentSubagentId
             ),
         )
         this.emit(

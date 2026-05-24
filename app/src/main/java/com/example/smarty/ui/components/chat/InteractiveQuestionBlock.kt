@@ -133,10 +133,11 @@ fun InteractiveQuestionBlock(
                         modifier = Modifier.weight(1f)
                     )
                     
-                    Text(
-                        text = "→",
-                        color = textColor.copy(alpha = 0.6f),
-                        fontSize = 18.sp
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                        contentDescription = "Select",
+                        tint = textColor.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
                 
