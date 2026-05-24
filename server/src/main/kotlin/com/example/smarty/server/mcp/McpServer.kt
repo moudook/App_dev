@@ -7,6 +7,7 @@ import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
+import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 import com.example.smarty.server.agent.ToolExecutor
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.NoteRepository
@@ -36,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Basic Model Context Protocol (MCP) Server implementation using SSE.
  * Exposes Smarty's internal tools to OpenCode CLI natively.
+ * REVISION V5: Added cancellation support and integrated with thinking trace.
  */
 class McpServer(
     private val vectorStore: PostgresVectorStore,
@@ -44,7 +46,6 @@ class McpServer(
     private val calendarRepository: CalendarRepository?,
     private val noteService: NoteService?,
 ) {
-    // Event emitter for approval gating — injected by Application.kt route config
     var eventEmitter: (suspend (AgentEvent) -> Unit)? = null
 
     private val json =
@@ -54,131 +55,87 @@ class McpServer(
             explicitNulls = false
         }
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
+    private val thinkingStorage = ThinkingStorageManagerSingleton.instance
 
-    private data class McpSession(
-        val channel: Channel<ServerSentEvent>,
-        val createdAt: Long = System.currentTimeMillis(),
-    )
+    private data class McpSession(val channel: Channel<ServerSentEvent>, val createdAt: Long = System.currentTimeMillis())
 
     private val sessions = ConcurrentHashMap<String, McpSession>()
-
-    // TTL for POST-created sessions: 5 minutes
     private val SESSION_TTL_MS = 300_000L
 
-    // All available Smarty tools, filtering out ones handled natively by OpenCode
     private val allTools: List<ToolDefinition> by lazy {
-        val tools = AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()
-        tools.filter {
+        (AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()).filter {
             it.name != "search" && it.name != "web_search" && it.name != "web_scrape"
         }
     }
 
     fun configureRouting(routing: Routing) {
         routing.route("/mcp") {
-            // Evict stale POST-created sessions before creating new ones
             evictStaleSessions()
 
-            // 1. Establish SSE Connection (GET via standard SSE protocol)
             sse("/sse") {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
                 sessions[sessionId] = McpSession(channel)
-
                 try {
-                    // Send the endpoint URL to the client
                     val host = call.request.local.serverHost
                     val port = call.request.local.serverPort
                     val scheme = call.request.local.scheme
-
-                    // For HF Spaces, port is typically 7860. The reverse proxy might not forward scheme properly so we fallback to a relative-like approach if needed.
                     val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
                     send(ServerSentEvent(event = "endpoint", data = endpointUrl))
-
-                    // SSE forwarding loop with heartbeat — detects stale connections
                     while (isActive) {
                         val event = withTimeoutOrNull(30000) { channel.receive() }
-                        if (event != null) {
-                            send(event)
-                        } else {
-                            // Heartbeat: if send fails, client disconnected and loop exits
-                            send(ServerSentEvent(event = "heartbeat", data = "ping"))
-                        }
+                        if (event != null) send(event) else send(ServerSentEvent(event = "heartbeat", data = "ping"))
                     }
                 } catch (e: Exception) {
-                    logger.debug("[McpServer] SSE client disconnected from session $sessionId: ${e.message?.take(50)}")
+                    logger.debug("[McpServer] SSE client disconnected from session $sessionId")
                 } finally {
                     sessions.remove(sessionId)
                     channel.close()
                 }
             }
 
-            // OpenCode daemon sends POST to /sse for MCP init — create session and respond
             post("/sse") {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
                 sessions[sessionId] = McpSession(channel)
-
                 val host = call.request.local.serverHost
                 val port = call.request.local.serverPort
                 val scheme = call.request.local.scheme
-                
-                // For HF Spaces, port is typically 7860. The reverse proxy might not forward scheme properly so we fallback to a relative-like approach if needed.
                 val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
-
                 call.respondText(
-                    contentType = ContentType.Application.Json,
-                    status = HttpStatusCode.OK,
-                    text = """{"sessionId":"$sessionId","endpoint":"$endpointUrl"}"""
+                    """{"sessionId":"$sessionId","endpoint":"$endpointUrl"}""",
+                    ContentType.Application.Json,
+                    HttpStatusCode.OK,
                 )
                 logger.info("[McpServer] POST-SSE session created: $sessionId")
             }
 
-            // 2. Receive JSON-RPC messages from client (Firebase-authenticated)
-            // Localhost/daemon bypass: unauthenticated requests from 127.0.0.1 are treated as
-            // the OpenCode CLI daemon. This is required because the daemon cannot provide
-            // Firebase JWT tokens but must be able to discover and call MCP tools.
             post("/messages") {
-                val sessionId = call.request.queryParameters["sessionId"] ?: "default"
-
-                // Allow unauthenticated local requests (from the OpenCode daemon)
+                val mcpSessionId = call.request.queryParameters["sessionId"] ?: "default"
                 val remoteHost = call.request.local.remoteHost
-                val isLocalhost =
-                    remoteHost == "127.0.0.1" || remoteHost == "::1" ||
-                        remoteHost == "0:0:0:0:0:0:0:1" || remoteHost == "localhost"
+                val isLocalhost = remoteHost == "127.0.0.1" || remoteHost == "::1" || remoteHost == "localhost"
 
-                val user =
-                    if (!isLocalhost) {
-                        call.principal<FirebaseUserPrincipal>().also {
-                            if (it == null) {
-                                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
-                                return@post
-                            }
-                        }
-                    } else {
-                        null
-                    }
+                val principal = if (!isLocalhost) call.principal<FirebaseUserPrincipal>() else null
+                if (!isLocalhost && principal == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                    return@post
+                }
 
-                val userId =
-                    user?.userId
-                        ?: ActiveSessionManager.getAllSessions().find { it.sessionId == sessionId }?.userId
-                        ?: ActiveSessionManager.getAllSessions().maxByOrNull { it.lastActivity }?.userId
-                        ?: getFallbackUserId()
+                val userId = principal?.userId ?: getFallbackUserId()
+
+                // Try to find the actual Smarty session ID mapped to this daemon session
+                val smartySessionId = ActiveSessionManager.getAllSessions().find { it.userId == userId }?.sessionId ?: "global"
 
                 val body = call.receiveText()
-                val request =
-                    runCatching {
-                        json.decodeFromString<JsonRpcRequest>(body)
-                    }.getOrNull()
-
-                logger.info("[McpServer] POST /messages: sessionId=$sessionId, hasSession=${sessions.containsKey(sessionId)}, body=$body")
+                val request = runCatching { json.decodeFromString<JsonRpcRequest>(body) }.getOrNull()
+                logger.info("[McpServer] POST /messages: sessionId=$mcpSessionId, body=$body")
 
                 if (request == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid JSON-RPC payload")
                     return@post
                 }
 
-                // Process synchronously and respond inline
-                handleMcpRequest(sessionId, request, userId, call)
+                handleMcpRequest(mcpSessionId, request, userId, smartySessionId, call)
             }
         }
     }
@@ -189,73 +146,58 @@ class McpServer(
     }
 
     private suspend fun handleMcpRequest(
-        sessionId: String,
+        mcpSessionId: String,
         request: JsonRpcRequest,
         userId: String,
+        smartySessionId: String,
         call: ApplicationCall? = null,
     ) {
-        val channel = sessions[sessionId]?.channel
-
+        val channel = sessions[mcpSessionId]?.channel
         try {
             val responseResult =
                 when (request.method) {
                     "initialize" -> handleInitialize()
-                    "notifications/initialized" -> null // Just ack
+                    "notifications/initialized" -> null
+                    "notifications/cancelled" -> {
+                        logger.info("[McpServer] Request cancelled by client: ${request.params}")
+                        ApprovalRegistry.cancelApprovalsForSession(smartySessionId)
+                        null
+                    }
                     "tools/list" -> handleToolsList()
-                    "tools/call" -> handleToolCall(request.params, userId)
+                    "tools/call" -> handleToolCall(request.params, userId, smartySessionId)
                     else -> throw IllegalArgumentException("Method not supported: ${request.method}")
                 }
 
             if (request.id != null && responseResult != null) {
-                val response =
-                    JsonRpcResponse(
-                        id = request.id,
-                        result = responseResult,
-                    )
-                val responseJson = json.encodeToString(response)
-
-                // Send via SSE if channel exists
+                val responseJson = json.encodeToString(JsonRpcResponse(id = request.id, result = responseResult))
                 if (channel != null) {
-                    logger.info("[McpServer] Sending SSE event payload: $responseJson")
                     channel.send(ServerSentEvent(event = "message", data = responseJson))
-                    call?.respondText(contentType = ContentType.Text.Plain, status = HttpStatusCode.Accepted, text = "Accepted")
+                    call?.respondText("Accepted", ContentType.Text.Plain, HttpStatusCode.Accepted)
                 } else {
-                    // Send inline HTTP response if no SSE channel (legacy/direct call)
-                    call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.OK, text = responseJson)
+                    call?.respondText(responseJson, ContentType.Application.Json, HttpStatusCode.OK)
                 }
-            } else if (call != null) {
-                call.respondText(contentType = ContentType.Text.Plain, status = HttpStatusCode.Accepted, text = "Accepted")
+            } else {
+                call?.respondText("Accepted", ContentType.Text.Plain, HttpStatusCode.Accepted)
             }
         } catch (e: Exception) {
-            logger.error("[McpServer] Error processing method ${request.method}: ${e.message}", e)
+            logger.error("[McpServer] Error processing ${request.method}: ${e.message}")
             if (request.id != null) {
-                val errorResponse =
-                    JsonRpcResponse(
-                        id = request.id,
-                        error =
-                            JsonRpcError(
-                                code = -32603,
-                                message = e.message ?: "Internal Error",
-                            ),
+                val errorJson =
+                    json.encodeToString(
+                        JsonRpcResponse(id = request.id, error = JsonRpcError(-32603, e.message ?: "Internal Error")),
                     )
-                val errorJson = json.encodeToString(errorResponse)
                 channel?.send(ServerSentEvent(event = "message", data = errorJson))
-                call?.respondText(contentType = ContentType.Application.Json, status = HttpStatusCode.InternalServerError, text = errorJson)
+                call?.respondText(errorJson, ContentType.Application.Json, HttpStatusCode.InternalServerError)
             } else {
                 call?.respond(HttpStatusCode.InternalServerError)
             }
         }
     }
 
-    private fun handleInitialize(): JsonElement {
-        return buildJsonObject {
+    private fun handleInitialize() =
+        buildJsonObject {
             put("protocolVersion", "2024-11-05")
-            put(
-                "capabilities",
-                buildJsonObject {
-                    put("tools", buildJsonObject {})
-                },
-            )
+            put("capabilities", buildJsonObject { put("tools", buildJsonObject {}) })
             put(
                 "serverInfo",
                 buildJsonObject {
@@ -264,104 +206,98 @@ class McpServer(
                 },
             )
         }
-    }
 
-    private fun handleToolsList(): JsonElement {
-        val toolsArray =
-            buildJsonArray {
-                for (tool in allTools) {
-                    // MCP format for Tool
-                    add(
-                        buildJsonObject {
-                            put("name", tool.name)
-                            put("description", tool.description)
-                            put(
-                                "inputSchema",
-                                buildJsonObject {
-                                    put("type", "object")
-                                    put(
-                                        "properties",
-                                        buildJsonObject {
-                                            for ((key, prop) in tool.parameters.properties) {
-                                                put(
-                                                    key,
-                                                    buildJsonObject {
-                                                        put("type", prop.type)
-                                                        put("description", prop.description)
-                                                        if (prop.enum != null) {
-                                                            put("enum", buildJsonArray { prop.enum.forEach { add(it) } })
-                                                        }
-                                                    },
-                                                )
-                                            }
-                                        },
-                                    )
-                                    if (tool.parameters.required.isNotEmpty()) {
+    private fun handleToolsList() =
+        buildJsonObject {
+            put(
+                "tools",
+                buildJsonArray {
+                    allTools.forEach { tool ->
+                        add(
+                            buildJsonObject {
+                                put("name", tool.name)
+                                put("description", tool.description)
+                                put(
+                                    "inputSchema",
+                                    buildJsonObject {
+                                        put("type", "object")
                                         put(
-                                            "required",
-                                            buildJsonArray {
-                                                tool.parameters.required.forEach { add(it) }
+                                            "properties",
+                                            buildJsonObject {
+                                                tool.parameters.properties.forEach { (key, prop) ->
+                                                    put(
+                                                        key,
+                                                        buildJsonObject {
+                                                            put("type", prop.type)
+                                                            put("description", prop.description)
+                                                            if (prop.enum != null) {
+                                                                put(
+                                                                    "enum",
+                                                                    buildJsonArray { prop.enum.forEach { add(it) } },
+                                                                )
+                                                            }
+                                                        },
+                                                    )
+                                                }
                                             },
                                         )
-                                    }
-                                },
-                            )
-                        },
-                    )
-                }
-            }
-
-        return buildJsonObject {
-            put("tools", toolsArray)
+                                        if (tool.parameters.required.isNotEmpty()) {
+                                            put(
+                                                "required",
+                                                buildJsonArray { tool.parameters.required.forEach { add(it) } },
+                                            )
+                                        }
+                                    },
+                                )
+                            },
+                        )
+                    }
+                },
+            )
         }
-    }
 
     private suspend fun handleToolCall(
         params: JsonObject?,
         userId: String,
+        smartySessionId: String,
     ): JsonElement {
         val name = params?.get("name")?.jsonPrimitive?.content ?: throw IllegalArgumentException("Missing tool name")
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
-
-        // === PERMISSION ENGINE ===
-        // Apply canonical name mapping so old aliases (open_app, launch_app, etc.)
-        // are evaluated against the resolved name rather than the raw input name.
         val resolvedName = ToolExecutor.mapOldToolNames(name)
-        val toolCallId = UUID.randomUUID().toString()
-        val requiresApproval =
-            resolvedName.equals("ask_user", ignoreCase = true) ||
-                resolvedName.equals("bash", ignoreCase = true) ||
-                resolvedName.startsWith("device")
+        val toolCallId = "mcp-${UUID.randomUUID()}"
 
+        // INTEGRATION: Add to thinking trace immediately so the UI shows activity
+        thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "started", args.toString())
+
+        val requiresApproval = resolvedName == "ask_user" || resolvedName == "bash" || resolvedName.startsWith("device")
         if (requiresApproval) {
-            val inputSummary = args.toString().take(200)
-
-            // Emit approval requested event — user will see it on their active session
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    toolId = toolCallId,
-                    toolName = name,
-                    toolTitle = name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    toolArgs = inputSummary,
+                    UUID.randomUUID().toString(),
+                    System.currentTimeMillis(),
+                    toolCallId,
+                    name,
+                    name.replace(
+                        '_',
+                        ' ',
+                    ).replaceFirstChar {
+                        it.uppercase()
+                    },
+                    args.toString().take(200),
                 )
-            // Attempt to deliver via the user's active session SSE stream
             ActiveEventBridge.emit(userId, approvalEvent)
-            // Fallback path: McpServer-bound emitter (set in Application.kt)
             eventEmitter?.invoke(approvalEvent)
 
-            // Suspend until UI approves/denies
             val result =
-                runCatching {
-                    val sessionId = userId
-                    ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
-                }.getOrElse { e ->
-                    logger.error("[McpServer] Approval await failed for $toolCallId", e)
-                    com.example.smarty.server.agent.ApprovalResult(false, "Approval system error")
-                }
+                runCatching { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() }
+                    .getOrElse { com.example.smarty.server.agent.ApprovalResult(false, "Approval system error") }
 
             if (!result.approved) {
+                val denial = "User denied: ${result.feedback ?: "no reason given"}"
+                thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "failed", args.toString(), denial)
+                val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
+                ActiveEventBridge.emit(userId, deniedEvent)
+                eventEmitter?.invoke(deniedEvent)
                 return buildJsonObject {
                     put(
                         "content",
@@ -369,32 +305,33 @@ class McpServer(
                             add(
                                 buildJsonObject {
                                     put("type", "text")
-                                    put("text", "User denied: ${result.feedback ?: "no reason given"}")
+                                    put("text", denial)
                                 },
                             )
                         },
                     )
                 }
             }
-            logger.info("[McpServer] Tool $name approved by user, proceeding with execution")
         }
-
-        logger.info("Executing MCP Tool: $name for userId: $userId")
 
         val executor =
             ToolExecutor(
-                userId = userId,
-                llmProvider = LlmProviderFactory.getOrCreateProvider(HttpClientSingleton.client),
-                vectorStore = vectorStore,
-                noteRepository = noteRepository,
-                timerRepository = timerRepository,
-                calendarRepository = calendarRepository,
-                eventEmitter = { event -> ActiveEventBridge.emit(userId, event) },
-                noteService = noteService,
+                userId,
+                LlmProviderFactory.getOrCreateProvider(
+                    HttpClientSingleton.client,
+                ),
+                vectorStore,
+                noteRepository,
+                timerRepository,
+                calendarRepository,
+                {
+                    ActiveEventBridge.emit(userId, it)
+                },
+                noteService,
             )
-
         return try {
             val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)
+            thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "completed", args.toString(), resultStr)
             buildJsonObject {
                 put(
                     "content",
@@ -409,7 +346,8 @@ class McpServer(
                 )
             }
         } catch (e: Exception) {
-            logger.error("Tool execution failed for $name", e)
+            val errorMsg = "Error executing tool: ${e.message}"
+            thinkingStorage.updateToolCall(smartySessionId, toolCallId, name, "failed", args.toString(), errorMsg)
             buildJsonObject {
                 put("isError", true)
                 put(
@@ -418,7 +356,7 @@ class McpServer(
                         add(
                             buildJsonObject {
                                 put("type", "text")
-                                put("text", "Error executing tool: ${e.message}")
+                                put("text", errorMsg)
                             },
                         )
                     },
@@ -428,21 +366,12 @@ class McpServer(
     }
 
     private fun getFallbackUserId(): String {
-        return try {
-            val ds = com.example.smarty.server.data.DatabaseFactory.getDataSource()
-            if (ds != null) {
-                ds.connection.use { conn ->
-                    conn.prepareStatement("SELECT id::text FROM users LIMIT 1").use { stmt ->
-                        stmt.executeQuery().use { rs ->
-                            if (rs.next()) rs.getString("id") else "daemon-localhost"
-                        }
-                    }
+        return runCatching {
+            com.example.smarty.server.data.DatabaseFactory.getDataSource()?.connection?.use { conn ->
+                conn.prepareStatement("SELECT id::text FROM users LIMIT 1").use { stmt ->
+                    stmt.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else "daemon-localhost" }
                 }
-            } else {
-                "daemon-localhost"
             }
-        } catch (e: Exception) {
-            "daemon-localhost"
-        }
+        }.getOrNull() ?: "daemon-localhost"
     }
 }

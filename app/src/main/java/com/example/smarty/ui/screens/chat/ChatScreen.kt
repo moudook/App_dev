@@ -45,6 +45,7 @@ fun ChatScreen(
     // Collect global state - single source of truth
     val chatState by viewModel.chatState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val pendingApproval by viewModel.pendingApprovalState.collectAsState()
     val messages = chatState.messages
     val isProcessing = chatState.isProcessing
     
@@ -205,6 +206,44 @@ fun ChatScreen(
                 },
                 onSkip = {
                     viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, ""))
+                },
+                modifier = Modifier.padding(16.dp)
+            )
+        } else if (pendingApproval != null && pendingApproval!!.toolName == "ask_user") {
+            val approval = pendingApproval!!
+            var parsedQuestion = "Please provide input:"
+            var parsedOptions = emptyList<String>()
+            var parsedAllowCustom = true
+            
+            try {
+                val json = org.json.JSONObject(approval.toolArgs)
+                parsedQuestion = json.optString("question", parsedQuestion)
+                parsedAllowCustom = json.optBoolean("allow_custom", true)
+                
+                val optionsArray = json.optJSONArray("options")
+                if (optionsArray != null) {
+                    val list = mutableListOf<String>()
+                    for (i in 0 until optionsArray.length()) {
+                        list.add(optionsArray.getString(i))
+                    }
+                    parsedOptions = list
+                }
+            } catch (e: Exception) {
+                // Ignore parsing errors and use defaults
+            }
+            
+            val syntheticRequest = com.example.smarty.core.domain.model.ClarificationRequest(
+                question = parsedQuestion,
+                options = parsedOptions,
+                allowCustomInput = parsedAllowCustom
+            )
+            com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
+                request = syntheticRequest,
+                onSubmit = { response ->
+                    viewModel.callApproval(approval.toolId, true, response)
+                },
+                onSkip = {
+                    viewModel.callApproval(approval.toolId, false, null)
                 },
                 modifier = Modifier.padding(16.dp)
             )

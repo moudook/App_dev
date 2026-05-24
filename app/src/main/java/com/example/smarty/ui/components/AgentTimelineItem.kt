@@ -50,7 +50,8 @@ fun AgentTimelineItem(
     message: ChatMessage,
     modifier: Modifier = Modifier,
     onCopyMessage: (String) -> Unit = {},
-    onRegenerateMessage: (String) -> Unit = {}
+    onRegenerateMessage: (String) -> Unit = {},
+    onApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> }
 ) {
     val isUser = message.isUser
     val accentColor = LocalAccentColor.current
@@ -94,7 +95,8 @@ fun AgentTimelineItem(
                 GranularEventTimeline(
                     message = message,
                     accentColor = accentColor,
-                    hasFinalAnswer = hasFinalAnswer
+                    hasFinalAnswer = hasFinalAnswer,
+                    onApproval = onApproval
                 )
             } else if (hasLegacySteps) {
                 // LEGACY PATH: Render old AgentStepEntry list
@@ -300,6 +302,7 @@ private fun GranularEventTimeline(
     message: ChatMessage,
     accentColor: Color,
     hasFinalAnswer: Boolean,
+    onApproval: (String, Boolean, String?) -> Unit,
 ) {
     // Aggregate raw events into stable TimelineNodes.
     // `remember(message.id)` scopes the aggregator to this message ID.
@@ -309,7 +312,10 @@ private fun GranularEventTimeline(
     }
 
     // Separate semantic (Tier 1) and system (Tier 2) nodes
-    val semanticNodes = nodes.filterNot { it is TimelineNode.SystemActivity }
+    val semanticNodes = nodes.filterNot { 
+        it is TimelineNode.SystemActivity || 
+        (it is TimelineNode.ApprovalGate && it.toolName == "ask_user") 
+    }
     val systemNode = nodes.filterIsInstance<TimelineNode.SystemActivity>().firstOrNull()
 
     semanticNodes.forEachIndexed { index, node ->
@@ -319,7 +325,7 @@ private fun GranularEventTimeline(
             isLast = isLast,
             isPulsing = node.isPulsing(),
         ) {
-            NodeCard(node = node, accentColor = accentColor)
+            NodeCard(node = node, accentColor = accentColor, onApproval = onApproval)
         }
     }
 
@@ -375,11 +381,16 @@ private fun NodeIcon(node: TimelineNode, accentColor: Color) {
 }
 
 @Composable
-private fun NodeCard(node: TimelineNode, accentColor: Color) {
+private fun NodeCard(node: TimelineNode, accentColor: Color, onApproval: (String, Boolean, String?) -> Unit) {
     when (node) {
         is TimelineNode.Thinking -> ThinkingCard(node = node)
         is TimelineNode.ToolExecution -> ToolCallCard(node = node)
-        is TimelineNode.ApprovalGate -> ApprovalCard(node = node)
+        is TimelineNode.ApprovalGate -> ApprovalCard(
+            node = node,
+            onGrant = { onApproval(node.toolId, true, null) },
+            onDeny = { onApproval(node.toolId, false, null) },
+            onTextSubmit = { text -> onApproval(node.toolId, true, text) }
+        )
         is TimelineNode.ErrorNode -> ErrorCard(node = node)
         is TimelineNode.RecoveryNode -> RecoveryCard(node = node)
         is TimelineNode.SystemActivity -> SystemActivityCard(node = node)
@@ -391,7 +402,7 @@ private fun NodeCard(node: TimelineNode, accentColor: Color) {
                     isLast = false,
                     isPulsing = childNode.isPulsing(),
                 ) {
-                    NodeCard(node = childNode, accentColor = accentColor)
+                    NodeCard(node = childNode, accentColor = accentColor, onApproval = onApproval)
                 }
             }
         )

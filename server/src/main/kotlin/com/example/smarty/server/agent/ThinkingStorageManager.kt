@@ -4,26 +4,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Thinking Storage Manager — accumulates and manages the complete agent trace for one session.
- *
- * Stores a time-ordered list of "blocks":
- *  - ReasoningBlock  : a chunk of LLM reasoning text
- *  - ToolCallBlock   : a tool call (name, input summary, output summary, status)
- *
- * REVISION V3: Supports block updates via unique IDs to prevent "combining thinking"
- * and "hidden tool calls" during streaming.
+ * REVISION V4: Thread-safe non-blocking reads to prevent deadlocks during SSE emission.
  */
 class ThinkingStorageManager {
     private val logger = LoggerFactory.getLogger(ThinkingStorageManager::class.java)
 
-    private val states = ConcurrentHashMap<String, ThinkingState>()
-    private val mutex = Mutex()
+    // State container with CopyOnWriteArrayList for thread-safe lock-free reads
+    private data class ThinkingState(
+        val blocks: CopyOnWriteArrayList<ThinkingBlock> = CopyOnWriteArrayList(),
+        var lastUpdated: Long = 0L,
+        val writeMutex: Mutex = Mutex(), // Per-session lock for atomic updates
+    )
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Public API
-    // ─────────────────────────────────────────────────────────────────────────
+    private val states = ConcurrentHashMap<String, ThinkingState>()
 
     /** Append a chunk of reasoning text to the current session. */
     suspend fun addReasoning(
@@ -31,13 +28,13 @@ class ThinkingStorageManager {
         reasoning: String,
         forceNewBlock: Boolean = false,
     ) {
-        mutex.withLock {
-            val state = states.getOrPut(sessionId) { ThinkingState() }
+        val state = states.getOrPut(sessionId) { ThinkingState() }
+        state.writeMutex.withLock {
             val last = state.blocks.lastOrNull()
-            
             if (!forceNewBlock && last is ThinkingBlock.Reasoning) {
-                state.blocks[state.blocks.lastIndex] =
-                    last.copy(text = last.text + reasoning)
+                // In CopyOnWriteArrayList, we replace the element to ensure visibility
+                val updated = last.copy(text = last.text + reasoning)
+                state.blocks[state.blocks.lastIndex] = updated
             } else {
                 state.blocks.add(ThinkingBlock.Reasoning(reasoning))
             }
@@ -45,10 +42,7 @@ class ThinkingStorageManager {
         }
     }
 
-    /**
-     * Start or Update a tool call in the trace.
-     * Uses [toolCallId] to ensure we update the correct block instead of creating duplicates.
-     */
+    /** Start or Update a tool call in the trace using unique [toolCallId]. */
     suspend fun updateToolCall(
         sessionId: String,
         toolCallId: String,
@@ -58,88 +52,42 @@ class ThinkingStorageManager {
         outputSummary: String? = null,
         searchQueries: List<Pair<String, String?>> = emptyList(),
     ) {
-        mutex.withLock {
-            val state = states.getOrPut(sessionId) { ThinkingState() }
-            
-            val existingIndex = state.blocks.indexOfFirst { 
-                it is ThinkingBlock.ToolCall && it.id == toolCallId 
-            }
-
+        val state = states.getOrPut(sessionId) { ThinkingState() }
+        state.writeMutex.withLock {
+            val existingIndex = state.blocks.indexOfFirst { it is ThinkingBlock.ToolCall && it.id == toolCallId }
             if (existingIndex >= 0) {
                 val existing = state.blocks[existingIndex] as ThinkingBlock.ToolCall
-                state.blocks[existingIndex] = existing.copy(
-                    status = status,
-                    inputSummary = inputSummary ?: existing.inputSummary,
-                    outputSummary = outputSummary ?: existing.outputSummary,
-                    searchQueries = if (searchQueries.isNotEmpty()) searchQueries else existing.searchQueries
-                )
-            } else {
-                state.blocks.add(
-                    ThinkingBlock.ToolCall(
-                        id = toolCallId,
-                        toolName = toolName,
+                state.blocks[existingIndex] =
+                    existing.copy(
                         status = status,
-                        inputSummary = inputSummary,
-                        outputSummary = outputSummary,
-                        searchQueries = searchQueries,
+                        inputSummary = inputSummary ?: existing.inputSummary,
+                        outputSummary = outputSummary ?: existing.outputSummary,
+                        searchQueries = if (searchQueries.isNotEmpty()) searchQueries else existing.searchQueries,
                     )
-                )
+            } else {
+                state.blocks.add(ThinkingBlock.ToolCall(toolCallId, toolName, status, inputSummary, outputSummary, searchQueries))
             }
             state.lastUpdated = System.currentTimeMillis()
         }
     }
 
-    /** Backward compatibility wrapper for old addToolCall calls */
-    suspend fun addToolCall(
-        sessionId: String,
-        toolName: String,
-        status: String,
-        inputSummary: String? = null,
-        outputSummary: String? = null,
-        searchQueries: List<Pair<String, String?>> = emptyList(),
-    ) {
-        updateToolCall(
-            sessionId = sessionId,
-            toolCallId = "legacy-${System.currentTimeMillis()}",
-            toolName = toolName,
-            status = status,
-            inputSummary = inputSummary,
-            outputSummary = outputSummary,
-            searchQueries = searchQueries
-        )
+    /** Lock-free read of the complete thinking trace. Safe to call during SSE emission. */
+    fun getCompleteThinking(sessionId: String): String {
+        val state = states[sessionId] ?: return ""
+        // No lock needed for reading CopyOnWriteArrayList
+        return serialiseBlocks(state.blocks)
     }
 
-    /** Build and return the complete thinking trace as a serialised JSON string. */
-    suspend fun getCompleteThinking(sessionId: String): String {
-        return mutex.withLock {
-            val state = states[sessionId] ?: return@withLock ""
-            serialiseBlocks(state.blocks)
-        }
-    }
+    suspend fun finalizeAndGetThinking(sessionId: String): String = getCompleteThinking(sessionId)
 
-    /** Alias for getCompleteThinking — call once before emitting the final Result event. */
-    suspend fun finalizeAndGetThinking(sessionId: String): String {
-        val thinking = getCompleteThinking(sessionId)
-        return thinking
-    }
+    fun getCurrentThinking(sessionId: String): String = getCompleteThinking(sessionId)
 
-    /** Get current thinking without finalizing (for progressive save during streaming). */
-    suspend fun getCurrentThinking(sessionId: String): String {
-        return getCompleteThinking(sessionId)
+    fun clear(sessionId: String) {
+        states.remove(sessionId)
     }
-
-    /** Free memory for the given session. */
-    suspend fun clear(sessionId: String) {
-        mutex.withLock { states.remove(sessionId) }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────────
 
     private fun serialiseBlocks(blocks: List<ThinkingBlock>): String {
         if (blocks.isEmpty()) return ""
-
         val sb = StringBuilder("SMARTY_TRACE_V2:[")
         blocks.forEachIndexed { index, block ->
             if (index > 0) sb.append(',')
@@ -150,20 +98,19 @@ class ThinkingStorageManager {
                     sb.append('}')
                 }
                 is ThinkingBlock.ToolCall -> {
-                    sb.append("{\"type\":\"tool\"")
-                    sb.append(",\"id\":")
+                    sb.append("{\"type\":\"tool\",\"id\":")
                     appendJsonString(sb, block.id)
                     sb.append(",\"name\":")
                     appendJsonString(sb, block.toolName)
                     sb.append(",\"status\":")
                     appendJsonString(sb, block.status)
-                    if (block.inputSummary != null) {
+                    block.inputSummary?.let {
                         sb.append(",\"input\":")
-                        appendJsonString(sb, block.inputSummary)
+                        appendJsonString(sb, it)
                     }
-                    if (block.outputSummary != null) {
+                    block.outputSummary?.let {
                         sb.append(",\"output\":")
-                        appendJsonString(sb, block.outputSummary)
+                        appendJsonString(sb, it)
                     }
                     if (block.searchQueries.isNotEmpty()) {
                         sb.append(",\"queries\":[")
@@ -171,9 +118,9 @@ class ThinkingStorageManager {
                             if (qi > 0) sb.append(',')
                             sb.append("{\"q\":")
                             appendJsonString(sb, q)
-                            if (r != null) {
+                            r?.let {
                                 sb.append(",\"r\":")
-                                appendJsonString(sb, r)
+                                appendJsonString(sb, it)
                             }
                             sb.append('}')
                         }
@@ -187,7 +134,10 @@ class ThinkingStorageManager {
         return sb.toString()
     }
 
-    private fun appendJsonString(sb: StringBuilder, value: String) {
+    private fun appendJsonString(
+        sb: StringBuilder,
+        value: String,
+    ) {
         sb.append('"')
         for (c in value) {
             when (c) {
@@ -202,21 +152,10 @@ class ThinkingStorageManager {
         sb.append('"')
     }
 
-    private data class ThinkingState(
-        val blocks: MutableList<ThinkingBlock> = mutableListOf(),
-        var lastUpdated: Long = 0L,
-    )
-
     private sealed class ThinkingBlock {
         data class Reasoning(val text: String) : ThinkingBlock()
-        data class ToolCall(
-            val id: String,
-            val toolName: String,
-            val status: String,
-            val inputSummary: String? = null,
-            val outputSummary: String? = null,
-            val searchQueries: List<Pair<String, String?>> = emptyList(),
-        ) : ThinkingBlock()
+
+        data class ToolCall(val id: String, val toolName: String, val status: String, val inputSummary: String? = null, val outputSummary: String? = null, val searchQueries: List<Pair<String, String?>> = emptyList()) : ThinkingBlock()
     }
 }
 

@@ -275,6 +275,7 @@ fun ChatMessageItem(
     onDeleteMessage: (String) -> Unit = {},
     onEditMessage: ((com.example.smarty.core.domain.model.ChatMessage) -> Unit)? = null,
     onRegenerateMessage: (String) -> Unit = {},
+    onApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     showActions: Boolean = true
 ) {
     val isUser = message.role == ChatRole.USER
@@ -302,7 +303,8 @@ fun ChatMessageItem(
             onNoteClick = onNoteClick,
             onNoteClickById = onNoteClickById,
             onEventClickById = onEventClickById,
-            onRegenerateMessage = onRegenerateMessage
+            onRegenerateMessage = onRegenerateMessage,
+            onApproval = onApproval
         )
 
         // Apply Bubble or Container (isDark already computed above)
@@ -582,7 +584,8 @@ private fun MessageContent(
     onNoteClick: (Note) -> Unit,
     onNoteClickById: (String) -> Unit,
     onEventClickById: (String) -> Unit,
-    onRegenerateMessage: (String) -> Unit
+    onRegenerateMessage: (String) -> Unit,
+    onApproval: (String, Boolean, String?) -> Unit
 ) {
     Column(
         modifier = Modifier.padding(
@@ -595,7 +598,8 @@ private fun MessageContent(
             if (message.agentEvents.isNotEmpty()) {
                 AgentTimelineItem(
                     message = message,
-                    onRegenerateMessage = onRegenerateMessage
+                    onRegenerateMessage = onRegenerateMessage,
+                    onApproval = onApproval
                 )
             } else {
                 if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank()) || message.agentSteps.isNotEmpty()) {

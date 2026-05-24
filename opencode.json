@@ -10,7 +10,9 @@
     "openrouter"
   ],
   "enabled_providers": [
-    "opencode"
+    "opencode",
+    "kilo",
+    "nvidia"
   ],
   "default_agent": "smarty-headless-agent",
   "mcp": {
