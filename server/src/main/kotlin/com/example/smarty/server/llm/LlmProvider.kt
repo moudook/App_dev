@@ -79,6 +79,7 @@ data class LlmToolCall(
     val id: String,
     val functionName: String,
     val arguments: String, // JSON string
+    val status: String? = null, // Tool execution status: "pending", "running", "completed", "error"
 )
 
 @Serializable

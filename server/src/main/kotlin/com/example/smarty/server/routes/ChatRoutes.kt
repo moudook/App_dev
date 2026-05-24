@@ -531,6 +531,29 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     )
 
                 try {
+                    if (opencodeSessionId != null && streamProvider is com.example.smarty.server.llm.OpencodeLlmProvider) {
+                        try {
+                            val historyArray = streamProvider.getSessionHistory(opencodeSessionId)
+                            if (historyArray != null) {
+                                send(
+                                    ServerSentEvent(
+                                        data = json.encodeToString(
+                                            AgentEvent.OpencodeRawEvent(
+                                                eventId = UUID.randomUUID().toString(),
+                                                timestamp = System.currentTimeMillis(),
+                                                data = historyArray.toString(),
+                                                eventName = "session.history"
+                                            )
+                                        ),
+                                        event = "opencode_raw"
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to fetch session history for reconnect", e)
+                        }
+                    }
+
                     // Send immediate "thinking" event so client knows the request is being processed
                     // This prevents timeout issues when LLM providers take 1-3 minutes to start responding
                     send(

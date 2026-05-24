@@ -2,11 +2,13 @@ package com.example.smarty.server.llm
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.utils.io.readUTF8Line
@@ -227,6 +229,18 @@ class OpencodeLlmProvider(
             }
         }.flowOn(Dispatchers.IO)
 
+    suspend fun getSessionHistory(sessionId: String): JsonArray? {
+        return try {
+            val response = client.get("$daemonBaseUrl/session/$sessionId/message")
+            if (response.status.value == 200) {
+                Json.parseToJsonElement(response.bodyAsText()).jsonObject["parts"]?.jsonArray
+            } else null
+        } catch (e: Exception) {
+            logger.error("Failed to fetch session history for $sessionId", e)
+            null
+        }
+    }
+
     private suspend fun FlowCollector<LlmChunk>.processSseEvent(
         eventType: String,
         data: String,
@@ -267,6 +281,7 @@ class OpencodeLlmProvider(
                                         "tool-${System.currentTimeMillis()}-$i",
                                         part.toolName ?: "unknown",
                                         part.toolArgs ?: "",
+                                        status = part.status,
                                     ),
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
@@ -305,25 +320,26 @@ class OpencodeLlmProvider(
                                     subagentId = sid,
                                 )
                             )
-                        "tool_use", "tool", "call", "web_search", "search" -> {
+                        "tool_use", "tool", "call", "web_search", "search", "subtask", "file", "patch", "retry", "compaction" -> {
                             val call = obj["call"]?.jsonObject ?: obj
                             val rawToolName = (call["name"] ?: call["tool"] ?: call["function"])?.deepStr() ?: type
                             val toolName = if (rawToolName == "askuser") "ask_user" else rawToolName
                             
                             val stateObj = call["state"]?.jsonObject
+                            val status = stateObj?.get("status")?.safeStr
                             val inputElement = stateObj?.get("input") ?: call["arguments"] ?: call["args"] ?: call["input"] ?: call["query"]
                             val outputElement = stateObj?.get("output")
                             val toolArgs = inputElement?.rawJsonStr()
                             val toolOutput = outputElement?.deepStr() ?: outputElement?.rawJsonStr()
                             
                             val toolParts = mutableListOf<CanonicalPart>()
-                            toolParts.add(CanonicalPart("tool_use", null, toolName, toolArgs, subagentId = sid))
+                            toolParts.add(CanonicalPart("tool_use", null, toolName, toolArgs, subagentId = sid, status = status))
                             if (toolOutput != null) {
                                 toolParts.add(CanonicalPart("tool_result", toolOutput, toolName, subagentId = sid))
                             }
                             toolParts
                         }
-                        "tool_result", "result", "web_search_result", "search_result" ->
+                        "tool_result", "result", "web_search_result", "search_result", "subtask_result", "file_result", "patch_result", "retry_result", "compaction_result" ->
                             listOf(
                                 CanonicalPart(
                                     "tool_result",
@@ -347,6 +363,7 @@ class OpencodeLlmProvider(
             val toolName = (part["tool"] ?: part["name"] ?: part["function"] ?: json["name"]).deepStr()
 
             val stateObj = part["state"]?.jsonObject
+            val status = stateObj?.get("status")?.safeStr
             val inputElement = stateObj?.get("input") ?: part["arguments"] ?: part["args"] ?: part["input"] ?: json["arguments"] ?: json["args"] ?: json["input"]
             val outputElement = stateObj?.get("output")
             val toolArgs = inputElement?.rawJsonStr()
@@ -355,17 +372,17 @@ class OpencodeLlmProvider(
             return when (type) {
                 "text", "content" -> CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = sid)))
                 "reasoning", "thought" -> CanonicalResponse(listOf(CanonicalPart("reasoning", content, subagentId = sid)))
-                "tool_use", "tool", "call", "web_search", "search" -> {
+                "tool_use", "tool", "call", "web_search", "search", "subtask", "file", "patch", "retry", "compaction" -> {
                     val parts = mutableListOf<CanonicalPart>()
                     val rawToolName = if (toolName == "null" || toolName.isNullOrBlank()) type else toolName
                     val actualToolName = if (rawToolName == "askuser") "ask_user" else rawToolName
-                    parts.add(CanonicalPart("tool_use", content, actualToolName, toolArgs, subagentId = sid))
+                    parts.add(CanonicalPart("tool_use", content, actualToolName, toolArgs, subagentId = sid, status = status))
                     if (toolOutput != null) {
                         parts.add(CanonicalPart("tool_result", toolOutput, actualToolName, subagentId = sid))
                     }
                     CanonicalResponse(parts)
                 }
-                "tool_result", "result", "web_search_result", "search_result" -> {
+                "tool_result", "result", "web_search_result", "search_result", "subtask_result", "file_result", "patch_result", "retry_result", "compaction_result" -> {
                     val actualToolName = if (toolName == "null" || toolName.isNullOrBlank()) type.replace("_result", "") else toolName
                     CanonicalResponse(listOf(CanonicalPart("tool_result", content, actualToolName, subagentId = sid)))
                 }
@@ -404,6 +421,6 @@ class OpencodeLlmProvider(
 
 @Serializable private data class DaemonMessageRequest(val parts: List<JsonObject>, val model: JsonObject? = null, val agent: String? = null, val system: String? = null)
 
-private data class CanonicalPart(val type: String, val content: String? = null, val toolName: String? = null, val toolArgs: String? = null, val subagentId: String? = null)
+private data class CanonicalPart(val type: String, val content: String? = null, val toolName: String? = null, val toolArgs: String? = null, val subagentId: String? = null, val status: String? = null)
 
 private data class CanonicalResponse(val parts: List<CanonicalPart>)

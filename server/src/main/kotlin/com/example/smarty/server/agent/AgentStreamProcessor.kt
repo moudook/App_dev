@@ -24,6 +24,7 @@ class AgentStreamProcessor(
     var currentToolId: String? = null
     var currentToolName = ""
     var currentToolArgs = ""
+    var currentToolStepIndex = -1
     var isToolCallInProgress = false
     var totalUsage: LlmUsage? = null
     var currentSubagentId: String? = null
@@ -32,8 +33,17 @@ class AgentStreamProcessor(
     private var currentThinkingStepId: String? = null
     private var currentThinkingStepStart: Long = 0L
     private val currentThinkingContent = StringBuilder()
-    private val THINKING_STEP_THROTTLE_MS = 500L
+    private val THINKING_STEP_THROTTLE_MS = 250L
     private var lastThinkingStepEmitTime = 0L
+    private var lastReasoningDeltaEmitTime = 0L
+    private val reasoningDeltaBuffer = java.lang.StringBuilder()
+
+    private var lastFinalAnswerDeltaEmitTime = 0L
+    private val finalAnswerDeltaBuffer = java.lang.StringBuilder()
+    private val FINAL_ANSWER_THROTTLE_MS = 150L
+
+    // Regex for pseudo-narration (e.g. "[tool_call: web_search]")
+    private val pseudoNarrationRegex = Regex("""\[(?:tool_call|subtask|patch|file):.*?\]""")
 
     suspend fun emitThrottledProcessing(
         content: String,
@@ -83,7 +93,12 @@ class AgentStreamProcessor(
         val now = System.currentTimeMillis()
         thinkingStorage.addReasoning(sessionId, content, forceNewBlock = false)
 
-        this.emit(AgentEvent.ReasoningDelta(UUID.randomUUID().toString(), now, content))
+        reasoningDeltaBuffer.append(content)
+        if (now - lastReasoningDeltaEmitTime >= THINKING_STEP_THROTTLE_MS) {
+            this.emit(AgentEvent.ReasoningDelta(UUID.randomUUID().toString(), now, reasoningDeltaBuffer.toString()))
+            reasoningDeltaBuffer.clear()
+            lastReasoningDeltaEmitTime = now
+        }
 
         if (now - lastThinkingStepEmitTime < THINKING_STEP_THROTTLE_MS) return
         lastThinkingStepEmitTime = now
@@ -122,6 +137,11 @@ class AgentStreamProcessor(
         this.emit(AgentEvent.ReasoningFinished(UUID.randomUUID().toString(), System.currentTimeMillis()))
         currentThinkingStepId = null
         currentThinkingContent.clear()
+        
+        if (reasoningDeltaBuffer.isNotEmpty()) {
+            this.emit(AgentEvent.ReasoningDelta(UUID.randomUUID().toString(), System.currentTimeMillis(), reasoningDeltaBuffer.toString()))
+            reasoningDeltaBuffer.clear()
+        }
     }
 
     suspend fun processChunk(chunk: com.example.smarty.server.llm.LlmChunk) {
@@ -149,25 +169,40 @@ class AgentStreamProcessor(
         }
 
         if (!chunk.content.isNullOrEmpty()) {
-            if (isToolCallInProgress) finalizeCurrentTool("completed")
-            if (currentThinkingStepId != null) finalizeThinkingStep()
-            if (!hasStartedFinalAnswer) {
-                hasStartedFinalAnswer = true
-                this.emit(AgentEvent.FinalAnswerStarted(UUID.randomUUID().toString(), System.currentTimeMillis()))
+            // Pseudo-narration filtering
+            val filteredContent = chunk.content.replace(pseudoNarrationRegex, "").trim()
+            if (filteredContent.isNotEmpty()) {
+                if (isToolCallInProgress) finalizeCurrentTool("completed")
+                if (currentThinkingStepId != null) finalizeThinkingStep()
+                if (!hasStartedFinalAnswer) {
+                    hasStartedFinalAnswer = true
+                    this.emit(AgentEvent.FinalAnswerStarted(UUID.randomUUID().toString(), System.currentTimeMillis()))
+                }
+                
+                finalAnswerDeltaBuffer.append(filteredContent)
+                val now = System.currentTimeMillis()
+                if (now - lastFinalAnswerDeltaEmitTime >= FINAL_ANSWER_THROTTLE_MS) {
+                    this.emit(AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), now, finalAnswerDeltaBuffer.toString()))
+                    finalAnswerDeltaBuffer.clear()
+                    lastFinalAnswerDeltaEmitTime = now
+                }
+                
+                currentContent += filteredContent
+                emitThrottledProcessing(chunk.content, thinkingStorage.getCompleteThinking(sessionId))
             }
-            this.emit(AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), System.currentTimeMillis(), chunk.content))
-            currentContent += chunk.content
-            emitThrottledProcessing(chunk.content, thinkingStorage.getCompleteThinking(sessionId))
         }
 
         val toolCall = chunk.toolCall
         if (toolCall != null) {
-            if (!isToolCallInProgress) {
+            val status = toolCall.status ?: "running"
+            if (!isToolCallInProgress || currentToolName != toolCall.functionName) {
+                if (isToolCallInProgress) finalizeCurrentTool("completed")
                 isToolCallInProgress = true
                 if (currentThinkingStepId != null) finalizeThinkingStep()
                 currentToolId = toolCall.id.ifEmpty { "tool-${UUID.randomUUID()}" }
                 currentToolName = toolCall.functionName
                 currentToolArgs = ""
+                currentToolStepIndex = stepIndex++
 
                 thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", toolCall.arguments)
                 this.emit(
@@ -180,12 +215,47 @@ class AgentStreamProcessor(
                         subagentId = currentSubagentId
                     ),
                 )
+                this.emit(
+                    AgentEvent.AgentStep(
+                        eventId = currentToolId!!,
+                        timestamp = System.currentTimeMillis(),
+                        stepIndex = currentToolStepIndex,
+                        stepType = "tool_call",
+                        stepTitle = "Calling: $currentToolName",
+                        stepContent = "",
+                        stepStatus = "started",
+                        toolName = currentToolName,
+                        subagentId = currentSubagentId
+                    ),
+                )
             }
-            currentToolArgs += toolCall.arguments
-            thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", currentToolArgs)
-            this.emit(
-                AgentEvent.ToolCallInput(UUID.randomUUID().toString(), System.currentTimeMillis(), currentToolId!!, toolCall.arguments),
-            )
+            
+            // Only append delta if there is one
+            if (toolCall.arguments.isNotEmpty()) {
+                currentToolArgs += toolCall.arguments
+                thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", currentToolArgs)
+                this.emit(
+                    AgentEvent.ToolCallInput(UUID.randomUUID().toString(), System.currentTimeMillis(), currentToolId!!, toolCall.arguments, subagentId = currentSubagentId),
+                )
+                this.emit(
+                    AgentEvent.AgentStep(
+                        eventId = currentToolId!!,
+                        timestamp = System.currentTimeMillis(),
+                        stepIndex = currentToolStepIndex,
+                        stepType = "tool_call",
+                        stepTitle = "Calling: $currentToolName",
+                        stepContent = currentToolArgs,
+                        stepStatus = "streaming",
+                        toolName = currentToolName,
+                        subagentId = currentSubagentId
+                    ),
+                )
+            }
+
+            // Explicit transitions from OpenCode daemon
+            if (status == "completed" || status == "error") {
+                finalizeCurrentTool(status)
+            }
         }
 
         val toolResult = chunk.toolResult
@@ -219,8 +289,9 @@ class AgentStreamProcessor(
                 subagentId = currentSubagentId
             ),
         )
+        val finalStatus = if (status == "error") "failed" else "completed"
         this.emit(
-            AgentEvent.AgentStep(tid, System.currentTimeMillis(), stepIndex++, "tool_call", "Result: $currentToolName", result ?: "", "completed", currentToolName, subagentId = currentSubagentId),
+            AgentEvent.AgentStep(tid, System.currentTimeMillis(), currentToolStepIndex, "tool_call", "Result: $currentToolName", result ?: "", finalStatus, currentToolName, subagentId = currentSubagentId),
         )
         currentToolId = null
     }
@@ -232,6 +303,12 @@ class AgentStreamProcessor(
     ) {
         if (currentThinkingStepId != null) finalizeThinkingStep()
         if (isToolCallInProgress) finalizeCurrentTool("completed")
+        
+        if (finalAnswerDeltaBuffer.isNotEmpty()) {
+            this.emit(AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), System.currentTimeMillis(), finalAnswerDeltaBuffer.toString()))
+            finalAnswerDeltaBuffer.clear()
+        }
+        
         val finalTrace = thinkingStorage.finalizeAndGetThinking(sessionId)
         this.emit(
             AgentEvent.Result(
