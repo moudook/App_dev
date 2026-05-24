@@ -357,7 +357,7 @@ class OpencodeLlmProvider(
                 "reasoning", "thought" -> CanonicalResponse(listOf(CanonicalPart("reasoning", content, subagentId = sid)))
                 "tool_use", "tool", "call", "web_search", "search" -> {
                     val parts = mutableListOf<CanonicalPart>()
-                    val rawToolName = if (toolName == "null" || toolName.isBlank()) type else toolName
+                    val rawToolName = if (toolName == "null" || toolName.isNullOrBlank()) type else toolName
                     val actualToolName = if (rawToolName == "askuser") "ask_user" else rawToolName
                     parts.add(CanonicalPart("tool_use", content, actualToolName, toolArgs, subagentId = sid))
                     if (toolOutput != null) {
@@ -366,7 +366,7 @@ class OpencodeLlmProvider(
                     CanonicalResponse(parts)
                 }
                 "tool_result", "result", "web_search_result", "search_result" -> {
-                    val actualToolName = if (toolName == "null" || toolName.isBlank()) type.replace("_result", "") else toolName
+                    val actualToolName = if (toolName == "null" || toolName.isNullOrBlank()) type.replace("_result", "") else toolName
                     CanonicalResponse(listOf(CanonicalPart("tool_result", content, actualToolName, subagentId = sid)))
                 }
                 "part-delta", "delta" -> {
