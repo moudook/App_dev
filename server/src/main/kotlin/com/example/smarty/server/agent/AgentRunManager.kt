@@ -87,8 +87,11 @@ object AgentRunManager {
                 if (event is AgentEvent.AgentStep) {
                     collectedAgentSteps[event.stepIndex] = event
                 }
-                if (event is AgentEvent.Command && event.command is AgentCommand.NotifyCitations) {
-                    collectedCitations.addAll(event.command.citations)
+                if (event is AgentEvent.Command) {
+                    val cmd = event.command
+                    if (cmd is AgentCommand.NotifyCitations) {
+                        collectedCitations.addAll(cmd.citations)
+                    }
                 }
                 
                 // Progressive save for active WebSocket stream (so crashes don't lose data)
