@@ -22,6 +22,7 @@ import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.settings.domain.SettingsFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -304,6 +305,7 @@ object ServiceLocator {
                         },
                     )
                 }
+                install(WebSockets)
             }.also { httpClient = it }
         }
     }

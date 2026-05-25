@@ -10,11 +10,12 @@ import com.example.smarty.ui.components.ConnectionStatus
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.plugins.sse.*
+import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Client-side service that connects to the Cloud Agent's SSE stream.
@@ -151,7 +154,7 @@ class RemoteAgentService(
         messageId: String? = null,
     ): Flow<AgentEvent> =
         flow {
-            val baseUrl = serverUrlProvider()
+            val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
             val token = getFirebaseToken()
 
             val timezone = java.util.TimeZone.getDefault().id
@@ -159,58 +162,69 @@ class RemoteAgentService(
 
             val url =
                 buildString {
-                    append("$baseUrl/chat/stream")
-                    append("?query=${query.encodeURLParameter()}")
-                    if (provider != null) append("&provider=${provider.encodeURLParameter()}")
-                    if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
-                    if (model != null) append("&model=${model.encodeURLParameter()}")
+                    append("$baseUrl/chat/ws")
+                    append("?token=${token ?: ""}")
                     if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
-                    if (personality != null) append("&personality=${personality.encodeURLParameter()}")
-                    if (messageId != null) append("&messageId=${messageId.encodeURLParameter()}")
-                    append("&timezone=${timezone.encodeURLParameter()}")
-                    append("&clientTime=$clientTime")
                 }
 
-            Log.d(TAG, "Connecting to Remote Agent: $url")
+            Log.d(TAG, "Connecting to Remote Agent WS: $url")
             _connectionState.value = ConnectionStatus.CONNECTING
 
             try {
-                client.sse(
+                client.webSocket(
                     urlString = url,
                     request = {
-                        if (token != null) {
-                            header(HttpHeaders.Authorization, "Bearer $token")
-                        }
                         header("X-Smarty-Version", BuildConfig.VERSION_NAME)
                         header("X-Smarty-Device-Id", getDeviceId())
                     },
                 ) {
                     _connectionState.value = ConnectionStatus.CONNECTED
+                    
+                    // Send the query request frame to start the run
+                    val requestObj = ChatQueryRequest(
+                        query = query,
+                        sessionId = sessionId,
+                        provider = provider,
+                        providerUrl = providerUrl,
+                        model = model,
+                        timezone = timezone,
+                        clientTime = clientTime,
+                        personality = personality
+                    )
+                    
+                    val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
+                    send(Frame.Text(requestJson))
+                    Log.d(TAG, "Sent WS ChatQueryRequest")
+
                     try {
-                        incoming.collect { event ->
-                            val data = event.data ?: return@collect
-                            if (data.isBlank()) return@collect
-                            try {
-                                val eventType = event.event ?: "processing"
-                                val agentEvent = decodeAgentEvent(eventType, data)
-                                val shouldStop = handleEvent(agentEvent, this@flow)
-                                if (shouldStop) {
-                                    throw EndStreamException()
+                        for (frame in incoming) {
+                            if (frame is Frame.Text) {
+                                val data = frame.readText()
+                                if (data.isBlank()) continue
+                                try {
+                                    val jsonElement = json.parseToJsonElement(data).jsonObject
+                                    val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
+                                    
+                                    val agentEvent = decodeAgentEvent(eventType, data)
+                                    val shouldStop = handleEvent(agentEvent, this@flow)
+                                    if (shouldStop) {
+                                        throw EndStreamException()
+                                    }
+                                } catch (e: Exception) {
+                                    if (e is EndStreamException) throw e
+                                    Log.e(TAG, "Failed to process WS event (length: ${data.length}): ${e.message}", e)
                                 }
-                            } catch (e: Exception) {
-                                if (e is EndStreamException) throw e
-                                Log.e(TAG, "Failed to process SSE event (length: ${data.length}): ${e.message}", e)
                             }
                         }
                     } catch (e: EndStreamException) {
-                        Log.d(TAG, "Stream completed normally")
+                        Log.d(TAG, "WS Stream completed normally")
                     }
                 }
                 if (_connectionState.value != ConnectionStatus.OFFLINE) {
                     _connectionState.value = ConnectionStatus.DISCONNECTED
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "SSE connection failed: ${e.message}", e)
+                Log.e(TAG, "WS connection failed: ${e.message}", e)
                 _connectionState.value = ConnectionStatus.OFFLINE
                 emit(
                     AgentEvent.Error(
@@ -538,48 +552,105 @@ class RemoteAgentService(
     }
 
     /**
-     * Upload a file for processing.
+     * Upload a file using the direct-to-Drive Signed URL approach.
      */
     suspend fun uploadFile(
         fileBytes: ByteArray,
         fileName: String,
         contentType: String,
         analysisType: String = "content",
-    ): Any? {
+    ): String? {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
-            val response =
-                client.submitFormWithBinaryData(
-                    url = "$baseUrl/upload",
-                    formData =
-                        formData {
-                            append(
-                                "file",
-                                fileBytes,
-                                Headers.build {
-                                    append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                                    append(HttpHeaders.ContentType, contentType)
-                                },
-                            )
-                            append("analysisType", analysisType)
-                        },
-                ) {
-                    if (token != null) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                }
+            // 1. Get Signed URL from Ktor
+            val urlResponse = client.post("$baseUrl/files/upload-url") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("fileName" to fileName, "mimeType" to contentType))
+            }
 
-            if (response.status.isSuccess()) {
-                response.bodyAsText()
+            if (!urlResponse.status.isSuccess()) {
+                Log.e(TAG, "Failed to get upload URL: ${urlResponse.status}")
+                return null
+            }
+
+            val uploadUrl = try {
+                val jsonBody = com.google.gson.JsonParser.parseString(urlResponse.bodyAsText()).asJsonObject
+                jsonBody.get("uploadUrl")?.asString
+            } catch (e: Exception) { null }
+
+            if (uploadUrl == null) {
+                Log.e(TAG, "Missing uploadUrl in response")
+                return null
+            }
+
+            // 2. Upload directly to Google Drive via PUT
+            val uploadResponse = client.put(uploadUrl) {
+                // Do NOT send Firebase token here, this goes directly to Google APIs
+                setBody(fileBytes)
+            }
+
+            if (uploadResponse.status.isSuccess()) {
+                // Google Drive returns the File resource metadata
+                try {
+                    val fileMeta = com.google.gson.JsonParser.parseString(uploadResponse.bodyAsText()).asJsonObject
+                    val fileId = fileMeta.get("id")?.asString
+                    return fileId ?: uploadUrl // fallback to URL if ID parsing fails
+                } catch (e: Exception) {
+                    return uploadUrl
+                }
             } else {
-                Log.e(TAG, "File upload failed: ${response.status}")
-                null
+                Log.e(TAG, "Direct to Drive upload failed: ${uploadResponse.status}")
+                return null
             }
         } catch (e: Exception) {
             Log.e(TAG, "File upload error: ${e.message}", e)
-            null
+            return null
+        }
+    }
+
+    /**
+     * Download a file using the direct-to-Drive Signed URL approach.
+     */
+    suspend fun downloadFile(fileId: String): ByteArray? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+
+            // 1. Get Signed Download URL from Ktor
+            val urlResponse = client.get("$baseUrl/files/download-url/$fileId") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+            }
+
+            if (!urlResponse.status.isSuccess()) {
+                Log.e(TAG, "Failed to get download URL: ${urlResponse.status}")
+                return null
+            }
+
+            val downloadUrl = try {
+                val jsonBody = com.google.gson.JsonParser.parseString(urlResponse.bodyAsText()).asJsonObject
+                jsonBody.get("downloadUrl")?.asString
+            } catch (e: Exception) { null }
+
+            if (downloadUrl == null) {
+                Log.e(TAG, "Missing downloadUrl in response")
+                return null
+            }
+
+            // 2. Download directly from Google Drive
+            val downloadResponse = client.get(downloadUrl)
+            
+            if (downloadResponse.status.isSuccess()) {
+                downloadResponse.readBytes()
+            } else {
+                Log.e(TAG, "Direct from Drive download failed: ${downloadResponse.status}")
+                return null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "File download error: ${e.message}", e)
+            return null
         }
     }
 

@@ -342,7 +342,8 @@ class ToolExecutor(
         } else if (noteRepository != null && args.query != null) {
             val results =
                 noteRepository.listByUser(userId, limit = 100).filter {
-                    it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true)
+                    !it.isArchived && !it.isFullPrivacy && !it.excludeFromAiChat &&
+                    (it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true))
                 }.take(20)
             if (results.isEmpty()) {
                 "No notes found for '${args.query}'."

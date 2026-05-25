@@ -7,6 +7,8 @@ import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.sse.*
 import io.ktor.server.response.*
+import io.ktor.server.websocket.*
+import io.ktor.websocket.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import com.example.smarty.server.routes.configureHealthRoutes
@@ -56,6 +58,10 @@ import com.example.smarty.server.data.UserDeviceRepository
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
 import com.example.smarty.server.routes.configureModelRoutes
+import com.example.smarty.server.services.FileProcessingService
+import com.example.smarty.server.services.GoogleDriveService
+import com.example.smarty.server.services.GroqWhisperService
+import com.example.smarty.server.routes.configureFileRoutes
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -187,6 +193,14 @@ fun Application.module() {
     // Configure SSE plugin for streaming
     install(SSE)
 
+    // Configure WebSockets plugin for real-time bidirectional communication
+    install(WebSockets) {
+        pingPeriodMillis = 15000
+        timeoutMillis = 15000
+        maxFrameSize = Long.MAX_VALUE
+        masking = false
+    }
+
     // Initialize core services — single pass, no duplicates
     val ds = DatabaseFactory.getDataSource()
     var digestService: DigestService? = null
@@ -216,16 +230,32 @@ fun Application.module() {
         digestScheduler.start()
 
         val noteRepo = NoteRepository(ds, chatMessageNotesRepo, calendarEventNotesRepo)
+        val visionService = VisionService(HttpClientSingleton.client)
+
         val noteService =
             com.example.smarty.server.services.NoteService(
                 noteRepo,
-                com.example.smarty.server.services.ContentAnalysisService(
-                    HttpClientSingleton.client,
-                    VisionService(HttpClientSingleton.client),
-                ),
+                com.example.smarty.server.agent.NoteProcessingAgent(HttpClientSingleton.client),
                 PostgresVectorStore(),
                 com.example.smarty.server.services.AdaptiveSearchService(),
             )
+
+        // Services for files
+        val fileProcessingService =
+            FileProcessingService(
+                visionService = visionService,
+                httpClient = HttpClientSingleton.client,
+            )
+
+        val googleDriveService = GoogleDriveService(
+            httpClient = HttpClientSingleton.client,
+            serviceAccountJsonPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS") ?: "service-account.json"
+        )
+
+        val groqWhisperService = GroqWhisperService(
+            httpClient = HttpClientSingleton.client,
+            apiKey = System.getenv("GROQ_API_KEY") ?: ""
+        )
 
         // Configure routes
         configureHealthRoutes()
@@ -233,6 +263,7 @@ fun Application.module() {
         configureProcessingRoutes()
         configureHandshakeRoutes()
         configureDataRoutes(noteService)
+        configureFileRoutes(googleDriveService, groqWhisperService)
 
         val taskRepo = TaskRepository(ds)
         val tagRepo = TagRepository(ds)
@@ -241,7 +272,7 @@ fun Application.module() {
         configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
 
         configureSyncRoutes()
-        configureOptimizedSyncRoutes()
+        configureOptimizedSyncRoutes(noteService)
 
         val reasoningRepo = ReasoningTraceRepository(ds)
         val reasoningService = ReasoningService(reasoningRepo)
@@ -254,7 +285,7 @@ fun Application.module() {
 
         val orchestratorService =
             OrchestratorService(
-                visionService = VisionService(HttpClientSingleton.client),
+                visionService = visionService,
                 kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
             )
         configureOrchestratorRoutes(orchestratorService)

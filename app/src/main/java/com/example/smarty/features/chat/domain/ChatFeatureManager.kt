@@ -805,7 +805,7 @@ class ChatFeatureManager(
                 return PrivacyGuard.getAiVisibleNotes(rawNotes)
             }
 
-            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
+            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value.map { it.copy(isArchived = false) })
 
             override fun getCategories(): List<Category> = allCategories.value
 

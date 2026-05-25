@@ -15,6 +15,9 @@ data class ContentAnalysisResult(
     val summary: String,
     val whySaved: String,
     val todos: List<String> = emptyList(),
+    val memories: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val stackId: String? = null,
     val success: Boolean = true,
     val error: String? = null,
 )

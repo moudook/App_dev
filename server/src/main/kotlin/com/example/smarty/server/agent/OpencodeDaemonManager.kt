@@ -2,6 +2,7 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.server.HttpClientSingleton
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineScope
@@ -24,10 +25,18 @@ object OpencodeDaemonManager {
     private var monitorJob: Job? = null
     private var daemonProcess: Process? = null
 
-    private const val DAEMON_PORT = 4096
     private const val DAEMON_HOST = "127.0.0.1"
-    private const val HEALTH_URL = "http://$DAEMON_HOST:$DAEMON_PORT/global/health"
     private const val CHECK_INTERVAL_MS = 15000L // Check every 15 seconds
+
+    // Randomize port and credentials for security against local RCE (CVE-2026-22812)
+    var daemonPort: Int = java.net.ServerSocket(0).use { it.localPort }
+        private set
+    var daemonUsername: String = java.util.UUID.randomUUID().toString().take(12)
+        private set
+    var daemonPassword: String = java.util.UUID.randomUUID().toString()
+        private set
+
+    val healthUrl get() = "http://$DAEMON_HOST:$daemonPort/global/health"
 
     private val client get() = HttpClientSingleton.client
 
@@ -37,7 +46,7 @@ object OpencodeDaemonManager {
     fun startMonitoring() {
         if (monitorJob?.isActive == true) return
 
-        log.info("Starting OpenCode daemon monitor. Health endpoint: $HEALTH_URL")
+        log.info("Starting OpenCode daemon monitor. Health endpoint: $healthUrl")
         monitorJob =
             scope.launch {
                 while (isActive) {
@@ -76,14 +85,17 @@ object OpencodeDaemonManager {
     private suspend fun checkAndRecover() {
         val isHealthy =
             try {
-                val response: HttpResponse = client.get(HEALTH_URL)
+                val response: HttpResponse = client.get(healthUrl) {
+                    val creds = "$daemonUsername:$daemonPassword"
+                    header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
+                }
                 response.status.isSuccess()
             } catch (e: Exception) {
                 false
             }
 
         if (!isHealthy) {
-            log.warn("OpenCode daemon at $HEALTH_URL is not responding. Attempting to start/restart...")
+            log.warn("OpenCode daemon at $healthUrl is not responding. Attempting to start/restart...")
 
             // Clean up old process reference if it exists
             daemonProcess?.let {
@@ -99,20 +111,36 @@ object OpencodeDaemonManager {
                 val isWindows = System.getProperty("os.name").lowercase().contains("windows")
                 val command =
                     if (isWindows) {
-                        listOf("cmd.exe", "/c", "opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST")
+                        listOf("cmd.exe", "/c", "opencode serve --port $daemonPort --hostname $DAEMON_HOST --username $daemonUsername --password $daemonPassword")
                     } else {
-                        listOf("opencode", "serve", "--port", "$DAEMON_PORT", "--hostname", "$DAEMON_HOST")
+                        listOf("opencode", "serve", "--port", "$daemonPort", "--hostname", "$DAEMON_HOST", "--username", daemonUsername, "--password", daemonPassword)
                     }
 
                 val pb = ProcessBuilder(command)
 
-                // Set working directory to project root if possible (up two levels from server module if running from there)
+                // Inject secure credentials into the process environment
+                val env = pb.environment()
+                env["OPENCODE_SERVER_USERNAME"] = daemonUsername
+                env["OPENCODE_SERVER_PASSWORD"] = daemonPassword
+
+                // Set working directory to project root if possible
                 val currentDir = File(System.getProperty("user.dir"))
-                if (File(currentDir, "opencode.json").exists()) {
-                    pb.directory(currentDir)
+                val targetDir = if (File(currentDir, "opencode.json").exists()) {
+                    currentDir
                 } else if (File(currentDir.parentFile, "opencode.json").exists()) {
-                    pb.directory(currentDir.parentFile)
+                    currentDir.parentFile
+                } else {
+                    currentDir
                 }
+                
+                // Workspace Isolation: Block/strip `.opencode/` directories and `package.json` scripts to prevent supply chain RCE
+                val opencodeDir = File(targetDir, ".opencode")
+                if (opencodeDir.exists()) {
+                    log.warn("Security Alert: Found .opencode directory in workspace. Deleting to prevent malicious override.")
+                    opencodeDir.deleteRecursively()
+                }
+                
+                pb.directory(targetDir)
 
                 val logFile = File(System.getProperty("java.io.tmpdir"), "opencode-daemon-recovery.log")
                 pb.redirectOutput(logFile)

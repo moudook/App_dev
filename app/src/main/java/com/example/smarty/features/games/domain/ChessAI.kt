@@ -97,7 +97,7 @@ class ChessAI(private val context: Context) {
         } catch (e: Exception) {}
     }
 
-    fun evaluate(board: List<Any?>): Float {
+    suspend fun evaluate(board: List<Any?>): Float {
         val (wf, bf) = boardToFeatures(board)
         transformInto(wf, transformerW, transformerB, 768, 256, _wT)
         transformInto(bf, transformerW, transformerB, 768, 256, _bT)
@@ -112,16 +112,18 @@ class ChessAI(private val context: Context) {
         return (-Math.log(2.0 / (finalScore + 1.0) - 1.0) / 0.00368208).toFloat()
     }
 
-    private fun transformInto(input: FloatArray, weights: FloatArray, bias: FloatArray, inDim: Int, outDim: Int, out: FloatArray) {
+    private suspend fun transformInto(input: FloatArray, weights: FloatArray, bias: FloatArray, inDim: Int, outDim: Int, out: FloatArray) {
         for (j in 0 until outDim) {
+            if (j % 64 == 0) kotlinx.coroutines.yield()
             var sum = bias[j]
             for (i in 0 until inDim) if (input[i] > 0) sum += weights[i * outDim + j]
             out[j] = if (sum > 0) sum else 0f
         }
     }
 
-    private fun layerInto(input: FloatArray, weights: FloatArray, bias: FloatArray, inDim: Int, outDim: Int, out: FloatArray) {
+    private suspend fun layerInto(input: FloatArray, weights: FloatArray, bias: FloatArray, inDim: Int, outDim: Int, out: FloatArray) {
         for (j in 0 until outDim) {
+            if (j % 8 == 0) kotlinx.coroutines.yield()
             var sum = bias[j]
             for (i in 0 until inDim) sum += input[i] * weights[i * outDim + j]
             out[j] = if (sum > 0) sum else 0f
@@ -157,7 +159,7 @@ class ChessAI(private val context: Context) {
         return wf to bf
     }
 
-    fun updateLearning(board: List<Any?>, targetEval: Float) {
+    suspend fun updateLearning(board: List<Any?>, targetEval: Float) {
         val (wf, bf) = boardToFeatures(board)
         transformInto(wf, transformerW, transformerB, 768, 256, _wT)
         transformInto(bf, transformerW, transformerB, 768, 256, _bT)
@@ -184,31 +186,60 @@ class ChessAI(private val context: Context) {
         saveLoRA()
     }
 
-    fun findBestMove(
+    suspend fun findBestMove(
         board: List<Any?>,
         depth: Int,
         isWhite: Boolean,
+        timeLimitMs: Long = 3000L,
         legalMovesProvider: (List<Any?>, Boolean) -> List<Pair<Int, Int>>
     ): Pair<Int, Int>? {
-        var bestMove: Pair<Int, Int>? = null
-        var bestValue = if (isWhite) -1e9f else 1e9f
-        val moves = legalMovesProvider(board, isWhite)
-        if (moves.isEmpty()) return null
-        val workBoard = board.toTypedArray()
-        for (move in moves) {
-            val captured = workBoard[move.second]
-            workBoard[move.second] = workBoard[move.first]
-            workBoard[move.first] = null
-            val value = minimax(workBoard, depth - 1, -1e9f, 1e9f, !isWhite, legalMovesProvider)
-            workBoard[move.first] = workBoard[move.second]
-            workBoard[move.second] = captured
-            if (isWhite) { if (value > bestValue) { bestValue = value; bestMove = move } }
-            else { if (value < bestValue) { bestValue = value; bestMove = move } }
+        var overallBestMove: Pair<Int, Int>? = null
+        
+        try {
+            kotlinx.coroutines.withTimeout(timeLimitMs) {
+                // Iterative deepening to ensure we always have a move ready if time runs out
+                for (currentDepth in 1..depth) {
+                    var bestValue = if (isWhite) -1e9f else 1e9f
+                    var currentBestMove: Pair<Int, Int>? = null
+                    
+                    val moves = legalMovesProvider(board, isWhite)
+                    if (moves.isEmpty()) break
+                    
+                    val workBoard = board.toTypedArray()
+                    for (move in moves) {
+                        kotlinx.coroutines.yield() // Prevent blocking the thread
+                        val captured = workBoard[move.second]
+                        workBoard[move.second] = workBoard[move.first]
+                        workBoard[move.first] = null
+                        val value = minimax(workBoard, currentDepth - 1, -1e9f, 1e9f, !isWhite, legalMovesProvider)
+                        workBoard[move.first] = workBoard[move.second]
+                        workBoard[move.second] = captured
+                        
+                        if (isWhite) { 
+                            if (value > bestValue) { bestValue = value; currentBestMove = move } 
+                        } else { 
+                            if (value < bestValue) { bestValue = value; currentBestMove = move } 
+                        }
+                    }
+                    if (currentBestMove != null) {
+                        overallBestMove = currentBestMove
+                    }
+                }
+            }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            // Timed out! But we have overallBestMove from the previous depth iteration
         }
-        return bestMove
+        
+        // Fallback: if we didn't complete even depth 1, pick the first legal move
+        if (overallBestMove == null) {
+            val moves = legalMovesProvider(board, isWhite)
+            if (moves.isNotEmpty()) return moves.first()
+        }
+        
+        return overallBestMove
     }
 
-    private fun minimax(
+    private suspend fun minimax(
         board: Array<Any?>,
         depth: Int,
         alpha: Float,
@@ -216,6 +247,7 @@ class ChessAI(private val context: Context) {
         isWhite: Boolean,
         legalMovesProvider: (List<Any?>, Boolean) -> List<Pair<Int, Int>>
     ): Float {
+        kotlinx.coroutines.yield() // Ensure cancellation and thread-sharing is responsive
         if (depth <= 0) return evaluate(board.toList())
         val moves = legalMovesProvider(board.toList(), isWhite)
         if (moves.isEmpty()) return if (isWhite) -1e6f else 1e6f

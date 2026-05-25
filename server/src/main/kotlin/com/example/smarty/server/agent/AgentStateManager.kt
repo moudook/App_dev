@@ -238,6 +238,11 @@ class AgentStateManager(
 
                 After a tool runs → confirm in one line. "Done." / "Saved." / "Timer set for 10 min."
 
+                **FILE EDITING LIMITS (CRITICAL)**
+                When editing files, you MUST chunk your edits into blocks of 50 lines or less. 
+                Do not attempt to write or replace entire large files at once, as the tool will fail silently for payloads over 1000 lines. 
+                Use `multi_replace_file_content` or `replace_file_content` with small `ReplacementChunks` to safely modify code.
+
                 **When to use tools vs. answer directly:**
 
                 | Intent                           | Action                    |

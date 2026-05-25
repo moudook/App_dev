@@ -1,7 +1,10 @@
 package com.example.smarty.features.chat.ui
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,12 +32,18 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.smarty.core.domain.model.ClarificationRequest
 import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
+import com.example.smarty.ui.components.chat.InteractiveQuestionBlock
+import com.example.smarty.ui.components.timeline.ApprovalCard
+import com.example.smarty.ui.components.timeline.TimelineNode
 import kotlinx.coroutines.launch
 
 /**
@@ -132,7 +141,6 @@ fun AssistOverlayScreen(
     }
 
     // Bottom sheet state
-    var isImageGenMode by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         isVisible = true
@@ -141,8 +149,6 @@ fun AssistOverlayScreen(
     // Dismiss with cleanup
     fun handleDismiss() {
         isVisible = false
-        // Removed: viewModel.clearMessages() - Don't clear until next fresh start
-        // Removed: speechState.stopListening() - Don't stop if active generation is happening
         onDismiss()
     }
 
@@ -173,8 +179,6 @@ fun AssistOverlayScreen(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
-                    // CONSUME CLICKS to prevent background dismissal when clicking the card
-                    // Using clickable with no indication but with specific interactionSource
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -184,6 +188,7 @@ fun AssistOverlayScreen(
             val vmImageGenMode by viewModel.isImageGenMode.collectAsState()
             val selectedModel by viewModel.selectedModel.collectAsState()
             val availableModels by viewModel.availableModels.collectAsState()
+            val pendingApproval by viewModel.pendingApprovalState.collectAsState()
 
             // Card-like container
             Surface(
@@ -219,7 +224,7 @@ fun AssistOverlayScreen(
                             modifier = Modifier.size(28.dp),
                         ) {
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                                imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
                                 tint = textColor.copy(alpha = 0.7f),
                                 modifier = Modifier.size(20.dp),
@@ -236,7 +241,7 @@ fun AssistOverlayScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.AutoAwesome,
+                            imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             tint = LocalAccentColor.current,
                             modifier = Modifier.size(32.dp),
@@ -277,50 +282,116 @@ fun AssistOverlayScreen(
                         }
                     }
 
-                    // Input field at bottom
-                    SmartyInputField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        onSubmit = {
-                            if (inputText.text.isNotBlank()) {
-                                if (vmImageGenMode) {
-                                    viewModel.generateImageDirect(inputText.text)
+                    // Input field at bottom OR Approval UI
+                    val approval = pendingApproval
+                    if (approval != null) {
+                        if (approval.toolName == "ask_user" || approval.toolName == "askuser") {
+                            val parsedRequests = mutableListOf<ClarificationRequest>()
+                            try {
+                                val json = org.json.JSONObject(approval.toolArgs)
+                                val questionsArray = json.optJSONArray("questions")
+                                if (questionsArray != null && questionsArray.length() > 0) {
+                                    for (i in 0 until questionsArray.length()) {
+                                        val qObj = questionsArray.getJSONObject(i)
+                                        val qText = qObj.optString("question", "Please provide input:")
+                                        val qAllowCustom = qObj.optBoolean("allow_custom", true)
+                                        val qOptions = mutableListOf<String>()
+                                        val optArr = qObj.optJSONArray("options")
+                                        if (optArr != null) {
+                                            for (j in 0 until optArr.length()) {
+                                                qOptions.add(optArr.getString(j))
+                                            }
+                                        }
+                                        parsedRequests.add(ClarificationRequest(qText, qOptions, qAllowCustom))
+                                    }
                                 } else {
-                                    viewModel.sendMessage(inputText.text)
+                                    val qText = json.optString("question", "Please provide input:")
+                                    val qAllowCustom = json.optBoolean("allow_custom", true)
+                                    val qOptions = mutableListOf<String>()
+                                    val optArr = json.optJSONArray("options")
+                                    if (optArr != null) {
+                                        for (j in 0 until optArr.length()) {
+                                            qOptions.add(optArr.getString(j))
+                                        }
+                                    }
+                                    parsedRequests.add(ClarificationRequest(qText, qOptions, qAllowCustom))
                                 }
-                                inputText = TextFieldValue("")
-                                focusManager.clearFocus()
-                                handleDismiss()
+                            } catch (e: Exception) {
+                                if (parsedRequests.isEmpty()) {
+                                    parsedRequests.add(ClarificationRequest("Please provide input:", emptyList(), true))
+                                }
                             }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                        isChatMode = true,
-                        chatPlaceholder = "Ask anything...",
-                        isVoiceListening = speechState.isListening,
-                        isProcessing = viewModel.isProcessing.collectAsState().value,
-                        isAgentWorking = viewModel.isProcessing.collectAsState().value,
-                        onStopGeneration = { viewModel.stopGeneration() },
-                        onStartVoiceInput = {
-                            when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
-                                PackageManager.PERMISSION_GRANTED -> {
-                                    speechState.startListening(isChatMode = true)
+
+                            InteractiveQuestionBlock(
+                                requests = parsedRequests,
+                                onSubmit = { response ->
+                                    viewModel.callApproval(approval.toolId, true, response)
+                                },
+                                onSkip = {
+                                    viewModel.callApproval(approval.toolId, false, null)
+                                },
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        } else {
+                            // Standard Approval
+                            val node = TimelineNode.ApprovalGate(
+                                id = "approval_${approval.toolId}",
+                                timestamp = System.currentTimeMillis(),
+                                toolId = approval.toolId,
+                                toolName = approval.toolName,
+                                toolTitle = approval.toolTitle,
+                                toolArgs = approval.toolArgs,
+                                status = TimelineNode.ApprovalGate.Status.PENDING,
+                                requiresText = false
+                            )
+                            ApprovalCard(
+                                node = node,
+                                onGrant = { viewModel.callApproval(approval.toolId, true) },
+                                onDeny = { viewModel.callApproval(approval.toolId, false) },
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    } else {
+                        SmartyInputField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            onSubmit = {
+                                if (inputText.text.isNotBlank()) {
+                                    if (vmImageGenMode) {
+                                        viewModel.generateImageDirect(inputText.text)
+                                    } else {
+                                        viewModel.sendMessage(inputText.text)
+                                    }
+                                    inputText = TextFieldValue("")
+                                    focusManager.clearFocus()
                                 }
-                                else -> {
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            isChatMode = true,
+                            chatPlaceholder = "Ask anything...",
+                            isVoiceListening = speechState.isListening,
+                            isProcessing = viewModel.isProcessing.collectAsState().value,
+                            isAgentWorking = viewModel.isProcessing.collectAsState().value,
+                            onStopGeneration = { viewModel.stopGeneration() },
+                            onStartVoiceInput = {
+                                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                    speechState.startListening(isChatMode = true)
+                                } else {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 }
-                            }
-                        },
-                        onStopVoiceInput = { speechState.stopListening() },
-                        isImageGenMode = vmImageGenMode,
-                        onToggleImageGenMode = { viewModel.toggleImageGenMode() },
-                        onPickFile = { },
-                        onOpenCamera = { },
-                        showHistoryOption = false,
-                        selectedModel = selectedModel,
-                        availableModels = availableModels,
-                        onModelSelected = { viewModel.selectModel(it) },
-                        onRefreshModels = { viewModel.refreshModelsNow() },
-                    )
+                            },
+                            onStopVoiceInput = { speechState.stopListening() },
+                            isImageGenMode = vmImageGenMode,
+                            onToggleImageGenMode = { viewModel.toggleImageGenMode() },
+                            onPickFile = { },
+                            onOpenCamera = { },
+                            showHistoryOption = false,
+                            selectedModel = selectedModel,
+                            availableModels = availableModels,
+                            onModelSelected = { viewModel.selectModel(it) },
+                            onRefreshModels = { viewModel.refreshModelsNow() },
+                        )
+                    }
                 }
             }
         }

@@ -47,8 +47,8 @@ class PostgresVectorStore : VectorStore {
                     )
                 val sql =
                     """
-                    INSERT INTO notes (user_id, title, content, metadata, created_at, updated_at)
-                    VALUES (?::uuid, ?, ?, ?::jsonb, now(), now())
+                    INSERT INTO notes (user_id, title, content, metadata, category_id, created_at, updated_at)
+                    VALUES (?::uuid, ?, ?, ?::jsonb, (SELECT id FROM categories WHERE name = ? AND user_id = ?::uuid LIMIT 1), now(), now())
                     ON CONFLICT DO NOTHING
                     """.trimIndent()
 
@@ -57,6 +57,8 @@ class PostgresVectorStore : VectorStore {
                     stmt.setString(2, title)
                     stmt.setString(3, content)
                     stmt.setString(4, metadataJson)
+                    stmt.setString(5, metadata["type"] ?: metadata["category"] ?: "preference")
+                    stmt.setString(6, userId)
                     stmt.executeUpdate()
                 }
             }
@@ -209,9 +211,9 @@ class PostgresVectorStore : VectorStore {
                       AND n.deleted_at IS NULL
                     ORDER BY
                         CASE 
-                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'preference') THEN 1
-                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'memory') THEN 2
-                            WHEN n.category_id IN (SELECT id FROM categories WHERE name = 'factual') THEN 3
+                            WHEN n.category_id = (SELECT id FROM categories WHERE name = 'preference' AND user_id = ?::uuid LIMIT 1) THEN 1
+                            WHEN n.category_id = (SELECT id FROM categories WHERE name = 'memory' AND user_id = ?::uuid LIMIT 1) THEN 2
+                            WHEN n.category_id = (SELECT id FROM categories WHERE name = 'factual' AND user_id = ?::uuid LIMIT 1) THEN 3
                             ELSE 4
                         END,
                         n.updated_at DESC
@@ -220,7 +222,10 @@ class PostgresVectorStore : VectorStore {
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, userId)
-                    stmt.setInt(2, limit)
+                    stmt.setString(2, userId)
+                    stmt.setString(3, userId)
+                    stmt.setString(4, userId)
+                    stmt.setInt(5, limit)
 
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {

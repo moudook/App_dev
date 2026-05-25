@@ -294,14 +294,28 @@ fun SmartyNavHost(
 
             route?.let {
                 android.util.Log.i("SmartyNavigation", "AI navigating to: $it")
-                // Update selected tab to match navigation
                 when (route) {
-                    Screen.InputStream.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.NOTES)
-                    Screen.Stacks.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.STACKS)
-                    Screen.Settings.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.SETTINGS)
-                    Screen.Calendar.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.CALENDAR)
+                    Screen.InputStream.route, Screen.Stacks.route, Screen.Settings.route, Screen.Calendar.route, Screen.Archive.route -> {
+                        // Ensure we are on the main InputStream host to utilize its inline view queue
+                        if (navController.currentBackStackEntry?.destination?.route != Screen.InputStream.route) {
+                            navController.popBackStack(Screen.InputStream.route, inclusive = false)
+                        }
+                        
+                        // Update selected tab to trigger the inline view via LaunchedEffect in InputStreamScreen
+                        when (route) {
+                            Screen.InputStream.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.NOTES)
+                            Screen.Stacks.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.STACKS)
+                            Screen.Settings.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.SETTINGS)
+                            Screen.Calendar.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.CALENDAR)
+                            Screen.Archive.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.ARCHIVE)
+                        }
+                    }
+                    else -> {
+                        navController.navigate(it) {
+                            launchSingleTop = true
+                        }
+                    }
                 }
-                navController.navigate(it)
                 onClearNavigationRequest()
             }
         }
@@ -385,17 +399,29 @@ fun SmartyNavHost(
                 onUpdateNoteTodos = onUpdateNoteTodos,
                 onNavigateToStacks = {
                     navController.navigate(Screen.Stacks.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 onNavigateToCalendar = {
                     navController.navigate(Screen.Calendar.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 pendingShare = pendingShare,

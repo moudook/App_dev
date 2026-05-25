@@ -12,6 +12,7 @@ import com.example.smarty.core.common.util.PrivacyGuard
 import com.example.smarty.core.domain.model.*
 import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.entity.TimelineEventEntity
 import com.example.smarty.data.remote.RemoteAgentService
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
@@ -26,6 +27,7 @@ import com.example.smarty.features.chat.agent.models.*
 import com.example.smarty.features.chat.agent.transport.CommandTransport
 import com.example.smarty.features.chat.agent.transport.LocalCommandTransport
 import com.example.smarty.features.notes.domain.NoteOperationsManager
+import com.example.smarty.features.chat.domain.state.PendingApproval
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
 import com.example.smarty.protocol.AgentCommand
@@ -97,6 +99,33 @@ class AssistViewModel(
 
     private var currentStreamingJob: Job? = null
 
+    // Permission Engine tracking
+    private val _pendingApprovalState = MutableStateFlow<PendingApproval?>(null)
+    val pendingApprovalState: StateFlow<PendingApproval?> = _pendingApprovalState.asStateFlow()
+
+    fun callApproval(
+        toolId: String,
+        approved: Boolean,
+        feedback: String? = null,
+    ) {
+        val current = _pendingApprovalState.value ?: return
+        if (current.toolId != toolId) return
+        val sessionId = chatManager.currentSessionId.value ?: return
+
+        viewModelScope.launch {
+            try {
+                remoteAgentService.sendApproval(
+                    toolId = toolId,
+                    approved = approved,
+                    feedback = feedback,
+                )
+                _pendingApprovalState.update { null }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send approval response: ${e.message}", e)
+            }
+        }
+    }
+
     private val agentEventSink =
         object : AgentEventSink {
             override fun onToolExecutionStarted(
@@ -155,7 +184,7 @@ class AssistViewModel(
         object : ClientCommandExecutor {
             override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_notes.value)
 
-            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_archivedNotes.value)
+            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_archivedNotes.value.map { it.copy(isArchived = false) })
 
             override fun getCategories(): List<Category> = _categories.value
 
@@ -699,6 +728,16 @@ class AssistViewModel(
                         if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
                     }
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
+                        val toolRoute = when (event.toolName.lowercase()) {
+                            "tic_tac_toe", "tictactoe" -> "tic_tac_toe"
+                            "coin_toss", "cointoss" -> "coin_toss"
+                            "guided_breathing", "breathing" -> "guided_breathing"
+                            else -> null
+                        }
+                        if (toolRoute != null) {
+                            systemFeatureManager.navigateTo(toolRoute)
+                        }
+
                         pendingToolCalls.add(
                             AgentToolCallEntry(
                                 toolName = event.toolName,
@@ -715,6 +754,28 @@ class AssistViewModel(
                             finalThinking,
                             agentEvents = agentEventsBuilder.toList(),
                         )
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
+                        Log.i(TAG, "Approval requested: ${event.toolName}")
+                        _pendingApprovalState.update {
+                            PendingApproval(
+                                messageId = streamingMessageId,
+                                sessionId = chatManager.currentSessionId.value ?: "unknown",
+                                eventId = event.eventId,
+                                toolId = event.toolId,
+                                toolName = event.toolName,
+                                toolTitle = event.toolTitle,
+                                toolArgs = event.toolArgs,
+                            )
+                        }
+                        _isProcessing.value = true
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
+                        _pendingApprovalState.update { null }
+                        _isProcessing.value = true
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
+                        _pendingApprovalState.update { null }
                     }
                     else -> {
                         chatManager.updateMessageWithThinking(

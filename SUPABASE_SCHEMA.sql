@@ -87,6 +87,24 @@ CREATE TABLE users (
 );
 CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- Auto-seed default categories for AI memory handling
+CREATE OR REPLACE FUNCTION seed_default_user_categories()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO categories (user_id, name, description, color, icon, is_ai_generated)
+    VALUES 
+        (NEW.id, 'preference', 'User preferences and formatting rules', '#FF5722', 'settings', true),
+        (NEW.id, 'memory', 'General memories and facts about the user', '#4CAF50', 'memory', true),
+        (NEW.id, 'factual', 'Hard facts and immutable truths', '#2196F3', 'fact_check', true);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_users_seed_categories 
+AFTER INSERT ON users 
+FOR EACH ROW 
+EXECUTE FUNCTION seed_default_user_categories();
+
 -- ────────────────────────────────────────────────────────────
 
 CREATE TABLE sync_state (

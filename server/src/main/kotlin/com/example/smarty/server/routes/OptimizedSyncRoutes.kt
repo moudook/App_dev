@@ -111,7 +111,7 @@ class SyncResponseCache {
     }
 }
 
-fun Application.configureOptimizedSyncRoutes() {
+fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
     val logger = LoggerFactory.getLogger("OptimizedSyncRoutes")
     val dataSource = DatabaseFactory.getDataSource()
     val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
@@ -197,11 +197,14 @@ fun Application.configureOptimizedSyncRoutes() {
                                 }
 
                             // BATCH LOAD: Get all messages in ONE query per session (not N+1)
+                            val messagesBySession = chatRepository.getMessagesForSessions(
+                                userId,
+                                sessions.map { it.id },
+                                limitPerSession = 100
+                            )
                             val sessionData =
                                 sessions.map { session ->
-                                    val messages =
-                                        chatRepository.getAllMessagesForSession(userId, session.id)
-                                            .take(100) // Limit messages per session for sync
+                                    val messages = messagesBySession[session.id] ?: emptyList()
                                     OptimizedSessionInfo(
                                         id = session.id,
                                         title = session.title,
@@ -329,9 +332,23 @@ fun Application.configureOptimizedSyncRoutes() {
                                             val id = noteRepository.create(userId, info, connection = conn)
                                             createdNotes.add(id)
                                         }
+
+                                        // Trigger enrichment if content changed
+                                        val md = java.security.MessageDigest.getInstance("SHA-256")
+                                        val digest = md.digest(noteItem.content.toByteArray(Charsets.UTF_8))
+                                        val currentHash = digest.joinToString("") { "%02x".format(it) }
+                                        
+                                        if (noteItem.processedContentHash != currentHash) {
+                                            noteItem.id?.let { noteId ->
+                                                noteService?.triggerEnrichmentAsync(userId, noteId, noteItem.title, noteItem.content)
+                                            }
+                                        }
+
                                     } else {
                                         val id = noteRepository.create(userId, info, connection = conn)
                                         createdNotes.add(id)
+                                        
+                                        noteService?.triggerEnrichmentAsync(userId, id, noteItem.title, noteItem.content)
                                     }
                                 } catch (e: Exception) {
                                     errors.add("Failed to process note")

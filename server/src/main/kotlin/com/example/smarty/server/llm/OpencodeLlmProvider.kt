@@ -54,12 +54,16 @@ class OpencodeLlmProvider(
     private val client: HttpClient,
     override val providerName: String = "OpenCode CLI",
     private val defaultModel: String = OpencodeModelRegistry.defaultModel,
-    private val daemonPort: Int = 4096,
     private val daemonHost: String = "127.0.0.1",
 ) : LlmProvider {
     private val logger = LoggerFactory.getLogger(OpencodeLlmProvider::class.java)
-    private val daemonBaseUrl = "http://$daemonHost:$daemonPort"
+    private val daemonBaseUrl get() = "http://$daemonHost:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPort}"
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
+
+    companion object {
+        // Limit concurrent connections to the OpenCode daemon for Beta Tester multi-user scaling
+        private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
+    }
 
     private val stateFile = java.io.File(System.getProperty("java.io.tmpdir"), "opencode_session_state.json")
     private val sessionMessageCount = loadSessionMessageCount()
@@ -157,7 +161,11 @@ class OpencodeLlmProvider(
 
                 logger.info("[OpenCode.Request][inference=$inferenceId][session=$sessId] model=$providerId/$modelId, parts=${parts.size}, isRetry=$isRetry")
 
-                client.preparePost("$daemonBaseUrl/session/$sessId/message") {
+                daemonSemaphore.acquire()
+                try {
+                    client.preparePost("$daemonBaseUrl/session/$sessId/message") {
+                        val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
+                        header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
                     contentType(ContentType.Application.Json)
                     header("Accept", "text/event-stream")
                     setBody(
@@ -186,7 +194,10 @@ class OpencodeLlmProvider(
                     val currentData = StringBuilder()
 
                     while (!channel.isClosedForRead) {
-                        val line = channel.readUTF8Line() ?: break
+                        val rawLine = channel.readUTF8Line() ?: break
+                        // Scrub ANSI and OSC terminal escape sequences to prevent JSON corruption and UI ghosting
+                        val line = rawLine.replace(Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"), "")
+                        
                         logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
 
                         if (line.isBlank()) {
@@ -217,6 +228,9 @@ class OpencodeLlmProvider(
                         flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
                     }
                 }
+                } finally {
+                    daemonSemaphore.release()
+                }
                 isNotFound = localIsNotFound
                 return !localIsNotFound
             }
@@ -231,7 +245,10 @@ class OpencodeLlmProvider(
 
     suspend fun getSessionHistory(sessionId: String): JsonArray? {
         return try {
-            val response = client.get("$daemonBaseUrl/session/$sessionId/message")
+            val response = client.get("$daemonBaseUrl/session/$sessionId/message") {
+                val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
+                header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
+            }
             if (response.status.value == 200) {
                 Json.parseToJsonElement(response.bodyAsText()).jsonObject["parts"]?.jsonArray
             } else null
@@ -406,6 +423,8 @@ class OpencodeLlmProvider(
     private suspend fun createDaemonSession(): String {
         val response =
             client.post("$daemonBaseUrl/session") {
+                val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
+                header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
                 contentType(ContentType.Application.Json)
                 setBody(DaemonSessionRequest())
             }

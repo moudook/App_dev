@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.NavigationTab
+import com.example.smarty.ui.theme.SmartyIcons
 import com.example.smarty.ui.LocalAccentColor
 import kotlinx.coroutines.launch
 import kotlin.math.*
@@ -53,6 +54,7 @@ private fun resolveIconPainter(tab: NavigationTab, isHistoryMode: Boolean): andr
         NavigationTab.STACKS -> painterResource(R.drawable.ic_nav_stacks)
         NavigationTab.ARCHIVE -> painterResource(R.drawable.ic_nav_archive)
         NavigationTab.SETTINGS -> painterResource(R.drawable.ic_nav_settings)
+        NavigationTab.GAMES -> androidx.compose.ui.graphics.vector.rememberVectorPainter(image = SmartyIcons.Games)
     }
 }
 
@@ -71,6 +73,7 @@ private fun getSpicyTabColors(tab: NavigationTab): TabColors {
         NavigationTab.STACKS -> TabColors(bg = Color(0xFFF4A895), fg = Color(0xFFDE3717))    // Peach/Red
         NavigationTab.ARCHIVE -> TabColors(bg = Color(0xFFF49BE0), fg = Color(0xFFD2008C))   // Pink
         NavigationTab.SETTINGS -> TabColors(bg = Color(0xFFD29EFA), fg = Color(0xFF6714A6))  // Purple
+        NavigationTab.GAMES -> TabColors(bg = Color(0xFF9EFAF0), fg = Color(0xFF14A694))     // Teal
     }
 }
 
@@ -85,7 +88,7 @@ private val tabLabels: Map<NavigationTab, String> = NavigationTab.entries.associ
 // ─── Constants ─────────────────────────────────────────────────────────
 
 private val TABS = NavigationTab.entries
-private const val TAB_COUNT = 6 // NavigationTab.entries.size — compile-time constant
+private const val TAB_COUNT = 7 // NavigationTab.entries.size — compile-time constant
 private const val ANGLE_STEP = PI / 6.5
 private const val HALF_PI = PI / 2.0
 private val COLLAPSED_HEIGHT = 60.dp

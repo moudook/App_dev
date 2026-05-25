@@ -273,6 +273,27 @@ class McpServer(
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
         thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "started", args.toString())
 
+        // Secondary Validation Layer for Sub-Agent Sandboxing
+        if (resolvedName == "bash" || resolvedName == "command" || resolvedName.contains("write") || resolvedName.contains("replace")) {
+            val argsStr = args.toString()
+            val isHighRisk = argsStr.contains(".opencode") || argsStr.contains(".ssh") || argsStr.contains("/etc/") || 
+                             argsStr.contains(".aws") || argsStr.contains("~/.config") || argsStr.contains("package.json")
+            
+            if (isHighRisk) {
+                val errorMsg = "Security Violation: Access to high-risk path blocked by Ktor MCP Sandbox."
+                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
+                return buildJsonObject {
+                    put("isError", true)
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", errorMsg)
+                        })
+                    })
+                }
+            }
+        }
+
         val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device") || resolvedName == "ask_user"
         if (requiresApproval) {
             val approvalEvent =

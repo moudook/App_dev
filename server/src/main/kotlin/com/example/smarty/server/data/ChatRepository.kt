@@ -249,6 +249,44 @@ class ChatRepository(
             messages
         }
 
+    suspend fun getMessagesForSessions(
+        userId: String,
+        sessionIds: List<String>,
+        limitPerSession: Int = 100
+    ): Map<String, List<MessageRecord>> =
+        withContext(Dispatchers.IO) {
+            if (sessionIds.isEmpty()) return@withContext emptyMap()
+            val messages = mutableMapOf<String, MutableList<MessageRecord>>()
+            
+            dataSource.connection.use { conn ->
+                val placeholders = sessionIds.joinToString(",") { "?::uuid" }
+                val sql = """
+                    WITH RankedMessages AS (
+                        SELECT *, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn
+                        FROM chat_messages
+                        WHERE user_id = ?::uuid AND session_id IN ($placeholders)
+                    )
+                    SELECT * FROM RankedMessages WHERE rn <= ? ORDER BY session_id, created_at ASC
+                """.trimIndent()
+                
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(userId))
+                    for (i in sessionIds.indices) {
+                        stmt.setObject(i + 2, UUID.fromString(sessionIds[i]))
+                    }
+                    stmt.setInt(sessionIds.size + 2, limitPerSession)
+                    
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            val msg = mapRowToMessageRecord(rs)
+                            messages.getOrPut(msg.sessionId.toString()) { mutableListOf() }.add(msg)
+                        }
+                    }
+                }
+            }
+            messages
+        }
+
     private fun mapRowToMessageRecord(rs: ResultSet): MessageRecord =
         MessageRecord(
             id = rs.getObject("id") as UUID,

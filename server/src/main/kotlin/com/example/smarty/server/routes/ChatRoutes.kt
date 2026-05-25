@@ -31,6 +31,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
 import io.ktor.sse.*
+import io.ktor.server.websocket.*
+import io.ktor.websocket.*
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -727,6 +730,95 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 }
 
                 call.application.log.info("SSE stream completed for query: $query (Session: $sessionId, User: $userId)")
+            }
+
+            /**
+             * WebSocket endpoint for bidirectional agent event streaming and client events.
+             * Supports robust reconnection via AgentRunManager.
+             */
+            webSocket("/chat/ws") {
+                val token = call.request.queryParameters["token"]
+                val user = com.example.smarty.server.plugins.verifyFirebaseToken(token ?: "", null)
+                
+                if (user == null) {
+                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication required"))
+                    return@webSocket
+                }
+                
+                val userId = user.userId
+                val sessionIdParam = call.request.queryParameters["sessionId"] ?: UUID.randomUUID().toString()
+                
+                call.application.log.info("WebSocket connected for user: $userId, session: $sessionIdParam")
+                
+                val flow = com.example.smarty.server.agent.AgentRunManager.getEventFlow(sessionIdParam)
+                
+                // Job 1: Forward AgentEvents to client
+                val emitJob = launch {
+                    flow.collect { event ->
+                        try {
+                            send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
+                        } catch (e: Exception) {
+                            call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
+                        }
+                    }
+                }
+                
+                // Job 2: Process incoming client messages
+                try {
+                    for (frame in incoming) {
+                        if (frame is Frame.Text) {
+                            val text = frame.readText()
+                            try {
+                                // First try to parse as ChatRequest to start a run
+                                val chatRequest = json.decodeFromString<ChatRequest>(text)
+                                val activeSessionId = chatRequest.sessionId ?: sessionIdParam
+                                
+                                // Launch the run via decoupled manager
+                                com.example.smarty.server.agent.AgentRunManager.startRun(
+                                    userId = userId,
+                                    sessionId = activeSessionId,
+                                    query = chatRequest.query,
+                                    llmProvider = llmProvider,
+                                    vectorStore = vectorStore,
+                                    summarizer = summarizer,
+                                    noteRepository = noteRepository,
+                                    timerRepository = timerRepository,
+                                    calendarRepository = calendarRepository,
+                                    noteService = noteService,
+                                    chatRepository = chatRepository,
+                                    modelOverride = chatRequest.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) },
+                                    clientTimezone = chatRequest.timezone,
+                                    clientTimeMillis = chatRequest.clientTime,
+                                    personality = chatRequest.personality,
+                                    history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
+                                    opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId
+                                )
+                                
+                            } catch (e: kotlinx.serialization.SerializationException) {
+                                // If not ChatRequest, try ClientEvent
+                                try {
+                                    val clientEvent = json.decodeFromString<ClientEvent>(text)
+                                    // Process ClientEvent similarly to the /chat/events POST route
+                                    if (chatRepository != null) {
+                                        when (clientEvent) {
+                                            is ClientEvent.ToolResult -> {
+                                                val statusPrefix = if (clientEvent.isError) "Error" else "Success"
+                                                val content = "Tool Output [${clientEvent.commandId}] ($statusPrefix): ${clientEvent.result}"
+                                                chatRepository.saveMessage(userId, sessionIdParam, LlmMessage.Role.TOOL.name, content)
+                                            }
+                                            else -> {} // Handle other client events if needed
+                                        }
+                                    }
+                                } catch (e2: Exception) {
+                                    call.application.log.warn("Failed to parse WS message: $text", e2)
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    emitJob.cancel()
+                    call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
+                }
             }
 
             /**

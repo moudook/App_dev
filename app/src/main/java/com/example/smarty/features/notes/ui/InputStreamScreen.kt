@@ -126,6 +126,7 @@ import com.example.smarty.features.notes.ui.inputstream.SelectionModeToolbar
 import com.example.smarty.features.notes.ui.inputstream.StacksContent
 import com.example.smarty.features.notes.ui.inputstream.ArchiveContent
 import com.example.smarty.features.notes.ui.inputstream.SettingsContent
+import com.example.smarty.features.notes.ui.inputstream.GamesContent
 import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.core.domain.model.SmartyTimer
@@ -401,33 +402,39 @@ fun InputStreamScreen(
     // Settings inline view state
     var showSettingsInline by remember { mutableStateOf(false) }
 
+    // Games inline view state
+    var showGamesInline by remember { mutableStateOf(false) }
+
     // Chat history inline view state (shows history in main area instead of bottom sheet)
     var showChatHistoryInline by remember { mutableStateOf(false) }
 
-    // Block shake when any inline view is active (Settings, Calendar, Stacks, Archive, History)
+    // Block shake when any inline view is active (Settings, Calendar, Stacks, Archive, History, Games)
     // This prevents accidental navigation or data loss while editing in these views
-    LaunchedEffect(showSettingsInline, showCalendarInline, showStacksInline, showArchiveInline, showChatHistoryInline) {
-        val isInlineViewActive = showSettingsInline || showCalendarInline || showStacksInline || showArchiveInline || showChatHistoryInline
+    LaunchedEffect(showSettingsInline, showCalendarInline, showStacksInline, showArchiveInline, showChatHistoryInline, showGamesInline) {
+        val isInlineViewActive = showSettingsInline || showCalendarInline || showStacksInline || showArchiveInline || showChatHistoryInline || showGamesInline
         onSetShakeBlocked(isInlineViewActive)
     }
 
-    // Reset ALL inline views when entering/exiting chat mode (e.g., via shake gesture)
-    // FIX: Shake on Settings/Stacks/Archive/Calendar now properly switches to Chat
-    // FIX: Shake from Chat goes back to Notes (not previous tab)
-    LaunchedEffect(isChatMode) {
-        if (isChatMode) {
-            // Entering chat mode - close ALL inline views so wheel updates correctly
+    // Navigation Stack for proper linear back behavior across tabs
+    var tabStackRoutes by rememberSaveable { mutableStateOf(listOf(NavigationTab.NOTES.name)) }
+
+    // Sync external changes (deep links, back presses, or AI triggers) into the stack and UI state
+    LaunchedEffect(selectedTab, isChatMode) {
+        val currentActive = if (isChatMode) NavigationTab.CHAT.name else selectedTab.name
+        
+        if (tabStackRoutes.lastOrNull() != currentActive) {
+            tabStackRoutes = tabStackRoutes.filter { it != currentActive } + currentActive
+        }
+        
+        // Sync inline views based on currentActive
+        showCalendarInline = currentActive == NavigationTab.CALENDAR.name
+        showStacksInline = currentActive == NavigationTab.STACKS.name
+        showArchiveInline = currentActive == NavigationTab.ARCHIVE.name
+        showSettingsInline = currentActive == NavigationTab.SETTINGS.name
+        showGamesInline = currentActive == NavigationTab.GAMES.name
+        
+        if (currentActive != NavigationTab.CHAT.name) {
             showChatHistoryInline = false
-            showCalendarInline = false
-            showStacksInline = false
-            showArchiveInline = false
-            showSettingsInline = false
-            // Reset selectedTab to NOTES so exiting chat returns to notes view
-            onSelectedTabChange(NavigationTab.NOTES)
-        } else {
-            // Exiting chat mode - reset to notes view
-            showChatHistoryInline = false
-            onSelectedTabChange(NavigationTab.NOTES)
         }
     }
 
@@ -438,70 +445,27 @@ fun InputStreamScreen(
         }
     }
 
-    // Handle tab selection - open sheets or switch modes
+    // Handle tab selection - open sheets or switch modes with proper stack queuing
     fun handleTabSelection(tab: NavigationTab) {
-        onSelectedTabChange(tab)
-        
-        // Helper to close all inline views
-        fun closeAllInlineViews() {
-            showCalendarInline = false
-            showStacksInline = false
-            showArchiveInline = false
-            showSettingsInline = false
-            showChatHistoryInline = false
+        if (tab.name == tabStackRoutes.lastOrNull()) {
+            // Toggle off behavior: drop current tab and return to previous, or default to NOTES
+            if (tabStackRoutes.size > 1) {
+                tabStackRoutes = tabStackRoutes.dropLast(1)
+            } else if (tab != NavigationTab.NOTES) {
+                tabStackRoutes = listOf(NavigationTab.NOTES.name)
+            }
+        } else {
+            // Bring tab to the front of the queue
+            tabStackRoutes = tabStackRoutes.filter { it != tab.name } + tab.name
         }
         
-        when (tab) {
-            NavigationTab.NOTES -> {
-                closeAllInlineViews()
-                if (isChatMode) {
-                    onExitChatMode()
-                }
-            }
-            NavigationTab.CHAT -> {
-                closeAllInlineViews()
-                if (!isChatMode) {
-                    onEnterChatMode()
-                } else if (showChatHistoryInline) {
-                    showChatHistoryInline = false
-                }
-            }
-            NavigationTab.CALENDAR -> {
-                if (showCalendarInline) {
-                    showCalendarInline = false
-                    onSelectedTabChange(NavigationTab.NOTES)
-                } else {
-                    closeAllInlineViews()
-                    showCalendarInline = true
-                }
-            }
-            NavigationTab.STACKS -> {
-                if (showStacksInline) {
-                    showStacksInline = false
-                    onSelectedTabChange(NavigationTab.NOTES)
-                } else {
-                    closeAllInlineViews()
-                    showStacksInline = true
-                }
-            }
-            NavigationTab.ARCHIVE -> {
-                if (showArchiveInline) {
-                    showArchiveInline = false
-                    onSelectedTabChange(NavigationTab.NOTES)
-                } else {
-                    closeAllInlineViews()
-                    showArchiveInline = true
-                }
-            }
-            NavigationTab.SETTINGS -> {
-                if (showSettingsInline) {
-                    showSettingsInline = false
-                    onSelectedTabChange(NavigationTab.NOTES)
-                } else {
-                    closeAllInlineViews()
-                    showSettingsInline = true
-                }
-            }
+        val newTab = NavigationTab.valueOf(tabStackRoutes.last())
+        
+        if (newTab == NavigationTab.CHAT) {
+            if (!isChatMode) onEnterChatMode()
+        } else {
+            if (isChatMode) onExitChatMode()
+            onSelectedTabChange(newTab)
         }
     }
 
@@ -793,46 +757,26 @@ fun InputStreamScreen(
         clearSelection()
     }
 
-    // Handle back button press - exit history view first, then chat mode
-    // Priority: History view → Chat mode → Normal navigation
+    // Handle back button press - exit history view first
     BackHandler(enabled = isChatMode && showChatHistoryInline && !isSelectionMode) {
         showChatHistoryInline = false
-        // No reset needed here as we stay in chat mode
     }
 
-    // Handle back button press - exit chat mode and return to main page
-    // This only triggers when in chat mode, NOT showing history, and NOT in selection mode
-    BackHandler(enabled = isChatMode && !showChatHistoryInline && !isSelectionMode) {
-        onExitChatMode()
-        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
-    }
-
-    // Handle back button press - exit calendar inline view
-    BackHandler(enabled = showCalendarInline && !isSelectionMode) {
-        showCalendarInline = false
-        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
-    }
-
-    // Handle back button press - exit stacks inline view
-    BackHandler(enabled = showStacksInline && !isSelectionMode) {
-        showStacksInline = false
-        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
-    }
-
-    // Handle back button press - exit archive inline view
-    BackHandler(enabled = showArchiveInline && !isSelectionMode) {
-        showArchiveInline = false
-        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
-    }
-
-    // Handle back button press - exit settings inline view
-    BackHandler(enabled = showSettingsInline && !isSelectionMode) {
-        showSettingsInline = false
-        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
+    // Handle back button press - linear queue navigation across tabs
+    BackHandler(enabled = tabStackRoutes.size > 1 && !isSelectionMode && !showChatHistoryInline) {
+        tabStackRoutes = tabStackRoutes.dropLast(1)
+        val target = NavigationTab.valueOf(tabStackRoutes.last())
+        if (target == NavigationTab.CHAT) {
+            if (!isChatMode) onEnterChatMode()
+        } else {
+            if (isChatMode) onExitChatMode()
+            onSelectedTabChange(target)
+        }
     }
 
     // Handle back button press - clear active category filter instead of closing app
-    BackHandler(enabled = selectedCategory != null && !isSelectionMode && !showStacksInline && !showCalendarInline && !showArchiveInline && !showSettingsInline && !isChatMode) {
+    val isOnlyAtRoot = tabStackRoutes.size <= 1 && !isChatMode && !showChatHistoryInline
+    BackHandler(enabled = selectedCategory != null && !isSelectionMode && isOnlyAtRoot) {
         onSelectCategory(null)
     }
 
@@ -1220,6 +1164,7 @@ fun InputStreamScreen(
                         showStacksInline -> NavigationTab.STACKS
                         showArchiveInline -> NavigationTab.ARCHIVE
                         showSettingsInline -> NavigationTab.SETTINGS
+                        showGamesInline -> NavigationTab.GAMES
                         showCalendarInline -> NavigationTab.CALENDAR
                         isChatMode -> NavigationTab.CHAT
                         else -> selectedTab
@@ -1269,6 +1214,7 @@ fun InputStreamScreen(
                 showStacksInline -> "stacks"
                 showArchiveInline -> "archive"
                 showSettingsInline -> "settings"
+                showGamesInline -> "games"
                 showCalendarInline -> "calendar"
                 isChatMode -> "chat"
                 else -> "notes"
@@ -1284,7 +1230,7 @@ fun InputStreamScreen(
                     targetState = contentMode,
                     transitionSpec = {
                         // Determine movement direction based on mode index
-                        val modes = listOf("chat", "notes", "calendar", "stacks", "archive", "settings")
+                        val modes = listOf("chat", "notes", "calendar", "stacks", "archive", "settings", "games")
                         val targetIndex = modes.indexOf(targetState)
                         val initialIndex = modes.indexOf(initialState)
 
@@ -1376,6 +1322,12 @@ fun InputStreamScreen(
                             onNavigateToChess = onNavigateToChess,
                             connectionStatus = connectionStatus,
                             onCloudSync = onSyncCloud
+                        )
+                    }
+                    "games" -> {
+                        GamesContent(
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                     "calendar" -> {
@@ -1615,7 +1567,7 @@ fun InputStreamScreen(
             }
             
             // Input block only visible on Notes and Chat pages
-            val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showSettingsInline
+            val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showSettingsInline && !showGamesInline
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = showInputBlock,
