@@ -1031,6 +1031,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             mapOf("error" to "An internal error occurred."),
                         )
                     } finally {
+                        ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
                         com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                     }
                 } catch (e: Exception) {

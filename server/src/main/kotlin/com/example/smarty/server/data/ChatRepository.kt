@@ -57,6 +57,7 @@ class ChatRepository(
         tokenCount: Int = 0,
     ): MessageRecord =
         withContext(Dispatchers.IO) {
+            createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
                 val sql =
                     """
@@ -116,6 +117,7 @@ class ChatRepository(
         updatedAt: Long? = null,
     ): MessageRecord =
         withContext(Dispatchers.IO) {
+            createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
                 val sql =
                     """
@@ -399,6 +401,7 @@ class ChatRepository(
         agentEventsJson: String? = null,
     ): MessageRecord? =
         withContext(Dispatchers.IO) {
+            createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
                 val findSql = "SELECT id FROM chat_messages WHERE session_id = ?::uuid AND user_id = ?::uuid AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
                 var latestMsgId: UUID? = null

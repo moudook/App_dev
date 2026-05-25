@@ -323,7 +323,7 @@ class AgentStreamProcessor(
             ),
         )
         this.emit(AgentEvent.FinalAnswerFinished(UUID.randomUUID().toString(), System.currentTimeMillis()))
-        thinkingStorage.clear(sessionId)
+        // thinkingStorage.clear(sessionId) is now handled by the caller (ChatRoutes) after saving the message
     }
 
     suspend fun emitCustomToolStep(
