@@ -42,6 +42,7 @@ import kotlin.time.Duration.Companion.seconds
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -2019,6 +2020,26 @@ class ChatFeatureManager(
 
             if (settingsFeatureManager.isSoundEnabled()) {
                 completionSoundManager.playAgentCompletionSound(true)
+            }
+
+            // If the stream ended without a Result event, the WS likely disconnected early.
+            // The server may still be processing. Trigger a sync to retrieve the saved response.
+            if (agentEventsBuilder.none { it is AgentEvent.Result }) {
+                scope.launch {
+                    delay(3000L)
+                    try {
+                        com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                        val syncedMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
+                        if (syncedMsg != null && syncedMsg.content.isNullOrEmpty()) {
+                            chatManager.updateMessageById(
+                                streamingMessageId,
+                                application.getString(R.string.error_prefix, "No response received - connection was lost")
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to sync after early WS disconnect", e)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Remote query execution failed", e)

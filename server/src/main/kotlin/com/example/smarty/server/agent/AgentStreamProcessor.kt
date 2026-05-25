@@ -340,11 +340,6 @@ class AgentStreamProcessor(
         )
     }
 
-    fun extractFinalResponse(content: String) =
-        Regex("""<final>([\s\S]*?)</final>""").find(content)?.groupValues?.getOrNull(1)?.trim() ?: content.replace(Regex("""<think>[\s\S]*?</think>"""), "").replace(Regex("""<final>|</final>"""), "").trim()
-
-    fun extractThinking(content: String) = Regex("""<think>([\s\S]*?)</think>""").find(content)?.groupValues?.getOrNull(1)?.trim() ?: ""
-
     private suspend fun emit(event: AgentEvent) = eventEmitter(event)
 
     fun reset() {

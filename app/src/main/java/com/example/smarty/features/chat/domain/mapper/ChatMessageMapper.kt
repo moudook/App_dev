@@ -4,53 +4,24 @@ import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.features.chat.domain.state.ChatState
 
-/**
- * ChatMessageMapper - Transforms chat messages for UI presentation.
- *
- * Single Responsibility: Only handles message transformations.
- * DRY: Centralized message cleaning and formatting logic.
- */
 object ChatMessageMapper {
-    // Pre-compiled regex for THINK tag removal
-    private val THINK_TAG_REGEX = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
-    private val THINK_OPEN_REGEX = Regex("<think>.*", RegexOption.DOT_MATCHES_ALL)
-    private val PARTIAL_FINAL_REGEX = Regex("<fi?n?a?l?$")
-    private val PARTIAL_THINK_REGEX = Regex("<th?i?n?k?$")
 
-    /**
-     * Clean message content by removing THINK tags.
-     */
     fun cleanContent(content: String): String {
-        return THINK_TAG_REGEX.replace(content, "").trim()
+        return content
     }
 
-    /**
-     * Extract thinking content from message.
-     */
     fun extractThinking(content: String): String? {
-        val match = THINK_TAG_REGEX.find(content)
-        return match?.value?.let {
-            it.removePrefix("<think>").removeSuffix("</think>").trim()
-        }
+        return null
     }
 
-    /**
-     * Check if message has partial THINK tag (still streaming).
-     */
     fun hasPartialThinkTag(content: String): Boolean {
-        return PARTIAL_THINK_REGEX.containsMatchIn(content) || PARTIAL_FINAL_REGEX.containsMatchIn(content)
+        return false
     }
 
-    /**
-     * Check if message is complete (no partial tags).
-     */
     fun isMessageComplete(content: String): Boolean {
-        return !hasPartialThinkTag(content) && !THINK_OPEN_REGEX.containsMatchIn(content)
+        return true
     }
 
-    /**
-     * Format message for display based on role.
-     */
     fun formatForDisplay(message: ChatMessage): String {
         return if (message.role == ChatRole.USER) {
             message.content
@@ -59,9 +30,6 @@ object ChatMessageMapper {
         }
     }
 
-    /**
-     * Calculate display position for typewriter animation.
-     */
     fun calculateDisplayPosition(
         messageId: String,
         fullText: String,
@@ -77,9 +45,6 @@ object ChatMessageMapper {
         }
     }
 
-    /**
-     * Get visible text for typewriter effect.
-     */
     fun getVisibleText(
         fullText: String,
         displayPosition: Int,
@@ -91,9 +56,6 @@ object ChatMessageMapper {
         }
     }
 
-    /**
-     * Update chat state with new message.
-     */
     fun addMessageToState(
         currentState: ChatState,
         message: ChatMessage,
@@ -104,9 +66,6 @@ object ChatMessageMapper {
         )
     }
 
-    /**
-     * Update existing message in state.
-     */
     fun updateMessageInState(
         currentState: ChatState,
         messageId: String,
@@ -132,9 +91,6 @@ object ChatMessageMapper {
         )
     }
 
-    /**
-     * Mark message as complete in state.
-     */
     fun markMessageCompleteInState(
         currentState: ChatState,
         messageId: String,

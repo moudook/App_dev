@@ -288,15 +288,8 @@ class SyncCoordinator(
                                 return@forEach
                             }
 
-                            // Extract thinking from server content if embedded in <think> tags
-                            val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
-                            val cleanContent =
-                                if (thinking != null && msgData.thinking == null) {
-                                    // Server had thinking embedded in content, strip it
-                                    stripThinkTags(msgData.content)
-                                } else {
-                                    msgData.content
-                                }
+                            val thinking = msgData.thinking
+                            val cleanContent = msgData.content
                             val message =
                                 ChatMessage(
                                     id = msgData.id,
@@ -587,45 +580,14 @@ class SyncCoordinator(
         private const val KEY_LAST_PULL = "last_pull"
         private const val KEY_LAST_PUSH = "last_push"
 
-        // Regex patterns for content normalization (deduplication)
-        private val THINK_TAG_REGEX = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
-        private val THINK_OPEN_REGEX = Regex("<think>.*", RegexOption.DOT_MATCHES_ALL)
-        private val FINAL_TAG_REGEX = Regex("<final>.*?</final>", RegexOption.DOT_MATCHES_ALL)
-
         /**
          * Normalize content for deduplication comparison.
-         * Strips <think> and <final> tags, normalizes whitespace, trims.
-         * This ensures that server content (with think tags) matches app content (tags stripped).
+         * Normalizes whitespace for comparison.
          */
         fun normalizeContentForDedup(content: String): String {
             return content
-                .replace(THINK_TAG_REGEX, "")
-                .replace(THINK_OPEN_REGEX, "")
-                .replace(FINAL_TAG_REGEX, "")
                 .replace("\\r\\n", "\\n") // Normalize line endings
                 .replace(Regex("\\s+"), " ") // Collapse multiple whitespace to single space
-                .trim()
-        }
-
-        /**
-         * Extract thinking content from <think> tags in the message content.
-         */
-        fun extractThinkingFromContent(content: String): String? {
-            val match = THINK_TAG_REGEX.find(content)
-            return match?.groupValues?.getOrNull(0)
-                ?.removePrefix("<think>")
-                ?.removeSuffix("</think>")
-                ?.trim()
-                ?.ifBlank { null }
-        }
-
-        /**
-         * Strip <think> tags from content, leaving only the actual response.
-         */
-        fun stripThinkTags(content: String): String {
-            return content
-                .replace(THINK_TAG_REGEX, "")
-                .replace(THINK_OPEN_REGEX, "")
                 .trim()
         }
     }

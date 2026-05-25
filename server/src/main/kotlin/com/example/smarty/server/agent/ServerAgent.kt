@@ -173,22 +173,20 @@ class ServerAgent(
         // Check cache
         stateManager.checkCache(messagesForAgent, tools, query, modelOverride)?.let { cached ->
             val streamProcessor = AgentStreamProcessor(sessionId, eventEmitter)
-            val thinking = streamProcessor.extractThinking(cached)
-            val finalContent = streamProcessor.extractFinalResponse(cached)
 
             emit(
                 AgentEvent.Processing(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    content = finalContent,
-                    thinking = thinking,
+                    content = cached,
+                    thinking = null,
                 ),
             )
             emit(
                 AgentEvent.Result(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    content = "",
+                    content = cached,
                     isFinal = true,
                 ),
             )
@@ -202,7 +200,7 @@ class ServerAgent(
                 ),
             )
 
-            return finalContent
+            return cached
         }
 
         val streamProcessor = AgentStreamProcessor(sessionId, eventEmitter)
@@ -464,7 +462,7 @@ class ServerAgent(
 
                     goalMemoryManager.markCompleted()
 
-                    return streamProcessor.extractFinalResponse(streamProcessor.currentContent)
+                    return streamProcessor.currentContent
                 } else {
                     logger.warn("LLM stream completed with no content for user: $userId")
                     tracer.trace(

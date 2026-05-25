@@ -33,6 +33,8 @@ import io.ktor.server.sse.*
 import io.ktor.sse.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -68,6 +70,7 @@ data class ChatRequest(
     val timezone: String? = null, // User's timezone (e.g., "America/New_York")
     val clientTime: Long? = null, // User's current time in epoch millis
     val personality: String? = null, // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
+    val messageId: String? = null, // Client-generated message ID for sync matching
 )
 
 @Serializable
@@ -752,7 +755,19 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 
                 val flow = com.example.smarty.server.agent.AgentRunManager.getEventFlow(sessionIdParam)
                 
-                // Job 1: Forward AgentEvents to client
+                // Job 1: Heartbeat keepalive to prevent proxy idle timeouts
+                val heartbeatJob = launch {
+                    while (isActive) {
+                        delay(10_000L)
+                        try {
+                            send(Frame.Ping(ByteArray(0)))
+                        } catch (e: Exception) {
+                            break
+                        }
+                    }
+                }
+                
+                // Job 2: Forward AgentEvents to client
                 val emitJob = launch {
                     flow.collect { event ->
                         try {
@@ -763,7 +778,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 }
                 
-                // Job 2: Process incoming client messages
+                // Job 3: Process incoming client messages
                 try {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
@@ -795,7 +810,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     clientTimeMillis = chatRequest.clientTime,
                                     personality = chatRequest.personality,
                                     history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
-                                    opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId
+                                    opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
+                                    messageId = chatRequest.messageId
                                 )
                                 
                             } catch (e: kotlinx.serialization.SerializationException) {
@@ -821,6 +837,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } finally {
                     emitJob.cancel()
+                    heartbeatJob.cancel()
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
             }

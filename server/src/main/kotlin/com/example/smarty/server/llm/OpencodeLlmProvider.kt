@@ -65,31 +65,6 @@ class OpencodeLlmProvider(
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
     }
 
-    private val stateFile = java.io.File(System.getProperty("java.io.tmpdir"), "opencode_session_state.json")
-    private val sessionMessageCount = loadSessionMessageCount()
-
-    private fun loadSessionMessageCount(): java.util.concurrent.ConcurrentHashMap<String, Int> {
-        val map = java.util.concurrent.ConcurrentHashMap<String, Int>()
-        try {
-            if (stateFile.exists()) {
-                val jsonObj = Json.parseToJsonElement(stateFile.readText()).jsonObject
-                jsonObj.forEach { (k, v) -> map[k] = v.jsonPrimitive.content.toInt() }
-            }
-        } catch (e: Exception) {
-            logger.warn("Failed to load OpenCode session state: ${e.message}")
-        }
-        return map
-    }
-
-    private fun saveSessionMessageCount() {
-        try {
-            val jsonObj = buildJsonObject { sessionMessageCount.forEach { (k, v) -> put(k, JsonPrimitive(v)) } }
-            stateFile.writeText(jsonObj.toString())
-        } catch (e: Exception) {
-            logger.warn("Failed to save OpenCode session state: ${e.message}")
-        }
-    }
-
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
@@ -129,11 +104,10 @@ class OpencodeLlmProvider(
 
             suspend fun tryExecuteStream(sessId: String, isRetry: Boolean): Boolean {
                 var localIsNotFound = false
-                val previouslySentCount = if (isRetry) 0 else sessionMessageCount.getOrPut(sessId) { 0 }
                 val systemPrompt = messages.filter { it.role == LlmMessage.Role.SYSTEM }.joinToString("\n\n") { it.content }.takeIf { it.isNotBlank() }
-                val newMessages = if (isRetry) messages else messages.drop(previouslySentCount)
+                val conversationMessages = messages.filter { it.role != LlmMessage.Role.SYSTEM }
 
-                val parts = newMessages.mapNotNull { msg ->
+                val parts = conversationMessages.mapNotNull { msg ->
                     when (msg.role) {
                         LlmMessage.Role.USER ->
                             buildJsonObject {
@@ -143,8 +117,7 @@ class OpencodeLlmProvider(
                         LlmMessage.Role.ASSISTANT ->
                             buildJsonObject {
                                 put("type", "text")
-                                val thinking = msg.thinking?.takeIf { it.isNotBlank() }?.let { "<think>\n$it\n</think>\n" } ?: ""
-                                put("text", "$thinking${msg.content}")
+                                put("text", msg.content)
                             }
                         LlmMessage.Role.TOOL ->
                             buildJsonObject {
@@ -152,12 +125,9 @@ class OpencodeLlmProvider(
                                 put("name", msg.name ?: "tool")
                                 put("output", buildJsonObject { put("result", msg.content) })
                             }
-                        LlmMessage.Role.SYSTEM -> null
+                        else -> null
                     }
                 }
-
-                sessionMessageCount[sessId] = messages.size
-                saveSessionMessageCount()
 
                 logger.info("[OpenCode.Request][inference=$inferenceId][session=$sessId] model=$providerId/$modelId, parts=${parts.size}, isRetry=$isRetry")
 

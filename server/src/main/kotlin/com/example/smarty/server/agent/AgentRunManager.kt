@@ -34,7 +34,7 @@ object AgentRunManager {
 
     fun getEventFlow(sessionId: String): SharedFlow<AgentEvent> {
         return sessionEventFlows.getOrPut(sessionId) {
-            MutableSharedFlow(replay = 100, extraBufferCapacity = 200)
+            MutableSharedFlow(extraBufferCapacity = 200)
         }.asSharedFlow()
     }
     
@@ -62,7 +62,8 @@ object AgentRunManager {
         clientTimeMillis: Long?,
         personality: String?,
         history: List<LlmMessage>,
-        opencodeSessionId: String?
+        opencodeSessionId: String?,
+        messageId: String? = null
     ) {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
@@ -71,7 +72,7 @@ object AgentRunManager {
         }
 
         val flow = sessionEventFlows.getOrPut(sessionId) {
-            MutableSharedFlow(replay = 100, extraBufferCapacity = 200)
+            MutableSharedFlow(extraBufferCapacity = 200)
         }
 
         val job = agentScope.launch {
@@ -193,16 +194,30 @@ object AgentRunManager {
                         if (filteredEvents.isNotEmpty()) kotlinx.serialization.json.Json.encodeToString(filteredEvents) else null
                     } else null
 
-                    chatRepository.saveMessage(
-                        userId = userId,
-                        sessionId = sessionId,
-                        role = LlmMessage.Role.ASSISTANT.name,
-                        content = assistantResponse,
-                        thinking = thinkingTrace,
-                        toolCalls = citationsJson,
-                        agentStepsJson = agentStepsJson,
-                        agentEventsJson = finalAgentEventsJson
-                    )
+                    if (messageId != null) {
+                        chatRepository.saveMessageWithId(
+                            userId = userId,
+                            sessionId = sessionId,
+                            messageId = messageId,
+                            role = LlmMessage.Role.ASSISTANT.name,
+                            content = assistantResponse,
+                            thinking = thinkingTrace,
+                            toolCalls = citationsJson,
+                            agentStepsJson = agentStepsJson,
+                            agentEventsJson = finalAgentEventsJson
+                        )
+                    } else {
+                        chatRepository.saveMessage(
+                            userId = userId,
+                            sessionId = sessionId,
+                            role = LlmMessage.Role.ASSISTANT.name,
+                            content = assistantResponse,
+                            thinking = thinkingTrace,
+                            toolCalls = citationsJson,
+                            agentStepsJson = agentStepsJson,
+                            agentEventsJson = finalAgentEventsJson
+                        )
+                    }
                 }
 
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {

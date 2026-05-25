@@ -192,7 +192,8 @@ class RemoteAgentService(
                         model = model,
                         timezone = timezone,
                         clientTime = clientTime,
-                        personality = personality
+                        personality = personality,
+                        messageId = messageId,
                     )
                     
                     val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
@@ -1184,7 +1185,8 @@ data class ChatQueryRequest(
     val attachments: List<ChatQueryAttachment>? = null,
     val timezone: String? = null,
     val clientTime: Long? = null,
-    val personality: String? = null, // Fix: Add personality to POST endpoint
+    val personality: String? = null,
+    val messageId: String? = null,
 )
 
 @Serializable
