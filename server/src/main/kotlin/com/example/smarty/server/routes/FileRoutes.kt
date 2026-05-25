@@ -34,7 +34,7 @@ fun Application.configureFileRoutes(
     groqWhisperService: GroqWhisperService
 ) {
     routing {
-        authenticate("auth-jwt") {
+        authenticate("firebase") {
             route("/files") {
                 
                 post("/upload-url") {
@@ -83,6 +83,7 @@ fun Application.configureFileRoutes(
                     multipart.forEachPart { part ->
                         if (part is io.ktor.http.content.PartData.FileItem) {
                             fileName = part.originalFileName ?: "audio.m4a"
+                            @Suppress("DEPRECATION")
                             fileBytes = part.streamProvider().readBytes()
                         }
                         part.dispose()
