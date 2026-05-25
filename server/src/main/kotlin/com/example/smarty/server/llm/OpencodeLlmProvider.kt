@@ -63,6 +63,12 @@ class OpencodeLlmProvider(
     companion object {
         // Limit concurrent connections to the OpenCode daemon for Beta Tester multi-user scaling
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
+
+        private val TAG_STRIP_REGEX = Regex("</?(think|final)>", RegexOption.IGNORE_CASE)
+
+        fun stripThinkFinalTags(text: String): String {
+            return text.replace(TAG_STRIP_REGEX, "").trim()
+        }
     }
 
     override suspend fun generate(
@@ -249,7 +255,10 @@ class OpencodeLlmProvider(
             parseCanonicalResponse(json)?.parts?.forEachIndexed { i, part ->
                 val chunk =
                     when (part.type) {
-                        "text" -> LlmChunk(content = part.content, reasoning = null, subagentId = part.subagentId, sseEvent = eventType)
+                        "text" -> {
+                            val c = part.content
+                            LlmChunk(content = if (c != null) stripThinkFinalTags(c) else null, reasoning = null, subagentId = part.subagentId, sseEvent = eventType)
+                        }
                         "reasoning" ->
                             LlmChunk(
                                 content = null,

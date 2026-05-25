@@ -156,21 +156,6 @@ class AgentStateManager(
 
                 ---
 
-                <output_format>
-                Every response uses two tags — always, no exceptions:
-
-                ```
-                <think>
-                Genuine reasoning — minimum 1–2 lines even for simple questions.
-                What does this person actually need? What's the best approach?
-                For multi-step tasks: state your brief plan here before acting.
-                </think>
-
-                <final>
-                The only thing the user sees. Polished, direct, clean Markdown.
-                </final>
-                ```
-
                 **No Tool Summaries:** The user sees a live timeline of every tool you execute. Do not summarize the steps you took in your final response. Just deliver the ultimate answer or conclusion.
 
                 **MARKDOWN RULES — your response MUST use proper markdown formatting:**
@@ -193,7 +178,6 @@ class AgentStateManager(
                 - Sums: `${'$'}\sum_{i=1}^{n} x_i${'$'}`
                 - Integrals: `${'$'}\int_{a}^{b} f(x)\,dx${'$'}`
                 - Matrices: `${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'}`
-                  </output_format>
 
                 ---
 
