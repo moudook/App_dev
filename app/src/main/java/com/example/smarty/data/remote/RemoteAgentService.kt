@@ -174,6 +174,9 @@ class RemoteAgentService(
                 client.webSocket(
                     urlString = url,
                     request = {
+                        if (token != null) {
+                            header(HttpHeaders.Authorization, "Bearer $token")
+                        }
                         header("X-Smarty-Version", BuildConfig.VERSION_NAME)
                         header("X-Smarty-Device-Id", getDeviceId())
                     },
