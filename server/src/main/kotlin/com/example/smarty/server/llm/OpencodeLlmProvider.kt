@@ -164,10 +164,8 @@ class OpencodeLlmProvider(
                 daemonSemaphore.acquire()
                 try {
                     client.preparePost("$daemonBaseUrl/session/$sessId/message") {
-                        val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
-                        header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
-                    contentType(ContentType.Application.Json)
-                    header("Accept", "text/event-stream")
+                        contentType(ContentType.Application.Json)
+                        header("Accept", "text/event-stream")
                     setBody(
                         DaemonMessageRequest(
                             parts = parts,
@@ -246,8 +244,7 @@ class OpencodeLlmProvider(
     suspend fun getSessionHistory(sessionId: String): JsonArray? {
         return try {
             val response = client.get("$daemonBaseUrl/session/$sessionId/message") {
-                val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
-                header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
+                // No auth needed
             }
             if (response.status.value == 200) {
                 Json.parseToJsonElement(response.bodyAsText()).jsonObject["parts"]?.jsonArray
@@ -423,8 +420,6 @@ class OpencodeLlmProvider(
     private suspend fun createDaemonSession(): String {
         val response =
             client.post("$daemonBaseUrl/session") {
-                val creds = "${com.example.smarty.server.agent.OpencodeDaemonManager.daemonUsername}:${com.example.smarty.server.agent.OpencodeDaemonManager.daemonPassword}"
-                header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(creds.toByteArray()))
                 contentType(ContentType.Application.Json)
                 setBody(DaemonSessionRequest())
             }
