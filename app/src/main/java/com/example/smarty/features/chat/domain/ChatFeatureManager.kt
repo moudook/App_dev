@@ -564,19 +564,7 @@ class ChatFeatureManager(
     // Task 15: Remote Agent Service (Thin Client)
     // Replaces local SmartyAgentOptimized and SmartyAgentProvider
     private val remoteAgentService: RemoteAgentService by lazy {
-        val client =
-            HttpClient(OkHttp) {
-                install(SSE) {
-                    reconnectionTime = 5.seconds
-                }
-                engine {
-                    config {
-                        connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                        readTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
-                        writeTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
-                    }
-                }
-            }
+        val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
 
         RemoteAgentService(
             client = client,

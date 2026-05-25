@@ -29,17 +29,7 @@ data class ChatFoldersUiState(
 class ChatFoldersViewModel(application: Application) : AndroidViewModel(application) {
     private val serverUrl = SecurePreferences.getInstance(application).getServerUrl()
 
-    private val client =
-        HttpClient(OkHttp) {
-            install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        isLenient = true
-                    },
-                )
-            }
-        }
+    private val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
 
     private val remoteDataSource =
         RemoteDataSource(
@@ -147,6 +137,5 @@ class ChatFoldersViewModel(application: Application) : AndroidViewModel(applicat
 
     override fun onCleared() {
         super.onCleared()
-        client.close()
     }
 }

@@ -44,7 +44,7 @@ class SyncWorker(
 
             val remoteDataSource =
                 RemoteDataSource(
-                    client = createHttpClient(),
+                    client = com.example.smarty.di.ServiceLocator.provideHttpClient(),
                     serverUrlProvider = { securePrefs.getSmartyServerUrl() },
                     deviceIdProvider = { securePrefs.getDeviceId() },
                 )
@@ -140,21 +140,7 @@ class SyncWorker(
         private const val TAG = "SyncWorker"
         private const val WORK_NAME = "sync_worker"
 
-        private fun createHttpClient(): io.ktor.client.HttpClient {
-            return io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
-                engine {
-                    preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
-                }
-                install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-                    json(
-                        kotlinx.serialization.json.Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        }
+
 
         fun schedule(context: Context) {
             val workRequest =
@@ -190,7 +176,7 @@ class SyncWorker(
 
                 val remoteDataSource =
                     RemoteDataSource(
-                        client = createHttpClient(),
+                        client = com.example.smarty.di.ServiceLocator.provideHttpClient(),
                         serverUrlProvider = { securePrefs.getSmartyServerUrl() },
                         deviceIdProvider = { securePrefs.getDeviceId() },
                     )

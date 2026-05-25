@@ -291,7 +291,7 @@ object ServiceLocator {
     @Volatile
     private var httpClient: io.ktor.client.HttpClient? = null
 
-    private fun provideHttpClient(): io.ktor.client.HttpClient {
+    fun provideHttpClient(): io.ktor.client.HttpClient {
         return httpClient ?: synchronized(this) {
             io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
                 engine {

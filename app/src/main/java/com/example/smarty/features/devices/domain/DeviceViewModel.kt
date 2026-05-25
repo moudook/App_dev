@@ -23,7 +23,7 @@ import kotlinx.serialization.Serializable
  * Manages registered devices state and operations
  */
 class DeviceViewModel(application: Application) : AndroidViewModel(application) {
-    private val client = HttpClient(OkHttp)
+    private val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
     private val serverUrl = SecurePreferences(application).getServerUrl()
 
     private val _uiState = MutableStateFlow(DeviceUiState())
