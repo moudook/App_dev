@@ -1,5 +1,6 @@
 package com.example.smarty.server.agent
 
+import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatRepository
@@ -74,9 +75,50 @@ object AgentRunManager {
         }
 
         val job = agentScope.launch {
+            val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
+            val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
+            val collectedAgentEvents = mutableListOf<AgentEvent>()
+
             val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
                 flow.emit(event)
                 ActiveEventBridge.emit(userId, event) // Support legacy SSE active bridge if still needed
+
+                collectedAgentEvents.add(event)
+                if (event is AgentEvent.AgentStep) {
+                    collectedAgentSteps[event.stepIndex] = event
+                }
+                if (event is AgentEvent.Command && event.command is AgentCommand.NotifyCitations) {
+                    collectedCitations.addAll(event.command.citations)
+                }
+                
+                // Progressive save for active WebSocket stream (so crashes don't lose data)
+                if (chatRepository != null && (event is AgentEvent.Processing || event is AgentEvent.ToolCall || event is AgentEvent.AgentStep)) {
+                    val currentThinking = ThinkingStorageManagerSingleton.instance.getCurrentThinking(sessionId)
+                    val currentToolCalls = if (currentThinking.contains("SMARTY_TRACE_V2")) currentThinking.substringAfter("SMARTY_TRACE_V2:") else null
+                    
+                    val currentAgentEventsJson = if (collectedAgentSteps.isNotEmpty() || event !is AgentEvent.Processing) {
+                        val filteredEvents = collectedAgentEvents.filter { it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent }
+                        if (filteredEvents.isNotEmpty()) kotlinx.serialization.json.Json.encodeToString(filteredEvents) else null
+                    } else null
+                    
+                    val currentAgentStepsJson = if (collectedAgentSteps.isNotEmpty()) {
+                        val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                            com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = step.stepType, stepTitle = step.stepTitle, stepContent = step.stepContent,
+                                stepStatus = step.stepStatus, stepIndex = step.stepIndex, toolName = step.toolName, durationMs = step.durationMs
+                            )
+                        }
+                        kotlinx.serialization.json.Json.encodeToString(entries)
+                    } else null
+                    
+                    if (currentThinking.isNotBlank() || currentAgentStepsJson != null || currentAgentEventsJson != null) {
+                        chatRepository.updateMessageThinking(
+                            userId = userId, sessionId = sessionId,
+                            thinking = currentThinking, toolCalls = currentToolCalls,
+                            agentStepsJson = currentAgentStepsJson, agentEventsJson = currentAgentEventsJson
+                        )
+                    }
+                }
             }
 
             val agent = ServerAgent(
@@ -132,12 +174,31 @@ object AgentRunManager {
                         .finalizeAndGetThinking(sessionId)
                         .ifBlank { null }
                     
+                    val citationsJson = if (collectedCitations.isNotEmpty()) kotlinx.serialization.json.Json.encodeToString(collectedCitations) else "[]"
+                    val agentStepsJson = if (collectedAgentSteps.isNotEmpty()) {
+                        val entries = collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
+                            com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = step.stepType, stepTitle = step.stepTitle, stepContent = step.stepContent,
+                                stepStatus = step.stepStatus, stepIndex = step.stepIndex, toolName = step.toolName, durationMs = step.durationMs
+                            )
+                        }
+                        kotlinx.serialization.json.Json.encodeToString(entries)
+                    } else null
+
+                    val finalAgentEventsJson = if (collectedAgentEvents.isNotEmpty()) {
+                        val filteredEvents = collectedAgentEvents.filter { it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent }
+                        if (filteredEvents.isNotEmpty()) kotlinx.serialization.json.Json.encodeToString(filteredEvents) else null
+                    } else null
+
                     chatRepository.saveMessage(
                         userId = userId,
                         sessionId = sessionId,
                         role = LlmMessage.Role.ASSISTANT.name,
                         content = assistantResponse,
-                        thinking = thinkingTrace
+                        thinking = thinkingTrace,
+                        toolCalls = citationsJson,
+                        agentStepsJson = agentStepsJson,
+                        agentEventsJson = finalAgentEventsJson
                     )
                 }
 

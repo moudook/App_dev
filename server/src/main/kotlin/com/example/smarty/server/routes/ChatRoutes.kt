@@ -773,6 +773,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 val chatRequest = json.decodeFromString<ChatRequest>(text)
                                 val activeSessionId = chatRequest.sessionId ?: sessionIdParam
                                 
+                                if (chatRequest.query.isNotBlank()) {
+                                    chatRepository?.saveMessage(userId, activeSessionId, LlmMessage.Role.USER.name, chatRequest.query)
+                                }
+                                
                                 // Launch the run via decoupled manager
                                 com.example.smarty.server.agent.AgentRunManager.startRun(
                                     userId = userId,

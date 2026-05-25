@@ -433,7 +433,13 @@ class OpencodeLlmProvider(
 
 @Serializable private data class DaemonSessionResponse(val id: String)
 
-@Serializable private data class DaemonMessageRequest(val parts: List<JsonObject>, val model: JsonObject? = null, val agent: String? = null, val system: String? = null)
+@Serializable private data class DaemonMessageRequest(
+    val parts: List<JsonObject>,
+    val model: JsonObject? = null,
+    val agent: String? = null,
+    val system: String? = null,
+    val stream: Boolean = true
+)
 
 private data class CanonicalPart(val type: String, val content: String? = null, val toolName: String? = null, val toolArgs: String? = null, val subagentId: String? = null, val status: String? = null)
 
