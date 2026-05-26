@@ -12,6 +12,15 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.request.header
+import io.ktor.http.isSuccess
+import io.ktor.client.statement.bodyAsText
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -94,6 +103,8 @@ class ToolExecutor(
         val url: String? = null,
         val note: String? = null,
         val questions: kotlinx.serialization.json.JsonArray? = null,
+        @SerialName("search_depth") val searchDepth: String? = null,
+        @SerialName("max_results") val maxResults: Int? = null,
     )
 
     suspend fun executeTool(
@@ -169,6 +180,7 @@ class ToolExecutor(
             "get_note_by_id" -> executeGetNoteById(args)
             "navigate" -> executeNavigateTool(args)
             "search_history" -> executeSearchHistory(args)
+            "tavily_search" -> executeTavilySearch(args)
             else -> "Unknown tool: $name"
         }
     }
@@ -655,6 +667,60 @@ class ToolExecutor(
             return "No query provided for web search."
         }
         return "Unknown search action: ${args.action}"
+    }
+
+    private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {
+        val query = args.query ?: return "Search query required"
+        val apiKey = System.getenv("TAVILY_API_KEY") ?: return "TAVILY_API_KEY is not configured on the server."
+        
+        emitProcessing("Searching the web via Tavily...", "Query: ${query.take(100)}")
+        
+        return try {
+            val requestBody = buildJsonObject {
+                put("api_key", apiKey)
+                put("query", query)
+                put("search_depth", args.searchDepth ?: "basic")
+                put("max_results", args.maxResults ?: 5)
+                put("include_answer", true)
+            }
+            
+            val response = com.example.smarty.server.HttpClientSingleton.client.post("https://api.tavily.com/search") {
+                headers.append(io.ktor.http.HttpHeaders.ContentType, io.ktor.http.ContentType.Application.Json.toString())
+                setBody(requestBody.toString())
+            }
+            
+            if (response.status.isSuccess()) {
+                val responseBody = response.bodyAsText()
+                val jsonResult = json.parseToJsonElement(responseBody).jsonObject
+                val answer = jsonResult["answer"]?.jsonPrimitive?.content ?: ""
+                val resultsArray = jsonResult["results"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
+                
+                buildString {
+                    if (answer.isNotBlank()) {
+                        appendLine("**Summary:** $answer")
+                        appendLine()
+                    }
+                    if (resultsArray.isNotEmpty()) {
+                        appendLine("**Sources:**")
+                        resultsArray.forEachIndexed { index, el ->
+                            val resultObj = el.jsonObject
+                            val title = resultObj["title"]?.jsonPrimitive?.content ?: "No Title"
+                            val content = resultObj["content"]?.jsonPrimitive?.content ?: ""
+                            val resultUrl = resultObj["url"]?.jsonPrimitive?.content ?: ""
+                            appendLine("${index + 1}. [$title]($resultUrl)")
+                            appendLine("   ${content.take(200)}...")
+                        }
+                    } else {
+                        appendLine("No specific sources found.")
+                    }
+                }
+            } else {
+                "Failed to search Tavily: HTTP ${response.status.value}"
+            }
+        } catch (e: Exception) {
+            logger.error("Tavily search failed", e)
+            "Error executing Tavily search: ${e.message}"
+        }
     }
 
     private suspend fun executeAskUser(args: UnifiedToolArgs): String {

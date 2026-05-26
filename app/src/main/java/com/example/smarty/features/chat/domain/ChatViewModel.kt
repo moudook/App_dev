@@ -303,44 +303,12 @@ class ChatViewModel(
             // Actually call the AI service
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
-            val agentStepsBuilder = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
-            val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
                 model = _uiState.value.selectedModel,
                 messageId = streamingMessageId,
             ).collect { event ->
-                // 1) Save to unified event log
-                try {
-                    val eventType = event::class.simpleName ?: "Unknown"
-                    val payloadJson =
-                        kotlinx.serialization.json.Json.encodeToString(
-                            com.example.smarty.protocol.AgentEvent.serializer(),
-                            event,
-                        )
-                    chatRepository.saveTimelineEvent(
-                        com.example.smarty.data.local.entity.TimelineEventEntity(
-                            eventId = event.eventId,
-                            traceId = streamingMessageId,
-                            timestamp = event.timestamp,
-                            sessionId = sessionId,
-                            eventType = eventType,
-                            payloadJson = payloadJson,
-                        ),
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to save timeline event: ${e.message}")
-                }
-
-                // 2) Accumulate in-memory for UI timeline
-                agentEventsBuilder.add(event)
-                currentStreamingMessage =
-                    currentStreamingMessage.copy(
-                        agentEvents = agentEventsBuilder.toList(),
-                    )
-                _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
-
                 when (event) {
                     // ── Content streaming (per-chunk deltas) ──
                     is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
@@ -348,8 +316,6 @@ class ChatViewModel(
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 content = responseBuilder.toString(),
-                                agentSteps = agentStepsBuilder.toList(),
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
@@ -360,7 +326,6 @@ class ChatViewModel(
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 thinking = thinkingBuilder.toString(),
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
@@ -370,17 +335,12 @@ class ChatViewModel(
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 thinking = "",
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
 
                     is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Nothing to do
                     }
 
                     // ── Legacy Processing events — Server sends FULL accumulated content here.
@@ -398,27 +358,17 @@ class ChatViewModel(
                             currentStreamingMessage.copy(
                                 content = responseBuilder.toString(),
                                 thinking = thinkingBuilder.toString(),
-                                agentSteps = agentStepsBuilder.toList(),
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
 
                     // ── Final answer lifecycle ──
                     is com.example.smarty.protocol.AgentEvent.FinalAnswerStarted -> {
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Nothing to do
                     }
 
                     is com.example.smarty.protocol.AgentEvent.FinalAnswerFinished -> {
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Nothing to do
                     }
 
                     // ── Final result (stream complete) ──
@@ -428,8 +378,6 @@ class ChatViewModel(
                                 isStreaming = false,
                                 content = responseBuilder.toString(),
                                 thinking = thinkingBuilder.toString(),
-                                agentSteps = agentStepsBuilder.toList(),
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { state ->
                             state.copy(
@@ -449,38 +397,12 @@ class ChatViewModel(
 
                     // ── Agent step timeline ──
                     is com.example.smarty.protocol.AgentEvent.AgentStep -> {
-                        val uiStep =
-                            com.example.smarty.core.domain.model.AgentStepEntry(
-                                stepType = event.stepType,
-                                stepTitle = event.stepTitle,
-                                stepContent = event.stepContent,
-                                stepStatus = event.stepStatus,
-                                stepIndex = event.stepIndex,
-                                toolName = event.toolName,
-                                durationMs = event.durationMs,
-                            )
-                        val existingIndex = agentStepsBuilder.indexOfFirst { it.stepIndex == event.stepIndex }
-                        if (existingIndex >= 0) {
-                            agentStepsBuilder[existingIndex] = uiStep
-                        } else {
-                            agentStepsBuilder.add(uiStep)
-                        }
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                agentSteps = agentStepsBuilder.toList(),
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Ignored
                     }
 
                     // ── Tool Call (legacy) ──
                     is com.example.smarty.protocol.AgentEvent.ToolCall -> {
                         Log.d(TAG, "ToolCall: ${event.toolName} (${event.status})")
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
 
                     // ── Question flow ──
@@ -494,7 +416,6 @@ class ChatViewModel(
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 clarificationRequest = clarificationRequest,
-                                agentEvents = agentEventsBuilder.toList(),
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }

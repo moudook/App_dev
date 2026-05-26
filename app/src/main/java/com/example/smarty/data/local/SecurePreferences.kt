@@ -91,6 +91,10 @@ class SecurePreferences(private val context: Context) {
 
     companion object {
         private const val KEY_FIRST_LAUNCH = "first_launch"
+        private const val KEY_IS_ONBOARDED = "is_onboarded"
+        private const val KEY_USER_NAME = "user_name"
+        private const val KEY_USER_GOALS = "user_goals"
+        private const val KEY_USER_PREFERENCES = "user_preferences"
         private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
         private const val KEY_LOCAL_PC_MODEL = "local_pc_model"
         private const val KEY_CACHED_MODELS = "cached_models"
@@ -144,6 +148,22 @@ class SecurePreferences(private val context: Context) {
     fun setFirstLaunchComplete() {
         encryptedPrefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
     }
+
+    fun isOnboarded(): Boolean = encryptedPrefs.getBoolean(KEY_IS_ONBOARDED, false)
+
+    fun setOnboarded(onboarded: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_IS_ONBOARDED, onboarded).apply()
+    }
+
+    // User Profile
+    fun getUserName(): String = encryptedPrefs.getString(KEY_USER_NAME, "") ?: ""
+    fun setUserName(name: String) = encryptedPrefs.edit().putString(KEY_USER_NAME, name).apply()
+
+    fun getUserGoals(): String = encryptedPrefs.getString(KEY_USER_GOALS, "") ?: ""
+    fun setUserGoals(goals: String) = encryptedPrefs.edit().putString(KEY_USER_GOALS, goals).apply()
+
+    fun getUserPreferences(): String = encryptedPrefs.getString(KEY_USER_PREFERENCES, "") ?: ""
+    fun setUserPreferences(prefs: String) = encryptedPrefs.edit().putString(KEY_USER_PREFERENCES, prefs).apply()
 
     // Shake sensitivity
     fun getShakeSensitivity(): Float = encryptedPrefs.getFloat(KEY_SHAKE_SENSITIVITY, 1.5f)

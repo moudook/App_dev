@@ -67,6 +67,8 @@ import com.example.smarty.features.tasks.ui.TasksScreen
 import com.example.smarty.features.tags.ui.TagsScreen
 import com.example.smarty.features.tags.ui.TagNotesScreen
 import com.example.smarty.features.notifications.ui.NotificationsScreen
+import com.example.smarty.features.auth.ui.OnboardingScreen
+import com.example.smarty.data.local.SecurePreferences
 
 /**
  * Safe popBackStack that prevents crashes on empty back stack.
@@ -92,6 +94,7 @@ sealed class Screen(val route: String) {
     data object BackupSettings : Screen("backup_settings")
     data object Calendar : Screen("calendar")
     data object Login : Screen("login")
+    data object Onboarding : Screen("onboarding")
     data object TicTacToe : Screen("tic_tac_toe")
     data object CoinToss : Screen("coin_toss")
     data object Chess : Screen("chess")
@@ -269,8 +272,10 @@ fun SmartyNavHost(
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {}
 ) {
-    // NOTE: Login is now handled in MainActivity BEFORE SmartyNavHost is rendered
-    val startDestination = Screen.InputStream.route
+    val securePreferences = SecurePreferences.getInstance(androidx.compose.ui.platform.LocalContext.current)
+    // Decide start destination based on onboarding state
+    val startDestination = if (securePreferences.isOnboarded()) Screen.InputStream.route else Screen.Onboarding.route
+    
     val viewModel: com.example.smarty.features.notes.domain.SmartyViewModel = viewModel()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val isSettingsLoading by viewModel.isSettingsLoading.collectAsState()
@@ -759,6 +764,17 @@ fun SmartyNavHost(
                 onLoginSuccess = {
                     navController.navigate(Screen.InputStream.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Onboarding.route) { _ ->
+            OnboardingScreen(
+                securePreferences = securePreferences,
+                onFinish = {
+                    navController.navigate(Screen.InputStream.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
                 }
             )

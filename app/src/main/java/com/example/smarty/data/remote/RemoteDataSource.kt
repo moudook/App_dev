@@ -60,6 +60,38 @@ class RemoteDataSource(
         header("X-Smarty-Device-Id", getDeviceId())
     }
 
+    // ==================== AUTH API ====================
+
+    sealed class AuthVerificationResult {
+        object Success : AuthVerificationResult()
+        data class Rejected(val reason: String) : AuthVerificationResult()
+        data class NetworkError(val error: String) : AuthVerificationResult()
+    }
+
+    suspend fun verifyAuth(): AuthVerificationResult {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return AuthVerificationResult.NetworkError("No Firebase token")
+            
+            val response = client.post("$baseUrl/auth/verify") {
+                addAuthHeaders(token)
+            }
+            
+            when (response.status) {
+                HttpStatusCode.OK -> AuthVerificationResult.Success
+                HttpStatusCode.Forbidden -> {
+                    // This happens when there's a single-user restriction block
+                    AuthVerificationResult.Rejected("There is already an existing user. Please use that Google account.")
+                }
+                HttpStatusCode.Unauthorized -> AuthVerificationResult.Rejected("Invalid token or authentication failed.")
+                else -> AuthVerificationResult.NetworkError("Server returned ${response.status}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error verifying auth: ${e.message}", e)
+            AuthVerificationResult.NetworkError(e.message ?: "Unknown network error")
+        }
+    }
+
     // ==================== SYNC API ====================
 
     /**

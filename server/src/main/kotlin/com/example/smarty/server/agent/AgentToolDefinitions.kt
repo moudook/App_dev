@@ -155,24 +155,23 @@ Use for: opening apps, media control, settings, device status.""",
         )
 
     /**
-     * Search tool — web search is handled natively by OpenCode CLI's built-in websearch.
-     * This tool definition is kept for backward compatibility but returns a directive
-     * for the LLM to use its internal websearch capability.
+     * Tavily Search tool for real-time web search.
+     * Uses the Tavily Search API to find current and accurate information.
      */
-    val searchTool: ToolDefinition =
+    val tavilySearchTool: ToolDefinition =
         ToolDefinition(
-            name = "search",
-            description = """Search the internet for information.
-NOTE: Web search is handled internally by the OpenCode CLI. Use your built-in websearch capability directly.
-Use for: web searches, weather, news, facts, current events, research.""",
+            name = "tavily_search",
+            description = """Search the internet for real-time information using the Tavily API.
+Use for: web searches, weather, news, facts, current events, research, or anything requiring up-to-date internet access.""",
             parameters =
                 ToolParameters(
                     properties =
                         mapOf(
-                            "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
                             "query" to ToolProperty("string", "What to search for"),
+                            "search_depth" to ToolProperty("string", "Search depth: basic or advanced (default: basic)", enum = listOf("basic", "advanced")),
+                            "max_results" to ToolProperty("number", "Maximum number of results to return (default: 5)"),
                         ),
-                    required = listOf("action", "query"),
+                    required = listOf("query"),
                 ),
         )
 
@@ -370,5 +369,6 @@ Use for: finding past context, recalling previous discussions, looking up user h
             askUserTool,
             getNoteByIdTool,
             searchHistoryTool,
+            tavilySearchTool,
         )
 }

@@ -449,36 +449,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     null
                                 }
 
-                            // Collect raw AgentEvents (exclude massive/noisy ones like Processing/OpencodeRawEvent)
-                            val currentAgentEventsJson =
-                                if (collectedAgentSteps.isNotEmpty() || event !is AgentEvent.Processing) {
-                                    // Use the shared list of all events, but filter out the huge ones to save DB space
-                                    val filteredEvents = collectedAgentEvents.filter { 
-                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
-                                    }
-                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
-                                } else {
-                                    null
-                                }
-
-                            val currentAgentStepsJson =
-                                if (collectedAgentSteps.isNotEmpty()) {
-                                    val entries =
-                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                            com.example.smarty.core.domain.model.AgentStepEntry(
-                                                stepType = step.stepType,
-                                                stepTitle = step.stepTitle,
-                                                stepContent = step.stepContent,
-                                                stepStatus = step.stepStatus,
-                                                stepIndex = step.stepIndex,
-                                                toolName = step.toolName,
-                                                durationMs = step.durationMs,
-                                            )
-                                        }
-                                    json.encodeToString(entries)
-                                } else {
-                                    null
-                                }
+                            val currentAgentEventsJson: String? = null
+                            val currentAgentStepsJson: String? = null
 
                             if (currentThinking.isNotBlank() || currentAgentStepsJson != null || currentAgentEventsJson != null) {
                                 if (messageIdParam != null) {
@@ -639,35 +611,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     "[]"
                                 }
 
-                            // Convert agent steps to JSON
-                            val agentStepsJson =
-                                if (collectedAgentSteps.isNotEmpty()) {
-                                    val entries =
-                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                            com.example.smarty.core.domain.model.AgentStepEntry(
-                                                stepType = step.stepType,
-                                                stepTitle = step.stepTitle,
-                                                stepContent = step.stepContent,
-                                                stepStatus = step.stepStatus,
-                                                stepIndex = step.stepIndex,
-                                                toolName = step.toolName,
-                                                durationMs = step.durationMs,
-                                            )
-                                        }
-                                    json.encodeToString(entries)
-                                } else {
-                                    null
-                                }
-
-                            val finalAgentEventsJson =
-                                if (collectedAgentEvents.isNotEmpty()) {
-                                    val filteredEvents = collectedAgentEvents.filter { 
-                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
-                                    }
-                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
-                                } else {
-                                    null
-                                }
+                            val agentStepsJson: String? = null
+                            val finalAgentEventsJson: String? = null
 
                             if (messageIdParam != null) {
                                 chatRepository.saveMessageWithId(

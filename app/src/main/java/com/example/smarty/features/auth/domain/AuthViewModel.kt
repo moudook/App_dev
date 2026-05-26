@@ -31,6 +31,7 @@ class AuthViewModel(
             application,
             viewModelScope,
             authRepository,
+            ServiceLocator.provideRemoteDataSource(application),
             SecurePreferences.getInstance(application),
             ServiceLocator.provideRepository(application),
         )

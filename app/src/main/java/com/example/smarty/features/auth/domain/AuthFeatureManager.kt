@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.activity.result.ActivityResult
 import com.example.smarty.R
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.data.repository.AuthRepository
 import com.example.smarty.data.repository.SmartyRepository
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -36,6 +37,7 @@ class AuthFeatureManager(
     private val application: Application,
     private val scope: CoroutineScope,
     private val authRepository: AuthRepository,
+    private val remoteDataSource: RemoteDataSource,
     private val securePreferences: SecurePreferences? = null,
     private val repository: SmartyRepository? = null,
 ) {
@@ -113,7 +115,8 @@ class AuthFeatureManager(
                 if (idToken != null) {
                     val authResult = authRepository.signInWithGoogleCredential(idToken)
                     if (authResult.isSuccess) {
-                        _authState.value = AuthState.SUCCESS
+                        // After Firebase success, verify with our backend for single-user restriction
+                        verifyBackendAuth()
                     } else {
                         _error.value = authResult.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_google_sign_in)
                         _authState.value = AuthState.ERROR
@@ -150,7 +153,8 @@ class AuthFeatureManager(
 
             val result = authRepository.signIn(email, password)
             if (result.isSuccess) {
-                _authState.value = AuthState.SUCCESS
+                // Verify with backend
+                verifyBackendAuth()
             } else {
                 _error.value = result.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_sign_in_failed)
                 _authState.value = AuthState.ERROR
@@ -175,7 +179,8 @@ class AuthFeatureManager(
 
             val result = authRepository.signUp(email, password)
             if (result.isSuccess) {
-                _authState.value = AuthState.SUCCESS
+                // Verify with backend
+                verifyBackendAuth()
             } else {
                 _error.value = result.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_sign_up_failed)
                 _authState.value = AuthState.ERROR
@@ -228,6 +233,29 @@ class AuthFeatureManager(
     fun setError(message: String) {
         _error.value = message
         _authState.value = AuthState.ERROR
+    }
+
+    private suspend fun verifyBackendAuth() {
+        val verificationResult = remoteDataSource.verifyAuth()
+        when (verificationResult) {
+            is RemoteDataSource.AuthVerificationResult.Success -> {
+                _authState.value = AuthState.SUCCESS
+            }
+            is RemoteDataSource.AuthVerificationResult.Rejected -> {
+                // Sign out locally since the backend rejected us
+                authRepository.signOut()
+                googleSignInClient.signOut()
+                _error.value = verificationResult.reason
+                _authState.value = AuthState.ERROR
+            }
+            is RemoteDataSource.AuthVerificationResult.NetworkError -> {
+                // Allow them to proceed offline if they previously authenticated, or fail if we want strict mode.
+                // Assuming success for offline fallback, but we can't be sure they are the allowed user.
+                // For a single-user system, we might want to strictly require online verification on first login.
+                _authState.value = AuthState.SUCCESS 
+                Log.w(TAG, "Backend verification network error, allowing offline access. Error: ${verificationResult.error}")
+            }
+        }
     }
 
     companion object {

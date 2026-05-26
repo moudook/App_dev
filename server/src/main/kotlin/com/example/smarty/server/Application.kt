@@ -16,6 +16,7 @@ import com.example.smarty.server.routes.configureChatRoutes
 import com.example.smarty.server.routes.configureOptimizedSyncRoutes
 import com.example.smarty.server.routes.configureDataRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
+import com.example.smarty.server.routes.configureAuthRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
@@ -258,6 +259,7 @@ fun Application.module() {
         )
 
         // Configure routes
+        configureAuthRoutes()
         configureHealthRoutes()
         configureChatRoutes(noteService)
         configureProcessingRoutes()
@@ -399,6 +401,7 @@ fun Application.module() {
 
         configureDigestRoutes(digestService, digestScheduler, ds)
     } else {
+        configureAuthRoutes()
         configureHealthRoutes()
         configureProcessingRoutes()
         configureHandshakeRoutes()

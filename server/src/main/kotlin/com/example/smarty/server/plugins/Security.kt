@@ -199,10 +199,13 @@ fun verifyFirebaseToken(
         return principal
     } catch (e: FirebaseAuthException) {
         logger.warn("Firebase token verification failed: ${e.message}")
-        null
+        throw e // Re-throw to allow specific handling in auth routes
+    } catch (e: IllegalStateException) {
+        logger.warn("Single user restriction: ${e.message}")
+        throw e // Re-throw for specific handling
     } catch (e: Exception) {
         logger.error("Unexpected error verifying Firebase token: ${e.message}")
-        null
+        throw e
     }
 }
 
@@ -224,9 +227,34 @@ private fun ensureUserExistsInDatabase(
     val logger = LoggerFactory.getLogger("FirebaseAuth")
 
     ds.connection.use { conn ->
+        // Always SELECT first to get the id if it exists
+        val checkSql = "SELECT id FROM users WHERE firebase_uid = ?"
+        conn.prepareStatement(checkSql).use { stmt ->
+            stmt.setString(1, firebaseUid)
+            stmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    val userId = rs.getString("id")
+                    logger.info("Resolved user for Firebase UID: {}, User ID: {}", firebaseUid, userId)
+                    return userId
+                }
+            }
+        }
+
+        // Single-user check: if the user DOES NOT exist, check if ANY user exists
+        val countSql = "SELECT COUNT(*) as user_count FROM users"
+        conn.prepareStatement(countSql).use { stmt ->
+            stmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    val count = rs.getInt("user_count")
+                    if (count > 0) {
+                        logger.error("Single-user restriction: Blocked secondary user creation for {}", email)
+                        throw IllegalStateException("There is already an existing user. Please use that Google account.")
+                    }
+                }
+            }
+        }
+
         // Atomic upsert: INSERT ... ON CONFLICT DO NOTHING eliminates the TOCTOU race condition
-        // where two concurrent requests for the same firebase_uid both see "not found" and both
-        // try to INSERT, causing a duplicate key violation on the users_firebase_uid_key constraint.
         val insertSql =
             """
             INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
@@ -292,8 +320,12 @@ fun Application.configureSecurity() {
         bearer("firebase") {
             realm = "Smarty API"
             authenticate { credential ->
-                val deviceId = this.request.header("X-Smarty-Device-Id")
-                verifyFirebaseToken(credential.token, deviceId)
+                try {
+                    val deviceId = this.request.header("X-Smarty-Device-Id")
+                    verifyFirebaseToken(credential.token, deviceId)
+                } catch (e: Exception) {
+                    null // Let Ktor return 401 for standard authenticated routes
+                }
             }
         }
     }
