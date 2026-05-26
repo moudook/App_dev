@@ -759,7 +759,7 @@ class SmartyViewModel(
         viewModelScope.launch {
             try {
                 // Wait for initial DB fetch and enforce minimum skeleton duration
-                kotlinx.coroutines.delay(600)
+                kotlinx.coroutines.delay(50)
                 _isNotesLoading.value = false
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize notes from database", e)
@@ -769,7 +769,7 @@ class SmartyViewModel(
 
         viewModelScope.launch {
             try {
-                kotlinx.coroutines.delay(600)
+                kotlinx.coroutines.delay(50)
                 _isStacksLoading.value = false
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize categories", e)
@@ -779,7 +779,7 @@ class SmartyViewModel(
 
         viewModelScope.launch {
             try {
-                kotlinx.coroutines.delay(600)
+                kotlinx.coroutines.delay(50)
                 _isArchiveLoading.value = false
             } catch (e: Exception) {
                  Log.e(TAG, "Failed to initialize archived notes", e)
@@ -788,12 +788,12 @@ class SmartyViewModel(
         }
 
         viewModelScope.launch {
-            kotlinx.coroutines.delay(600)
+            kotlinx.coroutines.delay(50)
             _isChatHistoryLoading.value = false
         }
 
         viewModelScope.launch {
-            kotlinx.coroutines.delay(600)
+            kotlinx.coroutines.delay(50)
             _isCalendarLoading.value = false
             _isSettingsLoading.value = false
         }

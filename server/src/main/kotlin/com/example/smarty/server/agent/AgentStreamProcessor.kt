@@ -18,7 +18,7 @@ class AgentStreamProcessor(
 
     private var hasStartedFinalAnswer = false
     private var lastProcessingEventTime = 0L
-    private val PROCESSING_EVENT_THROTTLE_MS = 300L
+    private val PROCESSING_EVENT_THROTTLE_MS = 50L
 
     var currentContent = ""
     var currentToolId: String? = null
@@ -33,14 +33,14 @@ class AgentStreamProcessor(
     private var currentThinkingStepId: String? = null
     private var currentThinkingStepStart: Long = 0L
     private val currentThinkingContent = StringBuilder()
-    private val THINKING_STEP_THROTTLE_MS = 250L
+    private val THINKING_STEP_THROTTLE_MS = 50L
     private var lastThinkingStepEmitTime = 0L
     private var lastReasoningDeltaEmitTime = 0L
     private val reasoningDeltaBuffer = java.lang.StringBuilder()
 
     private var lastFinalAnswerDeltaEmitTime = 0L
     private val finalAnswerDeltaBuffer = java.lang.StringBuilder()
-    private val FINAL_ANSWER_THROTTLE_MS = 150L
+    private val FINAL_ANSWER_THROTTLE_MS = 50L
 
     // Regex for pseudo-narration (e.g. "[tool_call: web_search]")
     private val pseudoNarrationRegex = Regex("""\[(?:tool_call|subtask|patch|file):.*?\]""")

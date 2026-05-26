@@ -609,7 +609,7 @@ fun InputStreamScreen(
             autoSendActive = true
             autoSendJob?.cancel()
             autoSendJob = scope.launch {
-                delay(500)  // Increased to 0.5 seconds for safety
+                delay(100)  // Reduced to 0.1 seconds for faster auto-send
                 if (autoSendActive) {
                     val finalChatText = chatModeTextValue.text
                     if (finalChatText.isNotBlank()) {

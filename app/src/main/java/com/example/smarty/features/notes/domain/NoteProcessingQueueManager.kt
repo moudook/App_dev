@@ -32,8 +32,8 @@ class NoteProcessingQueueManager(
     companion object {
         private const val TAG = "NoteProcessingQueue"
         private const val PROCESSING_TIMEOUT_MS = 120_000L
-        private const val QUEUE_CHECK_INTERVAL_MS = 5_000L
-        private const val PROCESSING_DELAY_MS = 1_000L
+        private const val QUEUE_CHECK_INTERVAL_MS = 500L
+        private const val PROCESSING_DELAY_MS = 500L
         private const val MAX_RETRY_ATTEMPTS = 3
         private const val RETRY_DELAY_MS = 5_000L
         private const val MAX_CONCURRENT_SMALL_NOTES = 3
