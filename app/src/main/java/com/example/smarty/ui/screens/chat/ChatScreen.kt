@@ -196,25 +196,17 @@ fun ChatScreen(
             }
         }
         
-        // Input area: If there's an active clarification request, show the interactive question block
+        // Calculate pending questions for the input field
         val clarificationMsg = msgWithClarification
+        val pendingQuestions = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
+        var activeApprovalId: String? = null
+
         if (clarificationMsg?.clarificationRequest != null) {
-            com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                requests = listOf(clarificationMsg.clarificationRequest!!),
-                onSubmit = { response ->
-                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
-                },
-                onSkip = {
-                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, ""))
-                },
-                modifier = Modifier.padding(16.dp)
-            )
+            pendingQuestions.add(clarificationMsg.clarificationRequest!!)
         } else if (pendingApproval != null && (pendingApproval!!.toolName == "ask_user" || pendingApproval!!.toolName == "askuser")) {
-            val approval = pendingApproval!!
-            val parsedRequests = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
-            
+            activeApprovalId = pendingApproval!!.toolId
             try {
-                val json = org.json.JSONObject(approval.toolArgs)
+                val json = org.json.JSONObject(pendingApproval!!.toolArgs)
                 val questionsArray = json.optJSONArray("questions")
                 
                 if (questionsArray != null && questionsArray.length() > 0) {
@@ -231,14 +223,13 @@ fun ChatScreen(
                             }
                         }
                         
-                        parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                        pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
                             question = qText,
                             options = qOptions,
                             allowCustomInput = qAllowCustom
                         ))
                     }
                 } else {
-                    // Fallback to old format if 'questions' array is missing
                     val qText = json.optString("question", "Please provide input:")
                     val qAllowCustom = json.optBoolean("allow_custom", true)
                     val qOptions = mutableListOf<String>()
@@ -248,36 +239,24 @@ fun ChatScreen(
                             qOptions.add(optArr.getString(j))
                         }
                     }
-                    parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                    pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
                         question = qText,
                         options = qOptions,
                         allowCustomInput = qAllowCustom
                     ))
                 }
             } catch (e: Exception) {
-                // Ignore parsing errors and use defaults
-                if (parsedRequests.isEmpty()) {
-                    parsedRequests.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                if (pendingQuestions.isEmpty()) {
+                    pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
                         question = "Please provide input:",
                         options = emptyList(),
                         allowCustomInput = true
                     ))
                 }
             }
-            
-            com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                requests = parsedRequests,
-                onSubmit = { response ->
-                    viewModel.callApproval(approval.toolId, true, response)
-                },
-                onSkip = {
-                    viewModel.callApproval(approval.toolId, false, null)
-                },
-                modifier = Modifier.padding(16.dp)
-            )
-        } else {
-            // Standard Input field
-            SmartyInputField(
+        }
+        // Standard Input field
+        SmartyInputField(
                 value = inputText,
                 onValueChange = { 
                     inputText = it
@@ -289,7 +268,15 @@ fun ChatScreen(
                         inputText = androidx.compose.ui.text.input.TextFieldValue("")
                     }
                 },
-                isChatMode = true,
+                pendingQuestions = pendingQuestions,
+            onQuestionAnswered = { response ->
+                if (clarificationMsg?.clarificationRequest != null) {
+                    viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
+                } else if (activeApprovalId != null) {
+                    viewModel.callApproval(activeApprovalId, response.isNotEmpty(), response.ifEmpty { null })
+                }
+            },
+            isChatMode = true,
                 isProcessing = isProcessing,
                 isAgentWorking = isProcessing,
                 onStopGeneration = { viewModel.onEvent(ChatEvent.GenerationStopped) },
@@ -303,9 +290,8 @@ fun ChatScreen(
                 availableModels = uiState.availableModels,
                 onModelSelected = { viewModel.onEvent(ChatEvent.ModelSelected(it)) },
                 onRefreshModels = { viewModel.refreshModelsNow() },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
 

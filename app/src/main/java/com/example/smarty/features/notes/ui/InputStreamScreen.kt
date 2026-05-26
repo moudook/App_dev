@@ -1656,21 +1656,10 @@ fun InputStreamScreen(
                         chatMessages.find { it.role == com.example.smarty.core.domain.model.ChatRole.SMARTY && it.clarificationRequest != null && !it.isStreaming }
                     } else null
 
-                    val showClarificationBlock = activeClarificationMessage != null
+                    val pendingQuestions = activeClarificationMessage?.clarificationRequest?.let { listOf(it) } ?: emptyList()
 
-                    // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
-                    if (showClarificationBlock) {
-                        com.example.smarty.ui.components.chat.InteractiveQuestionBlock(
-                            requests = listOf(activeClarificationMessage!!.clarificationRequest!!),
-                            onSubmit = { response ->
-                                onClarificationSubmit(activeClarificationMessage.id, response)
-                            },
-                            onSkip = {
-                                onClarificationSubmit(activeClarificationMessage.id, "Skip")
-                            },
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    } else if (!showSelectionPill) {
+                    // Floating Input Field
+                    if (!showSelectionPill) {
                         Box(contentAlignment = Alignment.BottomCenter) {
                         // The Actual Input Field with halftone shimmer inside
                         SmartyInputField(
@@ -1777,6 +1766,12 @@ fun InputStreamScreen(
                                 }
                             },
                             onRemoveAttachment = { id -> onInputAttachmentsChange(currentInputAttachments.filter { it.id != id }) },
+                            pendingQuestions = pendingQuestions,
+                            onQuestionAnswered = { response ->
+                                if (activeClarificationMessage != null) {
+                                    onClarificationSubmit(activeClarificationMessage.id, response)
+                                }
+                            },
                             isChatMode = isChatMode,
                             isHistoryMode = showChatHistoryInline, // Pass history state
                             isProcessing = isChatProcessing,
@@ -2031,9 +2026,6 @@ fun InputStreamScreen(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            onNavigateToCoinToss = onNavigateToCoinToss,
-            onNavigateToTicTacToe = onNavigateToTicTacToe,
-            onNavigateToChess = onNavigateToChess,
             onCloudSync = onSyncCloud
         )
     }

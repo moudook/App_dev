@@ -121,9 +121,6 @@ fun SettingsScreen(
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit = {},
-    onNavigateToCoinToss: () -> Unit = {},
-    onNavigateToTicTacToe: () -> Unit = {},
-    onNavigateToChess: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
@@ -424,23 +421,6 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Vibration,
                                         subtitle = "${(shakeSensitivity * 100).toInt()}% Sensitivity",
                                         onClick = { currentView = SettingsView.ShakeSensitivity }
-                                    )
-                                    SmartySettingsRow(
-                                        label = "Coin Toss",
-                                        icon = SmartyIcons.Casino,
-                                        subtitle = "Flip a coin to decide",
-                                        onClick = {
-                                            android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
-                                            onNavigateToCoinToss()
-                                        }
-                                    )
-                                    SmartySettingsRow(
-                                        label = "Strategy",
-                                        icon = SmartyIcons.Games,
-                                        subtitle = "Play a game of chess",
-                                        onClick = {
-                                            onNavigateToChess()
-                                        }
                                     )
                                     SmartySettingsRow(
                                         label = "Guided Breathing",
@@ -1269,7 +1249,7 @@ private fun HideSystemBars() {
         val window = (view.parent as? DialogWindowProvider)?.window
         window?.let {
             WindowCompat.getInsetsController(it, view).apply {
-                hide(WindowInsetsCompat.Type.statusBars())
+                hide(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }

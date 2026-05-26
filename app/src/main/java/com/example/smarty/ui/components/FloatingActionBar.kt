@@ -35,6 +35,10 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.theme.DarkSurfaceElevated2
+import com.example.smarty.ui.theme.DarkBorder2
+import com.example.smarty.ui.theme.SoftBackground
+import com.example.smarty.ui.theme.SubtleBorder
 
 // 
 // SOFT MINIMALIST STYLES
@@ -125,8 +129,8 @@ private fun FloatingActionPill(
     // No glassmorphism, no blurs, no complex borders
 
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
-    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+    val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
+    val borderColor = if (isDark) DarkBorder2 else SubtleBorder
 
     Box(
         modifier = modifier
@@ -174,8 +178,8 @@ fun SelectionFloatingBar(
 ) {
     // Apply soft shadow to the selection bar as well
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
-    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+    val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
+    val borderColor = if (isDark) DarkBorder2 else SubtleBorder
 
     Surface(
         shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),

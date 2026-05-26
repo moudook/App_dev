@@ -41,7 +41,6 @@ import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
-import com.example.smarty.ui.components.chat.InteractiveQuestionBlock
 import com.example.smarty.ui.components.timeline.ApprovalCard
 import com.example.smarty.ui.components.timeline.TimelineNode
 import kotlinx.coroutines.launch
@@ -282,33 +281,23 @@ fun AssistOverlayScreen(
                         }
                     }
 
-                    // Input field at bottom OR Approval UI
+                    // Check for active Ask User approval
                     val approval = pendingApproval
-                    if (approval != null) {
-                        if (approval.toolName == "ask_user" || approval.toolName == "askuser") {
-                            val parsedRequests = mutableListOf<ClarificationRequest>()
-                            try {
-                                val json = org.json.JSONObject(approval.toolArgs)
-                                val questionsArray = json.optJSONArray("questions")
-                                if (questionsArray != null && questionsArray.length() > 0) {
-                                    for (i in 0 until questionsArray.length()) {
-                                        val qObj = questionsArray.getJSONObject(i)
-                                        val qText = qObj.optString("question", "Please provide input:")
-                                        val qAllowCustom = qObj.optBoolean("allow_custom", true)
-                                        val qOptions = mutableListOf<String>()
-                                        val optArr = qObj.optJSONArray("options")
-                                        if (optArr != null) {
-                                            for (j in 0 until optArr.length()) {
-                                                qOptions.add(optArr.getString(j))
-                                            }
-                                        }
-                                        parsedRequests.add(ClarificationRequest(qText, qOptions, qAllowCustom))
-                                    }
-                                } else {
-                                    val qText = json.optString("question", "Please provide input:")
-                                    val qAllowCustom = json.optBoolean("allow_custom", true)
+                    val parsedRequests = mutableListOf<ClarificationRequest>()
+                    var activeApprovalId: String? = null
+
+                    if (approval != null && (approval.toolName == "ask_user" || approval.toolName == "askuser")) {
+                        activeApprovalId = approval.toolId
+                        try {
+                            val json = org.json.JSONObject(approval.toolArgs)
+                            val questionsArray = json.optJSONArray("questions")
+                            if (questionsArray != null && questionsArray.length() > 0) {
+                                for (i in 0 until questionsArray.length()) {
+                                    val qObj = questionsArray.getJSONObject(i)
+                                    val qText = qObj.optString("question", "Please provide input:")
+                                    val qAllowCustom = qObj.optBoolean("allow_custom", true)
                                     val qOptions = mutableListOf<String>()
-                                    val optArr = json.optJSONArray("options")
+                                    val optArr = qObj.optJSONArray("options")
                                     if (optArr != null) {
                                         for (j in 0 until optArr.length()) {
                                             qOptions.add(optArr.getString(j))
@@ -316,41 +305,44 @@ fun AssistOverlayScreen(
                                     }
                                     parsedRequests.add(ClarificationRequest(qText, qOptions, qAllowCustom))
                                 }
-                            } catch (e: Exception) {
-                                if (parsedRequests.isEmpty()) {
-                                    parsedRequests.add(ClarificationRequest("Please provide input:", emptyList(), true))
+                            } else {
+                                val qText = json.optString("question", "Please provide input:")
+                                val qAllowCustom = json.optBoolean("allow_custom", true)
+                                val qOptions = mutableListOf<String>()
+                                val optArr = json.optJSONArray("options")
+                                if (optArr != null) {
+                                    for (j in 0 until optArr.length()) {
+                                        qOptions.add(optArr.getString(j))
+                                    }
                                 }
+                                parsedRequests.add(ClarificationRequest(qText, qOptions, qAllowCustom))
                             }
-
-                            InteractiveQuestionBlock(
-                                requests = parsedRequests,
-                                onSubmit = { response ->
-                                    viewModel.callApproval(approval.toolId, true, response)
-                                },
-                                onSkip = {
-                                    viewModel.callApproval(approval.toolId, false, null)
-                                },
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        } else {
-                            // Standard Approval
-                            val node = TimelineNode.ApprovalGate(
-                                id = "approval_${approval.toolId}",
-                                timestamp = System.currentTimeMillis(),
-                                toolId = approval.toolId,
-                                toolName = approval.toolName,
-                                toolTitle = approval.toolTitle,
-                                toolArgs = approval.toolArgs,
-                                status = TimelineNode.ApprovalGate.Status.PENDING,
-                                requiresText = false
-                            )
-                            ApprovalCard(
-                                node = node,
-                                onGrant = { viewModel.callApproval(approval.toolId, true) },
-                                onDeny = { viewModel.callApproval(approval.toolId, false) },
-                                modifier = Modifier.padding(16.dp)
-                            )
+                        } catch (e: Exception) {
+                            if (parsedRequests.isEmpty()) {
+                                parsedRequests.add(ClarificationRequest("Please provide input:", emptyList(), true))
+                            }
                         }
+                    }
+
+                    // Input field at bottom OR Standard Approval UI
+                    if (approval != null && approval.toolName != "ask_user" && approval.toolName != "askuser") {
+                        // Standard Approval
+                        val node = TimelineNode.ApprovalGate(
+                            id = "approval_${approval.toolId}",
+                            timestamp = System.currentTimeMillis(),
+                            toolId = approval.toolId,
+                            toolName = approval.toolName,
+                            toolTitle = approval.toolTitle,
+                            toolArgs = approval.toolArgs,
+                            status = TimelineNode.ApprovalGate.Status.PENDING,
+                            requiresText = false
+                        )
+                        ApprovalCard(
+                            node = node,
+                            onGrant = { viewModel.callApproval(approval.toolId, true) },
+                            onDeny = { viewModel.callApproval(approval.toolId, false) },
+                            modifier = Modifier.padding(16.dp)
+                        )
                     } else {
                         SmartyInputField(
                             value = inputText,
@@ -367,6 +359,12 @@ fun AssistOverlayScreen(
                                 }
                             },
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            pendingQuestions = parsedRequests,
+                            onQuestionAnswered = { response ->
+                                if (activeApprovalId != null) {
+                                    viewModel.callApproval(activeApprovalId, response.isNotEmpty(), response.ifEmpty { null })
+                                }
+                            },
                             isChatMode = true,
                             chatPlaceholder = "Ask anything...",
                             isVoiceListening = speechState.isListening,

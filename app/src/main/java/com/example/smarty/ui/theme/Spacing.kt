@@ -147,7 +147,7 @@ object ComponentSpacing {
  val inputCircleSize = 44.dp
  val inputCircleIconSize = 22.dp
  val inputPillHeight = 44.dp
- val inputPillCornerRadius = 22.dp
+ val inputPillCornerRadius = 26.dp
 
  /** Icon button touch target size (action bars, floating bars) */
  val iconButtonSize = 36.dp

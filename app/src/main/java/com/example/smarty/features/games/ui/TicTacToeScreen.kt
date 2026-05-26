@@ -62,16 +62,11 @@ fun TicTacToeGameContent(onClose: () -> Unit) {
     val isDark = isSystemInDarkTheme()
 
     // Board square colors — visible in both themes
-    // Light: surfaceContainerLow gives a warm off-white card look on the stone canvas
-    // Dark: subtle white tint on black
-    val squareColor = if (isDark)
-        Color.White.copy(alpha = 0.07f)
-    else
-        MaterialTheme.colorScheme.surfaceContainerLow
+    val squareColor = MaterialTheme.colorScheme.surfaceVariant
 
     val squareBorder = BorderStroke(
         1.dp,
-        if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.09f)
+        MaterialTheme.colorScheme.outlineVariant
     )
 
     // X color — primary accent; O color — clearly readable but secondary
@@ -303,11 +298,10 @@ fun TicTacToeGameContent(onClose: () -> Unit) {
  */
 @Composable
 private fun ModeTogglePill(isVsAi: Boolean, onToggle: () -> Unit) {
-    val isDark = isSystemInDarkTheme()
-    val pillBg = if (isDark) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.05f)
-    val activeBg = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.10f)
-    val activeText = MaterialTheme.colorScheme.onBackground
-    val inactiveText = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
+    val pillBg = MaterialTheme.colorScheme.surfaceVariant
+    val activeBg = MaterialTheme.colorScheme.primaryContainer
+    val activeText = MaterialTheme.colorScheme.onPrimaryContainer
+    val inactiveText = MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         modifier = Modifier

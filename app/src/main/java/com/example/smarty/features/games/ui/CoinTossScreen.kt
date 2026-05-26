@@ -246,7 +246,7 @@ private fun GeometricPattern() {
                 style = Stroke(width = stroke)
             )
         }
-        
+
         // Star pattern
         val radius = size.minDimension / 2
         for (i in 0 until 8) {
@@ -277,15 +277,15 @@ private suspend fun tossCoin(
         onStart()
 
         val resultIsHeads = Random.nextBoolean()
-        
+
         // --- Calculate Target Rotation ---
         val currentRot = rotationY.value
         val currentMod = currentRot % 360f
-        
+
         // Target is 0 (Heads) or 180 (Tails) relative to a full circle
         // We always want to land on a multiple of 180
         val targetMod = if (resultIsHeads) 0f else 180f
-        
+
         // Calculate forward distance to target
         // If target is "behind" us in the mod cycle, we go around to next cycle
         var diff = targetMod - currentMod
@@ -293,7 +293,7 @@ private suspend fun tossCoin(
         if (diff <= 0f) {
              diff += 360f
         }
-        
+
         // Minimum spins to feel satisfying
         val minSpins = 5
         val rotationDelta = (minSpins * 360f) + diff
@@ -326,7 +326,7 @@ private suspend fun tossCoin(
         }
 
         // 3. Toss Movement (Sequential Up/Down)
-        
+
         // UP
         translationY.animateTo(
             targetValue = -300f, // Compact toss for bottom sheet
@@ -338,10 +338,10 @@ private suspend fun tossCoin(
             targetValue = 0f,
             animationSpec = tween(tossDuration / 2, easing = BounceInterpolator)
         )
-        
+
         // Landed!
         onLand()
-        
+
         // Subtle bounce/settle
         translationY.animateTo(
              targetValue = -20f,

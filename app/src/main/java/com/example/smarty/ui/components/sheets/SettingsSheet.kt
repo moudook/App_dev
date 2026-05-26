@@ -29,9 +29,6 @@ fun SettingsSheet(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-    onNavigateToCoinToss: () -> Unit = {},
-    onNavigateToTicTacToe: () -> Unit = {},
-    onNavigateToChess: () -> Unit = {},
     onCloudSync: () -> Unit = {},
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
@@ -70,9 +67,6 @@ fun SettingsSheet(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            onNavigateToCoinToss = onNavigateToCoinToss,
-            onNavigateToTicTacToe = onNavigateToTicTacToe,
-            onNavigateToChess = onNavigateToChess,
             onCloudSync = onCloudSync
         )
     }

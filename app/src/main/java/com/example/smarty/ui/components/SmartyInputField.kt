@@ -1,9 +1,10 @@
-package com.example.smarty.ui.components
+package com.example.smarty.ui.components // S-Tier Orchestration Integrated
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,6 +15,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.SizeTransform
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -40,30 +42,37 @@ import coil.request.ImageRequest
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.StopCircle
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Adjust
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.RadioButtonChecked
+import androidx.compose.material.icons.rounded.Analytics
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.StopCircle
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Audiotrack
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.InsertDriveFile
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.*
@@ -172,6 +181,9 @@ fun SmartyInputField(
     onNewChat: () -> Unit = {}, // New parameter
     // AI exclusion support
     isAiExcluded: Boolean = false,
+    // Ask Question support
+    pendingQuestions: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
+    onQuestionAnswered: (String) -> Unit = {},
     // Search mode support
     isSearchMode: Boolean = false,
     isVoiceListening: Boolean = false,
@@ -222,7 +234,7 @@ fun SmartyInputField(
     var showAttachmentPanel by remember { mutableStateOf(false) }
 
     // Speech-to-Text: Managed by parent (InputStreamScreen) via the global SpeechToTextState.
-    // Do NOT create a local SpeechToTextState here — it would create a second SpeechRecognizer
+    // Do NOT create a local SpeechToTextState here â€” it would create a second SpeechRecognizer
     // that conflicts with the parent's, causing Error 8 (Recognition service busy).
 
     // STRICT MUTUAL EXCLUSIVITY: If Search Mode is active, Attachment Panel MUST be closed.
@@ -312,296 +324,9 @@ fun SmartyInputField(
         // Styled to match input block aesthetics
         val monochromeColor = rememberMonochromeAccent()
         val isDarkForPill = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-        val pillBackground = if (isDarkForPill) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+        val pillBackground = if (isDarkForPill) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         val pillBorder = if (isDarkForPill) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-
-        AnimatedVisibility(
-            visible = isChatMode && !mentionState.isActive,
-            enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { 20 }) + fadeOut()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Icon Container with centered alignment
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Scroll Arrow
-                    AnimatedVisibility(
-                        visible = showScrollButton,
-                        enter = fadeIn() + scaleIn(initialScale = 0.5f),
-                        exit = fadeOut() + scaleOut(targetScale = 0.5f)
-                    ) {
-                        Surface(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (isAtLatest) onScrollToBottom() else onScrollToTop()
-                            },
-                            shape = CircleShape,
-                            color = pillBackground,
-                            border = BorderStroke(0.5.dp, pillBorder),
-                            modifier = Modifier.requiredSize(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (isAtLatest) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardDoubleArrowUp,
-                                    contentDescription = if (isAtLatest) "Scroll to oldest" else "Scroll to latest",
-                                    tint = monochromeColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // History Pill
-                    if (showHistoryOption) {
-                        val interactionSource = remember { MutableInteractionSource() }
-                        val isPressedState by interactionSource.collectIsPressedAsState()
-                        val scale by animateFloatAsState(
-                            targetValue = if (isPressedState) 0.95f else 1f,
-                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-                            label = "historyPillScale"
-                        )
-                        Surface(
-                            modifier = Modifier
-                                .scale(scale)
-                                .requiredSize(36.dp)
-                                .clickable(
-                                    interactionSource = interactionSource,
-                                    indication = null
-                                ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (isHistoryMode) onNewChat() else onOpenChatHistory()
-                                },
-                            shape = CircleShape,
-                            color = pillBackground,
-                            border = BorderStroke(0.5.dp, pillBorder)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Icon(
-                                    imageVector = if (isHistoryMode) Icons.Default.Add else Icons.Default.History,
-                                    contentDescription = if (isHistoryMode) stringResource(R.string.new_chat) else stringResource(R.string.history),
-                                    tint = monochromeColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                    
-                    if (isChatMode) {
-                        // Generate Image Button — press scale + spinning star when active
-                        val imageGenAccentColor = ComponentColors.assistantPurple
-                        val imageGenInteractionSource = remember { MutableInteractionSource() }
-                        val imageGenIsPressed by imageGenInteractionSource.collectIsPressedAsState()
-                        val imageGenScale by animateFloatAsState(
-                            targetValue = if (imageGenIsPressed) 0.88f else 1f,
-                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-                            label = "imageGenScale"
-                        )
-                        val imageGenBg by animateColorAsState(
-                            targetValue = if (isImageGenMode) imageGenAccentColor.copy(alpha = 0.18f) else pillBackground,
-                            animationSpec = tween(200), label = "imageGenBg"
-                        )
-                        val imageGenBorder by animateColorAsState(
-                            targetValue = if (isImageGenMode) imageGenAccentColor else pillBorder,
-                            animationSpec = tween(220), label = "imageGenBorder"
-                        )
-                        val imageGenIconTint by animateColorAsState(
-                            targetValue = if (isImageGenMode) imageGenAccentColor else monochromeColor,
-                            animationSpec = tween(200), label = "imageGenIconTint"
-                        )
-                        // Slow star spin when image gen mode is on
-                        val infiniteTransition = rememberInfiniteTransition(label = "imageGenSpin")
-                        val starRotation by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 3000, easing = LinearEasing)
-                            ),
-                            label = "starRotation"
-                        )
-
-                        Surface(
-                            modifier = Modifier
-                                .scale(imageGenScale)
-                                .requiredSize(36.dp)
-                                .clickable(
-                                    interactionSource = imageGenInteractionSource,
-                                    indication = null,
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onToggleImageGenMode()
-                                    }
-                                ),
-                            shape = CircleShape,
-                            color = imageGenBg,
-                            border = BorderStroke(
-                                width = if (isImageGenMode) 1.dp else 0.5.dp,
-                                color = imageGenBorder
-                            )
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Generate Image",
-                                    tint = imageGenIconTint,
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .graphicsLayer {
-                                            rotationZ = if (isImageGenMode) starRotation else 0f
-                                        }
-                                )
-                            }
-                        }
-
-                        // Model Picker Badge/Pill — always visible in chat mode
-                        var showModelMenu by remember { mutableStateOf(false) }
-                        var isRefreshing by remember { mutableStateOf(false) }
-                        val selectedModelLabel = availableModels.find { it.first == selectedModel }?.second
-                            ?: selectedModel.substringAfterLast("/")
-
-                        val modelInteractionSource = remember { MutableInteractionSource() }
-                        val modelIsPressed by modelInteractionSource.collectIsPressedAsState()
-                        val modelScale by animateFloatAsState(
-                            targetValue = if (modelIsPressed) 0.92f else 1f,
-                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-                            label = "modelScale"
-                        )
-
-                        Box {
-                            Surface(
-                                modifier = Modifier
-                                    .scale(modelScale)
-                                    .requiredHeight(36.dp)
-                                    .widthIn(min = 60.dp, max = 160.dp)
-                                    .clickable(
-                                        interactionSource = modelInteractionSource,
-                                        indication = null,
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            scope.launch {
-                                                isRefreshing = true
-                                                val refreshed = onRefreshModels()
-                                                isRefreshing = false
-                                                if (refreshed.isNotEmpty()) {
-                                                    showModelMenu = true
-                                                } else {
-                                                    showModelMenu = true
-                                                }
-                                            }
-                                        }
-                                    ),
-                                shape = RoundedCornerShape(18.dp),
-                                color = pillBackground,
-                                border = BorderStroke(0.5.dp, pillBorder)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = selectedModelLabel,
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            fontFamily = MonoFont,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 11.sp
-                                        ),
-                                        color = monochromeColor,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    if (isRefreshing) {
-                                        Spacer(Modifier.width(4.dp))
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(10.dp),
-                                            strokeWidth = 1.5.dp,
-                                            color = monochromeColor.copy(alpha = 0.6f)
-                                        )
-                                    } else {
-                                        Spacer(Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.KeyboardDoubleArrowDown,
-                                            contentDescription = "Select model",
-                                            tint = monochromeColor.copy(alpha = 0.5f),
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-                            val menuBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
-                            val menuBorder = if (isDark) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-
-                            DropdownMenu(
-                                expanded = showModelMenu,
-                                onDismissRequest = { showModelMenu = false },
-                                offset = DpOffset(x = 0.dp, y = 4.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                containerColor = menuBackground,
-                                border = BorderStroke(1.dp, menuBorder),
-                                tonalElevation = 8.dp
-                            ) {
-                                Text(
-                                    text = "Select AI Model",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                )
-
-                                availableModels.forEach { (modelId, label) ->
-                                    val isCurrent = modelId == selectedModel
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = label,
-                                                fontSize = 14.sp,
-                                                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                                color = if (isCurrent) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.AutoAwesome,
-                                                contentDescription = null,
-                                                tint = if (isCurrent) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            showModelMenu = false
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            onModelSelected(modelId)
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // (Action row removed â€” all controls now live inside the unified InputPill)     }
 
         // AI Exclusion / Privacy indicator
         AnimatedVisibility(
@@ -623,7 +348,7 @@ fun SmartyInputField(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Security,
+                            imageVector = Icons.Rounded.Security,
                             contentDescription = stringResource(R.string.private_note),
                             tint = MaterialTheme.colorScheme.inverseOnSurface,
                             modifier = Modifier.size(14.dp)
@@ -656,7 +381,7 @@ fun SmartyInputField(
         }
 
         // Search filter selector (Normal mode + search active only)
-        // Pill-type AttachmentTypeSelector removed — only dropdown menu in InputPill remains
+        // Pill-type AttachmentTypeSelector removed â€” only dropdown menu in InputPill remains
         if (!isChatMode && isSearchMode) {
             Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth()) {
                 SearchFilterTypeSelector(
@@ -681,110 +406,105 @@ fun SmartyInputField(
             )
         }
 
-            // 
-            // MAIN INPUT ROW
-            // 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = HORIZONTAL_PADDING),
-                verticalAlignment = Alignment.Bottom, // Anchors base of pill and voice button to bottom
-                horizontalArrangement = Arrangement.spacedBy(ELEMENT_SPACING)
-            ) {
-                // Voice/Wave Circle (both modes — unified voice input)
-                // Voice Button with animated waveform (ChatGPT-style)
-                Box(
-                    modifier = Modifier
-                        .requiredSize(44.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput()
-                        },
-                    contentAlignment = Alignment.Center
+        Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // FLOATING SCROLL BUTTON
+                AnimatedVisibility(
+                    visible = showScrollButton,
+                    enter = scaleIn() + fadeIn(),
+                    exit = scaleOut() + fadeOut(),
+                    modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    VoiceWaveformIcon(
-                        isListening = isVoiceListening,
-                        isProcessing = isProcessing,
-                        isAgentWorking = isAgentWorking,
-                        value = value,
-                        isFocused = isFocused,
-                        mentionState = mentionState,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+                    val bgColor = if (isDark) Color(0xFF333333) else Color.White
+                    val borderColor = if (isDark) Color.White.copy(0.1f) else Color.Black.copy(0.1f)
+                    
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(bgColor)
+                            .border(1.dp, borderColor, CircleShape)
+                            .clickable {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                onScrollToBottom()
+                            }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardDoubleArrowDown,
+                            contentDescription = "Scroll to latest",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
 
                 // 
-                // INPUT PILL (Both modes)
+                // UNIFIED INPUT PILL â€” All controls fused inside
                 // 
                 InputPill(
-                    value = value,
-                    onValueChange = onValueChange,
-                    placeholder = currentPlaceholder,
-                    isFocused = isFocused,
-                    onFocusChange = { focused ->
-                        isFocused = focused
-                        if (focused && !isChatMode) {
-                             // Auto-show panel on focus if desired
-                        }
-                        if (focused && isVoiceListening && !isVoiceFocusRequested) {
-                            onStopVoiceInput()
-                        }
-                        if (focused && isVoiceFocusRequested) {
-                            isVoiceFocusRequested = false
-                        }
-                    },
-                    focusRequester = focusRequester,
-                    canSend = canSend,
-                    onSend = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showAttachmentPanel = false
-                        scope.launch {
-                            delay(60)
-                            handleSubmit()
-                        }
-                    },
-                    onAddOptionsClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        showAttachmentPanel = true
-                    },
-                    isVoiceListening = isVoiceListening,
-                    isAgentWorking = isAgentWorking,
-                    autoSendActive = autoSendActive,
-                    onStopGeneration = onStopGeneration,
-                    isChatMode = isChatMode,
-                    onPickFile = {
-                        onPickFile()
-                    },
-                    onOpenCamera = {
-                        onOpenCamera()
-                    },
-                    onPickImage = {
-                        onPickImage()
-                    },
-                    onPickVideo = {
-                        onPickVideo()
-                    },
-                    onPickDocument = {
-                        onPickDocument()
-                    },
-                    onPickAudio = {
-                        onPickAudio()
-                    },
-                    onPickResearch = {
-                        onPickResearch()
-                    },
-                    onPickLink = {
-                        onPickLink()
-                    },
-                    attachments = attachments,
-                    onRemoveAttachment = onRemoveAttachment,
-                    // Use requiredHeight to prevent flattening by parent layout
-                    modifier = Modifier.weight(1f)
-                )
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = currentPlaceholder,
+                isFocused = isFocused,
+                onFocusChange = { focused ->
+                    isFocused = focused
+                    if (focused && isVoiceListening && !isVoiceFocusRequested) {
+                        onStopVoiceInput()
+                    }
+                    if (focused && isVoiceFocusRequested) {
+                        isVoiceFocusRequested = false
+                    }
+                },
+                focusRequester = focusRequester,
+                canSend = canSend,
+                onSend = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showAttachmentPanel = false
+                    scope.launch {
+                        delay(60)
+                        handleSubmit()
+                    }
+                },
+                isVoiceListening = isVoiceListening,
+                onStartVoiceInput = onStartVoiceInput,
+                onStopVoiceInput = onStopVoiceInput,
+                isProcessing = isProcessing,
+                isAgentWorking = isAgentWorking,
+                autoSendActive = autoSendActive,
+                onStopGeneration = onStopGeneration,
+                isChatMode = isChatMode,
+                pendingQuestions = pendingQuestions,
+                onQuestionAnswered = onQuestionAnswered,
+                mentionState = mentionState,
+                onPickFile = onPickFile,
+                onOpenCamera = onOpenCamera,
+                onPickImage = onPickImage,
+                onPickVideo = onPickVideo,
+                onPickDocument = onPickDocument,
+                onPickAudio = onPickAudio,
+                onPickResearch = onPickResearch,
+                onPickLink = onPickLink,
+                attachments = attachments,
+                onRemoveAttachment = onRemoveAttachment,
+                // Pass action-bar controls (now fused inside pill)
+                showHistoryOption = showHistoryOption,
+                isHistoryMode = isHistoryMode,
+                onOpenChatHistory = onOpenChatHistory,
+                onNewChat = onNewChat,
+                isImageGenMode = isImageGenMode,
+                onToggleImageGenMode = onToggleImageGenMode,
+                selectedModel = selectedModel,
+                availableModels = availableModels,
+                onModelSelected = onModelSelected,
+                onRefreshModels = onRefreshModels,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = HORIZONTAL_PADDING)
+            )
             }
+        }
     }
 }
 
@@ -807,7 +527,7 @@ private fun ActionCircle(
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val accentColor = LocalAccentColor.current
 
-    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
     val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
     val iconColor by animateColorAsState(
@@ -835,7 +555,12 @@ private fun ActionCircle(
         Surface(
             modifier = Modifier
                 .requiredSize(CIRCLE_SIZE)
-                .scale(scale)
+                .graphicsLayer { // <-- Forces GPU rendering for parallel scaling!
+                    scaleX = scale
+                    scaleY = scale
+                    clip = true
+                    shape = CircleShape
+                }
                 .softCardShadow(shape = CircleShape, elevation = if (isActive) 6.dp else 2.dp),
             shape = CircleShape,
             color = backgroundColor,
@@ -892,6 +617,13 @@ private fun ActionCircle(
 // INPUT PILL COMPONENT
 // 
 
+private enum class InputState {
+    Collapsed,
+    Expanded,
+    AskTool
+} 
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InputPill(
     value: TextFieldValue,
@@ -902,12 +634,17 @@ private fun InputPill(
     focusRequester: FocusRequester,
     canSend: Boolean,
     onSend: () -> Unit,
-    onAddOptionsClick: () -> Unit,
     isVoiceListening: Boolean,
+    onStartVoiceInput: () -> Unit,
+    onStopVoiceInput: () -> Unit,
+    isProcessing: Boolean,
     isAgentWorking: Boolean,
     autoSendActive: Boolean,
     onStopGeneration: () -> Unit,
     isChatMode: Boolean,
+    pendingQuestions: List<com.example.smarty.core.domain.model.ClarificationRequest>,
+    onQuestionAnswered: (String) -> Unit = {},
+    mentionState: MentionState,
     onPickFile: () -> Unit = {},
     onOpenCamera: () -> Unit = {},
     onPickImage: () -> Unit = {},
@@ -916,399 +653,706 @@ private fun InputPill(
     onPickAudio: () -> Unit = {},
     onPickResearch: () -> Unit = {},
     onPickLink: () -> Unit = {},
-    modifier: Modifier = Modifier,
-    // Attachment support
     attachments: List<Attachment> = emptyList(),
-    onRemoveAttachment: (String) -> Unit = {}
+    onRemoveAttachment: (String) -> Unit = {},
+    // Fused action-bar controls (chat mode only)
+    showHistoryOption: Boolean = false,
+    isHistoryMode: Boolean = false,
+    onOpenChatHistory: () -> Unit = {},
+    onNewChat: () -> Unit = {},
+    isImageGenMode: Boolean = false,
+    onToggleImageGenMode: () -> Unit = {},
+    selectedModel: String = "",
+    availableModels: List<Pair<String, String>> = emptyList(),
+    onModelSelected: (String) -> Unit = {},
+    onRefreshModels: suspend () -> List<Pair<String, String>> = { emptyList() },
+    modifier: Modifier = Modifier
 ) {
-    // Attachment preview handled by parent SmartyInputField to avoid duplication
-    // This prevents UI issues with double preview rows
-
-    // Soft Minimalist: Determine colors based on theme
-    val monochromeColor = rememberMonochromeAccent()
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val accentColor = LocalAccentColor.current
+    val monochromeColor = rememberMonochromeAccent()
 
-    val backgroundColor = if (isDark) ComponentColors.inputPillBackgroundDark else PinkLight
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else PinkMedium
+    // Whether the pill is "expanded" â€” focused or has text (prototype behavior)
+    val isExpanded = isFocused || value.text.isNotEmpty() || attachments.isNotEmpty()
+    val isAskingQuestion = pendingQuestions.isNotEmpty()
+    val isStopMode = isAgentWorking && isChatMode
 
-    // Border: Subtle normally, colored when focused
-    val currentBorderColor by animateColorAsState(
-        targetValue = if (isFocused) accentColor.copy(alpha = 0.5f) else borderColor,
-        animationSpec = tween(200),
-        label = "pillBorder"
+    // Ask-tool state
+    var currentQuestionIndex by remember { mutableIntStateOf(0) }
+    val answers = remember { mutableStateListOf<String>() }
+    var customAnswerText by remember { mutableStateOf("") }
+    var isEditingCustomAnswer by remember { mutableStateOf(false) }
+
+    // Notes-mode attachment tray
+    var showTray by remember { mutableStateOf(false) }
+
+    // Model dropdown state (chat mode, lives in expanded toolbar)
+    var showModelMenu by remember { mutableStateOf(false) }
+    var isRefreshingModels by remember { mutableStateOf(false) }
+    val selectedModelLabel = availableModels.find { it.first == selectedModel }?.second
+        ?: selectedModel.substringAfterLast("/")
+
+    // --- Style tokens ---
+    val gradientColors = if (isDark) listOf(Color(0xFF2A2A2A), Color(0xFF1E1E1E))
+                         else listOf(Color(0xFFF4F4F4), Color(0xFFFFFFFF))
+    val innerStrokeColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.White
+    val outerStrokeColor = if (isDark) Color.Black.copy(alpha = 0.5f) else Color(0xFFE7E7E7)
+    val textPrimaryColor = if (isDark) Color.White else Color(0xFF1D1D1F)
+    val textSecondaryColor = if (isDark) Color.White.copy(alpha = 0.5f) else Color(0xFF1D1D1F).copy(alpha = 0.45f)
+    val dividerColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.07f)
+    val toolbarBgColor = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.03f)
+    val chipBgColor = if (isDark) Color.White.copy(alpha = 0.1f) else Color(0xFFE8E8ED)
+    val chipBorderColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0xFFD0D0D8)
+
+    val askCorner = 24.dp
+    val normalCorner = PILL_CORNER_RADIUS
+    
+    val inputState = when {
+        isAskingQuestion -> InputState.AskTool
+        isExpanded -> InputState.Expanded
+        else -> InputState.Collapsed
+    }
+
+    val transition = updateTransition(targetState = inputState, label = "InputTransition")
+
+    val targetCorner by transition.animateDp(
+        transitionSpec = { spring(dampingRatio = 0.7f, stiffness = 400f) },
+        label = "CornerRadius"
+    ) { state ->
+        when (state) {
+            InputState.AskTool -> askCorner
+            else -> normalCorner
+        }
+    }
+
+    val elevation by transition.animateDp(
+        transitionSpec = { spring(dampingRatio = 0.8f, stiffness = 300f) },
+        label = "Elevation"
+    ) { state ->
+        when (state) {
+            InputState.AskTool, InputState.Expanded -> 8.dp
+            else -> 4.dp
+        }
+    }
+
+    // ImageGen star rotation
+    val infiniteTransition = rememberInfiniteTransition(label = "starSpin")
+    val starRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(3000, easing = LinearEasing)),
+        label = "starRotation"
     )
 
-    // Elevation changes on focus
-    val elevation = if (isFocused) 8.dp else 2.dp
+    val handleAskSubmit = { answer: String ->
+        answers.add(answer)
+        customAnswerText = ""
+        isEditingCustomAnswer = false
+        if (currentQuestionIndex < pendingQuestions.size - 1) {
+            currentQuestionIndex++
+        } else {
+            val finalResponse = answers.joinToString("\n") { it }
+            onQuestionAnswered(finalResponse)
+            currentQuestionIndex = 0
+            answers.clear()
+        }
+    }
 
-    // Soft floating pill container - expandable height locked to bottom
-    Surface(
+    Column(
         modifier = modifier
-            .heightIn(min = PILL_HEIGHT, max = 200.dp)
-            .softCardShadow(shape = RoundedCornerShape(PILL_CORNER_RADIUS), elevation = elevation),
-        shape = RoundedCornerShape(PILL_CORNER_RADIUS),
-        color = backgroundColor,
-        border = BorderStroke(0.5.dp, currentBorderColor)
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .graphicsLayer { shadowElevation = elevation.toPx(); shape = RoundedCornerShape(targetCorner.toPx()); clip = true; ambientShadowColor = Color.Black.copy(alpha = 0.12f); spotShadowColor = Color.Black.copy(alpha = 0.12f) }.border(1.dp, outerStrokeColor, RoundedCornerShape(targetCorner)).padding(1.dp).border(2.dp, innerStrokeColor, RoundedCornerShape(targetCorner - 1.dp))
+            .background(Brush.verticalGradient(gradientColors))
+            .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
     ) {
-        Box(
-            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ASK TOOL UI â€” expands from top, matches pill energy
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        AnimatedVisibility(
+            visible = isAskingQuestion,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
         ) {
-            // Shimmer overlay removed as per user request
+            val currentRequest = pendingQuestions.getOrNull(currentQuestionIndex)
+            if (currentRequest != null) {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 4.dp)) {
 
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 4.dp) 
-                    .defaultMinSize(minHeight = PILL_HEIGHT),
-                verticalAlignment = Alignment.Bottom 
-            ) {
-                // Text input area
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 12.dp) // Maintain consistent padding
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focusRequester.requestFocus()
-                        },
-                    contentAlignment = Alignment.CenterStart // Use CenterStart for proper text centering
-                ) {
+                    // Header row: question label + pagination + dismiss
                     Row(
-                        verticalAlignment = Alignment.CenterVertically, // Center text vertically
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            var lineCount by remember { mutableIntStateOf(1) }
+                        // Small "QUESTION" label
+                        Text(
+                            text = if (pendingQuestions.size > 1) "QUESTION ${currentQuestionIndex + 1}/${pendingQuestions.size}" else "QUESTION",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = MonoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.2.sp
+                            ),
+                            color = accentColor.copy(alpha = 0.9f),
+                            fontSize = 10.sp
+                        )
+                        // X dismiss
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.07f))
+                                .clickable { onQuestionAnswered("") }
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Dismiss", tint = textSecondaryColor, modifier = Modifier.size(12.dp))
+                        }
+                    }
 
-                            BasicTextField(
-                                value = value,
-                                onValueChange = onValueChange,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester)
-                                    .onFocusChanged { onFocusChange(it.isFocused) },
-                                onTextLayout = { lineCount = it.lineCount },
-                                textStyle = TextStyle(
-                                    fontFamily = MonoFont,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Normal, // Changed from Black to Normal
-                                    color = if (isVoiceListening) LocalAccentColor.current
-                                            else if (isDark) Color.White else Color.Black
-                                ),
-                                cursorBrush = SolidColor(LocalAccentColor.current),
-                                singleLine = false,
-                                maxLines = 10,
-                                decorationBox = { innerTextField ->
-                                    Box {
-                                        if (value.text.isEmpty()) {
-                                            Text(
-                                                text = placeholder,
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = MonoFont,
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Normal // Changed from Black to Normal
-                                                ),
-                                                color = if (isDark) Color.White else Color.Black
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Question text
+                    Text(
+                        text = currentRequest.question,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium, fontSize = 15.sp),
+                        color = textPrimaryColor,
+                        lineHeight = 22.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Options list â€” pill-shaped chips matching the pill energy
+                    currentRequest.options.forEachIndexed { index, option ->
+                        val optionBg by animateColorAsState(
+                            targetValue = chipBgColor,
+                            animationSpec = tween(180), label = "optBg$index"
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(1.dp, chipBorderColor, RoundedCornerShape(14.dp))
+                                .background(optionBg)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    handleAskSubmit(option)
                                 }
+                                .padding(horizontal = 14.dp, vertical = 11.dp)
+                        ) {
+                            // Number badge
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .background(
+                                        if (isDark) accentColor.copy(alpha = 0.25f) else accentColor.copy(alpha = 0.15f),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                            ) {
+                                Text(
+                                    text = "${index + 1}",
+                                    color = accentColor,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = option,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal, fontSize = 14.sp),
+                                color = textPrimaryColor,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
-                }
 
-                // Action icon
-                Box(
-                    modifier = Modifier.padding(bottom = 4.dp) // Dock icon to bottom while keeping it centered in small state
-                ) {
-                    val haptic = LocalHapticFeedback.current
-                    var showMenu by remember { mutableStateOf(false) }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(Modifier.width(8.dp))
-
-                        val density = androidx.compose.ui.platform.LocalDensity.current.density
-
-                        var isPressed by remember { mutableStateOf(false) }
-                        val buttonScale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.85f else 1f,
-                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-                            label = "sendScale"
-                        )
-
-                        val isStopMode = isAgentWorking && isChatMode
-                        val sendBtnColor = when {
-                            isStopMode -> Color(0xFFE57373)
-                            canSend -> LocalAccentColor.current
-                            else -> if (isDark) MaterialTheme.colorScheme.surfaceVariant else PinkMedium
-                        }
-                        val sendIconColor = when {
-                            isStopMode -> Color.White
-                            canSend -> MaterialTheme.colorScheme.onPrimary
-                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else TextCoolGrey.copy(alpha = 0.5f)
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .scale(buttonScale)
-                                .clip(CircleShape)
-                                .background(sendBtnColor)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onPress = {
-                                            isPressed = true
-                                            tryAwaitRelease()
-                                            isPressed = false
-                                        },
-                                        onTap = {
-                                            when {
-                                                isStopMode -> onStopGeneration()
-                                                canSend -> onSend()
-                                                // In chat mode: no attachment menu, just ignore tap
-                                                isChatMode -> { /* no-op: dimmed send icon */ }
-                                                else -> {
-                                                    onAddOptionsClick()
-                                                    showMenu = true
-                                                }
-                                            }
+                    // "Something else" custom input row
+                    if (currentRequest.allowCustomInput) {
+                        if (isEditingCustomAnswer) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                    .background(if (isDark) accentColor.copy(alpha = 0.08f) else accentColor.copy(alpha = 0.05f))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                BasicTextField(
+                                    value = customAnswerText,
+                                    onValueChange = { customAnswerText = it },
+                                    modifier = Modifier.weight(1f),
+                                    textStyle = TextStyle(
+                                        color = textPrimaryColor,
+                                        fontSize = 14.sp,
+                                        fontFamily = MonoFont
+                                    ),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(accentColor),
+                                    decorationBox = { inner ->
+                                        Box(contentAlignment = Alignment.CenterStart) {
+                                            if (customAnswerText.isEmpty()) Text("Type your answerâ€¦", color = textSecondaryColor, fontSize = 14.sp)
+                                            inner()
                                         }
-                                    )
+                                    }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(if (customAnswerText.isNotBlank()) accentColor else accentColor.copy(alpha = 0.3f))
+                                        .clickable { if (customAnswerText.isNotBlank()) handleAskSubmit(customAnswerText) }
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
-                                .padding(8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // FIXED: Icon now matches action - no animation mismatch
-                            when {
-                                isStopMode -> Icon(
-                                    imageVector = Icons.Default.StopCircle,
-                                    contentDescription = stringResource(R.string.stop),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .border(1.dp, chipBorderColor.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                                    .clickable { isEditingCustomAnswer = true }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Icon(Icons.Rounded.Edit, contentDescription = null, tint = textSecondaryColor, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Something elseâ€¦",
+                                    color = textSecondaryColor,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                canSend -> Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = stringResource(R.string.share),
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                // In chat mode: show dimmed send icon (no action)
-                                isChatMode -> Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Message field empty",
-                                    tint = sendIconColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                // Notes mode, empty field: show Add icon
-                                else -> Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = stringResource(R.string.add_attachment),
-                                    tint = sendIconColor,
-                                    modifier = Modifier.size(20.dp)
+                                Text(
+                                    text = "Skip",
+                                    color = accentColor.copy(alpha = 0.7f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable { onQuestionAnswered("") }
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
-
-                    // Dropdown menu for + button (Notes mode only — hidden in chat mode)
-                    if (!isChatMode) {
-                    val menuBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
-                    val menuBorder = if (isDark) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                        offset = DpOffset(x = 8.dp, y = -(PILL_HEIGHT + 16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        containerColor = menuBackground,
-                        border = BorderStroke(1.dp, menuBorder),
-                        tonalElevation = 8.dp
-                    ) {
-                        Text(
-                            text = stringResource(R.string.add_attachment),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                        )
-
-                        Row(
-                            modifier = Modifier.padding(8.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.photo), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(accentColor.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Image,
-                                                contentDescription = "Attach image",
-                                                tint = accentColor,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickImage() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.video), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(com.example.smarty.ui.theme.VideoRed.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Videocam,
-                                                contentDescription = "Record video",
-                                                tint = com.example.smarty.ui.theme.VideoRed,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickVideo() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.document), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(com.example.smarty.ui.theme.DocumentBlue.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Description,
-                                                contentDescription = "Attach document",
-                                                tint = com.example.smarty.ui.theme.DocumentBlue,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickDocument() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.audio_label), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(com.example.smarty.ui.theme.AudioPink.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Audiotrack,
-                                                contentDescription = "Attach audio",
-                                                tint = com.example.smarty.ui.theme.AudioPink,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickAudio() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Deep Research", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0xFF7C4DFF).copy(alpha = 0.15f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.School,
-                                                contentDescription = "Deep Research - Comprehensive AI analysis",
-                                                tint = Color(0xFF7C4DFF),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickResearch() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.link), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0xFF80DEEA).copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Link,
-                                                contentDescription = "Attach link",
-                                                tint = Color(0xFF80DEEA),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onPickLink() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.camera), fontSize = 14.sp) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)  // Accessible touch target
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CameraAlt,
-                                                contentDescription = "Open camera",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    onClick = { showMenu = false; onOpenCamera() },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                    } // if (!isChatMode) — hide attachment menu in chat
                 }
             }
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // NORMAL INPUT â€” hidden when asking question
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        AnimatedVisibility(
+            visible = !isAskingQuestion,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+        ) {
+            Column {
+                // â”€â”€ TOP ROW: [Waveform] [TextField] [Mic] â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = PILL_HEIGHT)
+                        .padding(start = 12.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Center â€” TextField (takes all available space)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { focusRequester.requestFocus() },
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        BasicTextField(
+                            value = value,
+                            onValueChange = onValueChange,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { onFocusChange(it.isFocused) },
+                            textStyle = TextStyle(
+                                fontFamily = MonoFont,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = if (isVoiceListening) accentColor else textPrimaryColor
+                            ),
+                            cursorBrush = SolidColor(accentColor),
+                            maxLines = 8,
+                            decorationBox = { innerTextField ->
+                                Box {
+                                    if (value.text.isEmpty()) {
+                                        Text(
+                                            text = placeholder,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = MonoFont,
+                                                fontSize = 15.sp
+                                            ),
+                                            color = textSecondaryColor
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                    }
+
+                    Spacer(Modifier.width(4.dp))
+
+                    val isStopBtn = isStopMode
+                    val isAddBtn = !isChatMode && !canSend && !isStopMode
+                    val actionBtnVisible = canSend || isStopBtn || isAddBtn
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        // 1. Voice Mic (Always visible in chat mode, except when generating)
+                        if (isChatMode && !isStopMode) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .padding(end = if (actionBtnVisible) 4.dp else 0.dp)
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput()
+                                    }
+                            ) {
+                                VoiceWaveformIcon(
+                                    isListening = isVoiceListening,
+                                    isProcessing = isProcessing,
+                                    isAgentWorking = isAgentWorking,
+                                    value = value,
+                                    isFocused = isFocused,
+                                    mentionState = mentionState,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        // 2. Action Button (Send / Stop / Add)
+                        AnimatedVisibility(
+                            visible = actionBtnVisible,
+                            enter = scaleIn(initialScale = 0.6f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeIn(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
+                            exit = scaleOut(targetScale = 0.6f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f))
+                        ) {
+                            val btnColor = when {
+                                isStopBtn -> com.example.smarty.ui.theme.SemanticColors.error
+                                isAddBtn -> if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.09f)
+                                else -> if (isDark) Color.White else Color.Black
+                            }
+                            
+                            val btnState = when {
+                                isStopBtn -> "stop"
+                                canSend -> "send"
+                                else -> "add"
+                            }
+                            
+                            AnimatedContent(
+                                targetState = btnState,
+                                transitionSpec = {
+                                    (scaleIn(initialScale = 0.6f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeIn(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f))) togetherWith 
+                                    (scaleOut(targetScale = 0.6f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f))) using SizeTransform { _, _ -> 
+                                        spring(dampingRatio = 0.7f, stiffness = 400f)
+                                    }
+                                },
+                                label = "actionBtn"
+                            ) { state ->
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .softCardShadow(elevation = if (state == "add") 0.dp else 4.dp, shape = CircleShape)
+                                        .clip(CircleShape)
+                                        .background(btnColor)
+                                        .clickable {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            when (state) {
+                                                "stop" -> onStopGeneration()
+                                                "send" -> onSend()
+                                                "add" -> showTray = !showTray
+                                            }
+                                        }
+                                ) {
+                                    when (state) {
+                                        "stop" -> Icon(Icons.Rounded.StopCircle, "Stop", tint = Color.White, modifier = Modifier.size(24.dp))
+                                        "send" -> Icon(Icons.Rounded.ArrowUpward, "Send", tint = if (isDark) Color.Black else Color.White, modifier = Modifier.size(20.dp))
+                                        "add" -> Icon(Icons.Rounded.Add, "Add", tint = textSecondaryColor, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // â”€â”€ CHAT MODE EXPANDED TOOLBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // Only visible in chat mode when expanded, hidden in notes mode
+                AnimatedVisibility(
+                    visible = isChatMode && isExpanded,
+                    enter = expandVertically(expandFrom = Alignment.Top, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeIn(animationSpec = tween(180)),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeOut(animationSpec = tween(150))
+                ) {
+                    Column {
+                        HorizontalDivider(color = dividerColor, thickness = 0.5.dp)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(toolbarBgColor)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Model selector pill (LEFT)
+                            Box {
+                                val displayLabel = selectedModelLabel.replace(Regex("(?i)\\s*free\\b"), "").trim()
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        scope.launch {
+                                            isRefreshingModels = true
+                                            onRefreshModels()
+                                            isRefreshingModels = false
+                                            showModelMenu = true
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(percent = 50),
+                                    color = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                                    modifier = Modifier.height(32.dp).widthIn(min = 70.dp, max = 150.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxHeight().padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.RadioButtonChecked,
+                                            contentDescription = null,
+                                            tint = if (isDark) Color.White else Color.Black,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = displayLabel,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontFamily = MonoFont,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 12.sp
+                                            ),
+                                            color = if (isDark) Color.White else Color.Black,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        if (isRefreshingModels) {
+                                            CircularProgressIndicator(Modifier.size(8.dp), strokeWidth = 1.dp, color = textSecondaryColor)
+                                        } else {
+                                            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = textSecondaryColor.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
+
+                                val menuBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                                val menuBorder = if (isDark) Color.White.copy(0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(0.4f)
+                                DropdownMenu(
+                                    expanded = showModelMenu,
+                                    onDismissRequest = { showModelMenu = false },
+                                    offset = DpOffset(0.dp, 4.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    containerColor = menuBg,
+                                    border = BorderStroke(1.dp, menuBorder),
+                                    tonalElevation = 8.dp
+                                ) {
+                                    Text("Select AI Model", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                                    HorizontalDivider(modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f))
+                                    for ((modelId, label) in availableModels) {
+                                        val cleanLabel = label.replace(Regex("(?i)\\s*free\\b"), "").trim()
+                                        val isCurrent = modelId == selectedModel
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isCurrent) accentColor.copy(alpha = 0.1f) else Color.Transparent)
+                                                .clickable {
+                                                    showModelMenu = false
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    onModelSelected(modelId)
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isCurrent) Icons.Rounded.CheckCircle else Icons.Rounded.Adjust,
+                                                contentDescription = null,
+                                                tint = if (isCurrent) accentColor else MaterialTheme.colorScheme.onSurface.copy(0.4f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = cleanLabel,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                                                color = if (isCurrent) accentColor else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Spacer to push everything else to the right
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            // History / New Chat (RIGHT)
+                            if (showHistoryOption) {
+                                ToolbarChip(onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (isHistoryMode) onNewChat() else onOpenChatHistory()
+                                }) {
+                                    Icon(
+                                        imageVector = if (isHistoryMode) Icons.Rounded.Add else Icons.Rounded.History,
+                                        contentDescription = if (isHistoryMode) "New chat" else "History",
+                                        tint = textSecondaryColor,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+
+                            // ImageGen toggle (RIGHT)
+                            val imageGenColor by animateColorAsState(
+                                targetValue = if (isImageGenMode) ComponentColors.assistantPurple else textSecondaryColor,
+                                animationSpec = tween(200), label = "imgGenTint"
+                            )
+                            val imageGenBg by animateColorAsState(
+                                targetValue = if (isImageGenMode) ComponentColors.assistantPurple.copy(alpha = 0.15f) else Color.Transparent,
+                                animationSpec = tween(200), label = "imgGenBg"
+                            )
+                            ToolbarChip(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggleImageGenMode()
+                                },
+                                bgColor = imageGenBg
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Image, // Changed to Image icon as requested
+                                    contentDescription = "Image Gen",
+                                    tint = imageGenColor,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                )
+                            }
+                            
+                        }
+                    }
+                }
+
+                // â”€â”€ NOTES MODE: attachment tray (expanded when + tapped) â”€
+                // Only shown in notes mode (not chat)
+                AnimatedVisibility(
+                    visible = !isChatMode && showTray,
+                    enter = expandVertically(expandFrom = Alignment.Top, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeIn(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)) + fadeOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f))
+                ) {
+                    Column {
+                        HorizontalDivider(color = dividerColor, thickness = 0.5.dp)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            val defaultIconColor = if (isDark) Color.White else Color.Black
+                            val items = listOf(
+                                Pair(Icons.Rounded.Image, "Photo") to (defaultIconColor to { showTray = false; onPickImage() }),
+                                Pair(Icons.Rounded.Videocam, "Video") to (Color(0xFFE57373) to { showTray = false; onPickVideo() }),
+                                Pair(Icons.Rounded.Description, "Doc") to (Color(0xFF64B5F6) to { showTray = false; onPickDocument() }),
+                                Pair(Icons.Rounded.MusicNote, "Audio") to (Color(0xFFF06292) to { showTray = false; onPickAudio() }),
+                                Pair(Icons.Rounded.School, "Research") to (Color(0xFF9575CD) to { showTray = false; onPickResearch() }),
+                                Pair(Icons.Rounded.Link, "Link") to (Color(0xFF4DD0E1) to { showTray = false; onPickLink() }),
+                                Pair(Icons.Rounded.CameraAlt, "Camera") to (defaultIconColor to { showTray = false; onOpenCamera() })
+                            )
+                            
+                            val AppleEasing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+                            
+                            items.forEachIndexed { index, pair ->
+                                val icon = pair.first.first
+                                val label = pair.first.second
+                                val color = pair.second.first
+                                val onClick = pair.second.second
+                                Box(
+                                    modifier = Modifier.animateEnterExit(
+                                        enter = fadeIn(animationSpec = tween(durationMillis = 350, delayMillis = index * 30, easing = AppleEasing)) + scaleIn(initialScale = 0.85f, animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f)),
+                                        exit = fadeOut(animationSpec = tween(100))
+                                    )
+                                ) {
+                                    AttachmentTrayChip(icon, label, color, onClick)
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+            }
+        }
+    }
+}
+
+/** Small square/rounded chip used inside the expanded toolbar */
+@Composable
+private fun ToolbarChip(
+    onClick: () -> Unit,
+    bgColor: Color = Color.Transparent,
+    content: @Composable () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+    val hoverBg = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+    ) {
+        content()
+    }
+}
+
+
+
+@Composable
+private fun AttachmentTrayChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.2f)),
+        modifier = Modifier.wrapContentWidth().height(42.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = if (isDark) Color.White.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.8f))
         }
     }
 }
@@ -1443,12 +1487,6 @@ private fun VoiceWaveformIcon(
         WaveformState.TALK, WaveformState.THINKING, WaveformState.SUCCESS, WaveformState.GIGGLE -> accentColor
         WaveformState.IDLE -> idleColor
     }
-    
-    val animatedColor by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(320),
-        label = "waveformColor"
-    )
 
     val successAnimProgress = remember { Animatable(0f) }
     LaunchedEffect(isSuccessActive) {
@@ -1463,7 +1501,7 @@ private fun VoiceWaveformIcon(
 
     WaveformBars(
         modifier = modifier.size(24.dp),
-        color = animatedColor,
+        targetColor = targetColor,
         state = state,
         successProgress = successAnimProgress.value,
         typingProgress = typingProgress
@@ -1799,104 +1837,75 @@ private fun getBarProperties(
 @Composable
 private fun WaveformBars(
     modifier: Modifier = Modifier,
-    color: Color,
+    targetColor: Color,
     state: WaveformState,
     successProgress: Float = 0f,
     typingProgress: Float = 0f
 ) {
-    // Monotonic smooth timer driven by frame ticking
     var playTimeMs by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) {
         val startTime = withFrameNanos { it } / 1_000_000
         while (true) {
-            withFrameNanos { frameTimeNanos ->
-                playTimeMs = (frameTimeNanos / 1_000_000) - startTime
-            }
+            withFrameNanos { playTimeMs = (it / 1_000_000) - startTime }
         }
     }
 
-    // State transition variables to animate between old and new state perfectly
     var prevState by remember { mutableStateOf(state) }
     var currentState by remember { mutableStateOf(state) }
     val transitionAlpha = remember { Animatable(1f) }
+    
+    var prevColor by remember { mutableStateOf(targetColor) }
+    var currentColor by remember { mutableStateOf(targetColor) }
 
-    // Stored exact snapshot of properties when transition is initiated to guarantee mathematically continuous, pop-free morphing
-    val transitionStartProps = remember {
-        mutableStateListOf<BarProperties>().apply {
-            repeat(5) { add(BarProperties(0.2f, 0f, 1f, 0f)) }
-        }
-    }
-    var useStoredStartProps by remember { mutableStateOf(false) }
-
-    LaunchedEffect(state) {
-        if (state != currentState) {
-            val alpha = transitionAlpha.value
-            for (i in 0 until 5) {
-                val prevP = getBarProperties(prevState, i, playTimeMs, successProgress, typingProgress)
-                val currP = getBarProperties(currentState, i, playTimeMs, successProgress, typingProgress)
-                
-                val currentHeight = prevP.heightFraction + (currP.heightFraction - prevP.heightFraction) * alpha
-                val currentYOffset = prevP.yOffsetFraction + (currP.yOffsetFraction - prevP.yOffsetFraction) * alpha
-                val currentWidth = prevP.widthMultiplier + (currP.widthMultiplier - prevP.widthMultiplier) * alpha
-                val currentXOffset = prevP.xOffsetFraction + (currP.xOffsetFraction - prevP.xOffsetFraction) * alpha
-                
-                transitionStartProps[i] = BarProperties(
-                    heightFraction = currentHeight,
-                    yOffsetFraction = currentYOffset,
-                    widthMultiplier = currentWidth,
-                    xOffsetFraction = currentXOffset
-                )
-            }
-            useStoredStartProps = true
+    // No SnapshotStateList! Only triggers on state change.
+    LaunchedEffect(state, targetColor) {
+        if (state != currentState || targetColor != currentColor) {
+            prevColor = androidx.compose.ui.graphics.lerp(prevColor, currentColor, transitionAlpha.value)
+            currentColor = targetColor
             prevState = currentState
             currentState = state
             transitionAlpha.snapTo(0f)
-            transitionAlpha.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(400, easing = FastOutSlowInEasing) // Smooth state morphing
-            )
-            useStoredStartProps = false
+            transitionAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
         }
     }
 
-    Canvas(modifier = modifier) {
-        val barCount = 5
+    // Pure mathematical draw loop (Runs on GPU, Zero Recomposition Overhead)
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val alpha = transitionAlpha.value
+        val blendedColor = androidx.compose.ui.graphics.lerp(prevColor, currentColor, alpha)
+        
         val barWidth = size.width / 9f
         val maxHeight = size.height * 0.8f
         val centerY = size.height / 2f
-        val alpha = transitionAlpha.value
 
-        for (index in 0 until barCount) {
-            val currProps = getBarProperties(currentState, index, playTimeMs, successProgress, typingProgress)
-            val startProps = if (useStoredStartProps) {
-                transitionStartProps[index]
-            } else {
-                getBarProperties(prevState, index, playTimeMs, successProgress, typingProgress)
-            }
+        for (index in 0 until 5) {
+            val pOld = getBarProperties(prevState, index, playTimeMs, successProgress, typingProgress)
+            val pNew = getBarProperties(currentState, index, playTimeMs, successProgress, typingProgress)
 
-            // Smooth linear interpolation (morphing) of vector values
-            val heightFraction = startProps.heightFraction + (currProps.heightFraction - startProps.heightFraction) * alpha
-            val yOffsetFraction = startProps.yOffsetFraction + (currProps.yOffsetFraction - startProps.yOffsetFraction) * alpha
-            val widthMultiplier = startProps.widthMultiplier + (currProps.widthMultiplier - startProps.widthMultiplier) * alpha
-            val xOffsetFraction = startProps.xOffsetFraction + (currProps.xOffsetFraction - startProps.xOffsetFraction) * alpha
+            // Direct inline interpolation
+            val h = pOld.heightFraction + (pNew.heightFraction - pOld.heightFraction) * alpha
+            val y = pOld.yOffsetFraction + (pNew.yOffsetFraction - pOld.yOffsetFraction) * alpha
+            val w = pOld.widthMultiplier + (pNew.widthMultiplier - pOld.widthMultiplier) * alpha
+            val x = pOld.xOffsetFraction + (pNew.xOffsetFraction - pOld.xOffsetFraction) * alpha
 
-            val baseLeft = index * barWidth * 2f
-            val targetLeft = baseLeft + (xOffsetFraction * barWidth)
-            val targetWidth = widthMultiplier * barWidth
-            val targetHeight = heightFraction * maxHeight
-
-            // Safeguard height to prevent capsule compression to circles or corner inversion (minimum 1.25x width ratio)
-            val minHeight = targetWidth * 1.25f
-            val finalHeight = maxOf(targetHeight, minHeight)
-            val targetTop = centerY + (yOffsetFraction * maxHeight) - (finalHeight / 2f)
+            val targetWidth = w * barWidth
+            val finalHeight = maxOf(h * maxHeight, targetWidth * 1.25f)
+            val targetLeft = (index * barWidth * 2f) + (x * barWidth)
+            val targetTop = centerY + (y * maxHeight) - (finalHeight / 2f)
 
             drawRoundRect(
-                color = color,
+                color = blendedColor,
                 topLeft = androidx.compose.ui.geometry.Offset(targetLeft, targetTop),
                 size = androidx.compose.ui.geometry.Size(targetWidth, finalHeight),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(targetWidth / 2f, targetWidth / 2f)
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(targetWidth / 2f)
             )
         }
     }
 }
+
+
+
+
+
+
 

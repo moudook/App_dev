@@ -379,14 +379,13 @@ fun ChessScreen(onClose: () -> Unit) {
         }
     }
 
-    // ── Board colors — refined Anthropic warm tones ──────────────────────
-    // Lighter squares: warm cream; Darker squares: warm taupe
-    val lightSq = if (isDark) Color(0xFF3D3530) else Color(0xFFEDDEC9)
-    val darkSq  = if (isDark) Color(0xFF1E1916) else Color(0xFFB59878)
-    val selColor   = Color(0xCCF5C842)
-    val prevColor  = Color(0x66F5C842)
-    val dotColor   = Color(0x55000000)
-    val checkColor = Color(0xCCE53935)
+    // ── Board colors — using MaterialTheme ──────────────────────
+    val lightSq = MaterialTheme.colorScheme.surface
+    val darkSq  = MaterialTheme.colorScheme.surfaceVariant
+    val selColor   = MaterialTheme.colorScheme.primaryContainer
+    val prevColor  = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+    val dotColor   = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+    val checkColor = MaterialTheme.colorScheme.errorContainer
 
     BoxWithConstraints(
         modifier = Modifier
@@ -613,11 +612,10 @@ fun ChessScreen(onClose: () -> Unit) {
  */
 @Composable
 private fun ChessModeTogglePill(isVsAi: Boolean, onToggle: () -> Unit) {
-    val isDark = isSystemInDarkTheme()
-    val pillBg = if (isDark) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.05f)
-    val activeBg = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.10f)
-    val activeText = MaterialTheme.colorScheme.onBackground
-    val inactiveText = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
+    val pillBg = MaterialTheme.colorScheme.surfaceVariant
+    val activeBg = MaterialTheme.colorScheme.primaryContainer
+    val activeText = MaterialTheme.colorScheme.onPrimaryContainer
+    val inactiveText = MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         modifier = Modifier

@@ -44,19 +44,18 @@ fun GamesContent(
     var showCoinToss by remember { mutableStateOf(false) }
     var showChess by remember { mutableStateOf(false) }
 
-    // Use skipPartiallyExpanded = false so user can half-expand
-    val ticTacToeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    val coinTossSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    val chessSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    // Use skipPartiallyExpanded = true so the sheet fully expands to content height
+    val ticTacToeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coinTossSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val chessSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val iOSSheetShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)
 
     // ── Card data ──────────────────────────────────────────────────────
     data class GameCard(
         val title: String,
         val subtitle: String,
         val emoji: String,
-        // Warm, Anthropic-toned accent per game
-        val accentLight: Color,
-        val accentDark: Color,
+        val accentColor: androidx.compose.ui.graphics.Color,
         val onClick: () -> Unit
     )
 
@@ -65,24 +64,21 @@ fun GamesContent(
             title = "Tic-Tac-Toe",
             subtitle = "Play vs AI or a friend",
             emoji = "✕ ○",
-            accentLight = Color(0xFFE8D5C4),
-            accentDark = Color(0xFF2A2420),
+            accentColor = MaterialTheme.colorScheme.primaryContainer,
             onClick = { showTicTacToe = true }
         ),
         GameCard(
             title = "Chess",
             subtitle = "Strategic play, your pace",
             emoji = "♟",
-            accentLight = Color(0xFFCDD5D5),
-            accentDark = Color(0xFF1C2424),
+            accentColor = MaterialTheme.colorScheme.secondaryContainer,
             onClick = { showChess = true }
         ),
         GameCard(
             title = "Coin Toss",
             subtitle = "Let chance decide",
             emoji = "⊙",
-            accentLight = Color(0xFFDDD5C8),
-            accentDark = Color(0xFF242018),
+            accentColor = MaterialTheme.colorScheme.tertiaryContainer,
             onClick = { showCoinToss = true }
         )
     )
@@ -108,12 +104,11 @@ fun GamesContent(
         )
 
         games.forEachIndexed { index, game ->
-            val accent = if (isDark) game.accentDark else game.accentLight
             GameHubCard(
                 title = game.title,
                 subtitle = game.subtitle,
                 emoji = game.emoji,
-                accentBg = accent,
+                accentBg = game.accentColor,
                 isDark = isDark,
                 onClick = game.onClick
             )
@@ -130,7 +125,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = shapes.bottomSheet
+            shape = iOSSheetShape
         ) {
             TicTacToeGameContent(onClose = { showTicTacToe = false })
         }
@@ -144,7 +139,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = shapes.bottomSheet
+            shape = iOSSheetShape
         ) {
             ChessScreen(onClose = { showChess = false })
         }
@@ -158,7 +153,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = shapes.bottomSheet
+            shape = iOSSheetShape
         ) {
             CoinTossGameContent(onClose = { showCoinToss = false })
         }

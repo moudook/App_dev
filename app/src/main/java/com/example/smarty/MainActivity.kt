@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
         // Hide status bar for immersive experience using modern APIs
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply {
-            hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
@@ -640,16 +640,7 @@ class MainActivity : ComponentActivity() {
                                     onDeleteCalendarEvent = { eventId ->
                                         viewModel.deleteCalendarEvent(eventId)
                                     },
-                                    onNavigateToTicTacToe = {
-                                        navController.navigate(Screen.TicTacToe.route)
-                                    },
-                                    onNavigateToCoinToss = {
-                                        android.util.Log.d("SmartyNav", "Navigating to CoinToss")
-                                        navController.navigate(Screen.CoinToss.route)
-                                    },
-                                    onNavigateToChess = {
-                                        navController.navigate(Screen.Chess.route)
-                                    },
+
                                     onNavigateToTasks = {
                                         navController.navigate(Screen.Tasks.route)
                                     },

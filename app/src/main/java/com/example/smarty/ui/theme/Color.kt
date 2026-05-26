@@ -53,7 +53,9 @@ val SmartyChipSeparatorDark = Color(0xFFFFFFFF).copy(alpha = 0.08f)
 val DeepBlack = Color(0xFF000000)
 val SurfaceDark = Color(0xFF1C1C1E)
 val SurfaceDarkElevated = Color(0xFF2C2C2E)
+val DarkSurfaceElevated2 = Color(0xFF2C2C35) // Darker variant with blue tint
 val BorderDark = Color(0xFF38383A)
+val DarkBorder2 = Color(0xFF3C3C45) // Darker variant with blue tint
 val PureWhite = Color(0xFFFFFFFF)
 val SurfaceLight = Color(0xFFF2F2F7)
 val SurfaceLightElevated = Color(0xFFFFFFFF)
@@ -127,6 +129,7 @@ val CodeCyan = Color(0xFF80DEEA)
 val ArchiveYellow = Color(0xFFFFE082)
 val ApkGreen = Color(0xFFA5D6A7)
 val FileGray = SystemGray
+val DeepResearchPurple = Color(0xFF7C4DFF)
 
 // ==================== ASSISTANT COLORS ====================
 
@@ -214,4 +217,9 @@ object ComponentColors {
  /** Input Field Background Colors */
  val inputPillBackgroundLight = Color(0xFFF2F2F7)
  val inputPillBackgroundDark = Color(0xFF1A1A1E) // Darker than default for better contrast
+
+ /** Ask Question Header Colors */
+ val askQuestionBarAccent = PinkAccent
+ val askQuestionHeaderBgLight = PinkLight
+ val askQuestionHeaderBgDark = SurfaceDarkElevated
 }

@@ -242,9 +242,7 @@ fun SmartyNavHost(
     onUpdateCalendarEvent: (CalendarEvent) -> Unit = {},
     onDeleteCalendarEvent: (String) -> Unit = {},
     onCancelTimer: (SmartyTimer) -> Unit = {},
-    onNavigateToTicTacToe: () -> Unit = {},
-    onNavigateToCoinToss: () -> Unit = {},
-    onNavigateToChess: () -> Unit = {},
+
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
@@ -514,9 +512,7 @@ fun SmartyNavHost(
                 onPinNote = onPinNote,
                 onUnpinNote = onUnpinNote,
                 onShareNotes = onShareNotes,
-                onNavigateToTicTacToe = onNavigateToTicTacToe,
-                onNavigateToCoinToss = onNavigateToCoinToss,
-                onNavigateToChess = onNavigateToChess,
+
                 // 
                 // CENTRALIZED UI: All features accessible from main screen
                 // 
@@ -701,15 +697,6 @@ fun SmartyNavHost(
                 onSetTargetCalendarId = onSetTargetCalendarId,
                 onLoadDeviceCalendars = onLoadDeviceCalendars,
                 onSignOut = onSignOut,
-                onNavigateToCoinToss = {
-                    navController.navigate(Screen.CoinToss.route)
-                },
-                onNavigateToTicTacToe = {
-                    navController.navigate(Screen.TicTacToe.route)
-                },
-                onNavigateToChess = {
-                    navController.navigate(Screen.Chess.route)
-                },
                 onNavigateToTasks = {
                     navController.navigate(Screen.Tasks.route)
                 },
