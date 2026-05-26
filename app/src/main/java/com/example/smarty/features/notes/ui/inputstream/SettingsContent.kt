@@ -45,6 +45,7 @@ import com.example.smarty.ui.components.SmartySettingsCard
 import com.example.smarty.ui.components.SmartySettingsRow
 import com.example.smarty.ui.components.SmartySettingsSwitchRow
 import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.ui.components.UnifiedDragHandle
 
 private const val TAG = "SettingsContent"
 
@@ -72,11 +73,7 @@ fun SettingsContent(
     // Content padding
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    // Navigation for Activities
-    onNavigateToTicTacToe: () -> Unit = {},
-    onNavigateToCoinToss: () -> Unit = {},
-    onNavigateToChess: () -> Unit = {},
-    // Google Calendar Two-Way Sync
+
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
     deviceCalendars: List<DeviceCalendar> = emptyList(),
@@ -234,27 +231,6 @@ fun SettingsContent(
                     },
                     iconColor = accentColor
                 )
-                // Coin Toss
-                SmartySettingsRow(
-                    icon = SmartyIcons.Casino,
-                    label = "Coin Toss",
-                    onClick = onNavigateToCoinToss,
-                    iconColor = accentColor
-                )
-                // Strategy (Chess)
-                SmartySettingsRow(
-                    icon = SmartyIcons.Games,
-                    label = "Strategy",
-                    onClick = onNavigateToChess,
-                    iconColor = accentColor
-                )
-                // Mental Break
-                SmartySettingsRow(
-                    icon = SmartyIcons.Games,
-                    label = "Mental Break",
-                    onClick = onNavigateToTicTacToe,
-                    iconColor = accentColor
-                )
                 // Motion (Shake Sensitivity)
                 SmartySettingsRow(
                     icon = SmartyIcons.Vibration,
@@ -322,7 +298,8 @@ fun SettingsContent(
             sheetState = subSettingSheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
+            shape = shapes.bottomSheet,
+            dragHandle = { UnifiedDragHandle() }
         ) {
             Box(
                 modifier = Modifier
@@ -341,7 +318,8 @@ fun SettingsContent(
             sheetState = subSettingSheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
+            shape = shapes.bottomSheet,
+            dragHandle = { UnifiedDragHandle() }
         ) {
             Column(
                 modifier = Modifier
@@ -398,7 +376,8 @@ fun SettingsContent(
             sheetState = subSettingSheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
+            shape = shapes.bottomSheet,
+            dragHandle = { UnifiedDragHandle() }
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 48.dp)) {
                 Text(
@@ -438,7 +417,8 @@ fun SettingsContent(
                 sheetState = subSettingSheetState,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
-                shape = shapes.bottomSheet
+                shape = shapes.bottomSheet,
+                dragHandle = { UnifiedDragHandle() }
             ) {
                 Column(
                     modifier = Modifier
@@ -507,7 +487,8 @@ fun SettingsContent(
                 sheetState = subSettingSheetState,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
-                shape = shapes.bottomSheet
+                shape = shapes.bottomSheet,
+                dragHandle = { UnifiedDragHandle() }
             ) {
                 Column(
                     modifier = Modifier

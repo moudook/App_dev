@@ -1317,9 +1317,7 @@ fun InputStreamScreen(
                             targetCalendarId = targetCalendarId,
                             onSetTargetCalendarId = onSetTargetCalendarId,
                             onLoadDeviceCalendars = onLoadDeviceCalendars,
-                            onNavigateToTicTacToe = onNavigateToTicTacToe,
-                            onNavigateToCoinToss = onNavigateToCoinToss,
-                            onNavigateToChess = onNavigateToChess,
+
                             connectionStatus = connectionStatus,
                             onCloudSync = onSyncCloud
                         )

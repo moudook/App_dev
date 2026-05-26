@@ -138,45 +138,20 @@ fun UnifiedBottomSheet(
 }
 
 @Composable
-private fun UnifiedDragHandle() {
-    Column(
+fun UnifiedDragHandle() {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(top = 6.dp, bottom = 0.dp),
+        contentAlignment = Alignment.Center
     ) {
-        // Machined Aluminum look drag handle
         Box(
             modifier = Modifier
-                .width(42.dp)
-                .height(5.dp)
+                .width(36.dp)
+                .height(3.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
-                        )
-                    )
-                )
-        ) {
-            // "Grooves" detail
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(2.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f))
-                    )
-                }
-            }
-        }
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+        )
     }
 }
 

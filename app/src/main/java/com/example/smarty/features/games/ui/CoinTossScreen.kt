@@ -11,13 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -29,7 +26,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.ui.components.SmartyLogo
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sin
@@ -42,13 +38,7 @@ import kotlin.random.Random
  */
 @Composable
 fun CoinTossScreen(onClose: () -> Unit) {
-    var showIntro by remember { mutableStateOf(true) }
-
-    if (showIntro) {
-        GameIntroScreen(title = "Coin Toss", onPlay = { showIntro = false })
-    } else {
-        CoinTossGameContent(onClose = onClose)
-    }
+    CoinTossGameContent(onClose = onClose)
 }
 
 @Composable
@@ -62,7 +52,6 @@ fun CoinTossGameContent(
     val rotationY = remember { Animatable(0f) }
     val translationY = remember { Animatable(0f) }
     val shadowScale = remember { Animatable(1f) }
-    val contentAlpha = remember { Animatable(0f) }
 
     // Logic States
     var isTossing by remember { mutableStateOf(false) }
@@ -71,10 +60,10 @@ fun CoinTossGameContent(
     var showResult by remember { mutableStateOf(false) }
 
     // Constants for Coin UI
-    val coinSize = 220.dp
+    val coinSize = 140.dp
     val accentColor = com.example.smarty.ui.LocalAccentColor.current
     val metallicGradient = SmartyBrushes.metallicSilver
-    
+
     // Liquid Highlight Pulse
     val infiniteTransition = rememberInfiniteTransition(label = "LiquidPulse")
     val liquidOffset by infiniteTransition.animateFloat(
@@ -87,33 +76,26 @@ fun CoinTossGameContent(
         label = "LiquidOffset"
     )
 
-    // Effect: Fade in on entry and start first toss
+    // Effect: Auto-start first toss
     LaunchedEffect(Unit) {
-        // Auto-start first toss
         tossCoin(
-            rotationY,
-            translationY,
-            shadowScale,
-            onResultCalculated = { heads ->
-                resultIsHeads = heads
-            },
+            rotationY, translationY, shadowScale,
+            onResultCalculated = { heads -> resultIsHeads = heads },
             onLand = {
                 showResult = true
                 resultText = if (resultIsHeads) "HEADS" else "TAILS"
                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             },
-            onStart = {
-                isTossing = true
-                showResult = false // Hide previous result
-            },
+            onStart = { isTossing = true; showResult = false },
             onEnd = { isTossing = false }
         )
     }
 
-    Box(
+    // ── Bounded column: fixed height so it sits properly in the bottom sheet ──
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .fillMaxWidth()
+            .height(380.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -121,168 +103,124 @@ fun CoinTossGameContent(
                 if (!isTossing) {
                     scope.launch {
                         tossCoin(
-                            rotationY,
-                            translationY,
-                            shadowScale,
-                            onResultCalculated = { heads ->
-                                resultIsHeads = heads
-                            },
+                            rotationY, translationY, shadowScale,
+                            onResultCalculated = { heads -> resultIsHeads = heads },
                             onLand = {
                                 showResult = true
                                 resultText = if (resultIsHeads) "HEADS" else "TAILS"
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                             },
-                            onStart = {
-                                isTossing = true
-                                showResult = false
-                            },
+                            onStart = { isTossing = true; showResult = false },
                             onEnd = { isTossing = false }
                         )
                     }
                 }
             },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Dynamic "TOSSING..." indicator or Hint
-        Column(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 100.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (!isTossing && !showResult) {
-                Text(
-                    text = "Tap anywhere to toss",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-        }
-
-        // Shadow on the "floor"
+        // ── Top hint ──
         Box(
-            modifier = Modifier
-                .offset(y = 140.dp) // Positioned below the coin's rest position
-                .size(width = 160.dp * shadowScale.value, height = 24.dp * shadowScale.value)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.3f * shadowScale.value),
-                            Color.Transparent
-                        )
-                    ),
-                    shape = CircleShape
-                )
-        )
-
-        // The Coin
-        Box(
-            modifier = Modifier
-                .size(coinSize)
-                .graphicsLayer {
-                    this.rotationY = rotationY.value
-                    this.translationY = translationY.value
-                    // Add subtle tilt for organic feel during toss
-                    this.rotationX = if (isTossing) sin(rotationY.value * 0.05f) * 15f else 0f
-                    cameraDistance = 16f * density
-                }
-                .shadow(
-                    elevation = if (isTossing) 12.dp else 6.dp,
-                    shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.4f)
-                )
-                .clip(CircleShape)
-                .background(metallicGradient),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Liquid Highlight Layer
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !isTossing && !showResult,
+                enter = fadeIn(), exit = fadeOut()
+            ) {
+                Text(
+                    text = "Tap to toss again",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                )
+            }
+        }
+
+        // ── Coin + shadow ──
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Shadow
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .offset(y = (coinSize / 2) + 8.dp)
+                    .size(width = 80.dp * shadowScale.value, height = 12.dp * shadowScale.value)
                     .background(
-                        Brush.linearGradient(
+                        brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0f),
-                                Color.White.copy(alpha = 0.15f),
-                                Color.White.copy(alpha = 0f)
-                            ),
-                            start = Offset(liquidOffset * 500f, 0f),
-                            end = Offset(liquidOffset * 500f + 200f, 600f)
-                        )
+                                Color.Black.copy(alpha = 0.25f * shadowScale.value),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
                     )
             )
 
-            // Metallic/Etched Rim effect
+            // The Coin
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp)
-                    .border(2.dp, Color.White.copy(alpha = 0.1f), CircleShape)
-            )
-
-            // Inner Grooved Ring
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .border(1.dp, Color.Gray.copy(alpha = 0.2f), CircleShape)
-            )
-
-            // Content Logic
-            val isBackVisible = (abs(rotationY.value) % 360) in 90f..270f
-
-            if (!isBackVisible) {
-                // HEADS SIDE
+                    .size(coinSize)
+                    .graphicsLayer {
+                        this.rotationY = rotationY.value
+                        this.translationY = translationY.value
+                        this.rotationX = if (isTossing) sin(rotationY.value * 0.05f) * 15f else 0f
+                        cameraDistance = 16f * density
+                    }
+                    .shadow(elevation = if (isTossing) 12.dp else 6.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(metallicGradient),
+                contentAlignment = Alignment.Center
+            ) {
+                // Liquid shine
                 Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GeometricPattern()
-                    Text(
-                        text = "HEADS",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray.copy(alpha = 0.7f),
-                            letterSpacing = 2.sp
+                    modifier = Modifier.fillMaxSize().background(
+                        Brush.linearGradient(
+                            colors = listOf(Color.White.copy(0f), Color.White.copy(0.15f), Color.White.copy(0f)),
+                            start = androidx.compose.ui.geometry.Offset(liquidOffset * 500f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(liquidOffset * 500f + 200f, 600f)
                         )
                     )
-                }
-            } else {
-                // TAILS SIDE - Rotated 180 within the flipped parent
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { this.rotationY = 180f },
-                    contentAlignment = Alignment.Center
-                ) {
-                    GeometricPattern()
-                    Text(
-                        text = "TAILS",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray.copy(alpha = 0.7f),
-                            letterSpacing = 2.sp
-                        )
-                    )
+                )
+                Box(modifier = Modifier.fillMaxSize().padding(4.dp).border(2.dp, Color.White.copy(0.1f), CircleShape))
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp).border(1.dp, Color.Gray.copy(0.2f), CircleShape))
+
+                val isBackVisible = (abs(rotationY.value) % 360) in 90f..270f
+                if (!isBackVisible) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        GeometricPattern()
+                        Text("HEADS", style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold,
+                            color = Color.DarkGray.copy(0.7f), letterSpacing = 2.sp
+                        ))
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().graphicsLayer { this.rotationY = 180f }, contentAlignment = Alignment.Center) {
+                        GeometricPattern()
+                        Text("TAILS", style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold,
+                            color = Color.DarkGray.copy(0.7f), letterSpacing = 2.sp
+                        ))
+                    }
                 }
             }
         }
 
-        // Result Text Display
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 160.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // ── Result text ──
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+            contentAlignment = Alignment.Center
         ) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = showResult,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut()
+                enter = fadeIn() + expandVertically(), exit = fadeOut()
             ) {
                 Text(
                     text = resultText,
-                    style = MaterialTheme.typography.displayMedium.copy(
+                    style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Light,
                         letterSpacing = 8.sp,
                         fontFamily = FontFamily.Serif
@@ -291,31 +229,12 @@ fun CoinTossGameContent(
                 )
             }
         }
-
-        // Close Button
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 40.dp)
-                .size(56.dp)
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    CircleShape
-                )
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Close",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
     }
 }
 
 @Composable
 private fun GeometricPattern() {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(140.dp)) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(90.dp)) {
         val stroke = 1.5.dp.toPx()
         val color = Color.DarkGray.copy(alpha = 0.15f)
 
@@ -323,7 +242,7 @@ private fun GeometricPattern() {
         for (i in 1..4) {
             drawCircle(
                 color = color,
-                radius = (i * 18).dp.toPx(),
+                radius = (i * 11).dp.toPx(),
                 style = Stroke(width = stroke)
             )
         }
@@ -410,7 +329,7 @@ private suspend fun tossCoin(
         
         // UP
         translationY.animateTo(
-            targetValue = -500f, // Higher toss
+            targetValue = -300f, // Compact toss for bottom sheet
             animationSpec = tween(tossDuration / 2, easing = FastOutSlowInEasing) // Decelerate up
         )
 

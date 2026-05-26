@@ -13,9 +13,9 @@ import androidx.compose.ui.graphics.Color
 // =============================================================================
 // MODERN SOFT MINIMALIST - LIGHT THEME (Comfort Edition)
 // =============================================================================
-val SoftBackground = Color(0xFFFDFDFD) // Light theme background
-val CardWhite = Color(0xFFFFFFFF) // Pure White cards for crispness
-val ElectricBlue = Color(0xFF0066FF) // Primary Accent (Brand)
+val SoftBackground = Color(0xFFF5F3F0) // Warm stone canvas — cards pop against this
+val CardWhite = Color(0xFFFFFFFF)       // Pure White cards
+val ElectricBlue = Color(0xFF0066FF)    // Primary Accent (Brand)
 val PaleBlueGrey = Color(0xFFEBEFF5) // Secondary Accent - cool tint
 val TextNearBlack = Color(0xFF1A1A1C) // Text Primary - softer black
 val TextCoolGrey = Color(0xFF58585E) // Text Secondary
@@ -25,12 +25,12 @@ val SecondaryButtonBg = Color(0xFFE5E5EA)
 val SmartyChipGrayLight = Color(0xFFEDEDED)
 val SmartyChipSeparatorLight = Color(0xFFFFFFFF)
 
-// Pink Theme Tokens
-val PinkAccent = Color(0xFFF49BE0) // Main Pink accent
-val PinkLight = Color(0xFFFFF0F5) // Light Pink background
-val PinkMedium = Color(0xFFF49BE0).copy(alpha = 0.35f) // Stronger pink tint
-val PinkDark = Color(0xFFD2008C) // Dark Pink for text/icons on pink backgrounds
-val PinkText = Color(0xFF1A1A1C) // Text color for pink-themed elements (not pink)
+// Pink Theme Tokens — Deep magenta/ruby for maximum contrast against white
+val PinkAccent = Color(0xFFA3004C)  // Dark ruby pink — extremely high contrast
+val PinkLight = Color(0xFFF9E6EE)   // Soft pale pink background
+val PinkMedium = Color(0xFFA3004C).copy(alpha = 0.12f)
+val PinkDark = Color(0xFF7A0039)    // Even darker for pressed states
+val PinkText = Color(0xFF1A1A1C)    // Body text stays near-black (not pink)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
