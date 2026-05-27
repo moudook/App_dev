@@ -153,9 +153,18 @@ class ThinkingStorageManager {
     }
 
     private sealed class ThinkingBlock {
-        data class Reasoning(val text: String) : ThinkingBlock()
+        data class Reasoning(
+            val text: String,
+        ) : ThinkingBlock()
 
-        data class ToolCall(val id: String, val toolName: String, val status: String, val inputSummary: String? = null, val outputSummary: String? = null, val searchQueries: List<Pair<String, String?>> = emptyList()) : ThinkingBlock()
+        data class ToolCall(
+            val id: String,
+            val toolName: String,
+            val status: String,
+            val inputSummary: String? = null,
+            val outputSummary: String? = null,
+            val searchQueries: List<Pair<String, String?>> = emptyList(),
+        ) : ThinkingBlock()
     }
 }
 

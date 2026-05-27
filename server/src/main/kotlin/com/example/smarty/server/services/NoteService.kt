@@ -4,7 +4,10 @@ import com.example.smarty.protocol.NoteInfo
 import com.example.smarty.server.agent.NoteProcessingAgent
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -118,13 +121,15 @@ class NoteService(
 
             val existing = noteRepository.getById(userId, noteId) ?: return
 
-            val isArchivedTagPresent = existing.isArchived || 
-                content.contains(Regex("_isArchived\\s*=\\s*true", RegexOption.IGNORE_CASE)) || 
-                content.contains(Regex("#_isArchived\\b", RegexOption.IGNORE_CASE))
-            val cleanedContent = content
-                .replace(Regex("_isArchived\\s*=\\s*true", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("#_isArchived\\b", RegexOption.IGNORE_CASE), "")
-                .trim()
+            val isArchivedTagPresent =
+                existing.isArchived ||
+                    content.contains(Regex("_isArchived\\s*=\\s*true", RegexOption.IGNORE_CASE)) ||
+                    content.contains(Regex("#_isArchived\\b", RegexOption.IGNORE_CASE))
+            val cleanedContent =
+                content
+                    .replace(Regex("_isArchived\\s*=\\s*true", RegexOption.IGNORE_CASE), "")
+                    .replace(Regex("#_isArchived\\b", RegexOption.IGNORE_CASE), "")
+                    .trim()
 
             if (existing.isAiCreated) {
                 logger.info("Skipping enrichment for AI-created note $noteId to prevent infinite processing loops")
@@ -154,7 +159,7 @@ class NoteService(
             val currentHash = digest.joinToString("") { "%02x".format(it) }
 
             if (existing.processedContentHash == currentHash) {
-                logger.info("Skipping enrichment for note ${noteId} because content has not changed.")
+                logger.info("Skipping enrichment for note $noteId because content has not changed.")
                 return
             }
 
@@ -196,7 +201,7 @@ class NoteService(
                         vectorStore.store(
                             userId = userId,
                             content = memory,
-                            metadata = mapOf("type" to "factual", "source_note_id" to noteId)
+                            metadata = mapOf("type" to "factual", "source_note_id" to noteId),
                         )
                     } catch (e: Exception) {
                         logger.warn("Failed to store memory: $memory", e)
@@ -232,9 +237,10 @@ class NoteService(
         limit: Int = 20,
     ): List<NoteInfo> {
         // 1. Get all candidates from DB using FTS, filtering out archived/private notes
-        val dbResults = noteRepository.listByUser(userId, limit = 100).filter {
-            !it.isArchived && !it.isFullPrivacy && !it.excludeFromAiChat
-        }
+        val dbResults =
+            noteRepository.listByUser(userId, limit = 100).filter {
+                !it.isArchived && !it.isFullPrivacy && !it.excludeFromAiChat
+            }
 
         // 2. Apply adaptive semantic search on candidates
         return adaptiveSearchService.search(query, dbResults, limit)

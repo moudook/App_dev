@@ -4,7 +4,10 @@ import kotlinx.coroutines.CompletableDeferred
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
-data class ApprovalResult(val approved: Boolean, val feedback: String?)
+data class ApprovalResult(
+    val approved: Boolean,
+    val feedback: String?,
+)
 
 private data class ApprovalEntry(
     val deferred: CompletableDeferred<ApprovalResult>,

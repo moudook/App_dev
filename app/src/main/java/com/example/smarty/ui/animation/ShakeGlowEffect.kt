@@ -14,8 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import android.graphics.BlurMaskFilter
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 
 /**
@@ -53,8 +53,8 @@ fun Modifier.shakeGlowEffect(
     if (glowAlpha > 0.01f) {
         this.drawBehind {
             drawIntoCanvas { canvas ->
-                val paint = Paint()
-                val frameworkPaint = paint.asFrameworkPaint()
+                val nativeCanvas = canvas.nativeCanvas
+                val frameworkPaint = android.graphics.Paint()
                 
                 frameworkPaint.color = glowColor.copy(alpha = glowAlpha).toArgb()
                 
@@ -75,14 +75,11 @@ fun Modifier.shakeGlowEffect(
                 // but mostly visible. Since this is a "border", we want it on the perimeter.
                 val inset = strokeWidth / 2
                 
-                canvas.drawRoundRect(
-                    left = inset,
-                    top = inset,
-                    right = size.width - inset,
-                    bottom = size.height - inset,
-                    radiusX = cornerRadius,
-                    radiusY = cornerRadius,
-                    paint = paint
+                nativeCanvas.drawRoundRect(
+                    inset, inset,
+                    size.width - inset, size.height - inset,
+                    cornerRadius, cornerRadius,
+                    frameworkPaint
                 )
             }
         }
@@ -128,3 +125,5 @@ class ShakeGlowState {
 fun rememberShakeGlowState(): ShakeGlowState {
     return remember { ShakeGlowState() }
 }
+
+

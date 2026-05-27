@@ -11,5 +11,6 @@ object OpencodeDaemonManager {
     val healthUrl get() = "http://127.0.0.1:$daemonPort/global/health"
 
     fun startMonitoring() {}
+
     fun stopMonitoring() {}
 }

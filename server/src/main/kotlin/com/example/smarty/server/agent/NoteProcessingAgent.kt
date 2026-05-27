@@ -11,13 +11,18 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 
 class NoteProcessingAgent(
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
 ) {
     private val logger = LoggerFactory.getLogger(NoteProcessingAgent::class.java)
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
     companion object {
-        val SYSTEM_PROMPT = """
+        val SYSTEM_PROMPT =
+            """
             <identity>
             You are Friday's Note Architect. Transform raw notes into searchable metadata.
             </identity>
@@ -43,26 +48,33 @@ class NoteProcessingAgent(
             - No markdown, no explanation
             - Extract todos only if explicitly stated
             </rules>
-        """.trimIndent()
+            """.trimIndent()
     }
 
     suspend fun processNote(content: String): ContentAnalysisResult {
         logger.info("NoteProcessingAgent processing content length: ${content.length}")
         val sanitizedContent = content.take(50000)
         val provider = LlmProviderFactory.getOrCreateProvider(httpClient)
-        val messages = listOf(
-            LlmMessage(role = LlmMessage.Role.SYSTEM, content = SYSTEM_PROMPT),
-            LlmMessage(role = LlmMessage.Role.USER, content = sanitizedContent)
-        )
+        val messages =
+            listOf(
+                LlmMessage(role = LlmMessage.Role.SYSTEM, content = SYSTEM_PROMPT),
+                LlmMessage(role = LlmMessage.Role.USER, content = sanitizedContent),
+            )
 
         return try {
             val response = StringBuilder()
             provider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
             }
-            
-            val cleaned = response.toString().trim()
-                .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+
+            val cleaned =
+                response
+                    .toString()
+                    .trim()
+                    .removePrefix("```json")
+                    .removePrefix("```")
+                    .removeSuffix("```")
+                    .trim()
             val jsonElement = json.parseToJsonElement(cleaned).jsonObject
 
             ContentAnalysisResult(
@@ -74,7 +86,7 @@ class NoteProcessingAgent(
                 memories = jsonElement["memories"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(),
                 tags = jsonElement["tags"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(),
                 stackId = jsonElement["stackId"]?.jsonPrimitive?.content?.takeIf { it != "null" && it.isNotBlank() },
-                success = true
+                success = true,
             )
         } catch (e: Exception) {
             logger.error("NoteProcessingAgent failed", e)
@@ -88,7 +100,7 @@ class NoteProcessingAgent(
                 tags = emptyList(),
                 stackId = null,
                 success = false,
-                error = e.message
+                error = e.message,
             )
         }
     }

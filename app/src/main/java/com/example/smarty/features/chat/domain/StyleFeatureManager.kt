@@ -42,19 +42,19 @@ class StyleFeatureManager {
         // 1. Analyze Structure
         val bulletPointRatio =
             calculateRatio(notesToAnalyze) {
-                it.content?.contains(Regex("^\\s*[-•*]\\s|^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
+                it.content.contains(Regex("^\\s*[-•*]\\s|^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
             }
         if (bulletPointRatio > 0.3) {
             patterns.add(WritingStylePattern("structure", "Prefers bullet-point lists", bulletPointRatio.toFloat()))
         }
 
-        val paragraphRatio = calculateRatio(notesToAnalyze) { it.content?.contains(Regex("\n\n")) == true }
+        val paragraphRatio = calculateRatio(notesToAnalyze) { it.content.contains(Regex("\n\n")) == true }
         if (paragraphRatio > 0.5) {
             patterns.add(WritingStylePattern("structure", "Prefers paragraph-style writing", paragraphRatio.toFloat()))
         }
 
         // 2. Analyze Length
-        val avgLength = notesToAnalyze.mapNotNull { it.content?.length }.average()
+        val avgLength = notesToAnalyze.mapNotNull { it.content.length }.average()
         val lengthDesc =
             when {
                 avgLength < 150 -> "Writes short, concise notes"
@@ -64,12 +64,12 @@ class StyleFeatureManager {
         patterns.add(WritingStylePattern("length", lengthDesc, (avgLength / 1200).toFloat().coerceIn(0f, 1f)))
 
         // 3. Analyze Tone
-        val exclamationRatio = calculateRatio(notesToAnalyze) { it.content?.contains('!') == true }
+        val exclamationRatio = calculateRatio(notesToAnalyze) { it.content.contains('!') == true }
         if (exclamationRatio > 0.1) {
             patterns.add(WritingStylePattern("tone", "Enthusiastic tone with frequent exclamations", exclamationRatio.toFloat()))
         }
 
-        val questionRatio = calculateRatio(notesToAnalyze) { it.content?.contains('?') == true }
+        val questionRatio = calculateRatio(notesToAnalyze) { it.content.contains('?') == true }
         if (questionRatio > 0.1) {
             patterns.add(WritingStylePattern("tone", "Inquisitive; asks many questions", questionRatio.toFloat()))
         }

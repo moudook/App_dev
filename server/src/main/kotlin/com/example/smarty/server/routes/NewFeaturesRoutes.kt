@@ -9,12 +9,19 @@ import com.example.smarty.server.data.TagRepository
 import com.example.smarty.server.data.Task
 import com.example.smarty.server.data.TaskRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.call
+import io.ktor.server.auth.principal
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.response.respond
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 
 /**
@@ -219,28 +226,75 @@ fun Application.configureNewFeaturesRoutes(
 }
 
 // ============ RESPONSE MODELS ============
-@Serializable data class TasksResponse(val success: Boolean, val tasks: List<Task> = emptyList(), val message: String? = null)
+@Serializable data class TasksResponse(
+    val success: Boolean,
+    val tasks: List<Task> = emptyList(),
+    val message: String? = null,
+)
 
-@Serializable data class TaskResponse(val success: Boolean, val task: Task? = null, val message: String? = null)
+@Serializable data class TaskResponse(
+    val success: Boolean,
+    val task: Task? = null,
+    val message: String? = null,
+)
 
-@Serializable data class TaskCreateResponse(val success: Boolean, val id: String, val message: String? = null)
+@Serializable data class TaskCreateResponse(
+    val success: Boolean,
+    val id: String,
+    val message: String? = null,
+)
 
-@Serializable data class UpdateStatusRequest(val status: String)
+@Serializable data class UpdateStatusRequest(
+    val status: String,
+)
 
-@Serializable data class TagsResponse(val success: Boolean, val tags: List<Tag> = emptyList(), val message: String? = null)
+@Serializable data class TagsResponse(
+    val success: Boolean,
+    val tags: List<Tag> = emptyList(),
+    val message: String? = null,
+)
 
-@Serializable data class TagResponse(val success: Boolean, val message: String? = null)
+@Serializable data class TagResponse(
+    val success: Boolean,
+    val message: String? = null,
+)
 
-@Serializable data class TagCreateResponse(val success: Boolean, val id: String, val message: String? = null)
+@Serializable data class TagCreateResponse(
+    val success: Boolean,
+    val id: String,
+    val message: String? = null,
+)
 
-@Serializable data class TagNotesResponse(val success: Boolean, val notes: List<com.example.smarty.server.data.NoteForTag> = emptyList(), val message: String? = null)
+@Serializable data class TagNotesResponse(
+    val success: Boolean,
+    val notes: List<com.example.smarty.server.data.NoteForTag> = emptyList(),
+    val message: String? = null,
+)
 
-@Serializable data class NotificationsResponse(val success: Boolean, val notifications: List<Notification> = emptyList(), val message: String? = null)
+@Serializable data class NotificationsResponse(
+    val success: Boolean,
+    val notifications: List<Notification> = emptyList(),
+    val message: String? = null,
+)
 
-@Serializable data class NotificationResponse(val success: Boolean, val message: String? = null)
+@Serializable data class NotificationResponse(
+    val success: Boolean,
+    val message: String? = null,
+)
 
-@Serializable data class ChatFoldersResponse(val success: Boolean, val folders: List<ChatFolder> = emptyList(), val message: String? = null)
+@Serializable data class ChatFoldersResponse(
+    val success: Boolean,
+    val folders: List<ChatFolder> = emptyList(),
+    val message: String? = null,
+)
 
-@Serializable data class ChatFolderResponse(val success: Boolean, val message: String? = null)
+@Serializable data class ChatFolderResponse(
+    val success: Boolean,
+    val message: String? = null,
+)
 
-@Serializable data class ChatFolderCreateResponse(val success: Boolean, val id: String, val message: String? = null)
+@Serializable data class ChatFolderCreateResponse(
+    val success: Boolean,
+    val id: String,
+    val message: String? = null,
+)

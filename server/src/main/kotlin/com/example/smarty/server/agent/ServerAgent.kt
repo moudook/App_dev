@@ -102,7 +102,17 @@ class ServerAgent(
 
         return try {
             withTimeout(MAX_EXECUTION_TIME_MS) {
-                runInternal(query, sessionId, history, modelOverride, clientTimezone, clientTimeMillis, personality, opencodeSessionId, onOpencodeSessionCreated)
+                runInternal(
+                    query,
+                    sessionId,
+                    history,
+                    modelOverride,
+                    clientTimezone,
+                    clientTimeMillis,
+                    personality,
+                    opencodeSessionId,
+                    onOpencodeSessionCreated,
+                )
             }
         } catch (e: TimeoutCancellationException) {
             logger.error("Agent execution exceeded ${MAX_EXECUTION_TIME_MS / 60000} minute limit for user: $userId")
@@ -244,8 +254,12 @@ class ServerAgent(
 
                     val isResearchTool =
                         toolName.lowercase().let {
-                            it.contains("search") || it.contains("web") || it.contains("tavily") ||
-                                it.contains("fetch") || it.contains("scrape") || it.contains("browser")
+                            it.contains("search") ||
+                                it.contains("web") ||
+                                it.contains("tavily") ||
+                                it.contains("fetch") ||
+                                it.contains("scrape") ||
+                                it.contains("browser")
                         }
 
                     val shouldBlock = !isResearchTool && sameCallCount >= 3
@@ -374,11 +388,12 @@ class ServerAgent(
                             consecutiveToolFailures = 0
                         }
 
-                        Metrics.counter(
-                            "agent.tool." + if (isToolError) "error" else "success",
-                            "tool",
-                            toolName,
-                        ).increment()
+                        Metrics
+                            .counter(
+                                "agent.tool." + if (isToolError) "error" else "success",
+                                "tool",
+                                toolName,
+                            ).increment()
 
                         messagesForAgent +=
                             LlmMessage(

@@ -2,7 +2,7 @@ package com.example.smarty.server.data
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.v1.jdbc.Database
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -158,7 +158,9 @@ object DatabaseFactory {
                         logger.info("Database connection test successful - PostgreSQL is accessible")
                     }
 
-                    logger.info("Database connection established successfully (pool size: ${ds.maximumPoolSize}, min idle: ${ds.minimumIdle})")
+                    logger.info(
+                        "Database connection established successfully (pool size: ${ds.maximumPoolSize}, min idle: ${ds.minimumIdle})",
+                    )
                     ds
                 } catch (e: Exception) {
                     logger.error("Failed to initialize DataSource: ${e.message}")

@@ -1,54 +1,52 @@
 [versions]
 # Android Gradle Plugin - 8.13.x stable (9.0 is breaking change requiring DSL migration)
-agp = "8.13.2"
-# Kotlin - 2.1.21 latest stable in 2.1.x series (2.3.x available but may have compat issues)
-kotlin = "2.1.21"
-coreKtx = "1.15.0"
+agp = "9.2.0"
+kotlin = "2.3.21"
+coreKtx = "1.18.0"
 junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
-appcompat = "1.7.0"
-material = "1.12.0"
-lifecycleRuntimeKtx = "2.8.7"
-activityCompose = "1.10.0"
-# Compose BOM - latest stable (Feb 2025)
-composeBom = "2025.02.00"
-navigationCompose = "2.8.7"
+junitVersion = "1.3.0"
+espressoCore = "3.7.0"
+appcompat = "1.7.1"
+material = "1.14.0"
+lifecycleRuntimeKtx = "2.10.0"
+activityCompose = "1.13.0"
+composeBom = "2026.05.01"
+navigationCompose = "2.9.8"
 androidxPalette = "1.0.0"
-roomVersion = "2.7.0"
-coilCompose = "2.7.0"
+roomVersion = "2.8.4"
+coilCompose = "3.4.0"
 # KSP must match Kotlin version
-ksp = "2.1.21-2.0.1"
-zxing = "3.5.3"
-gson = "2.11.0"
-okhttp = "4.12.0"
-securityCrypto = "1.1.0-alpha06"
-datastorePreferences = "1.1.2"
+ksp = "2.3.8"
+zxing = "3.5.4"
+gson = "2.14.0"
+okhttp = "5.3.0"
+securityCrypto = "1.1.0"
+datastorePreferences = "1.2.1"
 # Google Drive Backup
-playServicesAuth = "21.3.0"
-googleApiServicesDrive = "v3-rev20241206-2.0.0"
-googleApiClientAndroid = "2.7.0"
-googleHttpClientGson = "1.45.1"
-workRuntimeKtx = "2.10.0"
-paging = "3.3.6"
+playServicesAuth = "21.5.1"
+googleApiServicesDrive = "v3-rev20260428-2.0.0"
+googleApiClientAndroid = "2.8.1"
+googleHttpClientGson = "1.47.0"
+workRuntimeKtx = "2.11.1"
+paging = "3.4.1"
 pdfboxAndroid = "2.0.27.0"
-media3 = "1.5.1"
-# Koog AI Agent Framework - latest stable (Feb 2026)
-koog = "0.6.2"
-kotlinxCoroutines = "1.10.1"
-kotlinxSerialization = "1.8.0"
+media3 = "1.10.0"
+# Koog AI Agent Framework - latest stable (May 2026)
+koog = "1.0.0"
+kotlinxCoroutines = "1.11.0"
+kotlinxSerialization = "1.11.0"
 # Ktor - latest stable
-ktor = "3.1.0"
+ktor = "3.5.0"
 # Code Quality
-detekt = "1.23.7"
-ktlint = "12.1.1"
+detekt = "1.23.8"
+ktlint = "14.2.0"
 googleServices = "4.4.4"
-firebaseBom = "33.9.0"
-crashlyticsPlugin = "3.0.2"
+firebaseBom = "34.13.0"
+crashlyticsPlugin = "3.0.7"
 leakcanary = "2.14"
 javaxInject = "1"
-firebaseAdmin = "9.4.3"
-exposed = "0.59.0"
+firebaseAdmin = "9.7.1"
+exposed = "1.3.0"
 
 [libraries]
 javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "javaxInject" }
@@ -76,7 +74,8 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-common = { group = "androidx.room", name = "room-common", version.ref = "roomVersion" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomVersion" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomVersion" }
-coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coilCompose" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coilCompose" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
@@ -130,11 +129,11 @@ ktor-server-rate-limit = { group = "io.ktor", name = "ktor-server-rate-limit", v
 ktor-server-compression = { group = "io.ktor", name = "ktor-server-compression", version.ref = "ktor" }
 
 # Logging for server
-logback-classic = { group = "ch.qos.logback", name = "logback-classic", version = "1.4.14" }
-logstash-logback-encoder = { group = "net.logstash.logback", name = "logstash-logback-encoder", version = "7.4" }
+logback-classic = { group = "ch.qos.logback", name = "logback-classic", version = "1.5.31" }
+logstash-logback-encoder = { group = "net.logstash.logback", name = "logstash-logback-encoder", version = "9.0" }
 
 # Metrics
-micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus", version = "1.12.2" }
+micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus", version = "1.14.14" }
 ktor-server-metrics-micrometer = { group = "io.ktor", name = "ktor-server-metrics-micrometer", version.ref = "ktor" }
 # Code Quality
 leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
@@ -150,9 +149,9 @@ firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 firebase-admin = { group = "com.google.firebase", name = "firebase-admin", version.ref = "firebaseAdmin" }
 
 # Database
-postgresql = { module = "org.postgresql:postgresql", version = "42.7.1" }
-pgvector = { module = "com.pgvector:pgvector", version = "0.1.4" }
-hikaricp = { module = "com.zaxxer:HikariCP", version = "5.1.0" }
+postgresql = { module = "org.postgresql:postgresql", version = "42.7.11" }
+pgvector = { module = "com.pgvector:pgvector", version = "0.1.6" }
+hikaricp = { module = "com.zaxxer:HikariCP", version = "6.3.0" }
 exposed-core = { group = "org.jetbrains.exposed", name = "exposed-core", version.ref = "exposed" }
 exposed-dao = { group = "org.jetbrains.exposed", name = "exposed-dao", version.ref = "exposed" }
 exposed-jdbc = { group = "org.jetbrains.exposed", name = "exposed-jdbc", version.ref = "exposed" }
@@ -160,7 +159,6 @@ exposed-jdbc = { group = "org.jetbrains.exposed", name = "exposed-jdbc", version
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

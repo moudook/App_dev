@@ -12,7 +12,9 @@ import org.slf4j.LoggerFactory
  * Reasoning Service
  * Business logic for reasoning traces and thinking logs
  */
-class ReasoningService(private val repository: ReasoningTraceRepository) {
+class ReasoningService(
+    private val repository: ReasoningTraceRepository,
+) {
     private val logger = LoggerFactory.getLogger(ReasoningService::class.java)
 
     /**
@@ -62,9 +64,7 @@ class ReasoningService(private val repository: ReasoningTraceRepository) {
     /**
      * Get reasoning timeline for UI
      */
-    suspend fun getReasoningTimeline(sessionId: String): List<ReasoningTraceWithSummary> {
-        return repository.getReasoningTimeline(sessionId)
-    }
+    suspend fun getReasoningTimeline(sessionId: String): List<ReasoningTraceWithSummary> = repository.getReasoningTimeline(sessionId)
 
     /**
      * Get reasoning traces for a session
@@ -72,9 +72,7 @@ class ReasoningService(private val repository: ReasoningTraceRepository) {
     suspend fun getReasoningTraces(
         sessionId: String,
         messageId: String? = null,
-    ): List<ReasoningTrace> {
-        return repository.getTracesForSession(sessionId, messageId)
-    }
+    ): List<ReasoningTrace> = repository.getTracesForSession(sessionId, messageId)
 
     /**
      * Create and save reasoning summary
@@ -120,9 +118,7 @@ class ReasoningService(private val repository: ReasoningTraceRepository) {
     suspend fun getReasoningSummary(
         sessionId: String,
         messageId: String? = null,
-    ): ReasoningSummary? {
-        return repository.getSummary(sessionId, messageId)
-    }
+    ): ReasoningSummary? = repository.getSummary(sessionId, messageId)
 
     /**
      * Mark a reasoning trace as revised
@@ -152,7 +148,9 @@ class ReasoningService(private val repository: ReasoningTraceRepository) {
         val oneLiner =
             finalTraces
                 .filter { it.stepType == com.example.smarty.server.data.ReasoningStepType.SYNTHESIS }
-                .firstOrNull()?.content?.take(200) ?: "Analysis complete"
+                .firstOrNull()
+                ?.content
+                ?.take(200) ?: "Analysis complete"
 
         // Brief: Key steps only (3-5)
         val briefSteps =

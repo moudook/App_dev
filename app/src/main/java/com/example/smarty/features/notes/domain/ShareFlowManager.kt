@@ -185,7 +185,7 @@ class ShareFlowManager(
         val contentHash = content.sha256()
         val note = Note(
             id = java.util.UUID.randomUUID().toString(),
-            title = title ?: "Shared content",
+            title = title,
             content = content,
             fileUri = firstFileUri,
             fileName = firstFileName,

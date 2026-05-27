@@ -613,7 +613,7 @@ class SmartyRepository(
         val version = versionEntity.toDomain()
         val currentNote = noteDao.getNoteById(noteId) ?: return false
 
-        val latestVersion = noteVersionDao?.getLatestVersionNumber(noteId) ?: 0
+        val latestVersion = noteVersionDao.getLatestVersionNumber(noteId) ?: 0
         val saveVersion =
             NoteVersionEntity(
                 id = java.util.UUID.randomUUID().toString(),
@@ -625,7 +625,7 @@ class SmartyRepository(
                 changeDescription = "Auto-saved before restore",
                 createdAt = System.currentTimeMillis(),
             )
-        noteVersionDao?.insertVersion(saveVersion)
+        noteVersionDao.insertVersion(saveVersion)
 
         val restoredNote =
             currentNote.copy(

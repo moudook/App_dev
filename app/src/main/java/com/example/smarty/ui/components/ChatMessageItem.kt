@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.ui.platform.LocalClipboardManager
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -92,7 +93,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -502,7 +503,7 @@ if (isUser) {
                     modifier = Modifier
                         .size(IconSize.small)
                         .clickable {
-                            clipboardManager.setText(AnnotatedString(if (isUser) message.content else cleanContent(message.content)))
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(if (isUser) message.content else cleanContent(message.content)))
                             showCopied = true
                         },
                     tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
@@ -869,7 +870,7 @@ fun CodeBlock(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable {
-                        clipboardManager.setText(AnnotatedString(code))
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(code))
                         isCopied = true
                     }
                     .background(if (isCopied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else copyBtnBg)

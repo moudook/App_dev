@@ -26,7 +26,8 @@ class ToolExampleStore {
             Example(
                 userQuery = "Save this recipe for pasta carbonara",
                 toolName = "create_note",
-                arguments = """{"title": "Pasta Carbonara Recipe", "content": "Pasta carbonara recipe from conversation.", "category": "Recipes"}""",
+                arguments =
+                    """{"title":"Pasta Carbonara Recipe","content":"Pasta carbonara recipe from conversation.","category":"Recipes"}""",
                 reasoning = "User wants to save information. create_note is the right tool. I categorize it for organization.",
                 keywords = setOf("save", "recipe", "keep", "store", "bookmark"),
             ),
@@ -48,8 +49,13 @@ class ToolExampleStore {
             Example(
                 userQuery = "Remind me to call Mom tomorrow at 5pm",
                 toolName = "schedule_event",
-                arguments = """{"title": "Call Mom", "startTime": <calculated_tomorrow_5pm_utc_ms>, "endTime": <calculated_tomorrow_6pm_utc_ms>, "description": "Remember to call Mom", "reminderMinutes": 15}""",
-                reasoning = "User wants a reminder. I calculate the exact UTC timestamp for 'tomorrow at 5pm' using the time_context. Default 1 hour duration. Reminder notification set.",
+                arguments =
+                    """{"title":"Call Mom","startTime":<calculated_tomorrow_5pm_utc_ms>,""" +
+                        """ "endTime":<calculated_tomorrow_6pm_utc_ms>,"description":"Remember to call Mom","reminderMinutes":15}""",
+                reasoning =
+                    "User wants a reminder. I calculate the exact UTC timestamp for " +
+                        "'tomorrow at 5pm' using the time_context. Default 1 hour duration. " +
+                        "Reminder notification set.",
                 keywords = setOf("remind", "reminder", "schedule", "meeting", "appointment", "event", "calendar"),
             ),
             Example(
@@ -109,7 +115,9 @@ class ToolExampleStore {
                 userQuery = "My favorite color is blue",
                 toolName = "store_context",
                 arguments = """{"content": "User's favorite color is blue", "type": "preference"}""",
-                reasoning = "User stated a personal preference. I store it using store_context with type 'preference' for long-term personalization.",
+                reasoning =
+                    "User stated a personal preference. I store it using store_context " +
+                        "with type 'preference' for long-term personalization.",
                 keywords = setOf("favorite", "prefer", "like", "love", "hate", "always", "never", "i am", "my name"),
             ),
             // ==================== WEB SEARCH ====================
@@ -174,13 +182,14 @@ class ToolExampleStore {
 
         // Score each example by keyword overlap
         val scored =
-            examples.map { example ->
-                val matchCount =
-                    example.keywords.count { keyword ->
-                        lowerQuery.contains(keyword) || queryWords.any { word -> keyword.contains(word) }
-                    }
-                example to matchCount
-            }.sortedByDescending { it.second }
+            examples
+                .map { example ->
+                    val matchCount =
+                        example.keywords.count { keyword ->
+                            lowerQuery.contains(keyword) || queryWords.any { word -> keyword.contains(word) }
+                        }
+                    example to matchCount
+                }.sortedByDescending { it.second }
 
         // Take top matches, ensure at least 2 examples
         val relevant = scored.filter { it.second > 0 }.take(maxExamples).map { it.first }
@@ -196,7 +205,8 @@ class ToolExampleStore {
         return buildString {
             append("=== TOOL USAGE EXAMPLES ===\n")
             append(
-                "Study these examples carefully. When the user's request matches a pattern, call the corresponding tool IMMEDIATELY without narrating your plan.\n\n",
+                "Study these examples carefully. When the user's request matches a pattern, " +
+                    "call the corresponding tool IMMEDIATELY without narrating your plan.\n\n",
             )
             finalExamples.forEach { ex ->
                 append("User: \"${ex.userQuery}\"\n")

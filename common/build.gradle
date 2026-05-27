@@ -1,0 +1,61 @@
+plugins {
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp) apply false
+}
+
+// Detect if Android SDK is available (not available in Docker/CI server builds)
+def hasAndroidSdk = false
+def localProps = file("${rootProject.projectDir}/local.properties")
+if (localProps.exists()) {
+    hasAndroidSdk = true
+} else {
+    if (System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null) {
+        hasAndroidSdk = true
+    }
+}
+
+// Conditionally apply Android plugins only when SDK is available
+if (hasAndroidSdk) {
+    apply plugin: 'com.android.kotlin.multiplatform.library'
+    apply plugin: 'com.google.devtools.ksp'
+}
+
+kotlin {
+    // android target is auto-created by com.android.kotlin.multiplatform.library
+    if (hasAndroidSdk) {
+        android {
+            namespace = "com.example.smarty.common"
+            compileSdk = 35
+            minSdk = 26
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
+            withHostTest {}
+        }
+    }
+
+    jvm()
+
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation libs.kotlinx.serialization.json
+                implementation libs.kotlinx.coroutines.core
+                // Room common provides pure annotation classes (@Entity, @PrimaryKey, etc.)
+                implementation libs.androidx.room.common
+            }
+        }
+        commonTest {
+            dependencies {
+                implementation kotlin("test")
+            }
+        }
+    }
+}
+
+if (hasAndroidSdk) {
+    dependencies {
+        add("kspAndroid", libs.androidx.room.compiler)
+    }
+}

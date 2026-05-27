@@ -1,7 +1,7 @@
 package com.example.smarty.server.services
 
 import com.example.smarty.protocol.NoteInfo
-import kotlin.math.*
+import kotlin.math.min
 
 /**
  * Server-side Adaptive Search Service.
@@ -26,15 +26,15 @@ class AdaptiveSearchService {
         val config = SearchConfiguration()
 
         val results =
-            notes.map { note ->
-                val keywordScore = calculateKeywordScore(query, note)
-                val semanticScore = SemanticSearchEngine.calculateSimilarity(query, "${note.title} ${note.content}")
+            notes
+                .map { note ->
+                    val keywordScore = calculateKeywordScore(query, note)
+                    val semanticScore = SemanticSearchEngine.calculateSimilarity(query, "${note.title} ${note.content}")
 
-                val combinedScore = (keywordScore * config.keywordWeight) + (semanticScore * config.semanticWeight)
+                    val combinedScore = (keywordScore * config.keywordWeight) + (semanticScore * config.semanticWeight)
 
-                note to combinedScore
-            }
-                .filter { it.second >= config.minRelevanceScore }
+                    note to combinedScore
+                }.filter { it.second >= config.minRelevanceScore }
                 .sortedByDescending { it.second }
                 .map { it.first }
 

@@ -696,7 +696,7 @@ class AssistViewModel(
 
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
-                        event.content?.let { responseBuilder.append(it) }
+                        event.content.let { responseBuilder.append(it) }
                         event.thinking?.let { finalThinking = it }
                         chatManager.updateMessageWithThinking(
                             streamingMessageId,

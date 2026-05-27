@@ -11,7 +11,9 @@ import javax.sql.DataSource
  * Stacks Repository (v6.0.0 schema)
  * Handles: stacks table and note_stacks junction table
  */
-class StackRepository(private val dataSource: DataSource) {
+class StackRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(StackRepository::class.java)
 
     // ── Stack CRUD ──────────────────────────────────────────────────────────────
@@ -171,8 +173,8 @@ class StackRepository(private val dataSource: DataSource) {
 
     // ── Mapping ─────────────────────────────────────────────────────────────────
 
-    private fun ResultSet.toStack(): Stack {
-        return Stack(
+    private fun ResultSet.toStack(): Stack =
+        Stack(
             id = getObject("id").toString(),
             userId = getObject("user_id").toString(),
             name = getString("name"),
@@ -184,5 +186,4 @@ class StackRepository(private val dataSource: DataSource) {
             createdAt = getTimestamp("created_at")?.toString(),
             updatedAt = getTimestamp("updated_at")?.toString(),
         )
-    }
 }

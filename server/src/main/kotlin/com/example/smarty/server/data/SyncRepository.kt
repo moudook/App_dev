@@ -14,7 +14,9 @@ data class SyncStatusRecord(
     val lastPullAt: Long?,
 )
 
-class SyncRepository(private val dataSource: DataSource) {
+class SyncRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(SyncRepository::class.java)
 
     suspend fun getSyncStatus(userId: String): SyncStatusRecord? =

@@ -129,18 +129,19 @@ class GoalMemoryManager(
     ) {
         val now = Instant.now().toString()
         val completedSteps =
-            progressData.steps.map { step ->
-                if (step.status == "in_progress") {
-                    step.copy(
-                        status = "completed",
-                        toolUsed = toolUsed,
-                        result = result?.take(500),
-                        timestamp = now,
-                    )
-                } else {
-                    step
-                }
-            }.toMutableList()
+            progressData.steps
+                .map { step ->
+                    if (step.status == "in_progress") {
+                        step.copy(
+                            status = "completed",
+                            toolUsed = toolUsed,
+                            result = result?.take(500),
+                            timestamp = now,
+                        )
+                    } else {
+                        step
+                    }
+                }.toMutableList()
 
         progressData =
             progressData.copy(
@@ -313,12 +314,11 @@ class GoalMemoryManager(
 
     fun getMemoryJson(): String = json.encodeToString(memoryData)
 
-    fun toCheckpoint(): GoalMemoryCheckpoint {
-        return GoalMemoryCheckpoint(
+    fun toCheckpoint(): GoalMemoryCheckpoint =
+        GoalMemoryCheckpoint(
             progress = progressData,
             memory = memoryData,
         )
-    }
 
     fun loadFromCheckpoint(checkpoint: GoalMemoryCheckpoint) {
         progressData = checkpoint.progress

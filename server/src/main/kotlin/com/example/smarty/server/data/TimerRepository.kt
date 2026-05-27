@@ -13,7 +13,9 @@ import javax.sql.DataSource
  * PostgreSQL is the source of truth; Android caches via StateSync events
  * and schedules local alarms for offline support.
  */
-class TimerRepository(private val dataSource: DataSource) {
+class TimerRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(TimerRepository::class.java)
 
     /**

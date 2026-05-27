@@ -196,7 +196,9 @@ class ChatRepository(
         withContext(Dispatchers.IO) {
             val sessions = mutableListOf<SessionInfo>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM chat_sessions WHERE user_id = ?::uuid AND updated_at > to_timestamp(? / 1000.0) ORDER BY updated_at ASC LIMIT ?"
+                val sql =
+                    "SELECT * FROM chat_sessions WHERE user_id = ?::uuid " +
+                        "AND updated_at > to_timestamp(? / 1000.0) ORDER BY updated_at ASC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.setLong(2, timestamp)
@@ -254,30 +256,31 @@ class ChatRepository(
     suspend fun getMessagesForSessions(
         userId: String,
         sessionIds: List<String>,
-        limitPerSession: Int = 100
+        limitPerSession: Int = 100,
     ): Map<String, List<MessageRecord>> =
         withContext(Dispatchers.IO) {
             if (sessionIds.isEmpty()) return@withContext emptyMap()
             val messages = mutableMapOf<String, MutableList<MessageRecord>>()
-            
+
             dataSource.connection.use { conn ->
                 val placeholders = sessionIds.joinToString(",") { "?::uuid" }
-                val sql = """
+                val sql =
+                    """
                     WITH RankedMessages AS (
                         SELECT *, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn
                         FROM chat_messages
                         WHERE user_id = ?::uuid AND session_id IN ($placeholders)
                     )
                     SELECT * FROM RankedMessages WHERE rn <= ? ORDER BY session_id, created_at ASC
-                """.trimIndent()
-                
+                    """.trimIndent()
+
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     for (i in sessionIds.indices) {
                         stmt.setObject(i + 2, UUID.fromString(sessionIds[i]))
                     }
                     stmt.setInt(sessionIds.size + 2, limitPerSession)
-                    
+
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             val msg = mapRowToMessageRecord(rs)
@@ -304,8 +307,8 @@ class ChatRepository(
             updatedAt = rs.getTimestamp("updated_at")?.time ?: rs.getTimestamp("created_at").time,
         )
 
-    private fun mapRowToSessionInfo(rs: ResultSet): SessionInfo {
-        return SessionInfo(
+    private fun mapRowToSessionInfo(rs: ResultSet): SessionInfo =
+        SessionInfo(
             id = rs.getString("id"),
             title = rs.getString("title"),
             createdAt = rs.getTimestamp("created_at").time,
@@ -316,7 +319,6 @@ class ChatRepository(
             summaryGeneratedAt = rs.getTimestamp("summary_generated_at")?.time,
             opencodeSessionId = runCatching { rs.getString("opencode_session_id") }.getOrNull(),
         )
-    }
 
     suspend fun updateOpencodeSessionId(
         userId: String,
@@ -403,7 +405,9 @@ class ChatRepository(
         withContext(Dispatchers.IO) {
             createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
-                val findSql = "SELECT id FROM chat_messages WHERE session_id = ?::uuid AND user_id = ?::uuid AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+                val findSql =
+                    "SELECT id FROM chat_messages WHERE session_id = ?::uuid " +
+                        "AND user_id = ?::uuid AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
                 var latestMsgId: UUID? = null
                 conn.prepareStatement(findSql).use { stmt ->
                     stmt.setString(1, sessionId)
@@ -417,7 +421,11 @@ class ChatRepository(
 
                 if (latestMsgId == null) return@withContext null
 
-                val updateSql = "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), agent_steps_json = COALESCE(?::jsonb, agent_steps_json), agent_events_json = COALESCE(?::jsonb, agent_events_json), updated_at = now() WHERE id = ? RETURNING *"
+                val updateSql =
+                    "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), " +
+                        "agent_steps_json = COALESCE(?::jsonb, agent_steps_json), " +
+                        "agent_events_json = COALESCE(?::jsonb, agent_events_json), " +
+                        "updated_at = now() WHERE id = ? RETURNING *"
                 conn.prepareStatement(updateSql).use { stmt ->
                     stmt.setString(1, thinking)
                     stmt.setString(2, toolCalls)
@@ -526,7 +534,8 @@ class ChatRepository(
                     }
                 }
             }
-            chatMessageNotesRepo.getLinkedNotes(UUID.fromString(messageId))
+            chatMessageNotesRepo
+                .getLinkedNotes(UUID.fromString(messageId))
                 .map { it.toString() }
         }
 

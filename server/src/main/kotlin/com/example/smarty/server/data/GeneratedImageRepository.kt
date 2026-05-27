@@ -18,7 +18,9 @@ data class GeneratedImage(
     val updatedAt: Long,
 )
 
-class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepository(dataSource) {
+class GeneratedImageRepository(
+    dataSource: javax.sql.DataSource,
+) : BaseRepository(dataSource) {
     suspend fun create(
         userId: String,
         sessionId: String?,
@@ -247,8 +249,8 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             }
         }
 
-    private fun mapRow(rs: ResultSet): GeneratedImage {
-        return GeneratedImage(
+    private fun mapRow(rs: ResultSet): GeneratedImage =
+        GeneratedImage(
             id = rs.getString("id"),
             userId = rs.getString("user_id"),
             sessionId = rs.getString("session_id"),
@@ -262,5 +264,4 @@ class GeneratedImageRepository(dataSource: javax.sql.DataSource) : BaseRepositor
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at").time,
         )
-    }
 }

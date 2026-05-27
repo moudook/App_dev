@@ -53,11 +53,10 @@ object ServerActivityMonitor {
     /**
      * Get the list of most recent events.
      */
-    fun getRecentEvents(): List<ActivityEvent> {
-        return synchronized(events) {
+    fun getRecentEvents(): List<ActivityEvent> =
+        synchronized(events) {
             events.toList()
         }
-    }
 
     /**
      * Clear all recorded events.

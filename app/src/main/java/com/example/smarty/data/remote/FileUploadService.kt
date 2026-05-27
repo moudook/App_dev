@@ -38,7 +38,7 @@ class FileUploadService(
 
                 if (result != null) {
                     UploadResult.Success(
-                        url = result.toString(), // Assuming server returns URL string or JSON with URL
+                        url = result, // Assuming server returns URL string or JSON with URL
                         fileId = UUID.randomUUID().toString(), // Server should return this ideally
                         fileName = fileName,
                     )

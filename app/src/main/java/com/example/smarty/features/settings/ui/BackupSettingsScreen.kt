@@ -994,7 +994,7 @@ private fun BackupListItem(
 
             // Restore progress or buttons
             if (isRestoring) {
-                val state = restoreState as BackupOperationState.InProgress
+                val state = restoreState
                 Column {
                     com.example.smarty.ui.components.CalmLinearProgress(
                         progress = { state.progress },

@@ -10,12 +10,17 @@ import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
@@ -118,7 +123,11 @@ fun Application.configureSyncRoutes() {
     val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
     val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
     val chatRepository = dataSource?.let { ChatRepository(it, chatMessageNotesRepo!!) }
-    val syncRepository = dataSource?.let { com.example.smarty.server.data.SyncRepository(it) }
+    val syncRepository =
+        dataSource?.let {
+            com.example.smarty.server.data
+                .SyncRepository(it)
+        }
 
     routing {
         authenticate("firebase") {
@@ -143,7 +152,11 @@ fun Application.configureSyncRoutes() {
                         val events = calendarRepository.listAllEvents(userId, limit = 500)
 
                         // Get generated images for sync
-                        val generatedImageRepo = dataSource?.let { com.example.smarty.server.data.GeneratedImageRepository(it) }
+                        val generatedImageRepo =
+                            dataSource?.let {
+                                com.example.smarty.server.data
+                                    .GeneratedImageRepository(it)
+                            }
                         val generatedImages = generatedImageRepo?.listByUser(userId, limit = 100) ?: emptyList()
                         val generatedImagesData =
                             generatedImages.map { img ->
@@ -474,7 +487,9 @@ fun Application.configureSyncRoutes() {
 }
 
 @Serializable
-data class CreateSessionRequest(val title: String? = null)
+data class CreateSessionRequest(
+    val title: String? = null,
+)
 
 /**
  * Request to save a chat message to the server.

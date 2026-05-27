@@ -647,7 +647,7 @@ class RemoteAgentService(
             val downloadResponse = client.get(downloadUrl)
             
             if (downloadResponse.status.isSuccess()) {
-                downloadResponse.readBytes()
+                downloadResponse.readRawBytes()
             } else {
                 Log.e(TAG, "Direct from Drive download failed: ${downloadResponse.status}")
                 return null

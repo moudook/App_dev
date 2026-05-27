@@ -17,7 +17,9 @@ import javax.sql.DataSource
  * (dailyEnabled, dailyTime, etc.) for backward compatibility with the
  * Android client. This repository bridges the two.
  */
-class DigestPreferencesRepository(private val dataSource: DataSource) {
+class DigestPreferencesRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(DigestPreferencesRepository::class.java)
 
     /**
@@ -150,14 +152,13 @@ class DigestPreferencesRepository(private val dataSource: DataSource) {
     }
 
     /** Parse "HH:mm" string → Pair(hour, minute). Falls back to (7, 0) on failure. */
-    private fun parseHHmm(time: String): Pair<Int, Int> {
-        return try {
+    private fun parseHHmm(time: String): Pair<Int, Int> =
+        try {
             val parts = time.split(":")
             Pair(parts[0].trim().toInt().coerceIn(0, 23), parts[1].trim().toInt().coerceIn(0, 59))
         } catch (e: Exception) {
             Pair(7, 0)
         }
-    }
 }
 
 /**

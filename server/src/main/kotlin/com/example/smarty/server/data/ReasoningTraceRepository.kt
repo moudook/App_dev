@@ -9,7 +9,9 @@ import java.util.UUID
  * Reasoning Trace Repository
  * Database operations for reasoning traces and thinking logs
  */
-class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
+class ReasoningTraceRepository(
+    private val dataSource: javax.sql.DataSource,
+) {
     private val logger = LoggerFactory.getLogger(ReasoningTraceRepository::class.java)
 
     /**
@@ -92,7 +94,8 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                             stmt.setDouble(10, trace.importanceScore)
                             stmt.setBoolean(11, trace.isFinal)
                             stmt.setBoolean(12, trace.wasRevised)
-                            trace.revisedByTraceId?.let { stmt.setObject(13, UUID.fromString(it)) } ?: stmt.setNull(13, java.sql.Types.OTHER)
+                            trace.revisedByTraceId?.let { stmt.setObject(13, UUID.fromString(it)) }
+                                ?: stmt.setNull(13, java.sql.Types.OTHER)
                             stmt.setInt(14, trace.tokenCount)
                             stmt.setLong(15, trace.durationMs)
                             stmt.addBatch()
@@ -372,11 +375,11 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
         }
 
     // Helper function to generate content hash
-    private fun generateContentHash(content: String): String {
-        return java.security.MessageDigest.getInstance("SHA-256")
+    private fun generateContentHash(content: String): String =
+        java.security.MessageDigest
+            .getInstance("SHA-256")
             .digest(content.toByteArray())
             .joinToString("") { "%02x".format(it) }
-    }
 }
 
 /**

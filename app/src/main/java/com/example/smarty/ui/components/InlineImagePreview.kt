@@ -46,9 +46,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.request.ImageRequest
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.InlineChatImage
@@ -58,6 +58,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import android.util.Log
+import coil3.request.crossfade
 
 /**
  * Inline image preview component for displaying images in chat messages.
@@ -236,7 +237,7 @@ fun InlineImagePreview(
                 .memoryCacheKey("preview_${currentImage.uri}_r$retryCount")
                 .diskCacheKey("disk_preview_${currentImage.uri}")
                 // Enable disk caching for persistence across sessions
-                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
                 .build(),
             contentDescription = currentImage.fileName,
             contentScale = ContentScale.Crop,
@@ -334,3 +335,4 @@ fun InlineImagePreview(
         }
     }
 }
+

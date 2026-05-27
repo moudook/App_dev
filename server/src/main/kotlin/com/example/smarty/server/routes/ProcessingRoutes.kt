@@ -4,20 +4,29 @@ import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.models.*
 import com.example.smarty.server.plugins.firebaseUser
-import com.example.smarty.server.services.*
-import io.ktor.client.*
-import io.ktor.client.engine.okhttp.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.http.*
-import io.ktor.http.content.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
-import io.ktor.server.util.*
+import com.example.smarty.server.services.ContentAnalysisService
+import com.example.smarty.server.services.FileProcessingService
+import com.example.smarty.server.services.VisionService
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.readAllParts
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.log
+import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.request.receive
+import io.ktor.server.request.receiveMultipart
+import io.ktor.server.response.respond
+import io.ktor.server.routing.post
+import io.ktor.server.routing.routing
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -63,7 +72,8 @@ fun Application.configureProcessingRoutes() {
                     call.application.log.info("Content analysis request from user: ${user.userId}")
                     val attachments =
                         request.attachments?.map {
-                            com.example.smarty.server.models.AttachmentInfo(it.fileName, it.fileType)
+                            com.example.smarty.server.models
+                                .AttachmentInfo(it.fileName, it.fileType)
                         }
                     val result = contentAnalysisService.analyzeContent(request.content, attachments)
                     call.respond(HttpStatusCode.OK, result)
@@ -148,20 +158,22 @@ fun Application.configureProcessingRoutes() {
                     var contentType: String? = null
                     var analysisType: String = "content"
 
-                    multipart.forEachPart { part ->
-                        when (part) {
+                    var httpPart = multipart.readPart()
+                    while (httpPart != null) {
+                        when (httpPart) {
                             is PartData.FileItem -> {
-                                fileName = part.originalFileName?.let { sanitizeFileName(it) }
-                                contentType = part.contentType?.toString()
-                                @Suppress("DEPRECATION")
-                                fileBytes = part.streamProvider().use { it.readBytes() }
+                                fileName = httpPart.originalFileName?.let { sanitizeFileName(it) }
+                                contentType = httpPart.contentType?.toString()
+                                val channel = httpPart.provider.invoke()
+                                fileBytes = channel.readRemaining().readByteArray()
                             }
                             is PartData.FormItem -> {
-                                if (part.name == "analysisType") analysisType = part.value
+                                if (httpPart.name == "analysisType") analysisType = httpPart.value
                             }
                             else -> {}
                         }
-                        part.dispose()
+                        httpPart.dispose()
+                        httpPart = multipart.readPart()
                     }
 
                     if (fileBytes == null) {
@@ -173,7 +185,8 @@ fun Application.configureProcessingRoutes() {
                         return@post
                     }
                     try {
-                        com.example.smarty.server.utils.InputValidation.validateTitle(fileName)
+                        com.example.smarty.server.utils.InputValidation
+                            .validateTitle(fileName)
                         if (analysisType !in listOf("content", "document", "ocr")) {
                             throw IllegalArgumentException("Invalid analysis type")
                         }
@@ -239,7 +252,9 @@ fun Application.configureProcessingRoutes() {
                     log.info("   Aspect Ratio: ${request.aspectRatio}")
                     log.info("═".repeat(60))
                     log.info(" Creating KreaImageTool instance...")
-                    val kreaTool = com.example.smarty.server.tools.KreaImageTool()
+                    val kreaTool =
+                        com.example.smarty.server.tools
+                            .KreaImageTool()
                     log.info(" Calling kreaTool.generateImage()...")
                     val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
                     log.info(" Image generation triggered successfully! Job ID: $jobId")
@@ -267,7 +282,12 @@ fun Application.configureProcessingRoutes() {
                         log.info(" Uploading image to Supabase Storage...")
                         supabaseUrl =
                             withContext(Dispatchers.IO) {
-                                kreaTool.uploadToSupabase(kreaImageUrl, jobId, com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName())
+                                kreaTool.uploadToSupabase(
+                                    kreaImageUrl,
+                                    jobId,
+                                    com.example.smarty.server.factory.SupabaseClientFactory
+                                        .getImageBucketName(),
+                                )
                             }
                         log.info(" Image uploaded to Supabase: $supabaseUrl")
                     } catch (e: Exception) {
@@ -330,20 +350,57 @@ fun Application.configureProcessingRoutes() {
     }
 }
 
-@Serializable data class ContentAnalysisRequest(val content: String, val attachments: List<AttachmentDto>? = null)
+@Serializable data class ContentAnalysisRequest(
+    val content: String,
+    val attachments: List<AttachmentDto>? = null,
+)
 
-@Serializable data class AttachmentDto(val fileName: String, val fileType: String)
+@Serializable data class AttachmentDto(
+    val fileName: String,
+    val fileType: String,
+)
 
-@Serializable data class DocumentAnalysisRequest(val text: String, val fileName: String? = null, val userContext: String? = null)
+@Serializable data class DocumentAnalysisRequest(
+    val text: String,
+    val fileName: String? = null,
+    val userContext: String? = null,
+)
 
-@Serializable data class ImageProcessingRequest(val base64Image: String, val mimeType: String? = null, val analysisType: String? = "ocr")
+@Serializable data class ImageProcessingRequest(
+    val base64Image: String,
+    val mimeType: String? = null,
+    val analysisType: String? = "ocr",
+)
 
-@Serializable data class PdfProcessingRequest(val base64Pdf: String, val fileName: String? = null, val useOcr: Boolean? = true)
+@Serializable data class PdfProcessingRequest(
+    val base64Pdf: String,
+    val fileName: String? = null,
+    val useOcr: Boolean? = true,
+)
 
-@Serializable data class ImageProcessingResponse(val text: String, val contentType: String, val success: Boolean, val error: String? = null)
+@Serializable data class ImageProcessingResponse(
+    val text: String,
+    val contentType: String,
+    val success: Boolean,
+    val error: String? = null,
+)
 
-@Serializable data class DirectImageGenerationRequest(val prompt: String, val aspectRatio: String = "1:1")
+@Serializable data class DirectImageGenerationRequest(
+    val prompt: String,
+    val aspectRatio: String = "1:1",
+)
 
-@Serializable data class DirectImageGenerationResponse(val jobId: String, val success: Boolean, val message: String? = null)
+@Serializable data class DirectImageGenerationResponse(
+    val jobId: String,
+    val success: Boolean,
+    val message: String? = null,
+)
 
-@Serializable data class ImageGenerationSuccessResponse(val type: String, val url: String, val source: String, val prompt: String, val jobId: String, val error: String? = null)
+@Serializable data class ImageGenerationSuccessResponse(
+    val type: String,
+    val url: String,
+    val source: String,
+    val prompt: String,
+    val jobId: String,
+    val error: String? = null,
+)

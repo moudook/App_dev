@@ -191,15 +191,14 @@ class VisionService(
         }
     }
 
-    private fun detectContentType(text: String): String {
-        return when {
+    private fun detectContentType(text: String): String =
+        when {
             text.contains("|") && text.lines().count { it.contains("|") } > 2 -> "table"
             text.contains(":") && text.lines().count { it.contains(":") } > 3 -> "form"
             text.length > 500 -> "document"
             text.lines().size > 10 -> "structured"
             else -> "text"
         }
-    }
 }
 
 /**

@@ -27,7 +27,9 @@ class CircuitBreaker(
         HALF_OPEN,
     }
 
-    class CircuitOpenException(message: String) : Exception(message)
+    class CircuitOpenException(
+        message: String,
+    ) : Exception(message)
 
     /**
      * Execute a block with circuit breaker protection.
@@ -83,22 +85,19 @@ class CircuitBreaker(
     suspend fun <T> executeWithFallback(
         block: suspend () -> T,
         fallback: suspend () -> T,
-    ): T {
-        return try {
+    ): T =
+        try {
             execute(block)
         } catch (e: CircuitOpenException) {
             fallback()
         } catch (e: Exception) {
             fallback()
         }
-    }
 
     /**
      * Get the current circuit state.
      */
-    fun getState(): CircuitState {
-        return synchronized(lock) { state }
-    }
+    fun getState(): CircuitState = synchronized(lock) { state }
 
     /**
      * Get circuit breaker statistics.
@@ -153,7 +152,5 @@ class CircuitBreaker(
         }
     }
 
-    private fun shouldTryReset(): Boolean {
-        return System.currentTimeMillis() - lastFailureTime >= resetTimeoutMs
-    }
+    private fun shouldTryReset(): Boolean = System.currentTimeMillis() - lastFailureTime >= resetTimeoutMs
 }

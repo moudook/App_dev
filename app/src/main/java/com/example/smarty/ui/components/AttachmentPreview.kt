@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.example.smarty.R
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.AttachmentType
 import com.example.smarty.ui.LocalAccentColor
@@ -43,6 +43,7 @@ import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.softCardShadow
 import kotlinx.coroutines.delay
+import coil3.request.crossfade
 
 /**
  * Horizontal scrollable row of attachment previews
@@ -376,3 +377,4 @@ private fun getAttachmentColor(type: AttachmentType): Color {
         AttachmentType.FILE -> com.example.smarty.ui.theme.FileGray
     }
 }
+

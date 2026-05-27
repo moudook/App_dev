@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.smarty.features.notes.domain
 
 import android.app.Application
@@ -16,6 +17,7 @@ import androidx.savedstate.SavedStateRegistryOwner
  * }
  * ```
  */
+@Suppress("DEPRECATION")
 class SmartyViewModelFactory(
     private val application: Application,
     owner: SavedStateRegistryOwner
@@ -33,3 +35,5 @@ class SmartyViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
+
+

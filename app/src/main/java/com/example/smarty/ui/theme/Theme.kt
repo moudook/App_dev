@@ -215,7 +215,19 @@ private fun animateColorScheme(targetScheme: ColorScheme): ColorScheme {
         surfaceContainerHigh = animateColor(targetScheme.surfaceContainerHigh),
         surfaceContainerHighest = animateColor(targetScheme.surfaceContainerHighest),
         surfaceContainerLow = animateColor(targetScheme.surfaceContainerLow),
-        surfaceContainerLowest = animateColor(targetScheme.surfaceContainerLowest)
+        surfaceContainerLowest = animateColor(targetScheme.surfaceContainerLowest),
+        primaryFixed = animateColor(targetScheme.primaryFixed),
+        primaryFixedDim = animateColor(targetScheme.primaryFixedDim),
+        onPrimaryFixed = animateColor(targetScheme.onPrimaryFixed),
+        onPrimaryFixedVariant = animateColor(targetScheme.onPrimaryFixedVariant),
+        secondaryFixed = animateColor(targetScheme.secondaryFixed),
+        secondaryFixedDim = animateColor(targetScheme.secondaryFixedDim),
+        onSecondaryFixed = animateColor(targetScheme.onSecondaryFixed),
+        onSecondaryFixedVariant = animateColor(targetScheme.onSecondaryFixedVariant),
+        tertiaryFixed = animateColor(targetScheme.tertiaryFixed),
+        tertiaryFixedDim = animateColor(targetScheme.tertiaryFixedDim),
+        onTertiaryFixed = animateColor(targetScheme.onTertiaryFixed),
+        onTertiaryFixedVariant = animateColor(targetScheme.onTertiaryFixedVariant)
     )
 }
 
@@ -340,3 +352,4 @@ fun SmartyTheme(
         )
     }
 }
+

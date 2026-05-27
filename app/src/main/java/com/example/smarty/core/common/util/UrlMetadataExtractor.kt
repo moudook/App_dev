@@ -1,4 +1,4 @@
-package com.example.smarty.core.common.util
+﻿package com.example.smarty.core.common.util
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +92,7 @@ object UrlMetadataExtractor {
                             }
 
                             // Read up to 200KB for article extraction (increased from 50KB)
-                            response.body?.source()?.let { source ->
+                            response.body.source().let { source ->
                                 val buffer = okio.Buffer()
                                 source.read(buffer, 200 * 1024)
                                 buffer.readUtf8()

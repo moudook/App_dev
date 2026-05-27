@@ -36,13 +36,13 @@ object JsonResponseParser {
     /**
      * Clean an LLM response by removing markdown code blocks.
      */
-    fun cleanResponse(response: String): String {
-        return response.trim()
+    fun cleanResponse(response: String): String =
+        response
+            .trim()
             .removePrefix("```json")
             .removePrefix("```")
             .removeSuffix("```")
             .trim()
-    }
 
     /**
      * Parse a JSON response with a custom deserializer.
@@ -80,20 +80,19 @@ object JsonResponseParser {
     fun <T> parseToJsonSafe(
         response: String,
         deserializer: (String) -> T,
-    ): T? {
-        return try {
+    ): T? =
+        try {
             parseToJson(response, deserializer)
         } catch (e: Exception) {
             logger.error("JSON parsing failed: ${e.message}")
             null
         }
-    }
 
     /**
      * Check if a response is valid JSON.
      */
-    fun isValidJson(response: String): Boolean {
-        return try {
+    fun isValidJson(response: String): Boolean =
+        try {
             val cleaned = cleanResponse(response)
             json.parseToJsonElement(cleaned)
             true
@@ -101,7 +100,6 @@ object JsonResponseParser {
             logger.debug("Invalid JSON: ${e.message}")
             false
         }
-    }
 
     /**
      * Extract a specific field from a JSON response.
@@ -109,8 +107,8 @@ object JsonResponseParser {
     fun extractField(
         response: String,
         fieldName: String,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             val jsonElement = parseToJsonElement(response)
             jsonElement
                 .jsonObject[fieldName]
@@ -118,5 +116,4 @@ object JsonResponseParser {
         } catch (e: Exception) {
             null
         }
-    }
 }

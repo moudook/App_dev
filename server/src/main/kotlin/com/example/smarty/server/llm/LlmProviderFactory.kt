@@ -1,6 +1,6 @@
 package com.example.smarty.server.llm
 
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
@@ -29,8 +29,8 @@ object LlmProviderFactory {
     @Volatile
     private var cachedHttpClient: HttpClient? = null
 
-    fun getOrCreateHttpClient(): HttpClient {
-        return cachedHttpClient ?: synchronized(this) {
+    fun getOrCreateHttpClient(): HttpClient =
+        cachedHttpClient ?: synchronized(this) {
             cachedHttpClient ?: HttpClient(OkHttp) {
                 engine {
                     config {
@@ -47,7 +47,6 @@ object LlmProviderFactory {
                 logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation with timeouts)")
             }
         }
-    }
 
     fun getOrCreateProvider(client: HttpClient = getOrCreateHttpClient()): LlmProvider {
         cachedProvider?.let {

@@ -30,11 +30,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
-import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
-import coil.request.ImageRequest
-import coil.request.SuccessResult
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
 import kotlinx.coroutines.delay
+import coil3.request.crossfade
+import coil3.request.allowHardware
 
 enum class ImageGenState {
     Thinking, Completed, Error
@@ -216,7 +218,7 @@ private fun CompletedStateInner(
                 },
             onState = { state ->
                 if (state is AsyncImagePainter.State.Success) {
-                    val bitmap = (state.result as? SuccessResult)?.drawable?.toBitmap()
+                    val bitmap = (state.result.image as? coil3.BitmapImage)?.bitmap
                     bitmap?.let {
                         Palette.from(it).generate { palette ->
                             val color = palette?.dominantSwatch?.rgb?.let { Color(it) } 
@@ -275,3 +277,4 @@ private fun ErrorStateInner(onRetry: () -> Unit) {
         }
     }
 }
+

@@ -1,4 +1,4 @@
-package com.example.smarty.service
+﻿package com.example.smarty.service
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -233,7 +233,7 @@ class FCMService : FirebaseMessagingService() {
                     Log.d(TAG, "Token registered successfully (HTTP ${response.code})")
                     true
                 } else {
-                    Log.e(TAG, "Server returned error: ${response.code} - ${response.body?.string()}")
+                    Log.e(TAG, "Server returned error: ${response.code} - ${response.body.string()}")
                     false
                 }
             }

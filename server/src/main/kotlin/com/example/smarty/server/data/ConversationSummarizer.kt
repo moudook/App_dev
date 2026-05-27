@@ -17,7 +17,9 @@ import org.slf4j.LoggerFactory
  * - Only store abstract descriptions of actions and topics
  * - Summaries should be safe to include in any context
  */
-class ConversationSummarizer(private val llmProvider: LlmProvider) {
+class ConversationSummarizer(
+    private val llmProvider: LlmProvider,
+) {
     private val logger = LoggerFactory.getLogger(ConversationSummarizer::class.java)
 
     companion object {
@@ -107,8 +109,8 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
      * Build conversation text for summarization.
      * Limits message count and length for efficiency.
      */
-    private fun buildConversationText(messages: List<LlmMessage>): String {
-        return messages
+    private fun buildConversationText(messages: List<LlmMessage>): String =
+        messages
             .takeLast(MAX_MESSAGES_FOR_SUMMARY)
             .joinToString("\n") { message ->
                 val role = message.role.name
@@ -116,7 +118,6 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
                 val truncated = if (message.content.length > MAX_MESSAGE_LENGTH) "..." else ""
                 "$role: $content$truncated"
             }
-    }
 
     /**
      * Clean up the generated summary.

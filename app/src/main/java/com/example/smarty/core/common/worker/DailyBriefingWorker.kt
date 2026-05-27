@@ -1,4 +1,4 @@
-package com.example.smarty.core.common.worker
+﻿package com.example.smarty.core.common.worker
 
 import android.content.Context
 import android.util.Log
@@ -156,7 +156,7 @@ class DailyBriefingWorker(
                 val chatSummary =
                     if (hasChats) {
                         recentSessions.joinToString("\n") { session ->
-                            "- ${session.title ?: "Untitled conversation"}"
+                            "- ${session.title}"
                         }
                     } else {
                         "No recent conversations"

@@ -18,7 +18,7 @@ class AgentStreamProcessor(
 
     private var hasStartedFinalAnswer = false
     private var lastProcessingEventTime = 0L
-    private val PROCESSING_EVENT_THROTTLE_MS = 50L
+    private val processingEventThrottleMs = 50L
 
     var currentContent = ""
     var currentToolId: String? = null
@@ -33,14 +33,14 @@ class AgentStreamProcessor(
     private var currentThinkingStepId: String? = null
     private var currentThinkingStepStart: Long = 0L
     private val currentThinkingContent = StringBuilder()
-    private val THINKING_STEP_THROTTLE_MS = 50L
+    private val thinkingStepThrottleMs = 50L
     private var lastThinkingStepEmitTime = 0L
     private var lastReasoningDeltaEmitTime = 0L
     private val reasoningDeltaBuffer = java.lang.StringBuilder()
 
     private var lastFinalAnswerDeltaEmitTime = 0L
     private val finalAnswerDeltaBuffer = java.lang.StringBuilder()
-    private val FINAL_ANSWER_THROTTLE_MS = 50L
+    private val finalAnswerThrottleMs = 50L
 
     // Regex for pseudo-narration (e.g. "[tool_call: web_search]")
     private val pseudoNarrationRegex = Regex("""\[(?:tool_call|subtask|patch|file):.*?\]""")
@@ -50,7 +50,7 @@ class AgentStreamProcessor(
         thinking: String?,
     ) {
         val now = System.currentTimeMillis()
-        val shouldEmit = (now - lastProcessingEventTime >= PROCESSING_EVENT_THROTTLE_MS) || (thinking != null)
+        val shouldEmit = (now - lastProcessingEventTime >= processingEventThrottleMs) || (thinking != null)
         if (shouldEmit) {
             this.emit(
                 AgentEvent.Processing(
@@ -120,15 +120,15 @@ class AgentStreamProcessor(
                     hasStartedFinalAnswer = true
                     this.emit(AgentEvent.FinalAnswerStarted(UUID.randomUUID().toString(), System.currentTimeMillis()))
                 }
-                
+
                 finalAnswerDeltaBuffer.append(filteredContent)
                 val now = System.currentTimeMillis()
-                if (now - lastFinalAnswerDeltaEmitTime >= FINAL_ANSWER_THROTTLE_MS) {
+                if (now - lastFinalAnswerDeltaEmitTime >= finalAnswerThrottleMs) {
                     this.emit(AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), now, finalAnswerDeltaBuffer.toString()))
                     finalAnswerDeltaBuffer.clear()
                     lastFinalAnswerDeltaEmitTime = now
                 }
-                
+
                 currentContent += filteredContent
                 emitThrottledProcessing(chunk.content, thinkingStorage.getCompleteThinking(sessionId))
             }
@@ -148,7 +148,7 @@ class AgentStreamProcessor(
 
                 thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", toolCall.arguments)
             }
-            
+
             // Only append delta if there is one
             if (toolCall.arguments.isNotEmpty()) {
                 currentToolArgs += toolCall.arguments
@@ -185,12 +185,14 @@ class AgentStreamProcessor(
     ) {
         if (currentThinkingStepId != null) finalizeThinkingStep()
         if (isToolCallInProgress) finalizeCurrentTool("completed")
-        
+
         if (finalAnswerDeltaBuffer.isNotEmpty()) {
-            this.emit(AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), System.currentTimeMillis(), finalAnswerDeltaBuffer.toString()))
+            this.emit(
+                AgentEvent.FinalAnswerDelta(UUID.randomUUID().toString(), System.currentTimeMillis(), finalAnswerDeltaBuffer.toString()),
+            )
             finalAnswerDeltaBuffer.clear()
         }
-        
+
         val finalTrace = thinkingStorage.finalizeAndGetThinking(sessionId)
         this.emit(
             AgentEvent.Result(

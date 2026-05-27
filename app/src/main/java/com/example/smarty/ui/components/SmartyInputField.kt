@@ -37,8 +37,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -1381,11 +1381,9 @@ private fun MoreAttachmentsChip(count: Int) {
 
 enum class WaveformState {
     IDLE,       // Curious Idle (Standard idle, or when typing manually)
-    GIGGLE,     // Jelly Giggle (When user answers a tool / typing after question)
     TALK,       // Active Talk (When user is using the mic)
     THINKING,   // Thinking Wave (When model is thinking)
-    SUCCESS,    // Success Jump (When model thinking completes)
-    SAD         // Sad Droop (Idle for 20 seconds)
+    SUCCESS     // Success Jump (When model thinking completes)
 }
 
 @Composable
@@ -1416,18 +1414,7 @@ private fun VoiceWaveformIcon(
         }
     }
 
-    var isIdleFor20s by remember { mutableStateOf(false) }
- 
-    // Reset idle timer on any active interaction: listening, processing, focused, typing or text entry.
-    LaunchedEffect(isListening, isProcessing, isAgentWorking, value.text, isFocused, isTyping) {
-        isIdleFor20s = false
-        if (!isListening && !isProcessing && !isAgentWorking && !isTyping) {
-            delay(20000) // 20-second timeout
-            isIdleFor20s = true
-        }
-    }
- 
-    var isSuccessActive by remember { mutableStateOf(false) }
+var isSuccessActive by remember { mutableStateOf(false) }
     var lastProcessing by remember { mutableStateOf(false) }
  
     LaunchedEffect(isProcessing, isAgentWorking) {
@@ -1473,8 +1460,7 @@ private fun VoiceWaveformIcon(
         isListening -> WaveformState.TALK
         isProcessing || isAgentWorking -> WaveformState.THINKING
         isSuccessActive -> WaveformState.SUCCESS
-        isIdleFor20s -> WaveformState.SAD
-        isTyping || isUserAnsweringTool -> WaveformState.GIGGLE
+        isTyping || isUserAnsweringTool -> WaveformState.TALK
         else -> WaveformState.IDLE
     }
 
@@ -1483,8 +1469,7 @@ private fun VoiceWaveformIcon(
     val idleColor = if (isDark) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f)
     
     val targetColor = when (state) {
-        WaveformState.SAD -> if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f)
-        WaveformState.TALK, WaveformState.THINKING, WaveformState.SUCCESS, WaveformState.GIGGLE -> accentColor
+        WaveformState.TALK, WaveformState.THINKING, WaveformState.SUCCESS -> accentColor
         WaveformState.IDLE -> idleColor
     }
 
@@ -1684,76 +1669,6 @@ private fun getBarProperties(
             widthMultiplier = 1.0f
             xOffsetFraction = 0f
         }
-        WaveformState.GIGGLE -> {
-            val p = (playTimeMs % 1800) / 1800f
-            val mergeFactor = if (p < 0.1f) {
-                val t = p / 0.1f
-                0.5f - 0.5f * Math.cos(t * Math.PI).toFloat()
-            } else if (p < 0.85f) {
-                1.0f
-            } else if (p < 0.95f) {
-                val t = (p - 0.85f) / 0.1f
-                0.5f + 0.5f * Math.cos(t * Math.PI).toFloat()
-            } else {
-                0.0f
-            }
-
-            widthMultiplier = 1.0f + 1.7f * mergeFactor
-            xOffsetFraction = when (index) {
-                0 -> 0.3f * mergeFactor
-                1 -> -1.7f * mergeFactor
-                3 -> 0.0f * mergeFactor
-                4 -> -2.0f * mergeFactor
-                else -> 0.0f
-            }
-
-            heightFraction = if (p in 0.1f..0.85f) {
-                val envelope = Math.sin(((p - 0.1f) / 0.75f) * Math.PI).toFloat()
-                val gigTime = 2.0 * Math.PI * ((p - 0.1f) / 0.75f) * 2.0
-                val wiggle = 0.185f * Math.sin(gigTime - index * 0.2f).toFloat()
-                baseHeight + (0.265f + wiggle) * envelope
-            } else {
-                baseHeight
-            }
-            yOffsetFraction = 0f
-        }
-        WaveformState.SAD -> {
-            val p = (playTimeMs % 3600) / 3600f
-            
-            // Soulful slow-sleep deep breathing (sighing) cycle
-            val breathRaw = Math.sin(2.0 * Math.PI * p).toFloat()
-            
-            // Asymmetric breathing: inhale is slightly faster/more active, exhale is a slow heavy sigh
-            val breathFactor = if (breathRaw > 0f) {
-                Math.pow(breathRaw.toDouble(), 0.7).toFloat()
-            } else {
-                breathRaw * 0.5f
-            }
-
-            // Squash & Stretch physics
-            widthMultiplier = 1.0f - 0.12f * breathFactor
-            
-            // Slow, heavy head sway
-            val slowSway = 0.04f * Math.sin(2.0 * Math.PI * (playTimeMs % 7200) / 7200.0).toFloat()
-            xOffsetFraction = slowSway
-
-            // Safe drooped base heights (ears = 0.20f, nose = 0.22f) preventing any squashed capsules.
-            // Eyes (1, 3) close to slit-like heights for a sleeping expression, slightly breathing.
-            heightFraction = when (index) {
-                0, 4 -> {
-                    val earHeight = 0.20f - 0.05f * breathFactor
-                    if (index == 0) earHeight + slowSway * 0.4f else earHeight - slowSway * 0.4f
-                }
-                1, 3 -> 0.20f + 0.04f * breathFactor // Sleeping eyes
-                else -> 0.22f + 0.05f * breathFactor  // Sleepy nose/mouth
-            }
-
-            yOffsetFraction = when (index) {
-                0, 4 -> 0.08f - 0.04f * breathFactor
-                1, 3 -> 0.04f - 0.03f * breathFactor
-                else -> 0.15f - 0.06f * breathFactor
-            }
-        }
         WaveformState.IDLE -> {
             val p = (playTimeMs % 3000) / 3000f
 
@@ -1902,6 +1817,7 @@ private fun WaveformBars(
         }
     }
 }
+
 
 
 

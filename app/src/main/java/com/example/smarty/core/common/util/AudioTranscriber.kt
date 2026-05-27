@@ -1,4 +1,4 @@
-package com.example.smarty.core.common.util
+﻿package com.example.smarty.core.common.util
 
 import android.content.Context
 import android.content.Intent
@@ -515,13 +515,13 @@ object AudioTranscriber {
 
                                         audioTrack = audioTrackBuilder.build()
 
-                                        audioTrack?.play()
+                                        audioTrack.play()
 
                                         // Stream PCM data
                                         var offset = 0
                                         while (offset < pcmData.size && !isFinished) {
                                             val chunkSize = minOf(minBufferSize, pcmData.size - offset)
-                                            audioTrack?.write(pcmData, offset, chunkSize)
+                                            audioTrack.write(pcmData, offset, chunkSize)
                                             offset += chunkSize
                                         }
 

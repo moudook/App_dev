@@ -17,7 +17,5 @@ object DeviceRegistry {
         userCapabilities[userId] = capabilities
     }
 
-    fun getCapabilities(userId: String): DeviceCapabilities? {
-        return userCapabilities[userId]
-    }
+    fun getCapabilities(userId: String): DeviceCapabilities? = userCapabilities[userId]
 }

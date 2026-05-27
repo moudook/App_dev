@@ -25,12 +25,53 @@ object LlmCache {
 
     private val ACTION_KEYWORDS =
         setOf(
-            "play", "pause", "stop", "resume", "search", "find", "look", "check",
-            "show", "display", "tell", "give", "list", "get", "fetch", "read", "open",
-            "archive", "unarchive", "delete", "update", "create", "add", "remove", "edit", "modify",
-            "count", "schedule", "calendar", "timer", "alarm", "reminder", "set", "launch",
-            "notes", "note", "audio", "document", "image", "file", "backup", "settings",
-            "screenshot", "share", "navigate", "go to", "move to",
+            "play",
+            "pause",
+            "stop",
+            "resume",
+            "search",
+            "find",
+            "look",
+            "check",
+            "show",
+            "display",
+            "tell",
+            "give",
+            "list",
+            "get",
+            "fetch",
+            "read",
+            "open",
+            "archive",
+            "unarchive",
+            "delete",
+            "update",
+            "create",
+            "add",
+            "remove",
+            "edit",
+            "modify",
+            "count",
+            "schedule",
+            "calendar",
+            "timer",
+            "alarm",
+            "reminder",
+            "set",
+            "launch",
+            "notes",
+            "note",
+            "audio",
+            "document",
+            "image",
+            "file",
+            "backup",
+            "settings",
+            "screenshot",
+            "share",
+            "navigate",
+            "go to",
+            "move to",
         )
 
     fun isActionQuery(userMessage: String): Boolean {
@@ -40,7 +81,8 @@ object LlmCache {
                 normalized.contains(" $keyword ") ||
                 normalized.contains("$keyword ") ||
                 normalized.contains(" $keyword")
-        } || normalized.contains("my ") ||
+        } ||
+            normalized.contains("my ") ||
             normalized.contains("i have") ||
             normalized.contains("do i have") ||
             normalized.contains("what's in my") ||

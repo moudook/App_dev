@@ -2,13 +2,20 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.server.services.GoogleDriveService
 import com.example.smarty.server.services.GroqWhisperService
-import io.ktor.http.*
-import io.ktor.http.content.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.readAllParts
+import io.ktor.server.application.Application
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
+import io.ktor.server.response.respond
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -20,30 +27,30 @@ data class UploadUrlRequest(
 @Serializable
 data class UploadUrlResponse(
     val uploadUrl: String,
-    val success: Boolean = true
+    val success: Boolean = true,
 )
 
 @Serializable
 data class DownloadUrlResponse(
     val downloadUrl: String,
-    val success: Boolean = true
+    val success: Boolean = true,
 )
 
 fun Application.configureFileRoutes(
     googleDriveService: GoogleDriveService,
-    groqWhisperService: GroqWhisperService
+    groqWhisperService: GroqWhisperService,
 ) {
     routing {
         authenticate("firebase") {
             route("/files") {
-                
                 post("/upload-url") {
-                    val request = try {
-                        call.receive<UploadUrlRequest>()
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid request format"))
-                        return@post
-                    }
+                    val request =
+                        try {
+                            call.receive<UploadUrlRequest>()
+                        } catch (e: Exception) {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid request format"))
+                            return@post
+                        }
 
                     try {
                         val url = googleDriveService.generateUploadUrl(request.fileName, request.mimeType)
@@ -58,9 +65,11 @@ fun Application.configureFileRoutes(
                 }
 
                 get("/download-url/{fileId}") {
-                    val fileId = call.parameters["fileId"] ?: return@get call.respond(
-                        HttpStatusCode.BadRequest, mapOf("error" to "Missing fileId")
-                    )
+                    val fileId =
+                        call.parameters["fileId"] ?: return@get call.respond(
+                            HttpStatusCode.BadRequest,
+                            mapOf("error" to "Missing fileId"),
+                        )
 
                     try {
                         val url = googleDriveService.generateDownloadUrl(fileId)
@@ -80,13 +89,15 @@ fun Application.configureFileRoutes(
                     var fileBytes: ByteArray? = null
                     var fileName = "audio.m4a"
 
-                    multipart.forEachPart { part ->
-                        if (part is io.ktor.http.content.PartData.FileItem) {
-                            fileName = part.originalFileName ?: "audio.m4a"
-                            @Suppress("DEPRECATION")
-                            fileBytes = part.streamProvider().readBytes()
+                    var httpPart = multipart.readPart()
+                    while (httpPart != null) {
+                        if (httpPart is io.ktor.http.content.PartData.FileItem) {
+                            fileName = httpPart.originalFileName ?: "audio.m4a"
+                            val channel = httpPart.provider.invoke()
+                            fileBytes = channel.readRemaining().readByteArray()
                         }
-                        part.dispose()
+                        httpPart.dispose()
+                        httpPart = multipart.readPart()
                     }
 
                     if (fileBytes == null) {
@@ -107,7 +118,10 @@ fun Application.configureFileRoutes(
                             call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Transcription failed"))
                         }
                     } catch (e: Exception) {
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Transcription service unavailable: ${e.message}"))
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            mapOf("error" to "Transcription service unavailable: ${e.message}"),
+                        )
                     }
                 }
             }

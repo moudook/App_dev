@@ -1,4 +1,4 @@
-package com.example.smarty.core.common.util
+﻿package com.example.smarty.core.common.util
 
 import okhttp3.CertificatePinner
 import okhttp3.MediaType.Companion.toMediaType
@@ -304,7 +304,7 @@ suspend fun <T> OkHttpClient.executePostJson(
  */
 fun okhttp3.Response.readBodySafely(): String? {
     return try {
-        body?.string()
+        body.string()
     } catch (e: Exception) {
         null
     }

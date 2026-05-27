@@ -1,6 +1,6 @@
 package com.example.smarty.server.services
 
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable

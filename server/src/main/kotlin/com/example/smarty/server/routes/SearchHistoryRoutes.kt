@@ -3,12 +3,20 @@ package com.example.smarty.server.routes
 import com.example.smarty.server.data.SearchHistory
 import com.example.smarty.server.data.SearchHistoryRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.log
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.principal
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.response.respond
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -153,13 +161,15 @@ fun Application.configureSearchHistoryRoutes(searchHistoryRepository: SearchHist
                         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
 
                         val dataSource =
-                            com.example.smarty.server.data.DatabaseFactory.getDataSource()
+                            com.example.smarty.server.data.DatabaseFactory
+                                .getDataSource()
                                 ?: return@get call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
 
                         val chatRepo =
                             com.example.smarty.server.data.ChatRepository(
                                 dataSource,
-                                com.example.smarty.server.data.ChatMessageNotesRepository(dataSource),
+                                com.example.smarty.server.data
+                                    .ChatMessageNotesRepository(dataSource),
                             )
 
                         val results = chatRepo.searchHistory(user.userId, query, limit)

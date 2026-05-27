@@ -51,7 +51,10 @@ class OrchestratorService(
                     "I need an image to analyze. Please upload one."
                 } else {
                     emitProcessing(eventEmitter, "Analyzing image...")
-                    val base64Image = java.util.Base64.getEncoder().encodeToString(attachments.first())
+                    val base64Image =
+                        java.util.Base64
+                            .getEncoder()
+                            .encodeToString(attachments.first())
                     val analysisResult = visionService.analyzeImage(base64Image, "image/png", query)
                     analysisResult.description
                 }

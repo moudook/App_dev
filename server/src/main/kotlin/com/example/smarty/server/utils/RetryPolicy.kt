@@ -67,13 +67,12 @@ suspend fun <T> withRetryAndFallback(
     maxDelayMs: Long = 5000,
     fallback: suspend () -> T,
     block: suspend () -> T,
-): T {
-    return try {
+): T =
+    try {
         withRetry(maxRetries, initialDelayMs, maxDelayMs, block = block)
     } catch (e: Exception) {
         fallback()
     }
-}
 
 /**
  * Retry configuration builder.
@@ -108,8 +107,8 @@ class RetryPolicy(
     /**
      * Execute a block with this retry policy.
      */
-    suspend fun <T> execute(block: suspend () -> T): T {
-        return withRetry(
+    suspend fun <T> execute(block: suspend () -> T): T =
+        withRetry(
             maxRetries,
             initialDelayMs,
             maxDelayMs,
@@ -117,7 +116,6 @@ class RetryPolicy(
             retryOn,
             block,
         )
-    }
 
     /**
      * Execute with fallback.
@@ -125,15 +123,14 @@ class RetryPolicy(
     suspend fun <T> executeWithFallback(
         block: suspend () -> T,
         fallback: suspend () -> T,
-    ): T {
-        return withRetryAndFallback(
+    ): T =
+        withRetryAndFallback(
             maxRetries,
             initialDelayMs,
             maxDelayMs,
             fallback,
             block,
         )
-    }
 }
 
 /**
@@ -151,6 +148,4 @@ fun retryPolicy(block: RetryConfig.() -> Unit): RetryPolicy {
 suspend fun <T> retry(
     times: Int = 3,
     block: suspend () -> T,
-): T {
-    return withRetry(maxRetries = times, block = block)
-}
+): T = withRetry(maxRetries = times, block = block)

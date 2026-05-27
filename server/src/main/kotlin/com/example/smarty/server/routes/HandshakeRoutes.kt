@@ -6,12 +6,14 @@ import com.example.smarty.protocol.HandshakeResponse
 import com.example.smarty.protocol.HybridActionPolicy
 import com.example.smarty.protocol.RemoteSyncState
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
-import java.util.*
+import io.ktor.server.application.Application
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.post
+import io.ktor.server.routing.routing
+import java.util.UUID
 
 fun Application.configureHandshakeRoutes() {
     routing {
@@ -21,7 +23,8 @@ fun Application.configureHandshakeRoutes() {
 
                 val user = call.firebaseUser()
                 if (user != null) {
-                    com.example.smarty.server.agent.DeviceRegistry.registerDevice(user.userId, request.capabilities)
+                    com.example.smarty.server.agent.DeviceRegistry
+                        .registerDevice(user.userId, request.capabilities)
                 }
 
                 // Generate a session ID
@@ -32,10 +35,18 @@ fun Application.configureHandshakeRoutes() {
                     ExecutionPolicy(
                         serverSide =
                             listOf(
-                                "CREATE_NOTE", "UPDATE_NOTE", "DELETE_NOTE", "SEARCH_NOTES",
-                                "SUMMARIZE_NOTE", "WEB_SEARCH", "BATCH_ACTIONS",
-                                "SCHEDULE_EVENT", "DEEP_RESEARCH", "MEMORY_STORE",
-                                "GENERATE_BRIEFING", "ANALYZE_DOCUMENT",
+                                "CREATE_NOTE",
+                                "UPDATE_NOTE",
+                                "DELETE_NOTE",
+                                "SEARCH_NOTES",
+                                "SUMMARIZE_NOTE",
+                                "WEB_SEARCH",
+                                "BATCH_ACTIONS",
+                                "SCHEDULE_EVENT",
+                                "DEEP_RESEARCH",
+                                "MEMORY_STORE",
+                                "GENERATE_BRIEFING",
+                                "ANALYZE_DOCUMENT",
                             ),
                         deviceSide =
                             listOf(
@@ -64,7 +75,10 @@ fun Application.configureHandshakeRoutes() {
                         executionPolicy = policy,
                         syncState =
                             RemoteSyncState(
-                                lastServerTimestamp = java.time.Instant.now().toString(),
+                                lastServerTimestamp =
+                                    java.time.Instant
+                                        .now()
+                                        .toString(),
                                 pendingSyncCount = 0,
                             ),
                     )

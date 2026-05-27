@@ -104,23 +104,17 @@ object ErrorTracker {
     /**
      * Get recent errors.
      */
-    fun getRecentErrors(limit: Int = 10): List<ErrorRecord> {
-        return recentErrors.take(limit)
-    }
+    fun getRecentErrors(limit: Int = 10): List<ErrorRecord> = recentErrors.take(limit)
 
     /**
      * Get errors by component.
      */
-    fun getErrorsByComponent(component: String): List<ErrorRecord> {
-        return recentErrors.filter { it.component == component }
-    }
+    fun getErrorsByComponent(component: String): List<ErrorRecord> = recentErrors.filter { it.component == component }
 
     /**
      * Get errors by type.
      */
-    fun getErrorsByType(errorType: String): List<ErrorRecord> {
-        return recentErrors.filter { it.errorType == errorType }
-    }
+    fun getErrorsByType(errorType: String): List<ErrorRecord> = recentErrors.filter { it.errorType == errorType }
 
     /**
      * Clear all tracked errors.
@@ -147,9 +141,7 @@ object ErrorTracker {
     /**
      * Check if error rate exceeds threshold.
      */
-    fun isErrorRateHigh(threshold: Double = 10.0): Boolean {
-        return getErrorRate() > threshold
-    }
+    fun isErrorRateHigh(threshold: Double = 10.0): Boolean = getErrorRate() > threshold
 }
 
 /**
@@ -171,11 +163,10 @@ suspend fun <T> trackErrors(
     userId: String? = null,
     sessionId: String? = null,
     block: suspend () -> T,
-): T {
-    return try {
+): T =
+    try {
         block()
     } catch (e: Exception) {
         e.track(component, userId, sessionId)
         throw e
     }
-}

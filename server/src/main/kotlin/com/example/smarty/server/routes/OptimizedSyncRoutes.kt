@@ -10,12 +10,17 @@ import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.SyncRepository
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -197,11 +202,12 @@ fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.ser
                                 }
 
                             // BATCH LOAD: Get all messages in ONE query per session (not N+1)
-                            val messagesBySession = chatRepository.getMessagesForSessions(
-                                userId,
-                                sessions.map { it.id },
-                                limitPerSession = 100
-                            )
+                            val messagesBySession =
+                                chatRepository.getMessagesForSessions(
+                                    userId,
+                                    sessions.map { it.id },
+                                    limitPerSession = 100,
+                                )
                             val sessionData =
                                 sessions.map { session ->
                                     val messages = messagesBySession[session.id] ?: emptyList()
@@ -337,17 +343,16 @@ fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.ser
                                         val md = java.security.MessageDigest.getInstance("SHA-256")
                                         val digest = md.digest(noteItem.content.toByteArray(Charsets.UTF_8))
                                         val currentHash = digest.joinToString("") { "%02x".format(it) }
-                                        
+
                                         if (noteItem.processedContentHash != currentHash) {
                                             noteItem.id?.let { noteId ->
                                                 noteService?.triggerEnrichmentAsync(userId, noteId, noteItem.title, noteItem.content)
                                             }
                                         }
-
                                     } else {
                                         val id = noteRepository.create(userId, info, connection = conn)
                                         createdNotes.add(id)
-                                        
+
                                         noteService?.triggerEnrichmentAsync(userId, id, noteItem.title, noteItem.content)
                                     }
                                 } catch (e: Exception) {

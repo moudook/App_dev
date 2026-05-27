@@ -127,7 +127,7 @@ class CompatibleAIConnection(
                 withContext(Dispatchers.IO) {
                     client.newCall(request).execute()
                 }
-            val responseBody = response.body?.string()
+            val responseBody = response.body.string()
 
             Log.d(TAG, "$name HTTP ${response.code}")
 
@@ -188,7 +188,7 @@ class CompatibleAIConnection(
                 withContext(Dispatchers.IO) {
                     client.newCall(request).execute()
                 }
-            val responseBody = response.body?.string()
+            val responseBody = response.body.string()
 
             if (!response.isSuccessful) {
                 Log.e(TAG, "$name document analysis error: ${response.code}")
@@ -244,7 +244,7 @@ class CompatibleAIConnection(
                 withContext(Dispatchers.IO) {
                     client.newCall(request).execute()
                 }
-            val responseBody = response.body?.string()
+            val responseBody = response.body.string()
 
             Log.d(TAG, "$name chat HTTP ${response.code}")
 

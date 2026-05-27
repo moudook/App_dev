@@ -231,10 +231,14 @@ object SecurityMonitor {
      */
     fun getSecurityReport(): Map<String, Any> {
         val failedAuthByIpTop =
-            failedAuthByIp.entries.sortedByDescending { it.value.get() }.take(10)
+            failedAuthByIp.entries
+                .sortedByDescending { it.value.get() }
+                .take(10)
                 .associate { it.key to it.value.get() }
         val failedAuthByUserTop =
-            failedAuthByUser.entries.sortedByDescending { it.value.get() }.take(10)
+            failedAuthByUser.entries
+                .sortedByDescending { it.value.get() }
+                .take(10)
                 .associate { it.key to it.value.get() }
         val highRiskIps = failedAuthByIp.filter { it.value.get() >= FAILED_AUTH_THRESHOLD }.keys.toList()
 

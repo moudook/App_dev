@@ -48,8 +48,8 @@ class WebScrapeTool {
      * Scrape text content from a URL
      * SECURITY: Validates URL to prevent SSRF attacks
      */
-    suspend fun scrape(url: String): String {
-        return try {
+    suspend fun scrape(url: String): String =
+        try {
             // SECURITY: Validate URL
             val validatedUrl = validateUrl(url) ?: throw IllegalArgumentException("Invalid or blocked URL: $url")
 
@@ -62,7 +62,8 @@ class WebScrapeTool {
             val html: String = response.body<String>()
 
             // Simple HTML tag stripping
-            html.replace(Regex("<[^>]*>"), " ")
+            html
+                .replace(Regex("<[^>]*>"), " ")
                 .replace(Regex("\\s+"), " ")
                 .trim()
                 .take(10000) // Limit to 10k chars
@@ -70,7 +71,6 @@ class WebScrapeTool {
             logger.error("Web scrape failed for $url: ${e.message}")
             ""
         }
-    }
 
     /**
      * Validate URL to prevent SSRF attacks.
@@ -123,7 +123,10 @@ class WebScrapeTool {
         val parts = cidr.split("/")
         if (parts.size != 2) return false
 
-        val rangeIp = java.net.InetAddress.getByName(parts[0]).address
+        val rangeIp =
+            java.net.InetAddress
+                .getByName(parts[0])
+                .address
         val prefixLength = parts[1].toIntOrNull() ?: return false
 
         // Convert to int for comparison

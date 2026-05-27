@@ -22,17 +22,29 @@ import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.http.*
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.log
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
-import io.ktor.server.sse.*
-import io.ktor.sse.*
-import io.ktor.server.websocket.*
-import io.ktor.websocket.*
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.routing
+import io.ktor.server.websocket.webSocket
+import io.ktor.sse.ServerSentEvent
+import io.ktor.server.sse.sse
+import io.ktor.websocket.CloseReason
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -43,7 +55,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
-/**
+/*
  * Configure chat streaming routes.
  *
  * Endpoints:
@@ -53,10 +65,7 @@ import java.util.UUID
  * - GET /chat/events/test - Test endpoint for AgentEvent serialization (public)
  */
 
-/**
- * Request body for POST /chat/stream endpoint.
- * Allows sending larger payloads including file context.
- */
+/** Request body for POST /chat/stream endpoint. Allows sending larger payloads including file context. */
 @Serializable
 data class ChatRequest(
     val query: String,
@@ -148,7 +157,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val userId = user.userId
 
                     // Input validation
-                    com.example.smarty.server.utils.InputValidation.validateQuery(request.prompt)
+                    com.example.smarty.server.utils.InputValidation
+                        .validateQuery(request.prompt)
                     request.token?.let {
                         if (it.length > 500) throw IllegalArgumentException("Token too long")
                     }
@@ -170,7 +180,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             eventEmitter = { /* No streaming for briefing yet */ },
                             userId = userId,
                             noteService = noteService,
-                            capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
+                            capabilities =
+                                com.example.smarty.server.agent.DeviceRegistry
+                                    .getCapabilities(userId),
                         )
 
                     // Run the agent (no modelOverride - provider already selected)
@@ -206,7 +218,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 // Input validation
                 try {
-                    com.example.smarty.server.utils.InputValidation.validateSessionId(sessionId)
+                    com.example.smarty.server.utils.InputValidation
+                        .validateSessionId(sessionId)
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid sessionId"))
                     return@post
@@ -234,11 +247,17 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                             }
                             is ClientEvent.RecallResultsResponse -> {
-                                val content = "Knowledge Recall Results:\n" + event.results.joinToString("\n") { "- ${it.title}: ${it.content} (Score: ${it.score})" }
+                                val content =
+                                    "Knowledge Recall Results:\n" +
+                                        event.results.joinToString("\n") { "- ${it.title}: ${it.content} (Score: ${it.score})" }
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                             }
                             is ClientEvent.CalendarEventsResponse -> {
-                                val content = "Calendar Events:\n" + event.events.joinToString("\n") { "- ${it.title} (${java.time.Instant.ofEpochMilli(it.startTime)})" }
+                                val content =
+                                    "Calendar Events:\n" +
+                                        event.events.joinToString(
+                                            "\n",
+                                        ) { "- ${it.title} (${java.time.Instant.ofEpochMilli(it.startTime)})" }
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                             }
                             is ClientEvent.ScreenContextResponse -> {
@@ -317,8 +336,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 // Input validation
                 try {
-                    com.example.smarty.server.utils.InputValidation.validateQuery(query)
-                    sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
+                    com.example.smarty.server.utils.InputValidation
+                        .validateQuery(query)
+                    sessionId?.let {
+                        com.example.smarty.server.utils.InputValidation
+                            .validateSessionId(it)
+                    }
                     providerUrlParam?.let {
                         if (it.length > 500) throw IllegalArgumentException("Provider URL too long")
                     }
@@ -409,7 +432,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 // Register active session BEFORE creating agent (needed for progressive thinking save)
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat")
+                com.example.smarty.server.agent.ActiveSessionManager
+                    .startSession(userId, activeSessionId, "chat")
 
                 // Collect citations and agent steps during stream
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
@@ -476,7 +500,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     )
                                 }
                             }
-
                         }
 
                         val eventType =
@@ -523,7 +546,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         eventEmitter = eventEmitter,
                         userId = userId,
                         noteService = noteService,
-                        capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
+                        capabilities =
+                            com.example.smarty.server.agent.DeviceRegistry
+                                .getCapabilities(userId),
                     )
 
                 try {
@@ -533,16 +558,17 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             if (historyArray != null) {
                                 send(
                                     ServerSentEvent(
-                                        data = json.encodeToString(
-                                            AgentEvent.OpencodeRawEvent(
-                                                eventId = UUID.randomUUID().toString(),
-                                                timestamp = System.currentTimeMillis(),
-                                                data = historyArray.toString(),
-                                                eventName = "session.history"
-                                            )
-                                        ),
-                                        event = "opencode_raw"
-                                    )
+                                        data =
+                                            json.encodeToString(
+                                                AgentEvent.OpencodeRawEvent(
+                                                    eventId = UUID.randomUUID().toString(),
+                                                    timestamp = System.currentTimeMillis(),
+                                                    data = historyArray.toString(),
+                                                    eventName = "session.history",
+                                                ),
+                                            ),
+                                        event = "opencode_raw",
+                                    ),
                                 )
                             }
                         } catch (e: Exception) {
@@ -670,11 +696,13 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     // Clear the bridge so stale emitters never fire
                     ActiveEventBridge.clear(userId)
                     // Reject pending approvals to prevent hanging coroutines (C2 fix)
-                    com.example.smarty.server.agent.ApprovalRegistry.cancelApprovalsForSession(activeSessionId)
+                    com.example.smarty.server.agent.ApprovalRegistry
+                        .cancelApprovalsForSession(activeSessionId)
                     // Free thinking trace memory for this session
                     ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
                     // Always end the active session
-                    com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
+                    com.example.smarty.server.agent.ActiveSessionManager
+                        .endSession(userId, activeSessionId)
                 }
 
                 call.application.log.info("SSE stream completed for query: $query (Session: $sessionId, User: $userId)")
@@ -686,43 +714,49 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
              */
             webSocket("/chat/ws") {
                 val token = call.request.queryParameters["token"]
-                val user = com.example.smarty.server.plugins.verifyFirebaseToken(token ?: "", null)
-                
+                val user =
+                    com.example.smarty.server.plugins
+                        .verifyFirebaseToken(token ?: "", null)
+
                 if (user == null) {
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication required"))
                     return@webSocket
                 }
-                
+
                 val userId = user.userId
                 val sessionIdParam = call.request.queryParameters["sessionId"] ?: UUID.randomUUID().toString()
-                
+
                 call.application.log.info("WebSocket connected for user: $userId, session: $sessionIdParam")
-                
-                val flow = com.example.smarty.server.agent.AgentRunManager.getEventFlow(sessionIdParam)
-                
+
+                val flow =
+                    com.example.smarty.server.agent.AgentRunManager
+                        .getEventFlow(sessionIdParam)
+
                 // Job 1: Heartbeat keepalive to prevent proxy idle timeouts
-                val heartbeatJob = launch {
-                    while (isActive) {
-                        delay(10_000L)
-                        try {
-                            send(Frame.Ping(ByteArray(0)))
-                        } catch (e: Exception) {
-                            break
+                val heartbeatJob =
+                    launch {
+                        while (isActive) {
+                            delay(10_000L)
+                            try {
+                                send(Frame.Ping(ByteArray(0)))
+                            } catch (e: Exception) {
+                                break
+                            }
                         }
                     }
-                }
-                
+
                 // Job 2: Forward AgentEvents to client
-                val emitJob = launch {
-                    flow.collect { event ->
-                        try {
-                            send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
-                        } catch (e: Exception) {
-                            call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
+                val emitJob =
+                    launch {
+                        flow.collect { event ->
+                            try {
+                                send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
+                            } catch (e: Exception) {
+                                call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
+                            }
                         }
                     }
-                }
-                
+
                 // Job 3: Process incoming client messages
                 try {
                     for (frame in incoming) {
@@ -732,11 +766,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 // First try to parse as ChatRequest to start a run
                                 val chatRequest = json.decodeFromString<ChatRequest>(text)
                                 val activeSessionId = chatRequest.sessionId ?: sessionIdParam
-                                
+
                                 if (chatRequest.query.isNotBlank()) {
                                     chatRepository?.saveMessage(userId, activeSessionId, LlmMessage.Role.USER.name, chatRequest.query)
                                 }
-                                
+
                                 // Launch the run via decoupled manager
                                 com.example.smarty.server.agent.AgentRunManager.startRun(
                                     userId = userId,
@@ -756,9 +790,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     personality = chatRequest.personality,
                                     history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
                                     opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
-                                    messageId = chatRequest.messageId
+                                    messageId = chatRequest.messageId,
                                 )
-                                
                             } catch (e: kotlinx.serialization.SerializationException) {
                                 // If not ChatRequest, try ClientEvent
                                 try {
@@ -768,7 +801,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                         when (clientEvent) {
                                             is ClientEvent.ToolResult -> {
                                                 val statusPrefix = if (clientEvent.isError) "Error" else "Success"
-                                                val content = "Tool Output [${clientEvent.commandId}] ($statusPrefix): ${clientEvent.result}"
+                                                val content =
+                                                    "Tool Output [${clientEvent.commandId}] ($statusPrefix): " +
+                                                        clientEvent.result
                                                 chatRepository.saveMessage(userId, sessionIdParam, LlmMessage.Role.TOOL.name, content)
                                             }
                                             else -> {} // Handle other client events if needed
@@ -812,8 +847,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                     // Input validation
                     try {
-                        com.example.smarty.server.utils.InputValidation.validateQuery(request.query)
-                        sessionId?.let { com.example.smarty.server.utils.InputValidation.validateSessionId(it) }
+                        com.example.smarty.server.utils.InputValidation
+                            .validateQuery(request.query)
+                        sessionId?.let {
+                            com.example.smarty.server.utils.InputValidation
+                                .validateSessionId(it)
+                        }
                     } catch (e: IllegalArgumentException) {
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid input: ${e.message}"))
                         return@post
@@ -896,12 +935,15 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             },
                             userId = userId,
                             noteService = noteService,
-                            capabilities = com.example.smarty.server.agent.DeviceRegistry.getCapabilities(userId),
+                            capabilities =
+                                com.example.smarty.server.agent.DeviceRegistry
+                                    .getCapabilities(userId),
                         )
 
                     // Register active session to prevent digest scheduler interference
                     val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-                    com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat_query")
+                    com.example.smarty.server.agent.ActiveSessionManager
+                        .startSession(userId, activeSessionId, "chat_query")
 
                     try {
                         val assistantResponse =
@@ -954,9 +996,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                             val finalAgentEventsJson =
                                 if (events.isNotEmpty()) {
-                                    val filteredEvents = events.filter { 
-                                        it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent 
-                                    }
+                                    val filteredEvents =
+                                        events.filter {
+                                            it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent
+                                        }
                                     if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
                                 } else {
                                     null
@@ -994,7 +1037,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         )
                     } finally {
                         ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
-                        com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
+                        com.example.smarty.server.agent.ActiveSessionManager
+                            .endSession(userId, activeSessionId)
                     }
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)
@@ -1307,7 +1351,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
             try {
                 val stack = call.receive<com.example.smarty.server.data.Stack>()
-                val id = stackRepository?.createStack(stack.copy(userId = userId)) ?: throw IllegalStateException("Stack repository unavailable")
+                val id =
+                    stackRepository?.createStack(stack.copy(userId = userId)) ?: throw IllegalStateException("Stack repository unavailable")
                 call.respond(HttpStatusCode.OK, mapOf("id" to id, "success" to true))
             } catch (e: Exception) {
                 call.application.log.error("Failed to create stack", e)

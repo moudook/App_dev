@@ -2,8 +2,12 @@ package com.example.smarty.server.services
 
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
-import com.example.smarty.server.models.*
-import io.ktor.client.*
+import com.example.smarty.server.models.AttachmentInfo
+import com.example.smarty.server.models.ContentAnalysisResult
+import com.example.smarty.server.models.DocumentAnalysisResult
+import com.example.smarty.server.models.DocumentReferences
+import com.example.smarty.server.models.KeyTerm
+import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -108,9 +112,10 @@ class ContentAnalysisService(
                 sanitizedContent
             } else {
                 val attachmentsSection =
-                    attachmentInfo.mapIndexed { index, meta ->
-                        "${index + 1}. ${meta.fileName} (${meta.fileType})"
-                    }.joinToString("\n")
+                    attachmentInfo
+                        .mapIndexed { index, meta ->
+                            "${index + 1}. ${meta.fileName} (${meta.fileType})"
+                        }.joinToString("\n")
                 "$sanitizedContent\n\n---\nAttached Files:\n$attachmentsSection"
             }
 
@@ -197,15 +202,20 @@ class ContentAnalysisService(
         }
     }
 
-    private fun sanitizeContent(content: String): String {
-        return content
+    private fun sanitizeContent(content: String): String =
+        content
             .replace(Regex("""<system>.*?</system>""", RegexOption.DOT_MATCHES_ALL), "[filtered]")
             .replace(Regex("""<\|.*?\|>"""), "[filtered]")
             .take(50000)
-    }
 
     private fun parseContentAnalysisResponse(response: String): ContentAnalysisResult {
-        val cleaned = response.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val cleaned =
+            response
+                .trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
 
         return try {
             val jsonElement = json.parseToJsonElement(cleaned).jsonObject
@@ -234,7 +244,13 @@ class ContentAnalysisService(
         response: String,
         fileName: String?,
     ): DocumentAnalysisResult {
-        val cleaned = response.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val cleaned =
+            response
+                .trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
 
         return try {
             val jsonElement = json.parseToJsonElement(cleaned).jsonObject

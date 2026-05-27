@@ -14,7 +14,9 @@ import javax.sql.DataSource
  * DRY: Uses consistent pattern with ChatMessageNotesRepository.
  * GLOBAL STATE: Ensures referential integrity via foreign keys.
  */
-class CalendarEventNotesRepository(private val dataSource: DataSource) {
+class CalendarEventNotesRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(CalendarEventNotesRepository::class.java)
 
     /**

@@ -1,7 +1,7 @@
 package com.example.smarty.server
 
 import com.example.smarty.server.factory.HttpClientFactory
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import org.slf4j.LoggerFactory
 
 /**

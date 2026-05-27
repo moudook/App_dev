@@ -16,7 +16,7 @@ val hasAndroidSdk =
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.kotlin.android) apply false
+    // Removed: kotlin.android plugin - AGP built-in Kotlin handles this since AGP 9.0
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.google.services) apply false
@@ -38,7 +38,10 @@ allprojects {
             exclude("**/test/**")
             exclude("**/androidTest/**")
         }
-        disabledRules.set(setOf("value-parameter-comment", "value-argument-comment"))
+        additionalEditorconfig.set(mapOf(
+            "ktlint_standard_value-parameter-comment" to "disabled",
+            "ktlint_standard_value-argument-comment" to "disabled"
+        ))
     }
 }
 
@@ -46,11 +49,11 @@ allprojects {
 subprojects {
     configurations.all {
         resolutionStrategy {
-            force("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-common:2.1.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.21")
-            force("org.jetbrains.kotlin:kotlin-reflect:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-common:2.3.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.3.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.3.21")
+            force("org.jetbrains.kotlin:kotlin-reflect:2.3.21")
         }
     }
 }

@@ -1,11 +1,12 @@
 package com.example.smarty.server.factory
 
 import com.example.smarty.server.config.AppConfig
-import io.ktor.client.*
-import io.ktor.client.engine.okhttp.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
 
@@ -57,9 +58,9 @@ object HttpClientFactory {
 
             engine {
                 config {
-                    connectTimeout(AppConfig.connectionTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
-                    readTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
-                    writeTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                    connectTimeout(AppConfig.connectionTimeoutMs, TimeUnit.MILLISECONDS)
+                    readTimeout(AppConfig.httpTimeoutMs, TimeUnit.MILLISECONDS)
+                    writeTimeout(AppConfig.httpTimeoutMs, TimeUnit.MILLISECONDS)
 
                     // Retry on connection failure
                     retryOnConnectionFailure(true)
@@ -144,8 +145,8 @@ object HttpClientFactory {
 
             engine {
                 config {
-                    connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
-                    readTimeout(requestTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                    connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS)
+                    readTimeout(requestTimeoutMs, TimeUnit.MILLISECONDS)
                 }
             }
         }

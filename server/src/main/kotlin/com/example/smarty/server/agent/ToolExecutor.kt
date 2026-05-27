@@ -8,19 +8,18 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.tools.KreaImageTool
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.request.header
-import io.ktor.http.isSuccess
-import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -124,19 +123,20 @@ class ToolExecutor(
         val originalArgs = parseUnifiedArgs(argsJson)
         val mappedName = mapOldToolNames(name)
 
-        val (toolName, args) = when (mappedName) {
-            "schedule_add" -> "schedule" to originalArgs.copy(action = "add")
-            "schedule_list" -> "schedule" to originalArgs.copy(action = "list")
-            "schedule_remove" -> "schedule" to originalArgs.copy(action = "remove")
-            "device_open" -> "device" to originalArgs.copy(action = "open")
-            "device_media" -> "device" to originalArgs.copy(action = "media")
-            "device_toggle" -> "device" to originalArgs.copy(action = "toggle")
-            "device_status" -> "device" to originalArgs.copy(action = "status")
-            "device_capture" -> "device" to originalArgs.copy(action = "capture")
-            "navigate_go" -> "navigate" to originalArgs.copy(action = "go")
-            "navigate_share" -> "navigate" to originalArgs.copy(action = "share")
-            else -> mappedName to originalArgs
-        }
+        val (toolName, args) =
+            when (mappedName) {
+                "schedule_add" -> "schedule" to originalArgs.copy(action = "add")
+                "schedule_list" -> "schedule" to originalArgs.copy(action = "list")
+                "schedule_remove" -> "schedule" to originalArgs.copy(action = "remove")
+                "device_open" -> "device" to originalArgs.copy(action = "open")
+                "device_media" -> "device" to originalArgs.copy(action = "media")
+                "device_toggle" -> "device" to originalArgs.copy(action = "toggle")
+                "device_status" -> "device" to originalArgs.copy(action = "status")
+                "device_capture" -> "device" to originalArgs.copy(action = "capture")
+                "navigate_go" -> "navigate" to originalArgs.copy(action = "go")
+                "navigate_share" -> "navigate" to originalArgs.copy(action = "share")
+                else -> mappedName to originalArgs
+            }
 
         // === PERMISSION GATE ===
         // Check if the resolved canonical tool name requires user approval.
@@ -145,9 +145,15 @@ class ToolExecutor(
                 ToolApprovalStatus.RequiresApproval -> {
                     val approvalEvent =
                         com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                            eventId = java.util.UUID.randomUUID().toString(),
+                            eventId =
+                                java.util.UUID
+                                    .randomUUID()
+                                    .toString(),
                             timestamp = System.currentTimeMillis(),
-                            toolId = java.util.UUID.randomUUID().toString(),
+                            toolId =
+                                java.util.UUID
+                                    .randomUUID()
+                                    .toString(),
                             toolName = toolName,
                             toolTitle = permissionTitleFor(toolName),
                             toolArgs = argsJson.take(200),
@@ -232,7 +238,9 @@ class ToolExecutor(
                     kreaTool.uploadToSupabase(
                         imageUrl = kreaImageUrl,
                         jobId = jobId,
-                        bucketName = com.example.smarty.server.factory.SupabaseClientFactory.getImageBucketName(),
+                        bucketName =
+                            com.example.smarty.server.factory.SupabaseClientFactory
+                                .getImageBucketName(),
                     )
 
                 emitProcessing("Image uploaded to permanent storage!", "Supabase URL: $supabaseUrl")
@@ -272,8 +280,8 @@ class ToolExecutor(
         }
     }
 
-    private fun parseUnifiedArgs(argsJson: String): UnifiedToolArgs {
-        return try {
+    private fun parseUnifiedArgs(argsJson: String): UnifiedToolArgs =
+        try {
             json.decodeFromString<UnifiedToolArgs>(argsJson)
         } catch (e: Exception) {
             val firstJson = extractFirstJsonObject(argsJson)
@@ -284,11 +292,10 @@ class ToolExecutor(
                 throw e
             }
         }
-    }
 
     companion object {
-        fun mapOldToolNames(name: String): String {
-            return when (name) {
+        fun mapOldToolNames(name: String): String =
+            when (name) {
                 "save_note", "create_note" -> "memory_save"
                 "find_note", "search_notes" -> "memory_find"
                 "edit_note", "update_note" -> "memory_update"
@@ -308,11 +315,10 @@ class ToolExecutor(
                 "share_content", "share" -> "navigate_share"
                 else -> name
             }
-        }
     }
 
-    private suspend fun executeMemorySave(args: UnifiedToolArgs): String {
-        return if (noteService != null && args.title != null && args.content != null) {
+    private suspend fun executeMemorySave(args: UnifiedToolArgs): String =
+        if (noteService != null && args.title != null && args.content != null) {
             val noteId = noteService.createNote(userId, args.title, args.content, args.category, isAiCreated = true)
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId). AI enrichment started in background."
@@ -341,10 +347,9 @@ class ToolExecutor(
             )
             "Saved to device: ${args.title}"
         }
-    }
 
-    private suspend fun executeMemoryFind(args: UnifiedToolArgs): String {
-        return if (noteService != null && args.query != null) {
+    private suspend fun executeMemoryFind(args: UnifiedToolArgs): String =
+        if (noteService != null && args.query != null) {
             val results = noteService.searchNotes(userId, args.query)
             if (results.isEmpty()) {
                 "No notes found for '${args.query}'."
@@ -353,10 +358,14 @@ class ToolExecutor(
             }
         } else if (noteRepository != null && args.query != null) {
             val results =
-                noteRepository.listByUser(userId, limit = 100).filter {
-                    !it.isArchived && !it.isFullPrivacy && !it.excludeFromAiChat &&
-                    (it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true))
-                }.take(20)
+                noteRepository
+                    .listByUser(userId, limit = 100)
+                    .filter {
+                        !it.isArchived &&
+                            !it.isFullPrivacy &&
+                            !it.excludeFromAiChat &&
+                            (it.title.contains(args.query, ignoreCase = true) || it.content.contains(args.query, ignoreCase = true))
+                    }.take(20)
             if (results.isEmpty()) {
                 "No notes found for '${args.query}'."
             } else {
@@ -372,7 +381,6 @@ class ToolExecutor(
             )
             "Searching device for: ${args.query}"
         }
-    }
 
     private suspend fun executeMemoryUpdate(args: UnifiedToolArgs): String {
         return if (noteRepository != null && args.id != null) {
@@ -399,8 +407,8 @@ class ToolExecutor(
         }
     }
 
-    private suspend fun executeMemoryDelete(args: UnifiedToolArgs): String {
-        return if (noteRepository != null && args.id != null) {
+    private suspend fun executeMemoryDelete(args: UnifiedToolArgs): String =
+        if (noteRepository != null && args.id != null) {
             noteRepository.delete(userId, args.id)
             emitStateSync("note_deleted", """{"id":"${args.id}"}""")
             "Deleted note ${args.id}"
@@ -413,20 +421,18 @@ class ToolExecutor(
             )
             "Delete sent to device."
         }
-    }
 
-    private suspend fun executeMemoryRemember(args: UnifiedToolArgs): String {
-        return try {
+    private suspend fun executeMemoryRemember(args: UnifiedToolArgs): String =
+        try {
             val fact = args.fact ?: args.content ?: ""
             vectorStore.store(userId, fact, mapOf("type" to (args.type ?: "factual")))
             "Remembered: ${fact.take(50)}"
         } catch (e: Exception) {
             "Failed: ${e.message}"
         }
-    }
 
-    private suspend fun executeMemoryTool(args: UnifiedToolArgs): String {
-        return when (args.action) {
+    private suspend fun executeMemoryTool(args: UnifiedToolArgs): String =
+        when (args.action) {
             "save" -> executeMemorySave(args)
             "find" -> executeMemoryFind(args)
             "update" -> executeMemoryUpdate(args)
@@ -434,14 +440,13 @@ class ToolExecutor(
             "remember" -> executeMemoryRemember(args)
             else -> "Unknown memory action: ${args.action}"
         }
-    }
 
     private suspend fun executeScheduleTool(
         args: UnifiedToolArgs,
         clientTimezone: String?,
         clientTimeMillis: Long?,
-    ): String {
-        return when (args.action) {
+    ): String =
+        when (args.action) {
             "add" -> {
                 val startTime = parseNaturalTime(args.`when` ?: "", clientTimezone, clientTimeMillis) ?: System.currentTimeMillis()
                 val durationMs = parseDurationToMs(args.duration ?: "1 hour")
@@ -513,7 +518,6 @@ class ToolExecutor(
             }
             else -> "Unknown schedule action: ${args.action}"
         }
-    }
 
     private suspend fun executeRemindTool(
         args: UnifiedToolArgs,
@@ -527,7 +531,11 @@ class ToolExecutor(
                 if (triggerTime == null) {
                     return "Could not understand the time '$whenStr'. Please specify a valid time or duration."
                 }
-                val isAlarm = !whenStr.contains("in ") && !whenStr.contains("after ") && !whenStr.contains("from now") && !whenStr.matches(Regex("^(\\d+)\\s*(m(?:in)?|h(?:our|r)?|s(?:ec)?)\\b.*"))
+                val isAlarm =
+                    !whenStr.contains("in ") &&
+                        !whenStr.contains("after ") &&
+                        !whenStr.contains("from now") &&
+                        !whenStr.matches(Regex("^(\\d+)\\s*(m(?:in)?|h(?:our|r)?|s(?:ec)?)\\b.*"))
                 if (timerRepository != null && args.what != null) {
                     val durationMs = maxOf(0L, triggerTime - System.currentTimeMillis())
                     val timerId =
@@ -672,29 +680,35 @@ class ToolExecutor(
     private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {
         val query = args.query ?: return "Search query required"
         val apiKey = System.getenv("TAVILY_API_KEY") ?: return "TAVILY_API_KEY is not configured on the server."
-        
+
         emitProcessing("Searching the web via Tavily...", "Query: ${query.take(100)}")
-        
+
         return try {
-            val requestBody = buildJsonObject {
-                put("api_key", apiKey)
-                put("query", query)
-                put("search_depth", args.searchDepth ?: "basic")
-                put("max_results", args.maxResults ?: 5)
-                put("include_answer", true)
-            }
-            
-            val response = com.example.smarty.server.HttpClientSingleton.client.post("https://api.tavily.com/search") {
-                headers.append(io.ktor.http.HttpHeaders.ContentType, io.ktor.http.ContentType.Application.Json.toString())
-                setBody(requestBody.toString())
-            }
-            
+            val requestBody =
+                buildJsonObject {
+                    put("api_key", apiKey)
+                    put("query", query)
+                    put("search_depth", args.searchDepth ?: "basic")
+                    put("max_results", args.maxResults ?: 5)
+                    put("include_answer", true)
+                }
+
+            val response =
+                com.example.smarty.server.HttpClientSingleton.client.post("https://api.tavily.com/search") {
+                    headers.append(
+                        io.ktor.http.HttpHeaders.ContentType,
+                        io.ktor.http.ContentType.Application.Json
+                            .toString(),
+                    )
+                    setBody(requestBody.toString())
+                }
+
             if (response.status.isSuccess()) {
                 val responseBody = response.bodyAsText()
                 val jsonResult = json.parseToJsonElement(responseBody).jsonObject
                 val answer = jsonResult["answer"]?.jsonPrimitive?.content ?: ""
                 val resultsArray = jsonResult["results"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
-                
+
                 buildString {
                     if (answer.isNotBlank()) {
                         appendLine("**Summary:** $answer")
@@ -738,10 +752,14 @@ class ToolExecutor(
                     optionsEl = firstQuestion["options"]
                 }
                 if (firstQuestion.containsKey("allowcustom")) {
-                    allowCustom = (firstQuestion["allowcustom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: allowCustom
+                    allowCustom =
+                        (firstQuestion["allowcustom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
+                            ?: allowCustom
                 }
                 if (firstQuestion.containsKey("allow_custom")) {
-                    allowCustom = (firstQuestion["allow_custom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: allowCustom
+                    allowCustom =
+                        (firstQuestion["allow_custom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
+                            ?: allowCustom
                 }
             }
         }
@@ -749,15 +767,26 @@ class ToolExecutor(
         val options =
             optionsEl?.let { element ->
                 when (element) {
-                    is kotlinx.serialization.json.JsonArray -> element.map { (it as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "" }
-                    is kotlinx.serialization.json.JsonPrimitive -> element.content.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+                    is kotlinx.serialization.json.JsonArray ->
+                        element.map {
+                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                ?: ""
+                        }
+                    is kotlinx.serialization.json.JsonPrimitive ->
+                        element.content
+                            .split("\n")
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
                     else -> emptyList()
                 }
             } ?: emptyList()
 
         emit(
             com.example.smarty.protocol.AgentEvent.Question(
-                eventId = java.util.UUID.randomUUID().toString(),
+                eventId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 timestamp = System.currentTimeMillis(),
                 question = questionStr,
                 options = options,
@@ -767,8 +796,8 @@ class ToolExecutor(
         return "__WAITING_FOR_USER_RESPONSE__"
     }
 
-    private suspend fun executeGetNoteById(args: UnifiedToolArgs): String {
-        return if (noteRepository != null && args.noteId != null) {
+    private suspend fun executeGetNoteById(args: UnifiedToolArgs): String =
+        if (noteRepository != null && args.noteId != null) {
             val note = noteRepository.getById(userId, args.noteId)
             if (note != null) {
                 val isPrivate = note.isFullPrivacy || note.excludeFromAiChat
@@ -793,10 +822,9 @@ class ToolExecutor(
         } else {
             "Note retrieval not available"
         }
-    }
 
-    private suspend fun executeNavigateTool(args: UnifiedToolArgs): String {
-        return when (args.action) {
+    private suspend fun executeNavigateTool(args: UnifiedToolArgs): String =
+        when (args.action) {
             "go" -> {
                 emitDeviceCommand(
                     AgentCommand.Navigate(
@@ -818,17 +846,19 @@ class ToolExecutor(
             }
             else -> "Unknown navigate action: ${args.action}"
         }
-    }
 
     private suspend fun executeSearchHistory(args: UnifiedToolArgs): String {
         val query = args.query ?: return "Search query required"
         val limit = args.limit?.toIntOrNull() ?: 10
 
-        val dataSource = com.example.smarty.server.data.DatabaseFactory.getDataSource() ?: return "Database not available"
+        val dataSource =
+            com.example.smarty.server.data.DatabaseFactory
+                .getDataSource() ?: return "Database not available"
         val chatRepo =
             com.example.smarty.server.data.ChatRepository(
                 dataSource,
-                com.example.smarty.server.data.ChatMessageNotesRepository(dataSource),
+                com.example.smarty.server.data
+                    .ChatMessageNotesRepository(dataSource),
             )
 
         val results = chatRepo.searchHistory(userId, query, limit)
@@ -940,7 +970,10 @@ class ToolExecutor(
             } catch (e: Exception) {
                 java.time.ZoneId.of("UTC")
             }
-        val zonedNow = java.time.Instant.ofEpochMilli(now).atZone(tz)
+        val zonedNow =
+            java.time.Instant
+                .ofEpochMilli(now)
+                .atZone(tz)
         val cleanExpr = expression.lowercase().trim()
 
         val relativeMatch = Regex("""in\s+(\d+)\s+(minute|min|hour|hr|day|week)s?""").find(cleanExpr)
@@ -1028,7 +1061,12 @@ class ToolExecutor(
             return null
         }
 
-        var resultTime = zonedNow.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+        var resultTime =
+            zonedNow
+                .withHour(hour)
+                .withMinute(minute)
+                .withSecond(0)
+                .withNano(0)
 
         if (isTomorrow) {
             resultTime = resultTime.plusDays(1)
@@ -1055,21 +1093,40 @@ class ToolExecutor(
             } catch (e: Exception) {
                 java.time.ZoneId.of("UTC")
             }
-        val zonedNow = java.time.Instant.ofEpochMilli(now).atZone(tz)
+        val zonedNow =
+            java.time.Instant
+                .ofEpochMilli(now)
+                .atZone(tz)
 
         return when (whenStr.lowercase()) {
             "today" -> {
-                val start = zonedNow.withHour(0).withMinute(0).withSecond(0).withNano(0)
+                val start =
+                    zonedNow
+                        .withHour(0)
+                        .withMinute(0)
+                        .withSecond(0)
+                        .withNano(0)
                 val end = start.plusDays(1)
                 start.toInstant().toEpochMilli() to end.toInstant().toEpochMilli()
             }
             "tomorrow" -> {
-                val start = zonedNow.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0)
+                val start =
+                    zonedNow
+                        .plusDays(1)
+                        .withHour(0)
+                        .withMinute(0)
+                        .withSecond(0)
+                        .withNano(0)
                 val end = start.plusDays(1)
                 start.toInstant().toEpochMilli() to end.toInstant().toEpochMilli()
             }
             "week" -> {
-                val start = zonedNow.withHour(0).withMinute(0).withSecond(0).withNano(0)
+                val start =
+                    zonedNow
+                        .withHour(0)
+                        .withMinute(0)
+                        .withSecond(0)
+                        .withNano(0)
                 val end = start.plusWeeks(1)
                 start.toInstant().toEpochMilli() to end.toInstant().toEpochMilli()
             }
@@ -1080,13 +1137,12 @@ class ToolExecutor(
         }
     }
 
-    fun truncateToolResult(result: String): String {
-        return if (result.length > 4000) {
+    fun truncateToolResult(result: String): String =
+        if (result.length > 4000) {
             result.take(4000) + "\n... (truncated, full result available in context)"
         } else {
             result
         }
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PERMISSION ENGINE — Approval gating & resume callbacks
@@ -1110,7 +1166,7 @@ class ToolExecutor(
      * "bash"    → will be added when device shell commands are implemented
      * "semantic_search_notes"  → off; tool already requires access key
      */
-    private val TOOL_APPROVAL_REGISTRY: Map<String, ToolApprovalStatus> =
+    private val toolApprovalRegistry: Map<String, ToolApprovalStatus> =
         mapOf(
             "device" to ToolApprovalStatus.RequiresApproval, // opens apps, med, device
         )
@@ -1120,7 +1176,7 @@ class ToolExecutor(
      * Falls back to `ExecutesNormally` for unknown tools.
      */
     fun requiresApproval(canonicalToolName: String): ToolApprovalStatus =
-        TOOL_APPROVAL_REGISTRY[canonicalToolName] ?: ToolApprovalStatus.ExecutesNormally
+        toolApprovalRegistry[canonicalToolName] ?: ToolApprovalStatus.ExecutesNormally
 
     /**
      * Approval title factory — used when emitting ApprovalRequested so the UI
@@ -1164,9 +1220,7 @@ class ToolExecutor(
             else -> "Execute '$canonicalToolName'?"
         }
 
-    private fun getProgressFile(): java.io.File {
-        return java.io.File(System.getProperty("java.io.tmpdir"), "research_progress_$userId.json")
-    }
+    private fun getProgressFile(): java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "research_progress_$userId.json")
 
     private fun executeSaveProgress(args: UnifiedToolArgs): String {
         val finding = args.finding ?: args.content ?: args.note ?: return "Error: missing 'finding'"
@@ -1187,7 +1241,10 @@ class ToolExecutor(
 
         val newFinding =
             mapOf(
-                "timestamp" to java.time.Instant.now().toString(),
+                "timestamp" to
+                    java.time.Instant
+                        .now()
+                        .toString(),
                 "finding" to finding,
                 "source" to source,
                 "category" to category,

@@ -24,7 +24,9 @@ import javax.sql.DataSource
  * - Secondary: exact content match (fallback for notes without hash)
  * - User-scoped (only check within same user's notes)
  */
-class NoteDeduplicationManager(private val dataSource: DataSource) {
+class NoteDeduplicationManager(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(NoteDeduplicationManager::class.java)
 
     /**

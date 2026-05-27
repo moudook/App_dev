@@ -37,8 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_FALLBACK_COLOR
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_SIZE
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_SPOT_SHADOW
@@ -50,6 +50,7 @@ import com.example.smarty.features.games.ui.CoinTossConstants.FLOOR_SHADOW_WIDTH
 import com.example.smarty.features.games.ui.CoinTossConstants.HEADS_IMAGE_URL
 import com.example.smarty.features.games.ui.CoinTossConstants.TAILS_IMAGE_URL
 import kotlin.math.abs
+import coil3.request.crossfade
 
 // ═══════════════════════════════════════════════════════════════════
 //  Reusable, public composables for the Coin Toss feature.
@@ -317,3 +318,4 @@ fun CoinTossCloseButton(
         )
     }
 }
+

@@ -24,11 +24,23 @@ object SemanticSearchEngine {
 
     private val SOUNDEX_MAP =
         mapOf(
-            'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
-            'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
-            'D' to '3', 'T' to '3',
+            'B' to '1',
+            'F' to '1',
+            'P' to '1',
+            'V' to '1',
+            'C' to '2',
+            'G' to '2',
+            'J' to '2',
+            'K' to '2',
+            'Q' to '2',
+            'S' to '2',
+            'X' to '2',
+            'Z' to '2',
+            'D' to '3',
+            'T' to '3',
             'L' to '4',
-            'M' to '5', 'N' to '5',
+            'M' to '5',
+            'N' to '5',
             'R' to '6',
         )
 
@@ -208,7 +220,12 @@ object SemanticSearchEngine {
         if (s1 == s2) return 1.0
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
         val jaro = jaroSimilarity(s1, s2)
-        val prefixLength = s1.zip(s2).takeWhile { (a, b) -> a == b }.size.coerceAtMost(4)
+        val prefixLength =
+            s1
+                .zip(s2)
+                .takeWhile { (a, b) -> a == b }
+                .size
+                .coerceAtMost(4)
         return jaro + (prefixLength * 0.1 * (1 - jaro))
     }
 
@@ -297,11 +314,13 @@ object SemanticSearchEngine {
         return result.toString()
     }
 
-    fun normalizeText(text: String): String {
-        return text.lowercase().replace(SEPARATOR_REGEX, " ").replace(SPECIAL_CHAR_REGEX, "").replace(MULTI_SPACE_REGEX, " ").trim()
-    }
+    fun normalizeText(text: String): String =
+        text
+            .lowercase()
+            .replace(SEPARATOR_REGEX, " ")
+            .replace(SPECIAL_CHAR_REGEX, "")
+            .replace(MULTI_SPACE_REGEX, " ")
+            .trim()
 
-    fun tokenize(text: String): List<String> {
-        return normalizeText(text).split(" ").filter { it.length >= 2 }.distinct()
-    }
+    fun tokenize(text: String): List<String> = normalizeText(text).split(" ").filter { it.length >= 2 }.distinct()
 }

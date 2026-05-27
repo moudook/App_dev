@@ -36,14 +36,24 @@ Use for: remembering, saving, searching, managing user's personal data.""",
                 ToolParameters(
                     properties =
                         mapOf(
-                            "action" to ToolProperty("string", "Action: save|find|update|delete|remember", enum = listOf("save", "find", "update", "delete", "remember")),
+                            "action" to
+                                ToolProperty(
+                                    "string",
+                                    "Action: save|find|update|delete|remember",
+                                    enum = listOf("save", "find", "update", "delete", "remember"),
+                                ),
                             "title" to ToolProperty("string", "Title for saved content (save action)"),
                             "content" to ToolProperty("string", "Content to save (save action)"),
                             "category" to ToolProperty("string", "Optional category (save/find actions)"),
                             "query" to ToolProperty("string", "Search query (find action)"),
                             "id" to ToolProperty("string", "Entry ID (update/delete actions)"),
                             "fact" to ToolProperty("string", "Fact to remember (remember action)"),
-                            "type" to ToolProperty("string", "Fact type: preference|factual|episodic", enum = listOf("preference", "factual", "episodic")),
+                            "type" to
+                                ToolProperty(
+                                    "string",
+                                    "Fact type: preference|factual|episodic",
+                                    enum = listOf("preference", "factual", "episodic"),
+                                ),
                         ),
                     required = listOf("action"),
                 ),
@@ -143,10 +153,25 @@ Use for: opening apps, media control, settings, device status.""",
                 ToolParameters(
                     properties =
                         mapOf(
-                            "action" to ToolProperty("string", "Action: open|media|toggle|status|capture", enum = listOf("open", "media", "toggle", "status", "capture")),
+                            "action" to
+                                ToolProperty(
+                                    "string",
+                                    "Action: open|media|toggle|status|capture",
+                                    enum = listOf("open", "media", "toggle", "status", "capture"),
+                                ),
                             "app" to ToolProperty("string", "App name to open (open action)"),
-                            "actionType" to ToolProperty("string", "Media action: play|pause|stop|next|previous|volume_up|volume_down", enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")),
-                            "setting" to ToolProperty("string", "Setting: wifi|bluetooth|flashlight|dnd|airplane", enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")),
+                            "actionType" to
+                                ToolProperty(
+                                    "string",
+                                    "Media action: play|pause|stop|next|previous|volume_up|volume_down",
+                                    enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down"),
+                                ),
+                            "setting" to
+                                ToolProperty(
+                                    "string",
+                                    "Setting: wifi|bluetooth|flashlight|dnd|airplane",
+                                    enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane"),
+                                ),
                             "on" to ToolProperty("boolean", "true=ON, false=OFF (toggle action)"),
                             "info" to ToolProperty("string", "Info type: battery|all", enum = listOf("battery", "all")),
                         ),
@@ -168,7 +193,12 @@ Use for: web searches, weather, news, facts, current events, research, or anythi
                     properties =
                         mapOf(
                             "query" to ToolProperty("string", "What to search for"),
-                            "search_depth" to ToolProperty("string", "Search depth: basic or advanced (default: basic)", enum = listOf("basic", "advanced")),
+                            "search_depth" to
+                                ToolProperty(
+                                    "string",
+                                    "Search depth: basic or advanced (default: basic)",
+                                    enum = listOf("basic", "advanced"),
+                                ),
                             "max_results" to ToolProperty("number", "Maximum number of results to return (default: 5)"),
                         ),
                     required = listOf("query"),
@@ -197,7 +227,23 @@ Use for: screen navigation, sharing to other apps.""",
                     properties =
                         mapOf(
                             "action" to ToolProperty("string", "Action: go|share", enum = listOf("go", "share")),
-                            "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe", enum = listOf("home", "calendar", "stacks", "archive", "settings", "guided_breathing", "chess", "coin_toss", "tic_tac_toe")),
+                            "screen" to
+                                ToolProperty(
+                                    "string",
+                                    "Screen: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe",
+                                    enum =
+                                        listOf(
+                                            "home",
+                                            "calendar",
+                                            "stacks",
+                                            "archive",
+                                            "settings",
+                                            "guided_breathing",
+                                            "chess",
+                                            "coin_toss",
+                                            "tic_tac_toe",
+                                        ),
+                                ),
                             "content" to ToolProperty("string", "Content to share (share action)"),
                             "title" to ToolProperty("string", "Share title (share action, optional)"),
                         ),
@@ -236,7 +282,12 @@ Use for: generating images, creating artwork, visualizing scenes, drawing, paint
                     properties =
                         mapOf(
                             "prompt" to ToolProperty("string", "Detailed description of the image to generate"),
-                            "aspect_ratio" to ToolProperty("string", "Aspect ratio: 1:1|16:9|9:16|4:3|3:4", enum = listOf("1:1", "16:9", "9:16", "4:3", "3:4")),
+                            "aspect_ratio" to
+                                ToolProperty(
+                                    "string",
+                                    "Aspect ratio: 1:1|16:9|9:16|4:3|3:4",
+                                    enum = listOf("1:1", "16:9", "9:16", "4:3", "3:4"),
+                                ),
                         ),
                     required = listOf("prompt"),
                 ),
@@ -267,19 +318,28 @@ Use for: clarification, preference gathering, scoping research, multi-choice dec
                 ToolParameters(
                     properties =
                         mapOf(
-                            "questions" to ToolProperty(
-                                type = "array",
-                                description = "List of questions to ask sequentially.",
-                                items = ToolProperty(
-                                    type = "object",
-                                    properties = mapOf(
-                                        "question" to ToolProperty("string", "The question to ask the user"),
-                                        "options" to ToolProperty("array", "List of 2-5 multiple choice options", items = ToolProperty("string")),
-                                        "allow_custom" to ToolProperty("boolean", "Whether to allow free-text input (default: false)")
-                                    ),
-                                    required = listOf("question", "options")
-                                )
-                            )
+                            "questions" to
+                                ToolProperty(
+                                    type = "array",
+                                    description = "List of questions to ask sequentially.",
+                                    items =
+                                        ToolProperty(
+                                            type = "object",
+                                            properties =
+                                                mapOf(
+                                                    "question" to ToolProperty("string", "The question to ask the user"),
+                                                    "options" to
+                                                        ToolProperty(
+                                                            "array",
+                                                            "List of 2-5 multiple choice options",
+                                                            items = ToolProperty("string"),
+                                                        ),
+                                                    "allow_custom" to
+                                                        ToolProperty("boolean", "Whether to allow free-text input (default: false)"),
+                                                ),
+                                            required = listOf("question", "options"),
+                                        ),
+                                ),
                         ),
                     required = listOf("questions"),
                 ),

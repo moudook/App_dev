@@ -304,7 +304,7 @@ class SystemFeatureManager(
     fun setTimer(name: String, timeStr: String, isAlarm: Boolean): Boolean {
         val triggerTime = calendarManager?.parseDateTime(timeStr)
         return if (triggerTime != null) {
-            calendarManager?.setTimer(name, triggerTime, isAlarm)
+            calendarManager.setTimer(name, triggerTime, isAlarm)
             Log.i(TAG, "Timer/Alarm set: $name for $timeStr")
             true
         } else {

@@ -1,70 +1,85 @@
 package com.example.smarty.server
 
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.plugins.compression.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.sse.*
-import io.ktor.server.response.*
-import io.ktor.server.websocket.*
-import io.ktor.websocket.*
-import io.ktor.serialization.kotlinx.json.*
-import kotlinx.serialization.json.Json
-import com.example.smarty.server.routes.configureHealthRoutes
-import com.example.smarty.server.routes.configureChatRoutes
-import com.example.smarty.server.routes.configureOptimizedSyncRoutes
-import com.example.smarty.server.routes.configureDataRoutes
-import com.example.smarty.server.routes.configureSyncRoutes
-import com.example.smarty.server.routes.configureAuthRoutes
-import com.example.smarty.server.data.DatabaseFactory
-import io.ktor.server.plugins.cors.routing.*
-import io.ktor.http.*
-import com.example.smarty.server.plugins.configureSecurity
-import com.example.smarty.server.plugins.configureFirewall
-import com.example.smarty.server.plugins.FirebaseUserPrincipal
-import com.example.smarty.server.routes.configureProcessingRoutes
-import com.example.smarty.server.plugins.configureMonitoring
-import com.example.smarty.server.plugins.installStructuredLogging
-import com.example.smarty.server.plugins.configureEnhancedHealthCheck
-import com.example.smarty.server.routes.configureHandshakeRoutes
-import com.example.smarty.server.services.DigestService
-import com.example.smarty.server.services.DigestScheduler
-import com.example.smarty.server.services.FcmNotificationService
-import com.example.smarty.server.data.ChatRepository
-import com.example.smarty.server.data.NoteRepository
-import com.example.smarty.server.data.PostgresVectorStore
-import com.example.smarty.server.data.TimerRepository
-import com.example.smarty.server.data.CalendarRepository
-import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.llm.LlmProviderFactory
-import com.example.smarty.server.routes.configureDigestRoutes
-import com.example.smarty.server.routes.configureNewFeaturesRoutes
-import com.example.smarty.server.routes.configureReasoningRoutes
-import com.example.smarty.server.data.TaskRepository
-import com.example.smarty.server.data.TagRepository
-import com.example.smarty.server.data.NotificationRepository
+import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatFolderRepository
-import com.example.smarty.server.data.ReasoningTraceRepository
-import com.example.smarty.server.services.ReasoningService
-import com.example.smarty.server.services.OrchestratorService
-import com.example.smarty.server.services.VisionService
-import com.example.smarty.server.routes.configureOrchestratorRoutes
-import com.example.smarty.server.services.UtilityService
-import com.example.smarty.server.routes.configureUtilityRoutes
-import com.example.smarty.server.data.SearchHistoryRepository
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.GeneratedImageRepository
+import com.example.smarty.server.data.NoteRepository
+import com.example.smarty.server.data.NotificationRepository
+import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.ReasoningTraceRepository
+import com.example.smarty.server.data.SearchHistoryRepository
+import com.example.smarty.server.data.TagRepository
+import com.example.smarty.server.data.TaskRepository
+import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.UserDeviceRepository
-import com.example.smarty.server.routes.configureSearchHistoryRoutes
-import com.example.smarty.server.routes.configureUserDeviceRoutes
+import com.example.smarty.server.llm.LlmProviderFactory
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
+import com.example.smarty.server.plugins.configureEnhancedHealthCheck
+import com.example.smarty.server.plugins.configureFirewall
+import com.example.smarty.server.plugins.configureMonitoring
+import com.example.smarty.server.plugins.configureSecurity
+import com.example.smarty.server.plugins.installStructuredLogging
+import com.example.smarty.server.routes.configureAuthRoutes
+import com.example.smarty.server.routes.configureChatRoutes
+import com.example.smarty.server.routes.configureDataRoutes
+import com.example.smarty.server.routes.configureDigestRoutes
+import com.example.smarty.server.routes.configureFileRoutes
+import com.example.smarty.server.routes.configureHandshakeRoutes
+import com.example.smarty.server.routes.configureHealthRoutes
 import com.example.smarty.server.routes.configureModelRoutes
+import com.example.smarty.server.routes.configureNewFeaturesRoutes
+import com.example.smarty.server.routes.configureOptimizedSyncRoutes
+import com.example.smarty.server.routes.configureOrchestratorRoutes
+import com.example.smarty.server.routes.configureProcessingRoutes
+import com.example.smarty.server.routes.configureReasoningRoutes
+import com.example.smarty.server.routes.configureSearchHistoryRoutes
+import com.example.smarty.server.routes.configureSyncRoutes
+import com.example.smarty.server.routes.configureUserDeviceRoutes
+import com.example.smarty.server.routes.configureUtilityRoutes
+import com.example.smarty.server.services.DigestScheduler
+import com.example.smarty.server.services.DigestService
+import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.services.FileProcessingService
 import com.example.smarty.server.services.GoogleDriveService
 import com.example.smarty.server.services.GroqWhisperService
-import com.example.smarty.server.routes.configureFileRoutes
+import com.example.smarty.server.services.OrchestratorService
+import com.example.smarty.server.services.ReasoningService
+import com.example.smarty.server.services.UtilityService
+import com.example.smarty.server.services.VisionService
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopping
+import io.ktor.server.application.install
+import io.ktor.server.application.log
 
-/**
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.principal
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.callid.CallId
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.deflate
+import io.ktor.server.plugins.compression.gzip
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.server.response.respondBytes
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
+import io.ktor.server.websocket.WebSockets
+import kotlinx.serialization.json.Json
+import java.util.UUID
+
+/*
  * Friday Server - Cloud-hosted agent runtime.
  *
  * This is the entry point for the Ktor server that will eventually
@@ -78,16 +93,8 @@ import com.example.smarty.server.routes.configureFileRoutes
  * - KOOG agent runtime
  * - Command dispatch to Android clients
  */
-// import io.ktor.server.plugins.callloging.*
-import io.ktor.server.plugins.callid.*
-import io.ktor.server.auth.*
-import io.ktor.server.routing.*
-import org.slf4j.event.*
-import java.util.UUID
 
-/**
- * Server port. Can be overridden via SERVER_PORT environment variable.
- */
+/** Server port. Can be overridden via SERVER_PORT environment variable. */
 private val serverPort = System.getenv("SERVER_PORT")?.toIntOrNull() ?: 7860
 val serverStartTime = System.currentTimeMillis()
 
@@ -105,7 +112,8 @@ fun main() {
 
 fun Application.module() {
     // Discover OpenCode free models at startup (blocking, runs `opencode models`)
-    com.example.smarty.server.llm.OpencodeModelRegistry.discoverAtStartup()
+    com.example.smarty.server.llm.OpencodeModelRegistry
+        .discoverAtStartup()
 
     // Initialize Database
     DatabaseFactory.init()
@@ -119,7 +127,11 @@ fun Application.module() {
     // Configure CORS (Allow Android client + HF Spaces + common development origins)
     install(CORS) {
         val allowedOrigins = (
-            System.getenv("ALLOWED_ORIGINS")?.split(",")?.map { it.trim() }?.toSet()
+            System
+                .getenv("ALLOWED_ORIGINS")
+                ?.split(",")
+                ?.map { it.trim() }
+                ?.toSet()
                 ?: setOf(
                     "http://localhost:7860",
                     "http://127.0.0.1:7860",
@@ -158,9 +170,9 @@ fun Application.module() {
         verify { it.isNotEmpty() }
     }
 
+    /*
     // Configure Call Logging
     // Legacy CallLogging disabled in favor of StructuredLogging
-    /*
     install(CallLogging) {
         level = Level.INFO
         filter { call -> call.request.path().startsWith("/") }
@@ -236,9 +248,11 @@ fun Application.module() {
         val noteService =
             com.example.smarty.server.services.NoteService(
                 noteRepo,
-                com.example.smarty.server.agent.NoteProcessingAgent(HttpClientSingleton.client),
+                com.example.smarty.server.agent
+                    .NoteProcessingAgent(HttpClientSingleton.client),
                 PostgresVectorStore(),
-                com.example.smarty.server.services.AdaptiveSearchService(),
+                com.example.smarty.server.services
+                    .AdaptiveSearchService(),
             )
 
         // Services for files
@@ -248,15 +262,17 @@ fun Application.module() {
                 httpClient = HttpClientSingleton.client,
             )
 
-        val googleDriveService = GoogleDriveService(
-            httpClient = HttpClientSingleton.client,
-            serviceAccountJsonPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS") ?: "service-account.json"
-        )
+        val googleDriveService =
+            GoogleDriveService(
+                httpClient = HttpClientSingleton.client,
+                serviceAccountJsonPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS") ?: "service-account.json",
+            )
 
-        val groqWhisperService = GroqWhisperService(
-            httpClient = HttpClientSingleton.client,
-            apiKey = System.getenv("GROQ_API_KEY") ?: ""
-        )
+        val groqWhisperService =
+            GroqWhisperService(
+                httpClient = HttpClientSingleton.client,
+                apiKey = System.getenv("GROQ_API_KEY") ?: "",
+            )
 
         // Configure routes
         configureAuthRoutes()
@@ -288,7 +304,9 @@ fun Application.module() {
         val orchestratorService =
             OrchestratorService(
                 visionService = visionService,
-                kreaImageTool = com.example.smarty.server.tools.KreaImageTool(),
+                kreaImageTool =
+                    com.example.smarty.server.tools
+                        .KreaImageTool(),
             )
         configureOrchestratorRoutes(orchestratorService)
         log.info("OrchestratorRoutes configured")
@@ -428,10 +446,12 @@ fun Application.module() {
     configureMonitoring()
 
     // Start background sweeper for stale sessions
-    com.example.smarty.server.agent.ActiveSessionManager.startSweeper(this)
+    com.example.smarty.server.agent.ActiveSessionManager
+        .startSweeper(this)
 
     // Start OpenCode Daemon Monitor
-    com.example.smarty.server.agent.OpencodeDaemonManager.startMonitoring()
+    com.example.smarty.server.agent.OpencodeDaemonManager
+        .startMonitoring()
 
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
@@ -448,7 +468,8 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopping) {
         log.info("Server stopping — cleaning up resources")
         digestScheduler?.stop()
-        com.example.smarty.server.agent.OpencodeDaemonManager.stopMonitoring()
+        com.example.smarty.server.agent.OpencodeDaemonManager
+            .stopMonitoring()
         DatabaseFactory.close()
         log.info("Server shutdown complete")
     }

@@ -109,13 +109,12 @@ When helping with personal tasks:
     fun getSystemPrompt(
         isResearchMode: Boolean = false,
         hasPersonalContext: Boolean = false,
-    ): String {
-        return when {
+    ): String =
+        when {
             isResearchMode -> RESEARCH_SYSTEM_PROMPT
             hasPersonalContext -> ASSISTANT_SYSTEM_PROMPT
             else -> BASE_SYSTEM_PROMPT
         }
-    }
 
     /**
      * Build context message with user information.
@@ -173,8 +172,8 @@ When helping with personal tasks:
     /**
      * Get few-shot examples for tool usage.
      */
-    fun getToolExamples(toolName: String): String {
-        return when (toolName) {
+    fun getToolExamples(toolName: String): String =
+        when (toolName) {
             "memory" ->
                 """
 Example:
@@ -197,5 +196,4 @@ Assistant: [Uses built-in OpenCode websearch directly]
 """
             else -> ""
         }
-    }
 }

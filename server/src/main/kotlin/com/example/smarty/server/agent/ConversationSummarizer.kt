@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory
 /**
  * Service to summarize conversation history to manage context window.
  */
-class ConversationSummarizer(private val llmProvider: LlmProvider) {
+class ConversationSummarizer(
+    private val llmProvider: LlmProvider,
+) {
     private val logger = LoggerFactory.getLogger(ConversationSummarizer::class.java)
 
     /**

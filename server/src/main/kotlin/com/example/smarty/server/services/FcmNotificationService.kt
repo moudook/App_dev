@@ -1,11 +1,14 @@
 package com.example.smarty.server.services
 
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.http.contentType
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.isSuccess
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -96,8 +99,8 @@ class FcmNotificationService(
         title: String,
         body: String,
         data: Map<String, String>,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             // Use HTTP v1 API if project ID is available, otherwise legacy API
             if (!projectId.isNullOrBlank()) {
                 sendV1Message(token, title, body, data)
@@ -108,7 +111,6 @@ class FcmNotificationService(
             logger.error("Failed to send to token ${token.take(10)}...: ${e.message}", e)
             false
         }
-    }
 
     /**
      * Send using FCM HTTP v1 API (recommended).

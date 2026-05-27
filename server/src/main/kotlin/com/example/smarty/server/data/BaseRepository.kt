@@ -26,7 +26,9 @@ import javax.sql.DataSource
  * }
  * ```
  */
-abstract class BaseRepository(protected val dataSource: DataSource) {
+abstract class BaseRepository(
+    protected val dataSource: DataSource,
+) {
     /**
      * Execute a block with a database connection.
      * Connection is automatically closed after execution.

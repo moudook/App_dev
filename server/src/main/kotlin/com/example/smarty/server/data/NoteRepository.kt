@@ -133,7 +133,9 @@ class NoteRepository(
         withContext(Dispatchers.IO) {
             val results = mutableListOf<NoteInfo>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM notes WHERE user_id = ?::uuid AND deleted_at IS NULL AND updated_at > ? ORDER BY updated_at ASC LIMIT ?"
+                val sql =
+                    "SELECT * FROM notes WHERE user_id = ?::uuid AND deleted_at IS NULL " +
+                        "AND updated_at > ? ORDER BY updated_at ASC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.setTimestamp(2, java.sql.Timestamp(timestamp))
@@ -197,9 +199,12 @@ class NoteRepository(
                     noteVersionRepo.createVersion(
                         version =
                             com.example.smarty.server.data.NoteVersion(
-                                id = java.util.UUID.randomUUID().toString(),
+                                id =
+                                    java.util.UUID
+                                        .randomUUID()
+                                        .toString(),
                                 noteId = info.id,
-                                title = existingNote!!.title,
+                                title = existingNote.title,
                                 content = existingNote.content,
                                 versionNo = latestVersionNo + 1,
                                 createdAt = null,
@@ -271,8 +276,8 @@ class NoteRepository(
             }
         }
 
-    private fun mapRowToNoteInfo(rs: ResultSet): NoteInfo {
-        return NoteInfo(
+    private fun mapRowToNoteInfo(rs: ResultSet): NoteInfo =
+        NoteInfo(
             id = rs.getString("id"),
             title = rs.getString("title"),
             content = rs.getString("content"),
@@ -310,7 +315,6 @@ class NoteRepository(
             createdAt = rs.getTimestamp("created_at").time,
             updatedAt = rs.getTimestamp("updated_at").time,
         )
-    }
 
     suspend fun delete(
         userId: String,
@@ -526,7 +530,9 @@ class NoteRepository(
             if (noteIds.isEmpty()) return@withContext 0
             dataSource.connection.use { conn ->
                 val placeholders = noteIds.joinToString(",") { "?" }
-                val sql = "UPDATE notes SET deleted_at = now(), updated_at = now() WHERE id IN ($placeholders) AND user_id = ? AND deleted_at IS NULL"
+                val sql =
+                    "UPDATE notes SET deleted_at = now(), updated_at = now() " +
+                        "WHERE id IN ($placeholders) AND user_id = ? AND deleted_at IS NULL"
                 conn.prepareStatement(sql).use { stmt ->
                     noteIds.forEachIndexed { index, id ->
                         stmt.setObject(index + 1, UUID.fromString(id))

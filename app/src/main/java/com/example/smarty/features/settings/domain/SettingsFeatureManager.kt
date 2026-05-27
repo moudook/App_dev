@@ -231,7 +231,7 @@ class SettingsFeatureManager(
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         // Check body for status: ok
-                        val body = response.body?.string() ?: ""
+                        val body = response.body.string()
                         if (body.contains("ok", ignoreCase = true)) {
                             Log.d(TAG, "Connection successful: $body")
                             LocalServerTestResult.Success

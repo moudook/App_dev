@@ -810,7 +810,7 @@ class ChatFeatureManager(
                         mapOf(
                             "active_note_id" to note.id,
                             "active_note_title" to note.title,
-                            "active_note_content" to (note.content ?: ""),
+                            "active_note_content" to note.content,
                             "active_note_type" to note.type.name,
                             "current_screen" to currentScreen.value,
                         ),
@@ -1921,8 +1921,8 @@ class ChatFeatureManager(
                             val clarification =
                                 com.example.smarty.core.domain.model.ClarificationRequest(
                                     question = event.question,
-                                    options = event.options ?: emptyList(),
-                                    allowCustomInput = event.allowCustom ?: true,
+                                    options = event.options,
+                                    allowCustomInput = event.allowCustom,
                                 )
                             chatManager.updateMessageClarification(streamingMessageId, clarification)
                         }

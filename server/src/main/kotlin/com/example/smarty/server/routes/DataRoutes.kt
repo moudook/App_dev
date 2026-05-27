@@ -11,20 +11,37 @@ import com.example.smarty.server.data.FcmTokenRepository
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.plugins.firebaseUser
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.log
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 
 // DTOs for Create/Update requests
 @Serializable
-data class CreateNoteRequest(val title: String, val content: String, val categoryId: String? = null)
+data class CreateNoteRequest(
+    val title: String,
+    val content: String,
+    val categoryId: String? = null,
+)
 
 @Serializable
-data class UpdateNoteRequest(val title: String? = null, val content: String? = null, val categoryId: String? = null)
+data class UpdateNoteRequest(
+    val title: String? = null,
+    val content: String? = null,
+    val categoryId: String? = null,
+)
 
 @Serializable
 data class CreateEventRequest(
@@ -36,17 +53,32 @@ data class CreateEventRequest(
 )
 
 @Serializable
-data class CreateTimerRequest(val name: String, val durationMs: Long, val isAlarm: Boolean = false)
+data class CreateTimerRequest(
+    val name: String,
+    val durationMs: Long,
+    val isAlarm: Boolean = false,
+)
 
 @Serializable
-data class RegisterFcmTokenRequest(val token: String, val deviceName: String? = null, val deviceId: String? = null)
+data class RegisterFcmTokenRequest(
+    val token: String,
+    val deviceName: String? = null,
+    val deviceId: String? = null,
+)
 
 // --- VAULT DTOs ---
 @Serializable
-data class VaultStoreRequest(val encryptedBlob: String, val version: Int)
+data class VaultStoreRequest(
+    val encryptedBlob: String,
+    val version: Int,
+)
 
 @Serializable
-data class VaultResponse(val encryptedBlob: String, val version: Int, val updatedAt: Long)
+data class VaultResponse(
+    val encryptedBlob: String,
+    val version: Int,
+    val updatedAt: Long,
+)
 
 fun Application.configureDataRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
     val dataSource = DatabaseFactory.getDataSource()
@@ -56,8 +88,11 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
     val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
     val fcmTokenRepository = dataSource?.let { FcmTokenRepository(it) }
-    val database = DatabaseFactory.getDatabase()
-    val vaultRepository = database?.let { com.example.smarty.server.data.VaultRepository(it) }
+    val vaultRepository =
+        dataSource?.let {
+            com.example.smarty.server.data
+                .VaultRepository(it)
+        }
 
     routing {
         authenticate("firebase") {
@@ -74,7 +109,8 @@ fun Application.configureDataRoutes(noteService: com.example.smarty.server.servi
 
                     get("/search") {
                         val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-                        val query = call.request.queryParameters["q"] ?: return@get call.respond(HttpStatusCode.BadRequest, "Query required")
+                        val query =
+                            call.request.queryParameters["q"] ?: return@get call.respond(HttpStatusCode.BadRequest, "Query required")
                         if (noteService == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Note service not available")
 
                         val results = noteService.searchNotes(user.userId, query)

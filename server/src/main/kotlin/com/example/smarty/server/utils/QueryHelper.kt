@@ -201,7 +201,9 @@ class QueryBuilder private constructor(
 /**
  * UPDATE query builder.
  */
-class UpdateBuilder(private val tableName: String) {
+class UpdateBuilder(
+    private val tableName: String,
+) {
     private val setClauses = mutableListOf<String>()
     private val setParams = mutableListOf<Any?>()
     private val whereClauses = mutableListOf<String>()
@@ -283,7 +285,9 @@ class UpdateBuilder(private val tableName: String) {
 /**
  * INSERT query builder.
  */
-class InsertBuilder(private val tableName: String) {
+class InsertBuilder(
+    private val tableName: String,
+) {
     private val columns = mutableListOf<String>()
     private val values = mutableListOf<Any?>()
 
@@ -354,7 +358,9 @@ class InsertBuilder(private val tableName: String) {
 /**
  * DELETE query builder.
  */
-class DeleteBuilder(private val tableName: String) {
+class DeleteBuilder(
+    private val tableName: String,
+) {
     private val whereClauses = mutableListOf<String>()
     private val whereParams = mutableListOf<Any?>()
 

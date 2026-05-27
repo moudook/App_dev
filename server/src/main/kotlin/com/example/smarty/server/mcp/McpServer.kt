@@ -18,19 +18,30 @@ import com.example.smarty.server.llm.ToolDefinition
 import com.example.smarty.server.llm.ToolProperty
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.services.NoteService
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
-import io.ktor.server.sse.*
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.auth.principal
+import io.ktor.server.request.receiveText
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.Routing
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import io.ktor.server.sse.sse
 import io.ktor.sse.ServerSentEvent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -58,10 +69,13 @@ class McpServer(
     private val logger = LoggerFactory.getLogger(McpServer::class.java)
     private val thinkingStorage = ThinkingStorageManagerSingleton.instance
 
-    private data class McpSession(val channel: Channel<ServerSentEvent>, val createdAt: Long = System.currentTimeMillis())
+    private data class McpSession(
+        val channel: Channel<ServerSentEvent>,
+        val createdAt: Long = System.currentTimeMillis(),
+    )
 
     private val sessions = ConcurrentHashMap<String, McpSession>()
-    private val SESSION_TTL_MS = 300_000L
+    private val sessionTtlMs = 300_000L
 
     private val allTools: List<ToolDefinition> by lazy {
         (AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()).filter {
@@ -142,7 +156,7 @@ class McpServer(
     }
 
     private fun evictStaleSessions() {
-        val deadline = System.currentTimeMillis() - SESSION_TTL_MS
+        val deadline = System.currentTimeMillis() - sessionTtlMs
         sessions.entries.removeIf { it.value.createdAt < deadline }
     }
 
@@ -197,31 +211,35 @@ class McpServer(
 
     private fun handleInitialize() =
         buildJsonObject {
-            put("protocolVersion", "2024-11-05")
+            put("protocolVersion", JsonPrimitive("2024-11-05"))
             put("capabilities", buildJsonObject { put("tools", buildJsonObject {}) })
             put(
                 "serverInfo",
                 buildJsonObject {
-                    put("name", "smarty-mcp-server")
-                    put("version", "1.0.0")
+                    put("name", JsonPrimitive("smarty-mcp-server"))
+                    put("version", JsonPrimitive("1.0.0"))
                 },
             )
         }
 
-    private fun ToolProperty.toJsonSchema(): JsonObject = buildJsonObject {
-        put("type", type)
-        description?.let { put("description", it) }
-        enum?.let { enumList -> put("enum", buildJsonArray { enumList.forEach { add(it) } }) }
-        items?.let { put("items", it.toJsonSchema()) }
-        properties?.let { props ->
-            put("properties", buildJsonObject {
-                props.forEach { (k, v) -> put(k, v.toJsonSchema()) }
-            })
+    private fun ToolProperty.toJsonSchema(): JsonObject =
+        buildJsonObject {
+            put("type", JsonPrimitive(type))
+            description?.let { put("description", JsonPrimitive(it)) }
+            enum?.let { enumList -> put("enum", buildJsonArray { enumList.forEach { add(JsonPrimitive(it)) } }) }
+            items?.let { put("items", it.toJsonSchema()) }
+            properties?.let { props ->
+                put(
+                    "properties",
+                    buildJsonObject {
+                        props.forEach { (k, v) -> put(k, v.toJsonSchema()) }
+                    },
+                )
+            }
+            required?.takeIf { it.isNotEmpty() }?.let { reqList ->
+                put("required", buildJsonArray { reqList.forEach { add(JsonPrimitive(it)) } })
+            }
         }
-        required?.takeIf { it.isNotEmpty() }?.let { reqList ->
-            put("required", buildJsonArray { reqList.forEach { add(it) } })
-        }
-    }
 
     private fun handleToolsList() =
         buildJsonObject {
@@ -231,12 +249,12 @@ class McpServer(
                     allTools.forEach { tool ->
                         add(
                             buildJsonObject {
-                                put("name", tool.name)
-                                put("description", tool.description)
+                                put("name", JsonPrimitive(tool.name))
+                                put("description", JsonPrimitive(tool.description))
                                 put(
                                     "inputSchema",
                                     buildJsonObject {
-                                        put("type", "object")
+                                        put("type", JsonPrimitive("object"))
                                         put(
                                             "properties",
                                             buildJsonObject {
@@ -248,7 +266,7 @@ class McpServer(
                                         if (tool.parameters.required.isNotEmpty()) {
                                             put(
                                                 "required",
-                                                buildJsonArray { tool.parameters.required.forEach { add(it) } },
+                                                buildJsonArray { tool.parameters.required.forEach { add(JsonPrimitive(it)) } },
                                             )
                                         }
                                     },
@@ -276,20 +294,30 @@ class McpServer(
         // Secondary Validation Layer for Sub-Agent Sandboxing
         if (resolvedName == "bash" || resolvedName == "command" || resolvedName.contains("write") || resolvedName.contains("replace")) {
             val argsStr = args.toString()
-            val isHighRisk = argsStr.contains(".opencode") || argsStr.contains(".ssh") || argsStr.contains("/etc/") || 
-                             argsStr.contains(".aws") || argsStr.contains("~/.config") || argsStr.contains("package.json")
-            
+            val isHighRisk =
+                argsStr.contains(".opencode") ||
+                    argsStr.contains(".ssh") ||
+                    argsStr.contains("/etc/") ||
+                    argsStr.contains(".aws") ||
+                    argsStr.contains("~/.config") ||
+                    argsStr.contains("package.json")
+
             if (isHighRisk) {
                 val errorMsg = "Security Violation: Access to high-risk path blocked by Ktor MCP Sandbox."
                 thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
                 return buildJsonObject {
-                    put("isError", true)
-                    put("content", buildJsonArray {
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", errorMsg)
-                        })
-                    })
+                    put("isError", JsonPrimitive(true))
+                    put(
+                        "content",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("type", JsonPrimitive("text"))
+                                    put("text", JsonPrimitive(errorMsg))
+                                },
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -302,20 +330,25 @@ class McpServer(
                     System.currentTimeMillis(),
                     toolCallId,
                     resolvedName,
-                    resolvedName.replace(
-                        '_',
-                        ' ',
-                    ).replaceFirstChar {
-                        it.uppercase()
-                    },
+                    resolvedName
+                        .replace(
+                            '_',
+                            ' ',
+                        ).replaceFirstChar {
+                            it.uppercase()
+                        },
                     args.toString(),
                 )
             ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
 
             val result =
-                runCatching { withTimeoutOrNull(60_000L) { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() } }
-                    .getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out or system error")
+                runCatching {
+                    withTimeoutOrNull(
+                        60_000L,
+                    ) { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() }
+                }.getOrNull() ?: com.example.smarty.server.agent
+                    .ApprovalResult(false, "Approval timed out or system error")
 
             if (!result.approved) {
                 val denial = "User denied: ${result.feedback ?: "no reason given"}"
@@ -329,8 +362,8 @@ class McpServer(
                         buildJsonArray {
                             add(
                                 buildJsonObject {
-                                    put("type", "text")
-                                    put("text", denial)
+                                    put("type", JsonPrimitive("text"))
+                                    put("text", JsonPrimitive(denial))
                                 },
                             )
                         },
@@ -352,8 +385,8 @@ class McpServer(
                         buildJsonArray {
                             add(
                                 buildJsonObject {
-                                    put("type", "text")
-                                    put("text", userResponse)
+                                    put("type", JsonPrimitive("text"))
+                                    put("text", JsonPrimitive(userResponse))
                                 },
                             )
                         },
@@ -386,8 +419,8 @@ class McpServer(
                     buildJsonArray {
                         add(
                             buildJsonObject {
-                                put("type", "text")
-                                put("text", resultStr)
+                                put("type", JsonPrimitive("text"))
+                                put("text", JsonPrimitive(resultStr))
                             },
                         )
                     },
@@ -397,14 +430,14 @@ class McpServer(
             val errorMsg = "Error executing tool: ${e.message}"
             thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
             buildJsonObject {
-                put("isError", true)
+                put("isError", JsonPrimitive(true))
                 put(
                     "content",
                     buildJsonArray {
                         add(
                             buildJsonObject {
-                                put("type", "text")
-                                put("text", errorMsg)
+                                put("type", JsonPrimitive("text"))
+                                put("text", JsonPrimitive(errorMsg))
                             },
                         )
                     },
@@ -413,13 +446,12 @@ class McpServer(
         }
     }
 
-    private fun getFallbackUserId(): String {
-        return runCatching {
+    private fun getFallbackUserId(): String =
+        runCatching {
             com.example.smarty.server.data.DatabaseFactory.getDataSource()?.connection?.use { conn ->
                 conn.prepareStatement("SELECT id::text FROM users LIMIT 1").use { stmt ->
                     stmt.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else "daemon-localhost" }
                 }
             }
         }.getOrNull() ?: "daemon-localhost"
-    }
 }

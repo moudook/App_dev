@@ -47,7 +47,9 @@ enum class AgentStepType {
 /**
  * Composite tracer that delegates to multiple tracers
  */
-class CompositeTracer(private val tracers: List<AgentTracer>) : AgentTracer {
+class CompositeTracer(
+    private val tracers: List<AgentTracer>,
+) : AgentTracer {
     override suspend fun trace(event: AgentTraceEvent) {
         tracers.forEach { tracer ->
             try {
@@ -62,7 +64,9 @@ class CompositeTracer(private val tracers: List<AgentTracer>) : AgentTracer {
 /**
  * Logger tracer - logs trace events to SLF4J
  */
-class LoggerTracer(private val userId: String) : AgentTracer {
+class LoggerTracer(
+    private val userId: String,
+) : AgentTracer {
     private val logger = LoggerFactory.getLogger(LoggerTracer::class.java)
 
     override suspend fun trace(event: AgentTraceEvent) {
@@ -75,16 +79,19 @@ class LoggerTracer(private val userId: String) : AgentTracer {
 /**
  * Metrics tracer - records metrics using Micrometer
  */
-class MonitoringTracer(private val userId: String) : AgentTracer {
+class MonitoringTracer(
+    private val userId: String,
+) : AgentTracer {
     override suspend fun trace(event: AgentTraceEvent) {
         try {
-            io.micrometer.core.instrument.Metrics.counter(
-                "agent.trace.events",
-                "stepType",
-                event.stepType.name,
-                "userId",
-                userId.take(8),
-            ).increment()
+            io.micrometer.core.instrument.Metrics
+                .counter(
+                    "agent.trace.events",
+                    "stepType",
+                    event.stepType.name,
+                    "userId",
+                    userId.take(8),
+                ).increment()
         } catch (e: Exception) {
             // Ignore metrics failures
         }
@@ -95,14 +102,20 @@ class MonitoringTracer(private val userId: String) : AgentTracer {
  * PostgreSQL tracer - stores trace events in reasoning_traces via ReasoningService.
  * Falls back to direct JDBC insert into agent_traces if ReasoningService is unavailable.
  */
-class PostgresTracer(private val userId: String) : AgentTracer {
+class PostgresTracer(
+    private val userId: String,
+) : AgentTracer {
     private val logger = LoggerFactory.getLogger(PostgresTracer::class.java)
     private val scope = CoroutineScope(Dispatchers.IO)
 
     // Lazily initialized — only when a DB connection is available
     private val reasoningService: com.example.smarty.server.services.ReasoningService? by lazy {
         val ds = DatabaseFactory.getDataSource() ?: return@lazy null
-        com.example.smarty.server.services.ReasoningService(com.example.smarty.server.data.ReasoningTraceRepository(ds))
+        com.example.smarty.server.services
+            .ReasoningService(
+                com.example.smarty.server.data
+                    .ReasoningTraceRepository(ds),
+            )
     }
 
     private fun AgentStepType.toReasoningStepType(): com.example.smarty.server.data.ReasoningStepType =
@@ -125,7 +138,10 @@ class PostgresTracer(private val userId: String) : AgentTracer {
                     messageId = null,
                     userId = userId,
                     stepType = event.stepType.toReasoningStepType(),
-                    title = event.stepType.name.lowercase().replace('_', ' '),
+                    title =
+                        event.stepType.name
+                            .lowercase()
+                            .replace('_', ' '),
                     content = event.content.take(10_000),
                     confidenceScore = if (event.stepType == AgentStepType.FINAL) 0.9 else 0.6,
                     durationMs = System.currentTimeMillis() - event.timestamp,
@@ -146,27 +162,28 @@ class PostgresTracer(private val userId: String) : AgentTracer {
         scope.launch {
             try {
                 dataSource.connection.use { conn ->
-                    conn.prepareStatement(
-                        """
+                    conn
+                        .prepareStatement(
+                            """
                         INSERT INTO agent_traces (
                             id, session_id, user_id, step_name, step_type, content,
                             input_data, output_data, error_message, metadata, created_at
                         ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
                         """,
-                    ).use { stmt ->
-                        stmt.setString(1, event.eventId)
-                        stmt.setString(2, event.sessionId)
-                        stmt.setObject(3, java.util.UUID.fromString(userId))
-                        stmt.setString(4, event.stepType.name.lowercase())
-                        stmt.setString(5, event.stepType.name)
-                        stmt.setString(6, event.content.take(10_000))
-                        stmt.setString(7, null)
-                        stmt.setString(8, null)
-                        stmt.setString(9, null)
-                        stmt.setString(10, "{}")
-                        stmt.setTimestamp(11, java.sql.Timestamp.from(Instant.ofEpochMilli(event.timestamp)))
-                        stmt.executeUpdate()
-                    }
+                        ).use { stmt ->
+                            stmt.setString(1, event.eventId)
+                            stmt.setString(2, event.sessionId)
+                            stmt.setObject(3, java.util.UUID.fromString(userId))
+                            stmt.setString(4, event.stepType.name.lowercase())
+                            stmt.setString(5, event.stepType.name)
+                            stmt.setString(6, event.content.take(10_000))
+                            stmt.setString(7, null)
+                            stmt.setString(8, null)
+                            stmt.setString(9, null)
+                            stmt.setString(10, "{}")
+                            stmt.setTimestamp(11, java.sql.Timestamp.from(Instant.ofEpochMilli(event.timestamp)))
+                            stmt.executeUpdate()
+                        }
                 }
             } catch (e: Exception) {
                 logger.warn("Failed to store raw agent trace: ${e.message}")
@@ -179,7 +196,9 @@ class PostgresTracer(private val userId: String) : AgentTracer {
  * Agent checkpoint persistence manager
  * Handles saving and loading agent execution state for recovery
  */
-class AgentPersistenceManager(private val userId: String) {
+class AgentPersistenceManager(
+    private val userId: String,
+) {
     private val logger = LoggerFactory.getLogger(AgentPersistenceManager::class.java)
     private val json = Json { ignoreUnknownKeys = true }
 

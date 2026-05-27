@@ -5,10 +5,16 @@ import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.log
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -179,7 +185,10 @@ fun Application.configureHealthRoutes() {
                 call.respondText("Unauthorized", status = HttpStatusCode.Unauthorized)
                 return@get
             }
-            val lines = call.request.queryParameters["lines"]?.toIntOrNull()?.coerceIn(1, 500) ?: 50
+            val lines =
+                call.request.queryParameters["lines"]
+                    ?.toIntOrNull()
+                    ?.coerceIn(1, 500) ?: 50
             val logFile = File("/tmp/opencode-daemon.log")
             if (!logFile.exists()) {
                 call.respondText("Daemon log not found", status = HttpStatusCode.NotFound)

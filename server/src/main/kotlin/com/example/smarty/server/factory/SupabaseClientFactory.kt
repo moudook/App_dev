@@ -13,25 +13,19 @@ object SupabaseClientFactory {
      * Returns the Supabase URL.
      * Requires SUPABASE_URL environment variable.
      */
-    fun getSupabaseUrl(): String? {
-        return System.getenv("SUPABASE_URL")?.trim()?.ifBlank { null }
-    }
+    fun getSupabaseUrl(): String? = System.getenv("SUPABASE_URL")?.trim()?.ifBlank { null }
 
     /**
      * Returns the Supabase API key.
      * Requires SUPABASE_KEY environment variable.
      */
-    fun getSupabaseKey(): String? {
-        return System.getenv("SUPABASE_KEY")?.trim()?.ifBlank { null }
-    }
+    fun getSupabaseKey(): String? = System.getenv("SUPABASE_KEY")?.trim()?.ifBlank { null }
 
     /**
      * Returns the storage bucket name for generated images.
      * Can be overridden via SUPABASE_IMAGE_BUCKET environment variable.
      */
-    fun getImageBucketName(): String {
-        return System.getenv("SUPABASE_IMAGE_BUCKET")?.trim()?.ifBlank { null } ?: "generated-images"
-    }
+    fun getImageBucketName(): String = System.getenv("SUPABASE_IMAGE_BUCKET")?.trim()?.ifBlank { null } ?: "generated-images"
 
     /**
      * Checks if Supabase is configured.

@@ -4,7 +4,7 @@ plugins {
     application
     kotlin("jvm")
     kotlin("plugin.serialization")
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "9.4.1"
 }
 
 group = "com.example.smarty.server"
@@ -27,16 +27,16 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 
 // All dependency versions MUST match those in gradle/libs.versions.toml
 // to avoid binary incompatibilities between transitive dependencies
-val ktorVersion = "3.1.0"
-val exposedVersion = "0.59.0"
-val kotlinxSerializationVersion = "1.8.0"
-val kotlinxCoroutinesVersion = "1.10.1"
-val logbackVersion = "1.4.14"
-val logstashVersion = "7.4"
-val micrometerVersion = "1.12.2"
-val postgresqlVersion = "42.7.1"
-val hikaricpVersion = "5.1.0"
-val firebaseAdminVersion = "9.4.3"
+val ktorVersion = "3.5.0"
+val exposedVersion = "1.3.0"
+val kotlinxSerializationVersion = "1.11.0"
+val kotlinxCoroutinesVersion = "1.11.0"
+val logbackVersion = "1.5.31"
+val logstashVersion = "9.0"
+val micrometerVersion = "1.14.14"
+val postgresqlVersion = "42.7.11"
+val hikaricpVersion = "6.3.0"
+val firebaseAdminVersion = "9.7.1"
 val pdfboxVersion = "3.0.1"
 
 dependencies {

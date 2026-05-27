@@ -5,12 +5,15 @@ import com.example.smarty.server.data.ReasoningSummary
 import com.example.smarty.server.data.ReasoningTrace
 import com.example.smarty.server.data.ReasoningTraceWithSummary
 import com.example.smarty.server.services.ReasoningService
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 
 /**
@@ -395,8 +398,8 @@ data class ReasoningStatistics(
 
 // ==================== CONVERTER EXTENSIONS ====================
 
-fun ReasoningTraceWithSummary.toResponse(): ReasoningTraceWithSummaryResponse {
-    return ReasoningTraceWithSummaryResponse(
+fun ReasoningTraceWithSummary.toResponse(): ReasoningTraceWithSummaryResponse =
+    ReasoningTraceWithSummaryResponse(
         traceId = traceId.toString(),
         stepIndex = stepIndex,
         stepType = stepType.name,
@@ -410,10 +413,9 @@ fun ReasoningTraceWithSummary.toResponse(): ReasoningTraceWithSummaryResponse {
         oneLiner = oneLiner,
         briefSummary = briefSummary,
     )
-}
 
-fun com.example.smarty.server.data.ReasoningTrace.toResponse(): ReasoningTraceResponse {
-    return ReasoningTraceResponse(
+fun com.example.smarty.server.data.ReasoningTrace.toResponse(): ReasoningTraceResponse =
+    ReasoningTraceResponse(
         traceId = (traceId ?: java.util.UUID.randomUUID()).toString(),
         sessionId = sessionId,
         messageId = messageId,
@@ -428,10 +430,9 @@ fun com.example.smarty.server.data.ReasoningTrace.toResponse(): ReasoningTraceRe
         durationMs = durationMs,
         createdAt = "", // Would need timestamp from DB
     )
-}
 
-fun ReasoningSummaryResponse.toDomain(): com.example.smarty.server.data.ReasoningSummary {
-    return com.example.smarty.server.data.ReasoningSummary(
+fun ReasoningSummaryResponse.toDomain(): com.example.smarty.server.data.ReasoningSummary =
+    com.example.smarty.server.data.ReasoningSummary(
         sessionId = sessionId,
         messageId = messageId,
         userId = "", // Would need to be passed separately
@@ -446,10 +447,9 @@ fun ReasoningSummaryResponse.toDomain(): com.example.smarty.server.data.Reasonin
         reasoningType = reasoningType,
         tags = tags,
     )
-}
 
-fun ReasoningTraceRequest.toDomain(): com.example.smarty.server.data.ReasoningTrace {
-    return com.example.smarty.server.data.ReasoningTrace(
+fun ReasoningTraceRequest.toDomain(): com.example.smarty.server.data.ReasoningTrace =
+    com.example.smarty.server.data.ReasoningTrace(
         sessionId = sessionId,
         messageId = messageId,
         userId = userId,
@@ -464,10 +464,9 @@ fun ReasoningTraceRequest.toDomain(): com.example.smarty.server.data.ReasoningTr
         tokenCount = tokenCount,
         durationMs = durationMs,
     )
-}
 
-fun com.example.smarty.server.data.ReasoningSummary.toResponse(): ReasoningSummaryResponse {
-    return ReasoningSummaryResponse(
+fun com.example.smarty.server.data.ReasoningSummary.toResponse(): ReasoningSummaryResponse =
+    ReasoningSummaryResponse(
         summaryId = (summaryId ?: java.util.UUID.randomUUID()).toString(),
         sessionId = sessionId,
         messageId = messageId,
@@ -482,4 +481,3 @@ fun com.example.smarty.server.data.ReasoningSummary.toResponse(): ReasoningSumma
         reasoningType = reasoningType,
         tags = tags,
     )
-}

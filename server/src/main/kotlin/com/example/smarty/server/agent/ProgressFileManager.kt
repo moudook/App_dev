@@ -3,7 +3,6 @@ package com.example.smarty.server.agent
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.util.*
 
 /**
  * Progress File Manager - Tracks research findings in persistent files.
@@ -77,7 +76,9 @@ class ProgressFileManager {
         if (!file.exists()) return emptyList()
 
         return try {
-            val progressFile = kotlinx.serialization.json.Json.decodeFromString<ProgressFile>(file.readText())
+            val progressFile =
+                kotlinx.serialization.json.Json
+                    .decodeFromString<ProgressFile>(file.readText())
             if (category.isNullOrBlank()) {
                 progressFile.entries
             } else {
@@ -126,9 +127,7 @@ class ProgressFileManager {
     fun shouldOffloadToProgress(
         entryCount: Int,
         threshold: Int = 10,
-    ): Boolean {
-        return entryCount >= threshold
-    }
+    ): Boolean = entryCount >= threshold
 
     /**
      * Create progress file for new session
@@ -140,7 +139,8 @@ class ProgressFileManager {
         val file = File(progressDir, "$sessionId.json")
         return if (file.exists()) {
             try {
-                kotlinx.serialization.json.Json.decodeFromString<ProgressFile>(file.readText())
+                kotlinx.serialization.json.Json
+                    .decodeFromString<ProgressFile>(file.readText())
             } catch (e: Exception) {
                 ProgressFile(sessionId, topic)
             }
@@ -154,7 +154,10 @@ class ProgressFileManager {
      */
     private fun saveProgressFile(progressFile: ProgressFile) {
         val file = File(progressDir, "${progressFile.sessionId}.json")
-        file.writeText(kotlinx.serialization.json.Json.encodeToString(ProgressFile.serializer(), progressFile))
+        file.writeText(
+            kotlinx.serialization.json.Json
+                .encodeToString(ProgressFile.serializer(), progressFile),
+        )
     }
 
     /**

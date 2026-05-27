@@ -352,8 +352,8 @@ class DigestService(
             }
         }
 
-    private fun parseDigestResponse(response: String): DigestContent {
-        return try {
+    private fun parseDigestResponse(response: String): DigestContent =
+        try {
             // Extract JSON from response (handle markdown code blocks)
             val jsonStr =
                 response
@@ -389,7 +389,6 @@ class DigestService(
                 criticalInfo = null,
             )
         }
-    }
 
     // ============================================================================
     // DATA GATHERING
@@ -621,8 +620,8 @@ class DigestService(
             id
         }
 
-    private fun parseDigestResult(rs: ResultSet): DigestResult {
-        return DigestResult(
+    private fun parseDigestResult(rs: ResultSet): DigestResult =
+        DigestResult(
             id = rs.getString("id"),
             userId = rs.getString("user_id"),
             digestDate = rs.getDate("digest_date").toString(),
@@ -651,7 +650,6 @@ class DigestService(
             chatsAnalyzed = rs.getInt("chats_analyzed"),
             memoriesAnalyzed = rs.getInt("memories_analyzed"),
         )
-    }
 
     // ============================================================================
     // PUBLIC API

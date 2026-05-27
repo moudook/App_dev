@@ -11,7 +11,9 @@ import javax.sql.DataSource
  * Tasks Repository (v6.0.0 schema)
  * Handles: tasks table
  */
-class TaskRepository(private val dataSource: DataSource) {
+class TaskRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(TaskRepository::class.java)
 
     suspend fun createTask(task: Task): String =
@@ -169,8 +171,8 @@ class TaskRepository(private val dataSource: DataSource) {
             tasks
         }
 
-    private fun ResultSet.toTask(): Task {
-        return Task(
+    private fun ResultSet.toTask(): Task =
+        Task(
             id = getObject("id").toString(),
             userId = getObject("user_id").toString(),
             sessionId = getObject("session_id")?.toString(),
@@ -189,14 +191,15 @@ class TaskRepository(private val dataSource: DataSource) {
             updatedAt = getTimestamp("updated_at")?.toString(),
             deletedAt = getTimestamp("deleted_at")?.toString(),
         )
-    }
 }
 
 /**
  * Tags Repository (v6.0.0 schema)
  * Handles: tags table, note_tags join table
  */
-class TagRepository(private val dataSource: DataSource) {
+class TagRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(TagRepository::class.java)
 
     suspend fun createTag(tag: Tag): String =
@@ -402,8 +405,8 @@ class TagRepository(private val dataSource: DataSource) {
             }
         }
 
-    private fun ResultSet.toTag(): Tag {
-        return Tag(
+    private fun ResultSet.toTag(): Tag =
+        Tag(
             id = getObject("id").toString(),
             userId = getObject("user_id").toString(),
             name = getString("name"),
@@ -414,14 +417,15 @@ class TagRepository(private val dataSource: DataSource) {
             createdAt = getTimestamp("created_at")?.toString(),
             updatedAt = getTimestamp("updated_at")?.toString(),
         )
-    }
 }
 
 /**
  * Notifications Repository (v6.0.0 schema)
  * Handles: notifications table
  */
-class NotificationRepository(private val dataSource: DataSource) {
+class NotificationRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(NotificationRepository::class.java)
 
     suspend fun createNotification(notification: Notification): String =
@@ -533,8 +537,8 @@ class NotificationRepository(private val dataSource: DataSource) {
             }
         }
 
-    private fun ResultSet.toNotification(): Notification {
-        return Notification(
+    private fun ResultSet.toNotification(): Notification =
+        Notification(
             id = getObject("id").toString(),
             userId = getObject("user_id").toString(),
             type = getString("type"),
@@ -545,14 +549,15 @@ class NotificationRepository(private val dataSource: DataSource) {
             readAt = getTimestamp("read_at")?.toString(),
             createdAt = getTimestamp("created_at")?.toString(),
         )
-    }
 }
 
 /**
  * Chat Folders Repository (v6.0.0 schema)
  * Handles: chat_folders table
  */
-class ChatFolderRepository(private val dataSource: DataSource) {
+class ChatFolderRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(ChatFolderRepository::class.java)
 
     suspend fun createFolder(folder: ChatFolder): String =
@@ -639,7 +644,9 @@ class ChatFolderRepository(private val dataSource: DataSource) {
  * Search History Repository (v6.0.0 schema)
  * Handles: search_history table
  */
-class SearchHistoryRepository(private val dataSource: DataSource) {
+class SearchHistoryRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(SearchHistoryRepository::class.java)
 
     suspend fun addSearch(search: SearchHistory): String =
@@ -728,7 +735,9 @@ class SearchHistoryRepository(private val dataSource: DataSource) {
  * User Device Repository (v6.0.0 schema)
  * Handles: user_devices table
  */
-class UserDeviceRepository(private val dataSource: DataSource) {
+class UserDeviceRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(UserDeviceRepository::class.java)
 
     suspend fun registerDevice(device: UserDevice): String =
@@ -832,7 +841,9 @@ class UserDeviceRepository(private val dataSource: DataSource) {
  * Note Version Repository (v6.0.0 schema)
  * Handles: note_versions table for note version history
  */
-class NoteVersionRepository(private val dataSource: DataSource) {
+class NoteVersionRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(NoteVersionRepository::class.java)
 
     suspend fun createVersion(
@@ -963,7 +974,9 @@ class NoteVersionRepository(private val dataSource: DataSource) {
  * Shared Items Repository (v6.0.0 schema)
  * Handles: shared_items table
  */
-class SharedItemRepository(private val dataSource: DataSource) {
+class SharedItemRepository(
+    private val dataSource: DataSource,
+) {
     private val logger = LoggerFactory.getLogger(SharedItemRepository::class.java)
 
     suspend fun createSharedItem(item: SharedItem): String =

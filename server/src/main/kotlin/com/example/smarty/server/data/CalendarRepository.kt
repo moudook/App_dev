@@ -133,8 +133,8 @@ class CalendarRepository(
             results
         }
 
-    private fun mapRowToEventInfo(rs: ResultSet): CalendarEventInfo {
-        return CalendarEventInfo(
+    private fun mapRowToEventInfo(rs: ResultSet): CalendarEventInfo =
+        CalendarEventInfo(
             id = rs.getString("id"),
             title = rs.getString("title"),
             startTime = rs.getTimestamp("start_time").time,
@@ -147,7 +147,6 @@ class CalendarRepository(
             isEventPrivate = rs.getBoolean("is_event_private"),
             createdAt = rs.getTimestamp("created_at").time,
         )
-    }
 
     suspend fun delete(
         userId: String,
@@ -268,7 +267,8 @@ class CalendarRepository(
                     }
                 }
             }
-            calendarEventNotesRepo.getLinkedNotes(UUID.fromString(eventId))
+            calendarEventNotesRepo
+                .getLinkedNotes(UUID.fromString(eventId))
                 .map { it.toString() }
         }
 }

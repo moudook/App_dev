@@ -10,7 +10,9 @@ import org.slf4j.LoggerFactory
 /**
  * Exception thrown when authentication fails.
  */
-class UnauthorizedException(message: String) : Exception(message)
+class UnauthorizedException(
+    message: String,
+) : Exception(message)
 
 /**
  * Handle errors in a route handler with consistent logging and response.
@@ -39,7 +41,10 @@ suspend fun <T> handleRouteErrors(
     block: suspend () -> T,
 ): T? {
     val logger = LoggerFactory.getLogger("ErrorHandler")
-    val requestId = call.request.headers["X-Request-ID"] ?: java.util.UUID.randomUUID().toString()
+    val requestId =
+        call.request.headers["X-Request-ID"] ?: java.util.UUID
+            .randomUUID()
+            .toString()
 
     try {
         logger.info(
@@ -130,8 +135,8 @@ suspend fun <T> safeExecute(
     logger: org.slf4j.Logger,
     errorMessage: String,
     block: suspend () -> T,
-): T? {
-    return try {
+): T? =
+    try {
         block()
     } catch (e: UnauthorizedException) {
         logger.warn("Authentication failed: {}", e.message)
@@ -149,12 +154,13 @@ suspend fun <T> safeExecute(
         logger.error(errorMessage, e)
         throw e
     }
-}
 
 /**
  * Exception for resource not found errors.
  */
-class ResourceNotFoundException(message: String) : Exception(message)
+class ResourceNotFoundException(
+    message: String,
+) : Exception(message)
 
 /**
  * Validate a condition and throw IllegalArgumentException if false.

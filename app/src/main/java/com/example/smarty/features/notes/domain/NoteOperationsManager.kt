@@ -159,13 +159,13 @@ class NoteOperationsManager(
                     )
                 }
                 sharedContent.text != null -> {
-                    val type = ContentTypeDetector.detectContentType(sharedContent.text!!)
-                    val contentHash = sharedContent.text!!.sha256()
+                    val type = ContentTypeDetector.detectContentType(sharedContent.text)
+                    val contentHash = sharedContent.text.sha256()
                     Note(
                         id = java.util.UUID.randomUUID().toString(),
-                        title = ContentTypeDetector.extractTitle(context, sharedContent.text!!, type),
-                        content = sharedContent.text!!,
-                        sourceUrl = if (type != NoteType.BRAIN_DUMP && sharedContent.text!!.contains("://")) ContentTypeDetector.extractUrl(sharedContent.text!!) else null,
+                        title = ContentTypeDetector.extractTitle(context, sharedContent.text, type),
+                        content = sharedContent.text,
+                        sourceUrl = if (type != NoteType.BRAIN_DUMP && sharedContent.text.contains("://")) ContentTypeDetector.extractUrl(sharedContent.text) else null,
                         type = type,
                         processingStatus = ProcessingStatus.PROCESSING,
                         contentHash = contentHash
@@ -216,11 +216,11 @@ class NoteOperationsManager(
                 id = java.util.UUID.randomUUID().toString(),
                 title = title,
                 content = initialContent,
-                fileUri = primaryOriginal.uri.toString(),
+                fileUri = primaryOriginal.uri,
                 fileName = primaryOriginal.fileName,
                 fileMimeType = primaryOriginal.mimeType,
                 fileSize = primaryOriginal.fileSize,
-                imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri.toString() else null,
+                imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri else null,
                 type = type,
                 processingStatus = ProcessingStatus.PENDING,
                 contentHash = contentHash,
@@ -253,11 +253,11 @@ class NoteOperationsManager(
             }
             val updatedNote = initialNote.copy(
                 content = finalContent,
-                fileUri = primary.uri.toString(),
+                fileUri = primary.uri,
                 fileName = primary.fileName,
                 fileSize = primary.fileSize,
                 fileMimeType = primary.mimeType,
-                imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
+                imageUri = if (type == NoteType.IMAGE) primary.uri else null,
                 processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
             ).withAttachments(processedAttachments)
             writeBatcher.queueUpdate(updatedNote)
@@ -267,7 +267,7 @@ class NoteOperationsManager(
 
     private suspend fun processSingleImageWithText(attachment: Attachment, content: String, excludeFromAiChat: Boolean) {
         val processed = copyAttachmentToStorage(attachment)
-        val copiedFileUri = processed.uri.toString()
+        val copiedFileUri = processed.uri
         try {
             val noteAttachment = NoteAttachment(id = java.util.UUID.randomUUID().toString(), uri = copiedFileUri, fileName = processed.fileName, mimeType = processed.mimeType, fileSize = processed.fileSize)
             val contentHash = content.sha256()
@@ -724,3 +724,4 @@ class NoteOperationsManager(
         }
     }
 }
+
