@@ -54,6 +54,10 @@ val BrandSans = FontFamily(
 val InterFont = BrandSans  // Alias maintained for compatibility
 val MonoFont = FontFamily.Monospace   // For code/terminal elements
 
+val MavenProFont = FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.maven_pro)
+)
+
 val SmartyTypography = Typography(
     // Display styles - Hero/H1 (35sp = 32 + 10%)
     displayLarge = TextStyle(

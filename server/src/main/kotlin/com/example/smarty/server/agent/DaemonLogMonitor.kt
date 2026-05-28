@@ -24,63 +24,57 @@ import java.io.RandomAccessFile
  * 
  * This allows the server to stream daemon internals to clients in real-time.
  */
-class DaemonLogMonitor {
+object DaemonLogMonitor {
     private val logger = LoggerFactory.getLogger(DaemonLogMonitor::class.java)
     private val logFile = File("/tmp/opencode-daemon.log")
     private val _events = MutableSharedFlow<DaemonEvent>(replay = 0, extraBufferCapacity = 1000)
     val events: SharedFlow<DaemonEvent> = _events.asSharedFlow()
-    
+
     private var monitorJob: Job? = null
-    
+
     fun start(scope: CoroutineScope) {
-        if (!logFile.exists()) {
-            logger.warn("Daemon log file not found: ${logFile.absolutePath}")
-            return
-        }
-        
+        if (monitorJob?.isActive == true) return
+
         monitorJob = scope.launch(Dispatchers.IO) {
-            logger.info("Starting daemon log monitor: ${logFile.absolutePath}")
-            
-            // Start from current end of file
-            var filePosition = logFile.length()
-            
+            logger.info("\uD83D\uDE80 [DAEMON_LOG] Starting daemon log monitor: ${logFile.absolutePath}")
+
+            // Start from current end of file (skip old logs)
+            var filePosition = if (logFile.exists()) logFile.length() else 0L
+
             while (isActive) {
                 try {
                     if (logFile.exists()) {
                         val currentLength = logFile.length()
-                        
-                        // Check if file was rotated (smaller than last position)
+
                         if (currentLength < filePosition) {
-                            logger.info("Log file rotated, starting from beginning")
+                            logger.info("\uD83D\uDD04 [DAEMON_LOG] Log file rotated, starting from beginning")
                             filePosition = 0
                         }
-                        
+
                         if (currentLength > filePosition) {
-                            // Read new content
                             RandomAccessFile(logFile, "r").use { raf ->
                                 raf.seek(filePosition)
                                 val buffer = ByteArray((currentLength - filePosition).toInt())
                                 val bytesRead = raf.read(buffer)
                                 if (bytesRead > 0) {
-                                    val newContent = String(buffer, 0, bytesRead)
-                                    parseAndEmitEvents(newContent)
+                                    parseAndEmitEvents(String(buffer, 0, bytesRead))
                                     filePosition = raf.filePointer
                                 }
                             }
                         }
                     }
-                    
-                    delay(100) // Check every 100ms
+
+                    delay(100)
                 } catch (e: Exception) {
-                    logger.error("Error monitoring daemon log", e)
-                    delay(1000) // Wait longer on error
+                    logger.error("\u274C [DAEMON_LOG] Error monitoring daemon log: ${e.message}")
+                    delay(1000)
                 }
             }
-            
-            logger.info("Daemon log monitor stopped")
+
+            logger.info("\uD83D\uDED1 [DAEMON_LOG] Daemon log monitor stopped")
         }
     }
-    
+
     fun stop() {
         monitorJob?.cancel()
         monitorJob = null
@@ -107,6 +101,14 @@ class DaemonLogMonitor {
                         if (level != null && message != null) {
                             val event = parseLogLine(level, message, jsonObj)
                             if (event != null) {
+                                val emoji = when (event) {
+                                    is DaemonEvent.ToolCall -> "\uD83D\uDEE0\uFE0F"
+                                    is DaemonEvent.WebSearch -> "\uD83D\uDD0D"
+                                    is DaemonEvent.Reasoning -> "\uD83E\uDD14"
+                                    is DaemonEvent.SubAgent -> "\uD83E\uDD16"
+                                    is DaemonEvent.Debug -> "\uD83D\uDC1E"
+                                }
+                                logger.info("$emoji [DAEMON_EVENT] ${event::class.simpleName}: ${event.toString().take(200)}")
                                 _events.emit(event)
                             }
                         }
@@ -242,21 +244,25 @@ class DaemonLogMonitor {
             toolCallPattern.containsMatchIn(line) -> {
                 val match = toolCallPattern.find(line)
                 val toolName = match?.groupValues?.get(1) ?: "unknown"
+                logger.info("\uD83D\uDEE0\uFE0F [DAEMON_TOOL] Calling: $toolName")
                 _events.emit(DaemonEvent.ToolCall(toolName = toolName, status = "running"))
             }
             toolCompletePattern.containsMatchIn(line) -> {
                 val match = toolCompletePattern.find(line)
                 val toolName = match?.groupValues?.get(1) ?: "unknown"
+                logger.info("\u2705 [DAEMON_TOOL] Completed: $toolName")
                 _events.emit(DaemonEvent.ToolCall(toolName = toolName, status = "completed"))
             }
             reasoningPattern.containsMatchIn(line) -> {
                 val match = reasoningPattern.find(line)
                 val content = match?.groupValues?.get(1) ?: line
+                logger.info("\uD83E\uDD14 [DAEMON_THINK] ${content.take(150)}")
                 _events.emit(DaemonEvent.Reasoning(content = content))
             }
             searchPattern.containsMatchIn(line) -> {
                 val match = searchPattern.find(line)
                 val query = match?.groupValues?.get(1) ?: ""
+                logger.info("\uD83D\uDD0D [DAEMON_SEARCH] Query: $query")
                 _events.emit(DaemonEvent.WebSearch(query = query, status = "searching"))
             }
         }

@@ -169,6 +169,26 @@ object AgentRunManager {
                     }
                 }
 
+                // Bridge daemon log events → AgentEvent.OpencodeRawEvent
+                val daemonLogJob = launch(Dispatchers.IO) {
+                    DaemonLogMonitor.events.collect { daemonEvent ->
+                        val eventName = when (daemonEvent) {
+                            is DaemonEvent.ToolCall -> "daemon.tool"
+                            is DaemonEvent.WebSearch -> "daemon.search"
+                            is DaemonEvent.Reasoning -> "daemon.reasoning"
+                            is DaemonEvent.SubAgent -> "daemon.subagent"
+                            is DaemonEvent.Debug -> "daemon.debug"
+                        }
+                        val opencodeEvent = AgentEvent.OpencodeRawEvent(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            data = kotlinx.serialization.json.Json.encodeToString(daemonEvent),
+                            eventName = eventName,
+                        )
+                        flow.emit(opencodeEvent)
+                    }
+                }
+
                 val agent =
                     ServerAgent(
                         llmProvider = llmProvider,
@@ -328,6 +348,7 @@ object AgentRunManager {
                         logger.warn("Failed to emit error event: ${emitError.message}")
                     }
                 } finally {
+                    daemonLogJob.cancel()
                     ActiveEventBridge.clear(userId)
                     ApprovalRegistry.cancelApprovalsForSession(sessionId)
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
