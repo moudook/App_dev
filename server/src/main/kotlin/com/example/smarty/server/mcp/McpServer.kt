@@ -139,8 +139,8 @@ class McpServer(
 
                 val userId = principal?.userId ?: getFallbackUserId()
 
-                // Try to find the actual Smarty session ID mapped to this daemon session
-                val smartySessionId = ActiveSessionManager.getAllSessions().find { it.userId == userId }?.sessionId ?: "global"
+                // Emit to ALL active sessions for this user (MCP session ID != WebSocket session ID)
+                val userSessions = ActiveSessionManager.getAllSessions().filter { it.userId == userId }
 
                 val body = call.receiveText()
                 val request = runCatching { json.decodeFromString<JsonRpcRequest>(body) }.getOrNull()
@@ -151,7 +151,7 @@ class McpServer(
                     return@post
                 }
 
-                handleMcpRequest(mcpSessionId, request, userId, smartySessionId, call)
+                handleMcpRequest(mcpSessionId, request, userId, userSessions, call)
             }
         }
     }
@@ -165,7 +165,7 @@ class McpServer(
         mcpSessionId: String,
         request: JsonRpcRequest,
         userId: String,
-        smartySessionId: String,
+        userSessions: List<ActiveSessionManager.SessionInfo>,
         call: ApplicationCall? = null,
     ) {
         val channel = sessions[mcpSessionId]?.channel
@@ -176,11 +176,13 @@ class McpServer(
                     "notifications/initialized" -> null
                     "notifications/cancelled" -> {
                         logger.info("[McpServer] Request cancelled by client: ${request.params}")
-                        ApprovalRegistry.cancelApprovalsForSession(smartySessionId)
+                        for (session in userSessions) {
+                            ApprovalRegistry.cancelApprovalsForSession(session.sessionId)
+                        }
                         null
                     }
                     "tools/list" -> handleToolsList()
-                    "tools/call" -> handleToolCall(request.params, userId, smartySessionId)
+                    "tools/call" -> handleToolCall(request.params, userId, userSessions)
                     else -> throw IllegalArgumentException("Method not supported: ${request.method}")
                 }
 
@@ -282,17 +284,27 @@ class McpServer(
     private suspend fun handleToolCall(
         params: JsonObject?,
         userId: String,
-        smartySessionId: String,
+        userSessions: List<ActiveSessionManager.SessionInfo>,
     ): JsonElement {
         val name = params?.get("name")?.jsonPrimitive?.content ?: throw IllegalArgumentException("Missing tool name")
         val args = params["arguments"]?.jsonObject ?: buildJsonObject {}
         val resolvedName = ToolExecutor.mapOldToolNames(name)
         val toolCallId = "mcp-${UUID.randomUUID()}"
 
-        logger.info("[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, session=$smartySessionId, args=${args.toString().take(200)}")
+        // Emit to ALL active sessions for this user
+        suspend fun emitToAllSessions(event: AgentEvent) {
+            ActiveEventBridge.emit(userId, event)
+            for (session in userSessions) {
+                runCatching { AgentRunManager.emitEvent(session.sessionId, event) }
+            }
+        }
+
+        val primarySessionId = userSessions.firstOrNull()?.sessionId ?: "global"
+
+        logger.info("[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, sessions=${userSessions.size}, args=${args.toString().take(200)}")
 
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
-        thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "started", args.toString())
+        thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "started", args.toString())
 
         // Secondary Validation Layer for Sub-Agent Sandboxing
         if (resolvedName == "bash" || resolvedName == "command" || resolvedName.contains("write") || resolvedName.contains("replace")) {
@@ -307,7 +319,7 @@ class McpServer(
 
             if (isHighRisk) {
                 val errorMsg = "Security Violation: Access to high-risk path blocked by Ktor MCP Sandbox."
-                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
+                thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
                 return buildJsonObject {
                     put("isError", JsonPrimitive(true))
                     put(
@@ -344,23 +356,23 @@ class McpServer(
                 )
             ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
-            runCatching { AgentRunManager.emitEvent(smartySessionId, approvalEvent) }
+            emitToAllSessions(approvalEvent)
 
             val result =
                 runCatching {
                     withTimeoutOrNull(
                         60_000L,
-                    ) { ApprovalRegistry.createPendingApproval(toolCallId, smartySessionId, userId).await() }
+                    ) { ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await() }
                 }.getOrNull() ?: com.example.smarty.server.agent
                     .ApprovalResult(false, "Approval timed out or system error")
 
             if (!result.approved) {
                 val denial = "User denied: ${result.feedback ?: "no reason given"}"
-                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
+                thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, deniedEvent)
                 eventEmitter?.invoke(deniedEvent)
-                runCatching { AgentRunManager.emitEvent(smartySessionId, deniedEvent) }
+                emitToAllSessions(deniedEvent)
                 return buildJsonObject {
                     put(
                         "content",
@@ -380,11 +392,11 @@ class McpServer(
             // We bypass ToolExecutor entirely.
             if (resolvedName == "ask_user") {
                 val userResponse = result.feedback ?: "User provided no answer"
-                thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
+                thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
                 val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, grantedEvent)
                 eventEmitter?.invoke(grantedEvent)
-                runCatching { AgentRunManager.emitEvent(smartySessionId, grantedEvent) }
+                emitToAllSessions(grantedEvent)
                 return buildJsonObject {
                     put(
                         "content",
@@ -413,13 +425,13 @@ class McpServer(
                 calendarRepository,
                 {
                     ActiveEventBridge.emit(userId, it)
-                    runCatching { AgentRunManager.emitEvent(smartySessionId, it) }
+                    emitToAllSessions(it)
                 },
                 noteService,
             )
         return try {
             val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)
-            thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "completed", args.toString(), resultStr)
+            thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), resultStr)
             buildJsonObject {
                 put(
                     "content",
@@ -435,7 +447,7 @@ class McpServer(
             }
         } catch (e: Exception) {
             val errorMsg = "Error executing tool: ${e.message}"
-            thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
+            thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
             buildJsonObject {
                 put("isError", JsonPrimitive(true))
                 put(

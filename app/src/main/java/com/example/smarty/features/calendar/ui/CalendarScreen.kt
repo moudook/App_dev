@@ -953,7 +953,7 @@ private fun PremiumEventCard(
                             Icons.Default.Event
                         },
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(24.dp),
                 )
             }
