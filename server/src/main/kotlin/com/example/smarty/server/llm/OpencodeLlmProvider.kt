@@ -32,9 +32,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
-/**
- * Resilient JSON content extraction extension properties.
- */
 private val JsonElement?.safeStr: String?
     get() = (this as? JsonPrimitive)?.contentOrNull
 
@@ -42,19 +39,14 @@ private fun JsonElement?.deepStr(): String? {
     if (this == null || this is JsonNull) return null
     if (this is JsonPrimitive) return this.contentOrNull
     if (this is JsonObject) {
-        // Search common fields recursively for any value that might be a string
         return this["delta"]?.deepStr()
             ?: this["text"]?.deepStr()
             ?: this["content"]?.deepStr()
             ?: this["result"]?.deepStr()
             ?: this["output"]?.deepStr()
             ?: this["data"]?.deepStr()
-            ?: if (this.keys.size == 1 &&
-                this.values.first() is JsonPrimitive
-            ) {
-                this.values
-                    .first()
-                    .jsonPrimitive.contentOrNull
+            ?: if (this.keys.size == 1 && this.values.first() is JsonPrimitive) {
+                this.values.first().jsonPrimitive.contentOrNull
             } else {
                 this.toString()
             }
@@ -79,11 +71,8 @@ class OpencodeLlmProvider(
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
     companion object {
-        // Limit concurrent connections to the OpenCode daemon for Beta Tester multi-user scaling
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
-
         private val TAG_STRIP_REGEX = Regex("</?(think|final)>", RegexOption.IGNORE_CASE)
-
         fun stripThinkFinalTags(text: String): String = text.replace(TAG_STRIP_REGEX, "").trim()
     }
 
@@ -132,16 +121,14 @@ class OpencodeLlmProvider(
                 val systemPrompt =
                     messages
                         .filter { it.role == LlmMessage.Role.SYSTEM }
-                        .joinToString(
-                            "\n\n",
-                        ) { it.content }
+                        .joinToString("\n\n") { it.content }
                         .takeIf { it.isNotBlank() }
                 val conversationMessages = messages.filter { it.role != LlmMessage.Role.SYSTEM }
 
                 val parts =
-                        conversationMessages.mapNotNull { msg ->
+                    conversationMessages.mapNotNull { msg ->
                         when (msg.role) {
-                        LlmMessage.Role.USER ->
+                            LlmMessage.Role.USER ->
                                 buildJsonObject {
                                     put("type", JsonPrimitive("text"))
                                     put("text", JsonPrimitive(msg.content))
@@ -200,14 +187,13 @@ class OpencodeLlmProvider(
 
                             while (!channel.isClosedForRead) {
                                 val rawLine = channel.readLine() ?: break
-                                // Scrub ANSI and OSC terminal escape sequences to prevent JSON corruption and UI ghosting
                                 val line =
                                     rawLine.replace(
                                         Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"),
                                         "",
                                     )
 
-                                logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
+                                logger.debug("[DAEMON_RAW][inference=$inferenceId] $line")
 
                                 if (line.isBlank()) {
                                     if (currentData.isNotEmpty()) {
@@ -254,10 +240,7 @@ class OpencodeLlmProvider(
 
     suspend fun getSessionHistory(sessionId: String): JsonArray? =
         try {
-            val response =
-                client.get("$daemonBaseUrl/session/$sessionId/message") {
-                    // No auth needed
-                }
+            val response = client.get("$daemonBaseUrl/session/$sessionId/message") {}
             if (response.status.value == 200) {
                 Json.parseToJsonElement(response.bodyAsText()).jsonObject["parts"]?.jsonArray
             } else {
@@ -276,14 +259,11 @@ class OpencodeLlmProvider(
         val inferenceId = context.inferenceId
         logger.trace("[OpenCode.SSE][inference=$inferenceId] Raw data: $data")
 
-        // 1. Guaranteed Raw Emission (Immediate)
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
-        // 2. Resilient Semantic Parsing
         if (data.startsWith("{")) {
             val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return
 
-            // Check for Daemon errors
             if ((json["name"].safeStr ?: "").endsWith("Error")) {
                 logger.error("[OpenCode.Error][inference=$inferenceId] Daemon error: $data")
                 return
@@ -295,14 +275,7 @@ class OpencodeLlmProvider(
                         "text" -> {
                             val c = part.content
                             LlmChunk(
-                                content =
-                                    if (c !=
-                                        null
-                                    ) {
-                                        stripThinkFinalTags(c)
-                                    } else {
-                                        null
-                                    },
+                                content = if (c != null) { stripThinkFinalTags(c) } else null,
                                 reasoning = null,
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
@@ -315,19 +288,24 @@ class OpencodeLlmProvider(
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
                             )
-                        "tool_use", "tool", "call" ->
+                        "tool_use", "tool", "call" -> {
+                            val pendingQ = if (part.toolName == "ask_user" || part.toolName == "askuser") {
+                                extractQuestionFromArgs(part.toolArgs)
+                            } else null
+
                             LlmChunk(
                                 content = null,
-                                toolCall =
-                                    LlmToolCall(
-                                        "tool-${System.currentTimeMillis()}-$i",
-                                        part.toolName ?: "unknown",
-                                        part.toolArgs ?: "",
-                                        status = part.status,
-                                    ),
+                                toolCall = LlmToolCall(
+                                    "tool-${System.currentTimeMillis()}-$i",
+                                    part.toolName ?: "unknown",
+                                    part.toolArgs ?: "",
+                                    status = part.status,
+                                ),
+                                question = pendingQ,
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
                             )
+                        }
                         "tool_result", "result" ->
                             LlmChunk(
                                 content = null,
@@ -342,10 +320,45 @@ class OpencodeLlmProvider(
         }
     }
 
+    private fun extractQuestionFromArgs(argsJson: String?): PendingQuestion? {
+        if (argsJson.isNullOrBlank()) return null
+        return try {
+            val json = Json.parseToJsonElement(argsJson).jsonObject
+
+            var questionStr = json["question"]?.safeStr ?: "What would you like?"
+            var options: List<String> = emptyList()
+            var allowCustom = json["allowCustom"]?.safeStr?.toBooleanStrictOrNull()
+                ?: json["allow_custom"]?.safeStr?.toBooleanStrictOrNull()
+                ?: false
+
+            val questions = json["questions"]?.jsonArray
+            if (questions != null && questions.isNotEmpty()) {
+                val first = questions[0].jsonObject
+                questionStr = first["question"]?.safeStr ?: questionStr
+                allowCustom = first["allowCustom"]?.safeStr?.toBooleanStrictOrNull()
+                    ?: first["allow_custom"]?.safeStr?.toBooleanStrictOrNull()
+                    ?: allowCustom
+                val optsEl = first["options"]
+                if (optsEl is JsonArray) {
+                    options = optsEl.mapNotNull { it.safeStr }
+                }
+            }
+
+            val optsEl = json["options"]
+            if (options.isEmpty() && optsEl is JsonArray) {
+                options = optsEl.mapNotNull { it.safeStr }
+            }
+
+            PendingQuestion(question = questionStr, options = options, allowCustom = allowCustom)
+        } catch (e: Exception) {
+            logger.debug("Failed to parse ask_user args: ${e.message}")
+            null
+        }
+    }
+
     private fun parseCanonicalResponse(json: JsonObject): CanonicalResponse? {
         val topSubagentId = json["subagent_id"].safeStr
 
-        // V1: Parts Array (Batch/NDJSON responses)
         val partsArray = json["parts"]?.jsonArray
         if (partsArray != null) {
             val parts =
@@ -399,7 +412,6 @@ class OpencodeLlmProvider(
             return CanonicalResponse(parts)
         }
 
-        // V2: Individual SSE Part (Daemon incremental)
         val type = json["type"].safeStr
         if (type != null) {
             val part = json["part"]?.jsonObject ?: json
@@ -444,7 +456,6 @@ class OpencodeLlmProvider(
             }
         }
 
-        // V3: Top-level fallback
         val content = json.deepStr()
         if (content != null && content != json.toString()) {
             return CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = topSubagentId)))
