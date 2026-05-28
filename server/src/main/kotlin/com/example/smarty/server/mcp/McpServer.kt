@@ -137,7 +137,9 @@ class McpServer(
                     return@post
                 }
 
-                val userId = principal?.userId ?: getFallbackUserId()
+                val userId = principal?.userId
+                    ?: com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()
+                    ?: getFallbackUserId()
 
                 // Emit to ALL active sessions for this user (MCP session ID != WebSocket session ID)
                 val userSessions = ActiveSessionManager.getAllSessions().filter { it.userId == userId }

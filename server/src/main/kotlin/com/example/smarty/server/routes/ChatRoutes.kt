@@ -434,6 +434,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
                 com.example.smarty.server.agent.ActiveSessionManager
                     .startSession(userId, activeSessionId, "chat")
+                com.example.smarty.server.agent.ActiveUserRegistry.setActive(userId)
 
                 // Collect citations and agent steps during stream
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
@@ -695,6 +696,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     // Clear the bridge so stale emitters never fire
                     ActiveEventBridge.clear(userId)
+                    com.example.smarty.server.agent.ActiveUserRegistry.clearActive(userId)
                     // Reject pending approvals to prevent hanging coroutines (C2 fix)
                     com.example.smarty.server.agent.ApprovalRegistry
                         .cancelApprovalsForSession(activeSessionId)
@@ -730,6 +732,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 // Register with ActiveSessionManager so MCP server can find this session
                 com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, sessionIdParam, "websocket")
+                com.example.smarty.server.agent.ActiveUserRegistry.setActive(userId)
 
                 // Register with ActiveEventBridge so MCP approval events reach this WebSocket
                 val wsEmitter: suspend (AgentEvent) -> Unit = { event ->
@@ -840,6 +843,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     heartbeatJob.cancel()
                     ActiveEventBridge.clear(userId)
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, sessionIdParam)
+                    com.example.smarty.server.agent.ActiveUserRegistry.clearActive(userId)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
             }
