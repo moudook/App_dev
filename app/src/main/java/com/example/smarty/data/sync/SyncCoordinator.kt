@@ -335,7 +335,11 @@ class SyncCoordinator(
                                 startTime = eventInfo.startTime,
                                 endTime = eventInfo.endTime,
                                 description = eventInfo.description,
+                                location = eventInfo.location,
                                 reminderMinutes = eventInfo.reminderMinutes,
+                                linkedNoteId = eventInfo.linkedNoteId,
+                                googleEventId = eventInfo.googleEventId,
+                                isEventPrivate = eventInfo.isEventPrivate,
                                 createdAt = eventInfo.createdAt,
                             )
                         calendarDao.insertEvent(event)
@@ -462,6 +466,10 @@ class SyncCoordinator(
                                     endTime = event.endTime,
                                     description = event.description,
                                     reminderMinutes = event.reminderMinutes ?: 15,
+                                    location = event.location,
+                                    linkedNoteId = event.linkedNoteId,
+                                    googleEventId = event.googleEventId,
+                                    isEventPrivate = event.isEventPrivate,
                                 ),
                             )
                         }

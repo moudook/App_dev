@@ -402,12 +402,17 @@ fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.ser
                                         val nonNullId = eventItem.id!!
                                         val id =
                                             calendarRepository.createWithId(
-                                                userId,
-                                                nonNullId,
-                                                eventItem.title,
-                                                eventItem.startTime,
-                                                eventItem.endTime,
-                                                eventItem.description,
+                                                userId = userId,
+                                                eventId = nonNullId,
+                                                title = eventItem.title,
+                                                startTime = eventItem.startTime,
+                                                endTime = eventItem.endTime,
+                                                description = eventItem.description,
+                                                location = eventItem.location,
+                                                reminderMinutes = eventItem.reminderMinutes,
+                                                linkedNoteId = eventItem.linkedNoteId,
+                                                googleEventId = eventItem.googleEventId,
+                                                isEventPrivate = eventItem.isEventPrivate,
                                             )
                                         if (id == nonNullId) {
                                             createdEvents.add(id)
@@ -416,11 +421,19 @@ fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.ser
                                         val id =
                                             calendarRepository.create(
                                                 userId,
-                                                eventItem.title,
-                                                eventItem.startTime,
-                                                eventItem.endTime,
-                                                eventItem.description,
-                                                eventItem.reminderMinutes,
+                                                CalendarEventInfo(
+                                                    id = "",
+                                                    title = eventItem.title,
+                                                    startTime = eventItem.startTime,
+                                                    endTime = eventItem.endTime,
+                                                    description = eventItem.description,
+                                                    location = eventItem.location,
+                                                    reminderMinutes = eventItem.reminderMinutes,
+                                                    linkedNoteId = eventItem.linkedNoteId,
+                                                    googleEventId = eventItem.googleEventId,
+                                                    isEventPrivate = eventItem.isEventPrivate,
+                                                    createdAt = System.currentTimeMillis()
+                                                )
                                             )
                                         createdEvents.add(id)
                                     }

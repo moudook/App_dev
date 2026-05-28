@@ -279,3 +279,7 @@ test.kt
 changes.patch
 exposed-sources/
 test.kt
+
+# Accidentally committed binary .kt files
+SmartyInputField_main.kt
+main_SmartyInputField.kt

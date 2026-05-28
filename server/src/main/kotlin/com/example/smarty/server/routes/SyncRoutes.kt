@@ -97,7 +97,11 @@ data class EventPushItem(
     val startTime: Long,
     val endTime: Long,
     val description: String? = null,
+    val location: String? = null,
     val reminderMinutes: Int = 15,
+    val linkedNoteId: String? = null,
+    val googleEventId: String? = null,
+    val isEventPrivate: Boolean = false,
 )
 
 @Serializable
@@ -312,12 +316,17 @@ fun Application.configureSyncRoutes() {
                                 if (eventItem.id != null) {
                                     val id =
                                         calendarRepository.createWithId(
-                                            userId,
-                                            eventItem.id,
-                                            eventItem.title,
-                                            eventItem.startTime,
-                                            eventItem.endTime,
-                                            eventItem.description,
+                                            userId = userId,
+                                            eventId = eventItem.id,
+                                            title = eventItem.title,
+                                            startTime = eventItem.startTime,
+                                            endTime = eventItem.endTime,
+                                            description = eventItem.description,
+                                            location = eventItem.location,
+                                            reminderMinutes = eventItem.reminderMinutes,
+                                            linkedNoteId = eventItem.linkedNoteId,
+                                            googleEventId = eventItem.googleEventId,
+                                            isEventPrivate = eventItem.isEventPrivate,
                                         )
                                     if (id == eventItem.id) {
                                         createdEvents.add(id)
@@ -326,11 +335,19 @@ fun Application.configureSyncRoutes() {
                                     val id =
                                         calendarRepository.create(
                                             userId,
-                                            eventItem.title,
-                                            eventItem.startTime,
-                                            eventItem.endTime,
-                                            eventItem.description,
-                                            eventItem.reminderMinutes,
+                                            CalendarEventInfo(
+                                                id = "",
+                                                title = eventItem.title,
+                                                startTime = eventItem.startTime,
+                                                endTime = eventItem.endTime,
+                                                description = eventItem.description,
+                                                location = eventItem.location,
+                                                reminderMinutes = eventItem.reminderMinutes,
+                                                linkedNoteId = eventItem.linkedNoteId,
+                                                googleEventId = eventItem.googleEventId,
+                                                isEventPrivate = eventItem.isEventPrivate,
+                                                createdAt = System.currentTimeMillis()
+                                            )
                                         )
                                     createdEvents.add(id)
                                 }

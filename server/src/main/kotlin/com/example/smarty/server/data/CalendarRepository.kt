@@ -210,6 +210,10 @@ class CalendarRepository(
         endTime: Long,
         description: String? = null,
         location: String? = null,
+        reminderMinutes: Int = 15,
+        linkedNoteId: String? = null,
+        googleEventId: String? = null,
+        isEventPrivate: Boolean = false,
     ): String =
         create(
             userId,
@@ -220,10 +224,10 @@ class CalendarRepository(
                 endTime = endTime,
                 description = description,
                 location = location,
-                reminderMinutes = 15,
-                linkedNoteId = null,
-                googleEventId = null,
-                isEventPrivate = false,
+                reminderMinutes = reminderMinutes,
+                linkedNoteId = linkedNoteId,
+                googleEventId = googleEventId,
+                isEventPrivate = isEventPrivate,
                 createdAt = System.currentTimeMillis(),
             ),
         )

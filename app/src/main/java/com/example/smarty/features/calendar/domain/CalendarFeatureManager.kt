@@ -20,12 +20,13 @@ class CalendarFeatureManager(
     private val googleCalendarSyncManager: GoogleCalendarSyncManager,
     private val securePreferences: SecurePreferences,
     private val alarmScheduler: AlarmScheduler,
+    private val offlineQueue: com.example.smarty.data.sync.OfflineQueue,
     private val scope: CoroutineScope,
 ) {
     private val TAG = "CalendarFeatureManager"
 
     // Underlying low-level manager for basic DAO/Alarm operations
-    private val calendarManager = CalendarManager(repository, alarmScheduler, scope)
+    private val calendarManager = CalendarManager(repository, alarmScheduler, offlineQueue, scope)
 
     // Observable State
     val calendarEvents = calendarManager.calendarEvents

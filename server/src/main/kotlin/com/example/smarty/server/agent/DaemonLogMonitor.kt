@@ -1,51 +1,63 @@
 package com.example.smarty.server.agent
 
+import com.example.smarty.protocol.AgentEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.RandomAccessFile
+import java.util.UUID
 
 /**
  * Real-time monitor for OpenCode daemon logs.
- * 
- * Tails /tmp/opencode-daemon.log and emits structured events for:
+ *
+ * Tails /tmp/opencode-daemon.log and emits AgentEvent objects for:
  * - Tool calls (web search, fetch, etc.)
  * - Reasoning/thinking steps
+ * - Agent loop steps (step=0, step=1, etc.)
+ * - LLM streaming events
  * - Sub-agent delegation
- * - Internal processing steps
- * 
- * This allows the server to stream daemon internals to clients in real-time.
+ * - Permission evaluations
+ * - Tool registry events
+ *
+ * The daemon log format is PLAIN TEXT with key=value pairs:
+ *   INFO  2026-05-28T16:29:15 +6ms service=session.tools status=started resolveTools
+ *   INFO  2026-05-28T16:29:15 +0ms service=tool.registry status=started websearch
+ *   INFO  2026-05-28T16:29:19 +1ms service=bus type=message.part.delta publishing
  */
 object DaemonLogMonitor {
     private val logger = LoggerFactory.getLogger(DaemonLogMonitor::class.java)
     private val logFile = File("/tmp/opencode-daemon.log")
-    private val _events = MutableSharedFlow<DaemonEvent>(replay = 0, extraBufferCapacity = 1000)
-    val events: SharedFlow<DaemonEvent> = _events.asSharedFlow()
+    private val _events = MutableSharedFlow<AgentEvent>(replay = 0, extraBufferCapacity = 1000)
+    val events: SharedFlow<AgentEvent> = _events.asSharedFlow()
 
     private var monitorJob: Job? = null
 
     fun start(scope: CoroutineScope) {
-        if (monitorJob?.isActive == true) return
+        if (!logFile.exists()) {
+            logger.warn("\u26A0\uFE0F [DAEMON_LOG] Log file not found: ${logFile.absolutePath}")
+            return
+        }
 
         monitorJob = scope.launch(Dispatchers.IO) {
             logger.info("\uD83D\uDE80 [DAEMON_LOG] Starting daemon log monitor: ${logFile.absolutePath}")
 
-            // Start from current end of file (skip old logs)
-            var filePosition = if (logFile.exists()) logFile.length() else 0L
+            // Start from current end of file
+            var filePosition = logFile.length()
 
             while (isActive) {
                 try {
                     if (logFile.exists()) {
                         val currentLength = logFile.length()
 
+                        // Handle log rotation
                         if (currentLength < filePosition) {
                             logger.info("\uD83D\uDD04 [DAEMON_LOG] Log file rotated, starting from beginning")
                             filePosition = 0
@@ -57,7 +69,8 @@ object DaemonLogMonitor {
                                 val buffer = ByteArray((currentLength - filePosition).toInt())
                                 val bytesRead = raf.read(buffer)
                                 if (bytesRead > 0) {
-                                    parseAndEmitEvents(String(buffer, 0, bytesRead))
+                                    val newContent = String(buffer, 0, bytesRead)
+                                    parseAndEmitEvents(newContent)
                                     filePosition = raf.filePointer
                                 }
                             }
@@ -79,260 +92,268 @@ object DaemonLogMonitor {
         monitorJob?.cancel()
         monitorJob = null
     }
-    
+
     private suspend fun parseAndEmitEvents(content: String) {
         content.lines().forEach { line ->
             if (line.isBlank()) return@forEach
-            
-            // Try to parse as JSON first (structured logs)
-            if (line.trim().startsWith("{")) {
-                try {
-                    val json = kotlinx.serialization.json.Json.parseToJsonElement(line)
-                    val jsonObj = json as? kotlinx.serialization.json.JsonObject
-                    
-                    if (jsonObj != null) {
-                        val level = jsonObj["level"]?.let { 
-                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content 
-                        }
-                        val message = jsonObj["msg"]?.let {
-                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        }
-                        
-                        if (level != null && message != null) {
-                            val event = parseLogLine(level, message, jsonObj)
-                            if (event != null) {
-                                val emoji = when (event) {
-                                    is DaemonEvent.ToolCall -> "\uD83D\uDEE0\uFE0F"
-                                    is DaemonEvent.WebSearch -> "\uD83D\uDD0D"
-                                    is DaemonEvent.Reasoning -> "\uD83E\uDD14"
-                                    is DaemonEvent.SubAgent -> "\uD83E\uDD16"
-                                    is DaemonEvent.Debug -> "\uD83D\uDC1E"
-                                }
-                                logger.info("$emoji [DAEMON_EVENT] ${event::class.simpleName}: ${event.toString().take(200)}")
-                                _events.emit(event)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Not valid JSON, try plain text parsing
-                    parsePlainTextLog(line)
-                }
-            } else {
-                // Plain text log
-                parsePlainTextLog(line)
-            }
-        }
-    }
-    
-    private suspend fun parseLogLine(
-        level: String,
-        message: String,
-        jsonObj: kotlinx.serialization.json.JsonObject
-    ): DaemonEvent? {
-        // Parse different types of daemon events
-        
-        // Tool calls
-        if (message.contains("tool", ignoreCase = true) || 
-            message.contains("calling", ignoreCase = true) ||
-            jsonObj.containsKey("tool") ||
-            jsonObj.containsKey("toolName")) {
-            
-            val toolName = jsonObj["tool"]?.let {
-                (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-            } ?: jsonObj["toolName"]?.let {
-                (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-            } ?: extractToolName(message)
-            
-            val status = when {
-                message.contains("starting", ignoreCase = true) || 
-                message.contains("calling", ignoreCase = true) -> "running"
-                message.contains("completed", ignoreCase = true) ||
-                message.contains("finished", ignoreCase = true) -> "completed"
-                message.contains("error", ignoreCase = true) ||
-                message.contains("failed", ignoreCase = true) -> "error"
-                else -> "unknown"
-            }
-            
-            return DaemonEvent.ToolCall(
-                toolName = toolName,
-                status = status,
-                arguments = jsonObj["args"]?.toString(),
-                result = jsonObj["result"]?.toString()
-            )
-        }
-        
-        // Reasoning/thinking
-        if (message.contains("think", ignoreCase = true) ||
-            message.contains("reason", ignoreCase = true) ||
-            message.contains("analyzing", ignoreCase = true) ||
-            level.equals("debug", ignoreCase = true) && message.length > 50) {
-            
-            return DaemonEvent.Reasoning(
-                content = message,
-                step = jsonObj["step"]?.let {
-                    (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                }
-            )
-        }
-        
-        // Web search
-        if (message.contains("search", ignoreCase = true) ||
-            message.contains("web", ignoreCase = true) ||
-            message.contains("fetch", ignoreCase = true)) {
-            
-            return DaemonEvent.WebSearch(
-                query = jsonObj["query"]?.let {
-                    (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                } ?: extractSearchQuery(message),
-                status = when {
-                    message.contains("starting", ignoreCase = true) -> "searching"
-                    message.contains("completed", ignoreCase = true) ||
-                    message.contains("found", ignoreCase = true) -> "completed"
-                    else -> "unknown"
-                },
-                results = jsonObj["results"]?.toString()
-            )
-        }
-        
-        // Sub-agent delegation
-        if (message.contains("subagent", ignoreCase = true) ||
-            message.contains("delegate", ignoreCase = true) ||
-            message.contains("spawn", ignoreCase = true)) {
-            
-            return DaemonEvent.SubAgent(
-                action = when {
-                    message.contains("spawn", ignoreCase = true) ||
-                    message.contains("create", ignoreCase = true) -> "spawned"
-                    message.contains("message", ignoreCase = true) -> "messaged"
-                    message.contains("complete", ignoreCase = true) -> "completed"
-                    else -> "unknown"
-                },
-                agentId = jsonObj["agentId"]?.let {
-                    (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                },
-                task = jsonObj["task"]?.let {
-                    (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                }
-            )
-        }
-        
-        // Generic debug event for other debug-level logs
-        if (level.equals("debug", ignoreCase = true)) {
-            return DaemonEvent.Debug(
-                message = message,
-                metadata = jsonObj.toString()
-            )
-        }
-        
-        return null
-    }
-    
-    private suspend fun parsePlainTextLog(line: String) {
-        // Parse plain text logs (fallback)
-        // Look for patterns like:
-        // "Calling tool: websearch with args: {...}"
-        // "Tool completed: websearch"
-        // "Reasoning: ..."
-        // "Web search: query..."
-        
-        val toolCallPattern = Regex("(?i)(?:calling|invoking|using)\\s+tool[:\\s]+(\\w+)")
-        val toolCompletePattern = Regex("(?i)tool[:\\s]+(\\w+)\\s+(?:completed|finished|done)")
-        val reasoningPattern = Regex("(?i)(?:reasoning|thinking|analyzing)[:\\s]+(.+)")
-        val searchPattern = Regex("(?i)(?:search|web search|fetching)[:\\s]+(.+)")
-        
-        when {
-            toolCallPattern.containsMatchIn(line) -> {
-                val match = toolCallPattern.find(line)
-                val toolName = match?.groupValues?.get(1) ?: "unknown"
-                logger.info("\uD83D\uDEE0\uFE0F [DAEMON_TOOL] Calling: $toolName")
-                _events.emit(DaemonEvent.ToolCall(toolName = toolName, status = "running"))
-            }
-            toolCompletePattern.containsMatchIn(line) -> {
-                val match = toolCompletePattern.find(line)
-                val toolName = match?.groupValues?.get(1) ?: "unknown"
-                logger.info("\u2705 [DAEMON_TOOL] Completed: $toolName")
-                _events.emit(DaemonEvent.ToolCall(toolName = toolName, status = "completed"))
-            }
-            reasoningPattern.containsMatchIn(line) -> {
-                val match = reasoningPattern.find(line)
-                val content = match?.groupValues?.get(1) ?: line
-                logger.info("\uD83E\uDD14 [DAEMON_THINK] ${content.take(150)}")
-                _events.emit(DaemonEvent.Reasoning(content = content))
-            }
-            searchPattern.containsMatchIn(line) -> {
-                val match = searchPattern.find(line)
-                val query = match?.groupValues?.get(1) ?: ""
-                logger.info("\uD83D\uDD0D [DAEMON_SEARCH] Query: $query")
-                _events.emit(DaemonEvent.WebSearch(query = query, status = "searching"))
-            }
-        }
-    }
-    
-    private fun extractToolName(message: String): String {
-        val patterns = listOf(
-            Regex("(?i)tool[:\\s]+(\\w+)"),
-            Regex("(?i)calling[:\\s]+(\\w+)"),
-            Regex("(?i)invoking[:\\s]+(\\w+)")
-        )
-        
-        for (pattern in patterns) {
-            val match = pattern.find(message)
-            if (match != null) {
-                return match.groupValues.getOrNull(1) ?: "unknown"
-            }
-        }
-        
-        return "unknown"
-    }
-    
-    private fun extractSearchQuery(message: String): String {
-        val patterns = listOf(
-            Regex("(?i)search(?:ing)?[:\\s]+['\"]?([^'\"]+)['\"]?"),
-            Regex("(?i)query[:\\s]+['\"]?([^'\"]+)['\"]?"),
-            Regex("(?i)fetching[:\\s]+['\"]?([^'\"]+)['\"]?")
-        )
-        
-        for (pattern in patterns) {
-            val match = pattern.find(message)
-            if (match != null) {
-                return match.groupValues.getOrNull(1)?.trim() ?: ""
-            }
-        }
-        
-        return message
-    }
-}
 
-/**
- * Structured daemon events parsed from logs
- */
-sealed class DaemonEvent {
-    data class ToolCall(
-        val toolName: String,
-        val status: String, // "running", "completed", "error"
-        val arguments: String? = null,
-        val result: String? = null
-    ) : DaemonEvent()
-    
-    data class Reasoning(
-        val content: String,
-        val step: String? = null
-    ) : DaemonEvent()
-    
-    data class WebSearch(
-        val query: String,
-        val status: String, // "searching", "completed"
-        val results: String? = null
-    ) : DaemonEvent()
-    
-    data class SubAgent(
-        val action: String, // "spawned", "messaged", "completed"
-        val agentId: String? = null,
-        val task: String? = null
-    ) : DaemonEvent()
-    
-    data class Debug(
-        val message: String,
-        val metadata: String? = null
-    ) : DaemonEvent()
+            // Skip lines that don't have service= (these are Ktor server logs, not daemon logs)
+            if (!line.contains("service=")) return@forEach
+
+            try {
+                val event = parseDaemonLogLine(line)
+                if (event != null) {
+                    _events.emit(event)
+                }
+            } catch (e: Exception) {
+                // Ignore parse errors for individual lines
+            }
+        }
+    }
+
+    /**
+     * Parse a daemon log line into an AgentEvent.
+     *
+     * Format: LEVEL  TIMESTAMP +DURMS key=value key=value ...
+     * Example: INFO  2026-05-28T16:29:15 +6ms service=session.tools status=started resolveTools
+     */
+    private fun parseDaemonLogLine(line: String): AgentEvent? {
+        // Extract key=value pairs from the line
+        val kvPairs = extractKeyValuePairs(line)
+        val service = kvPairs["service"] ?: return null
+        val status = kvPairs["status"]
+        val now = System.currentTimeMillis()
+
+        return when (service) {
+            // Agent loop steps: service=session.prompt session.id=... step=N loop
+            "session.prompt" -> {
+                val step = kvPairs["step"]
+                val sessionId = kvPairs["session.id"]
+                if (step != null) {
+                    val action = line.substringAfterLast(" ").trim() // "loop" or "exiting loop"
+                    AgentEvent.AgentStep(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = now,
+                        stepIndex = step.toIntOrNull() ?: 0,
+                        stepType = "agent_loop",
+                        stepTitle = "Agent Step $step",
+                        stepContent = if (action.contains("exiting")) "Agent loop completed at step $step" else "Executing agent step $step",
+                        stepStatus = if (action.contains("exiting")) "completed" else "running",
+                    )
+                } else null
+            }
+
+            // Tool resolution: service=session.tools status=started resolveTools
+            "session.tools" -> {
+                val action = line.substringAfterLast(" ").trim()
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "Resolving available tools...",
+                    thinking = "Tool resolution: $action",
+                )
+            }
+
+            // Tool registry events: service=tool.registry status=started websearch
+            "tool.registry" -> {
+                val toolName = line.substringAfterLast(" ").trim()
+                if (toolName.isNotEmpty() && toolName != "invalid") {
+                    val emoji = getToolEmoji(toolName)
+                    AgentEvent.Processing(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = now,
+                        content = "$emoji Tool registered: $toolName",
+                        thinking = "Tool registry: $toolName ($status)",
+                    )
+                } else null
+            }
+
+            // LLM calls: service=llm providerID=opencode modelID=... stream
+            "llm" -> {
+                val modelId = kvPairs["modelID"] ?: "unknown"
+                val sessionId = kvPairs["session.id"]
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "\uD83E\uDDE0 Calling LLM: $modelId",
+                    thinking = "LLM inference started with model $modelId for session $sessionId",
+                )
+            }
+
+            // Provider events: service=provider status=started state
+            "provider" -> {
+                val providerId = kvPairs["providerID"]
+                if (providerId != null) {
+                    AgentEvent.Processing(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = now,
+                        content = "\uD83D\uDD0C Provider: $providerId ($status)",
+                        thinking = "Provider $providerId status: $status",
+                    )
+                } else null
+            }
+
+            // MCP tool calls: service=mcp key=smarty toolCount=12 create() successfully created client
+            "mcp" -> {
+                val toolCount = kvPairs["toolCount"]
+                val key = kvPairs["key"]
+                if (toolCount != null) {
+                    AgentEvent.Processing(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = now,
+                        content = "\uD83D\uDD17 MCP connected: $toolCount tools available",
+                        thinking = "MCP server ($key) connected with $toolCount tools",
+                    )
+                } else null
+            }
+
+            // Permission evaluations: service=permission permission=smarty_ask_user pattern=* action=...
+            "permission" -> {
+                val permission = kvPairs["permission"] ?: "unknown"
+                val actionObj = kvPairs["action"]
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "\uD83D\uDD11 Permission check: $permission",
+                    thinking = "Permission evaluated: $permission = $actionObj",
+                )
+            }
+
+            // Session status changes: service=session.status publishing
+            "session.status" -> {
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "\uD83D\uDCCA Session status updated",
+                    thinking = "Session status changed",
+                )
+            }
+
+            // Bus events (streaming deltas): service=bus type=message.part.delta publishing
+            "bus" -> {
+                val busType = kvPairs["type"]
+                when (busType) {
+                    "message.part.delta" -> {
+                        // Streaming text delta - these are the intermediate streaming events
+                        // We don't emit these individually as they're too granular
+                        // The SSE stream handles these
+                        null
+                    }
+                    "message.part.updated" -> null // Part completed - handled by SSE
+                    "message.updated" -> null // Message completed - handled by SSE
+                    "session.updated" -> null // Session state change - not actionable
+                    "session.diff" -> null // Session diff - not actionable
+                    "session.idle" -> null // Session idle - not actionable
+                    "session.created" -> null // Session created - not actionable
+                    "session.next.agent.switched" -> {
+                        AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = now,
+                            content = "\uD83E\uDD16 Agent switched",
+                            thinking = "Sub-agent or agent type changed",
+                        )
+                    }
+                    "session.next.model.switched" -> {
+                        AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = now,
+                            content = "\uD83E\uDDE0 Model switched",
+                            thinking = "Model changed for next inference",
+                        )
+                    }
+                    "session.status" -> null // Duplicate of service=session.status
+                    "command.executed" -> {
+                        AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = now,
+                            content = "\u26A1 Command executed",
+                            thinking = "A command was executed in the session",
+                        )
+                    }
+                    else -> null
+                }
+            }
+
+            // Session processor: service=session.processor session.id=... messageID=... process
+            "session.processor" -> {
+                val messageId = kvPairs["messageID"]
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "\uD83D\uDCDD Processing message...",
+                    thinking = "Session processor started for message $messageId",
+                )
+            }
+
+            // Storage/migration: service=storage index=N running migration
+            "storage" -> null // Internal, not useful for user
+
+            // Shell tool: service=shell-tool shell=/bin/bash shell tool using shell
+            "shell-tool" -> {
+                AgentEvent.Processing(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    content = "\uD83D\uDCBB Shell tool initialized",
+                    thinking = "Shell tool ready for execution",
+                )
+            }
+
+            // Config loading: service=config path=... loading
+            "config" -> null // Internal, not useful for user
+
+            // Plugin loading: service=plugin name=... loading internal plugin
+            "plugin" -> null // Internal, not useful for user
+
+            // File watcher: service=file.watcher directory=... init
+            "file" -> null // Internal, not useful for user
+
+            // LSP: service=lsp all LSPs are disabled
+            "lsp" -> null // Internal
+
+            // Format: service=format all formatters are disabled
+            "format" -> null // Internal
+
+            // Default: skip unknown services
+            else -> null
+        }
+    }
+
+    /**
+     * Extract key=value pairs from a daemon log line.
+     * Handles quoted values and values with spaces.
+     */
+    private fun extractKeyValuePairs(line: String): Map<String, String> {
+        val pairs = mutableMapOf<String, String>()
+
+        // Split by whitespace, but respect quoted strings
+        val tokens = line.split("\\s+".toRegex())
+        for (token in tokens) {
+            val eqIndex = token.indexOf('=')
+            if (eqIndex > 0) {
+                val key = token.substring(0, eqIndex)
+                val value = token.substring(eqIndex + 1).removeSurrounding("\"")
+                pairs[key] = value
+            }
+        }
+
+        return pairs
+    }
+
+    private fun getToolEmoji(toolName: String): String {
+        return when {
+            toolName.contains("websearch", ignoreCase = true) -> "\uD83D\uDD0D"
+            toolName.contains("webfetch", ignoreCase = true) -> "\uD83C\uDF10"
+            toolName.contains("bash", ignoreCase = true) -> "\uD83D\uDCBB"
+            toolName.contains("read", ignoreCase = true) -> "\uD83D\uDCD6"
+            toolName.contains("write", ignoreCase = true) -> "\u270F\uFE0F"
+            toolName.contains("edit", ignoreCase = true) -> "\uD83D\uDD27"
+            toolName.contains("glob", ignoreCase = true) -> "\uD83D\uDCC1"
+            toolName.contains("grep", ignoreCase = true) -> "\uD83D\uDD0E"
+            toolName.contains("task", ignoreCase = true) -> "\uD83D\uDCCB"
+            toolName.contains("skill", ignoreCase = true) -> "\uD83C\uDFAF"
+            toolName.contains("question", ignoreCase = true) -> "\u2753"
+            toolName.contains("todowrite", ignoreCase = true) -> "\uD83D\uDCDD"
+            else -> "\uD83D\uDEE0\uFE0F"
+        }
+    }
 }

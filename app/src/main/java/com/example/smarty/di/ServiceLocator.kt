@@ -169,12 +169,14 @@ object ServiceLocator {
             val alarmScheduler = com.example.smarty.service.AlarmScheduler.getInstance(application)
             val repository = provideRepository(application)
             val googleCalendarSyncManager = com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager(application, repository)
+            val offlineQueue = provideOfflineQueue(application)
 
             CalendarFeatureManager(
                 repository = repository,
                 googleCalendarSyncManager = googleCalendarSyncManager,
                 securePreferences = securePreferences,
                 alarmScheduler = alarmScheduler,
+                offlineQueue = offlineQueue,
                 scope = applicationScope,
             ).also { calendarFeatureManager = it }
         }

@@ -35,6 +35,7 @@ import java.util.Locale
 class CalendarManager(
     private val repository: SmartyRepository,
     private val alarmScheduler: AlarmScheduler?,
+    private val offlineQueue: com.example.smarty.data.sync.OfflineQueue,
     private val scope: CoroutineScope,
 ) {
     companion object {
@@ -167,6 +168,9 @@ class CalendarManager(
         repository.insertEvent(event)
         Log.d(TAG, "Added calendar event: $title")
 
+        // Queue for server sync
+        offlineQueue.enqueueEventCreate(event)
+
         // Schedule alarm if reminder is set
         reminderMinutes?.let { minutes ->
             scheduleReminder(event, minutes)
@@ -183,6 +187,9 @@ class CalendarManager(
             try {
                 repository.insertEvent(event)
                 Log.d(TAG, "Added calendar event: ${event.title}")
+
+                // Queue for server sync
+                offlineQueue.enqueueEventCreate(event)
 
                 // Schedule alarm if reminder is set
                 event.reminderMinutes?.let { minutes ->
@@ -204,6 +211,9 @@ class CalendarManager(
                 repository.updateEvent(updatedEvent)
                 Log.d(TAG, "Updated calendar event: ${event.title}")
 
+                // Queue for server sync
+                offlineQueue.enqueueEventUpdate(updatedEvent)
+
                 // Reschedule alarm if reminder changed
                 event.reminderMinutes?.let { minutes ->
                     cancelReminder(event.id)
@@ -224,6 +234,9 @@ class CalendarManager(
                 cancelReminder(eventId)
                 repository.deleteEventById(eventId)
                 Log.d(TAG, "Deleted calendar event: $eventId")
+
+                // Queue for server sync
+                offlineQueue.enqueueEventDelete(eventId)
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting calendar event: ${e.message}", e)
             }
@@ -577,6 +590,8 @@ class CalendarManager(
                 eventIds.forEach { eventId ->
                     cancelReminder(eventId)
                     repository.deleteEventById(eventId)
+                    // Queue for server sync
+                    offlineQueue.enqueueEventDelete(eventId)
                 }
                 Log.d(TAG, "Bulk deleted ${eventIds.size} calendar events")
             } catch (e: Exception) {

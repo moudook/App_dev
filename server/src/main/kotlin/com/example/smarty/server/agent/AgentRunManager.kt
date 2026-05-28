@@ -169,23 +169,14 @@ object AgentRunManager {
                     }
                 }
 
-                // Bridge daemon log events → AgentEvent.OpencodeRawEvent
+                // Bridge daemon log events → AgentEvent (directly, no serialization needed)
                 val daemonLogJob = launch(Dispatchers.IO) {
-                    DaemonLogMonitor.events.collect { daemonEvent ->
-                        val eventName = when (daemonEvent) {
-                            is DaemonEvent.ToolCall -> "daemon.tool"
-                            is DaemonEvent.WebSearch -> "daemon.search"
-                            is DaemonEvent.Reasoning -> "daemon.reasoning"
-                            is DaemonEvent.SubAgent -> "daemon.subagent"
-                            is DaemonEvent.Debug -> "daemon.debug"
+                    DaemonLogMonitor.events.collect { agentEvent ->
+                        try {
+                            flow.emit(agentEvent)
+                        } catch (e: Exception) {
+                            logger.warn("Failed to emit daemon log event: ${e.message}")
                         }
-                        val opencodeEvent = AgentEvent.OpencodeRawEvent(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            data = kotlinx.serialization.json.Json.encodeToString(daemonEvent),
-                            eventName = eventName,
-                        )
-                        flow.emit(opencodeEvent)
                     }
                 }
 

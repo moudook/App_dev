@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -274,24 +275,10 @@ fun SmartyInputField(
                     )
                 }
 
-                // ImageGen Toggle (Krea AI image generation mode, only in Chat Section)
-                if (isChatMode) {
-                    val imageGenColor = if (isImageGenMode) Color(0xFF9575CD) else Color.Gray
-                    Icon(
-                        imageVector = Icons.Rounded.Image, 
-                        contentDescription = "Image Gen", 
-                        tint = imageGenColor, 
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .squishClick { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleImageGenMode() }
-                    )
-                }
-
                 // History Icon (Only in Chat Section, toggles between history and creating new clean chat)
                 if (isChatMode && showHistoryOption) {
                     Icon(
-                        imageVector = if (isHistoryMode) Icons.Rounded.Add else Icons.Rounded.History, 
+                        imageVector = if (isHistoryMode) Icons.Rounded.Edit else Icons.Rounded.History, 
                         contentDescription = if (isHistoryMode) "New Chat" else "History", 
                         tint = Color.Gray, 
                         modifier = Modifier
@@ -313,6 +300,7 @@ fun SmartyInputField(
                     val displayLabel = selectedModel.substringAfterLast("/")
                         .replace(Regex("(?i)-free\\b"), "")
                         .replace(Regex("(?i)\\bfree\\b"), "")
+                        .replace(Regex("(?i)\\s*\\(free\\)"), "")
                         .trim()
                     
                     Surface(
@@ -320,7 +308,8 @@ fun SmartyInputField(
                         color = if (isDark) accentColor.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.08f),
                         modifier = Modifier
                             .height(32.dp)
-                            .widthIn(max = 125.dp) // Specific horizontal size constraint to prevent pushing other components
+                            .weight(1f, fill = false)
+                            .widthIn(max = 140.dp) // Specific horizontal size constraint
                             .squishClick { showModelMenu = true }
                     ) {
                         Row(
@@ -334,7 +323,7 @@ fun SmartyInputField(
                                 color = accentColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false) // Truncate and wrap gracefully within constrained width
+                                modifier = Modifier.weight(1f, fill = false) // Truncate and wrap gracefully
                             )
                             Spacer(Modifier.width(4.dp))
                             Icon(Icons.Rounded.KeyboardArrowDown, null, tint = accentColor, modifier = Modifier.size(16.dp))
@@ -350,6 +339,7 @@ fun SmartyInputField(
                                 val cleanLabel = label
                                     .replace(Regex("(?i)-free\\b"), "")
                                     .replace(Regex("(?i)\\bfree\\b"), "")
+                                    .replace(Regex("(?i)\\s*\\(free\\)"), "")
                                     .trim()
                                 DropdownMenuItem(
                                     text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
@@ -361,50 +351,57 @@ fun SmartyInputField(
                 }
             }
  
-            // RIGHT CONTROLS: Waveform Mic & Send Button (Stacked vertically when send button appears)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+            // RIGHT CONTROLS: Waveform Mic AND Send Button
+            Box(
+                modifier = Modifier.width(32.dp),
+                contentAlignment = Alignment.BottomCenter
             ) {
-                
-                // Active Voice Waveform OR Mic Icon (Shown always unless stop icon is active)
                 val showStopIcon = isAgentWorking && isChatMode
-                if (!showStopIcon) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .squishClick { 
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput() 
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isVoiceListening || isProcessing) {
-                            VoiceWaveformIcon(
-                                isListening = isVoiceListening,
-                                isProcessing = isProcessing,
-                                isAgentWorking = isAgentWorking,
-                                value = value,
-                                isFocused = isFocused,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.GraphicEq, 
-                                contentDescription = "Voice", 
-                                tint = accentColor, 
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                
+                // Mic / Waveform Button
+                // Animates upward when canSend is true
+                val micOffsetY by animateDpAsState(
+                    targetValue = if (canSend || showStopIcon) (-40).dp else 0.dp,
+                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
+                    label = "micOffset"
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .offset(y = micOffsetY)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .squishClick { 
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput() 
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isVoiceListening || isProcessing) {
+                        VoiceWaveformIcon(
+                            isListening = isVoiceListening,
+                            isProcessing = isProcessing,
+                            isAgentWorking = isAgentWorking,
+                            value = value,
+                            isFocused = isFocused,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.GraphicEq, 
+                            contentDescription = "Voice", 
+                            tint = accentColor, 
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                 }
  
-                // Send / Stop Arrow (Solid filled circle)
-                AnimatedVisibility(
+                // Send / Stop Arrow
+                androidx.compose.animation.AnimatedVisibility(
                     visible = canSend || showStopIcon,
-                    enter = scaleIn(spring(0.7f, 400f)) + fadeIn(),
-                    exit = scaleOut(spring(0.7f, 400f)) + fadeOut()
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
                     val btnColor = if (showStopIcon) Color(0xFFE53935) else (if (isDark) Color.White else Color.Black)
                     val iconTint = if (showStopIcon) Color.White else (if (isDark) Color.Black else Color.White)

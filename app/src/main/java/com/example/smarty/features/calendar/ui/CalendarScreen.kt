@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -648,20 +649,13 @@ private fun ActiveTimersRow(
             items(timers, key = { it.id }) { timer ->
                 // Calculate time remaining for timers
                 val now = ticks // use state to trigger recomposition
-                val timeRemaining =
-                    if (!timer.isAlarm) {
-                        (timer.triggerTime - now).coerceAtLeast(0)
-                    } else {
-                        0L
-                    }
+                val timeRemaining = (timer.triggerTime - now).coerceAtLeast(0)
 
                 Surface(
-                    shape = LocalShapes.current.pill,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier =
-                        Modifier
-                            .widthIn(min = 140.dp)
-                            .softCardShadow(shape = LocalShapes.current.pill),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
+                    modifier = Modifier.widthIn(min = 130.dp, max = 220.dp),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -677,21 +671,22 @@ private fun ActiveTimersRow(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = timer.name.lowercase(),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                text = timer.name.takeIf { it.isNotBlank() }?.lowercase() ?: "timer",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
 
-                            // Calculate time remaining for both timers and alarms
                             val timeRemainingMillis = (timer.triggerTime - now).coerceAtLeast(0)
                             val hours = timeRemainingMillis / 3600000
                             val minutes = (timeRemainingMillis % 3600000) / 60000
                             val seconds = (timeRemainingMillis % 60000) / 1000
 
                             val statusText =
-                                if (timeRemainingMillis <= 0) {
+                                if (timer.isAlarm) {
+                                    timeFormat.format(Date(timer.triggerTime)).lowercase()
+                                } else if (timeRemainingMillis <= 0) {
                                     stringResource(R.string.expired)
                                 } else if (hours > 0) {
                                     String.format("%dh %dm %ds", hours, minutes, seconds)
