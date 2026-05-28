@@ -74,6 +74,9 @@ class RemoteAgentService(
                 "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
                 "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
                 "opencode_raw" -> json.decodeFromString<AgentEvent.OpencodeRawEvent>(data)
+                "approval_requested" -> json.decodeFromString<AgentEvent.ApprovalRequested>(data)
+                "approval_granted" -> json.decodeFromString<AgentEvent.ApprovalGranted>(data)
+                "approval_denied" -> json.decodeFromString<AgentEvent.ApprovalDenied>(data)
                 else -> {
                     // Inject type discriminator if missing for the new canonical events
                     val jsonStr =

@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Basic Model Context Protocol (MCP) Server implementation using SSE.
  * Exposes Smarty's internal tools to OpenCode CLI natively.
- * REVISION V5: Added cancellation support and integrated with thinking trace.
+ * REVISION V6: Privileged mode — only ask_user requires user interaction.
  */
 class McpServer(
     private val vectorStore: PostgresVectorStore,
@@ -141,7 +141,6 @@ class McpServer(
                     ?: com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()
                     ?: getFallbackUserId()
 
-                // Emit to ALL active sessions for this user (MCP session ID != WebSocket session ID)
                 val userSessions = ActiveSessionManager.getAllSessions().filter { it.userId == userId }
 
                 val body = call.receiveText()
@@ -293,7 +292,6 @@ class McpServer(
         val resolvedName = ToolExecutor.mapOldToolNames(name)
         val toolCallId = "mcp-${UUID.randomUUID()}"
 
-        // Emit to ALL active sessions for this user
         suspend fun emitToAllSessions(event: AgentEvent) {
             ActiveEventBridge.emit(userId, event)
             for (session in userSessions) {
@@ -305,10 +303,9 @@ class McpServer(
 
         logger.info("[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, sessions=${userSessions.size}, args=${args.toString().take(200)}")
 
-        // INTEGRATION: Add to thinking trace immediately so the UI shows activity
         thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "started", args.toString())
 
-        // Secondary Validation Layer for Sub-Agent Sandboxing
+        // High-risk path sandbox (only for file-adjacent tools)
         if (resolvedName == "bash" || resolvedName == "command" || resolvedName.contains("write") || resolvedName.contains("replace")) {
             val argsStr = args.toString()
             val isHighRisk =
@@ -339,21 +336,16 @@ class McpServer(
             }
         }
 
-        val requiresApproval = resolvedName == "bash" || resolvedName.startsWith("device") || resolvedName == "ask_user"
-        if (requiresApproval) {
+        // PRIVILEGED MODE: Only ask_user requires user interaction (clarification question card).
+        // All other tools (bash, device, memory, etc.) run autonomously — no approval gate.
+        if (resolvedName == "ask_user" || resolvedName == "askuser") {
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
                     UUID.randomUUID().toString(),
                     System.currentTimeMillis(),
                     toolCallId,
                     resolvedName,
-                    resolvedName
-                        .replace(
-                            '_',
-                            ' ',
-                        ).replaceFirstChar {
-                            it.uppercase()
-                        },
+                    resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() },
                     args.toString(),
                 )
             ActiveEventBridge.emit(userId, approvalEvent)
@@ -362,14 +354,13 @@ class McpServer(
 
             val result =
                 runCatching {
-                    withTimeoutOrNull(
-                        60_000L,
-                    ) { ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await() }
-                }.getOrNull() ?: com.example.smarty.server.agent
-                    .ApprovalResult(false, "Approval timed out or system error")
+                    withTimeoutOrNull(60_000L) {
+                        ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await()
+                    }
+                }.getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out")
 
             if (!result.approved) {
-                val denial = "User denied: ${result.feedback ?: "no reason given"}"
+                val denial = result.feedback ?: "User denied"
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, deniedEvent)
@@ -390,31 +381,28 @@ class McpServer(
                 }
             }
 
-            // If it's ask_user, the user's text response IS the result.
-            // We bypass ToolExecutor entirely.
-            if (resolvedName == "ask_user") {
-                val userResponse = result.feedback ?: "User provided no answer"
-                thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
-                val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
-                ActiveEventBridge.emit(userId, grantedEvent)
-                eventEmitter?.invoke(grantedEvent)
-                emitToAllSessions(grantedEvent)
-                return buildJsonObject {
-                    put(
-                        "content",
-                        buildJsonArray {
-                            add(
-                                buildJsonObject {
-                                    put("type", JsonPrimitive("text"))
-                                    put("text", JsonPrimitive(userResponse))
-                                },
-                            )
-                        },
-                    )
-                }
+            val userResponse = result.feedback ?: "Proceed with your best judgment"
+            thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
+            val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
+            ActiveEventBridge.emit(userId, grantedEvent)
+            eventEmitter?.invoke(grantedEvent)
+            emitToAllSessions(grantedEvent)
+            return buildJsonObject {
+                put(
+                    "content",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("type", JsonPrimitive("text"))
+                                put("text", JsonPrimitive(userResponse))
+                            },
+                        )
+                    },
+                )
             }
         }
 
+        // All other tools: execute autonomously — no approval gate
         val executor =
             ToolExecutor(
                 userId,
