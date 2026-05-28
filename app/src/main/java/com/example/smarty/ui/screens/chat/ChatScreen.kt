@@ -94,10 +94,8 @@ fun ChatScreen(
     }
     
     // Memoize clarification message lookup — avoids full list scan on every recomposition
-    val msgWithClarification by remember {
-        derivedStateOf {
-            messages.find { it.clarificationRequest != null }
-        }
+    val msgWithClarification = remember(messages) {
+        messages.find { it.clarificationRequest != null }
     }
     
     Column(
@@ -246,6 +244,7 @@ fun ChatScreen(
                     ))
                 }
             } catch (e: Exception) {
+                android.util.Log.e("ChatScreen", "Error parsing ask_user args: ${pendingApproval!!.toolArgs}", e)
                 if (pendingQuestions.isEmpty()) {
                     pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
                         question = "Please provide input:",
@@ -255,6 +254,8 @@ fun ChatScreen(
                 }
             }
         }
+        
+        android.util.Log.d("ChatScreen", "pendingApproval: ${pendingApproval?.toolName}, pendingQuestions size: ${pendingQuestions.size}")
         // Standard Input field
         SmartyInputField(
                 value = inputText,

@@ -244,35 +244,10 @@ class ServerAgent(
                 // Determine tool call source: native tool_use event from OpenCode
                 val hasNativeToolCall = streamProcessor.isToolCallInProgress && streamProcessor.currentToolName.isNotEmpty()
 
-                // Daemon's internal agent loop called ask_user — emit Question event to client
-                val daemonQuestion = streamProcessor.pendingAskUserQuestion
-                if (daemonQuestion != null) {
-                    emit(
-                        AgentEvent.Question(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            question = daemonQuestion.question,
-                            options = daemonQuestion.options,
-                            allowCustom = daemonQuestion.allowCustom,
-                        ),
-                    )
-                    val finalThinking = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
-                    emit(
-                        AgentEvent.Result(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            content = "I'm waiting for your response to the question above.",
-                            thinking = finalThinking,
-                            isFinal = true,
-                        ),
-                    )
-                    ThinkingStorageManagerSingleton.instance.clear(sessionId)
-                    awaitingUserResponse = true
-                    continue
-                }
+                // Note: daemonQuestion interception removed. McpServer.kt handles ask_user for OpenCode daemon.
 
                 // 4. Tool call detected — execute and loop
-                if (hasNativeToolCall) {
+                if (hasNativeToolCall && llmProvider.providerName != "opencode") {
                     val toolName = streamProcessor.currentToolName
                     val toolArgs = streamProcessor.currentToolArgs
 
