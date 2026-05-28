@@ -1123,6 +1123,17 @@ fun InputStreamScreen(
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+            val topBarAlpha by animateFloatAsState(
+                targetValue = if (userIsScrolling && isChatMode) 0f else 1f,
+                animationSpec = tween(durationMillis = 300),
+                label = "topBarAlpha"
+            )
+            val topBarOffsetY by animateDpAsState(
+                targetValue = if (userIsScrolling && isChatMode) (-80).dp else (-8).dp,
+                animationSpec = tween(durationMillis = 300),
+                label = "topBarOffsetY"
+            )
+
             val topGradientBrush = if (isDarkTheme) {
                 SmartyBrushes.topScrimDark
             } else {
@@ -1131,7 +1142,8 @@ fun InputStreamScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .offset(y = (-8).dp)
+                    .offset(y = topBarOffsetY)
+                    .graphicsLayer { alpha = topBarAlpha }
                     .background(brush = topGradientBrush)
                     .zIndex(2f)
             ) {
