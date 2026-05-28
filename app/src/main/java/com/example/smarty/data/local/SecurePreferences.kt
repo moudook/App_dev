@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.smarty.data.local
 
 import android.content.Context
