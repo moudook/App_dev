@@ -149,6 +149,11 @@ object DatabaseFactory {
                 logger.info("Converted DB_URL to JDBC format")
             }
 
+            // Append PgBouncer-safe params if not already present
+            if (!dbUrl.contains("prepareThreshold")) {
+                dbUrl = "$dbUrl${if (dbUrl.contains("?")) "&" else "?"}prepareThreshold=0&preferQueryMode=simple"
+            }
+
             logger.info("Connecting to database: ${dbUrl.take(50)}...")
 
             val config =
@@ -165,10 +170,11 @@ object DatabaseFactory {
                     keepaliveTime = 300000
                     connectionTestQuery = "SELECT 1"
                     leakDetectionThreshold = 30000
+                    // Explicitly set transaction isolation to skip PgBouncer-incompatible
+                    // checkDefaultIsolation which creates prepared statements
+                    transactionIsolation = "TRANSACTION_READ_COMMITTED"
                     addDataSourceProperty("tcpKeepAlive", "true")
                     addDataSourceProperty("socketTimeout", "60")
-                    // PgBouncer transaction mode does not support server-side prepared statements
-                    addDataSourceProperty("prepareThreshold", "0")
                 }
 
             dataSource =
