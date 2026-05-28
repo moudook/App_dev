@@ -728,6 +728,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                 call.application.log.info("WebSocket connected for user: $userId, session: $sessionIdParam")
 
+                // Register with ActiveSessionManager so MCP server can find this session
+                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, sessionIdParam, "websocket")
+
                 val flow =
                     com.example.smarty.server.agent.AgentRunManager
                         .getEventFlow(sessionIdParam)
@@ -825,6 +828,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     emitJob.cancel()
                     heartbeatJob.cancel()
+                    com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, sessionIdParam)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
             }
