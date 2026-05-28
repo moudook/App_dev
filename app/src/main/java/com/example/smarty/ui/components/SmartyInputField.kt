@@ -403,24 +403,15 @@ fun SmartyInputField(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isVoiceListening || isProcessing) {
-                        VoiceWaveformIcon(
-                            isListening = isVoiceListening,
-                            isProcessing = isProcessing,
-                            isAgentWorking = isAgentWorking,
-                            value = value,
-                            isFocused = isFocused,
-                            mentionState = mentionState,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.GraphicEq, 
-                            contentDescription = "Voice", 
-                            tint = accentColor, 
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    VoiceWaveformIcon(
+                        isListening = isVoiceListening,
+                        isProcessing = isProcessing,
+                        isAgentWorking = isAgentWorking,
+                        value = value,
+                        isFocused = isFocused,
+                        mentionState = mentionState,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
  
                 // Send / Stop Arrow

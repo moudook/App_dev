@@ -150,8 +150,11 @@ class OpencodeLlmProvider(
      * Stream inference via CLI subprocess — gets real-time JSON events from the daemon.
      *
      * Command:
-     *   opencode run --format json --attach {daemonUrl} -s {sessionId}
+     *   opencode run --format json --pure --attach {daemonUrl} -s {sessionId}
      *                -m {modelId} --agent {agentName} "{userMessage}"
+     *
+     * --pure  prevents loading external plugins (ripgrep, LSP, etc.)
+     *         so the CLI acts as a thin event-streaming client.
      */
     private suspend fun streamViaSubprocess(
         inferenceId: String,
@@ -167,6 +170,7 @@ class OpencodeLlmProvider(
         commands.add("run")
         commands.add("--format")
         commands.add("json")
+        commands.add("--pure")
         commands.add("--attach")
         commands.add(daemonBaseUrl)
         commands.add("-s")
@@ -176,7 +180,6 @@ class OpencodeLlmProvider(
         commands.add("--agent")
         commands.add(agentName)
 
-        // The user message is a positional argument — no --prompt flag
         commands.add(userMessage)
 
         logger.info("[OpenCode.Subprocess][inference=$inferenceId] Command: ${commands.joinToString(" ").take(300)}")
