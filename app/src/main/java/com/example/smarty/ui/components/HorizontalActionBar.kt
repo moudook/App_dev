@@ -74,10 +74,9 @@ fun HorizontalActionBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            // Protect from camera cutouts and navigation bars (fixes overlap issue)
+            // Protect from camera cutouts (fixes overlap issue)
             .windowInsetsPadding(WindowInsets.displayCutout)
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(

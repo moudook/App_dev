@@ -151,15 +151,14 @@ class OpencodeLlmProvider(
      *
      * Command:
      *   opencode run --format json --attach {daemonUrl} -s {sessionId}
-     *                -m {modelId} --agent {agentName}
-     *                --prompt "{systemPrompt}" "{userMessage}"
+     *                -m {modelId} --agent {agentName} "{userMessage}"
      */
     private suspend fun streamViaSubprocess(
         inferenceId: String,
         sessionId: String,
         modelId: String,
         agentName: String,
-        systemPrompt: String?,
+        @Suppress("UNUSED_PARAMETER") systemPrompt: String?,
         userMessage: String,
         flowCollector: FlowCollector<LlmChunk>,
     ) {
@@ -177,12 +176,7 @@ class OpencodeLlmProvider(
         commands.add("--agent")
         commands.add(agentName)
 
-        if (systemPrompt != null) {
-            commands.add("--prompt")
-            // Escape quotes in prompt for shell safety
-            commands.add(systemPrompt.replace("\"", "\\\"").replace("\n", "\\n"))
-        }
-
+        // The user message is a positional argument — no --prompt flag
         commands.add(userMessage)
 
         logger.info("[OpenCode.Subprocess][inference=$inferenceId] Command: ${commands.joinToString(" ").take(300)}")
