@@ -431,7 +431,7 @@ fun SmartyInputField(
                             .squishClick { 
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 focusManager.clearFocus()
-                                if (showStopIcon) onStopVoiceInput() else onSubmit() 
+                                if (showStopIcon) onStopGeneration() else onSubmit()
                             },
                         contentAlignment = Alignment.Center
                     ) {

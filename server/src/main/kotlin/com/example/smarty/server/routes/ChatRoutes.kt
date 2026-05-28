@@ -1312,15 +1312,14 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             val sessionId = request.sessionId
 
             try {
-                // Clear checkpoint to stop the agent
+                // Cancel the coroutine to safely stop the agent without destroying session data
                 if (sessionId.isNotEmpty()) {
-                    val persistenceManager = AgentPersistenceManager(userId)
-                    persistenceManager.clearCheckpoint(sessionId)
+                    val cancelled = com.example.smarty.server.agent.AgentRunManager.cancelRun(sessionId)
                     call.respond(
                         HttpStatusCode.OK,
                         InterruptResponse(
                             success = true,
-                            message = "Agent interrupted for session $sessionId",
+                            message = if (cancelled) "Agent run cancelled for session $sessionId" else "No active run found for session $sessionId",
                         ),
                     )
                 } else {

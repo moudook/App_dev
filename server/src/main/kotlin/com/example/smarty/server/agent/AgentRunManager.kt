@@ -346,6 +346,19 @@ object AgentRunManager {
     fun isRunActive(sessionId: String): Boolean = activeRuns[sessionId]?.isActive == true
 
     /**
+     * Cancel an active run for a specific session gracefully.
+     */
+    fun cancelRun(sessionId: String): Boolean {
+        val job = activeRuns[sessionId]
+        return if (job != null && job.isActive) {
+            job.cancel(kotlinx.coroutines.CancellationException("User requested interruption"))
+            true
+        } else {
+            false
+        }
+    }
+
+    /**
      * Cancel all active runs and clean up resources. Called during server shutdown.
      */
     fun shutdown() {

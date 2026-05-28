@@ -4,6 +4,7 @@ import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.HttpClientSingleton
 import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.agent.AgentRunManager
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
@@ -288,6 +289,8 @@ class McpServer(
         val resolvedName = ToolExecutor.mapOldToolNames(name)
         val toolCallId = "mcp-${UUID.randomUUID()}"
 
+        logger.info("[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, session=$smartySessionId, args=${args.toString().take(200)}")
+
         // INTEGRATION: Add to thinking trace immediately so the UI shows activity
         thinkingStorage.updateToolCall(smartySessionId, toolCallId, resolvedName, "started", args.toString())
 
@@ -341,6 +344,7 @@ class McpServer(
                 )
             ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
+            runCatching { AgentRunManager.emitEvent(smartySessionId, approvalEvent) }
 
             val result =
                 runCatching {
@@ -356,6 +360,7 @@ class McpServer(
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, deniedEvent)
                 eventEmitter?.invoke(deniedEvent)
+                runCatching { AgentRunManager.emitEvent(smartySessionId, deniedEvent) }
                 return buildJsonObject {
                     put(
                         "content",
@@ -379,6 +384,7 @@ class McpServer(
                 val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
                 ActiveEventBridge.emit(userId, grantedEvent)
                 eventEmitter?.invoke(grantedEvent)
+                runCatching { AgentRunManager.emitEvent(smartySessionId, grantedEvent) }
                 return buildJsonObject {
                     put(
                         "content",
@@ -407,6 +413,7 @@ class McpServer(
                 calendarRepository,
                 {
                     ActiveEventBridge.emit(userId, it)
+                    runCatching { AgentRunManager.emitEvent(smartySessionId, it) }
                 },
                 noteService,
             )
