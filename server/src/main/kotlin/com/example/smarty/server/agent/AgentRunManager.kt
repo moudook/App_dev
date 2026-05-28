@@ -169,17 +169,6 @@ object AgentRunManager {
                     }
                 }
 
-                // Bridge daemon log events → AgentEvent (directly, no serialization needed)
-                val daemonLogJob = launch(Dispatchers.IO) {
-                    DaemonLogMonitor.events.collect { agentEvent ->
-                        try {
-                            flow.emit(agentEvent)
-                        } catch (e: Exception) {
-                            logger.warn("Failed to emit daemon log event: ${e.message}")
-                        }
-                    }
-                }
-
                 val agent =
                     ServerAgent(
                         llmProvider = llmProvider,
@@ -339,7 +328,6 @@ object AgentRunManager {
                         logger.warn("Failed to emit error event: ${emitError.message}")
                     }
                 } finally {
-                    daemonLogJob.cancel()
                     ActiveEventBridge.clear(userId)
                     ApprovalRegistry.cancelApprovalsForSession(sessionId)
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)

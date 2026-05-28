@@ -13,15 +13,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.utils.io.readLine
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -37,6 +32,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
+/**
+ * Resilient JSON content extraction extension properties.
+ */
 private val JsonElement?.safeStr: String?
     get() = (this as? JsonPrimitive)?.contentOrNull
 
@@ -44,14 +42,19 @@ private fun JsonElement?.deepStr(): String? {
     if (this == null || this is JsonNull) return null
     if (this is JsonPrimitive) return this.contentOrNull
     if (this is JsonObject) {
+        // Search common fields recursively for any value that might be a string
         return this["delta"]?.deepStr()
             ?: this["text"]?.deepStr()
             ?: this["content"]?.deepStr()
             ?: this["result"]?.deepStr()
             ?: this["output"]?.deepStr()
             ?: this["data"]?.deepStr()
-            ?: if (this.keys.size == 1 && this.values.first() is JsonPrimitive) {
-                this.values.first().jsonPrimitive.contentOrNull
+            ?: if (this.keys.size == 1 &&
+                this.values.first() is JsonPrimitive
+            ) {
+                this.values
+                    .first()
+                    .jsonPrimitive.contentOrNull
             } else {
                 this.toString()
             }
@@ -76,8 +79,11 @@ class OpencodeLlmProvider(
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
     companion object {
+        // Limit concurrent connections to the OpenCode daemon for Beta Tester multi-user scaling
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
+
         private val TAG_STRIP_REGEX = Regex("</?(think|final)>", RegexOption.IGNORE_CASE)
+
         fun stripThinkFinalTags(text: String): String = text.replace(TAG_STRIP_REGEX, "").trim()
     }
 
@@ -118,10 +124,6 @@ class OpencodeLlmProvider(
 
             var isNotFound = false
 
-            // Poll GET /session/{id}/message concurrently to catch intermediate state
-            // changes while the SSE POST is pending (30-60s LLM inference)
-            var seenCount = 0
-
             suspend fun tryExecuteStream(
                 sessId: String,
                 isRetry: Boolean,
@@ -130,14 +132,16 @@ class OpencodeLlmProvider(
                 val systemPrompt =
                     messages
                         .filter { it.role == LlmMessage.Role.SYSTEM }
-                        .joinToString("\n\n") { it.content }
+                        .joinToString(
+                            "\n\n",
+                        ) { it.content }
                         .takeIf { it.isNotBlank() }
                 val conversationMessages = messages.filter { it.role != LlmMessage.Role.SYSTEM }
 
                 val parts =
-                    conversationMessages.mapNotNull { msg ->
+                        conversationMessages.mapNotNull { msg ->
                         when (msg.role) {
-                            LlmMessage.Role.USER ->
+                        LlmMessage.Role.USER ->
                                 buildJsonObject {
                                     put("type", JsonPrimitive("text"))
                                     put("text", JsonPrimitive(msg.content))
@@ -164,114 +168,75 @@ class OpencodeLlmProvider(
 
                 daemonSemaphore.acquire()
                 try {
-                    // Launch SSE POST and concurrent polling in parallel
-                    coroutineScope {
-                        // Polling job: checks GET /session/{id}/message every 2s for intermediate state
-                        val pollJob: Job = launch {
-                            var pollCount = 0
-                            while (isActive) {
-                                delay(2000)
-                                pollCount++
-                                try {
-                                    val historyResponse = client.get("$daemonBaseUrl/session/$sessId/message") {}
-                                    if (historyResponse.status.value == 200) {
-                                        val body = historyResponse.bodyAsText()
-                                        val json = kotlinx.serialization.json.Json.parseToJsonElement(body).jsonObject
-                                        val historyParts = json["parts"]?.jsonArray
-                                        if (historyParts != null && historyParts.size > seenCount) {
-                                            val newParts = historyParts.drop(seenCount)
-                                            logger.info("[OpenCode.Poll][inference=$inferenceId][poll=$pollCount] Found ${newParts.size} new parts (total: ${historyParts.size})")
-                                            seenCount = historyParts.size
+                    client
+                        .preparePost("$daemonBaseUrl/session/$sessId/message") {
+                            contentType(ContentType.Application.Json)
+                            header("Accept", "text/event-stream")
+                            setBody(
+                                DaemonMessageRequest(
+                                    parts = parts,
+                                    model =
+                                        buildJsonObject {
+                                            put("providerID", JsonPrimitive(providerId))
+                                            put("modelID", JsonPrimitive(modelId))
+                                        },
+                                    agent = agentName,
+                                    system = systemPrompt,
+                                ),
+                            )
+                        }.execute { response ->
+                            if (response.status.value == 404) {
+                                logger.warn("[OpenCode.LlmProvider][inference=$inferenceId] Session $sessId not found (404) on daemon.")
+                                localIsNotFound = true
+                                return@execute
+                            }
 
-                                            // Wrap new parts in a response and process them
-                                            val wrapper = buildJsonObject {
-                                                put("parts", kotlinx.serialization.json.JsonArray(newParts))
-                                                val sid = json["subagent_id"]
-                                                if (sid != null) put("subagent_id", sid)
-                                            }
-                                            flowCollector.processSseEvent("session.history", wrapper.toString(), context)
-                                        }
+                            val contentType = response.headers["Content-Type"] ?: "unknown"
+                            logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
+
+                            val channel = response.bodyAsChannel()
+                            var currentEvent: String? = null
+                            val currentData = StringBuilder()
+
+                            while (!channel.isClosedForRead) {
+                                val rawLine = channel.readLine() ?: break
+                                // Scrub ANSI and OSC terminal escape sequences to prevent JSON corruption and UI ghosting
+                                val line =
+                                    rawLine.replace(
+                                        Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"),
+                                        "",
+                                    )
+
+                                logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
+
+                                if (line.isBlank()) {
+                                    if (currentData.isNotEmpty()) {
+                                        flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
+                                        currentData.setLength(0)
+                                        currentEvent = null
                                     }
-                                } catch (e: Exception) {
-                                    logger.debug("[OpenCode.Poll][inference=$inferenceId][poll=$pollCount] Poll failed: ${e.message}")
+                                    continue
                                 }
+
+                                if (line.startsWith("event:")) {
+                                    currentEvent = line.substringAfter("event:").trim()
+                                } else if (line.startsWith("data:")) {
+                                    val data = line.substringAfter("data:").trim()
+                                    if (data.startsWith("{") && data.endsWith("}")) {
+                                        flowCollector.processSseEvent(currentEvent ?: "message", data, context)
+                                    } else {
+                                        if (currentData.isNotEmpty()) currentData.append("\n")
+                                        currentData.append(data)
+                                    }
+                                } else if (line.startsWith("{")) {
+                                    flowCollector.processSseEvent("message", line, context)
+                                }
+                            }
+
+                            if (currentData.isNotEmpty()) {
+                                flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
                             }
                         }
-
-                        // SSE POST: blocks until daemon finishes processing
-                        client
-                            .preparePost("$daemonBaseUrl/session/$sessId/message") {
-                                contentType(ContentType.Application.Json)
-                                header("Accept", "text/event-stream")
-                                setBody(
-                                    DaemonMessageRequest(
-                                        parts = parts,
-                                        model =
-                                            buildJsonObject {
-                                                put("providerID", JsonPrimitive(providerId))
-                                                put("modelID", JsonPrimitive(modelId))
-                                            },
-                                        agent = agentName,
-                                        system = systemPrompt,
-                                    ),
-                                )
-                            }.execute { response ->
-                                if (response.status.value == 404) {
-                                    logger.warn("[OpenCode.LlmProvider][inference=$inferenceId] Session $sessId not found (404).")
-                                    localIsNotFound = true
-                                    pollJob.cancel()
-                                    return@execute
-                                }
-
-                                val contentType = response.headers["Content-Type"] ?: "unknown"
-                                logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
-
-                                val channel = response.bodyAsChannel()
-                                var currentEvent: String? = null
-                                val currentData = StringBuilder()
-
-                                while (!channel.isClosedForRead) {
-                                    val rawLine = channel.readLine() ?: break
-                                    val line =
-                                        rawLine.replace(
-                                            Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"),
-                                            "",
-                                        )
-
-                                    logger.info("[DAEMON_RAW][inference=$inferenceId] $line")
-
-                                    if (line.isBlank()) {
-                                        if (currentData.isNotEmpty()) {
-                                            flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
-                                            currentData.setLength(0)
-                                            currentEvent = null
-                                        }
-                                        continue
-                                    }
-
-                                    if (line.startsWith("event:")) {
-                                        currentEvent = line.substringAfter("event:").trim()
-                                    } else if (line.startsWith("data:")) {
-                                        val data = line.substringAfter("data:").trim()
-                                        if (data.startsWith("{") && data.endsWith("}")) {
-                                            flowCollector.processSseEvent(currentEvent ?: "message", data, context)
-                                        } else {
-                                            if (currentData.isNotEmpty()) currentData.append("\n")
-                                            currentData.append(data)
-                                        }
-                                    } else if (line.startsWith("{")) {
-                                        flowCollector.processSseEvent("message", line, context)
-                                    }
-                                }
-
-                                if (currentData.isNotEmpty()) {
-                                    flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
-                                }
-                            }
-
-                        // SSE is done — cancel polling
-                        pollJob.cancel()
-                    }
                 } finally {
                     daemonSemaphore.release()
                 }
@@ -289,7 +254,10 @@ class OpencodeLlmProvider(
 
     suspend fun getSessionHistory(sessionId: String): JsonArray? =
         try {
-            val response = client.get("$daemonBaseUrl/session/$sessionId/message") {}
+            val response =
+                client.get("$daemonBaseUrl/session/$sessionId/message") {
+                    // No auth needed
+                }
             if (response.status.value == 200) {
                 Json.parseToJsonElement(response.bodyAsText()).jsonObject["parts"]?.jsonArray
             } else {
@@ -308,11 +276,14 @@ class OpencodeLlmProvider(
         val inferenceId = context.inferenceId
         logger.trace("[OpenCode.SSE][inference=$inferenceId] Raw data: $data")
 
+        // 1. Guaranteed Raw Emission (Immediate)
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
+        // 2. Resilient Semantic Parsing
         if (data.startsWith("{")) {
             val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return
 
+            // Check for Daemon errors
             if ((json["name"].safeStr ?: "").endsWith("Error")) {
                 logger.error("[OpenCode.Error][inference=$inferenceId] Daemon error: $data")
                 return
@@ -324,7 +295,14 @@ class OpencodeLlmProvider(
                         "text" -> {
                             val c = part.content
                             LlmChunk(
-                                content = if (c != null) { stripThinkFinalTags(c) } else null,
+                                content =
+                                    if (c !=
+                                        null
+                                    ) {
+                                        stripThinkFinalTags(c)
+                                    } else {
+                                        null
+                                    },
                                 reasoning = null,
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
@@ -367,6 +345,7 @@ class OpencodeLlmProvider(
     private fun parseCanonicalResponse(json: JsonObject): CanonicalResponse? {
         val topSubagentId = json["subagent_id"].safeStr
 
+        // V1: Parts Array (Batch/NDJSON responses)
         val partsArray = json["parts"]?.jsonArray
         if (partsArray != null) {
             val parts =
@@ -420,6 +399,7 @@ class OpencodeLlmProvider(
             return CanonicalResponse(parts)
         }
 
+        // V2: Individual SSE Part (Daemon incremental)
         val type = json["type"].safeStr
         if (type != null) {
             val part = json["part"]?.jsonObject ?: json
@@ -464,6 +444,7 @@ class OpencodeLlmProvider(
             }
         }
 
+        // V3: Top-level fallback
         val content = json.deepStr()
         if (content != null && content != json.toString()) {
             return CanonicalResponse(listOf(CanonicalPart("text", content, subagentId = topSubagentId)))

@@ -179,34 +179,5 @@ fun Application.configureHealthRoutes() {
                 )
             call.respond(response)
         }
-
-        /**
-         * Debug: read the last N lines of the daemon log file.
-         * Only accessible when the configured admin key is provided.
-         */
-        get("/api/v1/opencode/daemon-log") {
-            val adminKey = System.getenv("SERVER_ADMIN_KEY")
-            if (adminKey.isNullOrBlank()) {
-                call.respondText("Debug endpoint disabled", status = HttpStatusCode.NotFound)
-                return@get
-            }
-            val providedKey = call.request.queryParameters["key"]
-            if (providedKey != adminKey) {
-                call.respondText("Unauthorized", status = HttpStatusCode.Unauthorized)
-                return@get
-            }
-            val lines =
-                call.request.queryParameters["lines"]
-                    ?.toIntOrNull()
-                    ?.coerceIn(1, 500) ?: 50
-            val logFile = File("/tmp/opencode-daemon.log")
-            if (!logFile.exists()) {
-                call.respondText("Daemon log not found", status = HttpStatusCode.NotFound)
-                return@get
-            }
-            val allLines = withContext(Dispatchers.IO) { logFile.readLines() }
-            val lastLines = allLines.takeLast(lines)
-            call.respondText(lastLines.joinToString("\n"), contentType = ContentType.Text.Plain)
-        }
     }
 }

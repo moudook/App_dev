@@ -115,9 +115,6 @@ fun Application.module() {
     com.example.smarty.server.llm.OpencodeModelRegistry
         .discoverAtStartup()
 
-    // Start daemon log monitor (tails /tmp/opencode-daemon.log for internal tool events)
-    com.example.smarty.server.agent.DaemonLogMonitor.start(this)
-
     // Initialize Database
     DatabaseFactory.init()
 

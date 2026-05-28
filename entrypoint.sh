@@ -108,11 +108,9 @@ else
 fi
 
 echo "  Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
-# Use tee so output goes to BOTH the file (for DaemonLogMonitor) AND stdout (for HF container logs)
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --print-logs --log-level DEBUG 2>&1 | tee /tmp/opencode-daemon.log &
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
-echo "  Daemon log: /tmp/opencode-daemon.log"
 
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
