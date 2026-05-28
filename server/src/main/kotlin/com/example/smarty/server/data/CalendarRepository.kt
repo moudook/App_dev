@@ -110,6 +110,42 @@ class CalendarRepository(
             results
         }
 
+    /**
+     * List events within a time range. Use this instead of listAllEvents + in-memory filtering.
+     */
+    suspend fun listEventsInRange(
+        userId: String,
+        startMs: Long,
+        endMs: Long,
+        limit: Int = 500,
+    ): List<CalendarEventInfo> =
+        withContext(Dispatchers.IO) {
+            val results = mutableListOf<CalendarEventInfo>()
+            dataSource.connection.use { conn ->
+                val sql =
+                    """
+                    SELECT * FROM calendar_events 
+                    WHERE user_id = ?::uuid 
+                    AND start_time >= to_timestamp(? / 1000.0)
+                    AND start_time < to_timestamp(? / 1000.0)
+                    ORDER BY start_time ASC 
+                    LIMIT ?
+                    """.trimIndent()
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setLong(2, startMs)
+                    stmt.setLong(3, endMs)
+                    stmt.setInt(4, limit)
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            results.add(mapRowToEventInfo(rs))
+                        }
+                    }
+                }
+            }
+            results
+        }
+
     suspend fun listEventsUpdatedAfter(
         userId: String,
         timestamp: Long,

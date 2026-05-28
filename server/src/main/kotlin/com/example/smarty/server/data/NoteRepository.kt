@@ -341,26 +341,22 @@ class NoteRepository(
             dataSource.connection.use { conn ->
                 val sql =
                     """
-                    SELECT * FROM notes 
+                    SELECT *, ts_rank(
+                        to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')),
+                        plainto_tsquery('english', ?)
+                    ) as relevance
+                    FROM notes 
                     WHERE user_id = ?::uuid 
                     AND deleted_at IS NULL 
-                    AND (
-                        title ILIKE ? 
-                        OR content ILIKE ?
-                        OR summary ILIKE ?
-                        OR tags_json LIKE ?
-                    )
-                    ORDER BY updated_at DESC 
+                    AND to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')) @@ plainto_tsquery('english', ?)
+                    ORDER BY relevance DESC, updated_at DESC 
                     LIMIT ?
                     """.trimIndent()
-                val searchPattern = "%$query%"
                 conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setString(2, searchPattern)
-                    stmt.setString(3, searchPattern)
-                    stmt.setString(4, searchPattern)
-                    stmt.setString(5, searchPattern)
-                    stmt.setInt(6, limit)
+                    stmt.setString(1, query)
+                    stmt.setObject(2, UUID.fromString(userId))
+                    stmt.setString(3, query)
+                    stmt.setInt(4, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             results.add(mapRowToNoteInfo(rs))

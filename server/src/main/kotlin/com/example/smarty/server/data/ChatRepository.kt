@@ -57,7 +57,8 @@ class ChatRepository(
         tokenCount: Int = 0,
     ): MessageRecord =
         withContext(Dispatchers.IO) {
-            createSessionWithId(userId, sessionId, "New Session")
+            // Session creation is handled by the client or first message.
+            // Using ON CONFLICT on the INSERT below avoids needing a separate session check.
             dataSource.connection.use { conn ->
                 val sql =
                     """
@@ -117,7 +118,6 @@ class ChatRepository(
         updatedAt: Long? = null,
     ): MessageRecord =
         withContext(Dispatchers.IO) {
-            createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
                 val sql =
                     """
@@ -235,14 +235,18 @@ class ChatRepository(
     suspend fun getAllMessagesForSession(
         userId: String,
         sessionId: String,
+        limit: Int = 200,
+        offset: Int = 0,
     ): List<MessageRecord> =
         withContext(Dispatchers.IO) {
             val messages = mutableListOf<MessageRecord>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM chat_messages WHERE session_id = ?::uuid AND user_id = ?::uuid ORDER BY created_at ASC"
+                val sql = "SELECT * FROM chat_messages WHERE session_id = ?::uuid AND user_id = ?::uuid ORDER BY created_at ASC LIMIT ? OFFSET ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
                     stmt.setObject(2, UUID.fromString(userId))
+                    stmt.setInt(3, limit)
+                    stmt.setInt(4, offset)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             messages.add(mapRowToMessageRecord(rs))
@@ -403,35 +407,28 @@ class ChatRepository(
         agentEventsJson: String? = null,
     ): MessageRecord? =
         withContext(Dispatchers.IO) {
-            createSessionWithId(userId, sessionId, "New Session")
             dataSource.connection.use { conn ->
-                val findSql =
-                    "SELECT id FROM chat_messages WHERE session_id = ?::uuid " +
-                        "AND user_id = ?::uuid AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
-                var latestMsgId: UUID? = null
-                conn.prepareStatement(findSql).use { stmt ->
-                    stmt.setString(1, sessionId)
-                    stmt.setString(2, userId)
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            latestMsgId = rs.getObject("id") as UUID
-                        }
-                    }
-                }
-
-                if (latestMsgId == null) return@withContext null
-
-                val updateSql =
-                    "UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls), " +
-                        "agent_steps_json = COALESCE(?::jsonb, agent_steps_json), " +
-                        "agent_events_json = COALESCE(?::jsonb, agent_events_json), " +
-                        "updated_at = now() WHERE id = ? RETURNING *"
-                conn.prepareStatement(updateSql).use { stmt ->
+                // Single query: find latest assistant message and update it
+                val sql =
+                    """
+                    UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls),
+                        agent_steps_json = COALESCE(?::jsonb, agent_steps_json),
+                        agent_events_json = COALESCE(?::jsonb, agent_events_json),
+                        updated_at = now()
+                    WHERE id = (
+                        SELECT id FROM chat_messages 
+                        WHERE session_id = ?::uuid AND user_id = ?::uuid AND role = 'assistant' 
+                        ORDER BY created_at DESC LIMIT 1
+                    )
+                    RETURNING *
+                    """.trimIndent()
+                conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, thinking)
                     stmt.setString(2, toolCalls)
                     stmt.setString(3, agentStepsJson)
                     stmt.setString(4, agentEventsJson)
-                    stmt.setObject(5, latestMsgId)
+                    stmt.setString(5, sessionId)
+                    stmt.setString(6, userId)
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) mapRowToMessageRecord(rs) else null
                     }
@@ -561,7 +558,10 @@ class ChatRepository(
                     JOIN chat_sessions cs ON cm.session_id = cs.id
                     WHERE cm.user_id = ?::uuid 
                     AND cs.user_id = ?::uuid
-                    AND cm.content ILIKE ?
+                    AND (
+                        to_tsvector('english', cm.content) @@ plainto_tsquery('english', ?)
+                        OR cm.content ILIKE ?
+                    )
                     ORDER BY relevance DESC, cm.created_at DESC
                     LIMIT ?
                     """.trimIndent()
@@ -570,8 +570,9 @@ class ChatRepository(
                     stmt.setString(1, query)
                     stmt.setObject(2, UUID.fromString(userId))
                     stmt.setObject(3, UUID.fromString(userId))
-                    stmt.setString(4, searchPattern)
-                    stmt.setInt(5, limit)
+                    stmt.setString(4, query)
+                    stmt.setString(5, searchPattern)
+                    stmt.setInt(6, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             results.add(

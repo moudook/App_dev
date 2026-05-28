@@ -1,6 +1,11 @@
 package com.example.smarty.features.games.ui
 
 import android.view.HapticFeedbackConstants
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,11 +21,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -48,10 +55,13 @@ fun CoinTossGameContent(
     val scope = rememberCoroutineScope()
     val view = LocalView.current // For Haptics
 
+    // Initialize Gyroscope safely
+    val gyroTilt by rememberGyroscopeTilt()
+
     // Animation States
-    val rotationY = remember { Animatable(0f) }
-    val translationY = remember { Animatable(0f) }
-    val shadowScale = remember { Animatable(1f) }
+    val rotationYAnim = remember { Animatable(0f) }
+    val translationYAnim = remember { Animatable(0f) }
+    val shadowScaleAnim = remember { Animatable(1f) }
 
     // Logic States
     var isTossing by remember { mutableStateOf(false) }
@@ -64,23 +74,15 @@ fun CoinTossGameContent(
     val accentColor = com.example.smarty.ui.LocalAccentColor.current
     val metallicGradient = SmartyBrushes.metallicSilver
 
-    // Liquid Highlight Pulse
-    val infiniteTransition = rememberInfiniteTransition(label = "LiquidPulse")
-    val liquidOffset by infiniteTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "LiquidOffset"
-    )
+    // Liquid Highlight removed (now physics-driven in drawWithCache)
+
 
     // Effect: Auto-start first toss
     LaunchedEffect(Unit) {
         tossCoin(
-            rotationY, translationY, shadowScale,
+            rotationYAnim, translationYAnim, shadowScaleAnim,
             onResultCalculated = { heads -> resultIsHeads = heads },
+            onApex = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
             onLand = {
                 showResult = true
                 resultText = if (resultIsHeads) "HEADS" else "TAILS"
@@ -103,8 +105,9 @@ fun CoinTossGameContent(
                 if (!isTossing) {
                     scope.launch {
                         tossCoin(
-                            rotationY, translationY, shadowScale,
+                            rotationYAnim, translationYAnim, shadowScaleAnim,
                             onResultCalculated = { heads -> resultIsHeads = heads },
+                            onApex = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
                             onLand = {
                                 showResult = true
                                 resultText = if (resultIsHeads) "HEADS" else "TAILS"
@@ -148,11 +151,17 @@ fun CoinTossGameContent(
             Box(
                 modifier = Modifier
                     .offset(y = (coinSize / 2) + 8.dp)
-                    .size(width = 80.dp * shadowScale.value, height = 12.dp * shadowScale.value)
+                    .size(80.dp, 12.dp)
+                    .graphicsLayer {
+                        scaleX = shadowScaleAnim.value
+                        scaleY = shadowScaleAnim.value
+                        translationX = gyroTilt.roll * -1.2f 
+                        translationY = gyroTilt.pitch * -0.8f
+                    }
                     .background(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.25f * shadowScale.value),
+                                Color.Black.copy(alpha = 0.25f),
                                 Color.Transparent
                             )
                         ),
@@ -165,9 +174,10 @@ fun CoinTossGameContent(
                 modifier = Modifier
                     .size(coinSize)
                     .graphicsLayer {
-                        this.rotationY = rotationY.value
-                        this.translationY = translationY.value
-                        this.rotationX = if (isTossing) sin(rotationY.value * 0.05f) * 15f else 0f
+                        this.rotationY = rotationYAnim.value + gyroTilt.roll
+                        this.translationY = translationYAnim.value + (gyroTilt.pitch * 0.5f)
+                        val baseRotationX = if (isTossing) sin(rotationYAnim.value * 0.05f) * 15f else 0f
+                        this.rotationX = baseRotationX - gyroTilt.pitch 
                         cameraDistance = 16f * density
                     }
                     .shadow(elevation = if (isTossing) 12.dp else 6.dp, shape = CircleShape)
@@ -176,19 +186,24 @@ fun CoinTossGameContent(
                 contentAlignment = Alignment.Center
             ) {
                 // Liquid shine
+                val lightSweep = (abs(rotationYAnim.value) % 180f) / 180f
                 Box(
-                    modifier = Modifier.fillMaxSize().background(
-                        Brush.linearGradient(
-                            colors = listOf(Color.White.copy(0f), Color.White.copy(0.15f), Color.White.copy(0f)),
-                            start = androidx.compose.ui.geometry.Offset(liquidOffset * 500f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(liquidOffset * 500f + 200f, 600f)
-                        )
-                    )
+                    modifier = Modifier.fillMaxSize().drawWithCache {
+                        onDrawWithContent {
+                            drawContent()
+                            val gradient = Brush.linearGradient(
+                                colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.6f), Color.Transparent),
+                                start = Offset((lightSweep * 2f - 0.5f) * size.width, 0f),
+                                end = Offset((lightSweep * 2f + 0.5f) * size.width, size.height)
+                            )
+                            drawRect(brush = gradient)
+                        }
+                    }
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(4.dp).border(2.dp, Color.White.copy(0.1f), CircleShape))
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp).border(1.dp, Color.Gray.copy(0.2f), CircleShape))
 
-                val isBackVisible = (abs(rotationY.value) % 360) in 90f..270f
+                val isBackVisible = (abs(rotationYAnim.value) % 360) in 90f..270f
                 if (!isBackVisible) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         GeometricPattern()
@@ -269,6 +284,7 @@ private suspend fun tossCoin(
     translationY: Animatable<Float, AnimationVector1D>,
     shadowScale: Animatable<Float, AnimationVector1D>,
     onResultCalculated: (Boolean) -> Unit,
+    onApex: () -> Unit,
     onLand: () -> Unit,
     onStart: () -> Unit,
     onEnd: () -> Unit
@@ -303,12 +319,17 @@ private suspend fun tossCoin(
 
         val tossDuration = 1200 // Slightly longer for weight
 
-        // 1. Launch Rotation (Independent)
+        // 1. Launch Rotation
         launch {
             rotationY.animateTo(
                 targetValue = targetRotation,
                 animationSpec = tween(tossDuration, easing = FastOutSlowInEasing)
             )
+        }
+
+        launch {
+            kotlinx.coroutines.delay((tossDuration / 2).toLong())
+            onApex()
         }
 
         // 2. Launch Shadow (Independent)
@@ -360,4 +381,54 @@ private suspend fun tossCoin(
 val BounceInterpolator: Easing = Easing { fraction ->
     // Simple acceleration for falling: y = x^2
     fraction * fraction
+}
+
+// Holds the tilt values safely
+data class TiltState(val pitch: Float = 0f, val roll: Float = 0f)
+
+@Composable
+fun rememberGyroscopeTilt(): State<TiltState> {
+    val context = LocalContext.current
+    val tiltState = remember { mutableStateOf(TiltState()) }
+
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        // GAME_ROTATION_VECTOR is perfect for UI as it doesn't rely on the magnetic compass
+        val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.sensor.type == Sensor.TYPE_GAME_ROTATION_VECTOR) {
+                    val rotationMatrix = FloatArray(9)
+                    val orientationAngles = FloatArray(3)
+                    
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                    SensorManager.getOrientation(rotationMatrix, orientationAngles)
+
+                    // Convert radians to degrees and apply a dampening factor (e.g., max 25 degrees tilt)
+                    val pitch = Math.toDegrees(orientationAngles[1].toDouble()).toFloat() * 0.4f
+                    val roll = Math.toDegrees(orientationAngles[2].toDouble()).toFloat() * 0.4f
+
+                    // Update state. Because we only read this inside graphicsLayer, 
+                    // it will NOT trigger CPU recomposition!
+                    tiltState.value = TiltState(
+                        pitch = pitch.coerceIn(-25f, 25f),
+                        roll = roll.coerceIn(-25f, 25f)
+                    )
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        if (sensor != null) {
+            sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        }
+
+        onDispose {
+            if (sensor != null) {
+                sensorManager.unregisterListener(listener)
+            }
+        }
+    }
+    return tiltState
 }

@@ -33,58 +33,48 @@ fun AgentTimelineItem(
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         if (isUser) {
-            // User message
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "User",
-                    modifier = Modifier.size(16.dp).padding(top = 4.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 24.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+            // User message: Right-aligned bubble
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = accentColor.copy(alpha = 0.15f),
+                    modifier = Modifier.padding(start = 32.dp)
+                ) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = 24.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
             }
         } else {
-            // Agent response
+            // Agent response: Left-aligned plain text (no bubble, no icon)
             if (message.content.isNotBlank() || message.isStreaming) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "Smarty",
-                        modifier = Modifier.size(16.dp).padding(top = 4.dp),
-                        tint = accentColor
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                ) {
+                    TextEffectPerWord(
+                        text = message.content,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp
+                        ),
+                        normalColor = MaterialTheme.colorScheme.onSurface,
+                        boldColor = MaterialTheme.colorScheme.onSurface,
+                        linkColor = accentColor,
+                        codeColor = MaterialTheme.colorScheme.onSurface,
+                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        isStreaming = message.isStreaming
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(modifier = Modifier.padding(16.dp)) {
-                            TextEffectPerWord(
-                                text = message.content,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 16.sp,
-                                    lineHeight = 24.sp
-                                ),
-                                normalColor = MaterialTheme.colorScheme.onSurface,
-                                boldColor = MaterialTheme.colorScheme.onSurface,
-                                linkColor = accentColor,
-                                codeColor = MaterialTheme.colorScheme.onSurface,
-                                codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                                codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                isStreaming = message.isStreaming
-                            )
-                        }
-                    }
                 }
             }
         }

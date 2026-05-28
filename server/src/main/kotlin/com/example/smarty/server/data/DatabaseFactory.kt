@@ -19,6 +19,8 @@ object DatabaseFactory {
     private var dataSource: HikariDataSource? = null
     private var database: Database? = null
     private var connectionFailed = false
+    private var connectionFailedAt = 0L
+    private const val CONNECTION_RETRY_INTERVAL_MS = 60_000L // Retry after 60s
 
     fun init() {
         val ds = getDataSource()
@@ -81,32 +83,53 @@ object DatabaseFactory {
                         }
 
                         var applied = 0
+                        var skipped = 0
+                        var failed = 0
                         statements.forEach { sql ->
                             try {
                                 stmt.execute(sql)
                                 applied++
+                            } catch (e: org.postgresql.util.PSQLException) {
+                                // "already exists" errors are safe to skip (idempotent migrations)
+                                val msg = e.message ?: ""
+                                if (msg.contains("already exists") || msg.contains("duplicate key")) {
+                                    skipped++
+                                } else {
+                                    failed++
+                                    logger.error("Migration FAILED: ${msg.take(200)}")
+                                }
                             } catch (e: Exception) {
-                                logger.debug("Migration statement skipped (may already exist): ${e.message?.take(80)}")
+                                failed++
+                                logger.error("Migration FAILED: ${e.message?.take(200)}")
                             }
                         }
 
                         val duration = System.currentTimeMillis() - startTime
-                        logger.info("Database migrations completed - $applied statements applied in ${duration}ms")
+                        logger.info("Database migrations completed - applied: $applied, skipped: $skipped, failed: $failed in ${duration}ms")
+                        if (failed > 0) {
+                            logger.error("$failed migration statements failed! Database schema may be incomplete.")
+                        }
                     }
                 } else {
                     logger.warn("Migration file not found - skipping migrations")
                 }
             }
         } catch (e: Exception) {
-            logger.error("Failed to run database migrations", e)
-            // Don't throw - allow server to start even if migrations fail
+            logger.error("Failed to run database migrations - server starting with potentially incomplete schema", e)
         }
     }
 
     @Synchronized
     fun getDataSource(): DataSource? {
         if (connectionFailed) {
-            return null
+            // Allow retry after interval for transient failures
+            if (System.currentTimeMillis() - connectionFailedAt < CONNECTION_RETRY_INTERVAL_MS) {
+                return null
+            }
+            logger.info("Retrying database connection after transient failure...")
+            connectionFailed = false
+            dataSource = null
+            database = null
         }
         if (dataSource == null) {
             var dbUrl = System.getenv("DB_URL")
@@ -134,14 +157,14 @@ object DatabaseFactory {
                     username = dbUser
                     password = dbPassword
                     driverClassName = "org.postgresql.Driver"
-                    maximumPoolSize = 5
-                    minimumIdle = 2
+                    maximumPoolSize = 15
+                    minimumIdle = 3
                     idleTimeout = 300000
-                    connectionTimeout = 30000
+                    connectionTimeout = 5000
                     maxLifetime = 1800000
                     keepaliveTime = 300000
                     connectionTestQuery = "SELECT 1"
-                    leakDetectionThreshold = 120000
+                    leakDetectionThreshold = 30000
                     addDataSourceProperty("tcpKeepAlive", "true")
                     addDataSourceProperty("socketTimeout", "60")
                     // PgBouncer transaction mode does not support server-side prepared statements
@@ -168,6 +191,7 @@ object DatabaseFactory {
                     logger.error("If using Docker: docker ps (check container), docker logs <container_id>")
                     logger.error("Server will continue without database support")
                     connectionFailed = true
+                    connectionFailedAt = System.currentTimeMillis()
                     null
                 }
         }
@@ -190,6 +214,7 @@ object DatabaseFactory {
             val ds = getDataSource() ?: throw IllegalStateException("Database not available")
             ds.connection.use { conn ->
                 conn.autoCommit = false
+                conn.setNetworkTimeout(null, 30_000) // 30s network timeout
                 try {
                     val result = block(conn)
                     conn.commit()

@@ -194,9 +194,10 @@ object AgentRunManager {
                         ),
                     )
 
-                    // Aggressive Supervision: Enforce a 2-minute hard limit on agent runs to mitigate cross-spawn hangs.
+                    // Match ServerAgent's hard limit — the agent itself manages timeouts per-iteration.
+                    // The previous 2-minute limit killed legitimate deep research tasks.
                     val assistantResponse =
-                        kotlinx.coroutines.withTimeout(120_000L) {
+                        kotlinx.coroutines.withTimeout(com.example.smarty.server.agent.ServerAgent.MAX_EXECUTION_TIME_MS) {
                             agent.run(
                                 query = query,
                                 sessionId = sessionId,
@@ -297,36 +298,34 @@ object AgentRunManager {
                     }
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     logger.error(
-                        "Agent execution timed out after 2 minutes. Aggressively killing OpenCode daemon to clear stuck cross-spawn instances.",
+                        "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId",
                         e,
                     )
-                    OpencodeDaemonManager.stopMonitoring()
-                    OpencodeDaemonManager.startMonitoring() // Restarts the daemon
                     try {
                         eventEmitter(
                             AgentEvent.Error(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                message = "Agent execution timed out (hung process detected).",
+                                message = "Agent execution timed out. The task took too long to complete.",
                                 code = "AGENT_TIMEOUT",
                             ),
                         )
                     } catch (emitError: Exception) {
-                        // Ignore
+                        logger.warn("Failed to emit timeout error event: ${emitError.message}")
                     }
                 } catch (e: Exception) {
-                    logger.error("Agent execution failed in background job", e)
+                    logger.error("Agent execution failed in background job for session: $sessionId", e)
                     try {
                         eventEmitter(
                             AgentEvent.Error(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                message = "An error occurred during background processing.",
+                                message = "An error occurred during processing: ${e.message ?: "Unknown error"}",
                                 code = "AGENT_BACKGROUND_ERROR",
                             ),
                         )
                     } catch (emitError: Exception) {
-                        // Ignore
+                        logger.warn("Failed to emit error event: ${emitError.message}")
                     }
                 } finally {
                     ActiveEventBridge.clear(userId)
@@ -334,6 +333,10 @@ object AgentRunManager {
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
                     ActiveSessionManager.endSession(userId, sessionId)
                     activeRuns.remove(sessionId)
+                    // Clean up the SharedFlow to prevent memory leak
+                    // Delay removal so late subscribers can still receive final events
+                    kotlinx.coroutines.delay(5000)
+                    sessionEventFlows.remove(sessionId)
                 }
             }
 
@@ -341,4 +344,15 @@ object AgentRunManager {
     }
 
     fun isRunActive(sessionId: String): Boolean = activeRuns[sessionId]?.isActive == true
+
+    /**
+     * Cancel all active runs and clean up resources. Called during server shutdown.
+     */
+    fun shutdown() {
+        logger.info("Shutting down AgentRunManager - cancelling ${activeRuns.size} active runs")
+        activeRuns.values.forEach { it.cancel() }
+        activeRuns.clear()
+        sessionEventFlows.clear()
+        agentScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+    }
 }

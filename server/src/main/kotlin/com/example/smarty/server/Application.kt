@@ -468,6 +468,7 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopping) {
         log.info("Server stopping — cleaning up resources")
         digestScheduler?.stop()
+        com.example.smarty.server.agent.AgentRunManager.shutdown()
         com.example.smarty.server.agent.OpencodeDaemonManager
             .stopMonitoring()
         DatabaseFactory.close()

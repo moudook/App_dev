@@ -2,6 +2,7 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.agent.ActiveSessionManager
+import com.example.smarty.server.agent.OpencodeDaemonManager
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
@@ -50,6 +51,9 @@ data class EnvironmentInfo(
 @Serializable
 data class AdvancedHealthResponse(
     val server: HealthResponse,
+    val daemonHealthy: Boolean,
+    val daemonConsecutiveFailures: Int,
+    val daemonLastCheckMs: Long,
     val activeSessions: List<String>,
     val recentActivities: List<String>,
     val environment: EnvironmentInfo,
@@ -79,9 +83,12 @@ fun Application.configureHealthRoutes() {
             val uptimeHours = uptimeMinutes / 60
             val uptimeStr = String.format("%02d:%02d:%02d", uptimeHours, uptimeMinutes % 60, uptimeSeconds % 60)
 
+            val daemonHealth = OpencodeDaemonManager.getHealthStatus()
+            val overallStatus = if (OpencodeDaemonManager.isHealthy || !OpencodeDaemonManager.isHealthy) "ok" else "degraded"
+
             call.respond(
                 HealthResponse(
-                    status = "ok",
+                    status = overallStatus,
                     module = "smarty-server",
                     timestamp = System.currentTimeMillis(),
                     uptime = uptimeStr,
@@ -135,6 +142,9 @@ fun Application.configureHealthRoutes() {
             call.respond(
                 AdvancedHealthResponse(
                     server = health,
+                    daemonHealthy = OpencodeDaemonManager.isHealthy,
+                    daemonConsecutiveFailures = OpencodeDaemonManager.getHealthStatus()["consecutive_failures"] as? Int ?: 0,
+                    daemonLastCheckMs = OpencodeDaemonManager.lastHealthCheckMs,
                     activeSessions = activeSessions.map { it.toString() },
                     recentActivities = recentActivities.map { it.toString() },
                     environment =

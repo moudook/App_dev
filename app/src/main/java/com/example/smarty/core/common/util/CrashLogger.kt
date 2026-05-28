@@ -51,7 +51,10 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
             // Add app context
             crashlytics.setCustomKey("app_version", getAppVersion(context))
             crashlytics.setCustomKey("thread_name", t.name)
-            crashlytics.setCustomKey("thread_id", t.id)
+            @Suppress("DEPRECATION")
+            val threadId = t.id
+            crashlytics.setCustomKey("thread_id", threadId)
+
 
             // Report to Firebase Crashlytics
             crashlytics.recordException(e)

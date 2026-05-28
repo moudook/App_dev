@@ -53,6 +53,7 @@ class TaskRepository(
     suspend fun getTasksForUser(
         userId: String,
         status: String? = null,
+        limit: Int = 100,
     ): List<Task> =
         withContext(Dispatchers.IO) {
             val tasks = mutableListOf<Task>()
@@ -63,11 +64,17 @@ class TaskRepository(
                     WHERE user_id = ? AND deleted_at IS NULL
                     ${if (status != null) "AND status = ?" else ""}
                     ORDER BY sort_order, due_date ASC NULLS LAST, created_at DESC
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
-                    if (status != null) stmt.setString(2, status)
+                    if (status != null) {
+                        stmt.setString(2, status)
+                        stmt.setInt(3, limit)
+                    } else {
+                        stmt.setInt(2, limit)
+                    }
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) tasks.add(rs.toTask())
                     }
@@ -150,7 +157,7 @@ class TaskRepository(
             }
         }
 
-    suspend fun getTasksForSession(sessionId: String): List<Task> =
+    suspend fun getTasksForSession(sessionId: String, limit: Int = 100): List<Task> =
         withContext(Dispatchers.IO) {
             val tasks = mutableListOf<Task>()
             dataSource.connection.use { conn ->
@@ -159,10 +166,12 @@ class TaskRepository(
                     SELECT * FROM tasks
                     WHERE session_id = ? AND deleted_at IS NULL
                     ORDER BY sort_order, due_date ASC NULLS LAST
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) tasks.add(rs.toTask())
                     }
@@ -230,13 +239,14 @@ class TagRepository(
             }
         }
 
-    suspend fun getTagsForUser(userId: String): List<Tag> =
+    suspend fun getTagsForUser(userId: String, limit: Int = 100): List<Tag> =
         withContext(Dispatchers.IO) {
             val tags = mutableListOf<Tag>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM tags WHERE user_id = ? ORDER BY usage_count DESC, name"
+                val sql = "SELECT * FROM tags WHERE user_id = ? ORDER BY usage_count DESC, name LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) tags.add(rs.toTag())
                     }
@@ -277,7 +287,7 @@ class TagRepository(
             }
         }
 
-    suspend fun getNotesForTag(tagId: String): List<NoteForTag> =
+    suspend fun getNotesForTag(tagId: String, limit: Int = 100): List<NoteForTag> =
         withContext(Dispatchers.IO) {
             val notes = mutableListOf<NoteForTag>()
             dataSource.connection.use { conn ->
@@ -289,10 +299,12 @@ class TagRepository(
                     JOIN note_tags nt ON n.id = nt.note_id
                     WHERE nt.tag_id = ? AND n.deleted_at IS NULL
                     ORDER BY n.created_at DESC
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(tagId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             notes.add(
@@ -581,13 +593,14 @@ class ChatFolderRepository(
             folder.id
         }
 
-    suspend fun getFoldersForUser(userId: String): List<ChatFolder> =
+    suspend fun getFoldersForUser(userId: String, limit: Int = 50): List<ChatFolder> =
         withContext(Dispatchers.IO) {
             val folders = mutableListOf<ChatFolder>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM chat_folders WHERE user_id = ? ORDER BY sort_order, name"
+                val sql = "SELECT * FROM chat_folders WHERE user_id = ? ORDER BY sort_order, name LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             folders.add(
@@ -769,13 +782,14 @@ class UserDeviceRepository(
             device.id
         }
 
-    suspend fun getDevicesForUser(userId: String): List<UserDevice> =
+    suspend fun getDevicesForUser(userId: String, limit: Int = 20): List<UserDevice> =
         withContext(Dispatchers.IO) {
             val devices = mutableListOf<UserDevice>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM user_devices WHERE user_id = ? ORDER BY last_active_at DESC"
+                val sql = "SELECT * FROM user_devices WHERE user_id = ? ORDER BY last_active_at DESC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             devices.add(
@@ -1003,7 +1017,7 @@ class SharedItemRepository(
             item.id
         }
 
-    suspend fun getSharedItemsForUser(userId: String): List<SharedItem> =
+    suspend fun getSharedItemsForUser(userId: String, limit: Int = 50): List<SharedItem> =
         withContext(Dispatchers.IO) {
             val items = mutableListOf<SharedItem>()
             dataSource.connection.use { conn ->
@@ -1012,11 +1026,13 @@ class SharedItemRepository(
                     SELECT * FROM shared_items
                     WHERE owner_id = ? OR shared_with_id = ?
                     ORDER BY created_at DESC
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
                     stmt.setObject(2, UUID.fromString(userId))
+                    stmt.setInt(3, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             items.add(

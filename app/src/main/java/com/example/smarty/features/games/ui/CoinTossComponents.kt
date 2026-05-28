@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,7 +67,7 @@ fun Coin3D(
     state: CoinAnimationState,
     isTossing: Boolean
 ) {
-    val isBackVisible = (abs(state.rotationY.value) % 360) in 90f..270f
+    val isBackVisible = (abs(state.rotationX.value) % 360) in 90f..270f
     val edgeGradient = Brush.linearGradient(EDGE_GRADIENT_COLORS)
 
     Box(contentAlignment = Alignment.Center) {
@@ -80,7 +81,7 @@ fun Coin3D(
                 imageUrl = HEADS_IMAGE_URL,
                 description = "Heads",
                 isTossing = isTossing,
-                translationXOffset = (EDGE_SLICE_COUNT / 2f + 0.5f)
+                translationYOffset = (EDGE_SLICE_COUNT / 2f + 0.5f)
             )
         } else {
             CoinFace(
@@ -88,7 +89,7 @@ fun Coin3D(
                 imageUrl = TAILS_IMAGE_URL,
                 description = "Tails",
                 isTossing = isTossing,
-                translationXOffset = -(EDGE_SLICE_COUNT / 2f + 0.5f),
+                translationYOffset = -(EDGE_SLICE_COUNT / 2f + 0.5f),
                 mirrorContent = true
             )
         }
@@ -103,21 +104,26 @@ fun CoinEdge(
     state: CoinAnimationState,
     edgeGradient: Brush
 ) {
+    val edgeBackground = remember(edgeGradient) {
+        Modifier.clip(CircleShape).background(edgeGradient)
+    }
+
     for (i in 0 until EDGE_SLICE_COUNT) {
+        val depthOffset = (i - EDGE_SLICE_COUNT / 2f) * 1.5f
+        
         Box(
             modifier = Modifier
                 .size(COIN_SIZE)
                 .graphicsLayer {
                     rotationX = state.rotationX.value
                     rotationY = state.rotationY.value
-                    translationY = state.translationY.value
-                    translationX = (i - EDGE_SLICE_COUNT / 2f) * 1.5f * density
+                    translationY = state.translationY.value + (depthOffset * density)
+                    translationX = 0f
                     scaleX = state.zoomScale.value
                     scaleY = state.zoomScale.value
                     cameraDistance = state.cameraDist.value * density
                 }
-                .clip(CircleShape)
-                .background(edgeGradient)
+                .then(edgeBackground)
         )
     }
 }
@@ -129,12 +135,12 @@ fun CoinEdge(
  *                       image reads correctly when the coin's back is showing.
  */
 @Composable
-fun CoinFace(
+private fun CoinFace(
     state: CoinAnimationState,
     imageUrl: String,
     description: String,
     isTossing: Boolean,
-    translationXOffset: Float,
+    translationYOffset: Float,
     mirrorContent: Boolean = false
 ) {
     Box(
@@ -143,8 +149,8 @@ fun CoinFace(
             .graphicsLayer {
                 rotationX = state.rotationX.value
                 rotationY = state.rotationY.value
-                translationY = state.translationY.value
-                translationX = translationXOffset * density
+                translationY = state.translationY.value + translationYOffset * density
+                translationX = 0f
                 scaleX = state.zoomScale.value
                 scaleY = state.zoomScale.value
                 cameraDistance = state.cameraDist.value * density
@@ -166,7 +172,7 @@ fun CoinFace(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { rotationY = 180f }
+                    .graphicsLayer { rotationX = 180f }
             ) {
                 CoinImage(url = imageUrl, description = description, modifier = imageModifier)
             }

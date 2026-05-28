@@ -19,9 +19,9 @@ import java.util.UUID
 object AIModels {
     val SERVER_MODELS =
         listOf(
-            "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
-            "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
-            "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
+            "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash",
+            "opencode/nemotron-3-super-free" to "Nemotron 3 Super",
+            "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus",
         )
     const val SERVER_DEFAULT = "opencode/deepseek-v4-flash-free"
 
@@ -42,6 +42,7 @@ object AIModels {
  * Secure storage for application preferences and sensitive settings.
  * Thin Client Version: Only manages local settings and server connection configuration.
  */
+@Suppress("DEPRECATION")
 class SecurePreferences(private val context: Context) {
     fun getContext(): Context = context
 
@@ -322,7 +323,7 @@ class SecurePreferences(private val context: Context) {
             deviceId = "smarty-" + UUID.randomUUID().toString()
             encryptedPrefs.edit().putString(KEY_DEVICE_ID, deviceId).apply()
         }
-        return deviceId!!
+        return deviceId
     }
 
     /**

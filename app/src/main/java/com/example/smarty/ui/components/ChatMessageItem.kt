@@ -477,6 +477,7 @@ if (isUser) {
                 )
             }
         } else {
+            @Suppress("DEPRECATION")
             val clipboardManager = LocalClipboardManager.current
             var showCopied by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
@@ -833,6 +834,7 @@ fun CodeBlock(
     borderColor: Color,
     headerBgColor: Color = Color(0xFF343541)
 ) {
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     var isCopied by remember { mutableStateOf(false) }
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f

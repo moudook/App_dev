@@ -120,6 +120,7 @@ class ReasoningTraceRepository(
     suspend fun getTracesForSession(
         sessionId: String,
         messageId: String? = null,
+        limit: Int = 200,
     ): List<ReasoningTrace> =
         withContext(Dispatchers.IO) {
             val traces = mutableListOf<ReasoningTrace>()
@@ -136,12 +137,16 @@ class ReasoningTraceRepository(
                     WHERE session_id = ?
                     ${if (messageId != null) "AND (message_id = ? OR message_id IS NULL)" else ""}
                     ORDER BY step_index ASC
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
                     if (messageId != null) {
                         stmt.setObject(2, UUID.fromString(messageId))
+                        stmt.setInt(3, limit)
+                    } else {
+                        stmt.setInt(2, limit)
                     }
 
                     stmt.executeQuery().use { rs ->
@@ -176,7 +181,7 @@ class ReasoningTraceRepository(
     /**
      * Get reasoning timeline for UI
      */
-    suspend fun getReasoningTimeline(sessionId: String): List<ReasoningTraceWithSummary> =
+    suspend fun getReasoningTimeline(sessionId: String, limit: Int = 200): List<ReasoningTraceWithSummary> =
         withContext(Dispatchers.IO) {
             val traces = mutableListOf<ReasoningTraceWithSummary>()
 
@@ -193,10 +198,12 @@ class ReasoningTraceRepository(
                     LEFT JOIN reasoning_summaries rs ON rt.session_id = rs.session_id
                     WHERE rt.session_id = ?
                     ORDER BY rt.step_index ASC
+                    LIMIT ?
                     """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
+                    stmt.setInt(2, limit)
 
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {

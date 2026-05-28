@@ -43,13 +43,14 @@ class StackRepository(
             }
         }
 
-    suspend fun getStacksForUser(userId: String): List<Stack> =
+    suspend fun getStacksForUser(userId: String, limit: Int = 50): List<Stack> =
         withContext(Dispatchers.IO) {
             val stacks = mutableListOf<Stack>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT * FROM stacks WHERE user_id = ? ORDER BY created_at DESC"
+                val sql = "SELECT * FROM stacks WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) stacks.add(rs.toStack())
                     }
@@ -156,13 +157,14 @@ class StackRepository(
             stacks
         }
 
-    suspend fun getNotesForStack(stackId: String): List<String> =
+    suspend fun getNotesForStack(stackId: String, limit: Int = 500): List<String> =
         withContext(Dispatchers.IO) {
             val noteIds = mutableListOf<String>()
             dataSource.connection.use { conn ->
-                val sql = "SELECT note_id FROM note_stacks WHERE stack_id = ?"
+                val sql = "SELECT note_id FROM note_stacks WHERE stack_id = ? LIMIT ?"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(stackId))
+                    stmt.setInt(2, limit)
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) noteIds.add(rs.getObject("note_id").toString())
                     }

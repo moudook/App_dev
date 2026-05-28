@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -1124,7 +1125,7 @@ fun CalendarRoute(
         }
     )
 
-    // Add Event Sheet
+    // Add Event/Timer Sheet (Updated to use new TimeEditor)
     if (showAddSheet) {
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { showAddSheet = false },
@@ -1134,18 +1135,30 @@ fun CalendarRoute(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             dragHandle = null
         ) {
-            com.example.smarty.ui.components.AddEventSheet(
-                onDismiss = {
-                    showAddSheet = false
-                    selectedDateForNewEvent = null
-                },
-                onConfirm = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
-                    onAddCalendarEvent(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate)
-                    showAddSheet = false
-                    selectedDateForNewEvent = null
-                },
-                initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance()
-            )
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                com.example.smarty.ui.components.TimeEditor(
+                    onSave = { h, m, t ->
+                        val durationMs = (h * 60 + m) * 60 * 1000L
+                        val startTime = selectedDateForNewEvent?.timeInMillis ?: System.currentTimeMillis()
+                        val endTime = startTime + durationMs
+                        onAddCalendarEvent(
+                            t, 
+                            "Created via quick sheet", 
+                            startTime, 
+                            endTime,
+                            false,
+                            null,
+                            null,
+                            null,
+                            false
+                        )
+                        showAddSheet = false
+                    }
+                )
+            }
         }
     }
 

@@ -498,6 +498,23 @@ CREATE INDEX IF NOT EXISTS idx_vector_embeddings_user ON vector_embeddings(user_
 CREATE INDEX IF NOT EXISTS idx_vector_embeddings ON vector_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_ai_cache_expires ON ai_cache(expires_at);
 
+-- =====================================================
+-- Additional Performance Indexes
+-- =====================================================
+
+-- Content hash index for deduplication (NoteDeduplicationManager queries on user_id + content_hash)
+CREATE INDEX IF NOT EXISTS idx_notes_content_hash ON notes(user_id, content_hash) WHERE deleted_at IS NULL;
+
+-- Composite index for chat message progressive saves (updateMessageThinking pattern)
+CREATE INDEX IF NOT EXISTS idx_messages_session_user_role ON chat_messages(session_id, user_id, role, created_at DESC);
+
+-- Composite index for calendar event time-range filtering
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user_time ON calendar_events(user_id, start_time, end_time);
+
+-- Index for chat message notes junction table
+CREATE INDEX IF NOT EXISTS idx_chat_message_notes_message ON chat_message_notes(message_id);
+CREATE INDEX IF NOT EXISTS idx_chat_message_notes_note ON chat_message_notes(note_id);
+
 -- ============================================================
 -- IDEMPOTENT UPGRADES
 -- ============================================================

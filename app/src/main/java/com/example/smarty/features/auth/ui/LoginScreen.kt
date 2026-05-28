@@ -418,8 +418,15 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // ── Form Card (Uses Smarty Settings standards) ──────────────────────────────────────
-                SmartySettingsCard(horizontalPadding = 0.dp) {
+                // ── Form Card (Glassmorphic) ──────────────────────────────────────
+                val cardColor = if (isDark) Color.White.copy(alpha = 0.03f) else Color.Black.copy(alpha = 0.02f)
+                val cardBorder = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f)
+                Surface(
+                    shape = RoundedCornerShape(26.dp),
+                    color = cardColor,
+                    border = BorderStroke(1.dp, cardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -549,6 +556,11 @@ fun LoginScreen(
                                 animationSpec = tween(400),
                                 label = "strengthAnim",
                             )
+                            val animatedStrengthColor by animateColorAsState(
+                                targetValue = strengthColor,
+                                animationSpec = tween(400),
+                                label = "strengthColorAnim"
+                            )
 
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(
@@ -564,7 +576,7 @@ fun LoginScreen(
                                     Text(
                                         text = strengthLabel,
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = strengthColor,
+                                        color = animatedStrengthColor,
                                     )
                                 }
                                 Box(
@@ -581,7 +593,7 @@ fun LoginScreen(
                                                 .fillMaxWidth(animatedStrength)
                                                 .fillMaxHeight()
                                                 .clip(RoundedCornerShape(2.dp))
-                                                .background(strengthColor),
+                                                .background(animatedStrengthColor),
                                     )
                                 }
                             }

@@ -408,7 +408,7 @@ fun DigestDetailScreen(
             if (hasCriticalInfo) {
                 item {
                     CriticalInfoBanner(
-                        criticalInfo = digest.criticalInfo!!
+                        criticalInfo = digest.criticalInfo
                     )
                 }
             }

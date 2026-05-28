@@ -224,7 +224,7 @@ fun TicTacToeGameContent(onClose: () -> Unit) {
                         .aspectRatio(1f)
                         .softCardShadow(
                             elevation = 3.dp,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(26.dp),
                         )
                         .clickable(
                             enabled = cellValue == null && !gameOver && !isComputerThinking
@@ -259,7 +259,7 @@ fun TicTacToeGameContent(onClose: () -> Unit) {
                                 }
                             }
                         },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(26.dp),
                     color = if (isThinkingCell)
                         squareColor.copy(alpha = squareColor.alpha + pulseAlpha)
                     else squareColor,

@@ -485,7 +485,7 @@ class ToolExecutor(
             "list" -> {
                 val (startMs, endMs) = parseTimeRange(args.`when` ?: "today", clientTimezone, clientTimeMillis)
                 if (calendarRepository != null) {
-                    val events = calendarRepository.listAllEvents(userId).filter { it.startTime in startMs until endMs }
+                    val events = calendarRepository.listEventsInRange(userId, startMs, endMs)
                     if (events.isEmpty()) {
                         "No events for ${args.`when`}."
                     } else {

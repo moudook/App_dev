@@ -67,33 +67,33 @@ suspend fun performToss(
     onResult(isHeads)
 
     // Calculate target rotation so the correct face lands up
-    val currentRot = state.rotationY.value
+    val currentRot = state.rotationX.value
     val targetMod = if (isHeads) 0f else 180f
     var diff = targetMod - (currentRot % 360f)
     if (diff <= 0f) diff += 360f
     val targetRotation = currentRot + (MIN_SPINS * 360f) + diff
 
-    // ── 1. Rotation Y — the flip itself ──────────────────────────
+    // ── 1. Rotation X — the flip itself (horizontal axis) ────────
     launch {
-        state.rotationY.animateTo(
+        state.rotationX.animateTo(
             currentRot + (targetRotation - currentRot) * 0.45f,
             tween(LAUNCH_TIME, easing = LinearOutSlowInEasing)
         )
-        state.rotationY.animateTo(
+        state.rotationX.animateTo(
             currentRot + (targetRotation - currentRot) * 0.55f,
             tween(PEAK_TIME, easing = LinearEasing)
         )
-        state.rotationY.animateTo(
+        state.rotationX.animateTo(
             targetRotation,
             tween(FALL_TIME, easing = FastOutLinearInEasing)
         )
     }
 
-    // ── 2. Rotation X — cinematic 3D tilt ────────────────────────
+    // ── 2. Rotation Y — cinematic 3D tilt ────────────────────────
     launch {
-        state.rotationX.animateTo(LAUNCH_TILT_X, tween(LAUNCH_TIME, easing = LinearOutSlowInEasing))
-        state.rotationX.animateTo(PEAK_TILT_X, tween(PEAK_TIME, easing = LinearEasing))
-        state.rotationX.animateTo(0f, tween(FALL_TIME, easing = FastOutLinearInEasing))
+        state.rotationY.animateTo(LAUNCH_TILT_X, tween(LAUNCH_TIME, easing = LinearOutSlowInEasing))
+        state.rotationY.animateTo(PEAK_TILT_X, tween(PEAK_TIME, easing = LinearEasing))
+        state.rotationY.animateTo(0f, tween(FALL_TIME, easing = FastOutLinearInEasing))
     }
 
     // ── 3. Zoom — camera push-in ─────────────────────────────────

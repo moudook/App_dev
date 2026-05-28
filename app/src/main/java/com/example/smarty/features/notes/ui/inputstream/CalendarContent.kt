@@ -336,53 +336,13 @@ fun CalendarContent(
                 enter = expandVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeIn(),
                 exit = shrinkVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeOut()
             ) {
-                InlineEventCreator(
-                    title = newEventTitle,
-                    onTitleChange = { newEventTitle = it },
-                    isAllDay = newEventIsAllDay,
-                    onAllDayChange = { newEventIsAllDay = it },
-                    startHour = selectedStartHour,
-                    onStartHourChange = { selectedStartHour = it },
-                    endHour = selectedEndHour,
-                    onEndHourChange = { selectedEndHour = it },
-                    accentColor = accentColor,
-                    onSave = {
-                        if (newEventTitle.isNotBlank() && onCreateEvent != null) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-
-                            val startCal = selectedDate.clone() as Calendar
-                            startCal.set(Calendar.HOUR_OF_DAY, if (newEventIsAllDay) 0 else selectedStartHour)
-                            startCal.set(Calendar.MINUTE, 0)
-                            startCal.set(Calendar.SECOND, 0)
-                            startCal.set(Calendar.MILLISECOND, 0)
-
-                            val endCal = selectedDate.clone() as Calendar
-                            endCal.set(Calendar.HOUR_OF_DAY, if (newEventIsAllDay) 23 else selectedEndHour)
-                            endCal.set(Calendar.MINUTE, if (newEventIsAllDay) 59 else 0)
-                            endCal.set(Calendar.SECOND, if (newEventIsAllDay) 59 else 0)
-                            endCal.set(Calendar.MILLISECOND, 0)
-
-                            onCreateEvent(
-                                newEventTitle,
-                                null, // description
-                                startCal.timeInMillis,
-                                endCal.timeInMillis,
-                                newEventIsAllDay
-                            )
-
-                            // Reset and close
-                            newEventTitle = ""
-                            newEventIsAllDay = false
-                            selectedStartHour = 9
-                            selectedEndHour = 10
-                            isCreatingEvent = false
-                            keyboardController?.hide()
-                        }
-                    },
-                    onCancel = {
-                        newEventTitle = ""
+                com.example.smarty.ui.components.TimeEditor(
+                    onSave = { h, m, t ->
+                        val durationMs = (h * 60 + m) * 60 * 1000L
+                        val startTime = selectedDate.timeInMillis
+                        val endTime = startTime + durationMs
+                        onCreateEvent?.invoke(t, null, startTime, endTime, false)
                         isCreatingEvent = false
-                        keyboardController?.hide()
                     }
                 )
             }

@@ -1259,7 +1259,6 @@ fun InputStreamScreen(
                     },
                     label = "contentModeTransition",
                     modifier = Modifier
-                        .widthIn(max = 640.dp) // Optimized max width for readability and focus
                         .fillMaxSize()
                         .align(Alignment.TopCenter) // Explicitly center content area
                 ) { mode ->
@@ -1600,7 +1599,6 @@ fun InputStreamScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .widthIn(max = 540.dp)
                         .fillMaxWidth()
                         .padding(
                             start = 8.dp,
@@ -1919,7 +1917,7 @@ fun InputStreamScreen(
             title = stringResource(R.string.delete_note),
             text = stringResource(R.string.delete_note_warning),
             onConfirm = {
-                noteToDelete?.let { onDeleteNote(it.id) }
+                onDeleteNote(noteToDelete.id)
                 showDeleteDialog = false
                 noteToDeleteId = null
             },
