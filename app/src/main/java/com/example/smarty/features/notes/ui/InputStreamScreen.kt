@@ -1004,10 +1004,15 @@ fun InputStreamScreen(
     var userIsScrolling by remember { mutableStateOf(false) }
     
     // When the user interacts with the list (dragging or flinging), temporarily disable auto-scroll
-    LaunchedEffect(chatListState.isScrollInProgress) {
-        userIsScrolling = chatListState.isScrollInProgress
-        if (userIsScrolling) {
+    LaunchedEffect(chatListState.isScrollInProgress, gridState.isScrollInProgress) {
+        val isScrolling = chatListState.isScrollInProgress || gridState.isScrollInProgress
+        if (isScrolling) {
+            kotlinx.coroutines.delay(150) // Delay before starting hide animation
+            userIsScrolling = true
             autoScrollEnabled = false
+        } else {
+            kotlinx.coroutines.delay(600) // Delay before starting show animation
+            userIsScrolling = false
         }
     }
 
@@ -1123,16 +1128,28 @@ fun InputStreamScreen(
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-            val topBarAlpha by animateFloatAsState(
-                targetValue = if (userIsScrolling && isChatMode) 0f else 1f,
-                animationSpec = tween(durationMillis = 300),
+            // 1. Master Orchestrator for Scroll State
+            val scrollTransition = updateTransition(
+                targetState = userIsScrolling, 
+                label = "TopBarScroll"
+            )
+            
+            // 2. Opacity Fade
+            val topBarAlpha by scrollTransition.animateFloat(
+                transitionSpec = { spring(dampingRatio = 0.8f, stiffness = 150f) },
                 label = "topBarAlpha"
-            )
-            val topBarOffsetY by animateDpAsState(
-                targetValue = if (userIsScrolling && isChatMode) (-80).dp else (-8).dp,
-                animationSpec = tween(durationMillis = 300),
-                label = "topBarOffsetY"
-            )
+            ) { isScrolling -> if (isScrolling) 0f else 1f }
+            
+            // 3. Y-Axis Slide (in Pixels, not Dp, for raw GPU translation)
+            val topBarTranslationY by scrollTransition.animateFloat(
+                transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                label = "topBarTranslationY"
+            ) { isScrolling -> if (isScrolling) -250f else 0f } // -250f pixels pushes it up off-screen
+
+            val topGradientTranslationY by scrollTransition.animateFloat(
+                transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                label = "topGradientTranslationY"
+            ) { isScrolling -> if (isScrolling) -120f else 0f } // Increased shift up
 
             val topGradientBrush = if (isDarkTheme) {
                 SmartyBrushes.topScrimDark
@@ -1142,8 +1159,7 @@ fun InputStreamScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .offset(y = topBarOffsetY)
-                    .graphicsLayer { alpha = topBarAlpha }
+                    .graphicsLayer { translationY = topGradientTranslationY }
                     .background(brush = topGradientBrush)
                     .zIndex(2f)
             ) {
@@ -1172,6 +1188,11 @@ fun InputStreamScreen(
 
                 // Horizontal Action Bar - All features accessible here
                 HorizontalActionBar(
+                    modifier = Modifier.graphicsLayer {
+                        // S-TIER FIX: GPU Hardware Acceleration. Zero Layout Recalculation on Scroll!
+                        alpha = topBarAlpha
+                        translationY = topBarTranslationY
+                    },
                     selectedTab = when {
                         showStacksInline -> NavigationTab.STACKS
                         showArchiveInline -> NavigationTab.ARCHIVE
@@ -1253,20 +1274,25 @@ fun InputStreamScreen(
 
                         val isClockwise = targetIndex < initialIndex
 
+                        // S-Tier Physics for Screen Push/Pop
+                        val screenSpring = spring<Float>(dampingRatio = 0.8f, stiffness = 350f)
+                        val slideSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.8f, stiffness = 350f)
+
                         if (isClockwise) {
-                            // Forward/Clockwise: New content zooms in from behind/below
-                            (scaleIn(initialScale = 0.92f, animationSpec = tween(400, easing = EaseOutQuart)) +
-                             fadeIn(tween(300)) +
-                             slideInVertically(animationSpec = tween(400, easing = EaseOutQuart)) { it / 15 }) togetherWith
-                            (scaleOut(targetScale = 1.08f, animationSpec = tween(400, easing = EaseOutQuart)) +
-                             fadeOut(tween(250)))
+                            (scaleIn(initialScale = 0.92f, animationSpec = screenSpring) +
+                             fadeIn(tween(250)) +
+                             slideInVertically(animationSpec = slideSpring) { it / 15 }) togetherWith
+                            (scaleOut(targetScale = 1.08f, animationSpec = screenSpring) +
+                             fadeOut(tween(200)))
                         } else {
-                            // Backward/Counter-clockwise: New content zooms in from front/above
-                            (scaleIn(initialScale = 1.08f, animationSpec = tween(400, easing = EaseOutQuart)) +
-                             fadeIn(tween(300)) +
-                             slideInVertically(animationSpec = tween(400, easing = EaseOutQuart)) { -it / 15 }) togetherWith
-                            (scaleOut(targetScale = 0.92f, animationSpec = tween(400, easing = EaseOutQuart)) +
-                             fadeOut(tween(250)))
+                            (scaleIn(initialScale = 1.08f, animationSpec = screenSpring) +
+                             fadeIn(tween(250)) +
+                             slideInVertically(animationSpec = slideSpring) { -it / 15 }) togetherWith
+                            (scaleOut(targetScale = 0.92f, animationSpec = screenSpring) +
+                             fadeOut(tween(200)))
+                        } using SizeTransform { _, _ -> 
+                            // Ensures container boundaries morph fluidly between screens
+                            spring(dampingRatio = 0.75f, stiffness = 400f) 
                         }
                     },
                     label = "contentModeTransition",
@@ -1594,6 +1620,27 @@ fun InputStreamScreen(
                     .padding(bottom = bottomContentPadding + miniPlayerPadding)
                     .navigationBarsPadding()
             ) {
+                // Bottom Bar Scroll Physics
+                val bottomScrollTransition = updateTransition(
+                    targetState = userIsScrolling, 
+                    label = "BottomBarScroll"
+                )
+                
+                val bottomBarAlpha by bottomScrollTransition.animateFloat(
+                    transitionSpec = { spring(dampingRatio = 0.8f, stiffness = 150f) },
+                    label = "bottomBarAlpha"
+                ) { isScrolling -> if (isScrolling) 0f else 1f }
+                
+                val bottomBarTranslationY by bottomScrollTransition.animateFloat(
+                    transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                    label = "bottomBarTranslationY"
+                ) { isScrolling -> if (isScrolling) 250f else 0f } // Push down off-screen
+
+                val bottomGradientTranslationY by bottomScrollTransition.animateFloat(
+                    transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                    label = "bottomGradientTranslationY"
+                ) { isScrolling -> if (isScrolling) 120f else 0f } // Increased shift down
+
             Box(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1603,6 +1650,7 @@ fun InputStreamScreen(
                         .height(animatedGradientHeight)
                         .offset(y = animatedGradientOffset)
                         .align(Alignment.BottomCenter)
+                        .graphicsLayer { translationY = bottomGradientTranslationY }
                         .background(brush = bottomGradientBrush)
                         .zIndex(1f)
 )
@@ -1612,6 +1660,10 @@ fun InputStreamScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .graphicsLayer { 
+                            alpha = bottomBarAlpha 
+                            translationY = bottomBarTranslationY 
+                        }
                         .padding(
                             start = 8.dp,
                             end = 8.dp,

@@ -174,25 +174,15 @@ private fun RenderMarkdownBlock(
                 // ── H2 ──
                 trimmedLine.startsWith("## ") && !trimmedLine.startsWith("### ") -> {
                     Spacer(modifier = Modifier.height(24.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .height(26.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(boldColor.copy(alpha = 0.5f))
+                    MarkdownText(
+                        content = trimmedLine.removePrefix("## "),
+                        normalColor = boldColor, boldColor = boldColor,
+                        linkColor = linkColor, codeColor = codeColor,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold, fontSize = (24 * 1.6180339f).sp,
+                            lineHeight = (32 * 1.6180339f).sp, letterSpacing = (-0.2).sp, color = boldColor
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        MarkdownText(
-                            content = trimmedLine.removePrefix("## "),
-                            normalColor = boldColor, boldColor = boldColor,
-                            linkColor = linkColor, codeColor = codeColor,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold, fontSize = (24 * 1.6180339f).sp,
-                                lineHeight = (32 * 1.6180339f).sp, letterSpacing = (-0.2).sp, color = boldColor
-                            )
-                        )
-                    }
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
                     i++
                 }

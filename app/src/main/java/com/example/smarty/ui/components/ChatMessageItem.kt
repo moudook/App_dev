@@ -90,6 +90,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -320,9 +321,12 @@ fun ChatMessageItem(
         }
         
         // Pill-shaped bubble for user messages
-        val userBubbleShape = RoundedCornerShape(20.dp)
+        val userBubbleShape = RoundedCornerShape(26.dp)
 
-if (isUser) {
+        if (isUser) {
+            var isExpanded by remember { mutableStateOf(false) }
+            var hasOverflow by remember { mutableStateOf(false) }
+            
             Box(
                 modifier = Modifier
                     .padding(start = 48.dp)
@@ -331,17 +335,32 @@ if (isUser) {
                 Surface(
                     color = userBubbleBackground,
                     shape = userBubbleShape,
+                    modifier = Modifier.clickable(
+                        enabled = hasOverflow,
+                        onClick = { isExpanded = !isExpanded },
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null // No ripple effect, clean interaction
+                    )
                 ) {
                     Box(
-                        modifier = Modifier.padding(
-                            horizontal = 12.dp,
-                            vertical = 10.dp
-                        )
+                        modifier = Modifier
+                            .padding(
+                                horizontal = 24.dp,
+                                vertical = 20.dp
+                            )
+                            .animateContentSize()
                     ) {
                         val userTextColor = userBubbleTextColor
                         SelectionContainer {
                             Text(
                                 text = message.content,
+                                maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+                                onTextLayout = { textLayoutResult ->
+                                    if (!isExpanded) {
+                                        hasOverflow = textLayoutResult.hasVisualOverflow
+                                    }
+                                },
+                                overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.SansSerif,
                                     fontSize = 16.sp,
@@ -351,6 +370,33 @@ if (isUser) {
                                 ),
                                 color = userTextColor
                             )
+                        }
+                        
+                        // Floating Expand Arrow when truncated
+                        if (hasOverflow && !isExpanded) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .background(
+                                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                userBubbleBackground,
+                                                userBubbleBackground
+                                            ),
+                                            startX = 0f,
+                                            endX = 40f
+                                        )
+                                    )
+                                    .padding(start = 16.dp, top = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ExpandMore,
+                                    contentDescription = "Expand",
+                                    tint = userTextColor.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }

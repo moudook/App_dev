@@ -1,6 +1,6 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -64,12 +64,12 @@ fun HorizontalActionBar(
     val accentColor = LocalAccentColor.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
-    // Bar aesthetic
-    val barBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
+    // Soft iOS blur aesthetic
+    val barBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
     
     val borderColor = if (isDark) Color.White.copy(alpha = 0.10f)
-                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
 
     Box(
         modifier = modifier
@@ -84,7 +84,8 @@ fun HorizontalActionBar(
             shape = RoundedCornerShape(32.dp),
             color = barBg,
             border = BorderStroke(0.5.dp, borderColor),
-            shadowElevation = if (isDark) 0.dp else 12.dp, // Ambient shadow for light mode
+            // Floating 3D shadow for light mode
+            shadowElevation = if (isDark) 0.dp else 16.dp, 
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -124,42 +125,37 @@ private fun TabItem(
     isHistoryMode: Boolean,
     onClick: () -> Unit
 ) {
-    // Spring pop animation
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.15f else 1.0f,
-        animationSpec = spring(
-            stiffness = 400f, // Spring.StiffnessMedium
-            dampingRatio = 0.6f
-        ),
-        label = "tabScale"
-    )
+    // 1. S-Tier Master Transition
+    val transition = updateTransition(targetState = isSelected, label = "TabState")
 
-    // Background highlight fill
-    val bgAlpha by animateFloatAsState(
-        targetValue = if (isSelected) (if (isDark) 0.15f else 0.12f) else 0f,
-        animationSpec = tween(150),
+    val scale by transition.animateFloat(
+        transitionSpec = { spring(dampingRatio = 0.6f, stiffness = 400f) },
+        label = "scale"
+    ) { selected -> if (selected) 1.15f else 1.0f }
+
+    val bgAlpha by transition.animateFloat(
+        transitionSpec = { tween(150) },
         label = "bgAlpha"
-    )
+    ) { selected -> if (selected) (if (isDark) 0.15f else 0.12f) else 0f }
 
-    // Icon tint transition
-    val iconTint by animateColorAsState(
-        targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-        animationSpec = tween(150),
+    val iconTint by transition.animateColor(
+        transitionSpec = { tween(150) },
         label = "iconTint"
-    )
+    ) { selected -> if (selected) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f) }
 
     val iconPainter = resolveIconPainter(tab, isHistoryMode)
 
     Box(
         modifier = Modifier
             .size(46.dp)
+            .squishClick { onClick() } // Universal Physics Engine applied!
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
+            .padding(6.dp) // Shrinks the background circle radius while keeping touch target 46dp
             .clip(CircleShape)
-            .background(accentColor.copy(alpha = bgAlpha))
-            .clickable(onClick = onClick),
+            .background(accentColor.copy(alpha = bgAlpha)),
         contentAlignment = Alignment.Center
     ) {
         Icon(

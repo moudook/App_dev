@@ -14,9 +14,9 @@ import com.example.smarty.core.domain.model.MentionState
  */
 val DEFAULT_FREE_MODELS =
     listOf(
-        "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free",
-        "opencode/nemotron-3-super-free" to "Nemotron 3 Super Free",
-        "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus Free",
+        "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash",
+        "opencode/nemotron-3-super-free" to "Nemotron 3 Super",
+        "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus",
     )
 
 /**

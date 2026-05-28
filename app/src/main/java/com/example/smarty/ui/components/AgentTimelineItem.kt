@@ -15,6 +15,13 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.chat.TextEffectPerWord
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun AgentTimelineItem(
@@ -33,24 +40,73 @@ fun AgentTimelineItem(
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         if (isUser) {
+            var isExpanded by remember { mutableStateOf(false) }
+            var hasOverflow by remember { mutableStateOf(false) }
+
             // User message: Right-aligned bubble
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.CenterEnd
             ) {
+                val bubbleColor = accentColor.copy(alpha = 0.15f)
                 Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = accentColor.copy(alpha = 0.15f),
-                    modifier = Modifier.padding(start = 32.dp)
+                    shape = RoundedCornerShape(32.dp),
+                    color = bubbleColor,
+                    modifier = Modifier
+                        .padding(start = 32.dp)
+                        .clickable(
+                            enabled = hasOverflow,
+                            onClick = { isExpanded = !isExpanded },
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        )
                 ) {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            lineHeight = 24.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp, vertical = 20.dp)
+                            .animateContentSize()
+                    ) {
+                        Text(
+                            text = message.content,
+                            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+                            onTextLayout = { textLayoutResult ->
+                                if (!isExpanded) {
+                                    hasOverflow = textLayoutResult.hasVisualOverflow
+                                }
+                            },
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = 24.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        if (hasOverflow && !isExpanded) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                bubbleColor,
+                                                bubbleColor
+                                            ),
+                                            startX = 0f,
+                                            endX = 40f
+                                        )
+                                    )
+                                    .padding(start = 16.dp, top = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ExpandMore,
+                                    contentDescription = "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         } else {

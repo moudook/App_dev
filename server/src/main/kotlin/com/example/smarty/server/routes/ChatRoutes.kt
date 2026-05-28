@@ -768,6 +768,13 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 val activeSessionId = chatRequest.sessionId ?: sessionIdParam
 
                                 if (chatRequest.query.isNotBlank()) {
+                                    // Ensure session exists before saving message (foreign key constraint)
+                                    if (chatRepository != null) {
+                                        val existingSession = chatRepository.getSession(userId, activeSessionId)
+                                        if (existingSession == null) {
+                                            chatRepository.createSessionWithId(userId, activeSessionId, "Continued Chat")
+                                        }
+                                    }
                                     chatRepository?.saveMessage(userId, activeSessionId, LlmMessage.Role.USER.name, chatRequest.query)
                                 }
 

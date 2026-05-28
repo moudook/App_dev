@@ -395,8 +395,11 @@ object OpencodeModelRegistry {
             val label =
                 modelId
                     .removePrefix("opencode/")
+                    .replace(Regex("(?i)-free\\b"), "")
+                    .replace(Regex("(?i)\\bfree\\b"), "")
                     .replace(Regex("[-.]+"), " ")
                     .split(" ")
+                    .filter { it.isNotEmpty() }
                     .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
             OpencodeModelInfo(id = modelId, label = label)
         }

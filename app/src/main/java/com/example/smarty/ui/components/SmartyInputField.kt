@@ -258,25 +258,23 @@ fun SmartyInputField(
                 horizontalArrangement = Arrangement.spacedBy(12.dp), 
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Image/Attachment Icon
-                Icon(
-                    imageVector = Icons.Rounded.Add, // Changed to + to match attachment logic
-                    contentDescription = "Attach", 
-                    tint = Color.Gray, 
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .squishClick { 
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            if (isChatMode) {
-                                onPickImage()
-                            } else {
+                // Image/Attachment Icon (Only shown in Note Section, i.e., non-chat mode)
+                if (!isChatMode) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "Attach", 
+                        tint = Color.Gray, 
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .squishClick { 
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 showAttachmentSelector = !showAttachmentSelector
                             }
-                        }
-                )
+                    )
+                }
 
-                // ImageGen Toggle
+                // ImageGen Toggle (Krea AI image generation mode, only in Chat Section)
                 if (isChatMode) {
                     val imageGenColor = if (isImageGenMode) Color(0xFF9575CD) else Color.Gray
                     Icon(
@@ -290,18 +288,18 @@ fun SmartyInputField(
                     )
                 }
 
-                // History Icon
-                if (showHistoryOption) {
+                // History Icon (Only in Chat Section, toggles between history and creating new clean chat)
+                if (isChatMode && showHistoryOption) {
                     Icon(
-                        imageVector = if (isHistoryMode && isChatMode) Icons.Rounded.Add else Icons.Rounded.History, 
-                        contentDescription = "History", 
+                        imageVector = if (isHistoryMode) Icons.Rounded.Add else Icons.Rounded.History, 
+                        contentDescription = if (isHistoryMode) "New Chat" else "History", 
                         tint = Color.Gray, 
                         modifier = Modifier
                             .size(22.dp)
                             .clip(CircleShape)
                             .squishClick { 
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (isChatMode) onPickImage() else showAttachmentSelector = !showAttachmentSelector
+                                if (isHistoryMode) onNewChat() else onOpenChatHistory()
                             }
                     )
                 }
@@ -312,13 +310,17 @@ fun SmartyInputField(
 
                     // Model Selector Pill (GPT-4o style)
                     var showModelMenu by remember { mutableStateOf(false) }
-                    val displayLabel = selectedModel.substringAfterLast("/").replace(Regex("(?i)-free\\b"), "").trim()
+                    val displayLabel = selectedModel.substringAfterLast("/")
+                        .replace(Regex("(?i)-free\\b"), "")
+                        .replace(Regex("(?i)\\bfree\\b"), "")
+                        .trim()
                     
                     Surface(
                         shape = RoundedCornerShape(percent = 50),
                         color = if (isDark) accentColor.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.08f),
                         modifier = Modifier
                             .height(32.dp)
+                            .widthIn(max = 125.dp) // Specific horizontal size constraint to prevent pushing other components
                             .squishClick { showModelMenu = true }
                     ) {
                         Row(
@@ -329,7 +331,10 @@ fun SmartyInputField(
                                 text = displayLabel, 
                                 fontSize = 13.sp, 
                                 fontWeight = FontWeight.SemiBold, 
-                                color = accentColor
+                                color = accentColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false) // Truncate and wrap gracefully within constrained width
                             )
                             Spacer(Modifier.width(4.dp))
                             Icon(Icons.Rounded.KeyboardArrowDown, null, tint = accentColor, modifier = Modifier.size(16.dp))
@@ -342,7 +347,10 @@ fun SmartyInputField(
                             containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
                         ) {
                             availableModels.forEach { (modelId, label) ->
-                                val cleanLabel = label.replace(Regex("(?i)-free\\b"), "").trim()
+                                val cleanLabel = label
+                                    .replace(Regex("(?i)-free\\b"), "")
+                                    .replace(Regex("(?i)\\bfree\\b"), "")
+                                    .trim()
                                 DropdownMenuItem(
                                     text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
                                     onClick = { onModelSelected(modelId); showModelMenu = false }
@@ -352,16 +360,16 @@ fun SmartyInputField(
                     }
                 }
             }
-
-            // RIGHT CONTROLS: Waveform Mic & Send Button
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp), 
-                verticalAlignment = Alignment.CenterVertically
+ 
+            // RIGHT CONTROLS: Waveform Mic & Send Button (Stacked vertically when send button appears)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 
-                // Active Voice Waveform OR Mic Icon
+                // Active Voice Waveform OR Mic Icon (Shown always unless stop icon is active)
                 val showStopIcon = isAgentWorking && isChatMode
-                if (!showStopIcon && !canSend) {
+                if (!showStopIcon) {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -391,7 +399,7 @@ fun SmartyInputField(
                         }
                     }
                 }
-
+ 
                 // Send / Stop Arrow (Solid filled circle)
                 AnimatedVisibility(
                     visible = canSend || showStopIcon,
