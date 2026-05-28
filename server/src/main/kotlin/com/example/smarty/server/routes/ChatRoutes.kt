@@ -731,6 +731,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 // Register with ActiveSessionManager so MCP server can find this session
                 com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, sessionIdParam, "websocket")
 
+                // Register with ActiveEventBridge so MCP approval events reach this WebSocket
+                val wsEmitter: suspend (AgentEvent) -> Unit = { event ->
+                    try {
+                        send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
+                    } catch (e: Exception) {
+                        call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
+                    }
+                }
+                ActiveEventBridge.register(userId, wsEmitter)
+
                 val flow =
                     com.example.smarty.server.agent.AgentRunManager
                         .getEventFlow(sessionIdParam)
@@ -828,6 +838,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     emitJob.cancel()
                     heartbeatJob.cancel()
+                    ActiveEventBridge.clear(userId)
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, sessionIdParam)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
