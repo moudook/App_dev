@@ -330,15 +330,20 @@ fun Application.module() {
                 calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
                 noteService = noteService,
             )
-        // Wire McpServer approval events into the SSE stream so Android
+        // Wire McpServer approval events into the active WebSocket sessions so Android
         // receives ApprovalRequested/Granted/Denied in real time.
         mcpServer.eventEmitter = { event ->
-            // The mcpServer runs in a separate routing block; emit events
-            // directly via the SSE channel of each active session (best-effort).
-            // The primary approval event path is through ServerAgent's eventEmitter,
-            // which ChatRoutes.kt already forwards to `send()` in the sse block.
-            // This catch-all emitter is a secondary path for MCP-originated events.
-            log.info("[McpServer] Approval event emitted: ${event::class.simpleName}")
+            log.info("[McpServer] Routing approval event to active session: ${event::class.simpleName}")
+            // Route 1: ActiveEventBridge → registered WS emitters keyed by userId
+            val userId = com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()
+            if (userId != null) {
+                com.example.smarty.server.agent.ActiveEventBridge.emit(userId, event)
+                // Route 2: AgentRunManager flow → emitJob in WebSocket handler
+                val sessionId = com.example.smarty.server.agent.ActiveSessionManager.getSessionInfo(userId)?.sessionId
+                if (sessionId != null) {
+                    com.example.smarty.server.agent.AgentRunManager.emitEvent(sessionId, event)
+                }
+            }
         }
         routing {
             mcpServer.configureRouting(this)

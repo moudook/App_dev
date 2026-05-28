@@ -574,8 +574,11 @@ fun STierAskToolCard(
 ) {
     val haptic = LocalHapticFeedback.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-    val cardBg = if (isDark) Color(0xFF1E1E1E) else Color.White
-    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
+    
+    // Theme-aware colors instead of hardcoded hex values
+    val cardBg = MaterialTheme.colorScheme.surface
+    val optionBg = MaterialTheme.colorScheme.surfaceVariant
+    val textColor = MaterialTheme.colorScheme.onSurface
     val accentColor = com.example.smarty.ui.LocalAccentColor.current
 
     var customAnswer by remember { mutableStateOf("") }
@@ -638,7 +641,7 @@ fun STierAskToolCard(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 22.sp,
-                color = if (isDark) Color.White else Color(0xFF1D1D1F)
+                color = textColor
             )
 
             Spacer(Modifier.height(16.dp))
@@ -670,7 +673,7 @@ fun STierAskToolCard(
                             text = option,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (isDark) Color.White else Color(0xFF1D1D1F)
+                            color = textColor
                         )
                     }
                 }
@@ -691,7 +694,7 @@ fun STierAskToolCard(
                             value = customAnswer,
                             onValueChange = { customAnswer = it },
                             modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontSize = 15.sp, color = if (isDark) Color.White else Color.Black),
+                            textStyle = TextStyle(fontSize = 15.sp, color = textColor),
                             singleLine = true,
                             cursorBrush = SolidColor(accentColor),
                             decorationBox = { inner ->
