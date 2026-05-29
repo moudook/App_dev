@@ -37,14 +37,14 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 2: List available free models (VERIFICATION) - Runs in background
 # -----------------------------------------------------------------------------
-echo "[2/5] Discovering free models via 'opencode models' (starting in background)..."
+echo "[2/5] Discovering free models via 'opencode models --verbose' (starting in background)..."
 (
-    echo "  Running: opencode models"
+    echo "  Running: opencode models --verbose"
     echo "  --- BEGIN opencode models output ---"
-    MODELS_OUTPUT=$(opencode models 2>&1 || echo "ERROR: opencode models failed")
+    MODELS_OUTPUT=$(opencode models --verbose 2>&1 || echo "ERROR: opencode models --verbose failed")
     echo "$MODELS_OUTPUT"
     echo "  --- END opencode models output ---"
-    # Count free models
+    # Count free models (lines starting with opencode/ containing 'free')
     FREE_COUNT=$(echo "$MODELS_OUTPUT" | grep -i "free" | grep -c "opencode/" || echo "0")
     echo ""
     echo "  Found $FREE_COUNT free model(s) containing 'free' in the name:"
