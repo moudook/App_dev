@@ -1228,6 +1228,10 @@ class ChatFeatureManager(
     private val _pendingChatText = MutableStateFlow<String?>(null)
     val pendingChatText: StateFlow<String?> = _pendingChatText.asStateFlow()
 
+    // Approval state for ask_user and other tool approvals
+    private val _pendingApprovalState = MutableStateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?>(null)
+    val pendingApprovalState: StateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?> = _pendingApprovalState.asStateFlow()
+
     // Navigation state delegated to SharedAppState via onNavigate callback
     // private val _navigationRequest = MutableStateFlow<String?>(null)
     // val navigationRequest: StateFlow<String?> = _navigationRequest.asStateFlow()
@@ -1415,6 +1419,32 @@ class ChatFeatureManager(
         attachments: List<Attachment> = emptyList(),
     ) {
         dispatchQuery(content, attachments)
+    }
+
+    fun callApproval(
+        toolId: String,
+        approved: Boolean,
+        feedback: String? = null,
+    ) {
+        val current = _pendingApprovalState.value
+        if (current == null) {
+            Log.w(TAG, "callApproval: no pending approval")
+            return
+        }
+        if (current.toolId != toolId) {
+            Log.w(TAG, "callApproval: toolId mismatch — $toolId vs ${current.toolId}")
+            return
+        }
+        Log.i(TAG, ">>> CALL_APPROVAL: toolId=$toolId, approved=$approved")
+        scope.launch {
+            try {
+                remoteAgentService.sendApproval(toolId, approved, feedback)
+                Log.i(TAG, ">>> CALL_APPROVAL: sent successfully")
+                _pendingApprovalState.value = null
+            } catch (e: Exception) {
+                Log.e(TAG, "callApproval failed: ${e.message}", e)
+            }
+        }
     }
 
     /**
@@ -1769,9 +1799,13 @@ class ChatFeatureManager(
             )
                 .collect { event ->
                     agentEventsBuilder.add(event)
+                    Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
                     when (event) {
                         is AgentEvent.Processing -> {
-                            responseBuilder.append(event.content)
+                            if (event.content.isNotEmpty()) {
+                                responseBuilder.clear()
+                                responseBuilder.append(event.content)
+                            }
                             extractAndStripInlineTags(responseBuilder, streamingMessageId)
                             // Handle thinking from server - replace, not append (server sends full accumulated thinking)
                             event.thinking?.let { thinking ->
@@ -1941,6 +1975,24 @@ class ChatFeatureManager(
                             // ToolCallStarted, ApprovalRequested, SessionError, CacheHit, etc.
                             // These are persisted in the TimelineEventEntity log and accumulated in
                             // agentEvents for timeline UI. No additional handling needed here.
+                            if (event is AgentEvent.ApprovalRequested) {
+                                Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}")
+                                _pendingApprovalState.value = com.example.smarty.features.chat.domain.state.PendingApproval(
+                                    messageId = streamingMessageId,
+                                    sessionId = chatManager.currentSessionId.value,
+                                    eventId = event.eventId,
+                                    toolId = event.toolId,
+                                    toolName = event.toolName,
+                                    toolTitle = event.toolTitle,
+                                    toolArgs = event.toolArgs,
+                                )
+                            } else if (event is AgentEvent.ApprovalGranted) {
+                                Log.i(TAG, ">>> APPROVAL_GRANTED: toolId=${event.toolId}")
+                                _pendingApprovalState.value = null
+                            } else if (event is AgentEvent.ApprovalDenied) {
+                                Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
+                                _pendingApprovalState.value = null
+                            }
                         }
                     }
                 } // This closes the .collect { event -> block
