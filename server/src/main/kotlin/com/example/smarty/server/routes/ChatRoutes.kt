@@ -847,6 +847,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     emitJob.cancel()
                     heartbeatJob.cancel()
                     ActiveEventBridge.clear(userId)
+                    com.example.smarty.server.agent.AgentRunManager.cancelRun(sessionIdParam)
                     com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, sessionIdParam)
                     com.example.smarty.server.agent.ActiveUserRegistry.clearActive(userId)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
