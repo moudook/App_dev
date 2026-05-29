@@ -220,6 +220,9 @@ class RemoteAgentService(
                         val jsonElement = json.parseToJsonElement(data).jsonObject
                                     val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
                                     
+                                    // Skip server keepalive pings
+                                    if (eventType == "ping") continue
+                                    
                                     Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
                                     val agentEvent = decodeAgentEvent(eventType, data)
                                     Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")

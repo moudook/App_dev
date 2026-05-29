@@ -752,12 +752,13 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         .getEventFlow(sessionIdParam)
 
                 // Job 1: Heartbeat keepalive to prevent proxy idle timeouts
+                // Use Frame.Text (not Ping) because HF proxy strips Ping frames
                 val heartbeatJob =
                     launch {
                         while (isActive) {
                             delay(10_000L)
                             try {
-                                send(Frame.Ping(ByteArray(0)))
+                                send(Frame.Text("""{"type":"ping"}"""))
                             } catch (e: Exception) {
                                 break
                             }
