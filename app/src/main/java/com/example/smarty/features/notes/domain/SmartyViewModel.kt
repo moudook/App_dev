@@ -351,6 +351,9 @@ class SmartyViewModel(
     val pendingChatText: StateFlow<String?> get() = chatFeatureManager.pendingChatText
     val navigationRequest: StateFlow<String?> get() = sharedAppState.navigationRequest
     val proactiveSuggestion: StateFlow<String?> get() = chatFeatureManager.proactiveSuggestion
+    val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> get() = chatFeatureManager.pendingClarificationRequests
+
+    fun callApproval(toolId: String, approved: Boolean, feedback: String? = null) = chatFeatureManager.callApproval(toolId, approved, feedback)
 
     // ==================== Share Flow State (delegated to ShareFlowManager) ====================
     val pendingShare: StateFlow<PendingShareData?> = shareFlowManager.pendingShare

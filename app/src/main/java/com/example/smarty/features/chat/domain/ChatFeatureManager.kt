@@ -1232,6 +1232,10 @@ class ChatFeatureManager(
     private val _pendingApprovalState = MutableStateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?>(null)
     val pendingApprovalState: StateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?> = _pendingApprovalState.asStateFlow()
 
+    // Parsed clarification requests from ApprovalRequested events (for SmartyInputField)
+    private val _pendingClarificationRequests = MutableStateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>>(emptyList())
+    val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> = _pendingClarificationRequests.asStateFlow()
+
     // Navigation state delegated to SharedAppState via onNavigate callback
     // private val _navigationRequest = MutableStateFlow<String?>(null)
     // val navigationRequest: StateFlow<String?> = _navigationRequest.asStateFlow()
@@ -1986,12 +1990,41 @@ class ChatFeatureManager(
                                     toolTitle = event.toolTitle,
                                     toolArgs = event.toolArgs,
                                 )
+                                try {
+                                    val json = org.json.JSONObject(event.toolArgs)
+                                    val questionsArray = json.optJSONArray("questions")
+                                    val parsed = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
+                                    if (questionsArray != null && questionsArray.length() > 0) {
+                                        for (i in 0 until questionsArray.length()) {
+                                            val q = questionsArray.getJSONObject(i)
+                                            val qText = q.optString("question", "What would you like?")
+                                            val optionsArray = q.optJSONArray("options")
+                                            val qOptions = mutableListOf<String>()
+                                            if (optionsArray != null) {
+                                                for (j in 0 until optionsArray.length()) {
+                                                    qOptions.add(optionsArray.getString(j))
+                                                }
+                                            }
+                                            parsed.add(com.example.smarty.core.domain.model.ClarificationRequest(
+                                                question = qText,
+                                                options = qOptions,
+                                                allowCustomInput = q.optBoolean("allow_custom", false),
+                                            ))
+                                        }
+                                    }
+                                    _pendingClarificationRequests.value = parsed
+                                    Log.i(TAG, ">>> PARSED_QUESTIONS: ${parsed.size} questions")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to parse ask_user toolArgs: ${e.message}")
+                                }
                             } else if (event is AgentEvent.ApprovalGranted) {
                                 Log.i(TAG, ">>> APPROVAL_GRANTED: toolId=${event.toolId}")
                                 _pendingApprovalState.value = null
+                                _pendingClarificationRequests.value = emptyList()
                             } else if (event is AgentEvent.ApprovalDenied) {
                                 Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
                                 _pendingApprovalState.value = null
+                                _pendingClarificationRequests.value = emptyList()
                             }
                         }
                     }

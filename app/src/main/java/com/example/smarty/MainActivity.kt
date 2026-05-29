@@ -204,6 +204,7 @@ class MainActivity : ComponentActivity() {
                 val chatMessages by viewModel.chatMessages.collectAsState()
                 val isChatProcessing by viewModel.isChatProcessing.collectAsState()
                 val agentActivity by viewModel.agentActivity.collectAsState()
+                val pendingClarificationRequests by viewModel.pendingClarificationRequests.collectAsState()
 
                 // Chat history state
                 val chatSessions by viewModel.chatSessions.collectAsState()
@@ -523,6 +524,8 @@ class MainActivity : ComponentActivity() {
                                     onEnterChatWithNoteReference = { noteTitle ->
                                         viewModel.enterChatWithNoteReference(noteTitle)
                                     },
+                                    pendingClarificationRequests = pendingClarificationRequests,
+                                    onCallApproval = viewModel::callApproval,
                                     // Chat history management
                                     chatSessions = chatSessions,
                                     currentSessionId = currentSessionId,

@@ -186,6 +186,8 @@ fun InputStreamScreen(
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onClarificationSubmit: (String, String) -> Unit = { _, _ -> },
+    pendingClarificationRequests: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
+    onCallApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
     onStopGeneration: () -> Unit = {},
     // Chat history parameters
@@ -1718,7 +1720,11 @@ fun InputStreamScreen(
                         chatMessages.find { it.role == com.example.smarty.core.domain.model.ChatRole.SMARTY && it.clarificationRequest != null && !it.isStreaming }
                     } else null
 
-                    val pendingQuestions = activeClarificationMessage?.clarificationRequest?.let { listOf(it) } ?: emptyList()
+                    val pendingQuestions = if (pendingClarificationRequests.isNotEmpty()) {
+                        pendingClarificationRequests
+                    } else {
+                        activeClarificationMessage?.clarificationRequest?.let { listOf(it) } ?: emptyList()
+                    }
 
                     // Floating Input Field
                     if (!showSelectionPill) {
@@ -1830,7 +1836,13 @@ fun InputStreamScreen(
                             onRemoveAttachment = { id -> onInputAttachmentsChange(currentInputAttachments.filter { it.id != id }) },
                             pendingQuestions = pendingQuestions,
                             onQuestionAnswered = { response ->
-                                if (activeClarificationMessage != null) {
+                                if (pendingClarificationRequests.isNotEmpty()) {
+                                    // Approval path - send via callApproval
+                                    val approval = viewModel.pendingApprovalState.collectAsState().value
+                                    if (approval != null) {
+                                        onCallApproval(approval.toolId, true, response.ifEmpty { null })
+                                    }
+                                } else if (activeClarificationMessage != null) {
                                     onClarificationSubmit(activeClarificationMessage.id, response)
                                 }
                             },
