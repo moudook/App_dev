@@ -1541,6 +1541,25 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
             }
         }
+    } // End of authenticate("firebase") block
+
+    // TEST ENDPOINT to trigger ask_user manually
+    routing {
+        post("/chat/test-ask-user") {
+            val userId = call.request.queryParameters["userId"] ?: "test-user"
+            
+            val testEvent = com.example.smarty.protocol.AgentEvent.ApprovalRequested(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = java.util.UUID.randomUUID().toString(),
+                toolName = "ask_user",
+                toolTitle = "Ask User",
+                toolArgs = """{"questions": [{"question": "Did the manual test trigger?", "options": ["Yes", "No"], "allow_custom": true}]}"""
+            )
+            
+            com.example.smarty.server.agent.ActiveEventBridge.emit(userId, testEvent)
+            call.respond(mapOf("status" to "emitted", "userId" to userId))
+        }
     }
 }
 

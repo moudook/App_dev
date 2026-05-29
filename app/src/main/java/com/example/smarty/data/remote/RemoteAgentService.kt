@@ -209,7 +209,8 @@ class RemoteAgentService(
                                 val data = frame.readText()
                                 if (data.isBlank()) continue
                                 try {
-                                    val jsonElement = json.parseToJsonElement(data).jsonObject
+                                    Log.d(TAG, "Raw WebSocket data: $data")
+                        val jsonElement = json.parseToJsonElement(data).jsonObject
                                     val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
                                     
                                     val agentEvent = decodeAgentEvent(eventType, data)
@@ -977,6 +978,11 @@ class RemoteAgentService(
             }
             is AgentEvent.AgentStep -> {
                 Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
+                flowCollector.emit(event)
+                false
+            }
+            is AgentEvent.ApprovalRequested -> {
+                Log.d(TAG, "Received approval_requested for tool: ${event.toolName}")
                 flowCollector.emit(event)
                 false
             }

@@ -201,7 +201,7 @@ fun ChatScreen(
 
         if (clarificationMsg?.clarificationRequest != null) {
             pendingQuestions.add(clarificationMsg.clarificationRequest!!)
-        } else if (pendingApproval != null && (pendingApproval!!.toolName == "ask_user" || pendingApproval!!.toolName == "askuser")) {
+        } else if (pendingApproval != null && (pendingApproval!!.toolName.contains("ask_user") || pendingApproval!!.toolName.contains("askuser") || pendingApproval!!.toolName.contains("ask-user"))) {
             activeApprovalId = pendingApproval!!.toolId
             try {
                 val json = org.json.JSONObject(pendingApproval!!.toolArgs)
@@ -228,7 +228,8 @@ fun ChatScreen(
                         ))
                     }
                 } else {
-                    val qText = json.optString("question", "Please provide input:")
+                    // Fallback for single object instead of array
+                    val qText = json.optString("question", json.optString("message", "Please provide input:"))
                     val qAllowCustom = json.optBoolean("allow_custom", true)
                     val qOptions = mutableListOf<String>()
                     val optArr = json.optJSONArray("options")

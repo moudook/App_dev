@@ -431,6 +431,7 @@ fun Application.module() {
         configureSyncRoutes()
         configureOptimizedSyncRoutes()
         configureModelRoutes()
+        configureChatRoutes(null)
 
         // Register MCP even without DB so opencode CLI can connect
         val mcpServer =

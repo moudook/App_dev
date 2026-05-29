@@ -575,10 +575,10 @@ fun STierAskToolCard(
     val haptic = LocalHapticFeedback.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     
-    // Theme-aware colors instead of hardcoded hex values
-    val cardBg = MaterialTheme.colorScheme.surface
-    val optionBg = MaterialTheme.colorScheme.surfaceVariant
-    val textColor = MaterialTheme.colorScheme.onSurface
+    // Custom theme colors matching SmartyInputField's existing palette
+    val cardBg = if (isDark) Color(0xFF1E1E1E) else Color.White
+    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
+    val textColor = if (isDark) Color.White else Color(0xFF1D1D1F)
     val accentColor = com.example.smarty.ui.LocalAccentColor.current
 
     var customAnswer by remember { mutableStateOf("") }
