@@ -19,6 +19,7 @@ interface LlmProvider {
         model: String? = null,
         externalSessionId: String? = null,
         onExternalSessionCreated: suspend (String) -> Unit = {},
+        variant: String? = null,
     ): LlmResponse
 
     /**
@@ -30,6 +31,7 @@ interface LlmProvider {
         model: String? = null,
         externalSessionId: String? = null,
         onExternalSessionCreated: suspend (String) -> Unit = {},
+        variant: String? = null,
     ): Flow<LlmChunk>
 }
 

@@ -753,6 +753,7 @@ class ChatViewModel(
 
     private fun handleVariantSelected(variant: String?) {
         Log.d(TAG, "Variant selected: $variant")
+        securePreferences.setSelectedVariant(variant)
         _uiState.update { it.copy(selectedVariant = variant) }
     }
 

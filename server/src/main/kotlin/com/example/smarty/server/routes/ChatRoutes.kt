@@ -73,6 +73,7 @@ data class ChatRequest(
     val provider: String? = null,
     val providerUrl: String? = null,
     val model: String? = null,
+    val variant: String? = null,
     val token: String? = null,
     val fileContext: String? = null, // Extracted text from uploaded files
     val attachments: List<AttachmentInfo>? = null, // Metadata about attachments
@@ -333,6 +334,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
                 val personalityParam = call.request.queryParameters["personality"]
                 val messageIdParam = call.request.queryParameters["messageId"]
+                val variantParam = call.request.queryParameters["variant"]
 
                 // Input validation
                 try {
@@ -615,6 +617,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     }
                                 }
                             },
+                            variantOverride = variantParam,
                         )
 
                     // Save Smarty Response if persistence is enabled
@@ -814,6 +817,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
                                     opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
                                     messageId = chatRequest.messageId,
+                                    variantOverride = chatRequest.variant,
                                 )
                             } catch (e: kotlinx.serialization.SerializationException) {
                                 // If not ChatRequest, try ClientEvent
@@ -917,6 +921,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         }
 
                     // Handle Session Persistence
+                    val opencodeSessionId: String?
                     val history =
                         if (chatRepository != null) {
                             if (sessionId.isNullOrBlank()) {
@@ -928,8 +933,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, fullQuery)
                             }
 
+                            opencodeSessionId = chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
                             chatRepository.getHistory(userId, sessionId!!)
                         } else {
+                            opencodeSessionId = null
                             emptyList()
                         }
 
@@ -981,6 +988,17 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 clientTimezone = request.timezone,
                                 clientTimeMillis = request.clientTime,
                                 personality = request.personality,
+                                opencodeSessionId = opencodeSessionId,
+                                onOpencodeSessionCreated = { newOpencodeSessionId ->
+                                    if (chatRepository != null) {
+                                        try {
+                                            chatRepository.updateOpencodeSessionId(userId, activeSessionId, newOpencodeSessionId)
+                                        } catch (e: Exception) {
+                                            call.application.log.error("Failed to update opencodeSessionId", e)
+                                        }
+                                    }
+                                },
+                                variantOverride = request.variant,
                             )
 
                         // Save response with citations

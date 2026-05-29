@@ -302,6 +302,9 @@ fun InputStreamScreen(
     selectedModel: String = "opencode/deepseek-v4-flash-free",
     availableModels: List<Pair<String, String>> = emptyList(),
     onModelSelected: (String) -> Unit = {},
+    modelVariantMap: Map<String, List<String>> = emptyMap(),
+    selectedVariant: String? = null,
+    onVariantSelected: (String?) -> Unit = {},
     onRefreshModels: suspend () -> List<Pair<String, String>> = { emptyList() },
 
     modifier: Modifier = Modifier
@@ -1942,6 +1945,9 @@ fun InputStreamScreen(
                             selectedModel = selectedModel,
                             availableModels = availableModels,
                             onModelSelected = onModelSelected,
+                            modelVariantMap = modelVariantMap,
+                            selectedVariant = selectedVariant,
+                            onVariantSelected = onVariantSelected,
                             onRefreshModels = onRefreshModels
                         )
                         }  // Close Box for input field

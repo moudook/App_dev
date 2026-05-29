@@ -88,6 +88,7 @@ class ServerAgent(
         personality: String? = null,
         opencodeSessionId: String? = null,
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
+        variantOverride: String? = null,
     ): String {
         if (query.length > 10000) {
             throw IllegalArgumentException("Query too long")
@@ -106,6 +107,7 @@ class ServerAgent(
             personality,
             opencodeSessionId,
             onOpencodeSessionCreated,
+            variantOverride,
         )
     }
 
@@ -119,6 +121,7 @@ class ServerAgent(
         personality: String? = null,
         opencodeSessionId: String? = null,
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
+        variantOverride: String? = null,
     ): String {
         var toolCallCount = 0
 
@@ -162,7 +165,7 @@ class ServerAgent(
         val messagesForAgent = messages.toMutableList()
 
         // Check cache
-        stateManager.checkCache(messagesForAgent, tools, query, modelOverride)?.let { cached ->
+        stateManager.checkCache(messagesForAgent, tools, query, modelOverride, variantOverride)?.let { cached ->
             val streamProcessor = AgentStreamProcessor(sessionId, eventEmitter)
 
             emit(
@@ -206,7 +209,7 @@ class ServerAgent(
             streamProcessor.reset()
 
             try {
-                llmProvider.stream(messagesForAgent, tools, modelOverride, opencodeSessionId, onOpencodeSessionCreated).collect { chunk ->
+                llmProvider.stream(messagesForAgent, tools, modelOverride, opencodeSessionId, onOpencodeSessionCreated, variantOverride).collect { chunk ->
                     streamProcessor.processChunk(chunk)
                 }
 
@@ -417,7 +420,7 @@ class ServerAgent(
                         continue
                     }
                 } else if (streamProcessor.currentContent.isNotEmpty()) {
-                    stateManager.putCache(messagesForAgent, tools, query, streamProcessor.currentContent, toolCallCount > 0, modelOverride)
+                    stateManager.putCache(messagesForAgent, tools, query, streamProcessor.currentContent, toolCallCount > 0, modelOverride, variantOverride)
 
                     val citationCount = toolCallHistory.size
                     val confidence =

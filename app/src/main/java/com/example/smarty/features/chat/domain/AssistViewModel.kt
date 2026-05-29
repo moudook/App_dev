@@ -528,6 +528,12 @@ class AssistViewModel(
     val selectedModel: StateFlow<String> = securePreferences.selectedModelFlow
     val availableModels: StateFlow<List<Pair<String, String>>> = securePreferences.availableModelsFlow
 
+    private val _modelVariantMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val modelVariantMap: StateFlow<Map<String, List<String>>> = _modelVariantMap.asStateFlow()
+
+    private val _selectedVariant = MutableStateFlow<String?>(null)
+    val selectedVariant: StateFlow<String?> = _selectedVariant.asStateFlow()
+
     fun toggleImageGenMode() {
         _isImageGenMode.value = !_isImageGenMode.value
     }
@@ -535,6 +541,13 @@ class AssistViewModel(
     fun selectModel(modelId: String) {
         Log.d(TAG, "Model selected in Assist: $modelId")
         securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
+        securePreferences.setSelectedVariant(null)
+        _selectedVariant.value = null
+    }
+
+    fun selectVariant(variant: String?) {
+        securePreferences.setSelectedVariant(variant)
+        _selectedVariant.value = variant
     }
 
     suspend fun refreshModelsNow(): List<Pair<String, String>> {
@@ -542,7 +555,9 @@ class AssistViewModel(
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             if (refreshed.isNotEmpty()) {
                 val pairs = refreshed.map { it.id to it.label }
+                val variantMap = refreshed.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
                 securePreferences.setCachedModels(pairs)
+                _modelVariantMap.value = variantMap
                 pairs
             } else {
                 securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
@@ -562,7 +577,9 @@ class AssistViewModel(
 
                 if (dynamicModels.isNotEmpty()) {
                     val modelPairs = dynamicModels.map { it.id to it.label }
+                    val variantMap = dynamicModels.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
                     securePreferences.setCachedModels(modelPairs)
+                    _modelVariantMap.value = variantMap
 
                     val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
                     val activeModel =

@@ -449,6 +449,7 @@ fun SmartyInputField(
                         Box(modifier = Modifier.height(16.dp).width(1.dp).background(Color.Gray.copy(alpha = 0.3f)))
 
                         var showModelMenu by remember { mutableStateOf(false) }
+                        var expandedVariantModel by remember { mutableStateOf<String?>(null) }
                         val displayLabel = selectedModel.substringAfterLast("/")
                             .replace(Regex("(?i)-free\\b"), "")
                             .replace(Regex("(?i)\\bfree\\b"), "")
@@ -460,12 +461,12 @@ fun SmartyInputField(
                             color = if (isDark) accentColor.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.08f),
                             modifier = Modifier
                                 .height(32.dp)
-                                .weight(1f, fill = false)
                                 .widthIn(max = 140.dp)
                                 .squishClick {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     scope.launch {
                                         val refreshed = onRefreshModels()
+                                        expandedVariantModel = null
                                         showModelMenu = true
                                     }
                                 }
@@ -489,7 +490,7 @@ fun SmartyInputField(
 
                             DropdownMenu(
                                 expanded = showModelMenu,
-                                onDismissRequest = { showModelMenu = false },
+                                onDismissRequest = { showModelMenu = false; expandedVariantModel = null },
                                 shape = RoundedCornerShape(16.dp),
                                 containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
                             ) {
@@ -499,44 +500,65 @@ fun SmartyInputField(
                                         .replace(Regex("(?i)\\bfree\\b"), "")
                                         .replace(Regex("(?i)\\s*\\(free\\)"), "")
                                         .trim()
-                                    DropdownMenuItem(
-                                        text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
-                                        onClick = { onModelSelected(modelId); showModelMenu = false }
-                                    )
-                                }
-                            }
-                        }
+                                    val variants = modelVariantMap[modelId]
+                                    val hasVariants = !variants.isNullOrEmpty()
+                                    val isExpanded = expandedVariantModel == modelId
 
-                        // Variant chips — show when selected model has variants
-                        val variantsForModel = modelVariantMap[selectedModel]
-                        if (variantsForModel != null && variantsForModel.isNotEmpty()) {
-                            Spacer(Modifier.width(6.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.height(28.dp)
-                            ) {
-                                variantsForModel.forEach { variant ->
-                                    val isSelected = variant == selectedVariant
-                                    Surface(
-                                        shape = RoundedCornerShape(percent = 50),
-                                        color = if (isSelected) accentColor.copy(alpha = 0.25f) else Color.Transparent,
-                                        onClick = {
-                                            onVariantSelected(if (isSelected) null else variant)
-                                        },
-                                        modifier = Modifier
-                                            .height(24.dp)
-                                            .squishClick { }
-                                    ) {
-                                        Text(
-                                            text = variant,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) accentColor else accentColor.copy(alpha = 0.6f),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                            maxLines = 1,
+                                    Column {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        cleanLabel,
+                                                        fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    if (hasVariants) {
+                                                        Icon(
+                                                            Icons.Rounded.KeyboardArrowDown,
+                                                            contentDescription = null,
+                                                            tint = Color.Gray,
+                                                            modifier = Modifier
+                                                                .size(16.dp)
+                                                                .graphicsLayer { rotationZ = if (isExpanded) 180f else 0f }
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                if (hasVariants) {
+                                                    expandedVariantModel = if (isExpanded) null else modelId
+                                                } else {
+                                                    onModelSelected(modelId)
+                                                    showModelMenu = false
+                                                }
+                                            }
                                         )
+
+                                        if (isExpanded && hasVariants) {
+                                            variants.forEach { variant ->
+                                                val isSelectedModel = selectedModel == modelId
+                                                val isSelectedVariant = isSelectedModel && variant == selectedVariant
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            variant,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (isSelectedVariant) FontWeight.Bold else FontWeight.Normal,
+                                                            color = if (isSelectedVariant) accentColor else Color.Gray,
+                                                            modifier = Modifier.padding(start = 16.dp)
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        onModelSelected(modelId)
+                                                        onVariantSelected(if (isSelectedVariant) null else variant)
+                                                        showModelMenu = false
+                                                        expandedVariantModel = null
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
-                                    Spacer(Modifier.width(4.dp))
                                 }
                             }
                         }

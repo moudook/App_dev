@@ -9,6 +9,7 @@ data class LlmCacheKey(
     val tools: List<ToolDefinition>,
     val modelOverride: String?,
     val isActionQuery: Boolean,
+    val variant: String? = null,
 )
 
 object LlmCache {
@@ -70,6 +71,7 @@ object LlmCache {
             sb.append(msg.role.name).append(':').append(msg.content.take(500)).append('|')
         }
         sb.append("model=").append(key.modelOverride ?: "default")
+        sb.append("|variant=").append(key.variant ?: "default")
         sb.append("|tools=").append(key.tools.size)
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(sb.toString().toByteArray(Charsets.UTF_8))

@@ -187,6 +187,8 @@ fun AssistOverlayScreen(
             val vmImageGenMode by viewModel.isImageGenMode.collectAsState()
             val selectedModel by viewModel.selectedModel.collectAsState()
             val availableModels by viewModel.availableModels.collectAsState()
+            val modelVariantMap by viewModel.modelVariantMap.collectAsState()
+            val selectedVariant by viewModel.selectedVariant.collectAsState()
             val pendingApproval by viewModel.pendingApprovalState.collectAsState()
 
             // Card-like container
@@ -387,6 +389,9 @@ fun AssistOverlayScreen(
                             selectedModel = selectedModel,
                             availableModels = availableModels,
                             onModelSelected = { viewModel.selectModel(it) },
+                            modelVariantMap = modelVariantMap,
+                            selectedVariant = selectedVariant,
+                            onVariantSelected = { viewModel.selectVariant(it) },
                             onRefreshModels = { viewModel.refreshModelsNow() },
                         )
                     }

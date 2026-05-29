@@ -82,10 +82,11 @@ class OpencodeLlmProvider(
         model: String?,
         externalSessionId: String?,
         onExternalSessionCreated: suspend (String) -> Unit,
+        variant: String?,
     ): LlmResponse {
         val content = StringBuilder()
         val toolCalls = mutableListOf<LlmToolCall>()
-        stream(messages, tools, model, externalSessionId, onExternalSessionCreated).collect { chunk ->
+        stream(messages, tools, model, externalSessionId, onExternalSessionCreated, variant).collect { chunk ->
             chunk.content?.let { content.append(it) }
             chunk.toolCall?.let { toolCalls.add(it) }
         }
@@ -98,6 +99,7 @@ class OpencodeLlmProvider(
         model: String?,
         externalSessionId: String?,
         onExternalSessionCreated: suspend (String) -> Unit,
+        variant: String?,
     ): Flow<LlmChunk> =
         flow {
             val inferenceId = UUID.randomUUID().toString().take(8)
@@ -148,9 +150,10 @@ class OpencodeLlmProvider(
                         }
                     }
 
+                val activeVariant = variant?.takeIf { it.isNotBlank() }
                 logger.info(
                     "[OpenCode.Request][inference=$inferenceId][session=$sessId] " +
-                        "model=$providerId/$modelId, parts=${parts.size}, isRetry=$isRetry",
+                        "model=$providerId/$modelId, parts=${parts.size}, variant=$activeVariant, isRetry=$isRetry",
                 )
 
                 daemonSemaphore.acquire()
@@ -169,6 +172,7 @@ class OpencodeLlmProvider(
                                         },
                                     agent = agentName,
                                     system = systemPrompt,
+                                    variant = activeVariant?.let { JsonPrimitive(it) },
                                 ),
                             )
                         }.execute { response ->
@@ -492,6 +496,7 @@ class OpencodeLlmProvider(
     val agent: String? = null,
     val system: String? = null,
     val stream: Boolean = true,
+    val variant: JsonPrimitive? = null,
 )
 
 private data class CanonicalPart(

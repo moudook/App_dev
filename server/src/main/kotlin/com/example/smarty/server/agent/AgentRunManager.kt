@@ -71,6 +71,7 @@ object AgentRunManager {
         history: List<LlmMessage>,
         opencodeSessionId: String?,
         messageId: String? = null,
+        variantOverride: String? = null,
     ) {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
@@ -216,6 +217,7 @@ object AgentRunManager {
                                         }
                                     }
                                 },
+                                variantOverride = variantOverride,
                             )
                         }
 

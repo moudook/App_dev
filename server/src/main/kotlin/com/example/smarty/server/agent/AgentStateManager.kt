@@ -513,9 +513,10 @@ class AgentStateManager(
         tools: List<com.example.smarty.server.llm.ToolDefinition>,
         query: String,
         modelOverride: String?,
+        variantOverride: String? = null,
     ): String? {
         val isActionQuery = LlmCache.isActionQuery(query)
-        val cacheKey = LlmCacheKey(messages, tools, modelOverride, isActionQuery)
+        val cacheKey = LlmCacheKey(messages, tools, modelOverride, isActionQuery, variantOverride)
         return LlmCache.get(cacheKey)
     }
 
@@ -526,9 +527,10 @@ class AgentStateManager(
         content: String,
         hadToolCalls: Boolean,
         modelOverride: String?,
+        variantOverride: String? = null,
     ) {
         val isActionQuery = LlmCache.isActionQuery(query)
-        val cacheKey = LlmCacheKey(messages, tools, modelOverride, isActionQuery)
+        val cacheKey = LlmCacheKey(messages, tools, modelOverride, isActionQuery, variantOverride)
         LlmCache.put(cacheKey, content, hadToolCalls)
     }
 

@@ -81,6 +81,13 @@ class SecurePreferences(private val context: Context) {
         _selectedModel.asStateFlow()
     }
 
+    private val _selectedVariant: MutableStateFlow<String?> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        MutableStateFlow(getSelectedVariant())
+    }
+    val selectedVariantFlow: StateFlow<String?> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        _selectedVariant.asStateFlow()
+    }
+
     private val _availableModels: MutableStateFlow<List<Pair<String, String>>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         MutableStateFlow(getAvailableModels(AIConnection.LOCAL_PC))
     }
@@ -100,6 +107,7 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_USER_PREFERENCES = "user_preferences"
         private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
         private const val KEY_LOCAL_PC_MODEL = "local_pc_model"
+        private const val KEY_LOCAL_PC_VARIANT = "local_pc_variant"
         private const val KEY_CACHED_MODELS = "cached_models"
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
@@ -208,6 +216,15 @@ class SecurePreferences(private val context: Context) {
     ) {
         encryptedPrefs.edit().putString(KEY_LOCAL_PC_MODEL, model).apply()
         _selectedModel.value = model
+    }
+
+    fun getSelectedVariant(): String? {
+        return encryptedPrefs.getString(KEY_LOCAL_PC_VARIANT, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setSelectedVariant(variant: String?) {
+        encryptedPrefs.edit().putString(KEY_LOCAL_PC_VARIANT, variant?.takeIf { it.isNotBlank() } ?: "").apply()
+        _selectedVariant.value = variant?.takeIf { it.isNotBlank() }
     }
 
     // Theme Management

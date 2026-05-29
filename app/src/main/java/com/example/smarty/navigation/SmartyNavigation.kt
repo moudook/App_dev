@@ -283,6 +283,8 @@ fun SmartyNavHost(
     val isSettingsLoading by viewModel.isSettingsLoading.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
+    val modelVariantMap by viewModel.modelVariantMap.collectAsState()
+    val selectedVariant by viewModel.selectedVariant.collectAsState()
 
     // Handle AI-triggered navigation requests
     androidx.compose.runtime.LaunchedEffect(navigationRequest) {
@@ -572,6 +574,9 @@ fun SmartyNavHost(
                 selectedModel = selectedModel,
                 availableModels = availableModels,
                 onModelSelected = { viewModel.selectModel(it) },
+                modelVariantMap = modelVariantMap,
+                selectedVariant = selectedVariant,
+                onVariantSelected = { viewModel.selectVariant(it) },
                 onRefreshModels = { viewModel.refreshModels() }
             )
         }
