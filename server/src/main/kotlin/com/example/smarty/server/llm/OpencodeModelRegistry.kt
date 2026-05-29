@@ -221,17 +221,7 @@ object OpencodeModelRegistry {
         val isStale = (now - state.updatedAt) > CACHE_TTL_MS
 
         if (isStale) {
-            logger.info("[OpencodeModelRegistry] Cache stale — triggering background refresh to avoid blocking agent")
-            // Update the timestamp right away so we don't spawn multiple coroutines
-            cachedState.set(state.copy(updatedAt = now))
-
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                try {
-                    refreshFromCli()
-                } catch (e: Exception) {
-                    logger.error("[OpencodeModelRegistry] Background refresh failed", e)
-                }
-            }
+            logger.debug("[OpencodeModelRegistry] Cache stale — will refresh on next explicit request")
         }
 
         return state.copy(

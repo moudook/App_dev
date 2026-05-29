@@ -151,7 +151,7 @@ object DatabaseFactory {
 
             // Append PgBouncer-safe params if not already present
             if (!dbUrl.contains("prepareThreshold")) {
-                dbUrl = "$dbUrl${if (dbUrl.contains("?")) "&" else "?"}prepareThreshold=0&preferQueryMode=simple&autosave=discard"
+                dbUrl = "$dbUrl${if (dbUrl.contains("?")) "&" else "?"}prepareThreshold=0&preferQueryMode=simple"
             }
 
             logger.info("Connecting to database: ${dbUrl.take(50)}...")
@@ -168,10 +168,7 @@ object DatabaseFactory {
                     connectionTimeout = 5000
                     maxLifetime = 1800000
                     keepaliveTime = 300000
-                    // PgBouncer: use connectionInitSql instead of connectionTestQuery
-                    // connectionTestQuery creates prepared statements internally which
-                    // PgBouncer rejects. connectionInitSql executes as plain SQL.
-                    connectionInitSql = "SELECT 1"
+                    connectionTestQuery = "SELECT 1"
                     leakDetectionThreshold = 30000
                     transactionIsolation = "TRANSACTION_READ_COMMITTED"
                     addDataSourceProperty("tcpKeepAlive", "true")
