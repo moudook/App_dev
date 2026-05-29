@@ -133,6 +133,14 @@ fun SmartyInputField(
         label = "elevation"
     ) { expanded -> if (expanded) 8.dp else 2.dp }
 
+    // Glow animation for question mode border
+    val glowTransition = rememberInfiniteTransition(label = "glow")
+    val glowAlpha by glowTransition.animateFloat(
+        initialValue = 0.2f, targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Reverse),
+        label = "glowAlpha"
+    )
+
     // State for Ask Tool - keyed to pendingQuestions identity so it resets properly
     val questionKey = remember(pendingQuestions.size, pendingQuestions.firstOrNull()?.question) {
         pendingQuestions.hashCode() + (pendingQuestions.firstOrNull()?.hashCode() ?: 0)
@@ -175,29 +183,7 @@ fun SmartyInputField(
             )
         }
 
-        // 2. S-Tier Ask Tool UI
-        AnimatedVisibility(
-            visible = isAskingQuestion,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            // Clamp index just in case it got out of sync
-            val safeIndex = currentQuestionIndex.coerceIn(0, maxOf(0, pendingQuestions.size - 1))
-            val currentRequest = pendingQuestions.getOrNull(safeIndex)
-            
-            if (currentRequest != null) {
-                STierAskToolCard(
-                    question = currentRequest.question,
-                    options = currentRequest.options,
-                    allowCustomInput = currentRequest.allowCustomInput,
-                    onAnswerSubmitted = handleAskSubmit,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            } else if (isAskingQuestion) {
-                // Fallback in case list changed unexpectedly
-                Text("Loading question...", color = Color.Gray, modifier = Modifier.padding(16.dp))
-            }
-        }
+        // 2. S-Tier Ask Tool UI — now integrated into the pill, remove old separate card
 
         // 3. Attachment Selector (Notes only)
         if (!isChatMode) {
@@ -213,7 +199,7 @@ fun SmartyInputField(
             )
         }
 
-        // 4. MAIN PILL (Core Text Input + Action Bar)
+        // 4. MAIN PILL (Core Text Input + Action Bar — OR Question UI when asking)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -225,6 +211,377 @@ fun SmartyInputField(
                     ambientShadowColor = Color.Black.copy(alpha = 0.05f)
                     spotShadowColor = Color.Black.copy(alpha = 0.08f)
                 }
+                .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
+                .border(
+                    width = if (isAskingQuestion) 1.5.dp else 1.dp,
+                    color = if (isAskingQuestion) accentColor.copy(alpha = glowAlpha) else if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(cornerRadius)
+                )
+                .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+
+        if (isAskingQuestion) {
+            // ── QUESTION MODE: question + options inside the pill ──
+            val safeIndex = currentQuestionIndex.coerceIn(0, maxOf(0, pendingQuestions.size - 1))
+            val currentRequest = pendingQuestions.getOrNull(safeIndex)
+
+            if (currentRequest != null) {
+                // Header: question count + accent label
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CLARIFICATION NEEDED",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = accentColor
+                    )
+                    Text(
+                        text = "${currentQuestionIndex + 1}/${pendingQuestions.size}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Gray
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Question text
+                Text(
+                    text = currentRequest.question,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 22.sp,
+                    color = textColor
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // Options as compact chips
+                currentRequest.options.forEachIndexed { index, option ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = optionBg,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                            .squishClick {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                handleAskSubmit(option)
+                            }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "${index + 1}.",
+                                fontWeight = FontWeight.Bold,
+                                color = accentColor.copy(alpha = 0.6f),
+                                fontSize = 13.sp
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = option,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = textColor
+                            )
+                        }
+                    }
+                }
+
+                // Custom input row
+                if (currentRequest.allowCustomInput) {
+                    if (isEditingCustomAnswer) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                                .background(optionBg, RoundedCornerShape(10.dp))
+                                .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 14.dp)
+                        ) {
+                            BasicTextField(
+                                value = customAnswerText,
+                                onValueChange = { customAnswerText = it },
+                                modifier = Modifier.weight(1f),
+                                textStyle = TextStyle(fontSize = 14.sp, color = textColor),
+                                singleLine = true,
+                                cursorBrush = SolidColor(accentColor),
+                                decorationBox = { inner ->
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (customAnswerText.isEmpty()) Text("Type your answer...", color = Color.Gray, fontSize = 14.sp)
+                                        inner()
+                                    }
+                                }
+                            )
+                            AnimatedVisibility(customAnswerText.isNotBlank(), enter = scaleIn(spring(0.7f, 400f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.Send,
+                                    contentDescription = "Send",
+                                    tint = accentColor,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .squishClick {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            handleAskSubmit(customAnswerText)
+                                        }
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .squishClick { isEditingCustomAnswer = true }
+                                .background(optionBg, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Edit, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Type a custom answer...", color = Color.Gray, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        } else {
+            // ── NORMAL MODE: text input + action bar ──
+            // Text Input
+            Box(
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() }, indication = null
+                ) { focusManager.clearFocus() },
+                contentAlignment = Alignment.TopStart
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontSize = 17.sp,
+                        color = if (isDark) Color.White else Color(0xFF1D1D1F),
+                        lineHeight = 24.sp
+                    ),
+                    cursorBrush = SolidColor(accentColor),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.TopStart) {
+                            if (value.text.isEmpty()) {
+                                Text(placeholder, color = Color.Gray.copy(alpha = 0.7f), fontSize = 17.sp)
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Action Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!isChatMode) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "Attach",
+                            tint = Color.Gray,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showAttachmentSelector = !showAttachmentSelector
+                                }
+                        )
+                    }
+
+                    if (isChatMode && showHistoryOption) {
+                        Icon(
+                            imageVector = if (isHistoryMode) Icons.Rounded.Edit else Icons.Rounded.History,
+                            contentDescription = if (isHistoryMode) "New Chat" else "History",
+                            tint = Color.Gray,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (isHistoryMode) onNewChat() else onOpenChatHistory()
+                                }
+                        )
+
+                        Spacer(Modifier.width(4.dp))
+
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "Image Generation",
+                            tint = if (isImageGenMode) accentColor else Color.Gray,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onToggleImageGenMode()
+                                }
+                        )
+                    }
+
+                    if (isChatMode) {
+                        Box(modifier = Modifier.height(16.dp).width(1.dp).background(Color.Gray.copy(alpha = 0.3f)))
+
+                        var showModelMenu by remember { mutableStateOf(false) }
+                        val displayLabel = selectedModel.substringAfterLast("/")
+                            .replace(Regex("(?i)-free\\b"), "")
+                            .replace(Regex("(?i)\\bfree\\b"), "")
+                            .replace(Regex("(?i)\\s*\\(free\\)"), "")
+                            .trim()
+
+                        Surface(
+                            shape = RoundedCornerShape(percent = 50),
+                            color = if (isDark) accentColor.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.08f),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .weight(1f, fill = false)
+                                .widthIn(max = 140.dp)
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    scope.launch {
+                                        val refreshed = onRefreshModels()
+                                        showModelMenu = true
+                                    }
+                                }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    text = displayLabel,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = accentColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = accentColor, modifier = Modifier.size(16.dp))
+                            }
+
+                            DropdownMenu(
+                                expanded = showModelMenu,
+                                onDismissRequest = { showModelMenu = false },
+                                shape = RoundedCornerShape(16.dp),
+                                containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                            ) {
+                                availableModels.forEach { (modelId, label) ->
+                                    val cleanLabel = label
+                                        .replace(Regex("(?i)-free\\b"), "")
+                                        .replace(Regex("(?i)\\bfree\\b"), "")
+                                        .replace(Regex("(?i)\\s*\\(free\\)"), "")
+                                        .trim()
+                                    DropdownMenuItem(
+                                        text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
+                                        onClick = { onModelSelected(modelId); showModelMenu = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Mic + Send
+                Box(
+                    modifier = Modifier.width(32.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    val showStopIcon = isAgentWorking && isChatMode
+                    val micOffsetY by animateDpAsState(
+                        targetValue = if (canSend || showStopIcon) (-40).dp else 0.dp,
+                        animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
+                        label = "micOffset"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .offset(y = micOffsetY)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .squishClick {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        VoiceWaveformIcon(
+                            isListening = isVoiceListening,
+                            isProcessing = isProcessing,
+                            isAgentWorking = isAgentWorking,
+                            value = value,
+                            isFocused = isFocused,
+                            mentionState = mentionState,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = canSend || showStopIcon,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    ) {
+                        val btnColor = if (showStopIcon) Color(0xFFE53935) else (if (isDark) Color.White else Color.Black)
+                        val iconTint = if (showStopIcon) Color.White else (if (isDark) Color.Black else Color.White)
+
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(btnColor, CircleShape)
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (showStopIcon) {
+                                        onStopGeneration()
+                                    } else {
+                                        onSubmit()
+                                        if (!isChatMode) {
+                                            focusManager.clearFocus()
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (showStopIcon) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Stop,
+                                    contentDescription = "Stop",
+                                    tint = iconTint,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.Send,
+                                    contentDescription = "Send",
+                                    tint = iconTint,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } // end if/else isAskingQuestion
                 .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
                 .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(cornerRadius))
                 .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
@@ -439,8 +796,14 @@ fun SmartyInputField(
                             .background(btnColor, CircleShape)
                             .squishClick { 
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                focusManager.clearFocus()
-                                if (showStopIcon) onStopGeneration() else onSubmit()
+                                if (showStopIcon) {
+                                    onStopGeneration()
+                                } else {
+                                    onSubmit()
+                                    if (!isChatMode) {
+                                        focusManager.clearFocus()
+                                    }
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
