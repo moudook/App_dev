@@ -296,6 +296,8 @@ class ToolExecutor(
         }
 
     companion object {
+        private val tavilyKeyCounter = java.util.concurrent.atomic.AtomicInteger(0)
+
         fun mapOldToolNames(name: String): String =
             when (name) {
                 "save_note", "create_note" -> "memory_save"
@@ -681,7 +683,13 @@ class ToolExecutor(
 
     private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {
         val query = args.query ?: return "Search query required"
-        val apiKey = System.getenv("TAVILY_API_KEY") ?: return "TAVILY_API_KEY is not configured on the server."
+        val rawKeys = System.getenv("TAVILY_API_KEY")?.trim('"', '\'')
+            ?: return "TAVILY_API_KEY is not configured on the server."
+        val keys = rawKeys.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        if (keys.isEmpty()) return "TAVILY_API_KEY is empty"
+
+        // Round-robin key rotation
+        val apiKey = keys[tavilyKeyCounter.getAndIncrement() % keys.size]
 
         emitProcessing("Searching the web via Tavily...", "Query: ${query.take(100)}")
 
