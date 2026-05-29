@@ -1084,6 +1084,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     val approved = bodyJson["approved"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                     val feedback = bodyJson["feedback"]?.jsonPrimitive?.content
 
+                    call.application.log.info("[Approval] Received: toolId=$toolId, approved=$approved, caller=${user.userId}")
                     val resolved =
                         com.example.smarty.server.agent.ApprovalRegistry.resolveApproval(
                             toolCallId = toolId,
@@ -1092,12 +1093,14 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             callerUserId = user.userId,
                         )
                     if (resolved) {
+                        call.application.log.info("[Approval] Resolved: toolId=$toolId, approved=$approved")
                         call.respond(HttpStatusCode.OK, mapOf("status" to "resumed", "toolId" to toolId))
                     } else {
+                        call.application.log.warn("[Approval] Not found: toolId=$toolId")
                         call.respond(HttpStatusCode.NotFound, mapOf("status" to "not_found"))
                     }
                 } catch (e: Exception) {
-                    call.application.log.error("Approval resolve failed", e)
+                    call.application.log.error("[Approval] Resolve failed", e)
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
                 }
             }

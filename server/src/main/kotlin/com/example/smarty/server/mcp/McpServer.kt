@@ -145,7 +145,7 @@ class McpServer(
 
                 val body = call.receiveText()
                 val request = runCatching { json.decodeFromString<JsonRpcRequest>(body) }.getOrNull()
-                logger.info("[McpServer] POST /messages: sessionId=$mcpSessionId, body=$body")
+                logger.info("[McpServer] POST /messages: sessionId=$mcpSessionId, userId=$userId, principal=${principal?.userId}, activeUser=${com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()}, body=${body.take(500)}")
 
                 if (request == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid JSON-RPC payload")
@@ -339,6 +339,7 @@ class McpServer(
         // PRIVILEGED MODE: Only ask_user requires user interaction (clarification question card).
         // All other tools (bash, device, memory, etc.) run autonomously — no approval gate.
         if (resolvedName == "ask_user" || resolvedName == "askuser") {
+            logger.info("[MCP] ask_user: toolCallId=$toolCallId, userId=$userId, sessions=${userSessions.size}")
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
                     UUID.randomUUID().toString(),
@@ -351,6 +352,7 @@ class McpServer(
             ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
             emitToAllSessions(approvalEvent)
+            logger.info("[MCP] ask_user: emitted ApprovalRequested for toolCallId=$toolCallId, now waiting for approval...")
 
             val result =
                 runCatching {
@@ -358,6 +360,7 @@ class McpServer(
                         ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await()
                     }
                 }.getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out")
+            logger.info("[MCP] ask_user: approval resolved for toolCallId=$toolCallId, approved=${result.approved}, feedback=${result.feedback?.take(100)}")
 
             if (!result.approved) {
                 val denial = result.feedback ?: "User denied"

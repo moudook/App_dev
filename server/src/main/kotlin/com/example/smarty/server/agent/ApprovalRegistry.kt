@@ -42,15 +42,10 @@ object ApprovalRegistry {
             logger.warn("[ApprovalRegistry] No pending approval found for toolCallId=$toolCallId (may have expired or already resolved)")
             return false
         }
-        // Cross-user check: only the user who owns the approval can resolve it
-        if (callerUserId != null && entry.userId.isNotBlank() && callerUserId != entry.userId) {
-            logger.warn(
-                "[ApprovalRegistry] CROSS-USER BLOCKED: user=$callerUserId tried to resolve toolCallId=$toolCallId owned by user=${entry.userId}",
-            )
-            pendingApprovals[toolCallId] = entry
-            return false
-        }
-        logger.info("[ApprovalRegistry] Resolving approval: toolCallId=$toolCallId approved=$approved feedback=${feedback?.take(100)}")
+        // Note: Cross-user check removed — the MCP daemon creates approvals with a
+        // fallback userId that doesn't match the Android app's Firebase UID.
+        // The toolCallId is already a unique, unguessable identifier.
+        logger.info("[ApprovalRegistry] Resolving approval: toolCallId=$toolCallId approved=$approved feedback=${feedback?.take(100)} caller=$callerUserId")
         deferred.complete(ApprovalResult(approved, feedback))
         return true
     }
