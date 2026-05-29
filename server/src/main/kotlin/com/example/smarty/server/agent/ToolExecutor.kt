@@ -94,7 +94,7 @@ class ToolExecutor(
         val question: String? = null,
         val options: kotlinx.serialization.json.JsonElement? = null,
         @SerialName("allow_custom") val allowCustom: Boolean? = null,
-        val noteId: String? = null,
+        @SerialName("note_id") val noteId: String? = null,
         val snippet: String? = null,
         val limit: String? = null,
         val finding: String? = null,
