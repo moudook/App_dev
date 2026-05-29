@@ -352,6 +352,7 @@ class SmartyViewModel(
     val navigationRequest: StateFlow<String?> get() = sharedAppState.navigationRequest
     val proactiveSuggestion: StateFlow<String?> get() = chatFeatureManager.proactiveSuggestion
     val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> get() = chatFeatureManager.pendingClarificationRequests
+    val pendingApprovalToolId: StateFlow<String?> get() = chatFeatureManager.pendingApprovalState.map { it?.toolId }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), null)
 
     fun callApproval(toolId: String, approved: Boolean, feedback: String? = null) = chatFeatureManager.callApproval(toolId, approved, feedback)
 

@@ -187,6 +187,7 @@ fun InputStreamScreen(
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onClarificationSubmit: (String, String) -> Unit = { _, _ -> },
     pendingClarificationRequests: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
+    pendingApprovalToolId: String? = null,
     onCallApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
     onStopGeneration: () -> Unit = {},
@@ -1836,12 +1837,8 @@ fun InputStreamScreen(
                             onRemoveAttachment = { id -> onInputAttachmentsChange(currentInputAttachments.filter { it.id != id }) },
                             pendingQuestions = pendingQuestions,
                             onQuestionAnswered = { response ->
-                                if (pendingClarificationRequests.isNotEmpty()) {
-                                    // Approval path - send via callApproval
-                                    val approval = viewModel.pendingApprovalState.collectAsState().value
-                                    if (approval != null) {
-                                        onCallApproval(approval.toolId, true, response.ifEmpty { null })
-                                    }
+                                if (pendingApprovalToolId != null) {
+                                    onCallApproval(pendingApprovalToolId, true, response.ifEmpty { null })
                                 } else if (activeClarificationMessage != null) {
                                     onClarificationSubmit(activeClarificationMessage.id, response)
                                 }

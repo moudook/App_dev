@@ -168,6 +168,7 @@ fun SmartyNavHost(
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
     onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
     pendingClarificationRequests: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
+    pendingApprovalToolId: String? = null,
     onCallApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
@@ -446,6 +447,7 @@ fun SmartyNavHost(
                 onEnterChatMode = onEnterChatMode,
                 onClarificationSubmit = viewModel::submitClarification,
                 pendingClarificationRequests = pendingClarificationRequests,
+                pendingApprovalToolId = pendingApprovalToolId,
                 onCallApproval = viewModel::callApproval,
                 // Chat history
                 chatSessions = chatSessions,
