@@ -371,10 +371,57 @@ object OpencodeModelRegistry {
     private fun parseModelsVerbose(lines: List<String>): List<OpencodeModelInfo> {
         val allModels = mutableListOf<OpencodeModelInfo>()
         var pendingId: String? = null
+        var jsonBuffer: StringBuilder? = null
+        var braceDepth = 0
 
         for (rawLine in lines) {
             val line = rawLine.trim()
             if (line.isEmpty()) continue
+
+            // If we're accumulating a multi-line JSON object
+            if (jsonBuffer != null) {
+                jsonBuffer.appendLine(line)
+                braceDepth += line.count { it == '{' } - line.count { it == '}' }
+
+                if (braceDepth <= 0) {
+                    // Complete JSON object accumulated — parse it
+                    val jsonText = jsonBuffer.toString().trim()
+                    jsonBuffer = null
+                    braceDepth = 0
+
+                    val id = pendingId ?: continue
+                    pendingId = null
+
+                    if (!id.contains("free", ignoreCase = true)) {
+                        logger.debug("[OpencodeModelRegistry] Skipping non-free: {}", id)
+                        continue
+                    }
+                    if (!id.startsWith("opencode/")) {
+                        logger.debug("[OpencodeModelRegistry] Skipping non-opencode: {}", id)
+                        continue
+                    }
+
+                    val jsonMeta = try {
+                        kotlinx.serialization.json.Json.parseToJsonElement(jsonText).jsonObject
+                    } catch (e: Exception) {
+                        logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
+                        continue
+                    }
+
+                    val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
+                        ?: generateLabel(id)
+
+                    val rawVariants = jsonMeta["variants"]?.jsonObject
+                    val variants = rawVariants ?: emptyMap()
+
+                    allModels.add(OpencodeModelInfo(
+                        id = id,
+                        label = label,
+                        variants = variants,
+                    ))
+                }
+                continue
+            }
 
             // If line is a model ID (not JSON), store it as pending
             val modelId = Regex("""^(opencode/[\w.\-]+)$""").find(line)?.groupValues?.get(1)
@@ -383,38 +430,50 @@ object OpencodeModelRegistry {
                 continue
             }
 
-            // If line is JSON and we have a pending model ID, parse it
+            // If line is JSON and we have a pending model ID, start accumulating
             if (line.startsWith("{")) {
                 val id = pendingId ?: continue
-                pendingId = null
 
-                if (!id.contains("free", ignoreCase = true)) {
-                    logger.debug("[OpencodeModelRegistry] Skipping non-free: {}", id)
-                    continue
+                val openBraces = line.count { it == '{' }
+                val closeBraces = line.count { it == '}' }
+                braceDepth = openBraces - closeBraces
+
+                if (braceDepth <= 0) {
+                    // Single-line JSON — parse immediately
+                    pendingId = null
+
+                    if (!id.contains("free", ignoreCase = true)) {
+                        logger.debug("[OpencodeModelRegistry] Skipping non-free: {}", id)
+                        continue
+                    }
+                    if (!id.startsWith("opencode/")) {
+                        logger.debug("[OpencodeModelRegistry] Skipping non-opencode: {}", id)
+                        continue
+                    }
+
+                    val jsonMeta = try {
+                        kotlinx.serialization.json.Json.parseToJsonElement(line).jsonObject
+                    } catch (e: Exception) {
+                        logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
+                        continue
+                    }
+
+                    val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
+                        ?: generateLabel(id)
+
+                    val rawVariants = jsonMeta["variants"]?.jsonObject
+                    val variants = rawVariants ?: emptyMap()
+
+                    allModels.add(OpencodeModelInfo(
+                        id = id,
+                        label = label,
+                        variants = variants,
+                    ))
+                } else {
+                    // Multi-line JSON — start accumulating
+                    jsonBuffer = StringBuilder()
+                    jsonBuffer.appendLine(line)
                 }
-                if (!id.startsWith("opencode/")) {
-                    logger.debug("[OpencodeModelRegistry] Skipping non-opencode: {}", id)
-                    continue
-                }
-
-                val jsonMeta = try {
-                    kotlinx.serialization.json.Json.parseToJsonElement(line).jsonObject
-                } catch (e: Exception) {
-                    logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
-                    continue
-                }
-
-                val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
-                    ?: generateLabel(id)
-
-                val rawVariants = jsonMeta["variants"]?.jsonObject
-                val variants = rawVariants ?: emptyMap()
-
-                allModels.add(OpencodeModelInfo(
-                    id = id,
-                    label = label,
-                    variants = variants,
-                ))
             }
         }
 
