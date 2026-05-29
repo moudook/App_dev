@@ -133,14 +133,6 @@ fun SmartyInputField(
         label = "elevation"
     ) { expanded -> if (expanded) 8.dp else 2.dp }
 
-    // Glow animation for question mode border
-    val glowTransition = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by glowTransition.animateFloat(
-        initialValue = 0.2f, targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Reverse),
-        label = "glowAlpha"
-    )
-
     // State for Ask Tool - keyed to pendingQuestions identity so it resets properly
     val questionKey = remember(pendingQuestions.size, pendingQuestions.firstOrNull()?.question) {
         pendingQuestions.hashCode() + (pendingQuestions.firstOrNull()?.hashCode() ?: 0)
@@ -212,11 +204,7 @@ fun SmartyInputField(
                     spotShadowColor = Color.Black.copy(alpha = 0.08f)
                 }
                 .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
-                .border(
-                    width = if (isAskingQuestion) 1.5.dp else 1.dp,
-                    color = if (isAskingQuestion) accentColor.copy(alpha = glowAlpha) else if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f),
-                    shape = RoundedCornerShape(cornerRadius)
-                )
+                .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(cornerRadius))
                 .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
@@ -227,37 +215,37 @@ fun SmartyInputField(
             val currentRequest = pendingQuestions.getOrNull(safeIndex)
 
             if (currentRequest != null) {
-                // Header: question count + accent label
+                // Counter only
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "CLARIFICATION NEEDED",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = accentColor
-                    )
-                    Text(
                         text = "${currentQuestionIndex + 1}/${pendingQuestions.size}",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.Gray
                     )
                 }
 
-                Spacer(Modifier.height(10.dp))
-
-                // Question text
-                Text(
-                    text = currentRequest.question,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 22.sp,
-                    color = textColor
-                )
+                // Question text with crossfade transition
+                androidx.compose.animation.AnimatedContent(
+                    targetState = currentRequest.question,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(200)) + slideInVertically(animationSpec = tween(200)) { it / 4 } togetherWith
+                        fadeOut(animationSpec = tween(150)) + slideOutVertically(animationSpec = tween(150)) { -it / 4 }
+                    },
+                    label = "questionTransition"
+                ) { question ->
+                    Text(
+                        text = question,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 22.sp,
+                        color = textColor
+                    )
+                }
 
                 Spacer(Modifier.height(12.dp))
 
@@ -582,246 +570,12 @@ fun SmartyInputField(
                 }
             }
         } // end if/else isAskingQuestion
-                .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
-                .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(cornerRadius))
-                .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-
-        // â”€â”€ 2. MIDDLE: Core Text Input â”€â”€
-        Box(
-            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null
-            ) { focusManager.clearFocus() /* Not really, usually we request focus, but keeping it simple */ },
-            contentAlignment = Alignment.TopStart
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = TextStyle(
-                    fontSize = 17.sp, 
-                    color = if (isDark) Color.White else Color(0xFF1D1D1F), 
-                    lineHeight = 24.sp
-                ),
-                cursorBrush = SolidColor(accentColor),
-                decorationBox = { innerTextField ->
-                    Box(contentAlignment = Alignment.TopStart) {
-                        if (value.text.isEmpty()) {
-                            Text(placeholder, color = Color.Gray.copy(alpha = 0.7f), fontSize = 17.sp)
-                        }
-                        innerTextField()
-                    }
-                }
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // â”€â”€ 3. BOTTOM: Action Bar â”€â”€
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // LEFT CONTROLS: Image, History, Model Selector
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp), 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Image/Attachment Icon (Only shown in Note Section, i.e., non-chat mode)
-                if (!isChatMode) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Attach", 
-                        tint = Color.Gray, 
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .squishClick { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                showAttachmentSelector = !showAttachmentSelector
-                            }
-                    )
-                }
-
-                // History Icon (Only in Chat Section, toggles between history and creating new clean chat)
-                if (isChatMode && showHistoryOption) {
-                    Icon(
-                        imageVector = if (isHistoryMode) Icons.Rounded.Edit else Icons.Rounded.History, 
-                        contentDescription = if (isHistoryMode) "New Chat" else "History", 
-                        tint = Color.Gray, 
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .squishClick { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (isHistoryMode) onNewChat() else onOpenChatHistory()
-                            }
-                    )
-                    
-                    Spacer(Modifier.width(4.dp))
-                    
-                    // Image Gen Mode Button
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome, 
-                        contentDescription = "Image Generation", 
-                        tint = if (isImageGenMode) accentColor else Color.Gray, 
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .squishClick { 
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onToggleImageGenMode()
-                            }
-                    )
-                }
-
-                // Vertical Divider
-                if (isChatMode) {
-                    Box(modifier = Modifier.height(16.dp).width(1.dp).background(Color.Gray.copy(alpha = 0.3f)))
-
-                    // Model Selector Pill (GPT-4o style)
-                    var showModelMenu by remember { mutableStateOf(false) }
-                    val displayLabel = selectedModel.substringAfterLast("/")
-                        .replace(Regex("(?i)-free\\b"), "")
-                        .replace(Regex("(?i)\\bfree\\b"), "")
-                        .replace(Regex("(?i)\\s*\\(free\\)"), "")
-                        .trim()
-                    
-                    Surface(
-                        shape = RoundedCornerShape(percent = 50),
-                        color = if (isDark) accentColor.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.08f),
-                        modifier = Modifier
-                            .height(32.dp)
-                            .weight(1f, fill = false)
-                            .widthIn(max = 140.dp) // Specific horizontal size constraint
-                            .squishClick {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                scope.launch {
-                                    val refreshed = onRefreshModels()
-                                    showModelMenu = true
-                                }
-                            }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically, 
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = displayLabel, 
-                                fontSize = 13.sp, 
-                                fontWeight = FontWeight.SemiBold, 
-                                color = accentColor,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false) // Truncate and wrap gracefully
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = accentColor, modifier = Modifier.size(16.dp))
-                        }
-                        
-                        DropdownMenu(
-                            expanded = showModelMenu,
-                            onDismissRequest = { showModelMenu = false },
-                            shape = RoundedCornerShape(16.dp),
-                            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-                        ) {
-                            availableModels.forEach { (modelId, label) ->
-                                val cleanLabel = label
-                                    .replace(Regex("(?i)-free\\b"), "")
-                                    .replace(Regex("(?i)\\bfree\\b"), "")
-                                    .replace(Regex("(?i)\\s*\\(free\\)"), "")
-                                    .trim()
-                                DropdownMenuItem(
-                                    text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
-                                    onClick = { onModelSelected(modelId); showModelMenu = false }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
- 
-            // RIGHT CONTROLS: Waveform Mic AND Send Button
-            Box(
-                modifier = Modifier.width(32.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                val showStopIcon = isAgentWorking && isChatMode
-                
-                // Mic / Waveform Button
-                // Animates upward when canSend is true
-                val micOffsetY by animateDpAsState(
-                    targetValue = if (canSend || showStopIcon) (-40).dp else 0.dp,
-                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
-                    label = "micOffset"
-                )
-                
-                Box(
-                    modifier = Modifier
-                        .offset(y = micOffsetY)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .squishClick { 
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput() 
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    VoiceWaveformIcon(
-                        isListening = isVoiceListening,
-                        isProcessing = isProcessing,
-                        isAgentWorking = isAgentWorking,
-                        value = value,
-                        isFocused = isFocused,
-                        mentionState = mentionState,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
- 
-                // Send / Stop Arrow
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = canSend || showStopIcon,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    val btnColor = if (showStopIcon) Color(0xFFE53935) else (if (isDark) Color.White else Color.Black)
-                    val iconTint = if (showStopIcon) Color.White else (if (isDark) Color.Black else Color.White)
-                    
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(btnColor, CircleShape)
-                            .squishClick { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (showStopIcon) {
-                                    onStopGeneration()
-                                } else {
-                                    onSubmit()
-                                    if (!isChatMode) {
-                                        focusManager.clearFocus()
-                                    }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (showStopIcon) Icons.Rounded.Stop else Icons.AutoMirrored.Rounded.Send, 
-                            contentDescription = "Send", 
-                            tint = iconTint, 
-                            modifier = Modifier.size(16.dp).offset(x = if (showStopIcon) 0.dp else 1.dp)
-                        )
-                    }
-                }
-            }
-        }
     }
-}
 }
 
 // 
+// S-TIER GPU CANVAS WAVEFORM (Preserved entirely!)
+//
 // S-TIER GPU CANVAS WAVEFORM (Preserved entirely!)
 // 
 
