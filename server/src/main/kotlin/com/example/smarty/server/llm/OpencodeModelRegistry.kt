@@ -4,8 +4,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -19,7 +21,7 @@ data class OpencodeModelInfo(
     val provider: String = "opencode",
     val free: Boolean = true,
     val available: Boolean = true,
-    val variants: Map<String, JsonObject> = emptyMap(),
+    val variants: Map<String, JsonElement> = emptyMap(),
 )
 
 @Serializable
@@ -401,7 +403,7 @@ object OpencodeModelRegistry {
                     continue
                 }
 
-                val label = jsonMeta["label"]?.kotlinx.serialization.json.jsonPrimitive?.contentOrNull
+                val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
                     ?: generateLabel(id)
 
                 val rawVariants = jsonMeta["variants"]?.jsonObject
