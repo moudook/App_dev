@@ -19,6 +19,7 @@ Smarty has evolved into a fully autonomous, privacy-first AI assistant featuring
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
+words refinment 2.1
 
 # Architecture Overview
 
