@@ -293,7 +293,6 @@ class McpServer(
         val toolCallId = "mcp-${UUID.randomUUID()}"
 
         suspend fun emitToAllSessions(event: AgentEvent) {
-            ActiveEventBridge.emit(userId, event)
             for (session in userSessions) {
                 runCatching { AgentRunManager.emitEvent(session.sessionId, event) }
             }
@@ -349,7 +348,6 @@ class McpServer(
                     resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() },
                     args.toString(),
                 )
-            ActiveEventBridge.emit(userId, approvalEvent)
             eventEmitter?.invoke(approvalEvent)
             emitToAllSessions(approvalEvent)
             logger.info("[MCP] ask_user: emitted ApprovalRequested for toolCallId=$toolCallId, now waiting for approval...")
@@ -366,7 +364,6 @@ class McpServer(
                 val denial = result.feedback ?: "User denied"
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
-                ActiveEventBridge.emit(userId, deniedEvent)
                 eventEmitter?.invoke(deniedEvent)
                 emitToAllSessions(deniedEvent)
                 return buildJsonObject {
@@ -387,7 +384,6 @@ class McpServer(
             val userResponse = result.feedback ?: "Proceed with your best judgment"
             thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
             val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
-            ActiveEventBridge.emit(userId, grantedEvent)
             eventEmitter?.invoke(grantedEvent)
             emitToAllSessions(grantedEvent)
             return buildJsonObject {
@@ -417,7 +413,6 @@ class McpServer(
                 timerRepository,
                 calendarRepository,
                 {
-                    ActiveEventBridge.emit(userId, it)
                     emitToAllSessions(it)
                 },
                 noteService,
