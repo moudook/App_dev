@@ -885,35 +885,52 @@ fun CodeBlock(
     var isCopied by remember { mutableStateOf(false) }
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
+    // Theme-aware colors
+    val codeBg = if (isDark) Color(0xFF1A1A2E) else Color(0xFFF8F8FA)
+    val headerBg = if (isDark) Color(0xFF252536) else Color(0xFFF0F0F5)
     val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B)
-    val headerColor = headerBgColor
-    val copyBtnBg = if (isDark) Color(0xFF3F3F46) else Color(0xFFE4E4E7)
-    val copyBtnText = if (isDark) Color(0xFFA1A1AA) else Color(0xFF52525B)
+    val langLabelColor = if (isDark) Color(0xFF7C7C9A) else Color(0xFF6B6B80)
+    val copyBtnBg = if (isDark) Color(0xFF3A3A4A) else Color(0xFFE8E8ED)
+    val copyBtnText = if (isDark) Color(0xFFA0A0B0) else Color(0xFF52525B)
+    val separatorColor = if (isDark) Color(0xFF3A3A4A) else Color(0xFFD8D8DD)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
-            .background(backgroundColor)
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, separatorColor, RoundedCornerShape(10.dp))
+            .background(codeBg)
     ) {
+        // Header: language badge + copy button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(headerColor)
+                .background(headerBg)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = language.ifBlank { "code" }.lowercase(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666)
-            )
+            // Language badge
+            if (language.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = langLabelColor.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = language.lowercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = langLabelColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
 
+            // Copy button
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
@@ -922,20 +939,21 @@ fun CodeBlock(
                         isCopied = true
                     }
                     .background(if (isCopied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else copyBtnBg)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
                     imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
                     contentDescription = "Copy code",
                     tint = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(12.dp)
                 )
                 Text(
                     text = if (isCopied) "Copied!" else "Copy",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
                         color = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText
                     )
                 )
@@ -948,13 +966,14 @@ fun CodeBlock(
             }
         }
 
+        // Code content
         Box(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = code,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 15.sp,
-                    lineHeight = 23.sp
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
                 ),
                 color = textColor,
                 modifier = Modifier.horizontalScroll(rememberScrollState())

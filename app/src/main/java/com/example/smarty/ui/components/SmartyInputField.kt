@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -118,6 +120,8 @@ fun SmartyInputField(
     
     val canSend = value.text.isNotEmpty() || attachments.isNotEmpty()
     val isAskingQuestion = pendingQuestions.isNotEmpty()
+    val textColor = if (isDark) Color.White else Color(0xFF1D1D1F)
+    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
 
     // S-Tier Orchestrator for Container Expansion
     val transition = updateTransition(targetState = isFocused || canSend || isAskingQuestion, label = "InputState")
@@ -206,16 +210,18 @@ fun SmartyInputField(
                 .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
                 .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(cornerRadius))
                 .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
 
         if (isAskingQuestion) {
-            // ── QUESTION MODE: question + options inside the pill ──
+            // ── QUESTION MODE: golden ratio (φ ≈ 1.618) spacing system ──
+            // φ⁰ = 5dp, φ¹ = 8dp, φ² = 13dp, φ³ = 21dp
+            // Fonts: φ⁻² = 10sp, φ⁻¹ = 11sp, φ⁰ = 13sp, φ¹ = 16sp
             val safeIndex = currentQuestionIndex.coerceIn(0, maxOf(0, pendingQuestions.size - 1))
             val currentRequest = pendingQuestions.getOrNull(safeIndex)
 
             if (currentRequest != null) {
-                // Counter only
+                // Counter — φ⁻² = 10sp, accent color for visual hierarchy
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -223,13 +229,14 @@ fun SmartyInputField(
                 ) {
                     Text(
                         text = "${currentQuestionIndex + 1}/${pendingQuestions.size}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.Gray
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accentColor.copy(alpha = 0.5f),
+                        letterSpacing = 0.5.sp
                     )
                 }
 
-                // Question text with crossfade transition
+                // Question text — φ¹ = 16sp, animated crossfade
                 androidx.compose.animation.AnimatedContent(
                     targetState = currentRequest.question,
                     transitionSpec = {
@@ -247,16 +254,17 @@ fun SmartyInputField(
                     )
                 }
 
-                Spacer(Modifier.height(12.dp))
+                // φ² = 13dp gap between question and options
+                Spacer(Modifier.height(13.dp))
 
-                // Options as compact chips
+                // Options — golden ratio chips with accent badges
                 currentRequest.options.forEachIndexed { index, option ->
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = optionBg,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp)
+                            .padding(bottom = 5.dp)
                             .squishClick {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 handleAskSubmit(option)
@@ -264,15 +272,18 @@ fun SmartyInputField(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
                         ) {
+                            // Accent number badge — φ⁻¹ = 11sp, accent color
                             Text(
-                                text = "${index + 1}.",
+                                text = "${index + 1}",
                                 fontWeight = FontWeight.Bold,
-                                color = accentColor.copy(alpha = 0.6f),
-                                fontSize = 13.sp
+                                color = accentColor,
+                                fontSize = 11.sp,
+                                modifier = Modifier.width(18.dp)
                             )
-                            Spacer(Modifier.width(10.dp))
+                            // φ¹ = 8dp gap between number and text
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 text = option,
                                 fontSize = 14.sp,
@@ -283,7 +294,7 @@ fun SmartyInputField(
                     }
                 }
 
-                // Custom input row
+                // Custom input row — φ² = 13dp padding
                 if (currentRequest.allowCustomInput) {
                     if (isEditingCustomAnswer) {
                         Row(
@@ -291,9 +302,9 @@ fun SmartyInputField(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(42.dp)
-                                .background(optionBg, RoundedCornerShape(10.dp))
-                                .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 14.dp)
+                                .background(optionBg, RoundedCornerShape(8.dp))
+                                .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 13.dp)
                         ) {
                             BasicTextField(
                                 value = customAnswerText,
@@ -328,8 +339,8 @@ fun SmartyInputField(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .squishClick { isEditingCustomAnswer = true }
-                                .background(optionBg, RoundedCornerShape(10.dp))
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .background(optionBg, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 13.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Rounded.Edit, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
@@ -341,11 +352,16 @@ fun SmartyInputField(
             }
         } else {
             // ── NORMAL MODE: text input + action bar ──
-            // Text Input
+            // Text Input — max 5 lines (120dp), scrolls internally beyond that
             Box(
-                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).clickable(
-                    interactionSource = remember { MutableInteractionSource() }, indication = null
-                ) { focusManager.clearFocus() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 120.dp)
+                    .verticalScroll(rememberScrollState())
+                    .defaultMinSize(minHeight = 24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() }, indication = null
+                    ) { focusManager.clearFocus() },
                 contentAlignment = Alignment.TopStart
             ) {
                 BasicTextField(
@@ -573,9 +589,8 @@ fun SmartyInputField(
     }
 }
 
-// 
-// S-TIER GPU CANVAS WAVEFORM (Preserved entirely!)
-//
+}
+
 // S-TIER GPU CANVAS WAVEFORM (Preserved entirely!)
 // 
 
@@ -690,186 +705,7 @@ fun STierAttachmentPreview(
     }
 }
 
-@Composable
-fun STierAskToolCard(
-    question: String,
-    options: List<String>,
-    allowCustomInput: Boolean,
-    onAnswerSubmitted: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val haptic = LocalHapticFeedback.current
-    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-    
-    // Custom theme colors matching SmartyInputField's existing palette
-    val cardBg = if (isDark) Color(0xFF1E1E1E) else Color.White
-    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
-    val textColor = if (isDark) Color.White else Color(0xFF1D1D1F)
-    val accentColor = com.example.smarty.ui.LocalAccentColor.current
 
-    var customAnswer by remember { mutableStateOf("") }
-    var isEditingCustom by remember { mutableStateOf(false) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f, targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Reverse),
-        label = "glowAlpha"
-    )
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                shadowElevation = 8.dp.toPx()
-                shape = RoundedCornerShape(24.dp)
-                clip = true
-                ambientShadowColor = Color.Black.copy(alpha = 0.04f)
-                spotShadowColor = Color.Black.copy(alpha = 0.08f)
-            }
-            .border(
-                width = 1.dp, 
-                color = accentColor.copy(alpha = glowAlpha),
-                shape = RoundedCornerShape(24.dp)
-            ),
-        color = cardBg
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .animateContentSize(spring(dampingRatio = 0.75f, stiffness = 400f))
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "CLARIFICATION NEEDED",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    color = accentColor
-                )
-                
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome, 
-                    contentDescription = null, 
-                    tint = accentColor.copy(alpha = glowAlpha + 0.3f), 
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = question,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 22.sp,
-                color = textColor
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            options.forEachIndexed { index, option ->
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = optionBg,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .squishClick {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onAnswerSubmitted(option) 
-                        }
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Text(
-                            text = "${index + 1}.",
-                            fontWeight = FontWeight.Bold,
-                            color = accentColor.copy(alpha = 0.6f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = option,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = textColor
-                        )
-                    }
-                }
-            }
-
-            if (allowCustomInput) {
-                if (isEditingCustom) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .background(optionBg, RoundedCornerShape(12.dp))
-                            .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        BasicTextField(
-                            value = customAnswer,
-                            onValueChange = { customAnswer = it },
-                            modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontSize = 15.sp, color = textColor),
-                            singleLine = true,
-                            cursorBrush = SolidColor(accentColor),
-                            decorationBox = { inner ->
-                                Box(contentAlignment = Alignment.CenterStart) {
-                                    if (customAnswer.isEmpty()) Text("Type your answer...", color = Color.Gray)
-                                    inner()
-                                }
-                            }
-                        )
-                        
-                        AnimatedVisibility(customAnswer.isNotBlank(), enter = scaleIn(spring(0.7f, 400f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Send,
-                                contentDescription = "Send",
-                                tint = accentColor,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .squishClick {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onAnswerSubmitted(customAnswer) 
-                                    }
-                            )
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .squishClick { isEditingCustom = true }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Rounded.Edit, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Something else...", color = Color.Gray, fontSize = 14.sp)
-                        
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = "Skip", 
-                            color = Color.Gray, 
-                            fontSize = 13.sp, 
-                            modifier = Modifier.squishClick { onAnswerSubmitted("") }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 // S-TIER GPU CANVAS WAVEFORM (Preserved entirely!)
 // 
 

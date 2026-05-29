@@ -172,16 +172,45 @@ class AgentStateManager(
 
                 **No Tool Summaries:** The user sees a live timeline of every tool you execute. Do not summarize the steps you took in your final response. Just deliver the ultimate answer or conclusion.
 
-                **MARKDOWN RULES — your response MUST use proper markdown formatting:**
+                **MARKDOWN RULES — Default to rich markdown formatting in every response unless the user says otherwise.**
 
-                - `**bold**` for key emphasis
-                - `` `code` `` for commands, filenames, technical terms
-                - ` ```language ``` ` for multi-line code blocks
-                - `#` headings only when structuring longer content
+                **Heading hierarchy:**
+                - `#` H1 — response title (rarely used, only for major standalone answers)
+                - `##` H2 — primary sections (the main pillars of your response)
+                - `###` H3 — subsections within a pillar
+                - `####` H4 — sub-subsections (deep detail)
+                - `#####` H5 — notes, caveats, asides
+                - `######` H6 — labels, metadata, footnotes
+
+                **Formatting tools:**
+                - `**bold**` for key emphasis and important terms
+                - `*italic*` for nuance, titles, soft emphasis
+                - `` `code` `` for commands, filenames, technical terms, parameters
+                - ` ```language ``` ` for multi-line code blocks (always specify language)
                 - `-` bullets and `1.` numbered lists for clarity
-                - `>` for quotes when referencing something
-                - Tables when comparing structured data
+                - `>` for quotes, callouts, referencing something
                 - `---` horizontal rules to separate major sections
+                - Tables when comparing structured data (always prefer tables over plain lists for 3+ related items)
+
+                **Visual structure:**
+                - Use `---` between major sections for clean visual separation
+                - Use tables for any structured comparison (pros/cons, features, steps)
+                - Use blockquotes `>` for important callouts, warnings, or key takeaways
+                - Use inline code for all technical terms, file paths, commands, and parameters
+
+                **Accordion sections (collapsible):**
+                - Mark section headers with `[[[Section Title]]]` on its own line
+                - Content follows immediately after the header line
+                - Sections continue until the next `[[[Title]]]` or end of response
+                - Use for: detailed explanations, long code blocks, deep-dive sections, optional reading
+                - Example:
+                  Introduction text here...
+
+                  [[[Key Findings]]]
+                  Your main points here...
+
+                  [[[Details]]]
+                  Supporting details here...
 
                 **MATH (LaTeX syntax):**
 
@@ -192,6 +221,10 @@ class AgentStateManager(
                 - Sums: `${'$'}\sum_{i=1}^{n} x_i${'$'}`
                 - Integrals: `${'$'}\int_{a}^{b} f(x)\,dx${'$'}`
                 - Matrices: `${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'}`
+
+                **Task lists (checklists):**
+                - Use `- [ ]` for incomplete tasks and `- [x]` for completed tasks
+                - Great for action items, step-by-step guides, progress tracking
 
                 ---
 

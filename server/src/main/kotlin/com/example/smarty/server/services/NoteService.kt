@@ -36,12 +36,14 @@ class NoteService(
         categoryId: String? = null,
         isAiCreated: Boolean = false,
     ): String {
+        val contentHash = content.normalizeForDedup().sha256()
         val initialNote =
             NoteInfo(
                 id = "", // Will be generated
                 title = title,
                 content = content,
                 categoryId = categoryId,
+                contentHash = contentHash,
                 processingStatus = "PROCESSING",
                 isAiCreated = isAiCreated,
                 createdAt = System.currentTimeMillis(),
@@ -257,4 +259,15 @@ class NoteService(
         userId: String,
         noteId: String,
     ): Boolean = noteRepository.delete(userId, noteId)
+
+    private fun String.sha256(): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(this.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun String.normalizeForDedup(): String {
+        return this.replace("\r\n", "\n")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
 }

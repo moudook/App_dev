@@ -44,7 +44,8 @@ class NoteDeduplicationManager(
         title: String? = null,
     ): String? =
         withContext(Dispatchers.IO) {
-            val contentHash = content.sha256()
+            val normalizedContent = content.normalizeForDedup()
+            val contentHash = normalizedContent.sha256()
 
             dataSource.connection.use { conn ->
                 // Primary: Check by content_hash (fast indexed lookup)
@@ -62,7 +63,7 @@ class NoteDeduplicationManager(
                         while (rs.next()) {
                             // Verify full content match to avoid hash collision false positives
                             val existingContent = rs.getString("content")
-                            if (existingContent == content) {
+                            if (existingContent.normalizeForDedup() == normalizedContent) {
                                 val existingId = rs.getString("id")
                                 logger.info("Found duplicate note by content_hash: id={}, userId={}", existingId, userId)
                                 return@withContext existingId
@@ -71,23 +72,24 @@ class NoteDeduplicationManager(
                     }
                 }
 
-                // Fallback: Check by exact content match (for notes created before content_hash was added)
+                // Fallback: Check by normalized content match (for notes created before content_hash was added)
                 val contentSql =
                     """
-                    SELECT id FROM notes
-                    WHERE user_id = ? AND content = ? AND content_hash IS NULL AND is_archived = false AND deleted_at IS NULL
+                    SELECT id, content FROM notes
+                    WHERE user_id = ? AND content_hash IS NULL AND is_archived = false AND deleted_at IS NULL
                     ORDER BY created_at ASC
-                    LIMIT 1
                     """.trimIndent()
 
                 conn.prepareStatement(contentSql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(userId))
-                    stmt.setString(2, content)
                     stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
+                        while (rs.next()) {
                             val existingId = rs.getString("id")
-                            logger.info("Found duplicate note by content match (fallback): id={}, userId={}", existingId, userId)
-                            return@withContext existingId
+                            val existingContent = rs.getString("content")
+                            if (existingContent.normalizeForDedup() == normalizedContent) {
+                                logger.info("Found duplicate note by content match (fallback): id={}, userId={}", existingId, userId)
+                                return@withContext existingId
+                            }
                         }
                     }
                 }
@@ -165,5 +167,15 @@ class NoteDeduplicationManager(
     fun String.sha256(): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(this.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Normalize content for deduplication — collapse whitespace, trim, normalize line endings.
+     * Prevents duplicate notes from minor formatting differences.
+     */
+    fun String.normalizeForDedup(): String {
+        return this.replace("\r\n", "\n")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 }

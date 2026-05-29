@@ -760,12 +760,24 @@ class ToolExecutor(
         )
 
         // Create pending approval and suspend until user responds (or timeout)
+        // 161s timeout — golden ratio (φ ≈ 1.618) × 100 ≈ 161s
         val result =
             runCatching {
-                kotlinx.coroutines.withTimeoutOrNull(60_000L) {
+                kotlinx.coroutines.withTimeoutOrNull(161_000L) {
                     ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
                 }
             }.getOrNull() ?: ApprovalResult(false, "Approval timed out")
+
+        // If the approval timed out without user interaction, tell the client to dismiss
+        if (result.feedback == "Approval timed out") {
+            emit(
+                com.example.smarty.protocol.AgentEvent.ApprovalDenied(
+                    eventId = java.util.UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                ),
+            )
+        }
 
         return if (result.approved) {
             result.feedback ?: "Proceed with your best judgment"

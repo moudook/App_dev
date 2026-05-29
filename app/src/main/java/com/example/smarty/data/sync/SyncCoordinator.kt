@@ -433,6 +433,8 @@ class SyncCoordinator(
                                     parentNoteId = note.parentNoteId,
                                     whySaved = note.whySaved,
                                     processingStatus = note.processingStatus.name,
+                                    contentHash = note.contentHash,
+                                    processedContentHash = note.processedContentHash,
                                     isArchived = note.isArchived,
                                     isPinned = note.isPinned,
                                     isFavorite = note.isFavorite,

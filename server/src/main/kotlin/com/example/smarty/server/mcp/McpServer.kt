@@ -354,7 +354,8 @@ class McpServer(
 
             val result =
                 runCatching {
-                    withTimeoutOrNull(60_000L) {
+                    // 161s timeout — golden ratio (φ ≈ 1.618) × 100 ≈ 161s
+                    withTimeoutOrNull(161_000L) {
                         ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await()
                     }
                 }.getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out")

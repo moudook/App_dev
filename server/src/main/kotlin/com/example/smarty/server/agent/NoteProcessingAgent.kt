@@ -33,7 +33,7 @@ class NoteProcessingAgent(
             <output_format>
             Return ONLY valid JSON:
             {
-              "title": "4-7 searchable keywords",
+              "title": "Short descriptive title (3-6 words, capitalize key words, e.g. 'Markdown Syntax Reference' not 'markdown syntax reference guide notes')",
               "category": "single_word_snake_case",
               "summary": "1-3 lines of unique value, lowercase",
               "whySaved": "purpose or intent",
@@ -44,6 +44,9 @@ class NoteProcessingAgent(
             }
             </output_format>
             <rules>
+            - Title must be a SHORT DESCRIPTIVE PHRASE (3-6 words), NOT a list of keywords
+            - Title must be DIFFERENT from the note content — extract the core topic
+            - If content is about a specific tool/feature, name it (e.g. "ask_user Tool Timeout", "LaTeX Rendering Setup")
             - Lowercase for summaries and categories
             - No markdown, no explanation
             - Extract todos only if explicitly stated

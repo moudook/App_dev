@@ -69,10 +69,18 @@ fun LaTeXView(
                         .replace("\r", "")
                     val hexColor = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
                     
+                    // Try rendering immediately, retry after delay if KaTeX wasn't ready
                     webView.evaluateJavascript(
                         "renderLatex('$escapedLatex', $isBlock, '$hexColor')",
                         null
                     )
+                    // Retry after 500ms in case KaTeX CDN was still loading
+                    webView.postDelayed({
+                        webView.evaluateJavascript(
+                            "renderLatex('$escapedLatex', $isBlock, '$hexColor')",
+                            null
+                        )
+                    }, 500)
                 }
             },
             modifier = Modifier

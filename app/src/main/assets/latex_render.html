@@ -48,7 +48,26 @@
 <body>
     <div id="content"></div>
     <script>
-        // Initialize with dark mode detection
+        // Wait for KaTeX to be fully available before allowing renders
+        var katexReady = false;
+        var pendingRender = null;
+        
+        function checkKatexReady() {
+            if (typeof katex !== 'undefined') {
+                katexReady = true;
+                // Render any pending content
+                if (pendingRender) {
+                    renderLatex(pendingRender.latex, pendingRender.isBlock, pendingRender.color);
+                    pendingRender = null;
+                }
+            } else {
+                setTimeout(checkKatexReady, 50);
+            }
+        }
+        
+        // Start checking immediately
+        checkKatexReady();
+        
         function getTextColor() {
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 return '#ffffff';
@@ -57,6 +76,12 @@
         }
         
         function renderLatex(latexString, isBlock, colorHex) {
+            // If KaTeX isn't ready yet, queue the render
+            if (!katexReady) {
+                pendingRender = { latex: latexString, isBlock: isBlock, color: colorHex };
+                return;
+            }
+            
             const contentDiv = document.getElementById('content');
             
             if (colorHex) {
@@ -67,7 +92,6 @@
             
             try {
                 if (isBlock) {
-                    // Render as display math
                     katex.render(latexString, contentDiv, {
                         displayMode: true,
                         throwOnError: false,
@@ -79,7 +103,6 @@
                         }
                     });
                 } else {
-                    // Render as inline math
                     katex.render(latexString, contentDiv, {
                         displayMode: false,
                         throwOnError: false,
@@ -88,16 +111,12 @@
                 }
                 return { success: true };
             } catch (e) {
+                contentDiv.innerHTML = '<span style="color: #cc0000; font-size: 14px;">Math error: ' + e.message + '</span>';
                 return { success: false, error: e.message };
             }
         }
         
-        // Listen for dark mode changes
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-            // Reload current content if needed
-        });
-        
-        // Signal that we're ready
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {});
         window.androidWebViewReady = true;
     </script>
 </body>

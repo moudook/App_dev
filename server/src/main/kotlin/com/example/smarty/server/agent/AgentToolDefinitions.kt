@@ -298,16 +298,17 @@ Use for: generating images, creating artwork, visualizing scenes, drawing, paint
             name = "ask_user",
             description = """Ask the user one or more structured questions with multiple choice options.
 
-IMPORTANT UI BEHAVIOR:
-When you call this tool, it modifies and replaces the user's standard chat input block with an interactive UI card.
-This card displays your question alongside the selectable options and an optional text input block.
-There can be multiple questions in a single ask_user tool call, which will appear sequentially.
+UI BEHAVIOR:
+When you call this tool, the user's input block transforms into an interactive question UI.
+The question and options appear inside the input pill — no separate card.
 
 RULES:
 - Provide 1 or more questions in the 'questions' array.
 - For each question, provide 2-5 clear, distinct, non-overlapping options.
 - Keep questions concise (1 sentence).
-- Set allow_custom=true if free-text input should also be accepted.
+- Set allow_custom=true ONLY if you want to allow free-text input alongside the options.
+  By default allow_custom is false — the user can only pick from your options.
+  Set it to true when the options might not cover what the user wants to say.
 
 EXAMPLES:
 - ask_user(questions=[{"question": "What type of notes do you want to create?", "options": ["Meeting notes", "Daily journal", "Research notes"], "allow_custom": false}])
@@ -335,7 +336,7 @@ Use for: clarification, preference gathering, scoping research, multi-choice dec
                                                             items = ToolProperty("string"),
                                                         ),
                                                     "allow_custom" to
-                                                        ToolProperty("boolean", "Whether to allow free-text input (default: false)"),
+                                                        ToolProperty("boolean", "Set true to allow free-text input. Default: false. Only set true when options may not cover the user's needs."),
                                                 ),
                                             required = listOf("question", "options"),
                                         ),

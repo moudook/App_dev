@@ -14,7 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -28,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -37,6 +43,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -368,44 +375,97 @@ private fun RenderMarkdownBlock(
                     MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
                 }
 
-                // ── Blockquote ──
-                trimmedLine.startsWith("> ") -> {
-                    val quoteLines = mutableListOf(trimmedLine.substring(2).trim())
+                // ── S-TIER EDITORIAL BLOCKQUOTE ──
+                trimmedLine.startsWith(">") -> {
+                    val quoteLines = mutableListOf(trimmedLine.removePrefix(">").trimStart())
                     i++
                     while (i < lines.size) {
                         val next = lines[i].trim()
-                        if (isBlockBreak(next)) break
-                        quoteLines.add(if (next.startsWith("> ")) next.substring(2).trim() else next)
+                        if (next.startsWith(">")) {
+                            quoteLines.add(next.removePrefix(">").trimStart())
+                        } else if (isBlockBreak(next)) {
+                            break
+                        } else {
+                            quoteLines.add(next)
+                        }
                         i++
                     }
+                    
                     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-                    val quoteBg = if (isDark) Color(0xFF1E1E2E) else Color(0xFFF8F8FA)
+                    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF5F5F7) // Apple System Gray 6
+                    val borderColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
+                    
                     Box(
                         modifier = Modifier
-                            .padding(vertical = 6.dp)
+                            .padding(vertical = 12.dp)
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
-                            .background(quoteBg)
-                            .drawBehind {
-                                val accentWidth = 4.dp.toPx()
-                                drawRoundRect(
-                                    color = linkColor.copy(alpha = 0.6f),
-                                    topLeft = Offset(0f, 0f),
-                                    size = androidx.compose.ui.geometry.Size(accentWidth, size.height),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            .graphicsLayer {
+                                shadowElevation = if (isDark) 0f else 12.dp.toPx()
+                                ambientShadowColor = linkColor.copy(alpha = 0.04f)
+                                spotShadowColor = linkColor.copy(alpha = 0.08f)
+                                shape = RoundedCornerShape(20.dp)
+                                clip = true
+                            }
+                            .background(cardBg)
+                            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
+                    ) {
+                        // Massive Editorial Watermark
+                        Text(
+                            text = "\"",
+                            fontSize = 140.sp,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Black,
+                            color = linkColor.copy(alpha = if (isDark) 0.08f else 0.05f),
+                            modifier = Modifier
+                                .offset(x = (-10).dp, y = (-36).dp)
+                                .layout { measurable, constraints ->
+                                    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                                    // Report 0 size so the watermark doesn't dictate the card's height
+                                    layout(0, 0) {
+                                        placeable.place(0, 0)
+                                    }
+                                }
+                        )
+                        
+                        Row(
+                            modifier = Modifier
+                                .height(IntrinsicSize.Min)
+                                .padding(horizontal = 20.dp, vertical = 20.dp)
+                        ) {
+                            // Liquid Accent Pill
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(linkColor, linkColor.copy(alpha = 0.3f))
+                                        )
+                                    )
+                            )
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Box(modifier = Modifier.weight(1f)) {
+                                MarkdownText(
+                                    content = quoteLines.joinToString("\n"),
+                                    normalColor = normalColor,
+                                    boldColor = boldColor,
+                                    linkColor = linkColor,
+                                    codeColor = codeColor,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        fontFamily = FontFamily.Serif, // Sophisticated Editorial Look
+                                        fontStyle = FontStyle.Italic,
+                                        fontWeight = FontWeight.Medium,
+                                        letterSpacing = 0.2.sp,
+                                        color = if (isDark) Color.White.copy(alpha = 0.85f) else Color(0xFF1D1D1F).copy(alpha = 0.8f)
+                                    )
                                 )
                             }
-                            .padding(start = 20.dp, top = 14.dp, bottom = 14.dp, end = 16.dp)
-                    ) {
-                        MarkdownText(
-                            content = quoteLines.joinToString("\n"),
-                            normalColor = normalColor, boldColor = boldColor,
-                            linkColor = linkColor, codeColor = codeColor,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 16.sp, lineHeight = 26.sp,
-                                fontStyle = FontStyle.Italic, color = normalColor.copy(alpha = 0.8f)
-                            )
-                        )
+                        }
                     }
                 }
 
@@ -547,7 +607,7 @@ fun StandardText(
     }
 }
 
-/** Task list rendering with beautiful custom checkboxes. */
+/** Task list rendering with theme-aware custom checkboxes and golden ratio spacing. */
 @Composable
 private fun TaskListView(
     tasks: List<Pair<Boolean, String>>,
@@ -556,29 +616,34 @@ private fun TaskListView(
 ) {
     Column(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
         tasks.forEach { (isChecked, taskText) ->
-            Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                val checkColor = if (isChecked) accentColor else MaterialTheme.colorScheme.outline
+            Row(
+                modifier = Modifier.padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Theme-aware checkbox: filled when checked, visible outlined when unchecked
+                val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+                val checkColor = if (isChecked) accentColor else if (isDark) Color(0xFF6B6B6B) else MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = if (isChecked) checkColor.copy(alpha = 0.15f) else Color.Transparent,
+                    shape = RoundedCornerShape(5.dp),
+                    color = if (isChecked) accentColor else Color.Transparent,
                     border = BorderStroke(1.5.dp, checkColor),
                     modifier = Modifier.size(18.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (isChecked) Icon(
                             Icons.Default.Check, "Checked",
-                            tint = checkColor,
+                            tint = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.size(12.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 MarkdownText(
                     content = taskText, normalColor = normalColor, boldColor = boldColor,
                     linkColor = linkColor, codeColor = codeColor,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 16.sp, lineHeight = 26.sp,
-                        color = if (isChecked) normalColor.copy(alpha = 0.6f) else normalColor
+                        fontSize = 15.sp, lineHeight = 22.sp,
+                        color = if (isChecked) normalColor.copy(alpha = 0.5f) else normalColor
                     )
                 )
             }
@@ -587,7 +652,8 @@ private fun TaskListView(
 }
 
 /**
- * Renders a markdown table with alternating row colors, rounded corners, and scrollable width.
+ * Renders a markdown table with Apple-style alternating row contrast, rounded corners, and scrollable width.
+ * Alternating rows use subtle opacity shifts for readability without harsh color boundaries.
  */
 @Composable
 fun MarkdownTable(
@@ -615,10 +681,14 @@ fun MarkdownTable(
     if (parsedRows.isEmpty()) return
 
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    val borderColor = if (isDark) Color(0xFF2E2E3A) else Color(0xFFE8E8ED)
-    val headerBg = if (isDark) Color(0xFF222230) else Color(0xFFF5F5F8)
-    val rowBgAlt = if (isDark) Color(0xFF18181B) else Color(0xFFFFFFFF)
-    val rowBg = if (isDark) Color(0xFF1E1E28).copy(alpha = 0.6f) else Color(0xFFFAFAFC)
+
+    // Apple-style: subtle alternating contrast, not harsh color bands
+    val borderColor = if (isDark) Color(0xFF38383D) else Color(0xFFD1D1D6)
+    val headerBg = if (isDark) Color(0xFF2C2C2E) else Color(0xFFF2F2F7)
+    // Even rows: slightly elevated surface; Odd rows: base surface
+    val rowEven = if (isDark) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
+    val rowOdd = if (isDark) Color(0xFF222224) else Color(0xFFFAFAFA)
+    val headerBorderColor = if (isDark) Color(0xFF48484A) else Color(0xFFC6C6C8)
 
     val maxColumns = parsedRows.maxOfOrNull { it.size } ?: 1
 
@@ -629,25 +699,60 @@ fun MarkdownTable(
 
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
                 .horizontalScroll(rememberScrollState())
         ) {
             parsedRows.forEachIndexed { index, cells ->
                 val isHeader = index == 0
-                val bg = if (isHeader) headerBg else if (index % 2 == 0) rowBg else rowBgAlt
+                val bg = when {
+                    isHeader -> headerBg
+                    index % 2 == 0 -> rowEven
+                    else -> rowOdd
+                }
 
                 Row(
-                    modifier = Modifier.width(minTableWidth).background(bg).drawBehind {
-                        if (index > 0) drawLine(borderColor, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
-                    }
+                    modifier = Modifier
+                        .width(minTableWidth)
+                        .background(bg)
+                        .drawBehind {
+                            // Header bottom border: thicker, more prominent
+                            if (isHeader) {
+                                drawLine(
+                                    headerBorderColor,
+                                    Offset(0f, size.height),
+                                    Offset(size.width, size.height),
+                                    1.dp.toPx()
+                                )
+                            }
+                            // Row separator: subtle hairline for non-header rows
+                            if (index > 0 && !isHeader) {
+                                drawLine(
+                                    borderColor.copy(alpha = 0.5f),
+                                    Offset(16.dp.toPx(), 0f),
+                                    Offset(size.width - 16.dp.toPx(), 0f),
+                                    0.5.dp.toPx()
+                                )
+                            }
+                        }
                 ) {
                     for (cellIdx in 0 until maxColumns) {
                         val cellText = cells.getOrNull(cellIdx) ?: ""
                         Box(
-                            modifier = Modifier.weight(1f).drawBehind {
-                                if (cellIdx > 0) drawLine(borderColor, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
-                            }.padding(horizontal = 16.dp, vertical = 10.dp)
+                            modifier = Modifier
+                                .weight(1f)
+                                .drawBehind {
+                                    // Vertical column separators: subtle hairlines
+                                    if (cellIdx > 0) {
+                                        drawLine(
+                                            borderColor.copy(alpha = 0.4f),
+                                            Offset(0f, 4.dp.toPx()),
+                                            Offset(0f, size.height - 4.dp.toPx()),
+                                            0.5.dp.toPx()
+                                        )
+                                    }
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             val hasMath = cellText.contains(RenderPatterns.inlineMathDetect)
                             if (hasMath) {
@@ -657,12 +762,12 @@ fun MarkdownTable(
                                     content = cellText,
                                     normalColor = if (isHeader) boldColor else normalColor,
                                     boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 14.sp,
-                            fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                            lineHeight = 20.sp,
-                            color = if (isHeader) boldColor else normalColor
-                        )
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isHeader) FontWeight.SemiBold else FontWeight.Normal,
+                                        lineHeight = 18.sp,
+                                        color = if (isHeader) boldColor else normalColor
+                                    )
                                 )
                             }
                         }

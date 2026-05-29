@@ -163,7 +163,7 @@ interface NoteDao {
     )
 
     @Query(
-        "UPDATE notes SET processingStatus = 'PENDING', updatedAt = :timestamp WHERE processingStatus = 'PROCESSING' AND updatedAt < :timeoutThreshold",
+        "UPDATE notes SET processingStatus = 'PENDING', updatedAt = :timestamp WHERE processingStatus = 'PROCESSING' AND updatedAt < :timeoutThreshold AND (processedContentHash IS NULL OR processedContentHash = '')",
     )
     suspend fun resetStuckNotes(
         timeoutThreshold: Long,

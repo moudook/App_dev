@@ -9,8 +9,6 @@ import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
 import io.micrometer.core.instrument.Metrics
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
 import net.logstash.logback.argument.StructuredArguments.kv
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -70,7 +68,7 @@ class ServerAgent(
 
     // Security limits to prevent runaway execution
     companion object {
-        const val MAX_EXECUTION_TIME_MS = 30 * 60 * 1000L // 30 minutes hard limit
+        const val MAX_EXECUTION_TIME_MS = 120 * 60 * 1000L // 2 hours hard limit (ask_user sessions can be long)
         const val MAX_TOOL_CALLS = 100 // Allow extensive research with up to 100 tool calls
         const val MAX_ITERATIONS = 200 // Max LLM iterations for extensive research
     }
@@ -95,32 +93,20 @@ class ServerAgent(
             throw IllegalArgumentException("Query too long")
         }
 
-        return try {
-            withTimeout(MAX_EXECUTION_TIME_MS) {
-                runInternal(
-                    query,
-                    sessionId,
-                    history,
-                    modelOverride,
-                    clientTimezone,
-                    clientTimeMillis,
-                    personality,
-                    opencodeSessionId,
-                    onOpencodeSessionCreated,
-                )
-            }
-        } catch (e: TimeoutCancellationException) {
-            logger.error("Agent execution exceeded ${MAX_EXECUTION_TIME_MS / 60000} minute limit for user: $userId")
-            emit(
-                AgentEvent.Error(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    message = "I had to stop - the operation took too long. Try breaking it into smaller tasks.",
-                    code = "TIMEOUT",
-                ),
-            )
-            "Operation timed out. Please try a simpler request."
-        }
+        // No global withTimeout wrapping the entire run — the ask_user tool counts as a valid AI response
+        // and its waiting time shouldn't count toward any timeout. Safety is provided by:
+        //   MAX_ITERATIONS (200) + MAX_TOOL_CALLS (100) + AgentRunManager's 120min outer timeout
+        return runInternal(
+            query,
+            sessionId,
+            history,
+            modelOverride,
+            clientTimezone,
+            clientTimeMillis,
+            personality,
+            opencodeSessionId,
+            onOpencodeSessionCreated,
+        )
     }
 
     private suspend fun runInternal(
@@ -481,6 +467,9 @@ class ServerAgent(
                     return ""
                 }
             } catch (e: Exception) {
+                // Don't swallow CancellationException (including TimeoutCancellationException) —
+                // let the outer withTimeout handle it with the correct error message
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 logger.error("LLM stream error", e)
                 val errorMsg = e.message ?: "Unknown error"
 

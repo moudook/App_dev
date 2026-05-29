@@ -1887,6 +1887,9 @@ class ChatFeatureManager(
                         is AgentEvent.Error -> {
                             responseBuilder.append("\n[Error: ${event.message}]")
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                            // Clear any pending ask_user state so the ask tool doesn't stay stuck
+                            _pendingApprovalState.value = null
+                            _pendingClarificationRequests.value = emptyList()
                         }
                         is AgentEvent.ToolCall -> {
                             // Also add to pending actions so it appears inside the thinking block immediately
@@ -2110,6 +2113,9 @@ class ChatFeatureManager(
             // If the stream ended without a Result event, the WS likely disconnected early.
             // The server may still be processing. Trigger a sync to retrieve the saved response.
             if (agentEventsBuilder.none { it is AgentEvent.Result }) {
+                // Clear any pending ask_user state on early disconnect
+                _pendingApprovalState.value = null
+                _pendingClarificationRequests.value = emptyList()
                 scope.launch {
                     delay(3000L)
                     try {
@@ -2128,6 +2134,9 @@ class ChatFeatureManager(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Remote query execution failed", e)
+            // Clear any pending ask_user state on exception
+            _pendingApprovalState.value = null
+            _pendingClarificationRequests.value = emptyList()
             // Update the streaming message to show the error
             chatManager.updateMessageById(
                 streamingMessageId,
