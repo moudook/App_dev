@@ -440,11 +440,11 @@ fun SettingsContent(
                     Spacer(modifier = Modifier.height(24.dp))
                     
                     val personalities = listOf(
-                        Triple("DEFAULT", "Default", "The original Smarty - sharp, warm, and genuinely useful"),
-                        Triple("PROFESSIONAL", "Professional", "Formal, precise, and business-like"),
-                        Triple("CASUAL", "Casual", "Relaxed, friendly, and conversational"),
-                        Triple("CONCISE", "Concise", "Extremely brief, gets to the point fast"),
-                        Triple("DETAILED", "Detailed", "Thorough and comprehensive with examples")
+                        Triple("DEFAULT", "Default", "Friday — sharp, warm, and genuinely useful. The one you'd actually want to talk to."),
+                        Triple("PROFESSIONAL", "Professional", "All business. Precise, formal, no fluff."),
+                        Triple("CASUAL", "Casual", "Like texting a friend who knows everything."),
+                        Triple("CONCISE", "Concise", "Short and sweet. Gets it done."),
+                        Triple("DETAILED", "Detailed", "Goes deep. Covers every angle, with examples.")
                     )
                     
                     personalities.forEach { (key, label, desc) ->

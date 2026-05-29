@@ -173,7 +173,7 @@ private fun ThinkingStateInner(mode: ImageGenMode) {
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             )
             Spacer(Modifier.height(8.dp))
-            val text = if (mode == ImageGenMode.Agent) "Agent is sketching..." else "Krea is generating..."
+            val text = if (mode == ImageGenMode.Agent) "Drawing something up..." else "Creating your image..."
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelLarge,

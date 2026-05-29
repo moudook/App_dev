@@ -208,7 +208,7 @@ fun ChatScreen(
                 if (questionsArray != null && questionsArray.length() > 0) {
                     for (i in 0 until questionsArray.length()) {
                         val qObj = questionsArray.getJSONObject(i)
-                        val qText = qObj.optString("question", "Please provide input:")
+                        val qText = qObj.optString("question", "Quick question:")
                         val qAllowCustom = qObj.optBoolean("allow_custom", true)
                         val qOptions = mutableListOf<String>()
                         
@@ -227,7 +227,7 @@ fun ChatScreen(
                     }
                 } else {
                     // Fallback for single object instead of array
-                    val qText = json.optString("question", json.optString("message", "Please provide input:"))
+                    val qText = json.optString("question", json.optString("message", "Quick question:"))
                     val qAllowCustom = json.optBoolean("allow_custom", true)
                     val qOptions = mutableListOf<String>()
                     val optArr = json.optJSONArray("options")
@@ -246,7 +246,7 @@ fun ChatScreen(
                 android.util.Log.e("ChatScreen", "Error parsing ask_user args: ${pendingApproval!!.toolArgs}", e)
                 if (pendingQuestions.isEmpty()) {
                     pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
-                        question = "Please provide input:",
+                        question = "Quick question:",
                         options = emptyList(),
                         allowCustomInput = true
                     ))

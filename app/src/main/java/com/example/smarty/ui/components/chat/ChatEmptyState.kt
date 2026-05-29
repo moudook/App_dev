@@ -19,8 +19,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ChatEmptyState(
     modifier: Modifier = Modifier,
-    title: String = "Start a Conversation",
-    subtitle: String = "Ask anything or share your thoughts"
+    title: String = "Here to help",
+    subtitle: String = "What can I help with today?"
 ) {
     Column(
         modifier = modifier
