@@ -170,7 +170,8 @@ class RemoteAgentService(
                     if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
                 }
 
-            Log.d(TAG, "Connecting to Remote Agent WS: $url")
+            Log.i(TAG, ">>> SEND_QUERY: query=${query.take(100)}, sessionId=$sessionId, model=$model, messageId=$messageId")
+            Log.i(TAG, ">>> SEND_QUERY: url=$url")
             _connectionState.value = ConnectionStatus.CONNECTING
 
             try {
@@ -185,6 +186,7 @@ class RemoteAgentService(
                     },
                 ) {
                     _connectionState.value = ConnectionStatus.CONNECTED
+                    Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully")
                     
                     // Send the query request frame to start the run
                     val requestObj = ChatQueryRequest(
@@ -201,21 +203,27 @@ class RemoteAgentService(
                     
                     val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
                     send(Frame.Text(requestJson))
-                    Log.d(TAG, "Sent WS ChatQueryRequest")
+                    Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
 
                     try {
                         for (frame in incoming) {
                             if (frame is Frame.Text) {
                                 val data = frame.readText()
-                                if (data.isBlank()) continue
+                                if (data.isBlank()) {
+                                    Log.d(TAG, ">>> WS_RECEIVED: blank frame, skipping")
+                                    continue
+                                }
                                 try {
-                                    Log.d(TAG, "Raw WebSocket data: $data")
+                                    Log.d(TAG, ">>> WS_RECEIVED: length=${data.length}, preview=${data.take(200)}")
                         val jsonElement = json.parseToJsonElement(data).jsonObject
                                     val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
                                     
+                                    Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
                                     val agentEvent = decodeAgentEvent(eventType, data)
+                                    Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")
                                     val shouldStop = handleEvent(agentEvent, this@flow)
                                     if (shouldStop) {
+                                        Log.i(TAG, ">>> WS_STOP: handleEvent returned true, stopping stream")
                                         throw EndStreamException()
                                     }
                                 } catch (e: Exception) {
@@ -225,11 +233,12 @@ class RemoteAgentService(
                             }
                         }
                     } catch (e: EndStreamException) {
-                        Log.d(TAG, "WS Stream completed normally")
+                        Log.i(TAG, ">>> WS_COMPLETE: Stream completed normally")
                     }
                 }
                 if (_connectionState.value != ConnectionStatus.OFFLINE) {
                     _connectionState.value = ConnectionStatus.DISCONNECTED
+                    Log.i(TAG, ">>> WS_DISCONNECTED: WebSocket closed normally")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "WS connection failed: ${e.message}", e)
@@ -285,8 +294,8 @@ class RemoteAgentService(
         approved: Boolean,
         feedback: String? = null,
     ) {
+        Log.i(TAG, ">>> SEND_APPROVAL: toolId=$toolId, approved=$approved, feedback=${feedback?.take(100)}")
         try {
-            Log.i(TAG, "Sending approval: toolId=$toolId approved=$approved feedback=${feedback?.take(100)}")
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -300,12 +309,12 @@ class RemoteAgentService(
                 }
 
             if (response.status.isSuccess()) {
-                Log.i(TAG, "Approval sent OK: $approved for $toolId (${response.status})")
+                Log.i(TAG, ">>> SEND_APPROVAL_OK: $approved for $toolId (${response.status})")
             } else {
-                Log.e(TAG, "Approval send failed: ${response.status}")
+                Log.e(TAG, ">>> SEND_APPROVAL_FAILED: ${response.status}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to send approval for $toolId", e)
+            Log.e(TAG, ">>> SEND_APPROVAL_ERROR: $toolId", e)
         }
     }
 
@@ -927,6 +936,7 @@ class RemoteAgentService(
         event: AgentEvent,
         flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>,
     ): Boolean {
+        Log.d(TAG, ">>> HANDLE_EVENT: ${event::class.simpleName}")
         return when (event) {
             is AgentEvent.Processing -> {
                 flowCollector.emit(event)

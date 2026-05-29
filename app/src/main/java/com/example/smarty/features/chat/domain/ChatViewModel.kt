@@ -107,9 +107,14 @@ class ChatViewModel(
         approved: Boolean,
         feedback: String? = null,
     ) {
+        Log.i(TAG, ">>> CALL_APPROVAL: toolId=$toolId, approved=$approved, feedback=${feedback?.take(100)}")
         // Read pending atomically — if a newer ApprovalRequested arrived between
         // the user tap and this execution, the toolId won't match and we bail.
-        val current = _pendingApprovalState.value ?: return
+        val current = _pendingApprovalState.value
+        if (current == null) {
+            Log.w(TAG, "callApproval: no pending approval found — discarding")
+            return
+        }
         if (current.toolId != toolId) {
             Log.w(TAG, "callApproval: toolId mismatch — UI sent $toolId but pending is ${current.toolId}. Stale tap discarded.")
             return
@@ -118,11 +123,13 @@ class ChatViewModel(
 
         viewModelScope.launch {
             try {
+                Log.i(TAG, ">>> CALL_APPROVAL: sending approval to server...")
                 remoteAgentService.sendApproval(
                     toolId = toolId,
                     approved = approved,
                     feedback = feedback,
                 )
+                Log.i(TAG, ">>> CALL_APPROVAL: approval sent successfully")
                 // Clear pending state
                 _pendingApprovalState.update { null }
             } catch (e: Exception) {
@@ -251,6 +258,7 @@ class ChatViewModel(
 
                     // Create user message via use case
                     val sessionId = _chatState.value.currentSessionId ?: return@launch
+                    Log.i(TAG, ">>> SEND_MESSAGE: sessionId=$sessionId, content=${content.take(100)}, attachments=${attachments.size}")
                     val userMessage = sendMessageUseCase.execute(sessionId, content, attachments)
 
                     // Update state: add user message
@@ -283,6 +291,7 @@ class ChatViewModel(
         userMessage: ChatMessage,
     ) {
         val sessionId = _chatState.value.currentSessionId ?: return
+        Log.i(TAG, ">>> PROCESS_WITH_AI: sessionId=$sessionId, model=${_uiState.value.selectedModel}, messageId=${userMessage.id}")
 
         try {
             // Create streaming message — kept separate from messages list
@@ -309,6 +318,7 @@ class ChatViewModel(
                 model = _uiState.value.selectedModel,
                 messageId = streamingMessageId,
             ).collect { event ->
+                Log.d(TAG, "<<< EVENT: ${event::class.simpleName} (sessionId=$sessionId)")
                 when (event) {
                     // ── Content streaming (per-chunk deltas) ──
                     is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
@@ -428,7 +438,7 @@ class ChatViewModel(
 
                     // ── Approval flow ──
                     is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
-                        Log.i(TAG, "Approval requested: ${event.toolName} — pausing agent stream for user decision")
+                        Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, toolArgs=${event.toolArgs.take(200)}")
                         _pendingApprovalState.update {
                             PendingApproval(
                                 messageId = streamingMessageId,
@@ -440,19 +450,20 @@ class ChatViewModel(
                                 toolArgs = event.toolArgs,
                             )
                         }
+                        Log.i(TAG, ">>> APPROVAL_STATE_UPDATED: pendingApproval is now set")
                         _chatState.update { state ->
                             state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
-                        Log.i(TAG, "Tool approved: ${event.toolId} — resuming stream")
+                        Log.i(TAG, ">>> APPROVAL_GRANTED: toolId=${event.toolId}")
                         _pendingApprovalState.update { null }
                         _chatState.update { state ->
                             state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
                         }
                     }
                     is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
-                        Log.i(TAG, "Tool denied: ${event.toolId} — stream will continue without executing the tool")
+                        Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
                         _pendingApprovalState.update { null }
                     }
                     else -> {
