@@ -199,9 +199,7 @@ fun ChatScreen(
         val pendingQuestions = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
         var activeApprovalId: String? = null
 
-        if (clarificationMsg?.clarificationRequest != null) {
-            pendingQuestions.add(clarificationMsg.clarificationRequest!!)
-        } else if (pendingApproval != null && (pendingApproval!!.toolName.contains("ask_user") || pendingApproval!!.toolName.contains("askuser") || pendingApproval!!.toolName.contains("ask-user"))) {
+        if (pendingApproval != null && (pendingApproval!!.toolName.contains("ask_user") || pendingApproval!!.toolName.contains("askuser") || pendingApproval!!.toolName.contains("ask-user"))) {
             activeApprovalId = pendingApproval!!.toolId
             try {
                 val json = org.json.JSONObject(pendingApproval!!.toolArgs)
@@ -254,6 +252,8 @@ fun ChatScreen(
                     ))
                 }
             }
+        } else if (clarificationMsg?.clarificationRequest != null) {
+            pendingQuestions.add(clarificationMsg.clarificationRequest!!)
         }
         
         android.util.Log.d("ChatScreen", "pendingApproval: ${pendingApproval?.toolName}, pendingQuestions size: ${pendingQuestions.size}")

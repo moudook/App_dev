@@ -178,7 +178,10 @@ fun SmartyInputField(
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
-            val currentRequest = pendingQuestions.getOrNull(currentQuestionIndex)
+            // Clamp index just in case it got out of sync
+            val safeIndex = currentQuestionIndex.coerceIn(0, maxOf(0, pendingQuestions.size - 1))
+            val currentRequest = pendingQuestions.getOrNull(safeIndex)
+            
             if (currentRequest != null) {
                 STierAskToolCard(
                     question = currentRequest.question,
@@ -187,6 +190,9 @@ fun SmartyInputField(
                     onAnswerSubmitted = handleAskSubmit,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
+            } else if (isAskingQuestion) {
+                // Fallback in case list changed unexpectedly
+                Text("Loading question...", color = Color.Gray, modifier = Modifier.padding(16.dp))
             }
         }
 
