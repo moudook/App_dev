@@ -133,9 +133,12 @@ fun SmartyInputField(
         label = "elevation"
     ) { expanded -> if (expanded) 8.dp else 2.dp }
 
-    // State for Ask Tool
-    var currentQuestionIndex by remember { mutableIntStateOf(0) }
-    val answers = remember { mutableStateListOf<String>() }
+    // State for Ask Tool - keyed to pendingQuestions identity so it resets properly
+    val questionKey = remember(pendingQuestions.size, pendingQuestions.firstOrNull()?.question) {
+        pendingQuestions.hashCode() + (pendingQuestions.firstOrNull()?.hashCode() ?: 0)
+    }
+    var currentQuestionIndex by remember(questionKey) { mutableIntStateOf(0) }
+    val answers = remember(questionKey) { mutableStateListOf<String>() }
     var customAnswerText by remember { mutableStateOf("") }
     var isEditingCustomAnswer by remember { mutableStateOf(false) }
 

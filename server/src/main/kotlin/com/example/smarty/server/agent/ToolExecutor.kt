@@ -113,6 +113,8 @@ class ToolExecutor(
         clientTimezone: String? = null,
         clientTimeMillis: Long? = null,
         skipApprovalGate: Boolean = false,
+        toolCallId: String = "tool-${java.util.UUID.randomUUID()}",
+        sessionId: String = "",
     ): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
@@ -182,7 +184,7 @@ class ToolExecutor(
             "remind" -> executeRemindTool(args, clientTimezone, clientTimeMillis)
             "device" -> executeDeviceTool(args)
             "search" -> executeSearchTool(args)
-            "ask_user" -> executeAskUser(args)
+            "ask_user" -> executeAskUser(args, toolCallId, sessionId)
             "get_note_by_id" -> executeGetNoteById(args)
             "navigate" -> executeNavigateTool(args)
             "search_history" -> executeSearchHistory(args)
@@ -737,63 +739,57 @@ class ToolExecutor(
         }
     }
 
-    private suspend fun executeAskUser(args: UnifiedToolArgs): String {
-        var questionStr = args.question ?: "What would you like?"
-        var optionsEl = args.options
-        var allowCustom = args.allowCustom ?: false
+    private suspend fun executeAskUser(
+        args: UnifiedToolArgs,
+        toolCallId: String,
+        sessionId: String,
+    ): String {
+        // Build toolArgs JSON that the app expects (questions array format)
+        val toolArgsJson = buildToolArgsJson(args)
 
-        if (args.questions != null && args.questions.isNotEmpty()) {
-            val firstQuestion = args.questions[0] as? kotlinx.serialization.json.JsonObject
-            if (firstQuestion != null) {
-                if (firstQuestion.containsKey("question")) {
-                    questionStr = (firstQuestion["question"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: questionStr
-                }
-                if (firstQuestion.containsKey("options")) {
-                    optionsEl = firstQuestion["options"]
-                }
-                if (firstQuestion.containsKey("allowcustom")) {
-                    allowCustom =
-                        (firstQuestion["allowcustom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
-                            ?: allowCustom
-                }
-                if (firstQuestion.containsKey("allow_custom")) {
-                    allowCustom =
-                        (firstQuestion["allow_custom"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
-                            ?: allowCustom
-                }
-            }
-        }
-
-        val options =
-            optionsEl?.let { element ->
-                when (element) {
-                    is kotlinx.serialization.json.JsonArray ->
-                        element.map {
-                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                ?: ""
-                        }
-                    is kotlinx.serialization.json.JsonPrimitive ->
-                        element.content
-                            .split("\n")
-                            .map { it.trim() }
-                            .filter { it.isNotBlank() }
-                    else -> emptyList()
-                }
-            } ?: emptyList()
-
+        // Emit ApprovalRequested event (same as McpServer does)
         emit(
-            com.example.smarty.protocol.AgentEvent.Question(
-                eventId =
-                    java.util.UUID
-                        .randomUUID()
-                        .toString(),
+            com.example.smarty.protocol.AgentEvent.ApprovalRequested(
+                eventId = java.util.UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
-                question = questionStr,
-                options = options,
-                allowCustom = allowCustom,
+                toolId = toolCallId,
+                toolName = "ask_user",
+                toolTitle = "Clarification Needed",
+                toolArgs = toolArgsJson,
             ),
         )
-        return "__WAITING_FOR_USER_RESPONSE__"
+
+        // Create pending approval and suspend until user responds (or timeout)
+        val result =
+            runCatching {
+                kotlinx.coroutines.withTimeoutOrNull(60_000L) {
+                    ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
+                }
+            }.getOrNull() ?: ApprovalResult(false, "Approval timed out")
+
+        return if (result.approved) {
+            result.feedback ?: "Proceed with your best judgment"
+        } else {
+            result.feedback ?: "User denied"
+        }
+    }
+
+    private fun buildToolArgsJson(args: UnifiedToolArgs): String {
+        val json = kotlinx.serialization.json.Json
+        if (args.questions != null && args.questions.isNotEmpty()) {
+            return json.encodeToString(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("questions", args.questions)
+                },
+            )
+        }
+        return json.encodeToString(
+            kotlinx.serialization.json.buildJsonObject {
+                put("question", kotlinx.serialization.json.JsonPrimitive(args.question ?: "What would you like?"))
+                args.options?.let { opt -> put("options", opt) }
+                put("allow_custom", kotlinx.serialization.json.JsonPrimitive(args.allowCustom ?: false))
+            },
+        )
     }
 
     private suspend fun executeGetNoteById(args: UnifiedToolArgs): String =

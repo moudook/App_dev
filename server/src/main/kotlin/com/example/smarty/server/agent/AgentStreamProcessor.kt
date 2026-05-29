@@ -2,7 +2,6 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.llm.LlmUsage
-import com.example.smarty.server.llm.PendingQuestion
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -29,9 +28,6 @@ class AgentStreamProcessor(
     var isToolCallInProgress = false
     var totalUsage: LlmUsage? = null
     var currentSubagentId: String? = null
-
-    var pendingAskUserQuestion: PendingQuestion? = null
-        private set
 
     private var stepIndex = 0
     private var currentThinkingStepId: String? = null
@@ -142,8 +138,6 @@ class AgentStreamProcessor(
         if (toolCall != null) {
             val status = toolCall.status ?: "running"
 
-            // Capture ask_user question before the tool_result clears isToolCallInProgress
-            chunk.question?.let { pendingAskUserQuestion = it }
             if (!isToolCallInProgress || currentToolName != toolCall.functionName) {
                 if (isToolCallInProgress) finalizeCurrentTool("completed")
                 isToolCallInProgress = true
@@ -240,6 +234,5 @@ class AgentStreamProcessor(
         stepIndex = 0
         currentThinkingStepId = null
         currentThinkingContent.clear()
-        pendingAskUserQuestion = null
     }
 }

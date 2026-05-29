@@ -45,11 +45,6 @@ class ServerAgent(
     // Extracted components
     private val stateManager = AgentStateManager(userId, llmProvider, vectorStore, summarizer)
 
-    // Permission Engine: resume callback fed to ToolExecutor.
-    // Populated by ChatRoutes for each SSE stream; calls resume the waiting
-    // continuation when the user approves or denies via POST /chat/events/approval.
-    private var resumeApprovalHandler: (suspend (com.example.smarty.protocol.AgentEvent.ApprovalResponse) -> Unit)? = null
-
     private val toolExecutor =
         ToolExecutor(
             userId = userId,
@@ -217,11 +212,9 @@ class ServerAgent(
         val toolCallHistory = mutableListOf<Pair<String, String>>()
         var lastFailedToolName: String? = null
         var consecutiveToolFailures = 0
-        var awaitingUserResponse = false
         var agentIteration = 0
 
         while (agentIteration < MAX_ITERATIONS) {
-            if (awaitingUserResponse) break
             agentIteration++
 
             streamProcessor.reset()
@@ -335,6 +328,8 @@ class ServerAgent(
                             ),
                         )
 
+                        val toolCallId = "tool-${java.util.UUID.randomUUID()}"
+
                         val toolResult =
                             toolExecutor.executeTool(
                                 name = toolName,
@@ -342,6 +337,8 @@ class ServerAgent(
                                 history = messagesForAgent,
                                 clientTimezone = clientTimezone,
                                 clientTimeMillis = clientTimeMillis,
+                                toolCallId = toolCallId,
+                                sessionId = sessionId,
                             )
 
                         val isToolError =
@@ -403,22 +400,6 @@ class ServerAgent(
                                 content = "[Tool Result for $toolName]: $toolResult",
                                 name = toolName,
                             )
-
-                        if ((toolName == "ask_user" || toolName == "askuser") && toolResult == "__WAITING_FOR_USER_RESPONSE__") {
-                            val finalThinking = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
-                            emit(
-                                AgentEvent.Result(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    content = "I'm waiting for your response to the question above.",
-                                    thinking = finalThinking,
-                                    isFinal = true,
-                                ),
-                            )
-                            ThinkingStorageManagerSingleton.instance.clear(sessionId)
-                            awaitingUserResponse = true
-                            continue
-                        }
 
                         val stepDescription = "Executed $toolName"
                         if (isToolError) {
