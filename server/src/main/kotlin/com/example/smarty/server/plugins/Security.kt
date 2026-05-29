@@ -220,8 +220,9 @@ private fun ensureUserExistsInDatabase(
 ): String {
     val ds = DatabaseFactory.getDataSource()
     if (ds == null) {
-        LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, skipping user creation")
-        throw IllegalStateException("DataSource not available")
+        // DB unavailable — authenticate with Firebase UID directly, skip DB user lookup
+        LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, using Firebase UID as user ID")
+        return firebaseUid
     }
 
     val logger = LoggerFactory.getLogger("FirebaseAuth")
@@ -240,21 +241,7 @@ private fun ensureUserExistsInDatabase(
             }
         }
 
-        // Single-user check: if the user DOES NOT exist, check if ANY user exists
-        val countSql = "SELECT COUNT(*) as user_count FROM users"
-        conn.prepareStatement(countSql).use { stmt ->
-            stmt.executeQuery().use { rs ->
-                if (rs.next()) {
-                    val count = rs.getInt("user_count")
-                    if (count > 0) {
-                        logger.error("Single-user restriction: Blocked secondary user creation for {}", email)
-                        throw IllegalStateException("There is already an existing user. Please use that Google account.")
-                    }
-                }
-            }
-        }
-
-        // Atomic upsert: INSERT ... ON CONFLICT DO NOTHING eliminates the TOCTOU race condition
+        // User not found — create via upsert (ON CONFLICT handles race conditions)
         val insertSql =
             """
             INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
