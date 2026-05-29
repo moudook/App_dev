@@ -175,15 +175,17 @@ class ChatViewModel(
                 Log.d(TAG, "Server returned ${dynamicModels.size} models: $dynamicModels")
 
                 if (dynamicModels.isNotEmpty()) {
-                    securePreferences.setCachedModels(dynamicModels)
+                    val modelPairs = dynamicModels.map { it.id to it.label }
+                    val variantMap = dynamicModels.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
+                    securePreferences.setCachedModels(modelPairs)
 
                     // Validate current selected model is still in the list
                     val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
                     val activeModel =
-                        if (dynamicModels.any { it.first == currentModel }) {
+                        if (modelPairs.any { it.first == currentModel }) {
                             currentModel
                         } else {
-                            val defaultModel = dynamicModels.first().first
+                            val defaultModel = modelPairs.first().first
                             securePreferences.setSelectedModel(AIConnection.LOCAL_PC, defaultModel)
                             defaultModel
                         }
@@ -191,10 +193,11 @@ class ChatViewModel(
                     _uiState.update {
                         it.copy(
                             selectedModel = activeModel,
-                            availableModels = dynamicModels,
+                            availableModels = modelPairs,
+                            modelVariantMap = variantMap,
                         )
                     }
-                    Log.d(TAG, "Models updated: selected=$activeModel, available=${dynamicModels.size}")
+                    Log.d(TAG, "Models updated: selected=$activeModel, available=${modelPairs.size}, variants=$variantMap")
                 } else {
                     Log.w(TAG, "Server returned empty model list, keeping fallback models")
                     // Don't update UI - keep the correct fallback models
@@ -230,6 +233,7 @@ class ChatViewModel(
             is ChatEvent.ErrorOccurred -> handleError(event.message, event.error)
             is ChatEvent.ErrorDismissed -> handleDismissError()
             is ChatEvent.ModelSelected -> handleModelSelected(event.modelId)
+            is ChatEvent.VariantSelected -> handleVariantSelected(event.variant)
             is ChatEvent.ModelsRefreshRequested -> handleModelsRefresh()
             // Add more event handlers as needed
             else -> Log.d(TAG, "Event not handled: $event")
@@ -316,6 +320,7 @@ class ChatViewModel(
                 query = content,
                 sessionId = sessionId,
                 model = _uiState.value.selectedModel,
+                variant = _uiState.value.selectedVariant,
                 messageId = streamingMessageId,
             ).collect { event ->
                 Log.d(TAG, "<<< EVENT: ${event::class.simpleName} (sessionId=$sessionId)")
@@ -742,21 +747,31 @@ class ChatViewModel(
     private fun handleModelSelected(modelId: String) {
         Log.d(TAG, "Model selected: $modelId")
         securePreferences.setSelectedModel(AIConnection.LOCAL_PC, modelId)
-        _uiState.update { it.copy(selectedModel = modelId) }
+        // Reset variant when model changes
+        _uiState.update { it.copy(selectedModel = modelId, selectedVariant = null) }
+    }
+
+    private fun handleVariantSelected(variant: String?) {
+        Log.d(TAG, "Variant selected: $variant")
+        _uiState.update { it.copy(selectedVariant = variant) }
     }
 
     private fun handleModelsRefresh() {
         viewModelScope.launch {
             try {
                 val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
-                val models =
-                    if (refreshed.isNotEmpty()) {
-                        securePreferences.setCachedModels(refreshed)
-                        refreshed
-                    } else {
-                        com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
+                if (refreshed.isNotEmpty()) {
+                    val pairs = refreshed.map { it.id to it.label }
+                    val variantMap = refreshed.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
+                    securePreferences.setCachedModels(pairs)
+                    _uiState.update {
+                        it.copy(availableModels = pairs, modelVariantMap = variantMap)
                     }
-                _uiState.update { it.copy(availableModels = models) }
+                } else {
+                    _uiState.update {
+                        it.copy(availableModels = com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to refresh models: ${e.message}")
             }
@@ -772,12 +787,14 @@ class ChatViewModel(
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             val models =
                 if (refreshed.isNotEmpty()) {
-                    securePreferences.setCachedModels(refreshed)
-                    refreshed
+                    val pairs = refreshed.map { it.id to it.label }
+                    val variantMap = refreshed.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
+                    securePreferences.setCachedModels(pairs)
+                    _uiState.update { it.copy(availableModels = pairs, modelVariantMap = variantMap) }
+                    pairs
                 } else {
                     com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
                 }
-            _uiState.update { it.copy(availableModels = models) }
             models
         } catch (e: Exception) {
             Log.e(TAG, "Failed to refresh models: ${e.message}")

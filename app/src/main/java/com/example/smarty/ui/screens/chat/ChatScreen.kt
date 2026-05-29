@@ -291,6 +291,9 @@ fun ChatScreen(
                 selectedModel = uiState.selectedModel,
                 availableModels = uiState.availableModels,
                 onModelSelected = { viewModel.onEvent(ChatEvent.ModelSelected(it)) },
+                modelVariantMap = uiState.modelVariantMap,
+                selectedVariant = uiState.selectedVariant,
+                onVariantSelected = { viewModel.onEvent(ChatEvent.VariantSelected(it)) },
                 onRefreshModels = { viewModel.refreshModelsNow() },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )

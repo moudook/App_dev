@@ -541,8 +541,9 @@ class AssistViewModel(
         return try {
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             if (refreshed.isNotEmpty()) {
-                securePreferences.setCachedModels(refreshed)
-                refreshed
+                val pairs = refreshed.map { it.id to it.label }
+                securePreferences.setCachedModels(pairs)
+                pairs
             } else {
                 securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
             }
@@ -560,18 +561,19 @@ class AssistViewModel(
                 Log.d(TAG, "Server returned ${dynamicModels.size} models in Assist: $dynamicModels")
 
                 if (dynamicModels.isNotEmpty()) {
-                    securePreferences.setCachedModels(dynamicModels)
+                    val modelPairs = dynamicModels.map { it.id to it.label }
+                    securePreferences.setCachedModels(modelPairs)
 
                     val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
                     val activeModel =
-                        if (dynamicModels.any { it.first == currentModel }) {
+                        if (modelPairs.any { it.first == currentModel }) {
                             currentModel
                         } else {
-                            val defaultModel = dynamicModels.first().first
+                            val defaultModel = modelPairs.first().first
                             securePreferences.setSelectedModel(AIConnection.LOCAL_PC, defaultModel)
                             defaultModel
                         }
-                    Log.d(TAG, "Models updated in Assist: selected=$activeModel, available=${dynamicModels.size}")
+                    Log.d(TAG, "Models updated in Assist: selected=$activeModel, available=${modelPairs.size}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize opencode models in Assist: ${e.message}", e)

@@ -208,8 +208,9 @@ class SmartyViewModel(
         return try {
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             if (refreshed.isNotEmpty()) {
-                securePreferences.setCachedModels(refreshed)
-                refreshed
+                val pairs = refreshed.map { it.id to it.label }
+                securePreferences.setCachedModels(pairs)
+                pairs
             } else {
                 securePreferences.getCachedModels()
             }

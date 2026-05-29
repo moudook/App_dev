@@ -77,6 +77,9 @@ fun SmartyInputField(
     selectedModel: String = "GPT-4o",
     availableModels: List<Pair<String, String>> = emptyList(),
     onModelSelected: (String) -> Unit = {},
+    modelVariantMap: Map<String, List<String>> = emptyMap(),
+    selectedVariant: String? = null,
+    onVariantSelected: (String?) -> Unit = {},
     // Re-integrated features from our previous iterations:
     isImageGenMode: Boolean = false,
     isHistoryMode: Boolean = false,
@@ -500,6 +503,40 @@ fun SmartyInputField(
                                         text = { Text(cleanLabel, fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal) },
                                         onClick = { onModelSelected(modelId); showModelMenu = false }
                                     )
+                                }
+                            }
+                        }
+
+                        // Variant chips — show when selected model has variants
+                        val variantsForModel = modelVariantMap[selectedModel]
+                        if (variantsForModel != null && variantsForModel.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                variantsForModel.forEach { variant ->
+                                    val isSelected = variant == selectedVariant
+                                    Surface(
+                                        shape = RoundedCornerShape(percent = 50),
+                                        color = if (isSelected) accentColor.copy(alpha = 0.25f) else Color.Transparent,
+                                        onClick = {
+                                            onVariantSelected(if (isSelected) null else variant)
+                                        },
+                                        modifier = Modifier
+                                            .height(24.dp)
+                                            .squishClick { }
+                                    ) {
+                                        Text(
+                                            text = variant,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) accentColor else accentColor.copy(alpha = 0.6f),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            maxLines = 1,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(4.dp))
                                 }
                             }
                         }

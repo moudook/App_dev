@@ -11,6 +11,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import org.slf4j.LoggerFactory
 
 /**
@@ -52,11 +53,38 @@ fun Application.configureModelRoutes() {
                         .discoveredFreeModels()
                         .find { it.id == request.modelId }
 
+                val variantValid = request.variant == null || model?.variants?.containsKey(request.variant) == true
+
                 call.respond(
                     ModelValidateResponse(
                         valid = isValid,
                         model = model,
+                        variantValid = variantValid,
                         availableModels = OpencodeModelRegistry.discoveredFreeModels(),
+                    ),
+                )
+            }
+
+            /**
+             * GET /api/v1/models/{modelId}/variants - Get variants for a specific model
+             */
+            get("/{modelId}/variants") {
+                val modelId = call.parameters["modelId"] ?: return@get call.respond(
+                    mapOf("error" to "modelId is required"),
+                )
+                val fullId = if (modelId.startsWith("opencode/")) modelId else "opencode/$modelId"
+
+                val model = OpencodeModelRegistry.discoveredFreeModels().find { it.id == fullId }
+                if (model == null) {
+                    call.respond(mapOf("error" to "Model not found", "modelId" to fullId))
+                    return@get
+                }
+
+                call.respond(
+                    mapOf(
+                        "modelId" to model.id,
+                        "variants" to model.variants.keys.toList(),
+                        "variantConfigs" to model.variants,
                     ),
                 )
             }
@@ -89,6 +117,7 @@ fun Application.configureModelRoutes() {
 @Serializable
 data class ModelValidateRequest(
     val modelId: String,
+    val variant: String? = null,
 )
 
 @Serializable
@@ -96,4 +125,5 @@ data class ModelValidateResponse(
     val valid: Boolean,
     val model: com.example.smarty.server.llm.OpencodeModelInfo?,
     val availableModels: List<com.example.smarty.server.llm.OpencodeModelInfo>,
+    val variantValid: Boolean = true,
 )

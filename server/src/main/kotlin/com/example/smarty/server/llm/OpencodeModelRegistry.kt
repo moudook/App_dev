@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -17,6 +19,7 @@ data class OpencodeModelInfo(
     val provider: String = "opencode",
     val free: Boolean = true,
     val available: Boolean = true,
+    val variants: Map<String, JsonObject> = emptyMap(),
 )
 
 @Serializable
@@ -95,7 +98,7 @@ object OpencodeModelRegistry {
 
                 val cliStart = System.currentTimeMillis()
                 val process =
-                    ProcessBuilder(listOf("opencode", "models"))
+                    ProcessBuilder(listOf("opencode", "models", "--verbose"))
                         .directory(workDir)
                         .redirectErrorStream(true)
                         .start()
@@ -112,7 +115,7 @@ object OpencodeModelRegistry {
 
                 if (!completed) {
                     process.destroyForcibly()
-                    throw IllegalStateException("opencode models timed out after ${timeoutMs}ms")
+                    throw IllegalStateException("opencode models --verbose timed out after ${timeoutMs}ms")
                 }
 
                 val exitCode = process.exitValue()
@@ -130,7 +133,7 @@ object OpencodeModelRegistry {
                     lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
                 }
 
-                parseAndSortFreeModels(lines)
+                parseModelsVerbose(lines)
             }.getOrElse { error ->
                 logger.error("[OpencodeModelRegistry] Discovery failed: {}", error.message)
                 emptyList()
@@ -245,7 +248,7 @@ object OpencodeModelRegistry {
                     val cliStart = System.currentTimeMillis()
 
                     val process =
-                        ProcessBuilder(listOf("opencode", "models"))
+                        ProcessBuilder(listOf("opencode", "models", "--verbose"))
                             .directory(workDir)
                             .redirectErrorStream(true)
                             .start()
@@ -262,7 +265,7 @@ object OpencodeModelRegistry {
 
                     if (!completed) {
                         process.destroyForcibly()
-                        throw IllegalStateException("opencode models timed out")
+                        throw IllegalStateException("opencode models --verbose timed out")
                     }
 
                     val exitCode = process.exitValue()
@@ -277,7 +280,7 @@ object OpencodeModelRegistry {
                         lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
                     }
 
-                    parseAndSortFreeModels(lines)
+                    parseModelsVerbose(lines)
                 }.getOrElse { error ->
                     logger.warn("[OpencodeModelRegistry] Refresh failed: {}", error.message)
                     emptyList()
@@ -313,7 +316,7 @@ object OpencodeModelRegistry {
             runCatching {
                 val workDir = java.io.File(System.getProperty("user.dir"))
                 val process =
-                    ProcessBuilder(listOf("opencode", "models"))
+                    ProcessBuilder(listOf("opencode", "models", "--verbose"))
                         .directory(workDir)
                         .redirectErrorStream(true)
                         .start()
@@ -328,14 +331,14 @@ object OpencodeModelRegistry {
                 val completed = process.waitFor(12_000L, TimeUnit.MILLISECONDS)
                 if (!completed) {
                     process.destroyForcibly()
-                    throw IllegalStateException("opencode models timed out")
+                    throw IllegalStateException("opencode models --verbose timed out")
                 }
 
                 if (process.exitValue() != 0) {
                     logger.warn("[OpencodeModelRegistry] CLI exited with code ${process.exitValue()}")
                 }
 
-                parseAndSortFreeModels(lines)
+                parseModelsVerbose(lines)
             }.getOrElse { error ->
                 logger.warn("[OpencodeModelRegistry] Blocking refresh failed: {}", error.message)
                 emptyList()
@@ -362,52 +365,75 @@ object OpencodeModelRegistry {
         return newState
     }
 
-    private fun parseAndSortFreeModels(lines: List<String>): List<OpencodeModelInfo> {
-        val allModels = mutableListOf<String>()
+    private fun parseModelsVerbose(lines: List<String>): List<OpencodeModelInfo> {
+        val allModels = mutableListOf<OpencodeModelInfo>()
+        var pendingId: String? = null
 
         for (rawLine in lines) {
             val line = rawLine.trim()
-            if (line.isEmpty() || line.startsWith("#") || line.startsWith("─") || line.startsWith("│")) {
+            if (line.isEmpty()) continue
+
+            // If line is a model ID (not JSON), store it as pending
+            val modelId = Regex("""^(opencode/[\w.\-]+)$""").find(line)?.groupValues?.get(1)
+            if (modelId != null) {
+                pendingId = modelId
                 continue
             }
 
-            val modelId = extractModelId(line) ?: continue
+            // If line is JSON and we have a pending model ID, parse it
+            if (line.startsWith("{")) {
+                val id = pendingId ?: continue
+                pendingId = null
 
-            if (!modelId.contains("free", ignoreCase = true)) {
-                logger.debug("[OpencodeModelRegistry] Skipping non-free: {}", modelId)
-                continue
+                if (!id.contains("free", ignoreCase = true)) {
+                    logger.debug("[OpencodeModelRegistry] Skipping non-free: {}", id)
+                    continue
+                }
+                if (!id.startsWith("opencode/")) {
+                    logger.debug("[OpencodeModelRegistry] Skipping non-opencode: {}", id)
+                    continue
+                }
+
+                val jsonMeta = try {
+                    kotlinx.serialization.json.Json.parseToJsonElement(line).jsonObject
+                } catch (e: Exception) {
+                    logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
+                    continue
+                }
+
+                val label = jsonMeta["label"]?.kotlinx.serialization.json.jsonPrimitive?.contentOrNull
+                    ?: generateLabel(id)
+
+                val rawVariants = jsonMeta["variants"]?.jsonObject
+                val variants = rawVariants ?: emptyMap()
+
+                allModels.add(OpencodeModelInfo(
+                    id = id,
+                    label = label,
+                    variants = variants,
+                ))
             }
-
-            if (!modelId.startsWith("opencode/")) {
-                logger.debug("[OpencodeModelRegistry] Skipping non-opencode: {}", modelId)
-                continue
-            }
-
-            allModels.add(modelId)
         }
 
-        val sorted = allModels.sorted()
+        val sorted = allModels.sortedBy { it.id }
         val top3 = sorted.take(MAX_FREE_MODELS)
 
         logger.info("[OpencodeModelRegistry] Parsed {} total free models from CLI, taking top {}", sorted.size, top3.size)
-
-        return top3.map { modelId ->
-            val label =
-                modelId
-                    .removePrefix("opencode/")
-                    .replace(Regex("(?i)-free\\b"), "")
-                    .replace(Regex("(?i)\\bfree\\b"), "")
-                    .replace(Regex("[-.]+"), " ")
-                    .split(" ")
-                    .filter { it.isNotEmpty() }
-                    .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
-            OpencodeModelInfo(id = modelId, label = label)
+        top3.forEach { m ->
+            logger.info("[OpencodeModelRegistry]   - {} ({}) variants: {}", m.id, m.label, m.variants.keys)
         }
+
+        return top3
     }
 
-    private fun extractModelId(line: String): String? {
-        val stripped = line.replace("│", "").trim()
-        val match = Regex("""(opencode/[\w.\-]+)""").find(stripped)
-        return match?.groupValues?.get(1)
+    private fun generateLabel(modelId: String): String {
+        return modelId
+            .removePrefix("opencode/")
+            .replace(Regex("(?i)-free\\b"), "")
+            .replace(Regex("(?i)\\bfree\\b"), "")
+            .replace(Regex("[-.]+"), " ")
+            .split(" ")
+            .filter { it.isNotEmpty() }
+            .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
     }
 }

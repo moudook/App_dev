@@ -152,6 +152,7 @@ class RemoteAgentService(
         provider: String? = null,
         providerUrl: String? = null,
         model: String? = null,
+        variant: String? = null,
         sessionId: String? = null,
         personality: String? = null,
         messageId: String? = null,
@@ -195,6 +196,7 @@ class RemoteAgentService(
                         provider = provider,
                         providerUrl = providerUrl,
                         model = model,
+                        variant = variant,
                         timezone = timezone,
                         clientTime = clientTime,
                         personality = personality,
@@ -368,11 +370,11 @@ class RemoteAgentService(
     }
 
     /**
-     * Fetch available OpenCode models from the server.
-     * Returns list of (modelId, label) pairs.
+     * Fetch available OpenCode models from the server, including variant info.
+     * Returns list of ModelInfo with id, label, and available variants.
      * Falls back to cached models if server call fails.
      */
-    suspend fun getOpencodeModels(refresh: Boolean = false): List<Pair<String, String>> {
+    suspend fun getOpencodeModels(refresh: Boolean = false): List<ModelInfo> {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
@@ -404,7 +406,7 @@ class RemoteAgentService(
                 val modelsArray = jsonObject.getAsJsonArray("models")
                 Log.d(TAG, "Models array size: ${modelsArray.size()}")
 
-                val resultList = mutableListOf<Pair<String, String>>()
+                val resultList = mutableListOf<ModelInfo>()
                 for (i in 0 until modelsArray.size()) {
                     val element = modelsArray.get(i)
                     if (element.isJsonObject) {
@@ -413,8 +415,13 @@ class RemoteAgentService(
                         val label = mObj.get("label")?.asString
 
                         if (id != null && label != null) {
-                            resultList.add(id to label)
-                            Log.d(TAG, "  Model[$i]: $id -> $label")
+                            val variants = mutableListOf<String>()
+                            val variantsObj = mObj.getAsJsonObject("variants")
+                            if (variantsObj != null) {
+                                variants.addAll(variantsObj.keySet())
+                            }
+                            resultList.add(ModelInfo(id = id, label = label, variants = variants))
+                            Log.d(TAG, "  Model[$i]: $id -> $label, variants=$variants")
                         } else {
                             Log.w(TAG, "  Model[$i] missing id or label: $element")
                         }
@@ -433,6 +440,13 @@ class RemoteAgentService(
             Log.e(TAG, "Error fetching opencode models: ${e.message}", e)
             emptyList()
         }
+    }
+
+    /**
+     * Legacy variant — returns plain (modelId, label) pairs for backward compat.
+     */
+    suspend fun getOpencodeModelPairs(refresh: Boolean = false): List<Pair<String, String>> {
+        return getOpencodeModels(refresh).map { it.id to it.label }
     }
 
     /**
@@ -715,6 +729,7 @@ class RemoteAgentService(
         attachments: List<ChatAttachment>? = null,
         provider: String? = null,
         model: String? = null,
+        variant: String? = null,
         personality: String? = null, // Fix: Add personality parameter
     ): Flow<String> =
         flow {
@@ -734,6 +749,7 @@ class RemoteAgentService(
                         sessionId = sessionId,
                         provider = provider,
                         model = model,
+                        variant = variant,
                         fileContext = fileContext,
                         attachments =
                             attachments?.map {
@@ -1192,6 +1208,15 @@ data class ChatQueryAttachment(
     val mimeType: String? = null,
 )
 
+/**
+ * Model info returned from the server, including available variants.
+ */
+data class ModelInfo(
+    val id: String,
+    val label: String,
+    val variants: List<String> = emptyList(),
+)
+
 @Serializable
 data class ChatQueryRequest(
     val query: String,
@@ -1199,6 +1224,7 @@ data class ChatQueryRequest(
     val provider: String? = null,
     val providerUrl: String? = null,
     val model: String? = null,
+    val variant: String? = null,
     val token: String? = null,
     val fileContext: String? = null,
     val attachments: List<ChatQueryAttachment>? = null,

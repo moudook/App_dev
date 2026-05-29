@@ -108,6 +108,8 @@ sealed class ChatEvent {
 
     data class ModelSelected(val modelId: String) : ChatEvent()
 
+    data class VariantSelected(val variant: String?) : ChatEvent()
+
     data object ModelsRefreshRequested : ChatEvent()
 }
 
