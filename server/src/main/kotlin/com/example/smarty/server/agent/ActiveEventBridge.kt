@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Bridges [AgentEvent]s from the MCP server layer to the active chat SSE stream.
  *
  * When the MCP daemon calls ask_user and no Android client is connected yet,
- * events are queued and flushed when an emitter registers.
+ * events are queued and flushed when the next emit() call finds an emitter.
  */
 object ActiveEventBridge {
     private val logger = LoggerFactory.getLogger(ActiveEventBridge::class.java)
@@ -22,24 +22,11 @@ object ActiveEventBridge {
     ) {
         emitters[userId] = emitter
         logger.info("[ActiveEventBridge] Registered active SSE emitter for user: $userId")
-
-        // Flush any pending events queued while no emitter was connected
-        val queued = pendingEvents.remove(userId)
-        if (queued != null && queued.isNotEmpty()) {
-            logger.info("[ActiveEventBridge] Flushing ${queued.size} pending events for user: $userId")
-            for (event in queued) {
-                try {
-                    emitter(event)
-                    logger.debug("[ActiveEventBridge] Flushed pending event: ${event::class.simpleName} for user: $userId")
-                } catch (e: Exception) {
-                    logger.warn("[ActiveEventBridge] Failed to flush pending event for user $userId: ${e.message}")
-                }
-            }
-        }
     }
 
     fun clear(userId: String) {
         emitters.remove(userId)
+        pendingEvents.remove(userId)
         logger.info("[ActiveEventBridge] Cleared active SSE emitter for user: $userId")
     }
 
@@ -54,6 +41,18 @@ object ActiveEventBridge {
         }
         val emitter = emitters[sid]
         if (emitter != null) {
+            // Flush any pending events first
+            val queued = pendingEvents.remove(sid)
+            if (queued != null && queued.isNotEmpty()) {
+                logger.info("[ActiveEventBridge] Flushing ${queued.size} pending events for user: $sid")
+                for (pendingEvent in queued) {
+                    try {
+                        emitter(pendingEvent)
+                    } catch (e: Exception) {
+                        logger.warn("[ActiveEventBridge] Failed to flush pending event for user $sid: ${e.message}")
+                    }
+                }
+            }
             try {
                 emitter(event)
                 logger.debug("[ActiveEventBridge] Forwarded event: ${event::class.simpleName} for user: $sid")
