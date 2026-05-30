@@ -93,228 +93,295 @@ fun MarkdownRenderer(
         astNodes.forEachIndexed { index, node ->
             key(index, node::class) {
                 when (node) {
-                    is MarkdownNode.CodeBlock -> {
-                        Spacer(modifier = Modifier.height(48.dp))
-                        com.example.smarty.ui.components.CodeBlock(
-                            code = node.code,
-                            language = node.language,
-                            backgroundColor = codeBackgroundColor,
-                            borderColor = codeBorderColor,
-                            headerBgColor = codeHeaderBg
-                        )
-                        Spacer(modifier = Modifier.height(48.dp))
-                    }
-                    is MarkdownNode.LatexBlock -> {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = codeBackgroundColor.copy(alpha = 0.25f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                                LaTeXView(latex = node.math, isBlock = true,
-                                    textColor = codeColor, backgroundColor = Color.Transparent)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    is MarkdownNode.AccordionGroup -> {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        val uiSections = node.sections.map { 
-                            com.example.smarty.ui.components.chat.AccordionParser.AccordionSection(it.title, it.content) 
-                        }
-                        com.example.smarty.ui.components.chat.AccordionGroup(
-                            sections = uiSections
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    is MarkdownNode.Header -> {
-                        when (node.level) {
-                            1 -> {
-                                Spacer(modifier = Modifier.height(28.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.headlineSmall.copy(
-                                        fontWeight = FontWeight.Bold, fontSize = 45.3f.sp,
-                                        lineHeight = 61.5f.sp, letterSpacing = (-0.3).sp, color = boldColor
-                                    )
-                                )
-                                Box(modifier = Modifier.fillMaxWidth(0.3f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(boldColor.copy(alpha = 0.3f)))
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            2 -> {
-                                Spacer(modifier = Modifier.height(24.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold, fontSize = 38.8f.sp,
-                                        lineHeight = 51.8f.sp, letterSpacing = (-0.2).sp, color = boldColor
-                                    )
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                            }
-                            3 -> {
-                                Spacer(modifier = Modifier.height(20.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.SemiBold, fontSize = 32.4f.sp,
-                                        lineHeight = 45.3f.sp, letterSpacing = (-0.1).sp, color = boldColor
-                                    )
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                            4 -> {
-                                Spacer(modifier = Modifier.height(18.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = FontWeight.SemiBold, fontSize = 29.1f.sp,
-                                        lineHeight = 45.3f.sp, letterSpacing = (-0.1).sp, color = boldColor
-                                    )
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            5 -> {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Medium, fontSize = 25.9f.sp,
-                                        lineHeight = 42.1f.sp, fontStyle = FontStyle.Italic, letterSpacing = 0.sp, color = boldColor.copy(alpha = 0.85f)
-                                    )
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            else -> {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                MarkdownText(
-                                    content = node.text,
-                                    normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Medium, fontSize = 22.7f.sp,
-                                        lineHeight = 38.8f.sp, letterSpacing = 0.5.sp, color = boldColor.copy(alpha = 0.7f)
-                                    )
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                        }
-                    }
-                    is MarkdownNode.Blockquote -> {
-                        val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-                        val cardBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF5F5F7)
-                        val borderColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
-
-                        Box(
-                            modifier = Modifier
-                                .padding(vertical = 48.dp)
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = if (isDark) 0.dp else 12.dp,
-                                    shape = RoundedCornerShape(20.dp),
-                                    ambientColor = linkColor.copy(alpha = 0.04f),
-                                    spotColor = linkColor.copy(alpha = 0.08f)
-                                )
-                                .drawWithCache {
-                                    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(20.dp.toPx())
-                                    val barWidth = 4.dp.toPx()
-                                    val vertPadding = 20.dp.toPx()
-                                    val horizPadding = 20.dp.toPx()
-                                    val barGradient = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        colors = listOf(linkColor, linkColor.copy(alpha = 0.3f)),
-                                        startY = vertPadding,
-                                        endY = size.height - vertPadding
-                                    )
-                                    onDrawBehind {
-                                        drawRoundRect(color = cardBg, size = size, cornerRadius = cornerRadius)
-                                        drawRoundRect(color = borderColor, size = size, cornerRadius = cornerRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
-                                        drawRoundRect(brush = barGradient, topLeft = androidx.compose.ui.geometry.Offset(horizPadding, vertPadding), size = androidx.compose.ui.geometry.Size(barWidth, size.height - (vertPadding * 2)), cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f))
-                                    }
-                                }
-                                .padding(start = 40.dp, top = 20.dp, bottom = 20.dp, end = 20.dp)
-                        ) {
-                            Text(
-                                text = "\"",
-                                fontSize = 140.sp,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Black,
-                                color = linkColor.copy(alpha = if (isDark) 0.08f else 0.05f),
-                                modifier = Modifier
-                                    .offset(x = (-30).dp, y = (-56).dp)
-                                    .layout { measurable, constraints ->
-                                        val placeable = measurable.measure(constraints)
-                                        layout(0, 0) { placeable.place(0, 0) }
-                                    }
-                            )
-                            MarkdownText(
-                                content = node.text,
-                                normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 16.sp, lineHeight = 26.sp, fontFamily = FontFamily.Serif,
-                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontWeight = FontWeight.Medium,
-                                    letterSpacing = 0.2.sp, color = if (isDark) Color.White.copy(alpha = 0.85f) else Color(0xFF1D1D1F).copy(alpha = 0.8f)
-                                )
-                            )
-                        }
-                    }
-                    is MarkdownNode.HorizontalRule -> {
-                        Spacer(modifier = Modifier.height(96.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .drawBehind {
-                                    val gradient = Brush.horizontalGradient(
-                                        colors = listOf(Color.Transparent, normalColor.copy(alpha = 0.2f), normalColor.copy(alpha = 0.35f), normalColor.copy(alpha = 0.2f), Color.Transparent),
-                                        startX = 0f, endX = size.width
-                                    )
-                                    drawRect(gradient)
-                                }
-                        )
-                        Spacer(modifier = Modifier.height(96.dp))
-                    }
-                    is MarkdownNode.Table -> {
-                        MarkdownTable(node.rows, normalColor, boldColor, linkColor, codeColor)
-                    }
-                    is MarkdownNode.TaskList -> {
-                        TaskListView(node.tasks, normalColor, boldColor, linkColor, codeColor, linkColor)
-                    }
-                    is MarkdownNode.BulletItem -> {
-                        Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
-                            Box(modifier = Modifier.size(6.dp).align(Alignment.CenterVertically).clip(RoundedCornerShape(1.dp)).background(normalColor.copy(alpha = 0.5f)))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            MarkdownText(
-                                content = node.text, normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
-                            )
-                        }
-                    }
-                    is MarkdownNode.NumberedItem -> {
-                        Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
-                            Text(
-                                text = node.prefix,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
-                                color = normalColor.copy(alpha = 0.8f),
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            MarkdownText(
-                                content = node.text, normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
-                            )
-                        }
-                    }
-                    is MarkdownNode.Paragraph -> {
-                        StandardText(node.text, normalColor, boldColor, linkColor, codeColor, isStreaming && index == astNodes.lastIndex)
-                    }
+                    is MarkdownNode.CodeBlock -> MarkdownCodeBlock(
+                        node, codeBackgroundColor, codeBorderColor, codeHeaderBg
+                    )
+                    is MarkdownNode.LatexBlock -> MarkdownLatexBlock(
+                        node, codeBackgroundColor, codeColor
+                    )
+                    is MarkdownNode.AccordionGroup -> MarkdownAccordionGroup(node)
+                    is MarkdownNode.Header -> MarkdownHeader(
+                        node, boldColor, linkColor, codeColor
+                    )
+                    is MarkdownNode.Blockquote -> MarkdownBlockquote(
+                        node, normalColor, boldColor, linkColor, codeColor
+                    )
+                    is MarkdownNode.HorizontalRule -> MarkdownHorizontalRule(normalColor)
+                    is MarkdownNode.Table -> MarkdownTable(
+                        node.rows, normalColor, boldColor, linkColor, codeColor
+                    )
+                    is MarkdownNode.TaskList -> TaskListView(
+                        node.tasks, normalColor, boldColor, linkColor, codeColor, linkColor
+                    )
+                    is MarkdownNode.BulletItem -> MarkdownBulletItem(
+                        node, normalColor, boldColor, linkColor, codeColor
+                    )
+                    is MarkdownNode.NumberedItem -> MarkdownNumberedItem(
+                        node, normalColor, boldColor, linkColor, codeColor
+                    )
+                    is MarkdownNode.Paragraph -> StandardText(
+                        node.text, normalColor, boldColor, linkColor, codeColor,
+                        isStreaming && index == astNodes.lastIndex
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MarkdownCodeBlock(
+    node: MarkdownNode.CodeBlock,
+    codeBackgroundColor: Color,
+    codeBorderColor: Color,
+    codeHeaderBg: Color
+) {
+    Spacer(modifier = Modifier.height(48.dp))
+    com.example.smarty.ui.components.CodeBlock(
+        code = node.code,
+        language = node.language,
+        backgroundColor = codeBackgroundColor,
+        borderColor = codeBorderColor,
+        headerBgColor = codeHeaderBg
+    )
+    Spacer(modifier = Modifier.height(48.dp))
+}
+
+@Composable
+private fun MarkdownLatexBlock(
+    node: MarkdownNode.LatexBlock,
+    codeBackgroundColor: Color,
+    codeColor: Color
+) {
+    Spacer(modifier = Modifier.height(12.dp))
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = codeBackgroundColor.copy(alpha = 0.25f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            LaTeXView(latex = node.math, isBlock = true,
+                textColor = codeColor, backgroundColor = Color.Transparent)
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+}
+
+@Composable
+private fun MarkdownAccordionGroup(node: MarkdownNode.AccordionGroup) {
+    Spacer(modifier = Modifier.height(12.dp))
+    val uiSections = node.sections.map {
+        com.example.smarty.ui.components.chat.AccordionParser.AccordionSection(it.title, it.content)
+    }
+    com.example.smarty.ui.components.chat.AccordionGroup(sections = uiSections)
+    Spacer(modifier = Modifier.height(12.dp))
+}
+
+@Composable
+private fun MarkdownHeader(
+    node: MarkdownNode.Header,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    when (node.level) {
+        1 -> {
+            Spacer(modifier = Modifier.height(28.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.Bold, fontSize = 45.3f.sp,
+                    lineHeight = 61.5f.sp, letterSpacing = (-0.3).sp, color = boldColor
+                )
+            )
+            Box(modifier = Modifier.fillMaxWidth(0.3f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(boldColor.copy(alpha = 0.3f)))
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        2 -> {
+            Spacer(modifier = Modifier.height(24.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold, fontSize = 38.8f.sp,
+                    lineHeight = 51.8f.sp, letterSpacing = (-0.2).sp, color = boldColor
+                )
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+        3 -> {
+            Spacer(modifier = Modifier.height(20.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold, fontSize = 32.4f.sp,
+                    lineHeight = 45.3f.sp, letterSpacing = (-0.1).sp, color = boldColor
+                )
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+        4 -> {
+            Spacer(modifier = Modifier.height(18.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.SemiBold, fontSize = 29.1f.sp,
+                    lineHeight = 45.3f.sp, letterSpacing = (-0.1).sp, color = boldColor
+                )
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        5 -> {
+            Spacer(modifier = Modifier.height(16.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Medium, fontSize = 25.9f.sp,
+                    lineHeight = 42.1f.sp, fontStyle = FontStyle.Italic, letterSpacing = 0.sp, color = boldColor.copy(alpha = 0.85f)
+                )
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        else -> {
+            Spacer(modifier = Modifier.height(16.dp))
+            MarkdownText(
+                content = node.text,
+                normalColor = boldColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium, fontSize = 22.7f.sp,
+                    lineHeight = 38.8f.sp, letterSpacing = 0.5.sp, color = boldColor.copy(alpha = 0.7f)
+                )
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun MarkdownBlockquote(
+    node: MarkdownNode.Blockquote,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF5F5F7)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
+
+    Box(
+        modifier = Modifier
+            .padding(vertical = 48.dp)
+            .fillMaxWidth()
+            .shadow(
+                elevation = if (isDark) 0.dp else 12.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = linkColor.copy(alpha = 0.04f),
+                spotColor = linkColor.copy(alpha = 0.08f)
+            )
+            .drawWithCache {
+                val cornerRadius = androidx.compose.ui.geometry.CornerRadius(20.dp.toPx())
+                val barWidth = 4.dp.toPx()
+                val vertPadding = 20.dp.toPx()
+                val horizPadding = 20.dp.toPx()
+                val barGradient = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(linkColor, linkColor.copy(alpha = 0.3f)),
+                    startY = vertPadding,
+                    endY = size.height - vertPadding
+                )
+                onDrawBehind {
+                    drawRoundRect(color = cardBg, size = size, cornerRadius = cornerRadius)
+                    drawRoundRect(color = borderColor, size = size, cornerRadius = cornerRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
+                    drawRoundRect(brush = barGradient, topLeft = androidx.compose.ui.geometry.Offset(horizPadding, vertPadding), size = androidx.compose.ui.geometry.Size(barWidth, size.height - (vertPadding * 2)), cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f))
+                }
+            }
+            .padding(start = 40.dp, top = 20.dp, bottom = 20.dp, end = 20.dp)
+    ) {
+        Text(
+            text = "\"",
+            fontSize = 140.sp,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Black,
+            color = linkColor.copy(alpha = if (isDark) 0.08f else 0.05f),
+            modifier = Modifier
+                .offset(x = (-30).dp, y = (-56).dp)
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    layout(0, 0) { placeable.place(0, 0) }
+                }
+        )
+        MarkdownText(
+            content = node.text,
+            normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 16.sp, lineHeight = 26.sp, fontFamily = FontFamily.Serif,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontWeight = FontWeight.Medium,
+                letterSpacing = 0.2.sp, color = if (isDark) Color.White.copy(alpha = 0.85f) else Color(0xFF1D1D1F).copy(alpha = 0.8f)
+            )
+        )
+    }
+}
+
+@Composable
+private fun MarkdownHorizontalRule(normalColor: Color) {
+    Spacer(modifier = Modifier.height(96.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .drawBehind {
+                val gradient = Brush.horizontalGradient(
+                    colors = listOf(Color.Transparent, normalColor.copy(alpha = 0.2f), normalColor.copy(alpha = 0.35f), normalColor.copy(alpha = 0.2f), Color.Transparent),
+                    startX = 0f, endX = size.width
+                )
+                drawRect(gradient)
+            }
+    )
+    Spacer(modifier = Modifier.height(96.dp))
+}
+
+@Composable
+private fun MarkdownBulletItem(
+    node: MarkdownNode.BulletItem,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+        Box(modifier = Modifier.size(6.dp).align(Alignment.CenterVertically).clip(RoundedCornerShape(1.dp)).background(normalColor.copy(alpha = 0.5f)))
+        Spacer(modifier = Modifier.width(8.dp))
+        MarkdownText(
+            content = node.text, normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
+        )
+    }
+}
+
+@Composable
+private fun MarkdownNumberedItem(
+    node: MarkdownNode.NumberedItem,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+        Text(
+            text = node.prefix,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
+            color = normalColor.copy(alpha = 0.8f),
+            modifier = Modifier.padding(top = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        MarkdownText(
+            content = node.text, normalColor = normalColor, boldColor = boldColor, linkColor = linkColor, codeColor = codeColor,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp, lineHeight = 26.sp, color = normalColor)
+        )
     }
 }
 

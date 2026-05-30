@@ -119,8 +119,7 @@ import com.example.smarty.ui.components.AnimatedCategoryFilterChip
 import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.features.notes.ui.inputstream.CalendarContent
-import com.example.smarty.features.notes.ui.inputstream.ChatHistoryContent
-import com.example.smarty.features.notes.ui.inputstream.ChatModeContent
+import com.example.smarty.features.notes.ui.inputstream.ChatModeSection
 import com.example.smarty.features.notes.ui.inputstream.NormalModeContent
 import com.example.smarty.features.notes.ui.inputstream.SelectionModeToolbar
 import com.example.smarty.features.notes.ui.inputstream.StacksContent
@@ -1409,120 +1408,31 @@ fun InputStreamScreen(
                         )
                     }
                     0 -> {
-                        // Chat mode - switches between messages and history view
-                        AnimatedContent(
-                            targetState = showChatHistoryInline,
-                            transitionSpec = {
-                                if (targetState) {
-                                    // Entering history: Zoom out effect (starts large 1.1x and settles to 1.0x)
-                                    scaleIn(
-                                        initialScale = 1.1f, 
-                                        animationSpec = tween(350, easing = LinearOutSlowInEasing)
-                                    ) + fadeIn(tween(200)) togetherWith
-                                    scaleOut(
-                                        targetScale = 0.95f, 
-                                        animationSpec = tween(350)
-                                    ) + fadeOut(tween(200))
-                                } else {
-                                    // Returning to chat: Zoom in (history fades out scaling down)
-                                    scaleIn(
-                                        initialScale = 0.95f, 
-                                        animationSpec = tween(350)
-                                    ) + fadeIn(tween(200)) togetherWith 
-                                    scaleOut(
-                                        targetScale = 1.1f, 
-                                        animationSpec = tween(350)
-                                    ) + fadeOut(tween(200))
-                                }
-                            },
-                            label = "chatHistoryTransition",
-                            modifier = Modifier.fillMaxSize()
-                        ) { showHistory ->
-                            if (showHistory) {
-                                // History view - same layer as note cards
-                                ChatHistoryContent(
-                                    sessions = chatSessions,
-                                    currentSessionId = currentSessionId,
-                                    isLoading = isChatHistoryLoading,
-                                    onSelectSession = onSwitchChatSession,
-                                    onNewChat = onNewChatSession,
-                                    onDeleteSession = onDeleteChatSession,
-                                    onBackToChat = { showChatHistoryInline = false },
-                                    contentPadding = contentPaddingWithTop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                // Chat messages view with pinch-to-zoom-out gesture for history
-                                // Track cumulative scale during pinch gesture
-                                var cumulativeScale by remember { mutableFloatStateOf(1f) }
-                                var pointerCount by remember { mutableIntStateOf(0) }
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .pointerInput(Unit) {
-                                            awaitEachGesture {
-                                                // Wait for first pointer down
-                                                awaitFirstDown(requireUnconsumed = false)
-                                                
-                                                do {
-                                                    val event = awaitPointerEvent()
-                                                    
-                                                    // Track the number of active pointers
-                                                    pointerCount = event.changes.count { it.pressed }
-                                                    
-                                                    // Only process zoom if we have 2+ pointers (actual pinch gesture)
-                                                    if (pointerCount >= 2) {
-                                                        // Calculate zoom from the event
-                                                        val zoom = event.calculateZoom()
-                                                        
-                                                        // Update cumulative scale
-                                                        cumulativeScale *= zoom
-                                                        
-                                                        // Trigger history when pinch-out (zoom out) below threshold
-                                                        // Using 0.70f for more deliberate gesture detection
-                                                        if (cumulativeScale < 0.70f) {
-                                                            showChatHistoryInline = true
-                                                            cumulativeScale = 1f // Reset for next gesture
-                                                        }
-                                                        
-                                                        // Reset scale when zooming back in
-                                                        if (zoom > 1f && cumulativeScale > 1f) {
-                                                            cumulativeScale = 1f
-                                                        }
-                                                        
-                                                        // Consume the event to prevent scrolling during pinch
-                                                        event.changes.forEach { it.consume() }
-                                                    }
-                                                    // If pointerCount == 1, allow normal scrolling
-                                                } while (event.changes.any { it.pressed })
-                                                
-                                                // Reset when all fingers are lifted
-                                                cumulativeScale = 1f
-                                            }
-                                        }
-                                ) {
-                                    ChatModeContent(
-                                        chatMessages = chatMessages,
-                                        chatListState = chatListState,
-                                        notes = notes,
-                                        onNoteClick = onNoteClick,
-                                        onNoteClickById = onNoteClickById,
-                                        onEventClickById = onEventClickById,
-                                        onSendChatMessage = onSendChatMessage,
-                                        onDeleteMessage = onDeleteChatMessage,
-                                        contentPadding = contentPaddingWithTop,
-                                        isChatProcessing = isChatProcessing,
-                                        agentActivity = agentActivity,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-                        }
+                        ChatModeSection(
+                        showChatHistoryInline = showChatHistoryInline,
+                        chatSessions = chatSessions,
+                        currentSessionId = currentSessionId,
+                        isChatHistoryLoading = isChatHistoryLoading,
+                        chatMessages = chatMessages,
+                        chatListState = chatListState,
+                        notes = notes,
+                        contentPaddingWithTop = contentPaddingWithTop,
+                        isChatProcessing = isChatProcessing,
+                        agentActivity = agentActivity,
+                        onSwitchChatSession = onSwitchChatSession,
+                        onNewChatSession = onNewChatSession,
+                        onDeleteChatSession = onDeleteChatSession,
+                        onNoteClick = onNoteClick,
+                        onNoteClickById = onNoteClickById,
+                        onEventClickById = onEventClickById,
+                        onSendChatMessage = onSendChatMessage,
+                        onDeleteChatMessage = onDeleteChatMessage,
+                        onSetChatHistory = { showChatHistoryInline = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
                     }
 
                     1 -> {
-                        // Notes mode content - extracted to NormalModeContent component
                         NormalModeContent(
                             displayedNotes = displayedNotes,
                             isNotesLoading = isNotesLoading,
