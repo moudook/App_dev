@@ -71,6 +71,15 @@ class ChatManager(
 
     private val chatMutex = Mutex()
 
+    // Pagination state
+    private val _hasMoreMessages = MutableStateFlow(false)
+    val hasMoreMessages: StateFlow<Boolean> = _hasMoreMessages.asStateFlow()
+    private val _isLoadingPage = MutableStateFlow(false)
+    val isLoadingPage: StateFlow<Boolean> = _isLoadingPage.asStateFlow()
+    private var currentPage = 0
+    private var totalMessageCount = 0
+    private val PAGE_SIZE = 20
+
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
@@ -188,13 +197,48 @@ class ChatManager(
             preservedChatMessages = emptyList()
             chatRepository.switchToSession(sessionId)
             _currentSessionId.value = sessionId
-            val messages =
-                chatRepository.getMessagesForSessionOnce(sessionId)
-                    .distinctBy { it.id }
+
+            // Reset pagination state
+            currentPage = 0
+            totalMessageCount = chatRepository.getMessageCount(sessionId)
+
+            // Load first page only (not entire conversation)
+            val messages = chatRepository.loadMessagesPage(sessionId, page = 0, pageSize = PAGE_SIZE)
+                .distinctBy { it.id }
             chatMutex.withLock {
                 _chatMessages.value = messages
             }
-            Log.d(TAG, "Switched to chat session: $sessionId with ${messages.size} messages")
+            _hasMoreMessages.value = messages.size < totalMessageCount
+            Log.d(TAG, "Switched to chat session: $sessionId — loaded page 0 (${messages.size}/${totalMessageCount} messages)")
+        }
+    }
+
+    /**
+     * Load the next page of messages when user scrolls near the end.
+     * Called from the UI when LazyColumn reaches within 5 items of the bottom.
+     */
+    fun loadMoreMessages() {
+        val sessionId = _currentSessionId.value ?: return
+        if (_isLoadingPage.value || !_hasMoreMessages.value) return
+
+        scope.launch {
+            _isLoadingPage.value = true
+            try {
+                currentPage++
+                val newMessages = chatRepository.loadMessagesPage(sessionId, page = currentPage, pageSize = PAGE_SIZE)
+                    .distinctBy { it.id }
+                if (newMessages.isNotEmpty()) {
+                    chatMutex.withLock {
+                        _chatMessages.value = _chatMessages.value + newMessages
+                    }
+                    _hasMoreMessages.value = _chatMessages.value.size < totalMessageCount
+                    Log.d(TAG, "Loaded page $currentPage: ${newMessages.size} new messages (${_chatMessages.value.size}/${totalMessageCount} total)")
+                } else {
+                    _hasMoreMessages.value = false
+                }
+            } finally {
+                _isLoadingPage.value = false
+            }
         }
     }
 

@@ -157,16 +157,8 @@ data class ChatMessageEntity(
 
         val cleanThinking: String? = null
 
-        val agentEvents: List<AgentEvent> =
-            try {
-                if (agentEventsJson.isNotBlank() && agentEventsJson != "[]") {
-                    Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
-                } else {
-                    emptyList()
-                }
-            } catch (e: Exception) {
-                emptyList()
-            }
+        // agentEventsJson is NOT deserialized here — it's overwritten by timeline_events
+        // in getMessagesForSessionOnce(). Deserializing it here wastes ~0.4MB per 100 messages.
 
         return ChatMessage(
             id = id,
@@ -181,7 +173,7 @@ data class ChatMessageEntity(
             thinking = null,
             toolCalls = toolCalls,
             agentSteps = parseAgentStepsJson(agentStepsJson),
-            agentEvents = agentEvents,
+            agentEvents = emptyList(),
         )
     }
 

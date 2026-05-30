@@ -13,10 +13,12 @@ import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.local.ChatDao
 import com.example.smarty.data.local.ChatMessageNotesDao
 import com.example.smarty.data.local.dao.AgentStepDao
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /**
@@ -150,12 +152,12 @@ class ChatRepository(
         }.distinctUntilChanged()
     }
 
-    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
+    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> = withContext(Dispatchers.Default) {
         val messageEntities = chatDao.getMessagesForSessionOnce(sessionId)
         val eventEntities = timelineEventDao.getEventsForSession(sessionId)
         val eventsByMessageId = eventEntities.groupBy { it.traceId }
 
-        return messageEntities.map { entity ->
+        messageEntities.map { entity ->
             val baseMessage = entity.toChatMessage()
             val parsedEvents =
                 eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
@@ -171,6 +173,40 @@ class ChatRepository(
             baseMessage.copy(agentEvents = parsedEvents)
         }
     }
+
+    /**
+     * Load a page of messages with their timeline events.
+     * Uses LIMIT/OFFSET pagination — only loads [pageSize] messages at a time.
+     * Returns messages in chronological order (oldest first).
+     */
+    suspend fun loadMessagesPage(
+        sessionId: String,
+        page: Int,
+        pageSize: Int = 20,
+    ): List<ChatMessage> = withContext(Dispatchers.Default) {
+        val offset = page * pageSize
+        val messageEntities = chatDao.getMessagesPage(sessionId, pageSize, offset)
+        if (messageEntities.isEmpty()) return@withContext emptyList()
+
+        val messageIds = messageEntities.map { it.id }
+        val eventEntities = timelineEventDao.getEventsForMessageIds(messageIds)
+        val eventsByMessageId = eventEntities.groupBy { it.traceId }
+
+        messageEntities.map { entity ->
+            val baseMessage = entity.toChatMessage()
+            val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                try {
+                    Json.decodeFromString(
+                        com.example.smarty.protocol.AgentEvent.serializer(),
+                        eventEntity.payloadJson,
+                    )
+                } catch (e: Exception) { null }
+            } ?: emptyList()
+            baseMessage.copy(agentEvents = parsedEvents)
+        }
+    }
+
+    suspend fun getMessageCount(sessionId: String): Int = chatDao.getMessageCountForSession(sessionId)
 
     suspend fun deleteMessage(messageId: String): Boolean {
         Log.d(TAG, "Entering ChatRepository.deleteMessage for messageId: $messageId")

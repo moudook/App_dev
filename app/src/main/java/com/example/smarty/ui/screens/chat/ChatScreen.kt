@@ -73,6 +73,15 @@ fun ChatScreen(
             listState.scrollToItem(messages.size)
         }
     }
+
+    // Pagination: load more messages when user scrolls near the top
+    val hasMoreMessages by viewModel.hasMoreMessages.collectAsState()
+    val isLoadingPage by viewModel.isLoadingPage.collectAsState()
+    LaunchedEffect(listState.firstVisibleItemIndex, messages.size) {
+        if (messages.isNotEmpty() && listState.firstVisibleItemIndex <= 5 && hasMoreMessages && !isLoadingPage) {
+            viewModel.loadMoreMessages()
+        }
+    }
     
     // Pre-compute group positions once per list change — avoids O(n²) per recomposition
     val groupPositions by remember {
@@ -116,6 +125,20 @@ fun ChatScreen(
                     )
                 }
             } else {
+                // Loading indicator at top when fetching older messages
+                if (isLoadingPage) {
+                    item(key = "loading_top") {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+                }
                 items(
                     items = messages,
                     key = { message -> message.id }

@@ -88,6 +88,15 @@ class ChatViewModel(
     private val _chatState = MutableStateFlow(ChatState.initial())
     val chatState: StateFlow<ChatState> = _chatState.asStateFlow()
 
+    // Pagination state
+    private val _hasMoreMessages = MutableStateFlow(false)
+    val hasMoreMessages: StateFlow<Boolean> = _hasMoreMessages.asStateFlow()
+    private val _isLoadingPage = MutableStateFlow(false)
+    val isLoadingPage: StateFlow<Boolean> = _isLoadingPage.asStateFlow()
+    private var currentPage = 0
+    private var totalMessageCount = 0
+    private val PAGE_SIZE = 20
+
     // UI state - separated from domain state
     private val _uiState = MutableStateFlow(ChatUiState.initial())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -651,6 +660,35 @@ class ChatViewModel(
      */
     private fun handleDismissError() {
         _chatState.update { it.copy(errorMessage = null) }
+    }
+
+    /**
+     * Load the next page of messages when user scrolls near the top.
+     * Called from ChatUI when LazyColumn reaches within 5 items of the top.
+     */
+    fun loadMoreMessages() {
+        val sessionId = _chatState.value.currentSessionId ?: return
+        if (_isLoadingPage.value || !_hasMoreMessages.value) return
+
+        viewModelScope.launch {
+            _isLoadingPage.value = true
+            try {
+                currentPage++
+                val newMessages = chatRepository.loadMessagesPage(sessionId, page = currentPage, pageSize = PAGE_SIZE)
+                    .distinctBy { it.id }
+                if (newMessages.isNotEmpty()) {
+                    _chatState.update { state ->
+                        state.copy(messages = newMessages + state.messages)
+                    }
+                    _hasMoreMessages.value = _chatState.value.messages.size < totalMessageCount
+                    Log.d(TAG, "Loaded page $currentPage: ${newMessages.size} new messages (${_chatState.value.messages.size}/${totalMessageCount} total)")
+                } else {
+                    _hasMoreMessages.value = false
+                }
+            } finally {
+                _isLoadingPage.value = false
+            }
+        }
     }
 
     /**

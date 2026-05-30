@@ -18,6 +18,9 @@ interface TimelineEventDao {
     @Query("SELECT * FROM timeline_events WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getEventsForSession(sessionId: String): List<TimelineEventEntity>
 
+    @Query("SELECT * FROM timeline_events WHERE traceId IN (:messageIds) ORDER BY timestamp ASC")
+    suspend fun getEventsForMessageIds(messageIds: List<String>): List<TimelineEventEntity>
+
     @Query("SELECT * FROM timeline_events WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun getEventsForSessionFlow(sessionId: String): Flow<List<TimelineEventEntity>>
 
