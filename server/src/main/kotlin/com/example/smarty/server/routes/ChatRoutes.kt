@@ -6,7 +6,6 @@ import com.example.smarty.protocol.ClientEvent
 import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.AgentPersistenceManager
 import com.example.smarty.server.agent.ServerAgent
-import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
@@ -466,50 +465,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             collectedAgentSteps[event.stepIndex] = event
                         }
 
-                        // PROGRESSIVE SAVE: Save thinking AND tool calls to database during streaming
-                        // This ensures thinking and tools are persisted even if stream fails
-                        if (event is AgentEvent.Processing || event is AgentEvent.ToolCall || event is AgentEvent.AgentStep) {
-                            val currentThinking =
-                                ThinkingStorageManagerSingleton.instance
-                                    .getCurrentThinking(activeSessionId)
 
-                            // Extract tool calls from thinking trace for progressive save
-                            val currentToolCalls =
-                                if (currentThinking.contains("SMARTY_TRACE_V2")) {
-                                    // Parse tool calls from thinking trace
-                                    currentThinking.substringAfter("SMARTY_TRACE_V2:")
-                                } else {
-                                    null
-                                }
-
-                            val currentAgentEventsJson: String? = null
-                            val currentAgentStepsJson: String? = null
-
-                            if (currentThinking.isNotBlank() || currentAgentStepsJson != null || currentAgentEventsJson != null) {
-                                if (messageIdParam != null) {
-                                    chatRepository?.saveMessageWithId(
-                                        userId = userId,
-                                        sessionId = activeSessionId,
-                                        messageId = messageIdParam,
-                                        role = "assistant",
-                                        content = "",
-                                        thinking = currentThinking,
-                                        toolCalls = currentToolCalls,
-                                        agentStepsJson = currentAgentStepsJson,
-                                        agentEventsJson = currentAgentEventsJson,
-                                    )
-                                } else {
-                                    chatRepository?.updateMessageThinking(
-                                        userId = userId,
-                                        sessionId = activeSessionId,
-                                        thinking = currentThinking,
-                                        toolCalls = currentToolCalls,
-                                        agentStepsJson = currentAgentStepsJson,
-                                        agentEventsJson = currentAgentEventsJson,
-                                    )
-                                }
-                            }
-                        }
 
                         val eventType =
                             when (event) {
@@ -634,10 +590,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             // Retrieve the rich SMARTY_TRACE_V2 thinking trace that was built during
                             // streaming. This is the correct source for the thinking field — the old
                             // <think>-tag extraction no longer works with the new trace format.
-                            val thinkingTrace =
-                                ThinkingStorageManagerSingleton.instance
-                                    .finalizeAndGetThinking(activeSessionId)
-                                    .ifBlank { null }
+                            val thinkingTrace: String? = null
 
                             // Convert citations to JSON
                             val citationsJson =
@@ -657,7 +610,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     messageId = messageIdParam,
                                     role = LlmMessage.Role.ASSISTANT.name,
                                     content = assistantResponse,
-                                    thinking = thinkingTrace,
+                                    thinking = null,
                                     toolCalls = citationsJson,
                                     agentStepsJson = agentStepsJson,
                                     agentEventsJson = finalAgentEventsJson,
@@ -668,7 +621,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     sessionId = sessionId!!,
                                     role = LlmMessage.Role.ASSISTANT.name,
                                     content = assistantResponse,
-                                    thinking = thinkingTrace,
+                                    thinking = null,
                                     toolCalls = citationsJson,
                                     agentStepsJson = agentStepsJson,
                                     agentEventsJson = finalAgentEventsJson,
@@ -709,8 +662,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     // Reject pending approvals to prevent hanging coroutines (C2 fix)
                     com.example.smarty.server.agent.ApprovalRegistry
                         .cancelApprovalsForSession(activeSessionId)
-                    // Free thinking trace memory for this session
-                    ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
                     // Always end the active session
                     com.example.smarty.server.agent.ActiveSessionManager
                         .endSession(userId, activeSessionId)
@@ -1019,10 +970,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         if (chatRepository != null && assistantResponse.isNotEmpty()) {
                             // Retrieve the rich SMARTY_TRACE_V2 thinking trace persisted during
                             // streaming instead of regex-parsing deprecated <think> tags.
-                            val thinkingTrace =
-                                ThinkingStorageManagerSingleton.instance
-                                    .finalizeAndGetThinking(activeSessionId)
-                                    .ifBlank { null }
+                            val thinkingTrace: String? = null
 
                             // Convert citations to JSON
                             val citationsJson =
@@ -1068,7 +1016,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 sessionId = sessionId!!,
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
-                                thinking = thinkingTrace,
+                                thinking = null,
                                 toolCalls = citationsJson,
                                 agentStepsJson = agentStepsJson,
                                 agentEventsJson = finalAgentEventsJson,
@@ -1094,7 +1042,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             mapOf("error" to "An internal error occurred."),
                         )
                     } finally {
-                        ThinkingStorageManagerSingleton.instance.clear(activeSessionId)
                         com.example.smarty.server.agent.ActiveSessionManager
                             .endSession(userId, activeSessionId)
                     }

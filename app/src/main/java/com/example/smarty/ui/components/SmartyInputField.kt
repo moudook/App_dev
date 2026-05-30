@@ -213,7 +213,10 @@ fun SmartyInputField(
                 .background(if (isDark) Color(0xFF1E1E1E) else Color.White)
                 .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(cornerRadius))
                 .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f))
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(
+                    horizontal = if (isAskingQuestion) 12.dp else 16.dp,
+                    vertical = if (isAskingQuestion) 12.dp else 10.dp
+                )
         ) {
 
         if (isAskingQuestion) {
@@ -270,7 +273,7 @@ fun SmartyInputField(
                 ) {
                     currentRequest.options.forEachIndexed { index, option ->
                         Surface(
-                            shape = RoundedCornerShape(8.dp), // Restored to 8.dp for concentric curve matching (24.dp outer - 16.dp padding = 8.dp inner)
+                            shape = RoundedCornerShape(12.dp), // Perfect concentric nesting: 24.dp outer radius - 12.dp padding = 12.dp inner radius
                             color = optionBg,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -310,8 +313,8 @@ fun SmartyInputField(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
-                                    .background(optionBg, RoundedCornerShape(8.dp))
-                                    .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .background(optionBg, RoundedCornerShape(12.dp))
+                                    .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                                     .padding(horizontal = 16.dp)
                             ) {
                                 BasicTextField(
@@ -347,7 +350,7 @@ fun SmartyInputField(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .squishClick { isEditingCustomAnswer = true }
-                                    .background(optionBg, RoundedCornerShape(8.dp))
+                                    .background(optionBg, RoundedCornerShape(12.dp))
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {

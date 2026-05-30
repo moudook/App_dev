@@ -105,14 +105,6 @@ val SystemGray5 = Color(0xFFE5E5EA)
 // =============================================================================
 // COMPONENT SPECIFIC SEMANTIC COLORS
 // =============================================================================
-/** Thinking section colors - Differentiated from standard response */
-val ThinkingBackgroundLight = Color(0xFFF2F2F7).copy(alpha = 0.6f)
-val ThinkingBorderLight = Color(0xFFE5E5EA).copy(alpha = 0.4f)
-val ThinkingTextLight = Color(0xFF58585E)
-
-val ThinkingBackgroundDark = Color(0xFF1C1C1E).copy(alpha = 0.5f)
-val ThinkingBorderDark = Color(0xFF38383A).copy(alpha = 0.3f)
-val ThinkingTextDark = Color(0xFF8E8E93)
 val SystemGray4 = Color(0xFFD1D1D6)
 val SystemGray3 = Color(0xFFC7C7CC)
 val SystemGray = Color(0xFF8E8E93)

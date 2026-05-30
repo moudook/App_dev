@@ -24,31 +24,6 @@ import androidx.core.view.WindowCompat
 import com.example.smarty.ui.LocalAccentColor
 
 /**
- * Thinking Section Specific Colors
- */
-data class ThinkingColors(
-    val background: Color,
-    val border: Color,
-    val text: Color
-)
-
-val LocalThinkingColors = staticCompositionLocalOf {
-    ThinkingColors(
-        background = Color.Transparent,
-        border = Color.Transparent,
-        text = Color.Unspecified
-    )
-}
-
-/**
- * Access thinking colors from any composable
- */
-val MaterialTheme.thinkingColors: ThinkingColors
-    @Composable
-    @ReadOnlyComposable
-    get() = LocalThinkingColors.current
-
-/**
  * Dark Color Scheme - Monochrome Aesthetic
  * Background: #000000 (true black)
  * Primary: #FFFFFF (pure white)
@@ -271,23 +246,6 @@ fun SmartyTheme(
     // Animate all colors for smooth theme transition
     val animatedColorScheme = animateColorScheme(targetColorScheme)
 
-    // Setup Thinking Section Colors based on theme
-    val thinkingColors = remember(darkTheme) {
-        if (darkTheme) {
-            ThinkingColors(
-                background = ThinkingBackgroundDark,
-                border = ThinkingBorderDark,
-                text = ThinkingTextDark
-            )
-        } else {
-            ThinkingColors(
-                background = ThinkingBackgroundLight,
-                border = ThinkingBorderLight,
-                text = ThinkingTextLight
-            )
-        }
-    }
-
     val view = LocalView.current
     if (!view.isInEditMode && !isTransparent) {
         // BUG-057 fix: Use animated background to prevent flash during theme switch
@@ -342,7 +300,6 @@ fun SmartyTheme(
     CompositionLocalProvider(
         LocalSpacing provides Spacing(),
         LocalShapes provides SmartyShapes(),
-        LocalThinkingColors provides thinkingColors,
         LocalAccentColor provides animatedColorScheme.primary
     ) {
         MaterialTheme(

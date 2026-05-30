@@ -21,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -30,124 +29,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.features.chat.ui.thinking.OrganicThinkingIndicator
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.components.markdown.MarkdownRenderer
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tier 1 — Semantic Cards
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Collapsible reasoning / thinking card.
- * Shows a pulsing OrganicThinkingIndicator while [isStreaming].
- * Contains a left-border formatted markdown reasoning block.
- */
-@Composable
-fun ThinkingCard(
-    node: TimelineNode.Thinking,
-    modifier: Modifier = Modifier,
-) {
-    val accentColor = LocalAccentColor.current
-    var expanded by remember(node.id) { mutableStateOf(node.isStreaming || node.text.isNotBlank()) }
-
-    LaunchedEffect(node.isStreaming) {
-        if (node.isStreaming) expanded = true
-    }
-
-    Column(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        // Header row — always visible
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { expanded = !expanded }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (node.isStreaming) {
-                OrganicThinkingIndicator(size = 16.dp, baseColor = accentColor)
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-
-            val labelAlpha = if (node.isStreaming) {
-                val transition = rememberInfiniteTransition(label = "thinkingPulse")
-                val a by transition.animateFloat(
-                    initialValue = 0.4f, targetValue = 1f,
-                    animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
-                    label = "a"
-                )
-                a
-            } else 1f
-
-            Text(
-                text = if (node.isStreaming) "Thinking…" else "Thoughts",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.5.sp,
-                ),
-                color = if (node.isStreaming) accentColor
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier.alpha(labelAlpha),
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-
-        // Content — collapsible
-        AnimatedVisibility(
-            visible = expanded && node.text.isNotBlank(),
-            enter = expandVertically(tween(280)) + fadeIn(tween(200)),
-            exit = shrinkVertically(tween(220)) + fadeOut(tween(150)),
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(start = 8.dp, top = 10.dp, bottom = 8.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Spacer(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .heightIn(min = 16.dp)
-                        .fillMaxHeight()
-                        .background(accentColor.copy(alpha = 0.28f), RoundedCornerShape(2.dp))
-                )
-                Box(modifier = Modifier.weight(1f)) {
-                    MarkdownRenderer(
-                        content = node.text,
-                        isUser = false,
-                        normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        boldColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        linkColor = accentColor.copy(alpha = 0.75f),
-                        codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        isStreaming = node.isStreaming,
-                    )
-                }
-            }
-        }
-    }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**

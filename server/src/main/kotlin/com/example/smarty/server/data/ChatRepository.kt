@@ -405,36 +405,7 @@ class ChatRepository(
         toolCalls: String? = null,
         agentStepsJson: String? = null,
         agentEventsJson: String? = null,
-    ): MessageRecord? =
-        withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                // Single query: find latest assistant message and update it
-                val sql =
-                    """
-                    UPDATE chat_messages SET thinking = ?, tool_calls = COALESCE(?::jsonb, tool_calls),
-                        agent_steps_json = COALESCE(?::jsonb, agent_steps_json),
-                        agent_events_json = COALESCE(?::jsonb, agent_events_json),
-                        updated_at = now()
-                    WHERE id = (
-                        SELECT id FROM chat_messages 
-                        WHERE session_id = ?::uuid AND user_id = ?::uuid AND role = 'assistant' 
-                        ORDER BY created_at DESC LIMIT 1
-                    )
-                    RETURNING *
-                    """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, thinking)
-                    stmt.setString(2, toolCalls)
-                    stmt.setString(3, agentStepsJson)
-                    stmt.setString(4, agentEventsJson)
-                    stmt.setString(5, sessionId)
-                    stmt.setString(6, userId)
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) mapRowToMessageRecord(rs) else null
-                    }
-                }
-            }
-        }
+    ): MessageRecord? = null
 
     suspend fun listAllSessions(
         userId: String,

@@ -678,7 +678,6 @@ class AssistViewModel(
         pendingInlineImages.clear()
         pendingToolCalls.clear()
         val responseBuilder = StringBuilder()
-        var finalThinking: String? = null
         val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
         val streamingMessageId = java.util.UUID.randomUUID().toString()
         chatManager.addSmartyMessage(
@@ -727,22 +726,20 @@ class AssistViewModel(
                 when (event) {
                     is com.example.smarty.protocol.AgentEvent.Processing -> {
                         event.content.let { responseBuilder.append(it) }
-                        event.thinking?.let { finalThinking = it }
                         chatManager.updateMessageWithThinking(
                             streamingMessageId,
                             responseBuilder.toString(),
-                            event.thinking,
+                            null,
                             agentEvents = agentEventsBuilder.toList(),
                         )
                     }
                     is com.example.smarty.protocol.AgentEvent.Result -> {
                         // Server sends empty content in Result to avoid duplication.
                         // The accumulated content from Processing events is the final answer.
-                        finalThinking = event.thinking ?: finalThinking
                         chatManager.updateMessageWithThinking(
                             streamingMessageId,
                             responseBuilder.toString(),
-                            finalThinking,
+                            null,
                             agentEvents = agentEventsBuilder.toList(),
                         )
                         if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
@@ -771,7 +768,7 @@ class AssistViewModel(
                         chatManager.updateMessageWithThinking(
                             streamingMessageId,
                             responseBuilder.toString(),
-                            finalThinking,
+                            null,
                             agentEvents = agentEventsBuilder.toList(),
                         )
                     }
@@ -801,7 +798,7 @@ class AssistViewModel(
                         chatManager.updateMessageWithThinking(
                             streamingMessageId,
                             responseBuilder.toString(),
-                            finalThinking,
+                            null,
                             agentEvents = agentEventsBuilder.toList(),
                         )
                     }
@@ -818,7 +815,7 @@ class AssistViewModel(
                     citations = pendingCitations.toList(),
                     isStreaming = false,
                     agentEvents = agentEventsBuilder.toList(),
-                    thinking = finalThinking,
+                    thinking = null,
                 )
             chatManager.replaceMessage(streamingMessageId, smartyMessage)
             chatManager.markApiCallSuccessful()

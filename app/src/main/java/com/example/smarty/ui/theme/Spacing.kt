@@ -110,17 +110,6 @@ object ComponentSpacing {
  val bubbleCornerLarge = 24.dp
  val bubbleCornerSmall = 6.dp
 
- // Thinking section constants
- val thinkingPaddingHorizontal = 12.dp
- val thinkingPaddingVertical = 10.dp
- val thinkingHeaderGap = 8.dp
- val thinkingTextGap = 8.dp
- val thinkingLineGap = 12.dp
- val thinkingLineMargin = 4.dp
- val thinkingLineWidth = 1.5.dp
- val thinkingIndicatorSize = 16.dp
- val thinkingMarginBottom = 12.dp
-
  // Note card constants
  val noteCardHeight = 100.dp
  val noteCardPaddingHorizontal = 20.dp

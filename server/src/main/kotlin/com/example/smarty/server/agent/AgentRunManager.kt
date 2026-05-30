@@ -105,69 +105,7 @@ object AgentRunManager {
                         }
                     }
 
-                    // Progressive save for active WebSocket stream (so crashes don't lose data)
-                    if (chatRepository != null &&
-                        (event is AgentEvent.Processing || event is AgentEvent.ToolCall || event is AgentEvent.AgentStep)
-                    ) {
-                        val currentThinking = ThinkingStorageManagerSingleton.instance.getCurrentThinking(sessionId)
-                        val currentToolCalls =
-                            if (currentThinking.contains(
-                                    "SMARTY_TRACE_V2",
-                                )
-                            ) {
-                                currentThinking.substringAfter("SMARTY_TRACE_V2:")
-                            } else {
-                                null
-                            }
 
-                        val currentAgentEventsJson =
-                            if (collectedAgentSteps.isNotEmpty() || event !is AgentEvent.Processing) {
-                                val filteredEvents =
-                                    collectedAgentEvents.filter {
-                                        it !is AgentEvent.Processing &&
-                                            it !is AgentEvent.OpencodeRawEvent
-                                    }
-                                if (filteredEvents.isNotEmpty()) {
-                                    kotlinx.serialization.json.Json
-                                        .encodeToString(filteredEvents)
-                                } else {
-                                    null
-                                }
-                            } else {
-                                null
-                            }
-
-                        val currentAgentStepsJson =
-                            if (collectedAgentSteps.isNotEmpty()) {
-                                val entries =
-                                    collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                        com.example.smarty.core.domain.model.AgentStepEntry(
-                                            stepType = step.stepType,
-                                            stepTitle = step.stepTitle,
-                                            stepContent = step.stepContent,
-                                            stepStatus = step.stepStatus,
-                                            stepIndex = step.stepIndex,
-                                            toolName = step.toolName,
-                                            durationMs = step.durationMs,
-                                        )
-                                    }
-                                kotlinx.serialization.json.Json
-                                    .encodeToString(entries)
-                            } else {
-                                null
-                            }
-
-                        if (currentThinking.isNotBlank() || currentAgentStepsJson != null || currentAgentEventsJson != null) {
-                            chatRepository.updateMessageThinking(
-                                userId = userId,
-                                sessionId = sessionId,
-                                thinking = currentThinking,
-                                toolCalls = currentToolCalls,
-                                agentStepsJson = currentAgentStepsJson,
-                                agentEventsJson = currentAgentEventsJson,
-                            )
-                        }
-                    }
                 }
 
                 val agent =
@@ -223,10 +161,7 @@ object AgentRunManager {
 
                     // The repository saving happens in the AgentRunManager now (moved from ChatRoutes)
                     if (chatRepository != null && assistantResponse.isNotEmpty()) {
-                        val thinkingTrace =
-                            ThinkingStorageManagerSingleton.instance
-                                .finalizeAndGetThinking(sessionId)
-                                .ifBlank { null }
+                        val thinkingTrace: String? = null
 
                         val citationsJson =
                             if (collectedCitations.isNotEmpty()) {
@@ -280,7 +215,7 @@ object AgentRunManager {
                                 messageId = messageId,
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
-                                thinking = thinkingTrace,
+                                thinking = null,
                                 toolCalls = citationsJson,
                                 agentStepsJson = agentStepsJson,
                                 agentEventsJson = finalAgentEventsJson,
@@ -291,7 +226,7 @@ object AgentRunManager {
                                 sessionId = sessionId,
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
-                                thinking = thinkingTrace,
+                                thinking = null,
                                 toolCalls = citationsJson,
                                 agentStepsJson = agentStepsJson,
                                 agentEventsJson = finalAgentEventsJson,

@@ -143,27 +143,19 @@ data class ChatMessageEntity(
                 emptyList()
             }
 
-        // Parse tool calls from toolCallsJson OR from SMARTY_TRACE_V2 thinking payload
+        // Parse tool calls from toolCallsJson only
         val toolCalls: List<AgentToolCallEntry> =
             try {
                 when {
                     toolCallsJson.isNotBlank() && toolCallsJson != "[]" ->
                         parseToolCallsJson(toolCallsJson)
-                    thinking != null && thinking.startsWith(TRACE_PREFIX) ->
-                        parseToolCallsFromTrace(thinking)
                     else -> emptyList()
                 }
             } catch (e: Exception) {
                 emptyList()
             }
 
-        // Strip the SMARTY_TRACE_V2 prefix from the thinking field (UI gets clean reasoning)
-        val cleanThinking: String? =
-            when {
-                thinking == null -> null
-                thinking.startsWith(TRACE_PREFIX) -> extractReasoningFromTrace(thinking)
-                else -> thinking
-            }
+        val cleanThinking: String? = null
 
         val agentEvents: List<AgentEvent> =
             try {
@@ -186,7 +178,7 @@ data class ChatMessageEntity(
             referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
             citations = citations,
             inlineImages = inlineImages,
-            thinking = cleanThinking,
+            thinking = null,
             toolCalls = toolCalls,
             agentSteps = parseAgentStepsJson(agentStepsJson),
             agentEvents = agentEvents,
@@ -249,7 +241,7 @@ data class ChatMessageEntity(
                 referencedNoteIds = message.referencedNoteIds.joinToString(","),
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson,
-                thinking = message.thinking,
+                thinking = null,
                 toolCallsJson = toolCallsJson,
                 agentStepsJson = agentStepsJson,
                 agentEventsJson = agentEventsJson,
@@ -397,12 +389,6 @@ data class ChatMessageEntity(
             return "[${items.joinToString(",")}]"
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // SMARTY_TRACE_V2 helpers
-        // ─────────────────────────────────────────────────────────────────────
-
-        const val TRACE_PREFIX = "SMARTY_TRACE_V2:"
-
         /**
          * Parse tool calls from our custom toolCallsJson column.
          * Format: [{"toolName":"...","status":"...","displayName":"...","inputSummary":"...","outputSummary":"...","queries":[...]}]
@@ -428,60 +414,6 @@ data class ChatMessageEntity(
             } catch (_: Exception) {
             }
             return entries
-        }
-
-        /**
-         * Parse tool calls from the SMARTY_TRACE_V2 trace stored in the thinking field.
-         * Extracts only the "tool" type blocks.
-         */
-        fun parseToolCallsFromTrace(trace: String): List<AgentToolCallEntry> {
-            val entries = mutableListOf<AgentToolCallEntry>()
-            try {
-                val json = trace.removePrefix(TRACE_PREFIX).trim()
-                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
-                for (item in items) {
-                    val fields = parseJsonFields(item)
-                    if (fields["type"] != "tool") continue
-                    val queries = parseSearchQueriesFromField(fields["queries"] ?: "[]")
-                    val toolName = fields["name"] ?: ""
-                    val inputSummary = fields["input"]
-                    entries.add(
-                        AgentToolCallEntry(
-                            toolName = toolName,
-                            status = fields["status"] ?: "completed",
-                            displayName = buildDisplayName(toolName, inputSummary),
-                            inputSummary = inputSummary,
-                            outputSummary = fields["output"],
-                            searchQueries = queries,
-                        ),
-                    )
-                }
-            } catch (_: Exception) {
-            }
-            return entries
-        }
-
-        /**
-         * Extract only the reasoning text blocks from a SMARTY_TRACE_V2 string.
-         * Returns null if there is no reasoning content.
-         */
-        fun extractReasoningFromTrace(trace: String): String? {
-            return try {
-                val json = trace.removePrefix(TRACE_PREFIX).trim()
-                val items = splitJsonObjects(json.trim().removePrefix("[").removeSuffix("]"))
-                val sb = StringBuilder()
-                for (item in items) {
-                    val fields = parseJsonFields(item)
-                    if (fields["type"] == "reasoning") {
-                        val text = fields["text"] ?: continue
-                        if (sb.isNotEmpty()) sb.append("\n")
-                        sb.append(text)
-                    }
-                }
-                sb.toString().takeIf { it.isNotBlank() }
-            } catch (_: Exception) {
-                null
-            }
         }
 
         /** Serialise AgentToolCallEntry list to JSON for the toolCallsJson column. */

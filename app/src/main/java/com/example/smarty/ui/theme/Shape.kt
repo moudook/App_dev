@@ -44,9 +44,6 @@ data class SmartyShapes(
     val fab: RoundedCornerShape = RoundedCornerShape(16.dp),
     val iconButton: RoundedCornerShape = RoundedCornerShape(12.dp),
 
-    // Thinking section shape
-    val thinkingContainer: RoundedCornerShape = RoundedCornerShape(12.dp),
-
     // Avatar (circular)
     val avatar: RoundedCornerShape = RoundedCornerShape(50),
 

@@ -1781,7 +1781,6 @@ class ChatFeatureManager(
 
             // Collect chunks from the remote stream and update UI live
             val responseBuilder = StringBuilder()
-            val thinkingBuilder = StringBuilder()
             val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
@@ -1808,24 +1807,10 @@ class ChatFeatureManager(
                                 responseBuilder.append(event.content)
                             }
                             extractAndStripInlineTags(responseBuilder, streamingMessageId)
-                            // Handle thinking from server - replace, not append (server sends full accumulated thinking)
-                            event.thinking?.let { thinking ->
-                                thinkingBuilder.clear()
-                                val cleanThinking =
-                                    if (thinking.startsWith(
-                                            "SMARTY_TRACE_V2:",
-                                        )
-                                    ) {
-                                        thinking.removePrefix("SMARTY_TRACE_V2:").trim()
-                                    } else {
-                                        thinking
-                                    }
-                                thinkingBuilder.append(cleanThinking)
-                            }
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
                                 responseBuilder.toString(),
-                                thinkingBuilder.toString().ifEmpty { null },
+                                null,
                                 agentEvents = agentEventsBuilder.toList(),
                             )
                         }
@@ -1834,20 +1819,6 @@ class ChatFeatureManager(
                             // This prevents duplication from accumulated Processing chunks
                             val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
                             extractAndStripInlineTags(StringBuilder(finalContent), streamingMessageId)
-                            event.thinking?.let { thinking ->
-                                // Final thinking - replace to ensure clean content
-                                thinkingBuilder.clear()
-                                val cleanThinking =
-                                    if (thinking.startsWith(
-                                            "SMARTY_TRACE_V2:",
-                                        )
-                                    ) {
-                                        thinking.removePrefix("SMARTY_TRACE_V2:").trim()
-                                    } else {
-                                        thinking
-                                    }
-                                thinkingBuilder.append(cleanThinking)
-                            }
                             // Capture citations from Result event (primary source for web search results)
                             if (event.citations.isNotEmpty()) {
                                 event.citations.forEach { citation ->
@@ -1866,7 +1837,7 @@ class ChatFeatureManager(
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
                                 finalContent,
-                                thinkingBuilder.toString().ifEmpty { null },
+                                null,
                                 capturedConfidence,
                                 capturedSourceType,
                                 agentEventsBuilder.toList(),
@@ -2031,39 +2002,11 @@ class ChatFeatureManager(
                 } // This closes the .collect { event -> block
 
             val fullResponse = responseBuilder.toString()
-            val fullThinking = thinkingBuilder.toString()
-
-            // Debug logging for thinking section verification
-            Log.d(
-                "ChatFeatureManager",
-                "saveMessage: fullThinking length=${fullThinking.length}, hasToolCalls=${fullThinking.contains("[Action:")}",
-            )
-            if (fullThinking.isNotEmpty()) {
-                Log.d("ChatFeatureManager", "saveMessage: fullThinking preview=${fullThinking.take(300)}")
-            }
 
             // Handle success - replace streaming message with final message
             chatManager.markApiCallSuccessful()
 
-            // Use thinking from server events if available, otherwise parse from content
-            val parsedResponse =
-                if (fullThinking.isNotEmpty()) {
-                    var cleanAnswer = fullResponse
-                    if (cleanAnswer.startsWith(fullThinking)) {
-                        cleanAnswer = cleanAnswer.substring(fullThinking.length).trim()
-                    } else if (cleanAnswer.contains(fullThinking)) {
-                        cleanAnswer = cleanAnswer.replace(fullThinking, "").trim()
-                    }
-                    ParsedResponse(fullThinking.trim(), cleanAnswer)
-                } else {
-                    ThinkingParser.parse(fullResponse)
-                }
-
-            // Debug logging for parsed thinking
-            Log.d("ChatFeatureManager", "saveMessage: parsedResponse.thinking length=${parsedResponse.thinking?.length}")
-            if (parsedResponse.thinking != null) {
-                Log.d("ChatFeatureManager", "saveMessage: parsedResponse.thinking preview=${parsedResponse.thinking.take(300)}")
-            }
+            val parsedResponse = ThinkingParser.parse(fullResponse)
 
             // Retrieve streaming-accumulated fields before replacing the message
             val streamingMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
@@ -2072,7 +2015,7 @@ class ChatFeatureManager(
                     id = streamingMessageId,
                     role = ChatRole.SMARTY,
                     content = parsedResponse.answer.ifEmpty { "[No response received. Please try again.]" },
-                    thinking = parsedResponse.thinking,
+                    thinking = null,
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = pendingToolCalls.toList(), // Fix #10: Tools not visible - now populated

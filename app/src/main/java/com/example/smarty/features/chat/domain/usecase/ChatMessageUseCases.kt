@@ -69,7 +69,7 @@ class UpdateMessageUseCase(
             val updatedMessage =
                 existingMessage.copy(
                     content = content,
-                    thinking = thinking ?: existingMessage.thinking,
+                    thinking = null,
                     isStreaming = isStreaming,
                 )
             chatRepository.saveMessage(sessionId, updatedMessage)

@@ -77,7 +77,7 @@ object ChatMessageMapper {
                 if (msg.id == messageId) {
                     msg.copy(
                         content = content,
-                        thinking = thinking ?: msg.thinking,
+                        thinking = null,
                         isStreaming = msg.isStreaming,
                     )
                 } else {

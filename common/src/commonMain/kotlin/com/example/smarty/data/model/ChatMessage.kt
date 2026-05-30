@@ -137,7 +137,7 @@ data class ChatMessage(
     /**
      * Check if this message has a thinking/reasoning section
      */
-    val hasThinking: Boolean get() = thinking != null && thinking.isNotBlank()
+    val hasThinking: Boolean get() = false
 
     /**
      * Check if this message has agent action blocks to display
@@ -147,7 +147,7 @@ data class ChatMessage(
     /**
      * Show the full Action Panel if there's thinking, tool call blocks, or agent steps
      */
-    val hasActionPanel: Boolean get() = hasThinking || hasToolCalls || hasAgentSteps
+    val hasActionPanel: Boolean get() = hasToolCalls || hasAgentSteps
 
     val hasAgentSteps: Boolean get() = agentSteps.isNotEmpty()
 

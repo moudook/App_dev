@@ -105,7 +105,6 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 
 // Import extracted chat components for DRY principle
-import com.example.smarty.ui.components.chat.ThinkingSection
 import com.example.smarty.ui.components.chat.TextEffectPerWord
 import com.example.smarty.ui.components.chat.CitationCards
 import androidx.compose.ui.text.buildAnnotatedString
@@ -135,7 +134,6 @@ import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.thinkingColors
 import com.example.smarty.ui.theme.smartyShapes
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.LaTeXView
@@ -650,46 +648,26 @@ private fun MessageContent(
                     onApproval = onApproval
                 )
             } else {
-                if (message.hasActionPanel || (message.isStreaming && !message.thinking.isNullOrBlank()) || message.agentSteps.isNotEmpty()) {
-                    var thinkingExpanded by remember { mutableStateOf(message.isStreaming || message.hasActionPanel) }
-                    ThinkingSection(
-                        thinkingText = message.thinking ?: "",
-                        agentSteps = message.agentSteps,
-                        isExpanded = thinkingExpanded,
-                        isStreaming = message.isStreaming,
-                        onExpandToggle = { thinkingExpanded = !thinkingExpanded },
-                        toolCalls = message.toolCalls
-                    )
-                }
-
                 if (message.content.isNotEmpty()) {
                     val rawContent = if (isUser) message.content else cleanContent(message.content)
-                    val parsedAccordion = com.example.smarty.ui.components.chat.AccordionParser.parse(rawContent)
 
-                    if (parsedAccordion.accordions.isNotEmpty()) {
-                        com.example.smarty.ui.components.chat.AccordionResponse(
-                            parsedContent = parsedAccordion,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        TextEffectPerWord(
-                            text = rawContent,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.SansSerif,
-                                fontSize = 16.sp,
-                                lineHeight = 22.sp,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 0.sp
-                            ),
-                            normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                            boldColor = MaterialTheme.colorScheme.onSurface,
-                            linkColor = accentColor,
-                            codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                            isStreaming = message.isStreaming
-                        )
-                    }
+                    TextEffectPerWord(
+                        text = rawContent,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.SansSerif,
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp
+                        ),
+                        normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        boldColor = MaterialTheme.colorScheme.onSurface,
+                        linkColor = accentColor,
+                        codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        isStreaming = message.isStreaming
+                    )
 
                     val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
                     if (generateImageCall != null) {

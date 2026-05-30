@@ -23,16 +23,17 @@ sealed class TimelineNode {
     // ─────────────────────────────────────────────────────────
 
     /**
-     * Active reasoning trace — accumulates ReasoningDelta events.
+     * Represents agent reasoning (thinking) phase.
      */
     @Immutable
     data class Thinking(
         override val id: String,
         override val timestamp: Long,
-        val text: String,               // Accumulated reasoning text so far
-        val isStreaming: Boolean,        // True if still receiving deltas
-        val subagentId: String? = null,
+        val text: String,
+        val isStreaming: Boolean = false,
     ) : TimelineNode()
+
+
 
     /**
      * A single tool invocation (from ToolCallStarted → ToolCallFinished).

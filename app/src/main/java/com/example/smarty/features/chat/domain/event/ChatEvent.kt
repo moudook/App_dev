@@ -57,10 +57,6 @@ sealed class ChatEvent {
 
     data class HistorySheetToggled(val isVisible: Boolean) : ChatEvent()
 
-    data class ThinkingExpanded(val messageId: String) : ChatEvent()
-
-    data class ThinkingCollapsed(val messageId: String) : ChatEvent()
-
     data class ContextMenuOpened(val messageId: String) : ChatEvent()
 
     data object ContextMenuClosed : ChatEvent()

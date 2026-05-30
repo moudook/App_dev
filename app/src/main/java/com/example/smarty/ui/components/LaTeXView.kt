@@ -1,90 +1,94 @@
 package com.example.smarty.ui.components
 
-import android.annotation.SuppressLint
-import android.graphics.Color
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
+import ru.noties.jlatexmath.JLatexMathDrawable
 
-@SuppressLint("SetJavaScriptEnabled")
+class JLatexMathPainter(
+    private val latex: String,
+    private val textSizePx: Float,
+    private val textColorInt: Int,
+    private val backgroundColorInt: Int
+) : Painter() {
+    
+    private val drawable by lazy {
+        try {
+            JLatexMathDrawable.builder(latex)
+                .textSize(textSizePx)
+                .color(textColorInt)
+                .background(backgroundColorInt)
+                .align(JLatexMathDrawable.ALIGN_CENTER)
+                .build()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override val intrinsicSize: Size
+        get() = drawable?.let {
+            Size(it.intrinsicWidth.toFloat(), it.intrinsicHeight.toFloat())
+        } ?: Size.Zero
+
+    override fun DrawScope.onDraw() {
+        drawable?.let { d ->
+            d.setBounds(0, 0, size.width.toInt(), size.height.toInt())
+            d.draw(drawContext.canvas.nativeCanvas)
+        }
+    }
+}
+
 @Composable
 fun LaTeXView(
     latex: String,
     isBlock: Boolean = true,
     modifier: Modifier = Modifier,
-    textColor: ComposeColor = if (isSystemInDarkTheme()) ComposeColor.White else ComposeColor.Black,
-    backgroundColor: ComposeColor = ComposeColor.Transparent
+    textColor: Color = if (isSystemInDarkTheme()) Color.White else Color.Black,
+    backgroundColor: Color = Color.Transparent
 ) {
-    val context = LocalContext.current
-    var isReady by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val textSizePx = with(density) { 16.sp.toPx() }
+    val textColorInt = textColor.toArgb()
+    val bgColorInt = backgroundColor.toArgb()
     
-    val minHeight = if (isBlock) 40.dp else 24.dp
-    val maxHeight = if (isBlock) 400.dp else 60.dp
-    
+    val painter = remember(latex, textSizePx, textColorInt, bgColorInt) {
+        JLatexMathPainter(latex, textSizePx, textColorInt, bgColorInt)
+    }
+
     Box(
-        modifier = modifier
-            .then(if (isBlock) Modifier.fillMaxWidth() else Modifier)
-            .heightIn(min = minHeight, max = maxHeight)
+        modifier = modifier.then(if (isBlock) Modifier.fillMaxWidth().padding(vertical = 8.dp) else Modifier),
+        contentAlignment = if (isBlock) Alignment.Center else Alignment.CenterStart
     ) {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = true
-                    settings.allowContentAccess = true
-                    setBackgroundColor(Color.TRANSPARENT)
-                    
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            isReady = true
-                        }
-                    }
-                    
-                    loadUrl("file:///android_asset/latex_render.html")
-                }
-            },
-            update = { webView ->
-                if (isReady && latex.isNotEmpty()) {
-                    val escapedLatex = latex
-                        .replace("\\", "\\\\")
-                        .replace("'", "\\'")
-                        .replace("\n", "\\n")
-                        .replace("\r", "")
-                    val hexColor = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
-                    
-                    // Try rendering immediately, retry after delay if KaTeX wasn't ready
-                    webView.evaluateJavascript(
-                        "renderLatex('$escapedLatex', $isBlock, '$hexColor')",
-                        null
-                    )
-                    // Retry after 500ms in case KaTeX CDN was still loading
-                    webView.postDelayed({
-                        webView.evaluateJavascript(
-                            "renderLatex('$escapedLatex', $isBlock, '$hexColor')",
-                            null
-                        )
-                    }, 500)
-                }
-            },
-            modifier = Modifier
-        )
+        if (painter.intrinsicSize == Size.Zero && latex.isNotEmpty()) {
+            // Render error fallback
+            Text(
+                text = "Math Error: $latex",
+                color = Color.Red,
+                fontSize = 12.sp
+            )
+        } else {
+            Image(
+                painter = painter,
+                contentDescription = "LaTeX Formula",
+                modifier = Modifier
+            )
+        }
     }
 }
 
@@ -92,7 +96,7 @@ fun LaTeXView(
 fun LaTeXViewInline(
     latex: String,
     modifier: Modifier = Modifier,
-    textColor: ComposeColor = if (isSystemInDarkTheme()) ComposeColor.White else ComposeColor.Black
+    textColor: Color = if (isSystemInDarkTheme()) Color.White else Color.Black
 ) {
     LaTeXView(
         latex = latex,

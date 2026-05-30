@@ -315,7 +315,6 @@ class ChatViewModel(
 
             // Actually call the AI service
             val responseBuilder = StringBuilder()
-            val thinkingBuilder = StringBuilder()
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
@@ -337,21 +336,11 @@ class ChatViewModel(
 
                     // ── Reasoning/thinking streaming (per-chunk deltas) ──
                     is com.example.smarty.protocol.AgentEvent.ReasoningDelta -> {
-                        thinkingBuilder.append(event.text)
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                thinking = thinkingBuilder.toString(),
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Thinking removed
                     }
 
                     is com.example.smarty.protocol.AgentEvent.ReasoningStarted -> {
-                        thinkingBuilder.clear()
-                        currentStreamingMessage =
-                            currentStreamingMessage.copy(
-                                thinking = "",
-                            )
-                        _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
+                        // Thinking removed
                     }
 
                     is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
@@ -365,14 +354,10 @@ class ChatViewModel(
                             responseBuilder.clear()
                             responseBuilder.append(event.content)
                         }
-                        if (!event.thinking.isNullOrEmpty()) {
-                            thinkingBuilder.clear()
-                            thinkingBuilder.append(event.thinking)
-                        }
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 content = responseBuilder.toString(),
-                                thinking = thinkingBuilder.toString(),
+                                thinking = null,
                             )
                         _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                     }
@@ -392,7 +377,7 @@ class ChatViewModel(
                             currentStreamingMessage.copy(
                                 isStreaming = false,
                                 content = responseBuilder.toString(),
-                                thinking = thinkingBuilder.toString(),
+                                thinking = null,
                             )
                         _chatState.update { state ->
                             state.copy(

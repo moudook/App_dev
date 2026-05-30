@@ -292,7 +292,7 @@ class ChatManager(
                     if (msg.id == messageId) {
                         msg.copy(
                             content = newContent,
-                            thinking = newThinking.takeIf { !it.isNullOrBlank() },
+                            thinking = null,
                             confidence = confidence ?: msg.confidence,
                             sourceType = sourceType ?: msg.sourceType,
                             agentEvents = agentEvents,
