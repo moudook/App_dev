@@ -95,12 +95,12 @@ object MarkdownAstParser {
             }
 
             // 2.5 Handle Accordion Group
-            if (trimStart.startsWith("[[[") && trimStart.endsWith("]]]") && !trimStart.startsWith("[[[/") && trimStart != "[[[]]]") {
+            if (trimStart.trimEnd().startsWith("[[[") && trimStart.trimEnd().endsWith("]]]") && !trimStart.trimEnd().startsWith("[[[/") && trimStart.trimEnd() != "[[[]]]") {
                 val sections = mutableListOf<AccordionItemData>()
                 
                 while (i < lines.size) {
                     val line = lines[i]
-                    val lineTrim = line.trimStart()
+                    val lineTrim = line.trim()
                     
                     if (lineTrim.startsWith("[[[") && lineTrim.endsWith("]]]") && !lineTrim.startsWith("[[[/") && lineTrim != "[[[]]]") {
                         val rawTitle = lineTrim.removePrefix("[[[").removeSuffix("]]]").trim()
@@ -111,7 +111,7 @@ object MarkdownAstParser {
                         var depth = 1
                         while (i < lines.size) {
                             val nextLine = lines[i]
-                            val nextTrim = nextLine.trimStart()
+                            val nextTrim = nextLine.trim()
                             
                             if (nextTrim.startsWith("[[[") && nextTrim.endsWith("]]]") && !nextTrim.startsWith("[[[/") && nextTrim != "[[[]]]") {
                                 depth++
@@ -264,19 +264,20 @@ object MarkdownAstParser {
     }
 
     private fun isBlockBreak(trimStart: String): Boolean {
-        if (trimStart.isEmpty()) return true
-        if (trimStart.startsWith("```")) return true
-        if (trimStart.startsWith("#") && trimStart.contains(" ")) return true
-        if (trimStart.startsWith(">")) return true
-        if (trimStart.startsWith("|")) return true
-        if (trimStart.startsWith("- ") || trimStart.startsWith("* ")) return true
-        if (trimStart.firstOrNull()?.isDigit() == true && trimStart.contains(". ")) {
-            val dotIdx = trimStart.indexOf(". ")
+        val trimmed = trimStart.trimEnd()
+        if (trimmed.isEmpty()) return true
+        if (trimmed.startsWith("```")) return true
+        if (trimmed.startsWith("#") && trimmed.contains(" ")) return true
+        if (trimmed.startsWith(">")) return true
+        if (trimmed.startsWith("|")) return true
+        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) return true
+        if (trimmed.firstOrNull()?.isDigit() == true && trimmed.contains(". ")) {
+            val dotIdx = trimmed.indexOf(". ")
             if (dotIdx in 1..3) return true
         }
-        if (trimStart.matches(horizontalRule)) return true
-        if (trimStart.startsWith("$$") || trimStart.startsWith("\\[")) return true
-        if (trimStart.startsWith("[[[") && trimStart.endsWith("]]]")) return true
+        if (trimmed.matches(horizontalRule)) return true
+        if (trimmed.startsWith("$$") || trimmed.startsWith("\\[")) return true
+        if (trimmed.startsWith("[[[") && trimmed.endsWith("]]]")) return true
         return false
     }
 

@@ -91,7 +91,7 @@ fun MarkdownRenderer(
     
     Column(modifier = Modifier.fillMaxWidth()) {
         astNodes.forEachIndexed { index, node ->
-            key(node) {
+            key(index, node::class) {
                 when (node) {
                     is MarkdownNode.CodeBlock -> {
                         Spacer(modifier = Modifier.height(48.dp))

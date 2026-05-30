@@ -184,11 +184,16 @@ private fun TextShimmerBasic(
 fun AccordionGroup(
     sections: List<AccordionParser.AccordionSection>,
     modifier: Modifier = Modifier,
-    initiallyExpandedIndex: Int = 0
+    initiallyExpandedIndex: Int = -1
 ) {
     if (sections.isEmpty()) return
 
-    var expandedIndex by remember { mutableStateOf(initiallyExpandedIndex) }
+    // Allow multiple independent sections to be expanded
+    var expandedIndices by remember {
+        mutableStateOf(
+            if (initiallyExpandedIndex >= 0) setOf(initiallyExpandedIndex) else emptySet<Int>()
+        )
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -198,9 +203,13 @@ fun AccordionGroup(
             AccordionSection(
                 title = section.title,
                 content = section.content,
-                expanded = index == expandedIndex,
+                expanded = expandedIndices.contains(index),
                 onExpandChange = { isExpanded ->
-                    expandedIndex = if (isExpanded) index else -1
+                    expandedIndices = if (isExpanded) {
+                        expandedIndices + index
+                    } else {
+                        expandedIndices - index
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enableTitleShimmer = true
@@ -234,7 +243,7 @@ fun AccordionResponse(
 
         AccordionGroup(
             sections = parsedContent.accordions,
-            initiallyExpandedIndex = 0
+            initiallyExpandedIndex = -1
         )
     }
 }
