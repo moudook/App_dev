@@ -141,7 +141,8 @@ fun ChatScreen(
                 }
                 items(
                     items = messages,
-                    key = { message -> message.id }
+                    key = { message -> message.id },
+                    contentType = { message -> message.role.name }
                 ) { message ->
                     ChatMessageItem(
                         message = message,

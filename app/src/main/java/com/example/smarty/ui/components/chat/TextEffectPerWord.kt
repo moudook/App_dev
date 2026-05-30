@@ -10,6 +10,7 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 
@@ -27,23 +28,25 @@ fun TextEffectPerWord(
     isStreaming: Boolean = false
 ) {
     val currentTypography = MaterialTheme.typography
-    val mavenProTypography = androidx.compose.material3.Typography(
-        displayLarge = currentTypography.displayLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        displayMedium = currentTypography.displayMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        displaySmall = currentTypography.displaySmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        headlineLarge = currentTypography.headlineLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        headlineMedium = currentTypography.headlineMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        headlineSmall = currentTypography.headlineSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        titleLarge = currentTypography.titleLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        titleMedium = currentTypography.titleMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        titleSmall = currentTypography.titleSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        bodyLarge = currentTypography.bodyLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        bodyMedium = currentTypography.bodyMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        bodySmall = currentTypography.bodySmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        labelLarge = currentTypography.labelLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        labelMedium = currentTypography.labelMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
-        labelSmall = currentTypography.labelSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont)
-    )
+    val mavenProTypography = remember(currentTypography) {
+        androidx.compose.material3.Typography(
+            displayLarge = currentTypography.displayLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            displayMedium = currentTypography.displayMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            displaySmall = currentTypography.displaySmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            headlineLarge = currentTypography.headlineLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            headlineMedium = currentTypography.headlineMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            headlineSmall = currentTypography.headlineSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            titleLarge = currentTypography.titleLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            titleMedium = currentTypography.titleMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            titleSmall = currentTypography.titleSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            bodyLarge = currentTypography.bodyLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            bodyMedium = currentTypography.bodyMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            bodySmall = currentTypography.bodySmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            labelLarge = currentTypography.labelLarge.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            labelMedium = currentTypography.labelMedium.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont),
+            labelSmall = currentTypography.labelSmall.copy(fontFamily = com.example.smarty.ui.theme.MavenProFont)
+        )
+    }
 
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme,

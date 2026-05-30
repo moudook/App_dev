@@ -78,7 +78,7 @@ class ChatManager(
     val isLoadingPage: StateFlow<Boolean> = _isLoadingPage.asStateFlow()
     private var currentPage = 0
     private var totalMessageCount = 0
-    private val PAGE_SIZE = 20
+    private val PAGE_SIZE = 5
 
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()

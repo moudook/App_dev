@@ -431,13 +431,15 @@ fun MarkdownTable(
         return
     }
 
-    val parsedRows = tableLines.mapIndexedNotNull { index, line ->
-        if (index == 1 && line.replace(RenderPatterns.tableSeparator, "").isEmpty()) null
-        else line.split("(?<!\\\\)\\|".toRegex()).map { it.trim().replace("\\|", "|") }.let {
-            var list = it
-            if (list.firstOrNull()?.isEmpty() == true) list = list.drop(1)
-            if (list.lastOrNull()?.isEmpty() == true) list = list.dropLast(1)
-            list
+    val parsedRows = remember(tableLines) {
+        tableLines.mapIndexedNotNull { index, line ->
+            if (index == 1 && line.replace(RenderPatterns.tableSeparator, "").isEmpty()) null
+            else line.split("(?<!\\\\)\\|".toRegex()).map { it.trim().replace("\\|", "|") }.let {
+                var list = it
+                if (list.firstOrNull()?.isEmpty() == true) list = list.drop(1)
+                if (list.lastOrNull()?.isEmpty() == true) list = list.dropLast(1)
+                list
+            }
         }
     }
 

@@ -95,7 +95,7 @@ class ChatViewModel(
     val isLoadingPage: StateFlow<Boolean> = _isLoadingPage.asStateFlow()
     private var currentPage = 0
     private var totalMessageCount = 0
-    private val PAGE_SIZE = 20
+    private val PAGE_SIZE = 5
 
     // UI state - separated from domain state
     private val _uiState = MutableStateFlow(ChatUiState.initial())

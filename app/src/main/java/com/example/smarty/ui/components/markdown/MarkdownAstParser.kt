@@ -17,12 +17,22 @@ sealed class MarkdownNode {
 data class AccordionItemData(val title: String, val content: String)
 
 object MarkdownAstParser {
+    private val cache = object : android.util.LruCache<String, List<MarkdownNode>>(64) {
+        override fun sizeOf(key: String, value: List<MarkdownNode>) = 1
+    }
+
     private val taskUnchecked = Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")
     private val taskChecked = Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")
     private val taskItem = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
     private val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
 
     fun parse(content: String): List<MarkdownNode> {
+        return cache.get(content) ?: parseInternal(content).also {
+            cache.put(content, it)
+        }
+    }
+
+    private fun parseInternal(content: String): List<MarkdownNode> {
         val lines = content.lines()
         val nodes = mutableListOf<MarkdownNode>()
         var i = 0
