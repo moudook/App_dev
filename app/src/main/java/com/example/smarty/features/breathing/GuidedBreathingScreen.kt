@@ -50,12 +50,12 @@ fun GuidedBreathingContent(
 ) {
     val isDark = isSystemInDarkTheme()
 
-    // Theme-aware colors from MaterialTheme
-    val orbColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant
-    val guideRingColor = if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-    val textPrimary = MaterialTheme.colorScheme.onSurface
-    val dotActive = MaterialTheme.colorScheme.onSurface
-    val dotInactive = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+    // Theme-aware colors
+    val orbColor = if (isDark) Color(0xFF2A2A2E) else Color(0xFFDCE2D1)
+    val guideRingColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0xFF3D4035).copy(alpha = 0.15f)
+    val textPrimary = if (isDark) Color.White else Color(0xFF3D4035)
+    val dotActive = if (isDark) Color.White else Color(0xFF3D4035)
+    val dotInactive = if (isDark) Color.White.copy(alpha = 0.2f) else Color(0xFFC4C4B5)
 
     var phase by remember { mutableStateOf(BreathPhase.IDLE) }
     var cycle by remember { mutableIntStateOf(0) }
@@ -156,9 +156,10 @@ fun GuidedBreathingContent(
                 Text(
                     text = currentPhase.text,
                     style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Light,
-                        fontStyle = FontStyle.Normal,
-                        fontSize = 26.sp,
+                        fontFamily = CursiveFont,
+                        fontWeight = FontWeight.Normal,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 30.sp,
                         letterSpacing = 0.5.sp,
                     ),
                     color = textPrimary.copy(alpha = textAlpha),

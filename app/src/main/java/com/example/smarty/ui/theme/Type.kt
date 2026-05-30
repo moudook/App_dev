@@ -58,6 +58,13 @@ val MavenProFont = FontFamily(
     androidx.compose.ui.text.font.Font(R.font.maven_pro)
 )
 
+/** Cursive font for breathing/meditation screens */
+val CursiveFont = FontFamily(
+    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Light),
+    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Bold),
+)
+
 val SmartyTypography = Typography(
     // Display styles - Hero/H1 (35sp = 32 + 10%)
     displayLarge = TextStyle(
