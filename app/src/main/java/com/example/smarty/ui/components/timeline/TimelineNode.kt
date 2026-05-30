@@ -23,19 +23,6 @@ sealed class TimelineNode {
     // ─────────────────────────────────────────────────────────
 
     /**
-     * Represents agent reasoning (thinking) phase.
-     */
-    @Immutable
-    data class Thinking(
-        override val id: String,
-        override val timestamp: Long,
-        val text: String,
-        val isStreaming: Boolean = false,
-    ) : TimelineNode()
-
-
-
-    /**
      * A single tool invocation (from ToolCallStarted → ToolCallFinished).
      * Incrementally updated as ToolCallInput / ToolCallOutput arrive.
      */

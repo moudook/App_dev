@@ -11,7 +11,6 @@ import com.example.smarty.protocol.AgentEvent
  *    replaced, so Compose [LazyColumn] stable keys remain valid.
  *  - Tier-2 system activity is collapsed into a single [TimelineNode.SystemActivity]
  *    node that is updated incrementally.
- *  - Reasoning deltas are merged into the single open [TimelineNode.Thinking] node.
  *  - Tool events are grouped by toolId so concurrent tools form independent nodes.
  *
  * Usage:
@@ -28,7 +27,6 @@ class TimelineNodeAggregator {
     val nodes: List<TimelineNode> get() = _nodes
 
     // Index maps for O(1) lookup
-    private var thinkingNodeIndex: Int = -1
     private val toolNodeIndexByToolId = mutableMapOf<String, Int>()
     private val approvalNodeIndexByToolId = mutableMapOf<String, Int>()
     private var systemActivityIndex: Int = -1
@@ -96,54 +94,11 @@ class TimelineNodeAggregator {
         }
 
         when (event) {
-            // ── Reasoning ─────────────────────────────────────────────────────
-            is AgentEvent.ReasoningStarted -> {
-                hasGranularReasoning = true
-                val node = TimelineNode.Thinking(
-                    id = "thinking_${event.eventId}",
-                    timestamp = event.timestamp,
-                    text = "",
-                    isStreaming = true,
-                )
-                thinkingNodeIndex = _nodes.size
-                _nodes.add(node)
-            }
-
-            is AgentEvent.ReasoningDelta -> {
-                hasGranularReasoning = true
-                updateThinkingNode { existing ->
-                    existing.copy(text = existing.text + event.text, isStreaming = true)
-                }
-            }
-
-            is AgentEvent.ReasoningFinished -> {
-                updateThinkingNode { existing ->
-                    existing.copy(isStreaming = false)
-                }
-                thinkingNodeIndex = -1
-            }
-
-            // Legacy: Processing event maps to a thinking update
-            is AgentEvent.Processing -> {
-                // If the stream contains granular reasoning events, ignore the legacy Processing accumulation
-                if (hasGranularReasoning) return
-                // Use event.thinking when available (reasoning content),
-                // fall back to event.content (legacy behavior)
-                val text = event.thinking ?: event.content
-                if (text.isBlank()) return
-                if (thinkingNodeIndex < 0) {
-                    val node = TimelineNode.Thinking(
-                        id = "thinking_processing_${event.eventId}",
-                        timestamp = event.timestamp,
-                        text = text,
-                        isStreaming = true,
-                    )
-                    thinkingNodeIndex = _nodes.size
-                    _nodes.add(node)
-                } else {
-                    updateThinkingNode { it.copy(text = it.text + text, isStreaming = true) }
-                }
-            }
+            // ── Reasoning (no-op — thinking traces removed) ──────────────────
+            is AgentEvent.ReasoningStarted -> { hasGranularReasoning = true }
+            is AgentEvent.ReasoningDelta -> { hasGranularReasoning = true }
+            is AgentEvent.ReasoningFinished -> { /* no-op */ }
+            is AgentEvent.Processing -> { /* no-op — thinking traces removed */ }
 
             // ── Tool Lifecycle ────────────────────────────────────────────────
             is AgentEvent.ToolCallStarted -> {
@@ -231,21 +186,7 @@ class TimelineNodeAggregator {
             is AgentEvent.AgentStep -> {
                 val stepId = "step_${event.stepIndex}"
                 when (event.stepType) {
-                    "thinking" -> {
-                        if (hasGranularReasoning) return
-                        if (thinkingNodeIndex < 0) {
-                            val node = TimelineNode.Thinking(
-                                id = "thinking_step_${event.stepIndex}",
-                                timestamp = event.timestamp,
-                                text = event.stepContent,
-                                isStreaming = event.stepStatus == "streaming",
-                            )
-                            thinkingNodeIndex = _nodes.size
-                            _nodes.add(node)
-                        } else {
-                            updateThinkingNode { it.copy(text = event.stepContent, isStreaming = event.stepStatus == "streaming") }
-                        }
-                    }
+                    "thinking" -> { /* no-op — thinking traces removed */ }
                     "tool_call", "opencode_tool", "tool_result" -> {
                         if (hasGranularTools) return
                         val existing = toolNodeIndexByToolId[stepId]
@@ -401,14 +342,6 @@ class TimelineNodeAggregator {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────
 
-    private fun updateThinkingNode(update: (TimelineNode.Thinking) -> TimelineNode.Thinking) {
-        if (thinkingNodeIndex >= 0 && thinkingNodeIndex < _nodes.size) {
-            (_nodes[thinkingNodeIndex] as? TimelineNode.Thinking)?.let {
-                _nodes[thinkingNodeIndex] = update(it)
-            }
-        }
-    }
-
     private fun updateToolNode(toolId: String, update: (TimelineNode.ToolExecution) -> TimelineNode.ToolExecution) {
         val idx = toolNodeIndexByToolId[toolId] ?: return
         (_nodes[idx] as? TimelineNode.ToolExecution)?.let {
@@ -471,7 +404,6 @@ class TimelineNodeAggregator {
     /** Reset the aggregator for a new conversation turn. */
     fun reset() {
         _nodes.clear()
-        thinkingNodeIndex = -1
         toolNodeIndexByToolId.clear()
         approvalNodeIndexByToolId.clear()
         systemActivityIndex = -1

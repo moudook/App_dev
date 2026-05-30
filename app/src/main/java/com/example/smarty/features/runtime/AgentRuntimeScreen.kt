@@ -59,14 +59,5 @@ private fun RuntimeTimelineNodeItem(node: TimelineNode, viewModel: AgentRuntimeV
             node = node,
             nodeRenderer = { childNode -> RuntimeTimelineNodeItem(node = childNode, viewModel = viewModel) }
         )
-        is TimelineNode.Thinking -> {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Thinking", style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = node.text, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
     }
 }

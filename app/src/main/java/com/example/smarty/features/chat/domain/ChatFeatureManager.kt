@@ -1871,7 +1871,6 @@ class ChatFeatureManager(
                             pendingActions.add(actionResult)
                             chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
 
-                            // Also add to pendingToolCalls for ThinkingSection display — include all detail fields
                             val toolCallEntry =
                                 com.example.smarty.core.domain.model.AgentToolCallEntry(
                                     toolName = event.toolName,

@@ -30,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.features.chat.ui.thinking.OrganicThinkingIndicator
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
 
