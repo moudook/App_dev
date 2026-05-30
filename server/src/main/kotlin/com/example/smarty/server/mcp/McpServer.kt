@@ -41,6 +41,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
@@ -280,6 +281,46 @@ class McpServer(
             )
         }
 
+    /**
+     * Validates ask_user arguments and returns an error message if invalid, or null if valid.
+     * The error message is written in natural language so the AI can self-correct.
+     */
+    private fun validateAskUserArgs(args: JsonObject): String? {
+        val questionsArray = args["questions"]?.jsonArray
+        if (questionsArray == null || questionsArray.isEmpty()) {
+            return "ERROR: The 'ask_user' tool requires a 'questions' array with at least one question object. " +
+                "Each question object must have a 'question' field (non-empty string) and an 'options' field (array of strings with at least 1 option). " +
+                """Example: {"questions": [{"question": "What type of notes?", "options": ["Meeting notes", "Journal entry", "Research notes"]}]}"""
+        }
+        for ((i, element) in questionsArray.withIndex()) {
+            val qObj = try { element.jsonObject } catch (_: Exception) { null }
+            if (qObj == null) {
+                return "ERROR: Question at index $i is not a valid object. Each question must be a JSON object with 'question' (string) and 'options' (array of strings)."
+            }
+            val questionText = try { qObj["question"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+            if (questionText.isNullOrBlank()) {
+                return "ERROR: Question at index $i is missing a valid 'question' field or it is not a string. " +
+                    "Every question needs a non-empty 'question' string. " +
+                    """Example: {"question": "What would you like to do?", "options": ["Option A", "Option B"]}"""
+            }
+            val optionsArray = try { qObj["options"]?.jsonArray } catch (_: Exception) { null }
+            if (optionsArray == null || optionsArray.isEmpty()) {
+                return """ERROR: Question "$questionText" (index $i) has no options. """ +
+                    "The 'ask_user' tool requires at least 1 option per question so the user can tap to answer. " +
+                    "If you want free-text input, set 'allow_custom': true but still provide at least one option. " +
+                    """Example: {"question": "$questionText", "options": ["Option 1", "Option 2"], "allow_custom": true}"""
+            }
+            for ((j, opt) in optionsArray.withIndex()) {
+                val optText = try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+                if (optText.isNullOrBlank()) {
+                    return """ERROR: Question "$questionText" (index $i) has an empty option at index $j. """ +
+                        "Every option must be a non-empty string so the user can read and tap it."
+                }
+            }
+        }
+        return null // valid
+    }
+
     private suspend fun handleToolCall(
         params: JsonObject?,
         userId: String,
@@ -336,7 +377,19 @@ class McpServer(
         // PRIVILEGED MODE: Only ask_user requires user interaction (clarification question card).
         // All other tools (bash, device, memory, etc.) run autonomously — no approval gate.
         if (resolvedName == "ask_user" || resolvedName == "askuser") {
-            logger.info("[MCP] ask_user: toolCallId=$toolCallId, userId=$userId, sessions=${userSessions.size}")
+            logger.info("[MCP] ask_user: toolCallId=$toolCallId, userId=$userId, sessions=${userSessions.size}, args=${args.toString().take(300)}")
+
+            // Validate arguments BEFORE emitting ApprovalRequested — return clear error to AI if malformed
+            val validationError = validateAskUserArgs(args)
+            if (validationError != null) {
+                logger.warn("[MCP] ask_user validation failed for toolCallId=$toolCallId: ${validationError.take(200)}")
+                thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), validationError)
+                return buildJsonObject {
+                    put("isError", JsonPrimitive(true))
+                    put("content", buildJsonArray { add(buildJsonObject { put("type", JsonPrimitive("text")); put("text", JsonPrimitive(validationError)) }) })
+                }
+            }
+
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
                     UUID.randomUUID().toString(),

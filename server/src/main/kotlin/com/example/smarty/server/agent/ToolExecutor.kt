@@ -755,6 +755,15 @@ class ToolExecutor(
         toolCallId: String,
         sessionId: String,
     ): String {
+        logger.info("[ToolExecutor] ask_user called with questions=${args.questions?.size}, question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}")
+
+        // Validate arguments BEFORE emitting ApprovalRequested — return error string if malformed
+        val validationError = validateAskUserArgs(args)
+        if (validationError != null) {
+            logger.warn("[ToolExecutor] ask_user validation failed for toolCallId=$toolCallId: ${validationError.take(200)}")
+            return validationError
+        }
+
         // Build toolArgs JSON that the app expects (questions array format)
         val toolArgsJson = buildToolArgsJson(args)
 
@@ -795,6 +804,61 @@ class ToolExecutor(
         } else {
             result.feedback ?: "User denied"
         }
+    }
+
+    /**
+     * Validates ask_user arguments and returns an error message if invalid, or null if valid.
+     * The error message is written in natural language so the AI can self-correct.
+     * Handles both the 'questions' array format and the single 'question' + 'options' fallback.
+     */
+    private fun validateAskUserArgs(args: UnifiedToolArgs): String? {
+        // Format 1: 'questions' array (preferred — each item is a {question, options, allow_custom?} object)
+        if (args.questions != null && args.questions.isNotEmpty()) {
+            for ((i, element) in args.questions.withIndex()) {
+                val qObj = try { element.jsonObject } catch (_: Exception) { null }
+                if (qObj == null) {
+                    return "ERROR: Question at index $i is not a valid JSON object. " +
+                        "Each item in 'questions' must be an object with 'question' (string) and 'options' (array of strings)."
+                }
+                val questionText = try { qObj["question"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+                if (questionText.isNullOrBlank()) {
+                    return "ERROR: Question at index $i is missing a valid 'question' field or it is not a string. " +
+                        "Every question needs a non-empty 'question' string. " +
+                        """Example: {"question": "What would you like?", "options": ["Option A", "Option B"]}"""
+                }
+                val optionsArray = try { qObj["options"]?.jsonArray } catch (_: Exception) { null }
+                if (optionsArray == null || optionsArray.isEmpty()) {
+                    return """ERROR: Question "$questionText" (index $i) has no options. """ +
+                        "You must provide at least 1 option so the user can tap to answer. " +
+                        "If you want free-text input, set 'allow_custom': true but still provide options. " +
+                        """Example: {"question": "$questionText", "options": ["Choice 1", "Choice 2"], "allow_custom": true}"""
+                }
+                for ((j, opt) in optionsArray.withIndex()) {
+                    val optText = try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+                    if (optText.isNullOrBlank()) {
+                        return """ERROR: Question "$questionText" (index $i) has an empty or invalid option at index $j. """ +
+                            "Every option must be a non-empty string so the user can read and tap it."
+                    }
+                }
+            }
+            return null // valid
+        }
+
+        // Format 2: Single question via 'question' + 'options' fields (legacy fallback)
+        if (args.question.isNullOrBlank()) {
+            return "ERROR: The 'ask_user' tool needs questions to ask. " +
+                "Provide a 'questions' array with question objects, or a single 'question' string with 'options'. " +
+                """Example: ask_user(questions=[{"question": "What color?", "options": ["Red", "Blue"]}])"""
+        }
+        val optionsArray = try { args.options?.jsonArray } catch (_: Exception) { null }
+        if (optionsArray == null || optionsArray.isEmpty()) {
+            return """ERROR: Question "${args.question}" has no options. """ +
+                "The 'ask_user' tool requires at least 1 option per question so the user can respond. " +
+                "If you want free-text input, set 'allow_custom': true but still provide options. " +
+                """Example: {"question": "${args.question}", "options": ["Yes", "No"], "allow_custom": true}"""
+        }
+
+        return null // valid
     }
 
     private fun buildToolArgsJson(args: UnifiedToolArgs): String {
