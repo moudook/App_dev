@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.features.games.ui.TicTacToeGameContent
 import com.example.smarty.features.games.ui.CoinTossGameContent
 import com.example.smarty.features.games.ui.ChessScreen
-import com.example.smarty.features.breathing.GuidedBreathingScreen
+import com.example.smarty.features.breathing.GuidedBreathingContent
 import com.example.smarty.ui.components.UnifiedDragHandle
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.ComponentColors
@@ -167,7 +167,7 @@ fun GamesContent(
             dragHandle = { UnifiedDragHandle() },
             shape = iOSSheetShape
         ) {
-            GuidedBreathingScreen(onDismiss = { showGuidedBreathing = false })
+            GuidedBreathingContent(onClose = { showGuidedBreathing = false })
         }
     }
 }
