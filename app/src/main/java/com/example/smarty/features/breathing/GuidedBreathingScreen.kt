@@ -3,6 +3,8 @@ package com.example.smarty.features.breathing
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -50,12 +52,12 @@ fun GuidedBreathingContent(
 ) {
     val isDark = isSystemInDarkTheme()
 
-    // Theme-aware colors
-    val orbColor = if (isDark) Color(0xFF2A2A2E) else Color(0xFFDCE2D1)
-    val guideRingColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0xFF3D4035).copy(alpha = 0.15f)
-    val textPrimary = if (isDark) Color.White else Color(0xFF3D4035)
-    val dotActive = if (isDark) Color.White else Color(0xFF3D4035)
-    val dotInactive = if (isDark) Color.White.copy(alpha = 0.2f) else Color(0xFFC4C4B5)
+    // Theme-aware colors using pure MaterialTheme constraints
+    val orbColor = MaterialTheme.colorScheme.primaryContainer
+    val guideRingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val dotActive = orbColor // Matches the orb color as requested
+    val dotInactive = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
 
     var phase by remember { mutableStateOf(BreathPhase.IDLE) }
     var cycle by remember { mutableIntStateOf(0) }
@@ -101,26 +103,28 @@ fun GuidedBreathingContent(
         }
     }
 
-    // Completion — auto-dismiss
-    LaunchedEffect(phase) {
-        if (phase == BreathPhase.COMPLETED) {
-            delay(2000)
-            onClose()
-        }
-    }
+    // Removed auto-dismissal to let user rest in the Peace phase
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(bottom = 32.dp),
+            .padding(bottom = 16.dp), // Reduced bottom padding since button is removed
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Breathing area
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(320.dp),
+                .height(320.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    enabled = !isRunning
+                ) {
+                    cycle = 1
+                    phase = BreathPhase.INHALE
+                },
             contentAlignment = Alignment.Center,
         ) {
             // Outer guide ring
@@ -149,8 +153,21 @@ fun GuidedBreathingContent(
             AnimatedContent(
                 targetState = phase,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(1500)) togetherWith fadeOut(animationSpec = tween(1500))
+                    // Incoming text slides up from below while fading in
+                    val enter = slideInVertically(
+                        initialOffsetY = { height -> height },
+                        animationSpec = tween(1000, easing = FastOutSlowInEasing)
+                    ) + fadeIn(animationSpec = tween(1000))
+                    
+                    // Outgoing text slides up and out while fading out
+                    val exit = slideOutVertically(
+                        targetOffsetY = { height -> -height },
+                        animationSpec = tween(1000, easing = FastOutSlowInEasing)
+                    ) + fadeOut(animationSpec = tween(1000))
+
+                    enter togetherWith exit
                 },
+                contentAlignment = Alignment.Center,
                 label = "phaseText",
             ) { currentPhase ->
                 Text(
@@ -172,7 +189,6 @@ fun GuidedBreathingContent(
         // Bottom controls
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             // Cycle dots
             AnimatedVisibility(
@@ -191,32 +207,6 @@ fun GuidedBreathingContent(
                                 .background(if (index < cycle) dotActive else dotInactive),
                         )
                     }
-                }
-            }
-
-            // Start button
-            AnimatedVisibility(
-                visible = !isRunning,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-            ) {
-                TextButton(
-                    onClick = {
-                        cycle = 1
-                        phase = BreathPhase.INHALE
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = textPrimary,
-                    ),
-                ) {
-                    Text(
-                        text = if (phase == BreathPhase.COMPLETED) "Begin Again" else "Start",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 11.sp,
-                            letterSpacing = 2.sp,
-                        ),
-                    )
                 }
             }
         }

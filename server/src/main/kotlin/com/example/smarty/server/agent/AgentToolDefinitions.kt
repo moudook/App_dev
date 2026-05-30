@@ -417,6 +417,24 @@ Use for: finding past context, recalling previous discussions, looking up user h
         )
 
     /**
+     * Guided breathing tool for starting a calming breathing exercise.
+     */
+    val guidedBreathingTool: ToolDefinition =
+        ToolDefinition(
+            name = "guided_breathing",
+            description = """Start a guided breathing exercise for the user.
+Shows a calming breathing overlay in the chat with a 3-cycle exercise.
+The user can dismiss it and continue chatting.
+
+Use when: user asks to breathe, relax, calm down, meditate, or de-stress.""",
+            parameters =
+                ToolParameters(
+                    properties = emptyMap(),
+                    required = emptyList(),
+                ),
+        )
+
+    /**
      * Get all standard tools.
      */
     fun getAllTools(): List<ToolDefinition> =
@@ -431,5 +449,6 @@ Use for: finding past context, recalling previous discussions, looking up user h
             getNoteByIdTool,
             searchHistoryTool,
             tavilySearchTool,
+            guidedBreathingTool,
         )
 }

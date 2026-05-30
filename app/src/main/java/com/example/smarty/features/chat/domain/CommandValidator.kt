@@ -272,6 +272,8 @@ object CommandValidator {
                 }
             }
 
+            is AgentCommand.ShowBreathing -> Result.Valid
+
             // NO else BRANCH - Kotlin exhaustive when ensures all subtypes handled
         }
 
@@ -326,5 +328,6 @@ object CommandValidator {
             // New commands
             is AgentCommand.Navigate -> "screen=${command.screen}"
             is AgentCommand.Share -> "content.len=${command.content.length} | hasTitle=${command.title != null}"
+            is AgentCommand.ShowBreathing -> "(no params)"
         }
 }

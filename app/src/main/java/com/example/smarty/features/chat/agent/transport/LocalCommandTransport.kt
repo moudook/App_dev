@@ -235,6 +235,11 @@ class LocalCommandTransport(
                 "Calendar event added: ${command.title}"
             }
 
+            is AgentCommand.ShowBreathing -> {
+                executor.showBreathing()
+                "Starting guided breathing session"
+            }
+
             // === UI NOTIFICATIONS ===
             else -> null
         }

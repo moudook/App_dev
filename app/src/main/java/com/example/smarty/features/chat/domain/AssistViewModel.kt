@@ -474,6 +474,10 @@ class AssistViewModel(
                 calendarFeatureManager.cancelTimer(timerId)
             }
 
+            override fun showBreathing() {
+                _showBreathingOverlay.value = true
+            }
+
             override fun bulkArchiveNotes(noteIds: List<String>) {
                 noteOperationsManager.bulkArchiveNotes(noteIds)
             }
@@ -517,6 +521,13 @@ class AssistViewModel(
 
     val isDarkTheme: StateFlow<Boolean> = settingsFeatureManager.isDarkTheme
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
+
+    private val _showBreathingOverlay = MutableStateFlow(false)
+    val showBreathingOverlay: StateFlow<Boolean> = _showBreathingOverlay.asStateFlow()
+
+    fun dismissBreathing() {
+        _showBreathingOverlay.value = false
+    }
 
     private val _isImageGenMode = MutableStateFlow(false)
     val isImageGenMode: StateFlow<Boolean> = _isImageGenMode.asStateFlow()

@@ -260,95 +260,101 @@ fun SmartyInputField(
                 // φ² = 13dp gap between question and options
                 Spacer(Modifier.height(13.dp))
 
-                // Options — golden ratio chips with accent badges
-                currentRequest.options.forEachIndexed { index, option ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = optionBg,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 5.dp)
-                            .squishClick {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                handleAskSubmit(option)
-                            }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
-                        ) {
-                            // Accent number badge — φ⁻¹ = 11sp, accent color
-                            Text(
-                                text = "${index + 1}",
-                                fontWeight = FontWeight.Bold,
-                                color = accentColor,
-                                fontSize = 11.sp,
-                                modifier = Modifier.width(18.dp)
-                            )
-                            // φ¹ = 8dp gap between number and text
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = textColor
-                            )
-                        }
-                    }
-                }
-
-                // Custom input row — φ² = 13dp padding
-                if (currentRequest.allowCustomInput) {
-                    if (isEditingCustomAnswer) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                // Options and custom input inside a scrollable column so the question remains sticky
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    currentRequest.options.forEachIndexed { index, option ->
+                        Surface(
+                            shape = RoundedCornerShape(14.dp), // Improved border radius
+                            color = optionBg,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(42.dp)
-                                .background(optionBg, RoundedCornerShape(8.dp))
-                                .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 13.dp)
-                        ) {
-                            BasicTextField(
-                                value = customAnswerText,
-                                onValueChange = { customAnswerText = it },
-                                modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(fontSize = 14.sp, color = textColor),
-                                singleLine = true,
-                                cursorBrush = SolidColor(accentColor),
-                                decorationBox = { inner ->
-                                    Box(contentAlignment = Alignment.CenterStart) {
-                                        if (customAnswerText.isEmpty()) Text("Type your answer...", color = Color.Gray, fontSize = 14.sp)
-                                        inner()
-                                    }
+                                .squishClick {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    handleAskSubmit(option)
                                 }
-                            )
-                            AnimatedVisibility(customAnswerText.isNotBlank(), enter = scaleIn(spring(0.7f, 400f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.Send,
-                                    contentDescription = "Send",
-                                    tint = accentColor,
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .squishClick {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            handleAskSubmit(customAnswerText)
-                                        }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                // Accent number badge
+                                Text(
+                                    text = "${index + 1}",
+                                    fontWeight = FontWeight.Bold,
+                                    color = accentColor,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.width(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = option,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = textColor
                                 )
                             }
                         }
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .squishClick { isEditingCustomAnswer = true }
-                                .background(optionBg, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 13.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Rounded.Edit, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Type a custom answer...", color = Color.Gray, fontSize = 14.sp)
+                    }
+
+                    // Custom input row
+                    if (currentRequest.allowCustomInput) {
+                        if (isEditingCustomAnswer) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .background(optionBg, RoundedCornerShape(14.dp))
+                                    .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                BasicTextField(
+                                    value = customAnswerText,
+                                    onValueChange = { customAnswerText = it },
+                                    modifier = Modifier.weight(1f),
+                                    textStyle = TextStyle(fontSize = 15.sp, color = textColor),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(accentColor),
+                                    decorationBox = { inner ->
+                                        Box(contentAlignment = Alignment.CenterStart) {
+                                            if (customAnswerText.isEmpty()) Text("Type your answer...", color = Color.Gray, fontSize = 15.sp)
+                                            inner()
+                                        }
+                                    }
+                                )
+                                AnimatedVisibility(customAnswerText.isNotBlank(), enter = scaleIn(spring(0.7f, 400f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                                        contentDescription = "Send",
+                                        tint = accentColor,
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .squishClick {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                handleAskSubmit(customAnswerText)
+                                            }
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .squishClick { isEditingCustomAnswer = true }
+                                    .background(optionBg, RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Edit, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Type a custom answer...", color = Color.Gray, fontSize = 15.sp)
+                            }
                         }
                     }
                 }

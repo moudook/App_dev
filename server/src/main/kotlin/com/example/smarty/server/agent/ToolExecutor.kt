@@ -188,6 +188,7 @@ class ToolExecutor(
             "navigate" -> executeNavigateTool(args)
             "search_history" -> executeSearchHistory(args)
             "tavily_search" -> executeTavilySearch(args)
+            "guided_breathing" -> executeGuidedBreathing()
             else -> "Unknown tool: $name"
         }
     }
@@ -672,6 +673,15 @@ class ToolExecutor(
             }
             else -> "Unknown device action: ${args.action}"
         }
+    }
+
+    private suspend fun executeGuidedBreathing(): String {
+        emitDeviceCommand(
+            AgentCommand.ShowBreathing(
+                commandId = UUID.randomUUID().toString(),
+            ),
+        )
+        return "Starting guided breathing session."
     }
 
     private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {

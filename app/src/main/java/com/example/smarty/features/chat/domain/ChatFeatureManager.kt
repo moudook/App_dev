@@ -401,6 +401,8 @@ class ChatFeatureManager(
                 }
             }
 
+            is AgentCommand.ShowBreathing -> CommandValidationResult.Valid
+
             // NO else BRANCH - Kotlin exhaustive when ensures all subtypes handled
             // If a new AgentCommand subtype is added, this will fail to compile
         }
@@ -499,6 +501,7 @@ class ChatFeatureManager(
             // New commands
             is AgentCommand.Navigate -> "screen=${command.screen}"
             is AgentCommand.Share -> "content.len=${command.content.length} | hasTitle=${command.title != null}"
+            is AgentCommand.ShowBreathing -> "(no params)"
         }
 
     /**
@@ -1146,6 +1149,10 @@ class ChatFeatureManager(
                 }
             }
 
+            override fun showBreathing() {
+                _showBreathingOverlay.value = true
+            }
+
             override fun bulkArchiveNotes(noteIds: List<String>) {
                 noteOperationsManager.bulkArchiveNotes(noteIds)
             }
@@ -1211,6 +1218,10 @@ class ChatFeatureManager(
     // Pending Text
     private val _pendingChatText = MutableStateFlow<String?>(null)
     val pendingChatText: StateFlow<String?> = _pendingChatText.asStateFlow()
+
+    // Breathing overlay state
+    private val _showBreathingOverlay = MutableStateFlow(false)
+    val showBreathingOverlay: StateFlow<Boolean> = _showBreathingOverlay.asStateFlow()
 
     // Approval state for ask_user and other tool approvals
     private val _pendingApprovalState = MutableStateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?>(null)
@@ -2160,6 +2171,7 @@ class ChatFeatureManager(
             is AgentCommand.DeleteContext -> "Removed from memory"
             is AgentCommand.Navigate -> "Navigated to ${command.screen}"
             is AgentCommand.Share -> "Shared content"
+            is AgentCommand.ShowBreathing -> "Guided breathing"
             else -> command::class.simpleName ?: "Action"
         }
     }
@@ -2307,6 +2319,10 @@ class ChatFeatureManager(
 
     fun onToolExecutionCompleted() {
         _agentActivity.value = null
+    }
+
+    fun dismissBreathing() {
+        _showBreathingOverlay.value = false
     }
 
     /**

@@ -144,6 +144,12 @@ sealed class AgentCommand {
         val title: String? = null,
     ) : AgentCommand()
 
+    @Serializable
+    @SerialName("show_breathing")
+    data class ShowBreathing(
+        override val commandId: String,
+    ) : AgentCommand()
+
     // ============================================================================================
     // CONTEXT / PERSONALIZATION
     // ============================================================================================

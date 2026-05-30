@@ -217,6 +217,9 @@ interface ClientCommandExecutor {
 
     fun cancelTimer(timerId: String)
 
+    // Guided Breathing
+    fun showBreathing()
+
     // Bulk Operations
     fun bulkArchiveNotes(noteIds: List<String>)
 

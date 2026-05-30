@@ -39,8 +39,10 @@ import androidx.core.content.ContextCompat
 import com.example.smarty.core.domain.model.ClarificationRequest
 import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.voice.rememberSpeechToText
+import com.example.smarty.features.breathing.GuidedBreathingContent
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
+import com.example.smarty.ui.components.UnifiedDragHandle
 import com.example.smarty.ui.components.timeline.ApprovalCard
 import com.example.smarty.ui.components.timeline.TimelineNode
 import kotlinx.coroutines.launch
@@ -55,6 +57,7 @@ import kotlinx.coroutines.launch
  * - Auto-starts Google Speech Recognizer
  * - Proper contrast for both light and dark themes
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistOverlayScreen(
     viewModel: AssistViewModel,
@@ -138,6 +141,8 @@ fun AssistOverlayScreen(
             }
         }
     }
+
+    val showBreathing by viewModel.showBreathingOverlay.collectAsState()
 
     // Bottom sheet state
     var isVisible by remember { mutableStateOf(false) }
@@ -396,6 +401,20 @@ fun AssistOverlayScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Breathing overlay
+        if (showBreathing) {
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissBreathing() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                dragHandle = { UnifiedDragHandle() },
+                shape = RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp),
+            ) {
+                GuidedBreathingContent(onClose = { viewModel.dismissBreathing() })
             }
         }
     }
