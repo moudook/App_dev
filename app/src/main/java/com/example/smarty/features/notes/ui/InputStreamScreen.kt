@@ -792,12 +792,13 @@ fun InputStreamScreen(
 
     // Todo sheet state - store ID only and derive note from notes list to stay in sync
     var selectedNoteIdForTodo by remember { mutableStateOf<String?>(null) }
-    val selectedNoteForTodo = selectedNoteIdForTodo?.let { id -> notes.find { it.id == id } }
+    val noteByIdMap = remember(notes) { notes.associateBy { it.id } }
+    val selectedNoteForTodo = selectedNoteIdForTodo?.let { id -> noteByIdMap[id] }
     val todoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Delete confirmation state - store ID only and derive note from list to stay in sync
     var noteToDeleteId by remember { mutableStateOf<String?>(null) }
-    val noteToDelete = noteToDeleteId?.let { id -> notes.find { it.id == id } }
+    val noteToDelete = noteToDeleteId?.let { id -> noteByIdMap[id] }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showCategorizeDialog by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
@@ -996,9 +997,10 @@ fun InputStreamScreen(
         }
     }
 
-    // Scroll to top when new note is added
+    // Scroll to top when new note is added (debounced to avoid jank during batch operations)
     LaunchedEffect(notes.size) {
         if (notes.isNotEmpty() && !isChatMode) {
+            kotlinx.coroutines.delay(150) // Debounce: wait for batch operations to settle
             gridState.animateScrollToItem(0)
         }
     }
@@ -1247,17 +1249,19 @@ fun InputStreamScreen(
         // Clear focus when tapping outside the input field
         val topPadding = paddingValues.calculateTopPadding()
 
+        val currentIsListening by rememberUpdatedState(speechState.isListening)
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 // .padding(top = topPadding) -- REMOVED to allow scrolling behind header
-                .pointerInput(speechState.isListening, isChatMode) {
+                .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = {
                             // Clear focus and stop voice input on tap
                             // Scrolling does NOT trigger this - only deliberate taps
                             focusManager.clearFocus()
-                            if (speechState.isListening) {
+                            if (currentIsListening) {
                                 speechState.stopListening()
                             }
                         }
@@ -1277,27 +1281,26 @@ fun InputStreamScreen(
             }
 
             // Animated content switching between notes, chat, and calendar
-            // Wrapped in Box for centered layout
+            // Pre-compute mode indices to avoid allocation inside transitionSpec
+            val contentModeIndex by remember(contentMode) {
+                derivedStateOf {
+                    when (contentMode) {
+                        "chat" -> 0; "notes" -> 1; "calendar" -> 2
+                        "stacks" -> 3; "archive" -> 4; "settings" -> 5; "games" -> 6
+                        else -> 1
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 AnimatedContent(
-                    targetState = contentMode,
+                    targetState = contentModeIndex,
                     transitionSpec = {
-                        // Determine movement direction based on mode index
-                        val modes = listOf("chat", "notes", "calendar", "stacks", "archive", "settings", "games")
-                        val targetIndex = modes.indexOf(targetState)
-                        val initialIndex = modes.indexOf(initialState)
+                        val isClockwise = targetState < initialState
 
-                        // User specified: Notes -> Chat is "clockwise"
-                        // In our list: Chat (0), Notes (1)
-                        // So if targetIndex < initialIndex, it's clockwise (Forward)
-                        // Except for wrapping? No, let's keep it simple for now.
-
-                        val isClockwise = targetIndex < initialIndex
-
-                        // S-Tier Physics for Screen Push/Pop
                         val screenSpring = spring<Float>(dampingRatio = 0.8f, stiffness = 350f)
                         val slideSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.8f, stiffness = 350f)
 
@@ -1314,7 +1317,6 @@ fun InputStreamScreen(
                             (scaleOut(targetScale = 0.92f, animationSpec = screenSpring) +
                              fadeOut(tween(200)))
                         } using SizeTransform { _, _ -> 
-                            // Ensures container boundaries morph fluidly between screens
                             spring(dampingRatio = 0.75f, stiffness = 400f) 
                         }
                     },
@@ -1329,7 +1331,7 @@ fun InputStreamScreen(
                     )
 
                 when (mode) {
-                    "stacks" -> {
+                    3 -> {
                         // Stacks inline view - categories grid
                         StacksContent(
                             categories = categories,
@@ -1346,7 +1348,7 @@ fun InputStreamScreen(
                             onSyncCategoryCounts = onSyncCategoryCounts
                         )
                     }
-                    "archive" -> {
+                    4 -> {
                         // Archive inline view - archived notes
                         ArchiveContent(
                             archivedNotes = archivedNotes,
@@ -1357,7 +1359,7 @@ fun InputStreamScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    "settings" -> {
+                    5 -> {
                         // Settings inline view
                         SettingsContent(
                             isDarkTheme = isDarkTheme,
@@ -1382,13 +1384,13 @@ fun InputStreamScreen(
                             onCloudSync = onSyncCloud
                         )
                     }
-                    "games" -> {
+                    6 -> {
                         GamesContent(
                             contentPadding = contentPaddingWithTop,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    "calendar" -> {
+                    2 -> {
                         // Calendar inline view - same layer as note cards
                         CalendarContent(
                             events = calendarEvents,
@@ -1406,7 +1408,7 @@ fun InputStreamScreen(
                             onCreateEvent = onCreateCalendarEvent
                         )
                     }
-                    "chat" -> {
+                    0 -> {
                         // Chat mode - switches between messages and history view
                         AnimatedContent(
                             targetState = showChatHistoryInline,
@@ -1519,7 +1521,7 @@ fun InputStreamScreen(
                         }
                     }
 
-                    else -> {
+                    1 -> {
                         // Notes mode content - extracted to NormalModeContent component
                         NormalModeContent(
                             displayedNotes = displayedNotes,
@@ -2007,7 +2009,7 @@ fun InputStreamScreen(
                     when (action) {
                         PinterestAction.PIN -> onPinNote(noteId)
                         PinterestAction.SHARE -> {
-                            val note = notes.find { it.id == noteId }
+                            val note = noteByIdMap[noteId]
                             if (note != null) onShareNotes(listOf(note))
                         }
                         PinterestAction.ARCHIVE -> onArchiveNote(noteId)
@@ -2193,8 +2195,10 @@ fun CategorizeNotesDialog(
         },
         text = {
             LazyColumn {
-                items(categories.size) { index ->
-                    val category = categories[index]
+                items(
+                    items = categories,
+                    key = { it.id }
+                ) { category ->
                     ListItem(
                         headlineContent = { Text(category.name) },
                         leadingContent = {

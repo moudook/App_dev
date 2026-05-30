@@ -20,12 +20,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -67,8 +71,10 @@ fun Coin3D(
     state: CoinAnimationState,
     isTossing: Boolean
 ) {
-    val isBackVisible = (abs(state.rotationX.value) % 360) in 90f..270f
-    val edgeGradient = Brush.linearGradient(EDGE_GRADIENT_COLORS)
+    val isBackVisible by remember {
+        derivedStateOf { (abs(state.rotationX.value) % 360) in 90f..270f }
+    }
+    val edgeGradient = remember { Brush.linearGradient(EDGE_GRADIENT_COLORS) }
 
     Box(contentAlignment = Alignment.Center) {
         // Edge — stacked slices for a 3D cylinder effect
@@ -104,28 +110,31 @@ fun CoinEdge(
     state: CoinAnimationState,
     edgeGradient: Brush
 ) {
-    val edgeBackground = remember(edgeGradient) {
-        Modifier.clip(CircleShape).background(edgeGradient)
-    }
-
-    for (i in 0 until EDGE_SLICE_COUNT) {
-        val depthOffset = (i - EDGE_SLICE_COUNT / 2f) * 1.5f
-        
-        Box(
-            modifier = Modifier
-                .size(COIN_SIZE)
-                .graphicsLayer {
-                    rotationX = state.rotationX.value
-                    rotationY = state.rotationY.value
-                    translationY = state.translationY.value + (depthOffset * density)
-                    translationX = 0f
-                    scaleX = state.zoomScale.value
-                    scaleY = state.zoomScale.value
-                    cameraDistance = state.cameraDist.value * density
+    Box(
+        modifier = Modifier
+            .size(COIN_SIZE)
+            .graphicsLayer {
+                rotationX = state.rotationX.value
+                rotationY = state.rotationY.value
+                translationY = state.translationY.value
+                translationX = 0f
+                scaleX = state.zoomScale.value
+                scaleY = state.zoomScale.value
+                cameraDistance = state.cameraDist.value * density
+            }
+            .drawWithContent {
+                val sliceHeight = size.height / EDGE_SLICE_COUNT
+                for (i in 0 until EDGE_SLICE_COUNT) {
+                    val depthOffset = (i - EDGE_SLICE_COUNT / 2f) * 1.5f * density
+                    drawOval(
+                        brush = edgeGradient,
+                        topLeft = Offset(0f, i * sliceHeight + depthOffset),
+                        size = Size(size.width, sliceHeight)
+                    )
                 }
-                .then(edgeBackground)
-        )
-    }
+            }
+            .clip(CircleShape)
+    )
 }
 
 /**
@@ -191,11 +200,15 @@ fun CoinImage(
     description: String,
     modifier: Modifier = Modifier
 ) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
+    val context = LocalContext.current
+    val request = remember(url) {
+        ImageRequest.Builder(context)
             .data(url)
             .crossfade(true)
-            .build(),
+            .build()
+    }
+    AsyncImage(
+        model = request,
         contentDescription = description,
         contentScale = ContentScale.Crop,
         modifier = modifier

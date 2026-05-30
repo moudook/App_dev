@@ -185,16 +185,16 @@ fun CoinTossGameContent(
                     .background(metallicGradient),
                 contentAlignment = Alignment.Center
             ) {
-                // Liquid shine
-                val lightSweep = (abs(rotationYAnim.value) % 180f) / 180f
+                // Liquid shine — read rotationYAnim at draw time, not composition
                 Box(
                     modifier = Modifier.fillMaxSize().drawWithCache {
+                        val sweep = (abs(rotationYAnim.value) % 180f) / 180f
                         onDrawWithContent {
                             drawContent()
                             val gradient = Brush.linearGradient(
                                 colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.6f), Color.Transparent),
-                                start = Offset((lightSweep * 2f - 0.5f) * size.width, 0f),
-                                end = Offset((lightSweep * 2f + 0.5f) * size.width, size.height)
+                                start = Offset((sweep * 2f - 0.5f) * size.width, 0f),
+                                end = Offset((sweep * 2f + 0.5f) * size.width, size.height)
                             )
                             drawRect(brush = gradient)
                         }
@@ -203,7 +203,9 @@ fun CoinTossGameContent(
                 Box(modifier = Modifier.fillMaxSize().padding(4.dp).border(2.dp, Color.White.copy(0.1f), CircleShape))
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp).border(1.dp, Color.Gray.copy(0.2f), CircleShape))
 
-                val isBackVisible = (abs(rotationYAnim.value) % 360) in 90f..270f
+                val isBackVisible by remember {
+                    derivedStateOf { (abs(rotationYAnim.value) % 360) in 90f..270f }
+                }
                 if (!isBackVisible) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         GeometricPattern()

@@ -33,6 +33,20 @@ import com.example.smarty.ui.theme.ComponentColors
  * Each card opens the game directly in a refined bottom sheet.
  * The tab is the source of truth — no redundant navigation needed.
  */
+
+private data class GameCardData(
+    val title: String,
+    val subtitle: String,
+    val emoji: String,
+)
+
+private val gameCards = listOf(
+    GameCardData("Tic-Tac-Toe", "Challenge the AI or a friend", "✕ ○"),
+    GameCardData("Chess", "Strategic play, your pace", "♟"),
+    GameCardData("Coin Toss", "Let fate decide", "⊙"),
+    GameCardData("Guided Breathing", "Calm your mind", "◎")
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GamesContent(
@@ -54,46 +68,6 @@ fun GamesContent(
     val breathingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val iOSSheetShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)
 
-    // ── Card data ──────────────────────────────────────────────────────
-    data class GameCard(
-        val title: String,
-        val subtitle: String,
-        val emoji: String,
-        val accentColor: androidx.compose.ui.graphics.Color,
-        val onClick: () -> Unit
-    )
-
-    val games = listOf(
-        GameCard(
-            title = "Tic-Tac-Toe",
-            subtitle = "Challenge the AI or a friend",
-            emoji = "✕ ○",
-            accentColor = MaterialTheme.colorScheme.primaryContainer,
-            onClick = { showTicTacToe = true }
-        ),
-        GameCard(
-            title = "Chess",
-            subtitle = "Strategic play, your pace",
-            emoji = "♟",
-            accentColor = MaterialTheme.colorScheme.secondaryContainer,
-            onClick = { showChess = true }
-        ),
-        GameCard(
-            title = "Coin Toss",
-            subtitle = "Let fate decide",
-            emoji = "⊙",
-            accentColor = MaterialTheme.colorScheme.tertiaryContainer,
-            onClick = { showCoinToss = true }
-        ),
-        GameCard(
-            title = "Guided Breathing",
-            subtitle = "Calm your mind",
-            emoji = "◎",
-            accentColor = ComponentColors.breathingAccent,
-            onClick = { showGuidedBreathing = true }
-        )
-    )
-
     // ── Main layout ────────────────────────────────────────────────────
     Column(
         modifier = modifier
@@ -114,14 +88,27 @@ fun GamesContent(
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         )
 
-        games.forEachIndexed { index, game ->
+        val accentColors = listOf(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.tertiaryContainer,
+            ComponentColors.breathingAccent
+        )
+        val onClicks = listOf(
+            { showTicTacToe = true },
+            { showChess = true },
+            { showCoinToss = true },
+            { showGuidedBreathing = true }
+        )
+
+        gameCards.forEachIndexed { index, game ->
             GameHubCard(
                 title = game.title,
                 subtitle = game.subtitle,
                 emoji = game.emoji,
-                accentBg = game.accentColor,
+                accentBg = accentColors[index],
                 isDark = isDark,
-                onClick = game.onClick
+                onClick = onClicks[index]
             )
         }
 

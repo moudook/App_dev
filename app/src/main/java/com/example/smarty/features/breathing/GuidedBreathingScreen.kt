@@ -1,6 +1,8 @@
 package com.example.smarty.features.breathing
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -46,25 +48,24 @@ fun GuidedBreathingScreen(
     var isRunning by remember { mutableStateOf(true) }
 
     // Animation for the breathing circle
-    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
-
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
+    val scale by animateFloatAsState(
+        targetValue =
+            when (phase) {
+                BreathPhase.INHALE -> 1.0f
+                BreathPhase.HOLD -> 1.0f
+                BreathPhase.EXHALE -> 0.6f
+                BreathPhase.REST -> 0.6f
+            },
         animationSpec =
-            infiniteRepeatable(
-                animation =
-                    tween(
-                        durationMillis =
-                            when (phase) {
-                                BreathPhase.INHALE -> 4000
-                                BreathPhase.HOLD -> 0
-                                BreathPhase.EXHALE -> 6000
-                                BreathPhase.REST -> 0
-                            },
-                        easing = LinearEasing,
-                    ),
-                repeatMode = if (phase == BreathPhase.INHALE) RepeatMode.Reverse else RepeatMode.Restart,
+            tween(
+                durationMillis =
+                    when (phase) {
+                        BreathPhase.INHALE -> 4000
+                        BreathPhase.HOLD -> 0
+                        BreathPhase.EXHALE -> 6000
+                        BreathPhase.REST -> 0
+                    },
+                easing = LinearEasing,
             ),
         label = "scale",
     )
@@ -154,15 +155,7 @@ fun GuidedBreathingScreen(
                 modifier =
                     Modifier
                         .size(200.dp)
-                        .scale(
-                            if (phase == BreathPhase.INHALE) {
-                                scale
-                            } else if (phase == BreathPhase.EXHALE) {
-                                1.4f - (scale - 0.6f) * 2
-                            } else {
-                                1f
-                            },
-                        )
+                        .scale(scale)
                         .clip(CircleShape)
                         .background(SmartyBrushes.breathingCircle),
                 contentAlignment = Alignment.Center,

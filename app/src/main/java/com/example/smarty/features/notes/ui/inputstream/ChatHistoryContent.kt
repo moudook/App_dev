@@ -16,13 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.ChatBubbleOutline
-import androidx.compose.material.icons.rounded.LocalCafe
-import androidx.compose.material.icons.rounded.WbSunny
-import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -458,85 +453,61 @@ private fun MemoryLaneItem(
         Spacer(modifier = Modifier.width(16.dp))
 
         // Session Card
+        val pillShape = RoundedCornerShape(20.dp)
         Surface(
             modifier = Modifier
                 .weight(1f)
                 .padding(vertical = 6.dp)
-                .softCardShadow(shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp))
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp))
+                .softCardShadow(shape = pillShape)
+                .clip(pillShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick
                 ),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp),
+            shape = pillShape,
             color = surfaceColor,
             border = if (isSelectedForDeletion) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
-                     else if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.5f)) 
-                     else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                     else if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.5f))
+                     else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
-                // Icon Area
+                // Title (dominant)
+                Text(
+                    text = if (isSelected && isNewChat) stringResource(R.string.current_chat) else session.title.ifBlank { stringResource(R.string.new_conversation) }.lowercase(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.3).sp
+                    ),
+                    color = onSurfaceColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Divider
+                Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val hour = Calendar.getInstance().apply { timeInMillis = session.updatedAt }.get(Calendar.HOUR_OF_DAY)
-                    val memoryIcon = if (isNewChat) {
-                        Icons.Default.AutoAwesome
-                    } else {
-                        when {
-                            hour in 5..11 -> Icons.Rounded.LocalCafe // Morning Coffee
-                            hour in 12..17 -> Icons.Rounded.WbSunny // Afternoon Sun
-                            else -> Icons.Rounded.NightsStay // Evening/Night
-                        }
-                    }
-                    Icon(
-                        imageVector = memoryIcon,
-                        contentDescription = null,
-                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else onSurfaceColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.06f))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Content Area
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = displayTitle,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                            letterSpacing = (-0.3).sp
-                        ),
-                        color = onSurfaceColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text(
-                        text = displayPreview,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            lineHeight = 16.sp,
-                            letterSpacing = 0.1.sp
-                        ),
-                        color = mutedColor,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                // Preview
+                Text(
+                    text = displayPreview,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        lineHeight = 16.sp,
+                        letterSpacing = 0.1.sp
+                    ),
+                    color = mutedColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

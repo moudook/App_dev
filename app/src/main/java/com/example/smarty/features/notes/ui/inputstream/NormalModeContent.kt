@@ -22,6 +22,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.Dp
@@ -102,6 +103,11 @@ fun NormalModeContent(
             NotesEmptyState(modifier = modifier.fillMaxSize())
         }
     } else {
+        // Pre-compute index map once per list change — O(1) lookup per item
+        val noteIndexMap = remember(displayedNotes) {
+            displayedNotes.mapIndexedNotNull { idx, note -> note.id to idx }.toMap()
+        }
+
         // Pull-to-refresh wrapper
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -126,15 +132,18 @@ fun NormalModeContent(
                 items(
                     items = displayedNotes,
                     key = { note -> note.id },
-                    contentType = { note -> note.processingStatus }
+                    contentType = { _ -> "noteCard" }
                 ) { note ->
-                    val index = displayedNotes.indexOf(note)
+                    val index = noteIndexMap[note.id] ?: 0
 
-                    // Stabilize lambdas to prevent recomposition
-                    val stableOnClick = remember(note.id, isSelectionMode) {
+                    val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
+                    val currentOnToggleSelection by rememberUpdatedState(onToggleSelection)
+                    val currentOnNoteClick by rememberUpdatedState(onNoteClick)
+
+                    val stableOnClick = remember(note.id) {
                         {
-                            if (isSelectionMode) onToggleSelection(note.id)
-                            else onNoteClick(note)
+                            if (currentIsSelectionMode) currentOnToggleSelection(note.id)
+                            else currentOnNoteClick(note)
                         }
                     }
                     val stableOnDelete = remember(note.id) {
