@@ -55,14 +55,6 @@ import com.example.smarty.features.digest.ui.DigestDetailScreen
 import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.features.auth.ui.RefinedLoginScreen
 import com.example.smarty.features.voice.SpeechToTextState
-import com.example.smarty.features.searchhistory.ui.SearchHistoryScreen
-import com.example.smarty.features.devices.ui.DeviceManagementScreen
-import com.example.smarty.features.digest.ui.DigestPreferencesScreen
-import com.example.smarty.features.devices.domain.DeviceItem
-import com.example.smarty.features.devices.domain.toUiModel
-import com.example.smarty.features.digest.domain.DigestPreferences
-import com.example.smarty.features.digest.domain.toDomainModel
-import com.example.smarty.features.digest.domain.toUiModel
 import com.example.smarty.features.notes.domain.SmartyViewModel
 import com.example.smarty.features.tasks.ui.TasksScreen
 import com.example.smarty.features.tags.ui.TagsScreen
@@ -101,9 +93,6 @@ sealed class Screen(val route: String) {
     data object Chess : Screen("chess")
     data object Digest : Screen("digest")
     data object GuidedBreathing : Screen("guided_breathing")
-    data object SearchHistory : Screen("search_history")
-    data object DeviceManagement : Screen("device_management")
-    data object DigestPreferences : Screen("digest_preferences")
     data object Tasks : Screen("tasks")
     data object Tags : Screen("tags")
     data object TagNotes : Screen("tag_notes")
@@ -820,46 +809,6 @@ fun SmartyNavHost(
         composable(Screen.GuidedBreathing.route) { _ ->
             GuidedBreathingScreen(
                 onDismiss = { navController.safePopBackStack() }
-            )
-        }
-
-        composable(Screen.SearchHistory.route) { _ ->
-            val viewModel: com.example.smarty.features.searchhistory.domain.SearchHistoryViewModel = viewModel()
-            val searchHistory by viewModel.searchHistory.collectAsState()
-            val uiState by viewModel.uiState.collectAsState()
-            
-            SearchHistoryScreen(
-                searchHistory = searchHistory,
-                isLoading = uiState.isLoading,
-                onSearchItemClick = { query -> /* Handle search click */ },
-                onClearHistory = { viewModel.clearHistory() },
-                onDeleteItem = { itemId -> viewModel.deleteItem(itemId) },
-                onNavigateBack = { navController.safePopBackStack() }
-            )
-        }
-
-        composable(Screen.DeviceManagement.route) { _ ->
-            val viewModel: com.example.smarty.features.devices.domain.DeviceViewModel = viewModel()
-            val devices by viewModel.devices.collectAsState()
-            val uiState by viewModel.uiState.collectAsState()
-            
-            DeviceManagementScreen(
-                devices = devices.map { it.toUiModel() },
-                isLoading = uiState.isLoading,
-                onRemoveDevice = { deviceId -> viewModel.removeDevice(deviceId) },
-                onNavigateBack = { navController.safePopBackStack() }
-            )
-        }
-
-        composable(Screen.DigestPreferences.route) { _ ->
-            val viewModel: com.example.smarty.features.digest.domain.DigestViewModel = viewModel()
-            val preferences by viewModel.preferences.collectAsState()
-            val uiState by viewModel.uiState.collectAsState()
-            
-            DigestPreferencesScreen(
-                preferences = preferences?.toUiModel() ?: com.example.smarty.features.digest.ui.DigestPreferences(),
-                onSavePreferences = { newPrefs -> viewModel.savePreferences(newPrefs.toDomainModel()) },
-                onNavigateBack = { navController.safePopBackStack() }
             )
         }
 

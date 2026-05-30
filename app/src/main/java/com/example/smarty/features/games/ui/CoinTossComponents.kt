@@ -265,7 +265,7 @@ fun TossQuoteOverlay(
 
         if (!isTossing && !showResult) {
             Text(
-                text = "Tap anywhere to toss",
+                text =                     "Tap anywhere to flip",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )

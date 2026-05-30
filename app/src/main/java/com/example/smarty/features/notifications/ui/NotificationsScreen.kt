@@ -95,8 +95,8 @@ fun NotificationsScreen(
                 notifications.isEmpty() -> {
                     EmptyStatePlaceholder(
                         icon = SmartyIcons.Notifications,
-                        title = "No notifications",
-                        subtitle = "You're all caught up!",
+                        title = "Nothing new.",
+                        subtitle = "You\'re all caught up.",
                         modifier = Modifier.fillMaxSize()
                     )
                 }

@@ -21,13 +21,15 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.features.games.ui.TicTacToeGameContent
 import com.example.smarty.features.games.ui.CoinTossGameContent
 import com.example.smarty.features.games.ui.ChessScreen
+import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.ui.components.UnifiedDragHandle
 import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.ComponentColors
 
 /**
  * Games Hub — Anthropic-aesthetic redesign.
  *
- * Three large game cards replace the old settings-list layout.
+ * Four game cards replace the old settings-list layout.
  * Each card opens the game directly in a refined bottom sheet.
  * The tab is the source of truth — no redundant navigation needed.
  */
@@ -43,11 +45,13 @@ fun GamesContent(
     var showTicTacToe by remember { mutableStateOf(false) }
     var showCoinToss by remember { mutableStateOf(false) }
     var showChess by remember { mutableStateOf(false) }
+    var showGuidedBreathing by remember { mutableStateOf(false) }
 
     // Use skipPartiallyExpanded = true so the sheet fully expands to content height
     val ticTacToeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coinTossSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val chessSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val breathingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val iOSSheetShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)
 
     // ── Card data ──────────────────────────────────────────────────────
@@ -62,7 +66,7 @@ fun GamesContent(
     val games = listOf(
         GameCard(
             title = "Tic-Tac-Toe",
-            subtitle = "Play vs AI or a friend",
+            subtitle = "Challenge the AI or a friend",
             emoji = "✕ ○",
             accentColor = MaterialTheme.colorScheme.primaryContainer,
             onClick = { showTicTacToe = true }
@@ -76,10 +80,17 @@ fun GamesContent(
         ),
         GameCard(
             title = "Coin Toss",
-            subtitle = "Let chance decide",
+            subtitle = "Let fate decide",
             emoji = "⊙",
             accentColor = MaterialTheme.colorScheme.tertiaryContainer,
             onClick = { showCoinToss = true }
+        ),
+        GameCard(
+            title = "Guided Breathing",
+            subtitle = "Calm your mind",
+            emoji = "◎",
+            accentColor = ComponentColors.breathingAccent,
+            onClick = { showGuidedBreathing = true }
         )
     )
 
@@ -156,6 +167,20 @@ fun GamesContent(
             shape = iOSSheetShape
         ) {
             CoinTossGameContent(onClose = { showCoinToss = false })
+        }
+    }
+
+    // ── Guided Breathing bottom sheet ──────────────────────────────────
+    if (showGuidedBreathing) {
+        ModalBottomSheet(
+            onDismissRequest = { showGuidedBreathing = false },
+            sheetState = breathingSheetState,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            dragHandle = { UnifiedDragHandle() },
+            shape = iOSSheetShape
+        ) {
+            GuidedBreathingScreen(onDismiss = { showGuidedBreathing = false })
         }
     }
 }

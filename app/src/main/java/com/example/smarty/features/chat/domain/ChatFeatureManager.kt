@@ -749,29 +749,16 @@ class ChatFeatureManager(
                             )
 
                             val result = commandTransport.dispatch(command)
-                            // Fire-and-forget: we don't send results back to server anymore
-                            // unless specifically required by a future bidirectional tool.
+                            // Send device status responses back to server
+                            if (result is com.example.smarty.protocol.ClientEvent.SystemStatusResponse) {
+                                val sessionId = currentSessionId.value ?: "unknown"
+                                remoteAgentService.sendEvent(sessionId, result)
+                            }
                         }
                     }
                 }
             }
         }
-
-    // Strict allowlist for application launches — rejects any unapproved package
-    private val ALLOWED_LAUNCH_PACKAGES =
-        setOf(
-            "com.spotify.music",
-            "com.google.android.youtube",
-            "com.android.chrome",
-            "com.google.android.apps.maps",
-            "com.google.android.gm",
-            "com.android.camera",
-            "com.android.settings",
-            "com.google.android.calendar",
-            "com.google.android.deskclock",
-            "com.google.android.apps.messaging",
-            "com.google.android.dialer",
-        )
 
     // Strict allowlist for settings toggles — only safe, non-privileged settings
     private val ALLOWED_SETTINGS =
@@ -782,7 +769,6 @@ class ChatFeatureManager(
             "auto_rotate",
             "location",
             "dnd",
-            "vibrate",
             "airplane_mode",
         )
 
@@ -982,10 +968,6 @@ class ChatFeatureManager(
             }
 
             override fun launchApp(packageName: String) {
-                if (packageName !in ALLOWED_LAUNCH_PACKAGES) {
-                    Log.w(TAG, "SECURITY: Blocked launch of unapproved package: $packageName")
-                    return
-                }
                 systemFeatureManager.launchApp(packageName)
             }
 
@@ -1005,6 +987,8 @@ class ChatFeatureManager(
                     "toggle" -> audioFeatureManager.togglePlayPause()
                     "next" -> audioFeatureManager.next()
                     "previous", "prev" -> audioFeatureManager.previous()
+                    "volume_up" -> systemFeatureManager.adjustVolume(1)
+                    "volume_down" -> systemFeatureManager.adjustVolume(-1)
                 }
             }
 

@@ -1331,12 +1331,12 @@ private fun AgentMemoryView(onBack: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "No memories yet",
+                        text = "No memories yet.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "The agent will remember things as you chat",
+                        text = "I\'ll remember things as we chat.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
@@ -1384,8 +1384,8 @@ private fun AgentMemoryView(onBack: () -> Unit) {
     if (showDeleteAll) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showDeleteAll = false },
-            title = { Text("Clear all memories?") },
-            text = { Text("The agent will forget everything it has learned about you.") },
+            title = { Text("Forget everything?") },
+            text = { Text("I\'ll lose everything I\'ve learned about you.") },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteAll = false

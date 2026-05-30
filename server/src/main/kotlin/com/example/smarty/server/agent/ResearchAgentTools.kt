@@ -6,7 +6,7 @@ import com.example.smarty.server.llm.ToolProperty
 
 /**
  * Research Agent Tools - Enhanced toolset for advanced research.
- * Includes web search, scraping, and progress tracking.
+ * Includes progress tracking for research sessions.
  */
 object ResearchAgentTools {
     /**
@@ -14,8 +14,6 @@ object ResearchAgentTools {
      */
     fun getTools(): List<ToolDefinition> =
         listOf(
-            webSearchToolDefinition(),
-            webScrapeToolDefinition(),
             saveProgressToolDefinition(),
             readProgressToolDefinition(),
         )
@@ -25,66 +23,8 @@ object ResearchAgentTools {
      */
     fun getEnhancedTools(): List<ToolDefinition> =
         listOf(
-            webSearchToolDefinition(),
-            webScrapeToolDefinition(),
             saveProgressToolDefinition(),
             readProgressToolDefinition(),
-        )
-
-    /**
-     * Web Search Tool Definition
-     */
-    private fun webSearchToolDefinition(): ToolDefinition =
-        ToolDefinition(
-            name = "web_search",
-            description =
-                "Search the web for information. Use this to find current information, news, " +
-                    "academic papers, and general knowledge.",
-            parameters =
-                ToolParameters(
-                    properties =
-                        mapOf(
-                            "query" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "The search query",
-                                ),
-                            "purpose" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Why this search is being performed (for tracking)",
-                                ),
-                        ),
-                    required = listOf("query"),
-                ),
-        )
-
-    /**
-     * Web Scrape Tool Definition
-     */
-    private fun webScrapeToolDefinition(): ToolDefinition =
-        ToolDefinition(
-            name = "web_scrape",
-            description =
-                "Extract full text content from a specific URL. Use this after finding a " +
-                    "relevant URL to get detailed information.",
-            parameters =
-                ToolParameters(
-                    properties =
-                        mapOf(
-                            "url" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "The URL to scrape",
-                                ),
-                            "purpose" to
-                                ToolProperty(
-                                    type = "string",
-                                    description = "Why this page is being scraped (for tracking)",
-                                ),
-                        ),
-                    required = listOf("url"),
-                ),
         )
 
     /**

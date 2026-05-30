@@ -52,22 +52,22 @@ fun EmptyState(
 
 @Composable
 fun EmptyChatState(modifier: Modifier = Modifier, onCreateNewChat: () -> Unit = {}) {
-    EmptyState(icon = Icons.Default.ChatBubbleOutline, title = "No conversations yet", description = "Start a new conversation to begin chatting with Smarty", actionText = "New chat", onAction = onCreateNewChat, modifier = modifier)
+    EmptyState(icon = Icons.Default.ChatBubbleOutline, title = "We haven\'t talked yet.", description = "Start a conversation and I\'ll remember everything.", actionText = "Start chatting", onAction = onCreateNewChat, modifier = modifier)
 }
 
 @Composable
 fun EmptyNotesState(modifier: Modifier = Modifier, onCreateNote: () -> Unit = {}) {
-    EmptyState(icon = Icons.AutoMirrored.Filled.NoteAdd, title = "No notes yet", description = "Create your first note to get started", actionText = "Create note", onAction = onCreateNote, modifier = modifier)
+    EmptyState(icon = Icons.AutoMirrored.Filled.NoteAdd, title = "Nothing saved yet.", description = "Your thoughts deserve a place to live.", actionText = "Create note", onAction = onCreateNote, modifier = modifier)
 }
 
 @Composable
 fun EmptySearchState(query: String, modifier: Modifier = Modifier) {
-    EmptyState(icon = Icons.Default.SearchOff, title = "No results found", description = "No results found for \"$query\". Try a different search term.", modifier = modifier)
+    EmptyState(icon = Icons.Default.SearchOff, title = "Nothing matched.", description = "No results for \"$query\". Try a different angle.", modifier = modifier)
 }
 
 @Composable
 fun EmptyCalendarState(modifier: Modifier = Modifier, onAddEvent: () -> Unit = {}) {
-    EmptyState(icon = Icons.AutoMirrored.Filled.EventNote, title = "No events scheduled", description = "Your calendar is clear. Add an event to get started.", actionText = "Add event", onAction = onAddEvent, modifier = modifier)
+    EmptyState(icon = Icons.AutoMirrored.Filled.EventNote, title = "Your schedule is clear.", description = "Nothing planned yet. Add something?", actionText = "Add event", onAction = onAddEvent, modifier = modifier)
 }
 
 @Composable

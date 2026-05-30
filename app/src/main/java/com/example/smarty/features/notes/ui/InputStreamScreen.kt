@@ -1017,7 +1017,7 @@ fun InputStreamScreen(
             userIsScrolling = true
             autoScrollEnabled = false
         } else {
-            kotlinx.coroutines.delay(600) // Delay before starting show animation
+            kotlinx.coroutines.delay(2000) // Delay before starting show animation
             userIsScrolling = false
         }
     }
@@ -1140,17 +1140,33 @@ fun InputStreamScreen(
                 label = "TopBarScroll"
             )
             
-            // 2. Opacity Fade
+            // 2. Opacity Fade (Asymmetric Timing)
             val topBarAlpha by scrollTransition.animateFloat(
-                transitionSpec = { spring(dampingRatio = 0.8f, stiffness = 150f) },
+                transitionSpec = { 
+                    if (targetState) {
+                        // SCROLLING (HIDING): Wait 350ms for pill to contract, then fade out.
+                        tween(durationMillis = 200, delayMillis = 350, easing = LinearEasing)
+                    } else {
+                        // STOPPED (SHOWING): Fade in instantly.
+                        tween(durationMillis = 200, easing = LinearOutSlowInEasing)
+                    }
+                },
                 label = "topBarAlpha"
             ) { isScrolling -> if (isScrolling) 0f else 1f }
             
-            // 3. Y-Axis Slide (in Pixels, not Dp, for raw GPU translation)
+            // 3. Y-Axis Slide (Asymmetric Timing)
             val topBarTranslationY by scrollTransition.animateFloat(
-                transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                transitionSpec = { 
+                    if (targetState) {
+                        // SCROLLING (HIDING): Wait exactly 350ms, then slide up and away smoothly.
+                        tween(durationMillis = 350, delayMillis = 350, easing = FastOutSlowInEasing)
+                    } else {
+                        // STOPPED SCROLLING (SHOWING): Spring down instantly with a premium bounce.
+                        spring(dampingRatio = 0.75f, stiffness = 400f)
+                    }
+                },
                 label = "topBarTranslationY"
-            ) { isScrolling -> if (isScrolling) -250f else 0f } // -250f pixels pushes it up off-screen
+            ) { isScrolling -> if (isScrolling) -300f else 0f }
 
             val topGradientTranslationY by scrollTransition.animateFloat(
                 transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
@@ -1215,7 +1231,8 @@ fun InputStreamScreen(
                     isStacksMode = showStacksInline,
                     isArchiveMode = showArchiveInline,
                     isSettingsMode = showSettingsInline,
-                    archiveCount = archivedNotes.size
+                    archiveCount = archivedNotes.size,
+                    isScrolling = userIsScrolling
                 )
 
                 // FILTER CHIP REMOVED: User requested removal of "philtre option"
@@ -1633,14 +1650,30 @@ fun InputStreamScreen(
                 )
                 
                 val bottomBarAlpha by bottomScrollTransition.animateFloat(
-                    transitionSpec = { spring(dampingRatio = 0.8f, stiffness = 150f) },
+                    transitionSpec = { 
+                        if (targetState) {
+                            // SCROLLING (HIDING): Wait 350ms, then fade out.
+                            tween(durationMillis = 200, delayMillis = 350, easing = LinearEasing)
+                        } else {
+                            // STOPPED SCROLLING (SHOWING): Fade in instantly.
+                            tween(durationMillis = 200, easing = LinearOutSlowInEasing)
+                        }
+                    },
                     label = "bottomBarAlpha"
                 ) { isScrolling -> if (isScrolling) 0f else 1f }
                 
                 val bottomBarTranslationY by bottomScrollTransition.animateFloat(
-                    transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
+                    transitionSpec = { 
+                        if (targetState) {
+                            // SCROLLING (HIDING): Wait 350ms, then slide down and away smoothly.
+                            tween(durationMillis = 400, delayMillis = 350, easing = FastOutSlowInEasing)
+                        } else {
+                            // STOPPED SCROLLING (SHOWING): Slide up instantly with a premium physical bounce.
+                            spring(dampingRatio = 0.75f, stiffness = 350f)
+                        }
+                    },
                     label = "bottomBarTranslationY"
-                ) { isScrolling -> if (isScrolling) 250f else 0f } // Push down off-screen
+                ) { isScrolling -> if (isScrolling) 250f else 0f }
 
                 val bottomGradientTranslationY by bottomScrollTransition.animateFloat(
                     transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },

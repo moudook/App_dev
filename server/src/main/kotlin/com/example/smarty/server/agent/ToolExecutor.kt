@@ -182,8 +182,7 @@ class ToolExecutor(
             "read_progress" -> executeReadProgress(args)
             "schedule" -> executeScheduleTool(args, clientTimezone, clientTimeMillis)
             "remind" -> executeRemindTool(args, clientTimezone, clientTimeMillis)
-            "device" -> executeDeviceTool(args)
-            "search" -> executeSearchTool(args)
+            "device" -> executeDeviceTool(args, sessionId)
             "ask_user" -> executeAskUser(args, toolCallId, sessionId)
             "get_note_by_id" -> executeGetNoteById(args)
             "navigate" -> executeNavigateTool(args)
@@ -314,7 +313,6 @@ class ToolExecutor(
                 "toggle_setting" -> "device_toggle"
                 "get_device_info" -> "device_status"
                 "take_screenshot" -> "device_capture"
-                "search_web", "web_search" -> "search_web"
                 "go_to_screen" -> "navigate_go"
                 "share_content", "share" -> "navigate_share"
                 else -> name
@@ -603,7 +601,7 @@ class ToolExecutor(
         }
     }
 
-    private suspend fun executeDeviceTool(args: UnifiedToolArgs): String {
+    private suspend fun executeDeviceTool(args: UnifiedToolArgs, sessionId: String): String {
         return when (args.action) {
             "open" -> {
                 emitDeviceCommand(
@@ -643,13 +641,23 @@ class ToolExecutor(
                 "${args.setting} $statusStr"
             }
             "status" -> {
+                val commandId = java.util.UUID.randomUUID().toString()
                 emitDeviceCommand(
                     AgentCommand.GetDeviceInfo(
-                        commandId = UUID.randomUUID().toString(),
+                        commandId = commandId,
                         infoType = args.info ?: "all",
                     ),
                 )
-                "Getting device ${args.info}..."
+                // Wait for client to respond with device status
+                val deferred = DeviceResponseRegistry.createPendingRequest(commandId, sessionId)
+                val result = runCatching {
+                    kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() }
+                }.getOrNull()
+                if (result != null && result.status.isNotEmpty()) {
+                    result.status.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                } else {
+                    "Device status unavailable"
+                }
             }
             "capture" -> {
                 if (capabilities?.hardware?.screenCapture == false) {
@@ -664,21 +672,6 @@ class ToolExecutor(
             }
             else -> "Unknown device action: ${args.action}"
         }
-    }
-
-    private suspend fun executeSearchTool(args: UnifiedToolArgs): String {
-        val query = args.query?.takeIf { it.isNotBlank() } ?: args.info?.takeIf { it.isNotBlank() }
-        if (args.action == "web" || args.action == null) {
-            if (query != null) {
-                logger.info("[ToolExecutor] web_search triggered for query: ${query.take(100)}")
-                emitProcessing("Searching the web...", "Query: ${query.take(100)}")
-                // OpenCode CLI daemon handles web_search natively via the connected MCP.
-                // Return a directive for the LLM to use its internal websearch capability.
-                return "[Use your built-in websearch tool to search for: $query]"
-            }
-            return "No query provided for web search."
-        }
-        return "Unknown search action: ${args.action}"
     }
 
     private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {

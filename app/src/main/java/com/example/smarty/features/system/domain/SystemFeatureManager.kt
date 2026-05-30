@@ -119,7 +119,7 @@ class SystemFeatureManager(
         when (setting.lowercase()) {
             "dark_theme", "dark_mode", "theme" -> toggleTheme(enable)
             "sound", "completion_sound" -> securePreferences.setSoundEnabled(enable)
-            "haptic", "vibration" -> securePreferences.setHapticEnabled(enable)
+            "flashlight", "torch" -> toggleFlashlight(enable)
             else -> Log.w(TAG, "Unknown setting toggle requested: $setting")
         }
     }
@@ -164,22 +164,35 @@ class SystemFeatureManager(
 
     /**
      * Find an application package name by its display name.
+     * Uses scoring-based matching: exact → starts-with → contains → token overlap.
      */
     fun findPackageName(appName: String): String? {
         val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
+        val apps = pm.getInstalledApplications(0)
+        val query = appName.trim().lowercase()
 
-        var bestMatch = packages.find { pkg ->
-            pkg.applicationInfo?.let { pm.getApplicationLabel(it).toString().equals(appName, ignoreCase = true) } ?: false
-        }
+        data class ScoredApp(val packageName: String, val label: String, val score: Int)
 
-        if (bestMatch == null) {
-            bestMatch = packages.find { pkg ->
-                pkg.applicationInfo?.let { pm.getApplicationLabel(it).toString().contains(appName, ignoreCase = true) } ?: false
+        val scored = apps.mapNotNull { appInfo ->
+            val label = pm.getApplicationLabel(appInfo).toString()
+            val labelLower = label.lowercase()
+            val score = when {
+                labelLower == query -> 100
+                labelLower.startsWith(query) -> 85
+                query.startsWith(labelLower) -> 80
+                labelLower.contains(query) -> 60
+                query.contains(labelLower) -> 55
+                else -> {
+                    val queryTokens = query.split(" ")
+                    val labelTokens = labelLower.split(" ")
+                    val overlap = queryTokens.intersect(labelTokens.toSet()).size
+                    if (overlap > 0) 40 + (overlap * 10) else 0
+                }
             }
+            if (score > 0) ScoredApp(appInfo.packageName, label, score) else null
         }
 
-        return bestMatch?.packageName
+        return scored.maxByOrNull { it.score }?.packageName
     }
 
     /**
@@ -394,9 +407,7 @@ class SystemFeatureManager(
             "theme" to if (isDarkTheme) "dark" else "light",
             "network" to connectionStatus,
             "cache_size" to cacheSize,
-            "unread_notes_memory" to unreadMemoryCount.toString(),
-            "os_version" to android.os.Build.VERSION.RELEASE,
-            "device" to "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+            "unread_notes_memory" to unreadMemoryCount.toString()
         )
     }
 }

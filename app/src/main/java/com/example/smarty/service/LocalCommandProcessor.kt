@@ -172,46 +172,7 @@ class LocalCommandProcessor(
             }
         }
 
-        // 0b. Check for Flashlight
-        if (FLASHLIGHT_KEYWORDS.any { normalizedInput.contains(it) }) {
-            val isOn = normalizedInput.contains("on") || normalizedInput.contains("enable") || !normalizedInput.contains("off")
-            val success = systemFeatureManager.toggleFlashlight(isOn)
-            if (success) {
-                val response = context.getString(if (isOn) R.string.flashlight_on else R.string.flashlight_off)
-                return if (hasChainingIntent(normalizedInput)) {
-                    CommandResult.HandledAndPassToLLM(response)
-                } else {
-                    CommandResult.Handled(response)
-                }
-            } else {
-                return CommandResult.Handled(response = context.getString(R.string.error_flashlight_failed))
-            }
-        }
-
-        // 0c. Check for Volume
-        if (VOLUME_KEYWORDS.any { normalizedInput.contains(it) }) {
-            val direction = when {
-                normalizedInput.contains("up") || normalizedInput.contains("increase") || normalizedInput.contains("louder") -> 1
-                normalizedInput.contains("down") || normalizedInput.contains("decrease") || normalizedInput.contains("softer") || normalizedInput.contains("quieter") -> -1
-                normalizedInput.contains("mute") || normalizedInput.contains("unmute") || normalizedInput.contains("silent") -> 0
-                else -> null
-            }
-            if (direction != null) {
-                systemFeatureManager.adjustVolume(direction)
-                val response = when (direction) {
-                    1 -> context.getString(R.string.volume_increased)
-                    -1 -> context.getString(R.string.volume_decreased)
-                    else -> context.getString(R.string.volume_toggled)
-                }
-                return if (hasChainingIntent(normalizedInput)) {
-                    CommandResult.HandledAndPassToLLM(response)
-                } else {
-                    CommandResult.Handled(response = response)
-                }
-            }
-        }
-
-        // 0d. Check for Games
+        // 0b. Check for Games
         if (GAME_COIN_KEYWORDS.any { normalizedInput.contains(it) }) {
             return CommandResult.NavigateTo("coin_toss")
         }

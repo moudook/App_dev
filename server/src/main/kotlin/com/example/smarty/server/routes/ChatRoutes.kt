@@ -271,6 +271,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     }
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                             }
+                            is ClientEvent.SystemStatusResponse -> {
+                                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
+                                    event.commandId,
+                                    event.status,
+                                )
+                            }
                             else -> {
                                 // Other events (AppState, SystemStatus) might not need to be in chat history
                                 // or could be stored differently. For now, we just acknowledge them.
@@ -833,6 +839,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                                     "Tool Output [${clientEvent.commandId}] ($statusPrefix): " +
                                                         clientEvent.result
                                                 chatRepository.saveMessage(userId, sessionIdParam, LlmMessage.Role.TOOL.name, content)
+                                            }
+                                            is ClientEvent.SystemStatusResponse -> {
+                                                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
+                                                    clientEvent.commandId,
+                                                    clientEvent.status,
+                                                )
                                             }
                                             else -> {} // Handle other client events if needed
                                         }

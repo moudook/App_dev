@@ -132,7 +132,7 @@ fun CoinTossGameContent(
                 enter = fadeIn(), exit = fadeOut()
             ) {
                 Text(
-                    text = "Tap to toss again",
+                    text =                     "Tap to flip again",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
                 )

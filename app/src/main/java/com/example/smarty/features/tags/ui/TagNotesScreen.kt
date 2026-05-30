@@ -83,8 +83,8 @@ fun TagNotesScreen(
             } else if (notes.isEmpty()) {
                 EmptyStatePlaceholder(
                     icon = Icons.AutoMirrored.Outlined.Note,
-                    title = "No Notes",
-                    subtitle = "No notes are tagged with \"${uiState.tagName}\""
+                    title = "Nothing here.",
+                    subtitle = "No notes tagged with \"${uiState.tagName}\" yet."
                 )
             } else {
                 LazyColumn(

@@ -1,7 +1,16 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.animateColor
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.*
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -58,11 +68,25 @@ fun HorizontalActionBar(
     isStacksMode: Boolean = false,
     isArchiveMode: Boolean = false,
     isSettingsMode: Boolean = false,
-    archiveCount: Int = 0
+    archiveCount: Int = 0,
+    isScrolling: Boolean = false
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+
+    // Subtle Pill State
+    var isExpanded by remember { mutableStateOf(true) }
+
+    // Auto-collapse timer
+    LaunchedEffect(isExpanded, selectedTab, isScrolling) {
+        if (isScrolling) {
+            isExpanded = false
+        } else if (isExpanded) {
+            delay(3000L)
+            isExpanded = false
+        }
+    }
 
     // Soft iOS blur aesthetic
     val barBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
@@ -77,38 +101,66 @@ fun HorizontalActionBar(
             // Protect from camera cutouts (fixes overlap issue)
             .windowInsetsPadding(WindowInsets.displayCutout)
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        contentAlignment = Alignment.BottomCenter
+        contentAlignment = Alignment.TopStart // Anchors the shrinking animation to the left
     ) {
         Surface(
             shape = RoundedCornerShape(32.dp),
             color = barBg,
             border = BorderStroke(0.5.dp, borderColor),
-            // Floating 3D shadow for light mode
-            shadowElevation = if (isDark) 0.dp else 16.dp, 
-            modifier = Modifier.fillMaxWidth()
+
+            modifier = Modifier
+                // 1. S-TIER FIX: Let the container fluidly hug the expanding/shrinking contents
+                .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f))
+                .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
+                .then(if (!isExpanded) Modifier.clickable { 
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    isExpanded = true 
+                } else Modifier)
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
                     .padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = if (isExpanded) Arrangement.SpaceBetween else Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NavigationTab.entries.forEach { tab ->
                     val isSelected = tab == selectedTab
-                    TabItem(
-                        tab = tab,
-                        isSelected = isSelected,
-                        accentColor = accentColor,
-                        isDark = isDark,
-                        isHistoryMode = isHistoryMode,
-                        onClick = {
-                            if (!isSelected) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Light, snappy haptic
-                                onTabSelected(tab)
+                    
+                    // S-TIER ANIMATION: Unselected tabs scale down as they fade out, making the collapse feel physical
+                    AnimatedVisibility(
+                        visible = isExpanded || isSelected,
+                        // 2. S-TIER FIX: Physically allocate space organically. Pushes the pill open like liquid.
+                        enter = fadeIn(tween(300, easing = LinearOutSlowInEasing)) + 
+                                expandHorizontally(
+                                    expandFrom = Alignment.CenterHorizontally,
+                                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)
+                                ) +
+                                scaleIn(initialScale = 0.6f, animationSpec = spring(0.7f, 400f)),
+                                
+                        // 3. S-TIER FIX: Physically collapse the space. Pulls the pill closed without any clipping line!
+                        exit = fadeOut(tween(150, easing = FastOutLinearInEasing)) + 
+                               shrinkHorizontally(
+                                   shrinkTowards = Alignment.CenterHorizontally,
+                                   animationSpec = spring(dampingRatio = 0.8f, stiffness = 350f)
+                               ) +
+                               scaleOut(targetScale = 0.5f, animationSpec = spring(0.8f, 350f))
+                    ) {
+                        TabItem(
+                            tab = tab,
+                            isSelected = isSelected,
+                            accentColor = accentColor,
+                            isDark = isDark,
+                            isHistoryMode = isHistoryMode,
+                            onClick = {
+                                if (!isSelected) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Light, snappy haptic
+                                    onTabSelected(tab)
+                                }
+                                isExpanded = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -128,7 +180,7 @@ private fun TabItem(
     val transition = updateTransition(targetState = isSelected, label = "TabState")
 
     val scale by transition.animateFloat(
-        transitionSpec = { spring(dampingRatio = 0.6f, stiffness = 400f) },
+        transitionSpec = { spring(dampingRatio = 0.6f, stiffness = 500f) },
         label = "scale"
     ) { selected -> if (selected) 1.15f else 1.0f }
 

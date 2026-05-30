@@ -111,7 +111,6 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_CACHED_MODELS = "cached_models"
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
-        private const val KEY_HAPTIC_ENABLED = "haptic_enabled"
 
         // Backup settings
         private const val KEY_GOOGLE_ACCOUNT_EMAIL = "google_account_email"
@@ -192,10 +191,6 @@ class SecurePreferences(private val context: Context) {
     fun isSoundEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_SOUND_ENABLED, true)
 
     fun setSoundEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
-
-    fun isHapticEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_HAPTIC_ENABLED, true)
-
-    fun setHapticEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_HAPTIC_ENABLED, enabled).apply()
 
     // Connection Management
     fun isConnectionEnabled(connection: AIConnection): Boolean {

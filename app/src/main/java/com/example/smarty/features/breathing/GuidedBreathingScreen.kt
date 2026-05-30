@@ -105,8 +105,8 @@ fun GuidedBreathingScreen(
     if (!isRunning && cycleCount >= 3) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Well Done!") },
-            text = { Text("You've completed 3 breathing cycles. Feel calmer?") },
+            title = { Text("Well done.") },
+            text = { Text("3 cycles done. Feeling calmer?") },
             confirmButton = {
                 TextButton(onClick = onDismiss) {
                     Text("Continue")
@@ -138,9 +138,9 @@ fun GuidedBreathingScreen(
             Text(
                 text =
                     when (phase) {
-                        BreathPhase.INHALE -> "Breathe In"
+                        BreathPhase.INHALE -> "Breathe in"
                         BreathPhase.HOLD -> "Hold"
-                        BreathPhase.EXHALE -> "Breathe Out"
+                        BreathPhase.EXHALE -> "Breathe out"
                         BreathPhase.REST -> "Rest"
                     },
                 style = MaterialTheme.typography.headlineMedium,

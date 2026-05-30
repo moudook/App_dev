@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.geometry.CornerRadius
@@ -375,39 +377,77 @@ private fun RenderMarkdownBlock(
                     MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
                 }
 
-                // ── S-TIER EDITORIAL BLOCKQUOTE ──
+                // ── S-TIER EDITORIAL BLOCKQUOTE (Zero Allocation GPU Optimized) ──
                 trimmedLine.startsWith(">") -> {
-                    val quoteLines = mutableListOf(trimmedLine.removePrefix(">").trimStart())
+                    val quoteLines = mutableListOf(trimmedLine.substring(1).trimStart())
                     i++
                     while (i < lines.size) {
                         val next = lines[i].trim()
-                        if (next.startsWith(">")) {
-                            quoteLines.add(next.removePrefix(">").trimStart())
-                        } else if (isBlockBreak(next)) {
-                            break
-                        } else {
-                            quoteLines.add(next)
-                        }
+                        if (isBlockBreak(next)) break
+                        quoteLines.add(if (next.startsWith(">")) next.substring(1).trimStart() else next)
                         i++
                     }
-                    
+
                     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-                    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF5F5F7) // Apple System Gray 6
+                    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF5F5F7)
                     val borderColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
-                    
+
+                    // SINGLE CONTAINER ARCHITECTURE
+                    // No Nested Rows. No Spacers. No IntrinsicSize.Min.
                     Box(
                         modifier = Modifier
                             .padding(vertical = 12.dp)
                             .fillMaxWidth()
-                            .graphicsLayer {
-                                shadowElevation = if (isDark) 0f else 12.dp.toPx()
-                                ambientShadowColor = linkColor.copy(alpha = 0.04f)
-                                spotShadowColor = linkColor.copy(alpha = 0.08f)
-                                shape = RoundedCornerShape(20.dp)
-                                clip = true
+                            // Native Shadow implementation (No heavy graphicsLayer needed for static shadows)
+                            .shadow(
+                                elevation = if (isDark) 0.dp else 12.dp,
+                                shape = RoundedCornerShape(20.dp),
+                                ambientColor = linkColor.copy(alpha = 0.04f),
+                                spotColor = linkColor.copy(alpha = 0.08f)
+                            )
+                            .drawWithCache {
+                                // ZERO-ALLOCATION CACHE ZONE
+                                // These values and brushes are created exactly ONCE per size change
+                                val cornerRadius = androidx.compose.ui.geometry.CornerRadius(20.dp.toPx())
+                                val barWidth = 4.dp.toPx()
+                                val vertPadding = 20.dp.toPx()
+                                val horizPadding = 20.dp.toPx()
+
+                                // Cache the gradient brush natively in memory
+                                val barGradient = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(linkColor, linkColor.copy(alpha = 0.3f)),
+                                    startY = vertPadding,
+                                    endY = size.height - vertPadding
+                                )
+
+                                onDrawBehind {
+                                    // 1. Draw Card Background
+                                    drawRoundRect(
+                                        color = cardBg,
+                                        size = size,
+                                        cornerRadius = cornerRadius
+                                    )
+
+                                    // 2. Draw Subtle Border
+                                    drawRoundRect(
+                                        color = borderColor,
+                                        size = size,
+                                        cornerRadius = cornerRadius,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                                    )
+
+                                    // 3. Draw Liquid Accent Bar (Pure Math, No extra Box allocation!)
+                                    drawRoundRect(
+                                        brush = barGradient,
+                                        topLeft = androidx.compose.ui.geometry.Offset(horizPadding, vertPadding),
+                                        size = androidx.compose.ui.geometry.Size(barWidth, size.height - (vertPadding * 2)),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f)
+                                    )
+                                }
                             }
-                            .background(cardBg)
-                            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
+                            // Exact mathematical padding to push text perfectly beside the drawn bar
+                            // 20dp padding + 4dp bar + 16dp spacer = 40dp left padding
+                            .padding(start = 40.dp, top = 20.dp, bottom = 20.dp, end = 20.dp)
                     ) {
                         // Massive Editorial Watermark
                         Text(
@@ -416,56 +456,26 @@ private fun RenderMarkdownBlock(
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.Black,
                             color = linkColor.copy(alpha = if (isDark) 0.08f else 0.05f),
-                            modifier = Modifier
-                                .offset(x = (-10).dp, y = (-36).dp)
-                                .layout { measurable, constraints ->
-                                    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                                    // Report 0 size so the watermark doesn't dictate the card's height
-                                    layout(0, 0) {
-                                        placeable.place(0, 0)
-                                    }
-                                }
+                            // Pushed back natively, no extra Box wrappers needed
+                            modifier = Modifier.offset(x = (-30).dp, y = (-56).dp) 
                         )
-                        
-                        Row(
-                            modifier = Modifier
-                                .height(IntrinsicSize.Min)
-                                .padding(horizontal = 20.dp, vertical = 20.dp)
-                        ) {
-                            // Liquid Accent Pill
-                            Box(
-                                modifier = Modifier
-                                    .width(4.dp)
-                                    .fillMaxHeight()
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(linkColor, linkColor.copy(alpha = 0.3f))
-                                        )
-                                    )
+
+                        MarkdownText(
+                            content = quoteLines.joinToString("\n"),
+                            normalColor = normalColor,
+                            boldColor = boldColor,
+                            linkColor = linkColor,
+                            codeColor = codeColor,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 16.sp,
+                                lineHeight = 26.sp,
+                                fontFamily = FontFamily.Serif,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.2.sp,
+                                color = if (isDark) Color.White.copy(alpha = 0.85f) else Color(0xFF1D1D1F).copy(alpha = 0.8f)
                             )
-                            
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Box(modifier = Modifier.weight(1f)) {
-                                MarkdownText(
-                                    content = quoteLines.joinToString("\n"),
-                                    normalColor = normalColor,
-                                    boldColor = boldColor,
-                                    linkColor = linkColor,
-                                    codeColor = codeColor,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontSize = 16.sp,
-                                        lineHeight = 26.sp,
-                                        fontFamily = FontFamily.Serif, // Sophisticated Editorial Look
-                                        fontStyle = FontStyle.Italic,
-                                        fontWeight = FontWeight.Medium,
-                                        letterSpacing = 0.2.sp,
-                                        color = if (isDark) Color.White.copy(alpha = 0.85f) else Color(0xFF1D1D1F).copy(alpha = 0.8f)
-                                    )
-                                )
-                            }
-                        }
+                        )
                     }
                 }
 

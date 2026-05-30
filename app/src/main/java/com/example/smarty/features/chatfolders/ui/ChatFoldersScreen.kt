@@ -108,8 +108,8 @@ fun ChatFoldersScreen(
                 } else if (filteredFolders.isEmpty()) {
                     EmptyStatePlaceholder(
                         icon = Icons.Outlined.Folder,
-                        title = if (uiState.searchQuery.isNotEmpty()) "No matching folders" else "No Folders",
-                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try a different search" else "Tap + to create your first folder",
+                        title = if (uiState.searchQuery.isNotEmpty()) "No matches" else "No folders yet.",
+                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try something else" else "Tap + to create your first folder.",
                     )
                 } else {
                     LazyColumn(

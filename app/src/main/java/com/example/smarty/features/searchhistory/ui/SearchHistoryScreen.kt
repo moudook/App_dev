@@ -77,8 +77,8 @@ fun SearchHistoryScreen(
             } else if (searchHistory.isEmpty()) {
                 EmptyStatePlaceholder(
                     icon = Icons.Default.Search,
-                    title = "No Search History",
-                    subtitle = "Your recent searches will appear here.",
+                    title = "No searches yet.",
+                    subtitle = "Your searches will show up here.",
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(32.dp)

@@ -287,7 +287,7 @@ fun ChatHistoryContent(
     if (showMultipleDeleteDialog) {
         SmartyDialog(
             title = stringResource(R.string.delete_chat),
-            text = "Are you sure you want to let go of these ${selectedSessions.size} conversations?",
+            text = "Let go of these ${selectedSessions.size} conversations?",
             onConfirm = {
                 selectedSessions.forEach { onDeleteSession(it) }
                 selectedSessions.clear()
@@ -304,7 +304,7 @@ fun ChatHistoryContent(
     sessionToDelete?.let { session ->
         SmartyDialog(
             title = stringResource(R.string.delete_chat),
-            text = "Are you sure you want to let go of this conversation?",
+            text = "Let go of this conversation?",
             onConfirm = {
                 onDeleteSession(session.id)
                 sessionToDeleteId = null

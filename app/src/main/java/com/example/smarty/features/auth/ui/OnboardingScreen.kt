@@ -90,7 +90,7 @@ fun OnboardingScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Your private, intelligent workspace awaits. Let's personalize your experience.",
+                            text = "Your private, intelligent space. Let\'s make it yours.",
                             style = MaterialTheme.typography.bodyLarge,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -99,7 +99,7 @@ fun OnboardingScreen(
                         Spacer(modifier = Modifier.height(48.dp))
                         com.example.smarty.ui.components.SmartyButton(
                             onClick = { currentStep = 1 },
-                            text = "Get Started",
+                                    text = "Let\'s go.",
                             modifier = Modifier.fillMaxWidth(0.8f)
                         )
                     }
@@ -115,7 +115,7 @@ fun OnboardingScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "Identify Yourself",
+                                    text = "Who am I talking to?",
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace,
@@ -124,7 +124,7 @@ fun OnboardingScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "How should I address you?",
+                                    text = "What should I call you?",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -134,7 +134,7 @@ fun OnboardingScreen(
                                 com.example.smarty.ui.components.SmartyOutlinedTextField(
                                     value = name,
                                     onValueChange = { name = it },
-                                    label = "Your Name",
+                                    label = "Your name",
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                     modifier = Modifier.fillMaxWidth()
@@ -143,7 +143,7 @@ fun OnboardingScreen(
                                 com.example.smarty.ui.components.SmartyOutlinedTextField(
                                     value = primaryGoal,
                                     onValueChange = { primaryGoal = it },
-                                    label = "Primary Goal (e.g. Coding, Writing)",
+                                    label = "What do you care about most?",
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                     keyboardActions = KeyboardActions(onDone = { 

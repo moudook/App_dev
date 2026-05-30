@@ -65,8 +65,8 @@ fun DeviceManagementScreen(
             } else if (devices.isEmpty()) {
                 EmptyStatePlaceholder(
                     icon = Icons.Default.Devices,
-                    title = "No Devices",
-                    subtitle = "Your registered devices will appear here.",
+                    title = "No devices yet.",
+                    subtitle = "Your devices will show up here once they\'re connected.",
                     modifier =
                         Modifier
                             .fillMaxSize()

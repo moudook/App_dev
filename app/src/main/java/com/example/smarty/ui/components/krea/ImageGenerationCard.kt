@@ -264,7 +264,7 @@ private fun ErrorStateInner(onRetry: () -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Prompt rejected or generation failed.",
+            text =                 "That didn\'t work out.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error
         )

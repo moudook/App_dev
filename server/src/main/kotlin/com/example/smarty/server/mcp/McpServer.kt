@@ -79,9 +79,7 @@ class McpServer(
     private val sessionTtlMs = 300_000L
 
     private val allTools: List<ToolDefinition> by lazy {
-        (AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()).filter {
-            it.name != "search" && it.name != "web_search" && it.name != "web_scrape"
-        }
+        AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()
     }
 
     fun configureRouting(routing: Routing) {

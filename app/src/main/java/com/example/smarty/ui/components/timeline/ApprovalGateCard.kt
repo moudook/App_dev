@@ -105,7 +105,7 @@ fun ApprovalGateCard(
                 Text(
                     text =
                         when (node.status) {
-                            TimelineNode.ApprovalGate.Status.PENDING -> "Waiting for approval"
+                            TimelineNode.ApprovalGate.Status.PENDING -> "Waiting for you"
                             TimelineNode.ApprovalGate.Status.GRANTED -> "Approved"
                             TimelineNode.ApprovalGate.Status.DENIED -> "Denied"
                         },
@@ -218,7 +218,7 @@ private fun ApproveDenyButtons(
 @Composable
 private fun ApprovedSummary() {
     Text(
-        text = "You approved this action. Resume continuing...",
+        text =             "You approved it. Let\'s keep going.",
         style = MaterialTheme.typography.bodySmall,
         color = Color(0xFF66BB6A),
         modifier = Modifier.padding(top = 4.dp),
@@ -228,7 +228,7 @@ private fun ApprovedSummary() {
 @Composable
 private fun DeniedSummary() {
     Text(
-        text = "You declined. The agent will try a different approach.",
+        text =             "Declined. I\'ll try something else.",
         style = MaterialTheme.typography.bodySmall,
         color = Color(0xFFEF5350),
         modifier = Modifier.padding(top = 4.dp),

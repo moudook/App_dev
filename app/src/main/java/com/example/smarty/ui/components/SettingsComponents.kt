@@ -148,7 +148,7 @@ fun CloudSyncIndicator(
                     )
                     if (showLabel) {
                         Text(
-                            text = "Syncing...",
+                            text = "Syncing…",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -177,7 +177,7 @@ fun CloudSyncIndicator(
                     )
                     if (showLabel) {
                         Text(
-                            text = "Synced",
+                            text = "Synced.",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                             color = Color(0xFF34C759)
                         )
@@ -206,7 +206,7 @@ fun CloudSyncIndicator(
                     )
                     if (showLabel) {
                         Text(
-                            text = "Sync failed",
+                            text = "Sync failed.",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                             color = Color(0xFFFF3B30)
                         )

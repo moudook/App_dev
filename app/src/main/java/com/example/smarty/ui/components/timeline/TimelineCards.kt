@@ -266,7 +266,7 @@ fun ToolCallCard(
                     }
                     if (node.inputSummary.isNullOrBlank() && node.outputSummary.isNullOrBlank()) {
                         Text(
-                            "No details yet",
+                            "Nothing to show yet.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                         )
@@ -325,7 +325,7 @@ fun ApprovalCard(
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
-                    text = node.toolTitle.ifBlank { "Tool Requires Approval" },
+                    text = node.toolTitle.ifBlank { "Needs your okay" },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -437,7 +437,7 @@ fun ErrorCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (node.isAborted) "Session Aborted" else "Error",
+                    text = if (node.isAborted) "Session ended" else "Something went wrong",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -497,8 +497,8 @@ fun RecoveryCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = when (succeeded) {
-                        true -> "Recovery Succeeded"
-                        false -> "Recovery Failed"
+                        true -> "Recovered"
+                        false -> "Couldn't recover"
                         null -> "Recovering…"
                     },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -766,7 +766,7 @@ fun SubagentGroupCard(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                     if (node.nodes.isEmpty()) {
                         Text(
-                            "Initializing...",
+                            "Warming up…",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                         )

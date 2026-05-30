@@ -222,7 +222,7 @@ fun LoginScreen(
                                         append("Meet your ")
                                     }
                                     withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
-                                        append("AI Agent")
+                                        append("Friday")
                                     }
                                     append(".")
                                 },
@@ -235,7 +235,7 @@ fun LoginScreen(
 
                         // Description - Theme adaptive text color
                         Text(
-                            text = "Initialize the entity that remembers, organizes, and acts autonomously.",
+                            text = "The one who remembers, organizes, and gets things done for you.",
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                             fontSize = 17.sp,
                             lineHeight = 26.sp,
@@ -407,7 +407,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = if (isLoginMode) "Sign in to resume your session" else "Set up your credentials to get started",
+                    text = if (isLoginMode) "Good to see you again" else "Let\'s get you set up",
                     color = textSecondary,
                     fontSize = 15.sp,
                     lineHeight = 22.sp,
@@ -765,7 +765,7 @@ fun LoginScreen(
                             .padding(bottom = 32.dp),
                 ) {
                     Text(
-                        text = if (isLoginMode) "Don't have an account?" else "Already have an account?",
+                        text = if (isLoginMode) "Don\'t have an account? " else "Already have one? ",
                         style = MaterialTheme.typography.bodyMedium,
                         color = textSecondary,
                     )

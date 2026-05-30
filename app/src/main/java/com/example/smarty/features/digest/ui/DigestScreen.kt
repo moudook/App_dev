@@ -160,13 +160,13 @@ private fun EmptyDigestState(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "No Digests Yet",
+            text =                 "No digests yet.",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Your daily and weekly summaries will appear here.\nStart adding notes and chatting with Friday!",
+            text =                     "Your daily and weekly digests will show up here.\nStart chatting with Friday and I\'ll start summarizing.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
