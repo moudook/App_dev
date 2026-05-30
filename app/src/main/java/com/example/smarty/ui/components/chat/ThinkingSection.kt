@@ -160,10 +160,10 @@ fun ThinkingSection(
                         isStreaming && toolCalls.isNotEmpty() -> {
                             val lastTool = toolCalls.last()
                             val name = lastTool.displayName.ifBlank { lastTool.toolName }
-                            if (name.length > 30) "Working on it" else name
+                            if (name.length > 30) "Hang tight" else name
                         }
-                        isStreaming -> "Working on it"
-                        else -> "Behind the scenes"
+                        isStreaming -> "Hang tight"
+                        else -> "What I did"
                     },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
                     color = (if (isStreaming) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
@@ -173,7 +173,7 @@ fun ThinkingSection(
                 )
                 if (toolCalls.isNotEmpty()) {
                     Text(
-                        text = if (isStreaming) "step ${toolCalls.size}" else "· ${toolCalls.size} things done",
+                        text = if (isStreaming) "step ${toolCalls.size}" else "· ${toolCalls.size} done",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isStreaming) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
@@ -399,8 +399,8 @@ private fun ToolActionCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     val subtitle = when {
-                        isImage -> "Creating an image"
-                        isSearch -> "Searching the web"
+                        isImage -> "Painting something"
+                        isSearch -> "Looking that up"
                         else -> displayLabel
                     }
                     Text(
@@ -532,17 +532,17 @@ private fun ImageGenCard(entry: AgentToolCallEntry) {
                 when {
                     isDone -> {
                         Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                        Text("Here's your image", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = Color(0xFF4CAF50))
+                        Text("Here you go", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = Color(0xFF4CAF50))
                     }
                     isFailed -> {
                         Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                        Text("Couldn't generate that", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.error)
+                        Text("Didn't work out this time", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.error)
                     }
                     else -> {
                         val pulse = rememberInfiniteTransition(label = "imgPulse")
                         val a by pulse.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
                         Box(Modifier.size(8.dp).clip(CircleShape).background(accentColor.copy(alpha = a)))
-                        Text("Creating something beautiful…", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = accentColor)
+                        Text("Give me a moment…", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = accentColor)
                     }
                 }
             }
@@ -637,14 +637,14 @@ private fun StatusIndicator(status: String, accentColor: Color) {
 private fun toolDisplayInfo(toolName: String): Pair<String, ImageVector> {
     val lower = toolName.lowercase()
     return when {
-        lower.contains("search") || lower.contains("web") || lower.contains("tavily") -> "Searching the web" to Icons.Default.Search
-        lower.contains("image") || lower.contains("generate_image") || lower.contains("krea") -> "Creating an image" to Icons.Outlined.Image
-        lower.contains("memory") || lower.contains("note") || lower.contains("save") -> "Saving to memory" to Icons.Default.Book
-        lower.contains("calendar") || lower.contains("schedule") -> "Checking calendar" to Icons.Default.CalendarMonth
-        lower.contains("remind") || lower.contains("alarm") -> "Setting a reminder" to Icons.Default.Alarm
-        lower.contains("navigate") || lower.contains("route") -> "Navigating" to Icons.Default.Navigation
-        lower.contains("device") || lower.contains("system") || lower.contains("phone") -> "Using your device" to Icons.Default.PhoneAndroid
-        lower.contains("weather") -> "Checking weather" to Icons.Default.Cloud
+        lower.contains("search") || lower.contains("web") || lower.contains("tavily") -> "Looking that up" to Icons.Default.Search
+        lower.contains("image") || lower.contains("generate_image") || lower.contains("krea") -> "Painting something" to Icons.Outlined.Image
+        lower.contains("memory") || lower.contains("note") || lower.contains("save") -> "Saving that for you" to Icons.Default.Book
+        lower.contains("calendar") || lower.contains("schedule") -> "Checking your schedule" to Icons.Default.CalendarMonth
+        lower.contains("remind") || lower.contains("alarm") -> "Setting that up" to Icons.Default.Alarm
+        lower.contains("navigate") || lower.contains("route") -> "On it" to Icons.Default.Navigation
+        lower.contains("device") || lower.contains("system") || lower.contains("phone") -> "Handling your device" to Icons.Default.PhoneAndroid
+        lower.contains("weather") -> "Checking outside" to Icons.Default.Cloud
         else -> "Working on it" to Icons.Default.AutoAwesome
     }
 }

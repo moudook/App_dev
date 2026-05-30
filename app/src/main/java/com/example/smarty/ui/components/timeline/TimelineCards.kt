@@ -214,8 +214,8 @@ fun ToolCallCard(
                     Text(
                         text = when {
                             node.source == "mcp" -> "MCP · $displayLabel"
-                            node.toolName.lowercase().contains("search") -> "Searching the web"
-                            node.toolName.lowercase().contains("image") -> "Creating an image"
+                            node.toolName.lowercase().contains("search") -> "Looking that up"
+                            node.toolName.lowercase().contains("image") -> "Painting something"
                             else -> displayLabel
                         },
                         style = MaterialTheme.typography.labelSmall,
@@ -649,24 +649,24 @@ private fun toolMeta(toolName: String): Pair<String, ImageVector> {
     val lower = toolName.lowercase()
     return when {
         lower.contains("search") || lower.contains("web") || lower.contains("tavily") ->
-            "Searching" to Icons.Default.Search
+            "Looking it up" to Icons.Default.Search
         lower.contains("image") || lower.contains("generate") || lower.contains("krea") ->
-            "Creating image" to Icons.Default.AutoAwesome
+            "Painting" to Icons.Default.AutoAwesome
         lower.contains("memory") || lower.contains("note") || lower.contains("save") ->
-            "Saving memory" to Icons.Default.Book
+            "Saved" to Icons.Default.Book
         lower.contains("calendar") || lower.contains("schedule") ->
             "Calendar" to Icons.Default.CalendarMonth
         lower.contains("remind") || lower.contains("alarm") ->
-            "Setting reminder" to Icons.Default.Alarm
+            "Reminder set" to Icons.Default.Alarm
         lower.contains("navigate") ->
-            "Navigating" to Icons.Default.Navigation
+            "On it" to Icons.Default.Navigation
         lower.contains("device") || lower.contains("system") ->
             "Device" to Icons.Default.PhoneAndroid
         lower.contains("audio") || lower.contains("music") || lower.contains("play") ->
             "Audio" to Icons.Default.MusicNote
         lower.contains("task") ->
             "Tasks" to Icons.Default.CheckBox
-        else -> "Working" to Icons.Default.Build
+        else -> "Done" to Icons.Default.Build
     }
 }
 
