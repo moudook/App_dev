@@ -20,6 +20,22 @@ echo "============================================"
 echo ""
 
 # -----------------------------------------------------------------------------
+# Step 0: Configure non-NFS storage paths for OpenCode (HF Spaces uses NFS)
+# Required to prevent SQLite "database disk image is malformed" corruption
+# See: https://github.com/anomalyco/opencode/issues/14970
+# -----------------------------------------------------------------------------
+echo "[0/5] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
+export XDG_DATA_HOME="/tmp/opencode-data"
+export XDG_CONFIG_HOME="/tmp/opencode-config"
+export OPENCODE_DATA_DIR="/tmp/opencode"
+mkdir -p "$XDG_DATA_HOME/opencode" "$XDG_CONFIG_HOME/opencode/plugins" "$OPENCODE_DATA_DIR"
+echo "  XDG_DATA_HOME=$XDG_DATA_HOME"
+echo "  XDG_CONFIG_HOME=$XDG_CONFIG_HOME"
+echo "  OPENCODE_DATA_DIR=$OPENCODE_DATA_DIR"
+echo "  Directories created OK"
+echo ""
+
+# -----------------------------------------------------------------------------
 # Step 1: Verify OpenCode CLI is installed
 # -----------------------------------------------------------------------------
 echo "[1/5] Verifying OpenCode CLI installation..."

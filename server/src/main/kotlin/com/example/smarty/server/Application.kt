@@ -39,6 +39,7 @@ import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
+import com.example.smarty.server.routes.configureTimelineBridgeRoutes
 import com.example.smarty.server.routes.configureUtilityRoutes
 import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.DigestService
@@ -321,6 +322,8 @@ fun Application.module() {
 
         configureModelRoutes()
         log.info("ModelRoutes configured")
+
+        configureTimelineBridgeRoutes()
 
         val mcpServer =
             com.example.smarty.server.mcp.McpServer(

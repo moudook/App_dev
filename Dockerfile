@@ -53,7 +53,7 @@ FROM eclipse-temurin:17-jre-alpine
 RUN apk add --no-cache nodejs npm bash
 
 # Install OpenCode CLI globally and clean npm cache to reduce image size
-RUN npm install -g opencode-ai && npm cache clean --force
+RUN npm install -g opencode-ai@1.14.41 && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
 RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
@@ -64,6 +64,7 @@ WORKDIR /app
 COPY --from=builder --chown=user:appgroup /build/server/build/libs/server-1.0.0-all.jar app.jar
 COPY --chown=user:appgroup entrypoint.sh /app/entrypoint.sh
 COPY --chown=user:appgroup opencode.json /app/opencode.json
+COPY --chown=user:appgroup .opencode/ /app/.opencode/
 
 # Pre-create temp directories and set permissions
 RUN mkdir -p /app/_temp && \
