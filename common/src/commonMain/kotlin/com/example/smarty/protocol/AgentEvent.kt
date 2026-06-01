@@ -314,6 +314,29 @@ sealed class AgentEvent {
         @SerialName("tool_name") val toolName: String,
         @SerialName("tool_title") val toolTitle: String,
         @SerialName("tool_args") val toolArgs: String,
+        /**
+         * OpenCode session ID — only set for plugin-origin approvals
+         * (kind=`user.input.required` from `/ws/timeline`). The Ktor MCP
+         * server doesn't emit this field, so it stays null for Ktor-origin
+         * approvals, which is fine because they have a different response
+         * path (server-side [ApprovalRegistry] keyed by `toolId`, not by
+         * `(sessionID, callID)` on disk).
+         */
+        @SerialName("session_id") val sessionId: String? = null,
+        /**
+         * `true` when the approval originates from a `user.input.required`
+         * event (i.e. an interactive tool like `ask_user` that needs the
+         * user's *content* answer, not just an approve/deny decision).
+         * `false` for `permission.asked` events (the agent is asking
+         * permission to run a tool — the user can approve or deny).
+         *
+         * Interactive events ALWAYS show a prompt regardless of the
+         * permission policy, because the whole point of `ask_user` is to
+         * gather user input. Non-interactive events are subject to the
+         * [com.example.smarty.agent.permissions.ToolPermissionPolicy] —
+         * a defensive short-circuit on the app and Ktor server.
+         */
+        @SerialName("is_interactive") val isInteractive: Boolean = false,
     ) : AgentEvent()
 
     @Serializable

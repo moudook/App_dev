@@ -1,6 +1,11 @@
 package com.example.smarty.server.agent
 
+import com.example.smarty.server.data.PermissionRepository
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -9,24 +14,74 @@ data class ApprovalResult(
     val feedback: String?,
 )
 
+/**
+ * Public read-only view of a pending approval. Returned by
+ * [ApprovalRegistry.peek] so callers (e.g. the audit log writer
+ * and the `/chat/ws` debug endpoint) can see what tool a pending
+ * approval is for without consuming it.
+ */
+data class PendingApprovalView(
+    val toolCallId: String,
+    val sessionId: String,
+    val userId: String,
+    val toolName: String,
+    val createdAt: Long,
+)
+
 private data class ApprovalEntry(
     val deferred: CompletableDeferred<ApprovalResult>,
     val sessionId: String,
     val userId: String,
+    val toolName: String,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 object ApprovalRegistry {
     private val logger = LoggerFactory.getLogger(ApprovalRegistry::class.java)
     private val pendingApprovals = ConcurrentHashMap<String, ApprovalEntry>()
 
+    /**
+     * Optional reference to the [PermissionRepository] for audit
+     * logging. Set at startup via [setRepository]. When null,
+     * audit log writes are silently skipped (with a warning).
+     *
+     * We can't use constructor injection because [ApprovalRegistry]
+     * is a Kotlin `object` (singleton) and is referenced from many
+     * places. Late-bound initialization via a setter is the
+     * simplest non-invasive approach.
+     */
+    @Volatile
+    private var repository: PermissionRepository? = null
+
+    /**
+     * Fire-and-forget scope for audit log writes. We use a
+     * dedicated [SupervisorJob] so an audit-log failure can't
+     * crash the calling tool flow.
+     */
+    private val auditScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Wire the [PermissionRepository] for audit logging. Safe to
+     * call multiple times (last write wins).
+     */
+    fun setRepository(repo: PermissionRepository?) {
+        repository = repo
+        if (repo == null) {
+            logger.warn("[ApprovalRegistry] setRepository(null) — audit logging disabled")
+        } else {
+            logger.info("[ApprovalRegistry] audit logging enabled via PermissionRepository")
+        }
+    }
+
     fun createPendingApproval(
         toolCallId: String,
         sessionId: String,
         userId: String = "",
+        toolName: String = "",
     ): CompletableDeferred<ApprovalResult> {
         val deferred = CompletableDeferred<ApprovalResult>()
-        pendingApprovals[toolCallId] = ApprovalEntry(deferred, sessionId, userId)
-        logger.info("[ApprovalRegistry] Created pending approval for toolCallId=$toolCallId in session=$sessionId user=$userId")
+        pendingApprovals[toolCallId] = ApprovalEntry(deferred, sessionId, userId, toolName)
+        logger.info("[ApprovalRegistry] Created pending approval for toolCallId=$toolCallId tool=$toolName in session=$sessionId user=$userId")
         return deferred
     }
 
@@ -47,7 +102,60 @@ object ApprovalRegistry {
         // The toolCallId is already a unique, unguessable identifier.
         logger.info("[ApprovalRegistry] Resolving approval: toolCallId=$toolCallId approved=$approved feedback=${feedback?.take(100)} caller=$callerUserId")
         deferred.complete(ApprovalResult(approved, feedback))
+
+        // ── Audit log: best-effort, fire-and-forget ──
+        // We log AFTER completing the deferred so the user's tool
+        // flow is never blocked by an audit DB hiccup. If the repo
+        // is null (DB unavailable or not yet wired), we skip with
+        // a one-shot warning to avoid log spam.
+        val repo = repository
+        if (repo == null) {
+            // Log only the first few to avoid spam
+            if (pendingApprovals.size % 100 == 0) {
+                logger.warn("[ApprovalRegistry] audit log skipped (no repo wired)")
+            }
+        } else {
+            val userId = entry.userId
+            val sessionId = entry.sessionId
+            val toolName = entry.toolName
+            val decision = if (approved) "USER_APPROVED" else "USER_DENIED"
+            auditScope.launch {
+                val ok = repo.logDecision(
+                    userId = userId.ifBlank { null },
+                    sessionId = sessionId,
+                    toolName = toolName,
+                    decision = decision,
+                    actor = "user",
+                    callId = toolCallId,
+                    userFeedback = feedback,
+                    metadata = mapOf(
+                        "source" to "android_app",
+                        "caller_user_id" to (callerUserId ?: ""),
+                    ),
+                )
+                if (!ok) {
+                    logger.warn("[ApprovalRegistry] audit log write failed for toolCallId=$toolCallId")
+                }
+            }
+        }
+
         return true
+    }
+
+    /**
+     * Returns a non-mutating view of the pending approval for the
+     * given [toolCallId], or null if there's no pending entry.
+     * Useful for debug endpoints and audit correlation.
+     */
+    fun peek(toolCallId: String): PendingApprovalView? {
+        val e = pendingApprovals[toolCallId] ?: return null
+        return PendingApprovalView(
+            toolCallId = toolCallId,
+            sessionId = e.sessionId,
+            userId = e.userId,
+            toolName = e.toolName,
+            createdAt = e.createdAt,
+        )
     }
 
     fun cancelApprovalsForSession(sessionId: String) {

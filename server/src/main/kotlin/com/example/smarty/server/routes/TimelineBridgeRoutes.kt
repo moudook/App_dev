@@ -1,5 +1,9 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.agent.permissions.ToolPermissionDecision
+import com.example.smarty.server.agent.permissionRepository
+import com.example.smarty.server.agent.toolPermissionEnforcer
+import com.example.smarty.server.agent.ToolPermissionEnforcer
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -10,6 +14,9 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -49,6 +56,24 @@ import java.util.concurrent.CopyOnWriteArrayList
 fun Application.configureTimelineBridgeRoutes() {
 
     val bridge = TimelineBridgeService
+    // Defensive: short-circuit `permission.asked` events for tools the
+    // policy explicitly allows/denies. The OpenCode CLI normally
+    // handles these internally before any event is emitted, so reaching
+    // this point means a leak (plugin drift, CLI misconfiguration, or
+    // a manual `opencode` run without the policy file). When the policy
+    // matches, Ktor writes a synthetic response to the
+    // `/tmp/opencode-asks/<sessionID>/<callID>.response.txt` file the
+    // MCP `ask` tool polls, and DROPS the broadcast so the Android app
+    // never even sees the spurious `permission.asked` event.
+    //
+    // We use the static policy (sync `decide()`) here because the
+    // OpenCode plugin's `sessionID` doesn't map 1:1 to a Ktor userId
+    // — the plugin runs inside the CLI process and broadcasts to a
+    // single global WebSocket. Per-user overrides are applied at the
+    // request handler level (see `ToolExecutor.requiresApproval`)
+    // where the authenticated user is known.
+    val enforcer = toolPermissionEnforcer
+    val permissionRepo = permissionRepository
 
     routing {
         // Plugin → Ktor: ingest raw timeline events
@@ -60,6 +85,64 @@ fun Application.configureTimelineBridgeRoutes() {
                 val event = Json.parseToJsonElement(body).jsonObject
                 val kind = event["kind"]?.jsonPrimitive?.content ?: "unknown"
                 val sessionID = event["sessionID"]?.jsonPrimitive?.content ?: "no-session"
+
+                // ── Policy filter for `permission.asked` events ──
+                // The plugin emits this when the OpenCode CLI needs
+                // user input. The CLI's `opencode.json` already
+                // auto-runs `allow` tools and blocks `deny` tools
+                // before emitting, so a leaked `permission.asked`
+                // is normally for a `default` tool (which we DO
+                // forward so the Android app can show the
+                // approval card).
+                if (kind == "permission.asked") {
+                    val rawTool = event["tool"]?.jsonPrimitive?.content
+                    if (rawTool != null) {
+                        val decision = enforcer.decide(rawTool)
+                        if (decision != ToolPermissionDecision.DEFAULT) {
+                            val callId = event["callID"]?.jsonPrimitive?.content
+                            if (!callId.isNullOrBlank() && sessionID != "no-session") {
+                                val synthetic = enforcer.syntheticResponse(rawTool)
+                                val dir = Paths.get("/tmp/opencode-asks", sessionID)
+                                Files.createDirectories(dir)
+                                dir.resolve("$callId.response.txt").toFile()
+                                    .writeText(synthetic, Charsets.UTF_8)
+                                logger.info(
+                                    "[KTOR-POLICY] auto-${decision.name.lowercase()} tool=$rawTool session=$sessionID call=$callId — synthetic response written, broadcast DROPPED",
+                                )
+                                // Audit log: best-effort. We don't have
+                                // a userId here (the plugin's sessionID
+                                // doesn't map to a Ktor user), so we
+                                // log with `actor=ktor_enforcer` and
+                                // userId=null. The user can still be
+                                // attributed via the sessionID in
+                                // `permission_audit_log.session_id`.
+                                permissionRepo.logDecision(
+                                    userId = sessionID, // placeholder; the
+                                    // sessionId column carries the real value
+                                    sessionId = sessionID,
+                                    toolName = rawTool,
+                                    decision = if (decision == ToolPermissionDecision.ALLOW)
+                                        "AUTO_APPROVED" else "AUTO_DENIED",
+                                    actor = "ktor_enforcer",
+                                    callId = callId,
+                                    metadata = mapOf(
+                                        "source" to "static_policy",
+                                        "session_id" to sessionID,
+                                    ),
+                                )
+                                bridge.ingest(kind, sessionID, event, ts)
+                                call.respond(
+                                    HttpStatusCode.OK,
+                                    mapOf(
+                                        "ok" to true,
+                                        "policy" to "auto-${decision.name.lowercase()}",
+                                    ),
+                                )
+                                return@post
+                            }
+                        }
+                    }
+                }
 
                 bridge.ingest(kind, sessionID, event, ts)
 

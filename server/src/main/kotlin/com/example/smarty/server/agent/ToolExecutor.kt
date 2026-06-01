@@ -54,6 +54,7 @@ class ToolExecutor(
     private val eventEmitter: suspend (com.example.smarty.protocol.AgentEvent) -> Unit,
     private val noteService: com.example.smarty.server.services.NoteService? = null,
     private val capabilities: com.example.smarty.protocol.DeviceCapabilities? = null,
+    private val toolPermissionEnforcer: ToolPermissionEnforcer = ToolPermissionEnforcer(),
 ) {
     private val logger = LoggerFactory.getLogger(ToolExecutor::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -715,7 +716,7 @@ class ToolExecutor(
         val result =
             runCatching {
                 kotlinx.coroutines.withTimeoutOrNull(161_000L) {
-                    ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId).await()
+                    ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId, "ask_user").await()
                 }
             }.getOrNull() ?: ApprovalResult(false, "Approval timed out")
 
@@ -1188,9 +1189,36 @@ class ToolExecutor(
     /**
      * Returns the approval status for a canonical tool name.
      * Falls back to `ExecutesNormally` for unknown tools.
+     *
+     * Per-user layer: when the injected [toolPermissionEnforcer] has
+     * a `PermissionRepository` (i.e. the shared singleton wired in
+     * `Application.kt`), this consults the user's
+     * `tool_permissions` overrides first via
+     * [ToolPermissionEnforcer.decideForUser]. If the user has
+     * explicitly ALLOWed a tool, it runs without an approval gate
+     * regardless of the legacy [toolApprovalRegistry]. If DENYed,
+     * it's blocked. If INHERIT (or no override), the static
+     * `SMARTY_DEFAULT` policy is applied.
+     *
+     * Without a repository, falls back to the static-only
+     * [ToolPermissionEnforcer.decide] path (no per-user overrides).
+     *
+     * Marked `suspend` because the per-user lookup hits the DB on
+     * the first call per (user, tool) and is cached in the repo for
+     * 30 s. [executeTool] is already a suspend context, so this is a
+     * safe change.
      */
-    fun requiresApproval(canonicalToolName: String): ToolApprovalStatus =
-        toolApprovalRegistry[canonicalToolName] ?: ToolApprovalStatus.ExecutesNormally
+    suspend fun requiresApproval(canonicalToolName: String): ToolApprovalStatus {
+        val decision = toolPermissionEnforcer.decideForUser(userId, canonicalToolName)
+        return when (decision.decision) {
+            com.example.smarty.agent.permissions.ToolPermissionDecision.ALLOW ->
+                ToolApprovalStatus.ExecutesNormally
+            com.example.smarty.agent.permissions.ToolPermissionDecision.DENY ->
+                ToolApprovalStatus.NoLongerSupported
+            com.example.smarty.agent.permissions.ToolPermissionDecision.DEFAULT ->
+                toolApprovalRegistry[canonicalToolName] ?: ToolApprovalStatus.ExecutesNormally
+        }
+    }
 
     /**
      * Approval title factory — used when emitting ApprovalRequested so the UI

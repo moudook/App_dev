@@ -179,6 +179,7 @@ private fun MarkdownLatexBlock(
 
 @Composable
 private fun MarkdownAccordionGroup(node: MarkdownNode.AccordionGroup, depth: Int = 0) {
+    if (node.sections.isEmpty()) return
     Spacer(modifier = Modifier.height(12.dp))
     val uiSections = node.sections.map {
         com.example.smarty.ui.components.chat.AccordionParser.AccordionSection(it.title, it.content)

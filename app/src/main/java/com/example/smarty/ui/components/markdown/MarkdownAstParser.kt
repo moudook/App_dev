@@ -116,19 +116,27 @@ object MarkdownAstParser {
                     if (lineTrim.startsWith("[[[") && lineTrim.endsWith("]]]") && !lineTrim.startsWith("[[[/") && lineTrim != "[[[]]]") {
                         val rawTitle = lineTrim.removePrefix("[[[").removeSuffix("]]]").trim()
                         val title = stripQuotes(rawTitle)
+                        val headerBracketCount = countBrackets(lineTrim)
                         val accordionContentLines = mutableListOf<String>()
                         i++
                         
                         var depth = 1
-                        while (i < lines.size) {
+                        var maxLines = 200
+                        while (i < lines.size && maxLines > 0) {
+                            maxLines--
                             val nextLine = lines[i]
                             val nextTrim = nextLine.trim()
                             
                             if (nextTrim.startsWith("[[[") && nextTrim.endsWith("]]]") && !nextTrim.startsWith("[[[/") && nextTrim != "[[[]]]") {
-                                depth++
+                                val nextBracketCount = countBrackets(nextTrim)
+                                if (nextBracketCount > headerBracketCount) {
+                                    depth++
+                                } else {
+                                    break
+                                }
                             } else if (nextTrim.startsWith("[[[/") || nextTrim == "[[[]]]") {
                                 depth--
-                                if (depth == 0) {
+                                if (depth <= 0) {
                                     i++ // consume the closing tag
                                     break
                                 }
@@ -144,7 +152,9 @@ object MarkdownAstParser {
                         break
                     }
                 }
-                nodes.add(MarkdownNode.AccordionGroup(sections))
+                if (sections.isNotEmpty()) {
+                    nodes.add(MarkdownNode.AccordionGroup(sections))
+                }
                 continue
             }
 
@@ -300,5 +310,13 @@ object MarkdownAstParser {
             result = result.substring(1, result.length - 1)
         }
         return result.trim()
+    }
+
+    private fun countBrackets(s: String): Int {
+        var count = 0
+        for (c in s) {
+            if (c == '[') count++ else break
+        }
+        return count
     }
 }

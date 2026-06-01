@@ -16,7 +16,11 @@ import com.example.smarty.features.chat.domain.event.ChatEvent
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import com.example.smarty.features.chat.domain.state.ChatState
 import com.example.smarty.features.chat.domain.state.ChatUiState
+import com.example.smarty.features.chat.domain.state.ApprovalSource
 import com.example.smarty.features.chat.domain.state.PendingApproval
+import com.example.smarty.agent.permissions.AutoDecidedApproval
+import com.example.smarty.agent.permissions.ToolPermissionDecision
+import com.example.smarty.agent.permissions.ToolPermissionPolicy
 import com.example.smarty.features.chat.domain.usecase.*
 import com.example.smarty.ui.components.ConnectionStatus
 import kotlinx.coroutines.Job
@@ -108,8 +112,18 @@ class ChatViewModel(
     val pendingApprovalState: StateFlow<PendingApproval?> = _pendingApprovalState.asStateFlow()
 
     /**
-     * Call when user taps Approve or Deny on the PermissionCard.
-     * Sends the decision back to the server so the agent stream can resume.
+     * Call when user taps Approve or Deny on the PermissionCard, or submits
+     * an answer to an MCP `ask_user` clarification bubble.
+     *
+     * Routes the response to the correct backend endpoint based on
+     * [PendingApproval.source]:
+     *
+     * - [ApprovalSource.KtorMcp] → `POST /api/v1/chat/events/approval`
+     *   (resolves an entry in the server's [ApprovalRegistry])
+     *
+     * - [ApprovalSource.Plugin] → `POST /opencode/ask-response/{sessionId}/{callId}`
+     *   (writes to `/tmp/opencode-asks/<sessionID>/<callID>.response.txt`
+     *   for the OpenCode CLI plugin's MCP `ask` tool to poll and unblock)
      */
     fun callApproval(
         toolId: String,
@@ -128,21 +142,59 @@ class ChatViewModel(
             Log.w(TAG, "callApproval: toolId mismatch — UI sent $toolId but pending is ${current.toolId}. Stale tap discarded.")
             return
         }
-        val sessionId = current.sessionId ?: return
 
-        viewModelScope.launch {
-            try {
-                Log.i(TAG, ">>> CALL_APPROVAL: sending approval to server...")
-                remoteAgentService.sendApproval(
-                    toolId = toolId,
-                    approved = approved,
-                    feedback = feedback,
-                )
-                Log.i(TAG, ">>> CALL_APPROVAL: approval sent successfully")
-                // Clear pending state
-                _pendingApprovalState.update { null }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to send approval response: ${e.message}", e)
+        when (current.source) {
+            ApprovalSource.KtorMcp -> {
+                viewModelScope.launch {
+                    try {
+                        Log.i(TAG, ">>> CALL_APPROVAL: sending Ktor MCP approval to server...")
+                        remoteAgentService.sendApproval(
+                            toolId = toolId,
+                            approved = approved,
+                            feedback = feedback,
+                        )
+                        Log.i(TAG, ">>> CALL_APPROVAL: Ktor MCP approval sent successfully")
+                        _pendingApprovalState.update { null }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to send Ktor MCP approval response: ${e.message}", e)
+                    }
+                }
+            }
+            ApprovalSource.Plugin -> {
+                // The plugin's MCP `ask` tool doesn't have a deny mode — it
+                // expects the user to *answer* the question. If the user
+                // tapped Deny on a plugin-driven ask, we deliver an empty
+                // response so the tool unblocks without stalling the agent.
+                val answer = if (approved) (feedback ?: "") else ""
+                val sessionId = current.sessionId
+                if (sessionId == null) {
+                    Log.w(TAG, ">>> CALL_APPROVAL: Plugin source missing sessionId — discarding")
+                    return
+                }
+                viewModelScope.launch {
+                    try {
+                        Log.i(
+                            TAG,
+                            ">>> CALL_APPROVAL: sending plugin ask response (session=$sessionId, call=$toolId, len=${answer.length})",
+                        )
+                        val ok = remoteAgentService.sendPluginAskResponse(
+                            sessionId = sessionId,
+                            callId = toolId,
+                            response = answer,
+                        )
+                        if (ok) {
+                            Log.i(TAG, ">>> CALL_APPROVAL: plugin ask response sent successfully")
+                        } else {
+                            Log.w(TAG, ">>> CALL_APPROVAL: plugin ask response failed (server returned non-2xx)")
+                        }
+                        // Clear pending state either way — the plugin will
+                        // either unblock the tool or the next event will
+                        // tell us it's failed.
+                        _pendingApprovalState.update { null }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to send plugin ask response: ${e.message}", e)
+                    }
+                }
             }
         }
     }
@@ -211,9 +263,184 @@ class ChatViewModel(
                     Log.w(TAG, "Server returned empty model list, keeping fallback models")
                     // Don't update UI - keep the correct fallback models
                 }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize opencode models: ${e.message}", e)
+            // Keep using correct fallback models - don't fall back to potentially stale cache
+        }
+
+        // ── Live timeline stream (OpenCode CLI plugin → Ktor → Android) ──
+        // Collects plugin events arriving over `/ws/timeline` and lifts
+        // `user.input.required` into `_pendingApprovalState` with
+        // `source = ApprovalSource.Plugin` so the same approval UI that
+        // handles Ktor MCP approvals can also handle plugin-driven MCP
+        // `ask` tool calls. Auto-reconnects every 2 s on disconnect; the
+        // job lives for the lifetime of the ViewModel.
+        //
+        // The `ToolPermissionPolicy` short-circuit is purely defensive:
+        // OpenCode CLI's `opencode.json` ALLOW list auto-runs tools
+        // internally and never emits `permission.asked` for them, and
+        // the DENY list blocks tools before any event is emitted. But
+        // if an event somehow leaks through (e.g. CLI misconfiguration
+        // or plugin drift), the app still honors the policy. Interactive
+        // tools (`ask_user`, etc.) ALWAYS show a prompt regardless of
+        // policy because their whole purpose is to gather user input.
+        val policy = ToolPermissionPolicy.SMARTY_DEFAULT
+        viewModelScope.launch {
+            remoteAgentService.observeTimelineEvents().collect { event ->
+                when (event) {
+                    is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
+                        Log.i(
+                            TAG,
+                            ">>> TIMELINE_APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, sessionId=${event.sessionId}, interactive=${event.isInteractive}, args=${event.toolArgs.take(200)}",
+                        )
+
+                        // Interactive tools always show a prompt — bypass
+                        // the policy check entirely. The plugin's
+                        // `INTERACTIVE_TOOLS` set (`ask`, `ask_user`,
+                        // `confirm`, `question`, …) all map to
+                        // `toolName == "ask_user"` via the translator.
+                        if (event.isInteractive) {
+                            liftPluginApprovalIntoState(event)
+                        } else {
+                            // Defensive policy check for non-interactive
+                            // permission gates. Normally the CLI handles
+                            // allow/deny before emitting, so this is a
+                            // belt-and-suspenders safety net.
+                            val decision = policy.decide(event.toolName)
+                            when (decision) {
+                                ToolPermissionDecision.ALLOW -> {
+                                    Log.i(
+                                        TAG,
+                                        ">>> TIMELINE_POLICY_AUTO_APPROVE: tool=${event.toolName} (CLI normally handles this, but we got an event — short-circuiting as allow)",
+                                    )
+                                    respondToPluginApproval(event, approved = true, feedback = "auto-approved by policy")
+                                }
+                                ToolPermissionDecision.DENY -> {
+                                    Log.i(
+                                        TAG,
+                                        ">>> TIMELINE_POLICY_AUTO_DENY: tool=${event.toolName} (CLI normally blocks this, but we got an event — short-circuiting as deny)",
+                                    )
+                                    respondToPluginApproval(event, approved = false, feedback = "denied by policy")
+                                }
+                                ToolPermissionDecision.DEFAULT -> {
+                                    // No policy rule — show the approval card.
+                                    liftPluginApprovalIntoState(event)
+                                }
+                            }
+                        }
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
+                        // Only clear if the granted ID matches the pending one —
+                        // a stale `granted` from an earlier ask shouldn't wipe
+                        // a newer pending ask.
+                        val pending = _pendingApprovalState.value
+                        if (pending != null &&
+                            pending.source == ApprovalSource.Plugin &&
+                            pending.toolId == event.toolId
+                        ) {
+                            Log.i(TAG, ">>> TIMELINE_APPROVAL_GRANTED: toolId=${event.toolId}")
+                            _pendingApprovalState.update { null }
+                        }
+                    }
+                    is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
+                        val pending = _pendingApprovalState.value
+                        if (pending != null &&
+                            pending.source == ApprovalSource.Plugin &&
+                            pending.toolId == event.toolId
+                        ) {
+                            Log.i(TAG, ">>> TIMELINE_APPROVAL_DENIED: toolId=${event.toolId}")
+                            _pendingApprovalState.update { null }
+                        }
+                    }
+                    else -> {
+                        // Other timeline events (reasoning, sub-agents, web
+                        // search, tool started/finished) are consumed by the
+                        // secondary `AgentRuntimeScreen` ViewModel and by
+                        // ChatFeatureManager — not handled here.
+                    }
+                }
+            }
+        }
+    }
+    }
+
+    /**
+     * Set `_pendingApprovalState` to the plugin-originated approval so the
+     * `AssistOverlayScreen` shows the appropriate prompt/card. This is
+     * the interactive / default path — used when the policy check is
+     * bypassed (interactive tools) or returns [ToolPermissionDecision.DEFAULT]
+     * (no explicit allow/deny rule).
+     */
+    private fun liftPluginApprovalIntoState(
+        event: com.example.smarty.protocol.AgentEvent.ApprovalRequested,
+    ) {
+        val resolvedSessionId = event.sessionId
+            ?: _chatState.value.currentSessionId
+        _pendingApprovalState.update {
+            PendingApproval(
+                messageId = "timeline-${event.eventId}",
+                sessionId = resolvedSessionId,
+                eventId = event.eventId,
+                toolId = event.toolId,
+                toolName = event.toolName,
+                toolTitle = event.toolTitle,
+                toolArgs = event.toolArgs,
+                source = ApprovalSource.Plugin,
+            )
+        }
+        Log.i(
+            TAG,
+            ">>> TIMELINE_APPROVAL_STATE_UPDATED: source=Plugin sessionId=$resolvedSessionId tool=${event.toolName}",
+        )
+        _chatState.update { state ->
+            state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
+        }
+    }
+
+    /**
+     * Auto-respond to a plugin-originated `permission.asked` event whose
+     * tool the policy has explicitly allowed/denied. Normally the CLI
+     * handles allow/deny internally and never emits such events, so this
+     * is a defensive short-circuit.
+     *
+     * Routes the response through the same `sendPluginAskResponse` path
+     * used by user-tapped approvals, just without ever surfacing the
+     * approval card to the user.
+     */
+    private fun respondToPluginApproval(
+        event: com.example.smarty.protocol.AgentEvent.ApprovalRequested,
+        approved: Boolean,
+        feedback: String? = null,
+    ) {
+        val sessionId = event.sessionId
+            ?: _chatState.value.currentSessionId
+        if (sessionId == null) {
+            Log.w(
+                TAG,
+                ">>> TIMELINE_POLICY_RESPONSE_DROPPED: tool=${event.toolName} approved=$approved — no sessionId",
+            )
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val ok = remoteAgentService.sendPluginAskResponse(
+                    sessionId = sessionId,
+                    callId = event.toolId,
+                    response = feedback ?: if (approved) "allow" else "deny",
+                )
+                if (ok) {
+                    Log.i(
+                        TAG,
+                        ">>> TIMELINE_POLICY_RESPONSE_SENT: tool=${event.toolName} approved=$approved",
+                    )
+                } else {
+                    Log.w(
+                        TAG,
+                        ">>> TIMELINE_POLICY_RESPONSE_FAILED: tool=${event.toolName} approved=$approved",
+                    )
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize opencode models: ${e.message}", e)
-                // Keep using correct fallback models - don't fall back to potentially stale cache
+                Log.e(TAG, ">>> TIMELINE_POLICY_RESPONSE_ERROR: tool=${event.toolName}", e)
             }
         }
     }
@@ -435,21 +662,22 @@ class ChatViewModel(
                         responseBuilder.append("\n[Error: ${event.message}]")
                     }
 
-                    // ── Approval flow ──
+                    // ── Approval flow (Ktor MCP origin) ──
                     is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
                         Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, toolArgs=${event.toolArgs.take(200)}")
                         _pendingApprovalState.update {
                             PendingApproval(
                                 messageId = streamingMessageId,
-                                sessionId = sessionId,
+                                sessionId = event.sessionId ?: sessionId,
                                 eventId = event.eventId,
                                 toolId = event.toolId,
                                 toolName = event.toolName,
                                 toolTitle = event.toolTitle,
                                 toolArgs = event.toolArgs,
+                                source = ApprovalSource.KtorMcp,
                             )
                         }
-                        Log.i(TAG, ">>> APPROVAL_STATE_UPDATED: pendingApproval is now set")
+                        Log.i(TAG, ">>> APPROVAL_STATE_UPDATED: pendingApproval is now set (source=KtorMcp)")
                         _chatState.update { state ->
                             state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
                         }

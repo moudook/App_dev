@@ -268,6 +268,21 @@ class OpencodeLlmProvider(
         if (data.startsWith("{")) {
             val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return
 
+            val jsonKind = json["kind"]?.safeStr
+            if (eventType == "session.status" || jsonKind == "session.status") {
+                val statusObj = json["status"]?.jsonObject
+                if (statusObj != null) {
+                    val statusType = statusObj["type"]?.safeStr
+                    if (statusType == "retry" || statusType == "error" || statusType == "failed") {
+                        val errorMsg = statusObj["message"]?.safeStr ?: "AI service returned error status"
+                        val fullMsg = "OpenCode free tier: $errorMsg"
+                        logger.error("[OpenCode.Error][inference=$inferenceId] $fullMsg")
+                        throw IllegalStateException(fullMsg)
+                    }
+                    if (statusType == "busy") return
+                }
+            }
+
             if ((json["name"].safeStr ?: "").endsWith("Error")) {
                 logger.error("[OpenCode.Error][inference=$inferenceId] Daemon error: $data")
                 return

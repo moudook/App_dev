@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.smarty.core.common.util.HttpClientProvider
 import com.example.smarty.core.common.util.buildJsonBody
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.agent.permissions.ToolPermissionDecision
+import com.example.smarty.agent.permissions.ToolPermissionPolicy
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.ui.components.timeline.TimelineNode
 import com.example.smarty.ui.components.timeline.TimelineNodeAggregator
@@ -77,6 +79,15 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
     private val okHttpClient = HttpClientProvider.longRunning
     private val securePreferences = SecurePreferences.getInstance(application)
 
+    /**
+     * Defensive permission policy. Mirrors `opencode.json`'s `permission`
+     * block. Normally the OpenCode CLI enforces this before any event
+     * is emitted, so the policy check here is a safety net for the
+     * rare case where a `permission.asked` event leaks through for an
+     * already-allow/deny tool.
+     */
+    private val toolPermissionPolicy = ToolPermissionPolicy.SMARTY_DEFAULT
+
     private var webSocket: WebSocket? = null
     private val wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var reconnectJob: Job? = null
@@ -127,6 +138,47 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                     val sessionID = json.optString("sessionID")
                     val event = translateToAgentEvent(kind, json)
                     if (event != null) {
+                        // Defensive policy short-circuit: if a non-interactive
+                        // `permission.asked` event slipped through for a tool
+                        // the policy already allows/denies, auto-respond and
+                        // DON'T feed it to the aggregator (so no spurious
+                        // `ApprovalGate` node appears in the timeline). The
+                        // CLI normally handles allow/deny before emitting,
+                        // so this is a safety net.
+                        if (event is AgentEvent.ApprovalRequested && !event.isInteractive) {
+                            val decision = toolPermissionPolicy.decide(event.toolName)
+                            when (decision) {
+                                ToolPermissionDecision.ALLOW -> {
+                                    Log.i(
+                                        TAG,
+                                        ">>> POLICY_AUTO_APPROVE: tool=${event.toolName} (defensive short-circuit; CLI normally handles this)",
+                                    )
+                                    sendPluginAskResponse(
+                                        sessionId = sessionID.ifBlank { null },
+                                        callId = event.toolId,
+                                        response = "auto-approved by policy",
+                                    )
+                                    return  // don't render in timeline
+                                }
+                                ToolPermissionDecision.DENY -> {
+                                    Log.i(
+                                        TAG,
+                                        ">>> POLICY_AUTO_DENY: tool=${event.toolName} (defensive short-circuit; CLI normally blocks this)",
+                                    )
+                                    sendPluginAskResponse(
+                                        sessionId = sessionID.ifBlank { null },
+                                        callId = event.toolId,
+                                        response = "denied by policy",
+                                    )
+                                    return  // don't render in timeline
+                                }
+                                ToolPermissionDecision.DEFAULT -> {
+                                    // No policy rule — fall through to the
+                                    // normal aggregator path which renders
+                                    // the approval card.
+                                }
+                            }
+                        }
                         handleIncomingEvent(event)
                     }
                 } catch (e: Exception) {
@@ -201,10 +253,10 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                 // or "askuser" (case-insensitive). We map all interactive tool
                 // names to "ask_user" so the UI shows a text input.
                 val rawTool = json.optString("tool", "ask_user").lowercase()
-                val tool = when (rawTool) {
-                    "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify" -> "ask_user"
-                    else -> rawTool
-                }
+                val isInteractive = rawTool in setOf(
+                    "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify",
+                )
+                val tool = if (isInteractive) "ask_user" else rawTool
                 val callId = json.optString("callID", eventId)
                 val question = json.optString("question", "")
                 val toolArgs = if (question.isNotEmpty()) {
@@ -219,6 +271,7 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                     toolName = tool,
                     toolTitle = tool.replace('_', ' ').replaceFirstChar { it.uppercase() },
                     toolArgs = toolArgs,
+                    isInteractive = isInteractive,
                 )
             }
 
@@ -433,6 +486,76 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send approval for $toolId", e)
+            }
+        }
+    }
+
+    /**
+     * Defensive auto-response to a plugin-driven MCP `ask` tool call.
+     * The Ktor `/opencode/ask-response/{sessionId}/{callId}` route writes
+     * the response to
+     *   `/tmp/opencode-asks/<sessionID>/<callID>.response.txt`
+     * for the OpenCode plugin's MCP `ask` tool to poll and unblock.
+     *
+     * Used by [onMessage] when the policy check decides a non-interactive
+     * `permission.asked` event should be auto-approved/denied without
+     * surfacing an approval card.
+     *
+     * Mirrors the equivalent `RemoteAgentService.sendPluginAskResponse`
+     * in the main service layer — the runtime VM uses OkHttp directly
+     * because the WebSocket here is also OkHttp.
+     */
+    private fun sendPluginAskResponse(
+        sessionId: String?,
+        callId: String,
+        response: String,
+    ) {
+        if (sessionId.isNullOrBlank()) {
+            Log.w(TAG, ">>> POLICY_AUTO_RESPONSE_DROPPED: no sessionId for call=$callId")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val serverUrl = securePreferences.getSmartyServerUrl()
+                val token = withContext(Dispatchers.IO) {
+                    runCatching {
+                        FirebaseAuth.getInstance().currentUser
+                            ?.getIdToken(false)
+                            ?.await()
+                            ?.token
+                    }.getOrNull()
+                }
+                // Path-param safety — Ktor enforces [A-Za-z0-9_-]+.
+                if (!sessionId.matches(Regex("[A-Za-z0-9_-]+")) ||
+                    !callId.matches(Regex("[A-Za-z0-9_-]+"))
+                ) {
+                    Log.w(
+                        TAG,
+                        ">>> POLICY_AUTO_RESPONSE_REJECTED: sessionId/callId contains unsafe characters",
+                    )
+                    return@launch
+                }
+                val url = "$serverUrl/opencode/ask-response/$sessionId/$callId"
+                val jsonBody = buildJsonBody("response" to response)
+                withContext(Dispatchers.IO) {
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(jsonBody.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
+                        .apply {
+                            if (!token.isNullOrBlank()) {
+                                addHeader("Authorization", "Bearer $token")
+                            }
+                        }
+                        .build()
+                    okHttpClient.newCall(request).execute().use { resp ->
+                        Log.i(
+                            TAG,
+                            ">>> POLICY_AUTO_RESPONSE: call=$callId response.len=${response.length} -> ${resp.code}",
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, ">>> POLICY_AUTO_RESPONSE_ERROR: call=$callId", e)
             }
         }
     }

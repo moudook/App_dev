@@ -130,14 +130,6 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
         private const val KEY_TARGET_GOOGLE_CALENDAR_ID = "target_google_calendar_id"
 
-        // AI Provider Strategy
-        private const val KEY_PROVIDER_STRATEGY = "provider_strategy"
-        private const val DEFAULT_PROVIDER_STRATEGY = "AUTO"
-
-        // AI Personality
-        private const val KEY_PERSONALITY = "ai_personality"
-        private const val DEFAULT_PERSONALITY = "DEFAULT"
-
         // Security
         private const val KEY_DEVICE_ID = "device_id"
 
@@ -315,16 +307,6 @@ class SecurePreferences(private val context: Context) {
     fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
         return getCachedModels()
     }
-
-    // AI Provider Strategy
-    fun getProviderStrategy(): String = DEFAULT_PROVIDER_STRATEGY
-
-    fun setProviderStrategy(strategy: String) = encryptedPrefs.edit().putString(KEY_PROVIDER_STRATEGY, DEFAULT_PROVIDER_STRATEGY).apply()
-
-    // AI Personality
-    fun getPersonality(): String = encryptedPrefs.getString(KEY_PERSONALITY, DEFAULT_PERSONALITY) ?: DEFAULT_PERSONALITY
-
-    fun setPersonality(personality: String) = encryptedPrefs.edit().putString(KEY_PERSONALITY, personality).apply()
 
     /**
      * Get or create a unique, persistent Device ID.

@@ -488,6 +488,9 @@ class ServerAgent(
 
                 val userMsg =
                     when {
+                        errorMsg.contains("Free usage exceeded", ignoreCase = true) ||
+                            errorMsg.contains("free tier", ignoreCase = true) ->
+                            "OpenCode free tier is exhausted. Requests will resume after the daily reset. Subscribe at https://opencode.ai/go for more."
                         errorMsg.contains("Max retries exceeded", ignoreCase = true) ||
                             errorMsg.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
                             errorMsg.contains("rate limit", ignoreCase = true) ||

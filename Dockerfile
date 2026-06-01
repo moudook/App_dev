@@ -62,7 +62,7 @@ RUN apt-get update && apt-get install -y curl gnupg ca-certificates && \
 # --unsafe-perm required because Docker build runs as root and npm >= 7
 # skips postinstall scripts for root users. Without this, the native Go binary
 # (bin/.opencode) is never downloaded by postinstall.mjs and the CLI is broken.
-RUN npm install -g opencode-ai@1.14.41 --unsafe-perm && npm cache clean --force
+RUN npm install -g opencode-ai --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
 # eclipse-temurin:17-jre base image ships a pre-existing 'ubuntu' user with

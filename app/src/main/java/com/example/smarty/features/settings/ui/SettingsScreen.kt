@@ -64,6 +64,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.smarty.R
+import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.*
@@ -84,7 +85,7 @@ private const val TAG = "SettingsScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
-    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, ProviderStrategy, AgentMemory, Personality, GuidedBreathing
+    Main, Backup, About, ShakeSensitivity, CalendarSelector, ServerConfig, AgentMemory, GuidedBreathing, ToolPermissions
 }
 
 /**
@@ -112,12 +113,6 @@ fun SettingsScreen(
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    // AI Provider Strategy
-    providerStrategy: String = "AUTO",
-    onSetProviderStrategy: (String) -> Unit = {},
-    // AI Personality
-    personality: String = "DEFAULT",
-    onSetPersonality: (String) -> Unit = {},
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit = {},
@@ -133,16 +128,8 @@ fun SettingsScreen(
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {}
 ) {
-    // SecurePreferences for personality
     val context = LocalContext.current
-    val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
-    
-    // Use passed values as defaults, but override with stored values
-    val initialPersonality = if (personality != "DEFAULT") personality else securePrefs.getPersonality()
-    var currentPersonality by remember { mutableStateOf(initialPersonality) }
-    var currentProviderStrategy by remember {
-        mutableStateOf(securePrefs.getProviderStrategy())
-    }
+    val securePrefs = remember { SecurePreferences.getInstance(context) }
 
     // Navigation State
     var currentView by remember { mutableStateOf(SettingsView.Main) }
@@ -297,18 +284,6 @@ fun SettingsScreen(
                                 )
                                 SmartySettingsCard {
                                     SmartySettingsRow(
-                                        label = "AI Mode",
-                                        icon = SmartyIcons.Analytics,
-                                        subtitle = PreferenceOptions.aiModeDescription(currentProviderStrategy),
-                                        onClick = { currentView = SettingsView.ProviderStrategy }
-                                    )
-                                    SmartySettingsRow(
-                                        label = "AI Personality",
-                                        icon = SmartyIcons.Psychology,
-                                        subtitle = PreferenceOptions.personalityLabel(currentPersonality),
-                                        onClick = { currentView = SettingsView.Personality }
-                                    )
-                                    SmartySettingsRow(
                                         label = "Smarty Server",
                                         icon = SmartyIcons.Cloud,
                                         subtitle = "View connection info",
@@ -319,6 +294,12 @@ fun SettingsScreen(
                                         icon = SmartyIcons.Psychology,
                                         subtitle = "View what the agent remembers",
                                         onClick = { currentView = SettingsView.AgentMemory }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Tool Permissions",
+                                        icon = SmartyIcons.Lock,
+                                        subtitle = "Override the default tool allow/deny policy",
+                                        onClick = { currentView = SettingsView.ToolPermissions }
                                     )
                                 }
                             }
@@ -507,30 +488,6 @@ fun SettingsScreen(
                             onBack = { currentView = SettingsView.Main }
                         )
                     }
-                    SettingsView.ProviderStrategy -> {
-                        ProviderStrategyView(
-                            currentStrategy = currentProviderStrategy,
-                            onSelect = {
-                                securePrefs.setProviderStrategy(it)
-                                currentProviderStrategy = it
-                                onSetProviderStrategy(it)
-                                currentView = SettingsView.Main
-                            },
-                            onBack = { currentView = SettingsView.Main }
-                        )
-                    }
-                    SettingsView.Personality -> {
-                        PersonalityView(
-                            currentPersonality = currentPersonality,
-                            onSelect = {
-                                securePrefs.setPersonality(it)
-                                currentPersonality = it
-                                onSetPersonality(it)
-                                currentView = SettingsView.Main
-                            },
-                            onBack = { currentView = SettingsView.Main }
-                        )
-                    }
                     SettingsView.ShakeSensitivity -> {
                         ShakeSensitivityView(
                            sensitivity = shakeSensitivity,
@@ -561,6 +518,11 @@ fun SettingsScreen(
                     }
                     SettingsView.AgentMemory -> {
                         AgentMemoryView(
+                            onBack = { currentView = SettingsView.Main }
+                        )
+                    }
+                    SettingsView.ToolPermissions -> {
+                        ToolPermissionsView(
                             onBack = { currentView = SettingsView.Main }
                         )
                     }
@@ -1072,177 +1034,6 @@ private fun SettingsToggleItem(
 // formatCacheSize is now imported from DataManagementSection
 
 @Composable
-private fun ProviderStrategyView(
-    currentStrategy: String,
-    onSelect: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        SettingsHeader(
-            title = "AI Mode",
-            subtitle = "One simple automatic mode",
-            onBack = onBack
-        )
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 180.dp)
-        ) {
-            val strategies = PreferenceOptions.aiModes
-
-            items(strategies.size) { index ->
-                val option = strategies[index]
-                val isSelected = currentStrategy == option.key
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(option.key) },
-                    shape = LocalShapes.current.button,
-                    color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = when (option.key) {
-                                    else -> Icons.Default.AutoAwesome
-                                },
-                                contentDescription = null,
-                                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = option.label,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = option.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PersonalityView(
-    currentPersonality: String,
-    onSelect: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        SettingsHeader(
-            title = "AI Personality",
-            subtitle = "Choose how Smarty responds to you",
-            onBack = onBack
-        )
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 180.dp)
-        ) {
-            val personalities = PreferenceOptions.personalities
-
-            items(personalities.size) { index ->
-                val option = personalities[index]
-                val isSelected = currentPersonality == option.key
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(option.key) },
-                    shape = LocalShapes.current.button,
-                    color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) LocalAccentColor.current
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = when (option.key) {
-                                    "PROFESSIONAL" -> Icons.Default.Business
-                                    "CASUAL" -> Icons.Default.Mood
-                                    "CONCISE" -> Icons.Default.Bolt
-                                    "DETAILED" -> Icons.Default.Description
-                                    else -> Icons.Default.Psychology
-                                },
-                                contentDescription = null,
-                                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = option.label,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = option.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun HideSystemBars() {
     val view = LocalView.current
     LaunchedEffect(view) {
@@ -1461,6 +1252,249 @@ private fun MemoryCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Settings → Tool Permissions
+ *
+ * Lets the user override the static SMARTY_DEFAULT policy per tool.
+ * Calls:
+ *   GET  /api/v1/permissions/tools
+ *   PUT  /api/v1/permissions/tools/{toolName}  (decision ∈ ALLOW|DENY|INHERIT)
+ *
+ * 3-way segmented selector per row:
+ *   • Default — fall back to SMARTY_DEFAULT
+ *   • Allow   — always auto-approve this tool
+ *   • Deny    — always block this tool
+ */
+@Composable
+private fun ToolPermissionsView(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val app = context.applicationContext as? android.app.Application
+    val remoteAgentService = remember(app) {
+        app?.let { com.example.smarty.di.ServiceLocator.provideRemoteAgentService(it) }
+    }
+
+    var tools by remember { mutableStateOf<List<com.example.smarty.data.remote.ToolPermissionDto>>(emptyList()) }
+    var defaultPolicy by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var pendingTool by remember { mutableStateOf<String?>(null) }
+
+    suspend fun reload() {
+        isLoading = true
+        errorMessage = null
+        val svc = remoteAgentService
+        if (svc == null) {
+            errorMessage = "Remote service unavailable."
+            isLoading = false
+            return
+        }
+        val resp = svc.getToolPermissions()
+        if (resp == null) {
+            errorMessage = "Could not load permissions. Check your connection."
+        } else {
+            tools = resp.tools
+            defaultPolicy = resp.defaultPolicy
+        }
+        isLoading = false
+    }
+
+    LaunchedEffect(Unit) { reload() }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBack() }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Tool Permissions",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (errorMessage != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(onClick = { scope.launch { reload() } }) {
+                        Text("Retry")
+                    }
+                }
+            }
+        } else {
+            // Explanatory card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ),
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Override the agent's default tool policy.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Allow auto-approves the tool. Deny blocks it. Default falls back to Smarty's built-in policy.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(tools, key = { it.toolName }) { tool ->
+                    val isPending = pendingTool == tool.toolName
+                    ToolPermissionRow(
+                        tool = tool,
+                        defaultDecision = defaultPolicy[tool.toolName] ?: "DEFAULT",
+                        isPending = isPending,
+                        onDecisionChange = { newDecision ->
+                            pendingTool = tool.toolName
+                            scope.launch {
+                                val svc = remoteAgentService
+                                if (svc == null) {
+                                    errorMessage = "Remote service unavailable."
+                                    pendingTool = null
+                                    return@launch
+                                }
+                                val resp = svc.setToolPermission(
+                                    toolName = tool.toolName,
+                                    decision = newDecision,
+                                )
+                                if (resp == null) {
+                                    errorMessage = "Failed to save override for ${tool.toolName}"
+                                } else {
+                                    // Refresh from server to get the canonical state.
+                                    reload()
+                                }
+                                pendingTool = null
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolPermissionRow(
+    tool: com.example.smarty.data.remote.ToolPermissionDto,
+    defaultDecision: String,
+    isPending: Boolean,
+    onDecisionChange: (String) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = tool.toolName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isPending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                if (tool.isOverridden) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("override", fontSize = 10.sp) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        ),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // 3-way segmented selector
+            val effectiveForUi = if (tool.isOverridden) tool.decision else "DEFAULT"
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = effectiveForUi == "DEFAULT",
+                    onClick = { onDecisionChange("INHERIT") },
+                    shape = SegmentedButtonDefaults.itemShape(0, 3),
+                ) {
+                    Text("Default", fontSize = 11.sp)
+                }
+                SegmentedButton(
+                    selected = effectiveForUi == "ALLOW",
+                    onClick = { onDecisionChange("ALLOW") },
+                    shape = SegmentedButtonDefaults.itemShape(1, 3),
+                ) {
+                    Text("Allow", fontSize = 11.sp)
+                }
+                SegmentedButton(
+                    selected = effectiveForUi == "DENY",
+                    onClick = { onDecisionChange("DENY") },
+                    shape = SegmentedButtonDefaults.itemShape(2, 3),
+                ) {
+                    Text("Deny", fontSize = 11.sp)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Default policy: $defaultDecision",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

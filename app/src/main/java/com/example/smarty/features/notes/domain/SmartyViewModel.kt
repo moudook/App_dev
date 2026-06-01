@@ -235,21 +235,10 @@ class SmartyViewModel(
         }
     }
 
-    // AI Provider Strategy
-    val providerStrategy: StateFlow<String> = settingsFeatureManager.providerStrategy
-
-    fun setProviderStrategy(strategy: String) {
-        settingsFeatureManager.setProviderStrategy(strategy)
-        Log.d(TAG, "Provider strategy set to: $strategy")
-    }
-
-    // AI Personality
-    val personality: StateFlow<String> = settingsFeatureManager.personality
-
-    fun setPersonality(personality: String) {
-        settingsFeatureManager.setPersonality(personality)
-        Log.d(TAG, "Personality set to: $personality")
-    }
+    // AI Provider Strategy and AI Personality removed — these features
+    // are no longer exposed in the app settings. The StateFlows
+    // `providerStrategy` and `personality` and their setters are
+    // intentionally absent here.
 
     /**
      * UNFILTERED notes source for AI agent.

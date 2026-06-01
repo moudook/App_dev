@@ -1,6 +1,7 @@
 -- ============================================================
--- SUPABASE COMPATIBLE DATABASE SCHEMA v11.0.0
+-- SUPABASE COMPATIBLE DATABASE SCHEMA v11.1.0
 -- Optimized: vector search, FTS, sync-ready, unified constraints, RLS policies
+-- v11.1.0: +tool_permissions, +permission_audit_log (defensive policy layer)
 -- ============================================================
 
 -- Enable required extensions
@@ -48,6 +49,8 @@ DROP TABLE IF EXISTS vector_embeddings CASCADE;
 DROP TABLE IF EXISTS ai_cache CASCADE;
 DROP TABLE IF EXISTS user_vaults CASCADE;
 DROP TABLE IF EXISTS impressed_log CASCADE;
+DROP TABLE IF EXISTS permission_audit_log CASCADE;
+DROP TABLE IF EXISTS tool_permissions CASCADE;
 
 -- Drop trigger function if exists
 DROP FUNCTION IF EXISTS set_updated_at() CASCADE;
@@ -663,6 +666,96 @@ CREATE TABLE note_versions (
 );
 
 -- ============================================================
+-- TOOL PERMISSIONS (v11.1.0)
+-- Per-user overrides of the SMARTY_DEFAULT policy in
+-- common/.../agent/permissions/ToolPermissionPolicy.kt.
+-- The Ktor server (ToolPermissionEnforcer) is the canonical
+-- reader; the Android app is defensive and only writes
+-- here when the user explicitly opts in/out of a tool.
+-- ============================================================
+
+CREATE TABLE tool_permissions (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tool_name           TEXT NOT NULL,
+    -- ALLOW, DENY, INHERIT (fall back to SMARTY_DEFAULT).
+    decision            TEXT NOT NULL CHECK (decision IN ('ALLOW','DENY','INHERIT')),
+    -- Where the override came from: 'default' (smarty seed),
+    -- 'user_request' (user explicitly toggled), 'admin' (operator).
+    source              TEXT NOT NULL DEFAULT 'user_request'
+        CHECK (source IN ('default','user_request','admin','revoked')),
+    -- If this override was granted by an admin or another user,
+    -- track who. NULL for self-service toggles.
+    granted_by_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    -- Reason text shown to the user in the settings UI.
+    reason              TEXT,
+    -- Whether the user has explicitly acknowledged this permission
+    -- (e.g. tapped "I understand this can be dangerous" in the
+    -- settings screen). ALLOW tools that are normally
+    -- low-risk (e.g. `read`) can skip this.
+    acknowledged_at     TIMESTAMPTZ,
+    -- Soft expiry. NULL = no expiry. Used for "temporary" grants
+    -- that auto-revert (e.g. trial-period of an experimental tool).
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id, tool_name)
+);
+CREATE INDEX idx_tool_permissions_user ON tool_permissions(user_id);
+CREATE INDEX idx_tool_permissions_decision ON tool_permissions(decision) WHERE decision <> 'INHERIT';
+CREATE TRIGGER trg_tool_permissions_updated_at BEFORE UPDATE ON tool_permissions
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ============================================================
+-- PERMISSION AUDIT LOG (v11.1.0)
+-- Append-only log of every decision made by the policy layer
+-- (CLI, Ktor enforcer, Android app). Used for: (a) reviewing
+-- denied/allowed patterns, (b) detecting policy drift, (c)
+-- forensics when a tool misbehaves.
+-- ============================================================
+
+CREATE TABLE permission_audit_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- Nullable: a `permission.asked` event from the plugin's
+    -- global WebSocket may not carry a userId. In that case
+    -- `session_id` carries the OpenCode session and the raw
+    -- userId is preserved in `metadata.user_id_raw` for
+    -- forensic correlation.
+    user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+    -- OpenCode session id (also broadcast on the WebSocket).
+    session_id      TEXT,
+    tool_name       TEXT NOT NULL,
+    -- ALLOW, DENY, DEFAULT, USER_APPROVED, USER_DENIED.
+    decision        TEXT NOT NULL CHECK (decision IN
+        ('ALLOW','DENY','DEFAULT','USER_APPROVED','USER_DENIED',
+         'AUTO_APPROVED','AUTO_DENIED','INTERACTIVE_BYPASS')),
+    -- Where the decision was made: 'cli' (OpenCode native),
+    -- 'ktor_enforcer' (server-side defensive), 'app' (Android
+    -- defensive), 'user' (interactive prompt answer).
+    actor           TEXT NOT NULL CHECK (actor IN
+        ('cli','ktor_enforcer','app','user','plugin')),
+    -- The interactive tool's callID (for `user.input.required`
+    -- events) or the policy rule that matched (for ALLOW/DENY
+    -- auto-decisions).
+    call_id         TEXT,
+    -- When the user explicitly responded to an interactive prompt,
+    -- capture their free-text feedback here.
+    user_feedback   TEXT,
+    -- Truncated args preview (max 500 chars) for forensics.
+    -- NEVER log full tool args (may contain PII or secrets).
+    args_preview    TEXT CHECK (args_preview IS NULL OR length(args_preview) <= 500),
+    -- Free-form metadata (CLI version, plugin version, etc.).
+    metadata        JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_permission_audit_user ON permission_audit_log(user_id, created_at DESC);
+CREATE INDEX idx_permission_audit_session ON permission_audit_log(session_id, created_at DESC)
+    WHERE session_id IS NOT NULL;
+CREATE INDEX idx_permission_audit_tool ON permission_audit_log(tool_name, created_at DESC);
+CREATE INDEX idx_permission_audit_denied ON permission_audit_log(user_id, created_at DESC)
+    WHERE decision IN ('DENY','AUTO_DENIED','USER_DENIED');
+
+-- ============================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================
 
@@ -770,6 +863,22 @@ CREATE POLICY "Users can view own impressed log" ON impressed_log FOR SELECT USI
 
 ALTER TABLE user_vaults ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own vaults" ON user_vaults FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE tool_permissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own tool permissions" ON tool_permissions
+    FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can insert own tool permissions" ON tool_permissions
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can update own tool permissions" ON tool_permissions
+    FOR UPDATE USING (user_id = auth.uid());
+CREATE POLICY "Users can delete own tool permissions" ON tool_permissions
+    FOR DELETE USING (user_id = auth.uid());
+
+ALTER TABLE permission_audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own permission audit log" ON permission_audit_log
+    FOR SELECT USING (user_id = auth.uid());
+-- INSERT only via service role (Ktor service-role key). No UPDATE/DELETE
+-- policies — audit log is append-only from the user's perspective.
 
 -- ============================================================
 -- MIGRATIONS

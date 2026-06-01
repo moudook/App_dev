@@ -1786,13 +1786,11 @@ class ChatFeatureManager(
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
             val sessionId = currentSessionId.value
-            val personality = securePreferences.getPersonality()
             val selectedModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
             val selectedVariant = securePreferences.getSelectedVariant()
             remoteAgentService.sendQuery(
                 query = content,
                 sessionId = sessionId,
-                personality = personality,
                 model = selectedModel,
                 variant = selectedVariant,
                 messageId = streamingMessageId,

@@ -10,6 +10,7 @@ import com.example.smarty.server.agent.ApprovalRegistry
 import com.example.smarty.server.agent.ResearchAgentTools
 import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 import com.example.smarty.server.agent.ToolExecutor
+import com.example.smarty.server.agent.ToolPermissionEnforcer
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
@@ -59,6 +60,7 @@ class McpServer(
     private val timerRepository: TimerRepository?,
     private val calendarRepository: CalendarRepository?,
     private val noteService: NoteService?,
+    private val toolPermissionEnforcer: ToolPermissionEnforcer? = null,
 ) {
     var eventEmitter: (suspend (AgentEvent) -> Unit)? = null
 
@@ -392,12 +394,13 @@ class McpServer(
 
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
-                    UUID.randomUUID().toString(),
-                    System.currentTimeMillis(),
-                    toolCallId,
-                    resolvedName,
-                    resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    args.toString(),
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                    toolName = resolvedName,
+                    toolTitle = resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    toolArgs = args.toString(),
+                    isInteractive = true,
                 )
             eventEmitter?.invoke(approvalEvent)
             emitToAllSessions(approvalEvent)
@@ -407,7 +410,7 @@ class McpServer(
                 runCatching {
                     // 161s timeout — golden ratio (φ ≈ 1.618) × 100 ≈ 161s
                     withTimeoutOrNull(161_000L) {
-                        ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId).await()
+                        ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId, resolvedName).await()
                     }
                 }.getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out")
             logger.info("[MCP] ask_user: approval resolved for toolCallId=$toolCallId, approved=${result.approved}, feedback=${result.feedback?.take(100)}")
@@ -468,6 +471,7 @@ class McpServer(
                     emitToAllSessions(it)
                 },
                 noteService,
+                toolPermissionEnforcer = toolPermissionEnforcer ?: ToolPermissionEnforcer(),
             )
         return try {
             val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)

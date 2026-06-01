@@ -89,13 +89,6 @@ class SettingsFeatureManager(
         _serverUrl.value = url
     }
 
-    // AI mode
-    private val _providerStrategy = MutableStateFlow(securePreferences.getProviderStrategy())
-    val providerStrategy: StateFlow<String> = _providerStrategy.asStateFlow()
-
-    private val _personality = MutableStateFlow(securePreferences.getPersonality())
-    val personality: StateFlow<String> = _personality.asStateFlow()
-
     // --- UI/System Preferences ---
     val isDarkTheme: StateFlow<Boolean> = securePreferences.isDarkTheme
 
@@ -112,18 +105,6 @@ class SettingsFeatureManager(
 
     // --- Server Settings Actions ---
     // Deprecated IP/Port actions removed
-
-
-    // AI mode actions
-    fun setProviderStrategy(strategy: String) {
-        securePreferences.setProviderStrategy(strategy)
-        _providerStrategy.value = securePreferences.getProviderStrategy()
-    }
-
-    fun setPersonality(personality: String) {
-        securePreferences.setPersonality(personality)
-        _personality.value = personality
-    }
 
     fun getSmartyServerUrl(): String {
         return securePreferences.getSmartyServerUrl()

@@ -88,18 +88,11 @@ fun SettingsContent(
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
     val shapes = LocalShapes.current
-    
-    // SecurePreferences for AI Personality & Strategy
-    val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
-    var personality by remember { mutableStateOf(securePrefs.getPersonality()) }
-    var providerStrategy by remember { mutableStateOf(securePrefs.getProviderStrategy()) }
 
     // Sub-sheet states
     var showBackupSheet by remember { mutableStateOf(false) }
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     var showCalendarSelectorSheet by remember { mutableStateOf(false) }
-    var showPersonalitySheet by remember { mutableStateOf(false) }
-    var showStrategySheet by remember { mutableStateOf(false) }
 
     // Inline Expansion States
     val expandedSections = remember { mutableStateMapOf<String, Boolean>() }
@@ -125,36 +118,6 @@ fun SettingsContent(
                 SmartySettingsCard {
                     // Server Status Indicator (URL is hardcoded and hidden)
                     ServerStatusIndicator(connectionStatus = connectionStatus)
-                }
-            }
-        }
-
-        // --- GROUP 1B: AI INTELLIGENCE (Personality & Strategy) ---
-        item {
-            Column {
-                Text(
-                    text = "My Smarty",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
-                )
-                SmartySettingsCard {
-                    // AI Personality
-                    SmartySettingsRow(
-                        icon = SmartyIcons.Psychology,
-                        label = "AI Personality",
-                        subtitle = personality.lowercase().replaceFirstChar { it.titlecase() },
-                        onClick = { showPersonalitySheet = true },
-                        iconColor = accentColor
-                    )
-                    // AI Strategy
-                    SmartySettingsRow(
-                        icon = SmartyIcons.Build,
-                        label = "AI Strategy",
-                        subtitle = providerStrategy.lowercase().replaceFirstChar { it.titlecase() },
-                        onClick = { showStrategySheet = true },
-                        iconColor = accentColor
-                    )
                 }
             }
         }
@@ -403,145 +366,6 @@ fun SettingsContent(
                                     Text(calendar.accountName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (isSelected) Icon(SmartyIcons.Check, null, tint = accentColor, modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- Personality Sheet ---
-        if (showPersonalitySheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showPersonalitySheet = false },
-                sheetState = subSettingSheetState,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                shape = shapes.bottomSheet,
-                dragHandle = { UnifiedDragHandle() }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "AI Personality",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "How Smarty responds to you",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    val personalities = listOf(
-                        Triple("DEFAULT", "Default", "Friday — the one who actually gets you. Warm, sharp, and always real."),
-                        Triple("PROFESSIONAL", "Professional", "Straight to business. Precise, polished, no wasted words."),
-                        Triple("CASUAL", "Casual", "Like talking to your smartest friend over coffee."),
-                        Triple("CONCISE", "Concise", "Short. Sweet. Done."),
-                        Triple("DETAILED", "Detailed", "Thinks through everything. Leaves no stone unturned.")
-                    )
-                    
-                    personalities.forEach { (key, label, desc) ->
-                        val isSelected = personality == key
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    securePrefs.setPersonality(key)
-                                    personality = key
-                                    showPersonalitySheet = false
-                                },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) accentColor.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            border = if (isSelected) BorderStroke(1.dp, accentColor) else null
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- Strategy Sheet ---
-        if (showStrategySheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showStrategySheet = false },
-                sheetState = subSettingSheetState,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                shape = shapes.bottomSheet,
-                dragHandle = { UnifiedDragHandle() }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "AI Strategy",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Balance speed and quality",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    val strategies = listOf(
-                        Triple("BALANCED", "Balanced", "Best mix of performance and cost (Default)"),
-                        Triple("CHEAPEST", "Cheapest", "Prioritize lowest cost"),
-                        Triple("FASTEST", "Fastest", "Prioritize lowest latency"),
-                        Triple("SMARTEST", "Smartest", "Prioritize reasoning capability")
-                    )
-                    
-                    strategies.forEach { (key, label, desc) ->
-                        val isSelected = providerStrategy == key
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    securePrefs.setProviderStrategy(key)
-                                    providerStrategy = key
-                                    showStrategySheet = false
-                                },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) accentColor.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            border = if (isSelected) BorderStroke(1.dp, accentColor) else null
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }

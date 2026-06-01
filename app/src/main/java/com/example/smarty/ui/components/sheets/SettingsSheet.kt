@@ -36,11 +36,6 @@ fun SettingsSheet(
         onDismiss()
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val securePrefs = remember { com.example.smarty.data.local.SecurePreferences.getInstance(context) }
-    val personality = remember { securePrefs.getPersonality() }
-    val providerStrategy = remember { securePrefs.getProviderStrategy() }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -56,10 +51,6 @@ fun SettingsSheet(
             shakeSensitivity = shakeSensitivity,
             onShakeSensitivityChange = onShakeSensitivityChange,
             onSignOut = onSignOut,
-            personality = personality,
-            onSetPersonality = { securePrefs.setPersonality(it) },
-            providerStrategy = providerStrategy,
-            onSetProviderStrategy = { securePrefs.setProviderStrategy(it) },
             backupContent = backupContent,
             isCalendarSyncEnabled = isCalendarSyncEnabled,
             onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,

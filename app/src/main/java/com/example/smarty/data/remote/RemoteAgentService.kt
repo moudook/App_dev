@@ -21,11 +21,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * Safe `content` accessors on [JsonPrimitive] — return null on null primitives
+ * or non-string values instead of throwing, so the timeline translator can
+ * tolerate missing/optional plugin event fields without crashing the flow.
+ */
+private val JsonPrimitive.contentOrNullSafe: String?
+    get() = runCatching { content }.getOrNull()
+private val JsonPrimitive.booleanOrNullSafe: Boolean?
+    get() = runCatching { content.toBooleanStrictOrNull() }.getOrNull()
+private val JsonPrimitive.longOrNullSafe: Long?
+    get() = runCatching { content.toLongOrNull() }.getOrNull()
+private val JsonPrimitive.intOrNullSafe: Int?
+    get() = runCatching { content.toIntOrNull() }.getOrNull()
 
 /**
  * Client-side service that connects to the Cloud Agent's SSE stream.
@@ -287,6 +306,318 @@ class RemoteAgentService(
     }
 
     /**
+     * Open the live timeline WebSocket to Ktor's `/ws/timeline` endpoint.
+     * The Ktor server is forwarding every event the OpenCode plugin emits
+     * (tool calls, reasoning deltas, sub-agents, MCP `ask_user` gates, etc.).
+     *
+     * The raw plugin JSON is translated into canonical [AgentEvent] types and
+     * emitted into a [Flow] that callers can collect. The same translation
+     * logic is shared with [AgentRuntimeViewModel] — but here the events flow
+     * into the MAIN chat surface, so reasoning, sub-agents, web search results,
+     * and approval gates appear inline in the conversation.
+     *
+     * Auto-reconnects with a 2-second backoff on disconnect. Callers should
+     * cancel the collecting [Job] to stop the stream.
+     *
+     * End-to-end wire model:
+     *   OpenCode CLI → plugin → Ktor /opencode/events → Ktor /ws/timeline → this Flow
+     */
+    fun observeTimelineEvents(): Flow<AgentEvent> =
+        flow {
+            val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
+            val token = getFirebaseToken()
+            val url =
+                buildString {
+                    append("$baseUrl/ws/timeline")
+                    if (!token.isNullOrBlank()) {
+                        append("?token=$token")
+                    }
+                }
+
+            Log.i(TAG, ">>> TIMELINE_WS: connecting to $url")
+            _connectionState.value = ConnectionStatus.CONNECTING
+
+            // Translation function — converts a raw plugin JSON frame to an
+            // AgentEvent. Lives inside the flow so the json instance is captured
+            // by closure without leaking `this`.
+            val translate = translateTimelineEvent
+
+            try {
+                client.webSocket(urlString = url) {
+                    _connectionState.value = ConnectionStatus.CONNECTED
+                    Log.i(TAG, ">>> TIMELINE_WS: connected")
+
+                    // Heartbeat — Ktor's WS expects a periodic ping or it
+                    // tears the connection after ~30s idle.
+                    val heartbeatJob =
+                        launch {
+                            while (isActive) {
+                                kotlinx.coroutines.delay(15_000L)
+                                try {
+                                    send(Frame.Text("""{"type":"ping"}"""))
+                                } catch (e: Exception) {
+                                    break
+                                }
+                            }
+                        }
+
+                    try {
+                        for (frame in incoming) {
+                            if (frame !is Frame.Text) continue
+                            val text = frame.readText()
+                            if (text.isBlank()) continue
+                            try {
+                                val event = translate(text)
+                                if (event != null) {
+                                    emit(event)
+                                }
+                            } catch (e: kotlinx.serialization.SerializationException) {
+                                Log.w(TAG, "Timeline event decode failed: ${e.message}")
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Timeline event parse failed: ${e.message}")
+                            }
+                        }
+                    } finally {
+                        heartbeatJob.cancel()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Timeline WS failed: ${e.message}", e)
+                _connectionState.value = ConnectionStatus.OFFLINE
+            }
+        }
+
+    /**
+     * Translate a raw plugin JSON frame (as sent over the Ktor `/ws/timeline`
+     * WebSocket) into a canonical [AgentEvent] that the rest of the app
+     * understands.
+     *
+     * Plugin event format (from timeline-bridge.ts):
+     *   { "kind": "user.input.required", "sessionID": "...", "tool": "ask_user",
+     *     "callID": "...", "question": "...", "ts": 12345 }
+     *   { "kind": "part.updated", "partType": "tool", "tool": "websearch",
+     *     "state": "complete", "toolCallID": "...", "input": {...}, "output": [...] }
+     *   { "kind": "part.updated", "partType": "reasoning", "reasoning": "..." }
+     *   { "kind": "part.updated", "partType": "text", "text": "..." }
+     *   { "kind": "part.updated", "partType": "subtask", "agent": "researcher",
+     *     "description": "...", "state": "running" }
+     *   { "kind": "tool.before", "tool": "bash", "callID": "...", "args": {...} }
+     *   { "kind": "tool.after",  "tool": "bash", "callID": "...", "result": ... }
+     *   { "kind": "permission.asked", "tool": "bash", "args": {...} }
+     *   { "kind": "permission.replied", "tool": "bash", "granted": true }
+     *   { "kind": "session.created" | "session.idle" | "session.error" | "session.compacted" }
+     *   { "kind": "compaction.start" }
+     */
+    private val translateTimelineEvent: (String) -> AgentEvent? = translate@{ text ->
+        try {
+            val obj = json.parseToJsonElement(text).jsonObject
+            val kind = obj["kind"]?.jsonPrimitive?.contentOrNullSafe ?: return@translate null
+            val sessionID = obj["sessionID"]?.jsonPrimitive?.contentOrNullSafe
+            val ts = obj["ts"]?.jsonPrimitive?.longOrNullSafe ?: System.currentTimeMillis()
+            val eventId = java.util.UUID.randomUUID().toString()
+
+            when (kind) {
+                "session.created" -> AgentEvent.SessionStarted(eventId, ts, sessionID ?: "unknown")
+                "session.idle" -> AgentEvent.SessionCompleted(eventId, ts)
+                "session.error" -> AgentEvent.SessionError(
+                    eventId = eventId,
+                    timestamp = ts,
+                    message = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Unknown error",
+                )
+                "session.compacted", "compaction.start" -> AgentEvent.RecoveryStarted(
+                    eventId = eventId,
+                    timestamp = ts,
+                    reason = "Context compressed",
+                )
+
+                "permission.asked", "user.input.required" -> {
+                    val rawTool = (obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "ask_user").lowercase()
+                    val tool = when (rawTool) {
+                        "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify" -> "ask_user"
+                        else -> rawTool
+                    }
+                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
+                    val question = obj["question"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
+                    val optionsArr = obj["options"] as? kotlinx.serialization.json.JsonArray
+                    val optionsStrings = optionsArr?.mapNotNull { el ->
+                        (el as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe
+                    }.orEmpty()
+                    val isInteractive = tool == "ask_user"
+                    val toolArgs = when {
+                        isInteractive && question.isNotEmpty() -> {
+                            // Emit a `questions` array (matching the Ktor MCP
+                            // ask_user schema) so `AssistOverlayScreen` can
+                            // parse it into `ClarificationRequest` with
+                            // option chips. Falls back to a single
+                            // `question` field if `questions` parsing fails.
+                            buildString {
+                                append("{\"questions\":[{")
+                                append("\"question\":")
+                                append(json.encodeToString(JsonPrimitive(question)))
+                                append(",\"allow_custom\":true")
+                                if (optionsStrings.isNotEmpty()) {
+                                    append(",\"options\":")
+                                    append(
+                                        json.encodeToString(
+                                            ListSerializer(String.serializer()),
+                                            optionsStrings,
+                                        ),
+                                    )
+                                }
+                                append("}]}")
+                            }
+                        }
+                        isInteractive -> obj["args"]?.toString() ?: "{}"
+                        else -> obj["args"]?.toString() ?: "{}"
+                    }
+                    AgentEvent.ApprovalRequested(
+                        eventId = eventId,
+                        timestamp = ts,
+                        toolId = callId,
+                        toolName = tool,
+                        toolTitle = tool.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        toolArgs = toolArgs,
+                        sessionId = sessionID,
+                        isInteractive = isInteractive,
+                    )
+                }
+
+                "permission.replied" -> {
+                    val granted = obj["granted"]?.jsonPrimitive?.booleanOrNullSafe ?: false
+                    val callId = obj["toolId"]?.jsonPrimitive?.contentOrNullSafe
+                        ?: obj["callID"]?.jsonPrimitive?.contentOrNullSafe
+                        ?: eventId
+                    if (granted) AgentEvent.ApprovalGranted(eventId, ts, callId)
+                    else AgentEvent.ApprovalDenied(eventId, ts, callId)
+                }
+
+                "part.updated" -> {
+                    val partType = obj["partType"]?.jsonPrimitive?.contentOrNullSafe
+                    val partID = obj["partID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
+                    val messageID = obj["messageID"]?.jsonPrimitive?.contentOrNullSafe ?: sessionID ?: eventId
+                    when (partType) {
+                        "reasoning" -> {
+                            val text = obj["reasoning"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
+                            if (text.isNotEmpty()) {
+                                AgentEvent.ReasoningDelta(eventId, ts, text)
+                            } else {
+                                AgentEvent.ReasoningStarted(eventId, ts)
+                            }
+                        }
+                        "text" -> {
+                            val text = obj["text"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
+                            if (text.isNotEmpty()) AgentEvent.Processing(eventId, ts, text) else null
+                        }
+                        "tool" -> {
+                            val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
+                            val state = obj["state"]?.jsonPrimitive?.contentOrNullSafe ?: "running"
+                            val toolCallID = obj["toolCallID"]?.jsonPrimitive?.contentOrNullSafe ?: partID
+                            val inputJson = obj["input"]?.toString()
+                            val outputJson = obj["output"]?.toString()
+                            when (state) {
+                                "running", "pending" -> AgentEvent.ToolCallStarted(
+                                    eventId = eventId,
+                                    timestamp = ts,
+                                    toolId = toolCallID,
+                                    name = tool,
+                                    source = "opencode",
+                                )
+                                "complete", "completed" -> {
+                                    // Also fire ToolCallOutput if we have result data
+                                    val result = if (outputJson != null) {
+                                        AgentEvent.ToolCallOutput(eventId, ts, toolCallID, outputJson)
+                                    } else null
+                                    val finished = AgentEvent.ToolCallFinished(
+                                        eventId = eventId,
+                                        timestamp = ts,
+                                        toolId = toolCallID,
+                                        durationMs = 0L,
+                                    )
+                                    // Return the first event; ChatFeatureManager will
+                                    // accumulate both via the rawEvents list.
+                                    result ?: finished
+                                }
+                                "error" -> AgentEvent.ToolBlocked(
+                                    eventId = eventId,
+                                    timestamp = ts,
+                                    toolName = tool,
+                                    reason = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Tool failed",
+                                )
+                                else -> null
+                            }
+                        }
+                        "step-start" -> AgentEvent.StepStarted(
+                            eventId = eventId,
+                            timestamp = ts,
+                            title = "Step ${obj["step"]?.jsonPrimitive?.intOrNullSafe ?: ""}",
+                        )
+                        "step-finish" -> AgentEvent.StepFinished(eventId, ts, success = true)
+                        "subtask" -> {
+                            val agent = obj["agent"]?.jsonPrimitive?.contentOrNullSafe ?: "subagent"
+                            val desc = obj["description"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
+                            val stt = obj["state"]?.jsonPrimitive?.contentOrNullSafe ?: "running"
+                            AgentEvent.AgentStep(
+                                eventId = eventId,
+                                timestamp = ts,
+                                stepIndex = ts.toInt(),
+                                stepType = "tool_call",
+                                stepTitle = "Sub-agent: $agent",
+                                stepContent = desc,
+                                stepStatus = stt,
+                                toolName = "subtask",
+                                subagentId = agent,
+                            )
+                        }
+                        "compaction" -> AgentEvent.RecoveryStarted(eventId, ts, "Context compressed")
+                        "file" -> null // Files are visible in the chat as attachments; no timeline node
+                        else -> null
+                    }
+                }
+
+                "tool.before" -> {
+                    val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
+                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
+                    val args = obj["args"]?.toString().orEmpty()
+                    AgentEvent.ToolCallStarted(
+                        eventId = eventId,
+                        timestamp = ts,
+                        toolId = callId,
+                        name = tool,
+                        source = "opencode",
+                    )
+                }
+
+                "tool.after" -> {
+                    val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
+                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
+                    val result = obj["result"]?.toString().orEmpty()
+                    AgentEvent.ToolCallCompleted(
+                        eventId = eventId,
+                        timestamp = ts,
+                        toolId = callId,
+                        result = result,
+                        durationMs = 0L,
+                    )
+                }
+
+                "message.part.delta" -> {
+                    val delta = obj["delta"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
+                    if (delta.isNotEmpty()) {
+                        AgentEvent.Processing(eventId, ts, delta)
+                    } else {
+                        null
+                    }
+                }
+
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "translateTimelineEvent failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Send the user's approval/denial decision back to the paused server agent.
      * The server resumes the TLSM stream and continues tool execution (or aborts it).
      *
@@ -320,6 +651,80 @@ class RemoteAgentService(
             }
         } catch (e: Exception) {
             Log.e(TAG, ">>> SEND_APPROVAL_ERROR: $toolId", e)
+        }
+    }
+
+    /**
+     * Deliver the user's response to a plugin-driven MCP `ask` tool call.
+     *
+     * When the OpenCode CLI plugin emits `user.input.required` over
+     * `/ws/timeline` (origin = `ApprovalSource.Plugin`), the corresponding
+     * tool is blocked in the plugin and is polling
+     *   `/tmp/opencode-asks/<sessionID>/<callID>.response.txt`
+     * on disk. The Ktor `/opencode/ask-response/{sessionId}/{callId}` route
+     * writes the response to that file and unblocks the tool.
+     *
+     * Path param characters are restricted to the same `[A-Za-z0-9_-]+` set
+     * enforced server-side, so any rogue values are rejected with a clear
+     * 400 instead of smuggling through URL slashes.
+     *
+     * @param sessionId OpenCode session ID — required so the file is written
+     *                  to the right per-session directory.
+     * @param callId    Plugin `callID` from the `user.input.required` event.
+     * @param response  The user's text reply.
+     * @return `true` if Ktor accepted the response (200 OK), `false` on any
+     *         transport or HTTP error.
+     */
+    suspend fun sendPluginAskResponse(
+        sessionId: String,
+        callId: String,
+        response: String,
+    ): Boolean {
+        Log.i(
+            TAG,
+            ">>> SEND_PLUGIN_ASK_RESPONSE: session=$sessionId call=$callId response.len=${response.length}",
+        )
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val safePathRegex = Regex("[A-Za-z0-9_-]+")
+            if (!sessionId.matches(safePathRegex) || !callId.matches(safePathRegex)) {
+                Log.e(
+                    TAG,
+                    ">>> SEND_PLUGIN_ASK_RESPONSE_REJECTED: sessionId/callId contains unsafe characters",
+                )
+                return false
+            }
+
+            val httpResponse =
+                client.post("$baseUrl/opencode/ask-response/$sessionId/$callId") {
+                    if (!token.isNullOrBlank()) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(buildString {
+                        append("{\"response\":")
+                        append(json.encodeToString(JsonPrimitive(response)))
+                        append("}")
+                    })
+                }
+
+            if (httpResponse.status.isSuccess()) {
+                Log.i(
+                    TAG,
+                    ">>> SEND_PLUGIN_ASK_RESPONSE_OK: session=$sessionId call=$callId (${httpResponse.status})",
+                )
+                true
+            } else {
+                Log.e(
+                    TAG,
+                    ">>> SEND_PLUGIN_ASK_RESPONSE_FAILED: session=$sessionId call=$callId status=${httpResponse.status}",
+                )
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, ">>> SEND_PLUGIN_ASK_RESPONSE_ERROR: session=$sessionId call=$callId", e)
+            false
         }
     }
 
@@ -1118,10 +1523,97 @@ class RemoteAgentService(
         val feedback: String? = null,
     )
 
+    /**
+     * Fetch the effective tool permission decisions for the current user.
+     * Returns null on auth failure or network error. The settings UI
+     * falls back to SMARTY_DEFAULT (hard-coded in common) if the
+     * call fails.
+     */
+    suspend fun getToolPermissions(): ToolPermissionsListResponse? {
+        val baseUrl = serverUrlProvider()
+        val token = getFirebaseToken() ?: return null
+        return try {
+            val response =
+                client.get("$baseUrl/api/v1/permissions/tools") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+            if (response.status.isSuccess()) {
+                response.body<ToolPermissionsListResponse>()
+            } else {
+                Log.e(TAG, "getToolPermissions failed: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getToolPermissions error: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Upsert a single tool's override. Pass `decision = "INHERIT"`
+     * to delete the override (fall back to SMARTY_DEFAULT).
+     * Returns the response on success, null on failure.
+     */
+    suspend fun setToolPermission(
+        toolName: String,
+        decision: String,
+        reason: String? = null,
+    ): ToolPermissionUpsertResponse? {
+        val baseUrl = serverUrlProvider()
+        val token = getFirebaseToken() ?: return null
+        return try {
+            val response =
+                client.put("$baseUrl/api/v1/permissions/tools/$toolName") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(ToolPermissionUpsertRequest(decision = decision, reason = reason))
+                }
+            if (response.status.isSuccess()) {
+                response.body<ToolPermissionUpsertResponse>()
+            } else {
+                Log.e(TAG, "setToolPermission($toolName, $decision) failed: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setToolPermission error: ${e.message}", e)
+            null
+        }
+    }
+
     companion object {
         private const val TAG = "RemoteAgentService"
     }
 }
+
+@Serializable
+data class ToolPermissionDto(
+    val toolName: String,
+    val decision: String,
+    val isOverridden: Boolean = false,
+    val overrideSource: String? = null,
+    val overrideUpdatedAt: String? = null,
+    val overrideExpiresAt: String? = null,
+)
+
+@Serializable
+data class ToolPermissionsListResponse(
+    val tools: List<ToolPermissionDto> = emptyList(),
+    val defaultPolicy: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class ToolPermissionUpsertRequest(
+    val decision: String,
+    val reason: String? = null,
+    val expiresAt: String? = null,
+)
+
+@Serializable
+data class ToolPermissionUpsertResponse(
+    val toolName: String,
+    val effectiveDecision: String,
+    val persisted: Boolean,
+)
 
 // Request/Response DTOs
 

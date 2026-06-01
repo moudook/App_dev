@@ -1,7 +1,7 @@
 package com.example.smarty.ui.components.chat
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,10 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,9 +37,10 @@ fun AccordionSection(
     onExpandChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     accentColor: Color = LocalAccentColor.current,
-    enableTitleShimmer: Boolean = false,
     depth: Int = 0
 ) {
+    val displayTitle = if (title.isBlank()) "Details" else title
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -71,26 +69,14 @@ fun AccordionSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Title with optional shimmer effect
-                val titleStyle = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold  // Bold to indicate expandable
+                Text(
+                    text = displayTitle,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
                 )
-
-                if (enableTitleShimmer) {
-                    TextShimmerBasic(
-                        text = title,
-                        style = titleStyle,
-                        modifier = Modifier.weight(1f),
-                        accentColor = accentColor
-                    )
-                } else {
-                    Text(
-                        text = title,
-                        style = titleStyle,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "Collapse" else "Expand",
@@ -105,33 +91,35 @@ fun AccordionSection(
             enter = expandVertically(tween(250)) + fadeIn(tween(200)),
             exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        accentColor.copy(alpha = 0.15f)
-                    ),
-                    tonalElevation = 0.dp,
-                    modifier = Modifier.fillMaxWidth()
+            if (content.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp)
                 ) {
-                    Box(modifier = Modifier.padding(14.dp)) {
-                        MarkdownRenderer(
-                            content = content,
-                            isUser = false,
-                            normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                            boldColor = MaterialTheme.colorScheme.onSurface,
-                            linkColor = accentColor,
-                            codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                            depth = depth + 1
-                        )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            accentColor.copy(alpha = 0.15f)
+                        ),
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(modifier = Modifier.padding(14.dp)) {
+                            MarkdownRenderer(
+                                content = content,
+                                isUser = false,
+                                normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                boldColor = MaterialTheme.colorScheme.onSurface,
+                                linkColor = accentColor,
+                                codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                                codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                                depth = depth + 1
+                            )
+                        }
                     }
                 }
             }
@@ -139,48 +127,9 @@ fun AccordionSection(
     }
 }
 
-@Composable
-private fun TextShimmerBasic(
-    modifier: Modifier = Modifier,
-    text: String = "Generating code...",
-    style: TextStyle = MaterialTheme.typography.labelMedium,
-    accentColor: Color = LocalAccentColor.current
-) {
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translate by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmer_translate"
-    )
-
-    val shimmerColors = listOf(
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-        accentColor,
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-    )
-
-    val brush = Brush.linearGradient(
-        colors = shimmerColors,
-        start = Offset(translate - 200f, translate - 200f),
-        end = Offset(translate, translate)
-    )
-
-    Text(
-        text = text,
-        modifier = modifier,
-        style = style.copy(
-            brush = brush
-        )
-    )
-}
-
 /**
  * Multiple accordion sections container.
- * Automatically collapses all except one section when expanded.
+ * Supports multiple independent sections expanded simultaneously.
  */
 @Composable
 fun AccordionGroup(
@@ -191,10 +140,11 @@ fun AccordionGroup(
 ) {
     if (sections.isEmpty()) return
 
-    // Allow multiple independent sections to be expanded
+    val safeInitialIndex = if (initiallyExpandedIndex in sections.indices) initiallyExpandedIndex else -1
+
     var expandedIndices by remember {
         mutableStateOf(
-            if (initiallyExpandedIndex >= 0) setOf(initiallyExpandedIndex) else emptySet<Int>()
+            if (safeInitialIndex >= 0) setOf(safeInitialIndex) else emptySet<Int>()
         )
     }
 
@@ -215,7 +165,6 @@ fun AccordionGroup(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enableTitleShimmer = true,
                 depth = depth
             )
         }

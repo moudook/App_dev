@@ -658,10 +658,8 @@ fun SmartyNavHost(
         }
 
         composable(Screen.Settings.route) { _ ->
-            val personality by viewModel.personality.collectAsState()
-            val providerStrategy by viewModel.providerStrategy.collectAsState()
             val backupViewModel: BackupViewModel = viewModel()
-            
+
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
@@ -677,12 +675,6 @@ fun SmartyNavHost(
                 // Shake sensitivity
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
-                // AI mode
-                providerStrategy = providerStrategy,
-                onSetProviderStrategy = { viewModel.setProviderStrategy(it) },
-                // AI Personality
-                personality = personality,
-                onSetPersonality = { viewModel.setPersonality(it) },
                 // Embedded Sheets
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(

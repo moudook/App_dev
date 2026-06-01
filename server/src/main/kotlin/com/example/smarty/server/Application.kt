@@ -34,6 +34,7 @@ import com.example.smarty.server.routes.configureModelRoutes
 import com.example.smarty.server.routes.configureNewFeaturesRoutes
 import com.example.smarty.server.routes.configureOptimizedSyncRoutes
 import com.example.smarty.server.routes.configureOrchestratorRoutes
+import com.example.smarty.server.routes.configurePermissionRoutes
 import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
@@ -220,6 +221,32 @@ fun Application.module() {
     var digestService: DigestService? = null
     var digestScheduler: DigestScheduler? = null
 
+    // PermissionRepository: backs the per-user `tool_permissions`
+    // overrides and the `permission_audit_log`. The ToolPermissionEnforcer
+    // consults it on every `permission.asked` event from the plugin
+    // to decide whether to auto-respond (ALLOW/DENY) or forward to
+    // the Android app (DEFAULT).
+    val permissionRepository = com.example.smarty.server.data.PermissionRepository(ds)
+    val toolPermissionEnforcer = com.example.smarty.server.agent.ToolPermissionEnforcer(
+        policy = com.example.smarty.agent.permissions.ToolPermissionPolicy.SMARTY_DEFAULT,
+        repository = permissionRepository,
+    )
+    // Stash on Application attributes so any route / tool can pull it
+    // without needing constructor injection.
+    attributes.put(
+        com.example.smarty.server.agent.ApplicationAttributes.TOOL_PERMISSION_ENFORCER,
+        toolPermissionEnforcer,
+    )
+    attributes.put(
+        com.example.smarty.server.agent.ApplicationAttributes.PERMISSION_REPOSITORY,
+        permissionRepository,
+    )
+    // Wire the audit-log writer into the ApprovalRegistry so that
+    // every user-driven approval/denial decision (via the
+    // /api/v1/chat/events/approval endpoint → resolveApproval) is
+    // recorded in permission_audit_log with actor='user'.
+    com.example.smarty.server.agent.ApprovalRegistry.setRepository(permissionRepository)
+
     if (ds != null) {
         val chatMessageNotesRepo = ChatMessageNotesRepository(ds)
         val calendarEventNotesRepo = CalendarEventNotesRepository(ds)
@@ -324,6 +351,8 @@ fun Application.module() {
         log.info("ModelRoutes configured")
 
         configureTimelineBridgeRoutes()
+        configurePermissionRoutes()
+        log.info("PermissionRoutes configured")
 
         val mcpServer =
             com.example.smarty.server.mcp.McpServer(
@@ -332,6 +361,7 @@ fun Application.module() {
                 timerRepository = TimerRepository(ds),
                 calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
                 noteService = noteService,
+                toolPermissionEnforcer = toolPermissionEnforcer,
             )
         // Wire McpServer approval events into the active WebSocket sessions so Android
         // receives ApprovalRequested/Granted/Denied in real time.
