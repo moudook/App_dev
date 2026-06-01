@@ -261,7 +261,7 @@ class OpencodeLlmProvider(
         context: StreamContext,
     ) {
         val inferenceId = context.inferenceId
-        logger.trace("[OpenCode.SSE][inference=$inferenceId] Raw data: $data")
+        logger.debug("[OpenCode.SSE][inference=$inferenceId] eventType=$eventType data=${data.take(200)}")
 
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
@@ -273,7 +273,7 @@ class OpencodeLlmProvider(
                 return
             }
 
-            parseCanonicalResponse(json)?.parts?.forEachIndexed { i, part ->
+            parseCanonicalResponse(json, eventType)?.parts?.forEachIndexed { i, part ->
                 val chunk =
                     when (part.type) {
                         "text" -> {
@@ -320,6 +320,8 @@ class OpencodeLlmProvider(
                         else -> null
                     }
                 if (chunk != null) emit(chunk)
+            } ?: run {
+                logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$eventType")
             }
         }
     }
@@ -360,9 +362,42 @@ class OpencodeLlmProvider(
         }
     }
 
-    private fun parseCanonicalResponse(json: JsonObject): CanonicalResponse? {
+    private fun parseCanonicalResponse(json: JsonObject, eventType: String? = null): CanonicalResponse? {
         val topSubagentId = json["subagent_id"].safeStr
 
+        // ── Handle SSE event types where the type is in the event: line, not the JSON ──
+        // Format: event: message.part.delta  data: {"sessionID":"...","field":"text","delta":"Hello"}
+        if (eventType == "message.part.delta") {
+            val delta = json["delta"]?.deepStr()
+            val field = json["field"]?.safeStr ?: "text"
+            if (delta != null) {
+                logger.trace("[OpenCode.SSE] message.part.delta field=$field delta=${delta.take(80)}")
+                return CanonicalResponse(listOf(CanonicalPart(field, delta, subagentId = topSubagentId)))
+            }
+        }
+
+        // Format: event: message.part.updated  data: {"sessionID":"...","part":{...}}
+        if (eventType == "message.part.updated") {
+            val part = json["part"]?.jsonObject
+            if (part != null) {
+                val partType = part["type"].safeStr ?: "text"
+                val content = part.deepStr()
+                if (content != null) {
+                    logger.trace("[OpenCode.SSE] message.part.updated partType=$partType content=${content.take(80)}")
+                    return CanonicalResponse(listOf(CanonicalPart(partType, content, subagentId = topSubagentId)))
+                }
+            }
+            // Fallback: maybe the data itself has a type field
+            val fallbackType = json["type"].safeStr
+            if (fallbackType != null) {
+                val content = json.deepStr()
+                if (content != null) {
+                    return CanonicalResponse(listOf(CanonicalPart(fallbackType, content, subagentId = topSubagentId)))
+                }
+            }
+        }
+
+        // ── Handle canonical format where type is in the JSON itself ──
         val partsArray = json["parts"]?.jsonArray
         if (partsArray != null) {
             val parts =
@@ -416,7 +451,7 @@ class OpencodeLlmProvider(
             return CanonicalResponse(parts)
         }
 
-        val type = json["type"].safeStr
+        val type = json["type"].safeStr ?: eventType
         if (type != null) {
             val part = json["part"]?.jsonObject ?: json
             val sid = part["subagent_id"].safeStr ?: topSubagentId
@@ -456,6 +491,28 @@ class OpencodeLlmProvider(
                     val subType = json["part_type"].safeStr ?: "text"
                     CanonicalResponse(listOf(CanonicalPart(subType, content, subagentId = sid)))
                 }
+                // Handle message.updated — may contain assembled parts array
+                "message.updated" -> {
+                    // Parts could be at top level or inside an "info" or "message" object
+                    val partsArray = json["parts"]?.jsonArray
+                        ?: json["info"]?.jsonObject?.get("parts")?.jsonArray
+                        ?: json["message"]?.jsonObject?.get("parts")?.jsonArray
+                    if (partsArray != null) {
+                        val parts = partsArray.flatMap { el ->
+                            val obj = el as? JsonObject ?: return@flatMap emptyList<CanonicalPart>()
+                            val pType = obj["type"].safeStr ?: "unknown"
+                            val pContent = obj.deepStr()
+                            when (pType) {
+                                "text", "content" -> listOf(CanonicalPart("text", pContent, subagentId = sid))
+                                "reasoning" -> listOf(CanonicalPart("reasoning", pContent, subagentId = sid))
+                                else -> emptyList()
+                            }
+                        }
+                        if (parts.isNotEmpty()) CanonicalResponse(parts) else null
+                    } else null
+                }
+                // Ignore status events — they carry no text content
+                "session.status" -> null
                 else -> null
             }
         }
