@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Entrypoint for Hugging Face Spaces (Alpine Linux)
+# Entrypoint for Hugging Face Spaces (glibc-based JRE)
 # 1. Start OpenCode CLI daemon in background
 # 2. Verify OpenCode CLI works (models + run)
 # 3. Health check loop — wait for daemon to be ready

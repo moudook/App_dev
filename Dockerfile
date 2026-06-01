@@ -46,11 +46,17 @@ RUN ./gradlew :server:shadowJar --no-daemon --parallel -x test \
 
 # -----------------------------------------------------------------------------
 # Stage 3: Minimal JRE runtime with Node.js and OpenCode CLI
+# NOTE: Must use glibc-based image (NOT Alpine) because opencode-ai ships
+# a prebuilt Go binary linked against glibc. Alpine's musl libc causes
+# ENOENT on the bin/.opencode binary (postinstall.mjs fails silently).
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
-# Install Node.js, NPM, and bash for orchestration
-RUN apk add --no-cache nodejs npm bash
+# Install Node.js 20.x (LTS), NPM, bash, and wget for orchestration
+RUN apt-get update && apt-get install -y curl gnupg ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs bash wget && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install OpenCode CLI globally and clean npm cache to reduce image size
 # --unsafe-perm required because Docker build runs as root and npm >= 7
@@ -59,7 +65,7 @@ RUN apk add --no-cache nodejs npm bash
 RUN npm install -g opencode-ai@1.14.41 --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
-RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup --uid 1000 user
 
 WORKDIR /app
 
