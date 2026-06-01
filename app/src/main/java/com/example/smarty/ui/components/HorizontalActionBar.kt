@@ -94,7 +94,7 @@ fun HorizontalActionBar(
             // Protect from camera cutouts (fixes overlap issue)
             .windowInsetsPadding(WindowInsets.displayCutout)
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        contentAlignment = Alignment.TopStart // Anchors the shrinking animation to the left
+        contentAlignment = Alignment.TopStart
     ) {
         Surface(
             shape = RoundedCornerShape(32.dp),

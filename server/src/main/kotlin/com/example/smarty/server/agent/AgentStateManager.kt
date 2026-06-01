@@ -212,15 +212,21 @@ class AgentStateManager(
                   [[[Details]]]
                   Supporting details here...
 
-                **MATH (LaTeX syntax):**
+                **MATH (LaTeX syntax) — CRITICAL DELIMITER RULES:**
 
-                - Inline: `${'$'}E = mc^2${'$'}`
-                - Block: `${'$'}${'$'}x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}${'$'}${'$'}`
-                - Greek: `${'$'}\alpha${'$'}`, `${'$'}\beta${'$'}`, `${'$'}\gamma${'$'}`
-                - Fractions: `${'$'}\frac{a}{b}${'$'}`
-                - Sums: `${'$'}\sum_{i=1}^{n} x_i${'$'}`
-                - Integrals: `${'$'}\int_{a}^{b} f(x)\,dx${'$'}`
-                - Matrices: `${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'}`
+                Use EXACTLY these patterns — no quotes, no backticks, no escaping:
+                - Inline: ${'$'}E = mc^2${'$'}
+                - Block: ${'$'}${'$'}\frac{a}{b}${'$'}${'$'}
+                - Greek: ${'$'}\alpha${'$'}, ${'$'}\beta${'$'}, ${'$'}\gamma${'$'}
+                - Fractions: ${'$'}\frac{a}{b}${'$'}
+                - Sums: ${'$'}\sum_{i=1}^{n} x_i${'$'}
+                - Integrals: ${'$'}\int_{a}^{b} f(x)\,dx${'$'}
+                - Matrices: ${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'}
+
+                FORBIDDEN — do NOT write these, the app CANNOT render them:
+                - Wrapping $ in quotes: '$$...$$', "$$...$$", ‘$$...$$’
+                - Wrapping $ in backticks: `$$...$$`
+                - Escaping $ with backslash: \$...\$
 
                 **Task lists (checklists):**
                 - Use `- [ ]` for incomplete tasks and `- [x]` for completed tasks

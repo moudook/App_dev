@@ -95,15 +95,97 @@ internal fun parseTextWithInlineMath(text: String): List<TextSegment> {
  *  - Converts literal "\n" (two chars: backslash + n) to real newlines
  *  - Normalises \r\n to \n
  *  - Strips orphan carriage returns
+ *  - Fixes AI-quoted dollar signs: '$...$', "$$...$$", ‘$$...$$’ → $$...$$
+ *    (models often wrap $ in single/double/smart quotes to "escape" them)
  */
 fun preprocessContent(raw: String): String {
     var text = raw
     // Normalise line endings
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     // Replace literal two-char sequence \n with real newline
-    // (Only when it's NOT inside a code block — simple heuristic: not preceded by backslash)
     text = text.replace("\\n", "\n")
+    // Fix quoted/escaped dollar signs → bare $...$ or $$...$$
+    // Using manual indexOf/substring instead of regex replacements to avoid
+    // Java Matcher.replaceAll's dangerous $-escaping semantics.
+    text = fixQuotedDollars(text)
     return text
+}
+
+private fun fixQuotedDollars(text: String): String {
+    val sb = StringBuilder(text.length)
+    var i = 0
+    while (i < text.length) {
+        val ch = text[i]
+        // Check for smart/straight quotes followed by $$ or $
+        val quoteChars = setOf('\u2018', '\u2019', '\'', '"')
+        if (ch in quoteChars && i + 1 < text.length) {
+            // Count consecutive quotes
+            var qEnd = i
+            while (qEnd < text.length && text[qEnd] in quoteChars) qEnd++
+            val quoteLen = qEnd - i
+            if (qEnd < text.length - 1 && text[qEnd] == '$') {
+                if (qEnd + 1 < text.length && text[qEnd + 1] == '$') {
+                    // Opening quotes + $$ — find closing $$ + quotes
+                    val mathStart = qEnd + 2
+                    val closeDollar = findClosing(text, mathStart, "$$")
+                    if (closeDollar >= 0) {
+                        var afterClose = closeDollar + 2
+                        while (afterClose < text.length && text[afterClose] in quoteChars) afterClose++
+                        val inner = text.substring(mathStart, closeDollar)
+                        sb.append("$$").append(inner).append("$$")
+                        i = afterClose
+                        continue
+                    }
+                } else {
+                    // Opening quotes + $ — find closing $ + quotes
+                    val mathStart = qEnd + 1
+                    val closeDollar = findClosing(text, mathStart, "$")
+                    if (closeDollar >= 0) {
+                        var afterClose = closeDollar + 1
+                        while (afterClose < text.length && text[afterClose] in quoteChars) afterClose++
+                        val inner = text.substring(mathStart, closeDollar)
+                        sb.append("$").append(inner).append("$")
+                        i = afterClose
+                        continue
+                    }
+                }
+            }
+        }
+        // Check for escaped dollar: \$...\$ → $...$
+        if (ch == '\\' && i + 1 < text.length && text[i + 1] == '$') {
+            val mathStart = i + 2
+            if (mathStart < text.length && !text[mathStart].isWhitespace()) {
+                val closeEscaped = findClosingEscaped(text, mathStart)
+                if (closeEscaped >= 0) {
+                    val inner = text.substring(mathStart, closeEscaped)
+                    sb.append("$ ").append(inner).append("$")
+                    i = closeEscaped + 2 // skip \$
+                    continue
+                }
+            }
+        }
+        sb.append(ch)
+        i++
+    }
+    return sb.toString()
+}
+
+private fun findClosing(text: String, start: Int, delimiter: String): Int {
+    var i = start
+    while (i <= text.length - delimiter.length) {
+        if (text.startsWith(delimiter, i)) return i
+        i++
+    }
+    return -1
+}
+
+private fun findClosingEscaped(text: String, start: Int): Int {
+    var i = start
+    while (i <= text.length - 2) {
+        if (text[i] == '\\' && text[i + 1] == '$') return i
+        i++
+    }
+    return -1
 }
 
 private val annotatedStringCache = object : LruCache<String, AnnotatedString>(256) {

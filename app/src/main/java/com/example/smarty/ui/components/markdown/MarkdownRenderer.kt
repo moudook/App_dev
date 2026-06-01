@@ -87,7 +87,8 @@ fun MarkdownRenderer(
     codeHeaderBg: Color = Color(0xFF343541),
     isStreaming: Boolean = false
 ) {
-    val astNodes = remember(content) { MarkdownAstParser.parse(content) }
+    val preprocessed = remember(content) { preprocessContent(content) }
+    val astNodes = remember(preprocessed) { MarkdownAstParser.parse(preprocessed) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         astNodes.forEachIndexed { index, node ->
@@ -400,11 +401,15 @@ internal fun MarkdownText(
     style: TextStyle,
     modifier: Modifier = Modifier
 ) {
-    Text(
-        text = parseMarkdownToAnnotatedString(content, normalColor, boldColor, normalColor, linkColor, codeColor),
-        style = style,
-        modifier = modifier
-    )
+    if (content.contains(RenderPatterns.inlineMathDetect)) {
+        RichTextWithLatex(content, normalColor, boldColor, linkColor, codeColor)
+    } else {
+        Text(
+            text = parseMarkdownToAnnotatedString(content, normalColor, boldColor, normalColor, linkColor, codeColor),
+            style = style,
+            modifier = modifier
+        )
+    }
 }
 
 /**

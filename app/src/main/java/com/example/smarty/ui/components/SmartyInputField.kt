@@ -50,6 +50,7 @@ import com.example.smarty.R
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.ClarificationRequest
 import com.example.smarty.core.domain.model.MentionState
+import com.example.smarty.ui.components.sheets.ModelSelectorSheet
 import com.example.smarty.ui.LocalAccentColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -473,10 +474,14 @@ fun SmartyInputField(
                                 .widthIn(max = 140.dp)
                                 .squishClick {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    expandedVariantModel = null
+                                    showModelMenu = true
                                     scope.launch {
                                         val refreshed = onRefreshModels()
-                                        expandedVariantModel = null
-                                        showModelMenu = true
+                                        if (refreshed.isNotEmpty() && refreshed.none { it.first == selectedModel }) {
+                                            onModelSelected(refreshed.first().first)
+                                            onVariantSelected(null)
+                                        }
                                     }
                                 }
                         ) {
@@ -497,79 +502,16 @@ fun SmartyInputField(
                                 Icon(Icons.Rounded.KeyboardArrowDown, null, tint = accentColor, modifier = Modifier.size(16.dp))
                             }
 
-                            DropdownMenu(
-                                expanded = showModelMenu,
-                                onDismissRequest = { showModelMenu = false; expandedVariantModel = null },
-                                shape = RoundedCornerShape(16.dp),
-                                containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-                            ) {
-                                availableModels.forEach { (modelId, label) ->
-                                    val cleanLabel = label
-                                        .replace(Regex("(?i)-free\\b"), "")
-                                        .replace(Regex("(?i)\\bfree\\b"), "")
-                                        .replace(Regex("(?i)\\s*\\(free\\)"), "")
-                                        .trim()
-                                    val variants = modelVariantMap[modelId]
-                                    val hasVariants = !variants.isNullOrEmpty()
-                                    val isExpanded = expandedVariantModel == modelId
-
-                                    Column {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        cleanLabel,
-                                                        fontWeight = if (selectedModel == modelId) FontWeight.Bold else FontWeight.Normal,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    if (hasVariants) {
-                                                        Icon(
-                                                            Icons.Rounded.KeyboardArrowDown,
-                                                            contentDescription = null,
-                                                            tint = Color.Gray,
-                                                            modifier = Modifier
-                                                                .size(16.dp)
-                                                                .graphicsLayer { rotationZ = if (isExpanded) 180f else 0f }
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            onClick = {
-                                                if (hasVariants) {
-                                                    expandedVariantModel = if (isExpanded) null else modelId
-                                                } else {
-                                                    onModelSelected(modelId)
-                                                    showModelMenu = false
-                                                }
-                                            }
-                                        )
-
-                                        if (isExpanded && hasVariants) {
-                                            variants.forEach { variant ->
-                                                val isSelectedModel = selectedModel == modelId
-                                                val isSelectedVariant = isSelectedModel && variant == selectedVariant
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            variant,
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (isSelectedVariant) FontWeight.Bold else FontWeight.Normal,
-                                                            color = if (isSelectedVariant) accentColor else Color.Gray,
-                                                            modifier = Modifier.padding(start = 16.dp)
-                                                        )
-                                                    },
-                                                    onClick = {
-                                                        onModelSelected(modelId)
-                                                        onVariantSelected(if (isSelectedVariant) null else variant)
-                                                        showModelMenu = false
-                                                        expandedVariantModel = null
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            ModelSelectorSheet(
+                                isVisible = showModelMenu,
+                                onDismiss = { showModelMenu = false; expandedVariantModel = null },
+                                availableModels = availableModels,
+                                modelVariantMap = modelVariantMap,
+                                selectedModel = selectedModel,
+                                selectedVariant = selectedVariant,
+                                onModelSelected = { onModelSelected(it) },
+                                onVariantSelected = { onVariantSelected(it) }
+                            )
                         }
                     }
                 }
