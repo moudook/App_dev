@@ -65,14 +65,13 @@ RUN apt-get update && apt-get install -y curl gnupg ca-certificates && \
 RUN npm install -g opencode-ai@1.14.41 --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
-# eclipse-temurin:17-jre base image has a pre-existing 'user' account.
-# Reuse it (don't delete and recreate) and just set its primary group + shell.
-RUN echo "=== Existing /etc/passwd entries for UID >= 999 ===" && \
-    awk -F: '$3 >= 999 {print}' /etc/passwd && \
-    echo "=== Setting up appgroup and ensuring user has shell + home ===" && \
-    groupadd -f appgroup && \
-    usermod -d /home/user -m -s /bin/bash -g appgroup user && \
-    echo "Final user: uid=$(id -u user) gid=$(id -g user) home=$(getent passwd user | cut -d: -f6) shell=$(getent passwd user | cut -d: -f7)"
+# eclipse-temurin:17-jre base image ships a pre-existing 'ubuntu' user with
+# UID 1000. Remove it and create 'user:appgroup' with UID/GID 1000 (the
+# standard HF Spaces pattern for Docker Space runtime).
+RUN userdel ubuntu 2>/dev/null; groupdel ubuntu 2>/dev/null; \
+    groupadd -g 1000 appgroup && \
+    useradd -m -u 1000 -g appgroup -s /bin/bash user && \
+    echo "Created user: uid=$(id -u user) gid=$(id -g user) home=$(getent passwd user | cut -d: -f6)"
 
 WORKDIR /app
 
