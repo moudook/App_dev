@@ -77,46 +77,9 @@ echo "[2/5] Discovering free models via 'opencode models --verbose' (starting in
 ) &
 
 # -----------------------------------------------------------------------------
-# Step 3: Launch Ktor server FIRST so MCP routes are available
+# Step 3: Start OpenCode daemon FIRST so Ktor's DaemonManager finds it healthy
 # -----------------------------------------------------------------------------
-echo "[3/5] Launching Ktor server on port ${SERVER_PORT:-7860}..."
-echo "  JVM heap: -Xmx384m"
-echo "  GC: G1GC"
-echo "  Max RAM: 80%"
-echo "  OOM behavior: ExitOnOutOfMemoryError"
-
-JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
-java $JAVA_OPTS -jar app.jar 2>&1 | tee /tmp/ktor-server.log &
-KTOR_PID=$!
-echo "  Ktor PID: $KTOR_PID"
-echo "  Ktor log: /tmp/ktor-server.log"
-
-# Wait for Ktor to be healthy
-KTOR_PORT="${SERVER_PORT:-7860}"
-echo "  Waiting for Ktor health endpoint at http://127.0.0.1:${KTOR_PORT}/health..."
-KTOR_READY=false
-for i in $(seq 1 30); do
-    if wget -q --spider --timeout=2 "http://127.0.0.1:${KTOR_PORT}/health" 2>/dev/null; then
-        echo "  Ktor is healthy after $((i * 2)) seconds!"
-        KTOR_READY=true
-        break
-    fi
-    if [ $((i % 5)) -eq 0 ]; then
-        echo "  Still waiting for Ktor... ($((i * 2))s elapsed)"
-    fi
-    sleep 2
-done
-if [ "$KTOR_READY" = false ]; then
-    echo "  WARNING: Ktor did not become healthy after 60 seconds."
-    echo "  Ktor log (last 10 lines):"
-    tail -10 /tmp/ktor-server.log 2>/dev/null || echo "  (no log output)"
-fi
-echo ""
-
-# -----------------------------------------------------------------------------
-# Step 4: Start OpenCode daemon (Ktor is already running - MCP routes are live)
-# -----------------------------------------------------------------------------
-echo "[4/5] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
@@ -138,9 +101,9 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 5: Health check loop - wait for daemon to respond
+# Step 4: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[5/5] Waiting for OpenCode daemon to be ready..."
+echo "[4/5] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -173,8 +136,46 @@ if [ "$DAEMON_READY" = true ]; then
 fi
 
 echo ""
+
+# -----------------------------------------------------------------------------
+# Step 5: Launch Ktor server (daemon is already running - MCP routes available)
+# -----------------------------------------------------------------------------
+echo "[5/5] Launching Ktor server on port ${SERVER_PORT:-7860}..."
+echo "  JVM heap: -Xmx384m"
+echo "  GC: G1GC"
+echo "  Max RAM: 80%"
+echo "  OOM behavior: ExitOnOutOfMemoryError"
+
+JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
+java $JAVA_OPTS -jar app.jar 2>&1 | tee /tmp/ktor-server.log &
+KTOR_PID=$!
+echo "  Ktor PID: $KTOR_PID"
+echo "  Ktor log: /tmp/ktor-server.log"
+
+# Wait for Ktor to be healthy
+KTOR_PORT="${SERVER_PORT:-7860}"
+echo "  Waiting for Ktor health endpoint at http://127.0.0.1:${KTOR_PORT}/health..."
+KTOR_READY=false
+for i in $(seq 1 30); do
+    if wget -q -O /dev/null --timeout=2 "http://127.0.0.1:${KTOR_PORT}/health" 2>/dev/null; then
+        echo "  Ktor is healthy after $((i * 2)) seconds!"
+        KTOR_READY=true
+        break
+    fi
+    if [ $((i % 5)) -eq 0 ]; then
+        echo "  Still waiting for Ktor... ($((i * 2))s elapsed)"
+    fi
+    sleep 2
+done
+if [ "$KTOR_READY" = false ]; then
+    echo "  WARNING: Ktor did not become healthy after 60 seconds."
+    echo "  Ktor log (last 10 lines):"
+    tail -10 /tmp/ktor-server.log 2>/dev/null || echo "  (no log output)"
+fi
+
+echo ""
 echo "============================================"
-echo "  Startup complete — Ktor + daemon running"
+echo "  Startup complete — daemon + Ktor running"
 echo "============================================"
 echo "  Ktor PID: $KTOR_PID"
 echo "  Daemon PID: $DAEMON_PID"
