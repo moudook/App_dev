@@ -1,8 +1,8 @@
 #!/bin/bash
 # =============================================================================
 # Entrypoint for Hugging Face Spaces (glibc-based JRE)
-# 1. Start OpenCode CLI daemon in background
-# 2. Verify OpenCode CLI works (models + run)
+# 1. Verify OpenCode CLI is installed
+# 2. Start OpenCode daemon (Ktor's DaemonManager finds it healthy)
 # 3. Health check loop — wait for daemon to be ready
 # 4. Launch Ktor server
 # =============================================================================
@@ -24,7 +24,7 @@ echo ""
 # Required to prevent SQLite "database disk image is malformed" corruption
 # See: https://github.com/anomalyco/opencode/issues/14970
 # -----------------------------------------------------------------------------
-echo "[0/5] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
+echo "[0/4] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
 export XDG_DATA_HOME="/tmp/opencode-data"
 export XDG_CONFIG_HOME="/tmp/opencode-config"
 export OPENCODE_DATA_DIR="/tmp/opencode"
@@ -38,7 +38,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: Verify OpenCode CLI is installed
 # -----------------------------------------------------------------------------
-echo "[1/5] Verifying OpenCode CLI installation..."
+echo "[1/4] Verifying OpenCode CLI installation..."
 if ! command -v opencode &> /dev/null; then
     echo "ERROR: opencode CLI not found. Install with: npm install -g opencode-ai"
     exit 1
@@ -51,35 +51,9 @@ echo "  opencode.json exists: $([ -f ./opencode.json ] && echo 'YES' || echo 'NO
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 2: List available free models (VERIFICATION) - Runs in background
+# Step 2: Start OpenCode daemon FIRST so Ktor's DaemonManager finds it healthy
 # -----------------------------------------------------------------------------
-echo "[2/5] Discovering free models via 'opencode models --verbose' (starting in background)..."
-(
-    echo "  Running: opencode models --verbose"
-    echo "  --- BEGIN opencode models output ---"
-    MODELS_OUTPUT=$(opencode models --verbose 2>&1 || echo "ERROR: opencode models --verbose failed")
-    echo "$MODELS_OUTPUT"
-    echo "  --- END opencode models output ---"
-    # Count free models (lines starting with opencode/ containing 'free')
-    FREE_COUNT=$(echo "$MODELS_OUTPUT" | grep -i "free" | grep -c "opencode/" || echo "0")
-    echo ""
-    echo "  Found $FREE_COUNT free model(s) containing 'free' in the name:"
-    echo "$MODELS_OUTPUT" | grep -i "free" | grep "opencode/" | while read -r line; do
-        echo "    -> $line"
-    done
-    echo ""
-    if [ "$FREE_COUNT" -eq 0 ]; then
-        echo "  WARNING: No free models found! Chat will not work."
-    else
-        echo "  SUCCESS: $FREE_COUNT free model(s) available for inference."
-    fi
-    echo ""
-) &
-
-# -----------------------------------------------------------------------------
-# Step 3: Start OpenCode daemon FIRST so Ktor's DaemonManager finds it healthy
-# -----------------------------------------------------------------------------
-echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[2/4] Starting OpenCode daemon on port $DAEMON_PORT..."
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
@@ -101,9 +75,9 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 4: Health check loop — wait for daemon to respond
+# Step 3: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[4/5] Waiting for OpenCode daemon to be ready..."
+echo "[3/4] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -138,9 +112,9 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 5: Launch Ktor server (daemon is already running - MCP routes available)
+# Step 4: Launch Ktor server (daemon is already running - MCP routes available)
 # -----------------------------------------------------------------------------
-echo "[5/5] Launching Ktor server on port ${SERVER_PORT:-7860}..."
+echo "[4/4] Launching Ktor server on port ${SERVER_PORT:-7860}..."
 echo "  JVM heap: -Xmx384m"
 echo "  GC: G1GC"
 echo "  Max RAM: 80%"
@@ -179,7 +153,7 @@ echo "  Startup complete — daemon + Ktor running"
 echo "============================================"
 echo "  Ktor PID: $KTOR_PID"
 echo "  Daemon PID: $DAEMON_PID"
-echo "  Free models: (discovery running in background)"
+echo "  Model discovery: handled by Ktor's OpencodeModelRegistry"
 echo ""
 
 # Wait for either process to exit
