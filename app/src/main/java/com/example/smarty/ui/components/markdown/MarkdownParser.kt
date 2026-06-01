@@ -112,6 +112,8 @@ private val annotatedStringCache = object : LruCache<String, AnnotatedString>(25
     }
 }
 
+private const val MAX_PARSE_DEPTH = 8
+
 /**
  * Parses markdown content into an [AnnotatedString] with proper styling.
  *
@@ -133,190 +135,203 @@ fun parseMarkdownToAnnotatedString(
     annotatedStringCache.get(cacheKey)?.let { return it }
 
     val result = buildAnnotatedString {
-        val text = content
-
-        data class MarkdownMatch(
-            val range: IntRange,
-            val displayText: String,
-            val style: SpanStyle,
-            val priority: Int,
-            val isLink: Boolean = false,
-            val url: String? = null,
-            val isMath: Boolean = false,
-            val isCode: Boolean = false,
-            val isStrike: Boolean = false
-        )
-
-        val matches = mutableListOf<MarkdownMatch>()
-
-        fun isPositionEscaped(pos: Int): Boolean {
-            if (pos < 0 || pos >= text.length) return false
-            var count = 0
-            var i = pos - 1
-            while (i >= 0 && text[i] == '\\') { count++; i-- }
-            return count % 2 == 1
-        }
-
-        fun addMatchIfValid(match: MarkdownMatch): Boolean {
-            if (match.range.first < 0 || match.range.last >= text.length) return false
-            if (isPositionEscaped(match.range.first)) return false
-            // Don't add if fully inside an existing match
-            if (matches.any { it.range.first <= match.range.first && it.range.last >= match.range.last }) return false
-            matches.add(match)
-            return true
-        }
-
-        // ── Collect all matches by priority ──────────────────────────
-
-        // Block math (priority 0)
-        MarkdownPatterns.blockMath.findAll(text).forEach { m ->
-            val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = inner,
-                style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f), fontSize = 14.sp),
-                priority = 0, isMath = true
-            ))
-        }
-
-        // Inline math (priority 1)
-        MarkdownPatterns.inlineMath.findAll(text).forEach { m ->
-            val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = inner,
-                style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, background = codeColor.copy(alpha = 0.1f)),
-                priority = 1, isMath = true
-            ))
-        }
-
-        // Inline code (priority 2)
-        MarkdownPatterns.inlineCode.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
-                priority = 2, isCode = true
-            ))
-        }
-
-        // Markdown links [text](url) (priority 3)
-        MarkdownPatterns.link.findAll(text).forEach { m ->
-            val url = m.groupValues.getOrNull(2) ?: ""
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-                priority = 3, isLink = true, url = url
-            ))
-        }
-
-        // Autolinks <url> (priority 4)
-        MarkdownPatterns.autolink.findAll(text).forEach { m ->
-            val url = m.groupValues[1]
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = url,
-                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-                priority = 4, isLink = true, url = url
-            ))
-        }
-
-        // Bare URLs (priority 4.5 — after autolinks but before formatting)
-        MarkdownPatterns.bareUrl.findAll(text).forEach { m ->
-            val url = m.groupValues[0]
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = url,
-                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-                priority = 4, isLink = true, url = url
-            ))
-        }
-
-        // Bold ** (priority 5)
-        MarkdownPatterns.boldAsterisk.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-                priority = 5
-            ))
-        }
-
-        // Bold __ (priority 6)
-        MarkdownPatterns.boldUnderscore.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-                priority = 6
-            ))
-        }
-
-        // Italic * (priority 7)
-        MarkdownPatterns.italicAsterisk.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-                priority = 7
-            ))
-        }
-
-        // Italic _ (priority 8)
-        MarkdownPatterns.italicUnderscore.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-                priority = 8
-            ))
-        }
-
-        // Strikethrough (priority 9)
-        MarkdownPatterns.strikethrough.findAll(text).forEach { m ->
-            addMatchIfValid(MarkdownMatch(
-                range = m.range, displayText = m.groupValues[1],
-                style = SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough),
-                priority = 9, isStrike = true
-            ))
-        }
-
-        // ── Render matches in document order ─────────────────────────
-
-        val sorted = matches.sortedWith(compareBy({ it.range.first }, { -it.priority }))
-        var cursor = 0
-
-        for (match in sorted) {
-            // Skip overlapping
-            if (match.range.first < cursor) continue
-
-            // Plain text before this match
-            if (match.range.first > cursor) {
-                append(text.substring(cursor, match.range.first))
-            }
-
-            if (match.isLink && match.url != null) {
-                // ──── Native clickable link via LinkAnnotation ────
-                // Works inside SelectionContainer — no pointerInput needed
-                val linkStyle = TextLinkStyles(
-                    style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
-                )
-                withLink(LinkAnnotation.Url(url = match.url, styles = linkStyle)) {
-                    val innerStr = parseMarkdownToAnnotatedString(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming)
-                    append(innerStr)
-                }
-            } else {
-                // Regular styled span
-                withStyle(match.style) {
-                    val parseInner = !match.isMath && !match.isCode
-                    if (parseInner) {
-                        val innerStr = parseMarkdownToAnnotatedString(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming)
-                        append(innerStr)
-                    } else {
-                        append(match.displayText)
-                    }
-                }
-            }
-
-            cursor = match.range.last + 1
-        }
-
-        // Remaining plain text
-        if (cursor < text.length) {
-            append(text.substring(cursor))
-        }
+        parseMarkdownInternal(content, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, 0)
     }
     annotatedStringCache.put(cacheKey, result)
     return result
+}
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownInternal(
+    content: String,
+    normalColor: Color,
+    boldColor: Color,
+    italicColor: Color,
+    linkColor: Color,
+    codeColor: Color,
+    isStreaming: Boolean,
+    depth: Int
+) {
+    if (depth >= MAX_PARSE_DEPTH || content.isEmpty()) {
+        append(content)
+        return
+    }
+
+    val text = content
+
+    data class MarkdownMatch(
+        val range: IntRange,
+        val displayText: String,
+        val style: SpanStyle,
+        val priority: Int,
+        val isLink: Boolean = false,
+        val url: String? = null,
+        val isMath: Boolean = false,
+        val isCode: Boolean = false,
+        val isStrike: Boolean = false
+    )
+
+    val matches = mutableListOf<MarkdownMatch>()
+
+    fun isPositionEscaped(pos: Int): Boolean {
+        if (pos < 0 || pos >= text.length) return false
+        var count = 0
+        var i = pos - 1
+        while (i >= 0 && text[i] == '\\') { count++; i-- }
+        return count % 2 == 1
+    }
+
+    fun addMatchIfValid(match: MarkdownMatch): Boolean {
+        if (match.range.first < 0 || match.range.last >= text.length) return false
+        if (isPositionEscaped(match.range.first)) return false
+        // Don't add if fully inside an existing match
+        if (matches.any { it.range.first <= match.range.first && it.range.last >= match.range.last }) return false
+        matches.add(match)
+        return true
+    }
+
+    // ── Collect all matches by priority ──────────────────────────
+
+    // Block math (priority 0)
+    MarkdownPatterns.blockMath.findAll(text).forEach { m ->
+        val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = inner,
+            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f), fontSize = 14.sp),
+            priority = 0, isMath = true
+        ))
+    }
+
+    // Inline math (priority 1)
+    MarkdownPatterns.inlineMath.findAll(text).forEach { m ->
+        val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = inner,
+            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, background = codeColor.copy(alpha = 0.1f)),
+            priority = 1, isMath = true
+        ))
+    }
+
+    // Inline code (priority 2)
+    MarkdownPatterns.inlineCode.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
+            priority = 2, isCode = true
+        ))
+    }
+
+    // Markdown links [text](url) (priority 3)
+    MarkdownPatterns.link.findAll(text).forEach { m ->
+        val url = m.groupValues.getOrNull(2) ?: ""
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+            priority = 3, isLink = true, url = url
+        ))
+    }
+
+    // Autolinks <url> (priority 4)
+    MarkdownPatterns.autolink.findAll(text).forEach { m ->
+        val url = m.groupValues[1]
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = url,
+            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+            priority = 4, isLink = true, url = url
+        ))
+    }
+
+    // Bare URLs (priority 4.5)
+    MarkdownPatterns.bareUrl.findAll(text).forEach { m ->
+        val url = m.groupValues[0]
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = url,
+            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+            priority = 4, isLink = true, url = url
+        ))
+    }
+
+    // Bold ** (priority 5)
+    MarkdownPatterns.boldAsterisk.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+            priority = 5
+        ))
+    }
+
+    // Bold __ (priority 6)
+    MarkdownPatterns.boldUnderscore.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+            priority = 6
+        ))
+    }
+
+    // Italic * (priority 7)
+    MarkdownPatterns.italicAsterisk.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+            priority = 7
+        ))
+    }
+
+    // Italic _ (priority 8)
+    MarkdownPatterns.italicUnderscore.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+            priority = 8
+        ))
+    }
+
+    // Strikethrough (priority 9)
+    MarkdownPatterns.strikethrough.findAll(text).forEach { m ->
+        addMatchIfValid(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough),
+            priority = 9, isStrike = true
+        ))
+    }
+
+    // ── Render matches in document order ─────────────────────────
+
+    val sorted = matches.sortedWith(compareBy({ it.range.first }, { -it.priority }))
+    var cursor = 0
+
+    for (match in sorted) {
+        // Skip overlapping
+        if (match.range.first < cursor) continue
+
+        // Plain text before this match
+        if (match.range.first > cursor) {
+            append(text.substring(cursor, match.range.first))
+        }
+
+        if (match.isLink && match.url != null) {
+            val linkStyle = TextLinkStyles(
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+            )
+            withLink(LinkAnnotation.Url(url = match.url, styles = linkStyle)) {
+                parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
+            }
+        } else {
+            withStyle(match.style) {
+                val parseInner = !match.isMath && !match.isCode
+                if (parseInner) {
+                    parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
+                } else {
+                    append(match.displayText)
+                }
+            }
+        }
+
+        cursor = match.range.last + 1
+    }
+
+    // Remaining plain text
+    if (cursor < text.length) {
+        append(text.substring(cursor))
+    }
 }
