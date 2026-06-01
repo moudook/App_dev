@@ -65,7 +65,11 @@ RUN apt-get update && apt-get install -y curl gnupg ca-certificates && \
 RUN npm install -g opencode-ai@1.14.41 --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup --uid 1000 user
+# eclipse-temurin:17-jre base image already has a 'user' account; remove and recreate
+RUN id user && userdel -f user || true; \
+    groupadd -f appgroup && \
+    useradd -m -g appgroup -u 1000 user && \
+    echo "Created user:uid=1000 gid=$(getent group appgroup | cut -d: -f3)"
 
 WORKDIR /app
 
