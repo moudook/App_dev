@@ -158,6 +158,20 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     val text = content
 
+    // ── Early exit: if no markdown-relevant characters, just append ──
+    var hasSpecial = false
+    for (i in text.indices) {
+        val c = text[i]
+        if (c == '*' || c == '_' || c == '~' || c == '`' || c == '$' || c == '[' || c == '<' || c == '\\') {
+            hasSpecial = true
+            break
+        }
+    }
+    if (!hasSpecial) {
+        append(text)
+        return
+    }
+
     data class MarkdownMatch(
         val range: IntRange,
         val displayText: String,
@@ -170,7 +184,8 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         val isStrike: Boolean = false
     )
 
-    val matches = mutableListOf<MarkdownMatch>()
+    // ── Collect ALL candidate matches (no overlap checking) ─────────
+    val allCandidates = mutableListOf<MarkdownMatch>()
 
     fun isPositionEscaped(pos: Int): Boolean {
         if (pos < 0 || pos >= text.length) return false
@@ -180,21 +195,16 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         return count % 2 == 1
     }
 
-    fun addMatchIfValid(match: MarkdownMatch): Boolean {
-        if (match.range.first < 0 || match.range.last >= text.length) return false
-        if (isPositionEscaped(match.range.first)) return false
-        // Don't add if fully inside an existing match
-        if (matches.any { it.range.first <= match.range.first && it.range.last >= match.range.last }) return false
-        matches.add(match)
-        return true
+    fun addCandidate(match: MarkdownMatch) {
+        if (match.range.first < 0 || match.range.last >= text.length) return
+        if (isPositionEscaped(match.range.first)) return
+        allCandidates.add(match)
     }
-
-    // ── Collect all matches by priority ──────────────────────────
 
     // Block math (priority 0)
     MarkdownPatterns.blockMath.findAll(text).forEach { m ->
         val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = inner,
             style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f), fontSize = 14.sp),
             priority = 0, isMath = true
@@ -204,7 +214,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
     // Inline math (priority 1)
     MarkdownPatterns.inlineMath.findAll(text).forEach { m ->
         val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = inner,
             style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, background = codeColor.copy(alpha = 0.1f)),
             priority = 1, isMath = true
@@ -213,7 +223,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Inline code (priority 2)
     MarkdownPatterns.inlineCode.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
             priority = 2, isCode = true
@@ -223,7 +233,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
     // Markdown links [text](url) (priority 3)
     MarkdownPatterns.link.findAll(text).forEach { m ->
         val url = m.groupValues.getOrNull(2) ?: ""
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
             priority = 3, isLink = true, url = url
@@ -233,7 +243,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
     // Autolinks <url> (priority 4)
     MarkdownPatterns.autolink.findAll(text).forEach { m ->
         val url = m.groupValues[1]
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = url,
             style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
             priority = 4, isLink = true, url = url
@@ -243,7 +253,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
     // Bare URLs (priority 4.5)
     MarkdownPatterns.bareUrl.findAll(text).forEach { m ->
         val url = m.groupValues[0]
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = url,
             style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
             priority = 4, isLink = true, url = url
@@ -252,7 +262,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Bold ** (priority 5)
     MarkdownPatterns.boldAsterisk.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
             priority = 5
@@ -261,7 +271,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Bold __ (priority 6)
     MarkdownPatterns.boldUnderscore.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
             priority = 6
@@ -270,7 +280,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Italic * (priority 7)
     MarkdownPatterns.italicAsterisk.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
             priority = 7
@@ -279,7 +289,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Italic _ (priority 8)
     MarkdownPatterns.italicUnderscore.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
             priority = 8
@@ -288,23 +298,24 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Strikethrough (priority 9)
     MarkdownPatterns.strikethrough.findAll(text).forEach { m ->
-        addMatchIfValid(MarkdownMatch(
+        addCandidate(MarkdownMatch(
             range = m.range, displayText = m.groupValues[1],
             style = SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough),
             priority = 9, isStrike = true
         ))
     }
 
-    // ── Render matches in document order ─────────────────────────
+    // ── Single-pass greedy scan (O(M log M) sort + O(M) scan) ──────
+    // Sort by start position, then by negative priority (higher priority first)
+    allCandidates.sortWith(compareBy({ it.range.first }, { -it.priority }))
 
-    val sorted = matches.sortedWith(compareBy({ it.range.first }, { -it.priority }))
     var cursor = 0
 
-    for (match in sorted) {
-        // Skip overlapping
+    for (match in allCandidates) {
+        // Skip overlapping — cursor ensures non-overlapping greedy selection
         if (match.range.first < cursor) continue
 
-        // Plain text before this match
+        // Append plain text before this match
         if (match.range.first > cursor) {
             append(text.substring(cursor, match.range.first))
         }

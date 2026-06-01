@@ -88,10 +88,10 @@ fun MarkdownRenderer(
     isStreaming: Boolean = false
 ) {
     val astNodes = remember(content) { MarkdownAstParser.parse(content) }
-    
+
     Column(modifier = Modifier.fillMaxWidth()) {
         astNodes.forEachIndexed { index, node ->
-            key(index, node::class) {
+            key("${node::class.simpleName}:${node.hashCode()}") {
                 when (node) {
                     is MarkdownNode.CodeBlock -> MarkdownCodeBlock(
                         node, codeBackgroundColor, codeBorderColor, codeHeaderBg
@@ -622,17 +622,15 @@ private fun RichTextWithLatex(
 ) {
     val segments = parseTextWithInlineMath(text)
 
-    androidx.compose.foundation.layout.FlowRow(
-        modifier = Modifier.padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
+    // Bypass FlowRow for single segments — eliminates multi-pass layout overhead
+    if (segments.size <= 1) {
         segments.forEach { segment ->
             if (segment.isLatex) {
                 if (segment.content.isNotBlank()) {
                     LaTeXViewInline(
                         latex = segment.content,
                         textColor = codeColor,
-                        modifier = Modifier.align(Alignment.CenterVertically).padding(horizontal = 2.dp)
+                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp)
                     )
                 }
             } else {
@@ -645,8 +643,38 @@ private fun RichTextWithLatex(
                             fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
                             fontWeight = FontWeight.Normal, color = normalColor
                         ),
-                        modifier = Modifier.align(Alignment.CenterVertically)
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
+                }
+            }
+        }
+    } else {
+        androidx.compose.foundation.layout.FlowRow(
+            modifier = Modifier.padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            segments.forEach { segment ->
+                if (segment.isLatex) {
+                    if (segment.content.isNotBlank()) {
+                        LaTeXViewInline(
+                            latex = segment.content,
+                            textColor = codeColor,
+                            modifier = Modifier.align(Alignment.CenterVertically).padding(horizontal = 2.dp)
+                        )
+                    }
+                } else {
+                    if (segment.content.isNotEmpty()) {
+                        Text(
+                            text = parseMarkdownToAnnotatedString(
+                                segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+                            ),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
+                                fontWeight = FontWeight.Normal, color = normalColor
+                            ),
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                    }
                 }
             }
         }
