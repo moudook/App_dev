@@ -71,6 +71,8 @@ private object RenderPatterns {
     val inlineMathDetect = Regex("(?<!\\$)\\$(?!\\$)[^\n$]+\\$(?!\\$)")
 }
 
+private const val MAX_ACCORDION_DEPTH = 2
+
 /**
  * Premium Markdown Renderer — beautiful, comfortable, properly spaced.
  */
@@ -85,10 +87,17 @@ fun MarkdownRenderer(
     codeBackgroundColor: Color,
     codeBorderColor: Color,
     codeHeaderBg: Color = Color(0xFF343541),
-    isStreaming: Boolean = false
+    isStreaming: Boolean = false,
+    depth: Int = 0
 ) {
     val preprocessed = remember(content) { preprocessContent(content) }
-    val astNodes = remember(preprocessed) { MarkdownAstParser.parse(preprocessed) }
+    val astNodes = remember(preprocessed) {
+        if (depth >= MAX_ACCORDION_DEPTH) {
+            MarkdownAstParser.parse(preprocessed, skipAccordions = true)
+        } else {
+            MarkdownAstParser.parse(preprocessed)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         astNodes.forEachIndexed { index, node ->
@@ -100,7 +109,7 @@ fun MarkdownRenderer(
                     is MarkdownNode.LatexBlock -> MarkdownLatexBlock(
                         node, codeBackgroundColor, codeColor
                     )
-                    is MarkdownNode.AccordionGroup -> MarkdownAccordionGroup(node)
+                    is MarkdownNode.AccordionGroup -> MarkdownAccordionGroup(node, depth)
                     is MarkdownNode.Header -> MarkdownHeader(
                         node, boldColor, linkColor, codeColor
                     )
@@ -169,12 +178,12 @@ private fun MarkdownLatexBlock(
 }
 
 @Composable
-private fun MarkdownAccordionGroup(node: MarkdownNode.AccordionGroup) {
+private fun MarkdownAccordionGroup(node: MarkdownNode.AccordionGroup, depth: Int = 0) {
     Spacer(modifier = Modifier.height(12.dp))
     val uiSections = node.sections.map {
         com.example.smarty.ui.components.chat.AccordionParser.AccordionSection(it.title, it.content)
     }
-    com.example.smarty.ui.components.chat.AccordionGroup(sections = uiSections)
+    com.example.smarty.ui.components.chat.AccordionGroup(sections = uiSections, depth = depth)
     Spacer(modifier = Modifier.height(12.dp))
 }
 

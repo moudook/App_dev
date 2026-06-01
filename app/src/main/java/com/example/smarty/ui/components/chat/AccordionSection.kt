@@ -40,7 +40,8 @@ fun AccordionSection(
     onExpandChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     accentColor: Color = LocalAccentColor.current,
-    enableTitleShimmer: Boolean = false
+    enableTitleShimmer: Boolean = false,
+    depth: Int = 0
 ) {
     Column(
         modifier = modifier
@@ -128,7 +129,8 @@ fun AccordionSection(
                             linkColor = accentColor,
                             codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                             codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                            depth = depth + 1
                         )
                     }
                 }
@@ -184,7 +186,8 @@ private fun TextShimmerBasic(
 fun AccordionGroup(
     sections: List<AccordionParser.AccordionSection>,
     modifier: Modifier = Modifier,
-    initiallyExpandedIndex: Int = -1
+    initiallyExpandedIndex: Int = -1,
+    depth: Int = 0
 ) {
     if (sections.isEmpty()) return
 
@@ -212,7 +215,8 @@ fun AccordionGroup(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enableTitleShimmer = true
+                enableTitleShimmer = true,
+                depth = depth
             )
         }
     }

@@ -203,8 +203,9 @@ class AgentStateManager(
                 - Content follows immediately after the header line
                 - Sections continue until the next `[[[Title]]]` or end of response
                 - Use for: detailed explanations, long code blocks, deep-dive sections, optional reading
+                - IMPORTANT: After listing accordion sections, add a brief note like "(click each section to expand)" so the user knows they can tap to reveal content
                 - Example:
-                  Introduction text here...
+                  Here are my findings (tap each section to expand):
 
                   [[[Key Findings]]]
                   Your main points here...
@@ -212,21 +213,23 @@ class AgentStateManager(
                   [[[Details]]]
                   Supporting details here...
 
-                **MATH (LaTeX syntax) — CRITICAL DELIMITER RULES:**
+                **MATH (LaTeX syntax) - CRITICAL DELIMITER RULES:**
 
-                Use EXACTLY these patterns — no quotes, no backticks, no escaping:
-                - Inline: ${'$'}E = mc^2${'$'}
-                - Block: ${'$'}${'$'}\frac{a}{b}${'$'}${'$'}
-                - Greek: ${'$'}\alpha${'$'}, ${'$'}\beta${'$'}, ${'$'}\gamma${'$'}
-                - Fractions: ${'$'}\frac{a}{b}${'$'}
-                - Sums: ${'$'}\sum_{i=1}^{n} x_i${'$'}
-                - Integrals: ${'$'}\int_{a}^{b} f(x)\,dx${'$'}
-                - Matrices: ${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'}
+                You MUST use the raw dollar sign delimiters for all math. Do NOT wrap math in quotes or backticks.
+                - Inline math: Use a single dollar sign on each side, like this: ${'$'}E = mc^2${'$'}
+                - Block math: Use double dollar signs on each side, like this:
+                  ${'$'}${'$'}
+                  \int_{a}^{b} f(x)\,dx
+                  ${'$'}${'$'}
+                - Matrices: 
+                  ${'$'}${'$'}
+                  \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+                  ${'$'}${'$'}
 
-                FORBIDDEN — do NOT write these, the app CANNOT render them:
-                - Wrapping $ in quotes: '$$...$$', "$$...$$", ‘$$...$$’
-                - Wrapping $ in backticks: `$$...$$`
-                - Escaping $ with backslash: \$...\$
+                FORBIDDEN FORMATS - do NOT use these:
+                - Do not use quotes: '$$...$$' or "$$...$$"
+                - Do not use backticks: `$$...$$`
+                - Do not use escaping: \$...\$
 
                 **Task lists (checklists):**
                 - Use `- [ ]` for incomplete tasks and `- [x]` for completed tasks

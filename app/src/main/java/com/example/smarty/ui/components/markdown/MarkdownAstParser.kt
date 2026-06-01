@@ -26,13 +26,14 @@ object MarkdownAstParser {
     private val taskItem = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
     private val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
 
-    fun parse(content: String): List<MarkdownNode> {
-        return cache.get(content) ?: parseInternal(content).also {
-            cache.put(content, it)
+    fun parse(content: String, skipAccordions: Boolean = false): List<MarkdownNode> {
+        val key = if (skipAccordions) "\$skip\$$content" else content
+        return cache.get(key) ?: parseInternal(content, skipAccordions).also {
+            cache.put(key, it)
         }
     }
 
-    private fun parseInternal(content: String): List<MarkdownNode> {
+    private fun parseInternal(content: String, skipAccordions: Boolean = false): List<MarkdownNode> {
         val lines = content.lines()
         val nodes = mutableListOf<MarkdownNode>()
         var i = 0
@@ -104,8 +105,8 @@ object MarkdownAstParser {
                 continue
             }
 
-            // 2.5 Handle Accordion Group
-            if (trimStart.trimEnd().startsWith("[[[") && trimStart.trimEnd().endsWith("]]]") && !trimStart.trimEnd().startsWith("[[[/") && trimStart.trimEnd() != "[[[]]]") {
+            // 2.5 Handle Accordion Group (skip if depth exceeded to prevent recursive composition)
+            if (!skipAccordions && trimStart.trimEnd().startsWith("[[[") && trimStart.trimEnd().endsWith("]]]") && !trimStart.trimEnd().startsWith("[[[/") && trimStart.trimEnd() != "[[[]]]") {
                 val sections = mutableListOf<AccordionItemData>()
                 
                 while (i < lines.size) {
