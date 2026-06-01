@@ -2,13 +2,6 @@ package com.example.smarty.features.notes.ui
 
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
-import android.provider.OpenableColumns
-import androidx.core.content.FileProvider
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -1248,6 +1241,7 @@ fun InputStreamScreen(
             } // Close Box wrapper for centered content
 
             InputStreamBottomInput(
+                modifier = Modifier.align(Alignment.BottomCenter),
                 isDarkTheme = isDarkTheme,
                 isChatMode = isChatMode,
                 isSearchMode = isSearchMode,
@@ -1332,6 +1326,7 @@ fun InputStreamScreen(
                     }
                     isSearchMode = !isSearchMode
                 },
+                userIsScrolling = userIsScrolling,
                 context = context
             )
 

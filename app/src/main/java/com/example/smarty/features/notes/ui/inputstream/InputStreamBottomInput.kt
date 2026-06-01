@@ -121,6 +121,7 @@ fun InputStreamBottomInput(
     showArchiveInline: Boolean,
     showSettingsInline: Boolean,
     showGamesInline: Boolean,
+    userIsScrolling: Boolean,
     onSendChatMessage: (String, List<Attachment>) -> Unit,
     onAddNote: (String, List<Attachment>) -> Unit,
     onGenerateImageDirect: (String) -> Unit,
@@ -227,7 +228,7 @@ fun InputStreamBottomInput(
                 .navigationBarsPadding()
         ) {
         val bottomScrollTransition = updateTransition(
-            targetState = false,
+            targetState = userIsScrolling,
             label = "BottomBarScroll"
         )
 
@@ -240,7 +241,7 @@ fun InputStreamBottomInput(
                 }
             },
             label = "bottomBarAlpha"
-        ) { 1f }
+        ) { isScrolling -> if (isScrolling) 0f else 1f }
 
         val bottomBarTranslationY by bottomScrollTransition.animateFloat(
             transitionSpec = {
@@ -251,12 +252,12 @@ fun InputStreamBottomInput(
                 }
             },
             label = "bottomBarTranslationY"
-        ) { 0f }
+        ) { isScrolling -> if (isScrolling) 250f else 0f }
 
         val bottomGradientTranslationY by bottomScrollTransition.animateFloat(
             transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
             label = "bottomGradientTranslationY"
-        ) { 0f }
+        ) { isScrolling -> if (isScrolling) 120f else 0f }
 
         Box(modifier = Modifier.fillMaxWidth()) {
             Box(
