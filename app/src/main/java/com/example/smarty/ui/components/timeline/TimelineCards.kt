@@ -533,7 +533,7 @@ private fun DetailValue(text: String) {
 private fun toolMeta(toolName: String): Pair<String, ImageVector> {
     val lower = toolName.lowercase()
     return when {
-        lower.contains("search") || lower.contains("web") || lower.contains("tavily") ->
+        lower.contains("search") || lower.contains("web") ->
             "Looking it up" to Icons.Default.Search
         lower.contains("image") || lower.contains("generate") || lower.contains("krea") ->
             "Painting" to Icons.Default.AutoAwesome

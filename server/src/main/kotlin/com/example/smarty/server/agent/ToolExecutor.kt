@@ -187,7 +187,6 @@ class ToolExecutor(
             "get_note_by_id" -> executeGetNoteById(args)
             "navigate" -> executeNavigateTool(args)
             "search_history" -> executeSearchHistory(args)
-            "tavily_search" -> executeTavilySearch(args)
             "guided_breathing" -> executeGuidedBreathing()
             else -> "Unknown tool: $name"
         }
@@ -296,8 +295,6 @@ class ToolExecutor(
         }
 
     companion object {
-        private val tavilyKeyCounter = java.util.concurrent.atomic.AtomicInteger(0)
-
         fun mapOldToolNames(name: String): String =
             when (name) {
                 "save_note", "create_note" -> "memory_save"
@@ -682,72 +679,6 @@ class ToolExecutor(
             ),
         )
         return "Starting guided breathing session."
-    }
-
-    private suspend fun executeTavilySearch(args: UnifiedToolArgs): String {
-        val query = args.query ?: return "Search query required"
-        val rawKeys = System.getenv("TAVILY_API_KEY")?.trim('"', '\'')
-            ?: return "TAVILY_API_KEY is not configured on the server."
-        val keys = rawKeys.split(",").map { it.trim() }.filter { it.isNotBlank() }
-        if (keys.isEmpty()) return "TAVILY_API_KEY is empty"
-
-        // Round-robin key rotation
-        val apiKey = keys[tavilyKeyCounter.getAndIncrement() % keys.size]
-
-        emitProcessing("Searching the web via Tavily...", "Query: ${query.take(100)}")
-
-        return try {
-            val requestBody =
-                buildJsonObject {
-                    put("api_key", apiKey)
-                    put("query", query)
-                    put("search_depth", args.searchDepth ?: "basic")
-                    put("max_results", args.maxResults ?: 5)
-                    put("include_answer", true)
-                }
-
-            val response =
-                com.example.smarty.server.HttpClientSingleton.client.post("https://api.tavily.com/search") {
-                    headers.append(
-                        io.ktor.http.HttpHeaders.ContentType,
-                        io.ktor.http.ContentType.Application.Json
-                            .toString(),
-                    )
-                    setBody(requestBody.toString())
-                }
-
-            if (response.status.isSuccess()) {
-                val responseBody = response.bodyAsText()
-                val jsonResult = json.parseToJsonElement(responseBody).jsonObject
-                val answer = jsonResult["answer"]?.jsonPrimitive?.content ?: ""
-                val resultsArray = jsonResult["results"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
-
-                buildString {
-                    if (answer.isNotBlank()) {
-                        appendLine("**Summary:** $answer")
-                        appendLine()
-                    }
-                    if (resultsArray.isNotEmpty()) {
-                        appendLine("**Sources:**")
-                        resultsArray.forEachIndexed { index, el ->
-                            val resultObj = el.jsonObject
-                            val title = resultObj["title"]?.jsonPrimitive?.content ?: "No Title"
-                            val content = resultObj["content"]?.jsonPrimitive?.content ?: ""
-                            val resultUrl = resultObj["url"]?.jsonPrimitive?.content ?: ""
-                            appendLine("${index + 1}. [$title]($resultUrl)")
-                            appendLine("   ${content.take(200)}...")
-                        }
-                    } else {
-                        appendLine("No specific sources found.")
-                    }
-                }
-            } else {
-                "Failed to search Tavily: HTTP ${response.status.value}"
-            }
-        } catch (e: Exception) {
-            logger.error("Tavily search failed", e)
-            "Error executing Tavily search: ${e.message}"
-        }
     }
 
     private suspend fun executeAskUser(

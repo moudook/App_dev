@@ -1,5 +1,6 @@
 package com.example.smarty.features.notes.ui
 
+import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.OpenableColumns
@@ -120,6 +121,8 @@ import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.features.notes.ui.inputstream.CalendarContent
 import com.example.smarty.features.notes.ui.inputstream.ChatModeSection
+import com.example.smarty.features.notes.ui.inputstream.InputStreamBottomInput
+import com.example.smarty.features.notes.ui.inputstream.InputStreamTopBar
 import com.example.smarty.features.notes.ui.inputstream.NormalModeContent
 import com.example.smarty.features.notes.ui.inputstream.SelectionModeToolbar
 import com.example.smarty.features.notes.ui.inputstream.StacksContent
@@ -802,185 +805,55 @@ fun InputStreamScreen(
     var showCategorizeDialog by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
 
-    // MIME type detection from file extension (fallback when ContentResolver fails)
-    fun getMimeTypeFromExtension(fileName: String): String {
-        val extension = fileName.substringAfterLast('.', "").lowercase()
-        return when (extension) {
-            // Images
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "gif" -> "image/gif"
-            "webp" -> "image/webp"
-            "bmp" -> "image/bmp"
-            "svg" -> "image/svg+xml"
-            "heic", "heif" -> "image/heic"
-            // Videos
-            "mp4", "m4v" -> "video/mp4"
-            "mkv" -> "video/x-matroska"
-            "avi" -> "video/x-msvideo"
-            "mov" -> "video/quicktime"
-            "webm" -> "video/webm"
-            "3gp" -> "video/3gpp"
-            // Audio
-            "mp3" -> "audio/mpeg"
-            "wav" -> "audio/wav"
-            "ogg", "oga" -> "audio/ogg"
-            "m4a", "aac" -> "audio/mp4"
-            "flac" -> "audio/flac"
-            "wma" -> "audio/x-ms-wma"
-            // Documents
-            "pdf" -> "application/pdf"
-            "doc" -> "application/msword"
-            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            "xls" -> "application/vnd.ms-excel"
-            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            "ppt" -> "application/vnd.ms-powerpoint"
-            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            "txt" -> "text/plain"
-            "rtf" -> "application/rtf"
-            "csv" -> "text/csv"
-            "json" -> "application/json"
-            "xml" -> "application/xml"
-            "html", "htm" -> "text/html"
-            "md" -> "text/markdown"
-            // Archives
-            "zip" -> "application/zip"
-            "rar" -> "application/x-rar-compressed"
-            "7z" -> "application/x-7z-compressed"
-            "tar" -> "application/x-tar"
-            "gz" -> "application/gzip"
-            // Other
-            "apk" -> "application/vnd.android.package-archive"
-            else -> "application/octet-stream"
-        }
-    }
-
-    // Helper function to get file info from URI with robust MIME type detection
-    fun getFileInfo(uri: Uri): Attachment? {
-        return try {
-            var fileName: String? = null
-            var fileSize: Long = 0
-
-            // Query file metadata from ContentResolver
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex >= 0) fileName = cursor.getString(nameIndex)
-
-                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
-                        fileSize = cursor.getLong(sizeIndex)
-                    }
-                }
-            }
-
-            // Safe fallback chain for filename - never force unwrap
-            val safeName = fileName
-                ?: uri.lastPathSegment
-                ?: "Unknown_${System.currentTimeMillis()}"
-
-            // Robust MIME type detection:
-            // 1. Try ContentResolver first
-            // 2. Fall back to extension-based detection if null or generic
-            val contentResolverMime = context.contentResolver.getType(uri)
-            val mimeType = when {
-                // ContentResolver returned a specific type (not generic)
-                contentResolverMime != null &&
-                contentResolverMime != "application/octet-stream" &&
-                contentResolverMime != "binary/octet-stream" -> contentResolverMime
-                // Fall back to extension-based detection
-                else -> getMimeTypeFromExtension(safeName)
-            }
-
-            android.util.Log.d("AttachmentPicker", "File: $safeName, MIME: $mimeType (ContentResolver: $contentResolverMime)")
-
-            Attachment(
-                id = java.util.UUID.randomUUID().toString(),
-                uri = uri.toString(),
-                fileName = safeName,
-                mimeType = mimeType,
-                fileSize = fileSize
-            )
-        } catch (e: Exception) {
-            android.util.Log.e("AttachmentPicker", "Failed to get file info: ${e.message}", e)
-            null
-        }
-    }
-
-    // File picker launchers - using modern contracts for better MIME type handling
-
-    // Image picker - uses PickMultipleVisualMedia for reliable image selection
     val imagePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
+        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
             onInputAttachmentsChange(currentInputAttachments + newAttachments)
         }
     }
 
-    // Video picker - uses PickMultipleVisualMedia with VideoOnly filter
     val videoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
+        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
             onInputAttachmentsChange(currentInputAttachments + newAttachments)
         }
     }
 
-    // Audio picker - uses OpenMultipleDocuments with audio MIME types
     val audioPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
+        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
             onInputAttachmentsChange(currentInputAttachments + newAttachments)
         }
     }
 
-    // Document picker - uses OpenMultipleDocuments for documents
     val documentPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
+        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
             onInputAttachmentsChange(currentInputAttachments + newAttachments)
         }
     }
 
-    // Generic file picker - uses OpenMultipleDocuments for any file type
     val filePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
+        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
             onInputAttachmentsChange(currentInputAttachments + newAttachments)
         }
     }
 
-    // Camera capture - takes a photo and saves to file
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && cameraImageUri != null) {
-            getFileInfo(cameraImageUri!!)?.let { attachment ->
+            getFileInfo(context, cameraImageUri!!)?.let { attachment ->
                 onInputAttachmentsChange(currentInputAttachments + attachment)
             }
-        }
-    }
-
-    // Helper function to create a temp file for camera capture
-    fun createImageFile(): Uri? {
-        return try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val imageFileName = "SMARTY_${timeStamp}"
-            val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-            val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                imageFile
-            )
-        } catch (e: Exception) {
-            null
         }
     }
 
@@ -1129,116 +1002,23 @@ fun InputStreamScreen(
             }
 },
         topBar = {
-// 
-            // CENTRALIZED UI: Minimal Header + Horizontal Action Bar
-            // 
-            val configuration = LocalConfiguration.current
-            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-            // 1. Master Orchestrator for Scroll State
-            val scrollTransition = updateTransition(
-                targetState = userIsScrolling, 
-                label = "TopBarScroll"
+            InputStreamTopBar(
+                isDarkTheme = isDarkTheme,
+                connectionStatus = connectionStatus,
+                cloudSyncState = cloudSyncState,
+                onSyncCloud = onSyncCloud,
+                selectedTab = selectedTab,
+                onTabSelected = { tab -> handleTabSelection(tab) },
+                isChatMode = isChatMode,
+                showChatHistoryInline = showChatHistoryInline,
+                showCalendarInline = showCalendarInline,
+                showStacksInline = showStacksInline,
+                showArchiveInline = showArchiveInline,
+                showSettingsInline = showSettingsInline,
+                showGamesInline = showGamesInline,
+                archiveCount = archivedNotes.size,
+                userIsScrolling = userIsScrolling
             )
-            
-            // 2. Opacity Fade (Asymmetric Timing)
-            val topBarAlpha by scrollTransition.animateFloat(
-                transitionSpec = { 
-                    if (targetState) {
-                        // SCROLLING (HIDING): Wait 350ms for pill to contract, then fade out.
-                        tween(durationMillis = 200, delayMillis = 350, easing = LinearEasing)
-                    } else {
-                        // STOPPED (SHOWING): Fade in instantly.
-                        tween(durationMillis = 200, easing = LinearOutSlowInEasing)
-                    }
-                },
-                label = "topBarAlpha"
-            ) { isScrolling -> if (isScrolling) 0f else 1f }
-            
-            // 3. Y-Axis Slide (Asymmetric Timing)
-            val topBarTranslationY by scrollTransition.animateFloat(
-                transitionSpec = { 
-                    if (targetState) {
-                        // SCROLLING (HIDING): Wait exactly 350ms, then slide up and away smoothly.
-                        tween(durationMillis = 350, delayMillis = 350, easing = FastOutSlowInEasing)
-                    } else {
-                        // STOPPED SCROLLING (SHOWING): Spring down instantly with a premium bounce.
-                        spring(dampingRatio = 0.75f, stiffness = 400f)
-                    }
-                },
-                label = "topBarTranslationY"
-            ) { isScrolling -> if (isScrolling) -300f else 0f }
-
-            val topGradientTranslationY by scrollTransition.animateFloat(
-                transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
-                label = "topGradientTranslationY"
-            ) { isScrolling -> if (isScrolling) -120f else 0f } // Increased shift up
-
-            val topGradientBrush = if (isDarkTheme) {
-                SmartyBrushes.topScrimDark
-            } else {
-                SmartyBrushes.topScrimLight
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer { translationY = topGradientTranslationY }
-                    .background(brush = topGradientBrush)
-                    .zIndex(2f)
-            ) {
-                // Minimal Header Row: Status Indicators
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(24.dp), // Reduced from 32dp
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ConnectionStatusIndicator(
-                            status = connectionStatus
-                        )
-                        CloudSyncIndicator(
-                            syncState = cloudSyncState,
-                            onSyncClick = onSyncCloud
-                        )
-                    }
-                }
-
-                // Horizontal Action Bar - All features accessible here
-                HorizontalActionBar(
-                    modifier = Modifier.graphicsLayer {
-                        // S-TIER FIX: GPU Hardware Acceleration. Zero Layout Recalculation on Scroll!
-                        alpha = topBarAlpha
-                        translationY = topBarTranslationY
-                    },
-                    selectedTab = when {
-                        showStacksInline -> NavigationTab.STACKS
-                        showArchiveInline -> NavigationTab.ARCHIVE
-                        showSettingsInline -> NavigationTab.SETTINGS
-                        showGamesInline -> NavigationTab.GAMES
-                        showCalendarInline -> NavigationTab.CALENDAR
-                        isChatMode -> NavigationTab.CHAT
-                        else -> selectedTab
-                    },
-                    onTabSelected = { tab -> handleTabSelection(tab) },
-                    isChatMode = isChatMode,
-                    isHistoryMode = showChatHistoryInline,
-                    isCalendarMode = showCalendarInline,
-                    isStacksMode = showStacksInline,
-                    isArchiveMode = showArchiveInline,
-                    isSettingsMode = showSettingsInline,
-                    archiveCount = archivedNotes.size,
-                    isScrolling = userIsScrolling
-                )
-
-                // FILTER CHIP REMOVED: User requested removal of "philtre option"
-                // Filtering is now handled exclusively via search input text
-            } // End Column
         },
         bottomBar = {
             // Deprecated: Input field moved to main Box for floating transparency
@@ -1467,443 +1247,95 @@ fun InputStreamScreen(
             }
             } // Close Box wrapper for centered content
 
-// Floating Input Field Container OR Selection Pill Bar (mutually exclusive)
-            val density = LocalDensity.current
-            val configuration = LocalConfiguration.current
-            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
-
-            // Selection mode replaces input field with action pill
-            val showSelectionPill = isSelectionMode && selectedNoteIds.isNotEmpty()
-            
-            val miniPlayerHeight = ComponentSpacing.miniPlayerHeight
-            val miniPlayerExtraMargin = 16.dp
-            val miniPlayerPadding = if (isMiniPlayerVisible && !isKeyboardVisible) miniPlayerHeight + miniPlayerExtraMargin else 0.dp
-
-            val attachmentCount = currentInputAttachments.size
-            val attachmentRowHeight = if (attachmentCount > 0) 60.dp else 0.dp
-            val multiLineExtraHeight = if (textValue.text.count { it == '\n' } > 0) 40.dp else 0.dp
-
-            // Input field height (hidden when selection mode active)
-            val inputFieldHeight = if (showSelectionPill) 0.dp else (72.dp + attachmentRowHeight + multiLineExtraHeight)
-            val inputFieldPadding = ComponentSpacing.screenPadding
-            val isSearchSuggestionsVisible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty()
-            val searchSuggestionsHeight = if (isSearchSuggestionsVisible && !showSelectionPill) {
-                when {
-                    isKeyboardVisible -> 100.dp
-                    isLandscape -> 120.dp
-                    else -> 200.dp
-                }
-            } else {
-                0.dp
-            }
-            val extraBottomCoverage = when {
-                isKeyboardVisible -> 10.dp
-                isLandscape -> 20.dp
-                else -> 40.dp
-            }
-            val gradientOffset = bottomGradientVerticalOffset + when {
-                isKeyboardVisible -> (-10).dp
-                isLandscape -> (-10).dp
-                else -> 0.dp
-            }
-            
-            val baseGradientHeight = inputFieldHeight + inputFieldPadding + searchSuggestionsHeight + extraBottomCoverage
-            val targetGradientHeight = baseGradientHeight + miniPlayerPadding
-            
-            val animatedGradientHeight by animateDpAsState(
-                targetValue = targetGradientHeight,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium
-                ),
-                label = "gradientHeightAnimation"
+            InputStreamBottomInput(
+                isDarkTheme = isDarkTheme,
+                isChatMode = isChatMode,
+                isSearchMode = isSearchMode,
+                showChatHistoryInline = showChatHistoryInline,
+                isSelectionMode = isSelectionMode,
+                selectedNoteIds = selectedNoteIds,
+                isMiniPlayerVisible = isMiniPlayerVisible,
+                bottomContentPadding = bottomContentPadding,
+                bottomGradientVerticalOffset = bottomGradientVerticalOffset,
+                currentInputAttachments = currentInputAttachments,
+                onInputAttachmentsChange = onInputAttachmentsChange,
+                textValue = textValue,
+                chatModeTextValue = chatModeTextValue,
+                normalModeTextValue = normalModeTextValue,
+                onNormalModeTextValueChange = { newVal -> normalModeTextValue = newVal },
+                onChatModeTextValueChange = { newVal -> chatModeTextValue = newVal },
+                onInputTextChange = onInputTextChange,
+                recentSearches = recentSearches,
+                onSearchQueryChange = onSearchQueryChange,
+                onRecordSearch = onRecordSearch,
+                onClearSearchHistory = onClearSearchHistory,
+                chatMessages = chatMessages,
+                pendingClarificationRequests = pendingClarificationRequests,
+                pendingApprovalToolId = pendingApprovalToolId,
+                onCallApproval = onCallApproval,
+                onClarificationSubmit = onClarificationSubmit,
+                speechState = speechState,
+                isChatProcessing = isChatProcessing,
+                voiceRecorder = voiceRecorder,
+                isRecording = isRecording,
+                autoSendActive = autoSendActive,
+                hadSpeechInput = hadSpeechInput,
+                onSetHadSpeechInput = { hadSpeechInput = it },
+                autoSendJob = autoSendJob,
+                onSetAutoSendActive = { autoSendActive = it },
+                onSetAutoSendJob = { autoSendJob = it },
+                chatListState = chatListState,
+                coroutineScope = coroutineScope,
+                mentionState = mentionState,
+                onUpdateMentionState = onUpdateMentionState,
+                onMentionSelected = onMentionSelected,
+                isImageGenMode = isImageGenMode,
+                onSetImageGenMode = { isImageGenMode = it },
+                isAiExcluded = isAiExcluded,
+                selectedFilters = selectedFilters,
+                onFilterToggle = onFilterToggle,
+                onClearFilters = onClearFilters,
+                selectedModel = selectedModel,
+                availableModels = availableModels,
+                onModelSelected = onModelSelected,
+                modelVariantMap = modelVariantMap,
+                selectedVariant = selectedVariant,
+                onVariantSelected = onVariantSelected,
+                onRefreshModels = onRefreshModels,
+                showCalendarInline = showCalendarInline,
+                showStacksInline = showStacksInline,
+                showArchiveInline = showArchiveInline,
+                showSettingsInline = showSettingsInline,
+                showGamesInline = showGamesInline,
+                onSendChatMessage = onSendChatMessage,
+                onAddNote = onAddNote,
+                onGenerateImageDirect = onGenerateImageDirect,
+                onNewChatSession = onNewChatSession,
+                onSetShowChatHistoryInline = { showChatHistoryInline = it },
+                imagePickerLauncher = imagePickerLauncher,
+                videoPickerLauncher = videoPickerLauncher,
+                documentPickerLauncher = documentPickerLauncher,
+                audioPickerLauncher = audioPickerLauncher,
+                filePickerLauncher = filePickerLauncher,
+                cameraLauncher = cameraLauncher,
+                cameraImageUri = cameraImageUri,
+                onSetCameraImageUri = { cameraImageUri = it },
+                onPinSelected = { pinSelected() },
+                onShareSelected = { shareSelected() },
+                onArchiveSelected = { archiveSelected() },
+                onDeleteSelected = { deleteSelected() },
+                onCategorizeSelected = { showCategorizeDialog = true },
+                onClearSelection = { clearSelection() },
+                onToggleSearchMode = {
+                    if (isSearchMode && normalModeTextValue.text.isNotBlank()) {
+                        onRecordSearch(normalModeTextValue.text)
+                    }
+                    isSearchMode = !isSearchMode
+                },
+                context = context
             )
-            
-            val animatedGradientOffset by animateDpAsState(
-                targetValue = gradientOffset,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium
-                ),
-                label = "gradientOffsetAnimation"
-            )
-            
 
-            val bottomGradientBrush = if (isDarkTheme) {
-                SmartyBrushes.bottomScrimDark
-            } else {
-                SmartyBrushes.bottomScrimLight
-            }
-            
-            // Input block only visible on Notes and Chat pages
-            val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showSettingsInline && !showGamesInline
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showInputBlock,
-                enter = slideInVertically(
-                    initialOffsetY = { it / 2 },
-                    animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
-                ) + fadeIn(tween(250)),
-                exit = slideOutVertically(
-                    targetOffsetY = { it / 2 },
-                    animationSpec = tween(200)
-                ) + fadeOut(tween(200)),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(bottom = bottomContentPadding + miniPlayerPadding)
-                    .navigationBarsPadding()
-            ) {
-                // Bottom Bar Scroll Physics
-                val bottomScrollTransition = updateTransition(
-                    targetState = userIsScrolling, 
-                    label = "BottomBarScroll"
-                )
-                
-                val bottomBarAlpha by bottomScrollTransition.animateFloat(
-                    transitionSpec = { 
-                        if (targetState) {
-                            // SCROLLING (HIDING): Wait 350ms, then fade out.
-                            tween(durationMillis = 200, delayMillis = 350, easing = LinearEasing)
-                        } else {
-                            // STOPPED SCROLLING (SHOWING): Fade in instantly.
-                            tween(durationMillis = 200, easing = LinearOutSlowInEasing)
-                        }
-                    },
-                    label = "bottomBarAlpha"
-                ) { isScrolling -> if (isScrolling) 0f else 1f }
-                
-                val bottomBarTranslationY by bottomScrollTransition.animateFloat(
-                    transitionSpec = { 
-                        if (targetState) {
-                            // SCROLLING (HIDING): Wait 350ms, then slide down and away smoothly.
-                            tween(durationMillis = 400, delayMillis = 350, easing = FastOutSlowInEasing)
-                        } else {
-                            // STOPPED SCROLLING (SHOWING): Slide up instantly with a premium physical bounce.
-                            spring(dampingRatio = 0.75f, stiffness = 350f)
-                        }
-                    },
-                    label = "bottomBarTranslationY"
-                ) { isScrolling -> if (isScrolling) 250f else 0f }
-
-                val bottomGradientTranslationY by bottomScrollTransition.animateFloat(
-                    transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
-                    label = "bottomGradientTranslationY"
-                ) { isScrolling -> if (isScrolling) 120f else 0f } // Increased shift down
-
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(animatedGradientHeight)
-                        .offset(y = animatedGradientOffset)
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer { translationY = bottomGradientTranslationY }
-                        .background(brush = bottomGradientBrush)
-                        .zIndex(1f)
-)
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .graphicsLayer { 
-                            alpha = bottomBarAlpha 
-                            translationY = bottomBarTranslationY 
-                        }
-                        .padding(
-                            start = 8.dp,
-                            end = 8.dp,
-                            bottom = ComponentSpacing.screenPadding,
-                            top = 0.dp
-                        )
-                        .zIndex(2f)
-                ) {
-                    // Search suggestions dropdown (BATCH 5C)
-                    // Shows when in search mode with empty query and recent searches available
-                    AnimatedVisibility(
-                        visible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty(),
-                        enter = fadeIn(tween(160)) + expandVertically(),
-                        exit = fadeOut(tween(120)) + shrinkVertically()
-                    ) {
-                        SearchSuggestionsDropdown(
-                            suggestions = recentSearches.take(5),
-                            onSuggestionClick = { suggestion ->
-                                // Update the text field with the selected suggestion
-                                normalModeTextValue = TextFieldValue(suggestion, TextRange(suggestion.length))
-                                onSearchQueryChange(suggestion)
-                                onInputTextChange(suggestion)
-                                // Record the search (moves to top of history)
-                                onRecordSearch(suggestion)
-                            },
-                            onClearHistory = onClearSearchHistory,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
-
-                    // Processing indicator REMOVED as per user request (shimmer is sufficient)
-                    // (AnimatedVisibility block was here)
-
-                    // SELECTION PILL BAR - Replaces input field when notes selected
-                    if (showSelectionPill) {
-                        SelectionPillBar(
-                            selectedCount = selectedNoteIds.size,
-                            onPin = { pinSelected() },
-                            onShare = { shareSelected() },
-                            onArchive = { archiveSelected() },
-                            onDelete = { deleteSelected() },
-                            onCategorize = { showCategorizeDialog = true },
-                            onClose = { clearSelection() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-
-                    // Check for clarification block!
-                    val activeClarificationMessage = if (isChatMode) {
-                        chatMessages.find { it.role == com.example.smarty.core.domain.model.ChatRole.SMARTY && it.clarificationRequest != null && !it.isStreaming }
-                    } else null
-
-                    val pendingQuestions = if (pendingClarificationRequests.isNotEmpty()) {
-                        pendingClarificationRequests
-                    } else {
-                        activeClarificationMessage?.clarificationRequest?.let { listOf(it) } ?: emptyList()
-                    }
-
-                    // Floating Input Field
-                    if (!showSelectionPill) {
-                        Box(contentAlignment = Alignment.BottomCenter) {
-                        // The Actual Input Field with halftone shimmer inside
-                        SmartyInputField(
-                            value = textValue,
-                            onValueChange = { newTextValue ->
-                                // Cancel auto-send if user manually types
-                                if (autoSendActive) {
-                                    autoSendActive = false
-                                    autoSendJob?.cancel()
-                                }
-                                // Reset speech tracking on manual input
-                                hadSpeechInput = false
-
-                                // Update the correct state based on current mode
-                                if (isChatMode) {
-                                    chatModeTextValue = newTextValue
-                                    // @Mention: Update mention state for autocomplete
-                                    onUpdateMentionState(newTextValue.text, newTextValue.selection.end)
-                                } else {
-                                    normalModeTextValue = newTextValue
-                                    // Search mode integration
-                                    if (isSearchMode) {
-                                        onSearchQueryChange(newTextValue.text)
-                                    }
-                                }
-                                onInputTextChange(newTextValue.text)
-                            },
-                            onSubmit = {
-                                // CRITICAL FIX: Use the actual state variable, not the derived textValue
-                                // textValue is derived and may be stale in the closure
-                                val actualText = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text
-                                if (actualText.isNotBlank() || currentInputAttachments.isNotEmpty()) {
-                                    if (isChatMode && isImageGenMode) {
-                                        // Direct image generation mode
-                                        onGenerateImageDirect(actualText)
-                                        chatModeTextValue = TextFieldValue("")
-                                        isImageGenMode = false // Auto-exit image gen mode after submit
-                                    } else if (isChatMode) {
-                                        onSendChatMessage(actualText, currentInputAttachments)
-                                        chatModeTextValue = TextFieldValue("")
-                                    } else if (!isSearchMode) {
-                                        onAddNote(actualText, currentInputAttachments)
-                                        normalModeTextValue = TextFieldValue("")
-                                    }
-
-                                    if (!isSearchMode) {
-                                        onInputTextChange("")
-                                        onInputAttachmentsChange(emptyList())
-                                    }
-                                }
-                            },
-                            attachments = currentInputAttachments,
-                            onPickImage = {
-                                // Use PickVisualMedia with ImageOnly filter for reliable image selection
-                                imagePickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            onPickVideo = {
-                                // Use PickVisualMedia with VideoOnly filter for reliable video selection
-                                videoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                                )
-                            },
-                            onPickDocument = {
-                                // OpenMultipleDocuments for document types
-                                documentPickerLauncher.launch(
-                                    arrayOf(
-                                        "application/pdf",
-                                        "application/msword",
-                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                        "application/vnd.ms-excel",
-                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                        "application/vnd.ms-powerpoint",
-                                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                        "text/plain",
-                                        "text/csv",
-                                        "application/rtf"
-                                    )
-                                )
-                            },
-                            onPickAudio = {
-                                // OpenMultipleDocuments for audio types
-                                audioPickerLauncher.launch(
-                                    arrayOf(
-                                        "audio/*",
-                                        "audio/mpeg",
-                                        "audio/mp4",
-                                        "audio/wav",
-                                        "audio/ogg",
-                                        "audio/flac"
-                                    )
-                                )
-                            },
-                            onPickFile = {
-                                // OpenMultipleDocuments for any file type
-                                filePickerLauncher.launch(arrayOf("*/*"))
-                            },
-                            onOpenCamera = {
-                                // Launch actual camera to take a photo
-                                createImageFile()?.let { uri ->
-                                    cameraImageUri = uri
-                                    cameraLauncher.launch(uri)
-                                }
-                            },
-                            onRemoveAttachment = { id -> onInputAttachmentsChange(currentInputAttachments.filter { it.id != id }) },
-                            pendingQuestions = pendingQuestions,
-                            onQuestionAnswered = { response ->
-                                if (pendingApprovalToolId != null) {
-                                    onCallApproval(pendingApprovalToolId, true, response.ifEmpty { null })
-                                } else if (activeClarificationMessage != null) {
-                                    onClarificationSubmit(activeClarificationMessage.id, response)
-                                }
-                            },
-                            isChatMode = isChatMode,
-                            isHistoryMode = showChatHistoryInline, // Pass history state
-                            isProcessing = isChatProcessing,
-                            onClearInput = {
-                                // Clear local state depending on mode
-                                if (isChatMode) {
-                                    chatModeTextValue = androidx.compose.ui.text.input.TextFieldValue("")
-                                } else {
-                                    normalModeTextValue = androidx.compose.ui.text.input.TextFieldValue("")
-                                }
-                                // Clear attachments and common state
-                                onInputAttachmentsChange(emptyList())
-                                onInputTextChange("")
-
-
-                                // Reset search mode if active but keep it explicit
-                                if (isSearchMode) {
-                                    onSearchQueryChange("")
-                                }
-                            },
-                            onOpenChatHistory = { showChatHistoryInline = true },
-                            onNewChat = { 
-                                onNewChatSession()
-                                showChatHistoryInline = false
-                            },
-                            isAiExcluded = isAiExcluded,
-                            isSearchMode = isSearchMode,
-                            onToggleSearch = {
-                                // Record search when exiting search mode with a query
-                                if (isSearchMode && normalModeTextValue.text.isNotBlank()) {
-                                    onRecordSearch(normalModeTextValue.text)
-                                }
-                                isSearchMode = !isSearchMode
-                                normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
-                                onInputTextChange("")
-                            },
-                            isVoiceListening = speechState.isListening,
-                            onStartVoiceInput = {
-                                if (speechState.isListening) {
-                                    speechState.stopListening()
-                                } else {
-                                    // Pass current mode so speech result goes to correct input field
-                                    speechState.startListening(isChatMode = isChatMode)
-                                }
-                            },
-                            onStopVoiceInput = {
-                                speechState.stopListening()
-                            },
-                            isAgentWorking = isChatProcessing,
-                            autoSendActive = autoSendActive,
-                            // Search filter parameters
-                            selectedFilters = selectedFilters,
-                            onFilterToggle = onFilterToggle,
-                            onClearFilters = onClearFilters,
-                            // Voice recording (hold mic to record, release to stop)
-                            onStartRecording = {
-                                // Stop any active speech recognition before recording
-                                if (speechState.isListening) {
-                                    speechState.stopListening()
-                                }
-                                voiceRecorder.startRecording()
-                            },
-                            onStopRecording = {
-                                voiceRecorder.stopRecording()
-                            },
-                            isRecording = isRecording,
-                            // @Mention autocomplete (Chat mode only)
-                            mentionState = mentionState,
-                            onMentionSelected = { suggestion ->
-                                // Get updated text from callback and set it
-                                val updatedText = onMentionSelected(suggestion, chatModeTextValue.text)
-                                chatModeTextValue = TextFieldValue(
-                                    text = updatedText,
-                                    selection = androidx.compose.ui.text.TextRange(updatedText.length)
-                                )
-                            },
-                            // Image generation mode toggle
-                            isImageGenMode = isImageGenMode,
-                            onToggleImageGenMode = {
-                                isImageGenMode = !isImageGenMode
-                            },
-                            showScrollButton = chatListState.canScrollForward || chatListState.canScrollBackward,
-                            isAtLatest = !chatListState.canScrollBackward,
-                            onScrollToBottom = {
-                                coroutineScope.launch {
-                                    val total = chatListState.layoutInfo.totalItemsCount
-                                    if (total > 0) {
-                                        chatListState.animateScrollToItem(total - 1, scrollOffset = 10000)
-                                    }
-                                }
-                            },
-                            onScrollToTop = {
-                                coroutineScope.launch {
-                                    chatListState.animateScrollToItem(0, scrollOffset = -10000)
-                                }
-                            },
-                            selectedModel = selectedModel,
-                            availableModels = availableModels,
-                            onModelSelected = onModelSelected,
-                            modelVariantMap = modelVariantMap,
-                            selectedVariant = selectedVariant,
-                            onVariantSelected = onVariantSelected,
-                            onRefreshModels = onRefreshModels
-                        )
-                        }  // Close Box for input field
-                    }  // Close if (!showSelectionPill)
-                }
-            }
-
-        }
-        } // AnimatedVisibility (input block)
-    }
-
+    } // Close Box from line 1033
 
     // Pinterest-style menu implementation
     pinterestMenuPosition?.let { pos ->
@@ -2081,6 +1513,7 @@ fun InputStreamScreen(
             }
         )
     }
+}
 }
 }
 }
@@ -2350,4 +1783,6 @@ fun SelectionPillBar(
         }
     }
 }
+
+
 

@@ -41,6 +41,10 @@ internal object MarkdownPatterns {
     // Bare URLs: https://... or http://... standing alone
     val bareUrl = Regex("(?<![\\[\\(\"'])(https?://[^\\s)\\]>\"']+)")
 
+    // Bold+Italic: ***text*** or ___text___
+    val boldItalicAsterisk = Regex("(?<![*])\\*\\*\\*(.+?)\\*\\*\\*(?![*])")
+    val boldItalicUnderscore = Regex("(?<![a-zA-Z])___(.+?)___(?![a-zA-Z])")
+
     // Bold: **text** or __text__
     val boldAsterisk = Regex("(?<![*])\\*\\*(.+?)\\*\\*(?![*])")
     val boldUnderscore = Regex("(?<![a-zA-Z])__(.+?)__(?![a-zA-Z])")
@@ -339,6 +343,24 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
             range = m.range, displayText = url,
             style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
             priority = 4, isLink = true, url = url
+        ))
+    }
+
+    // Bold+Italic *** (priority 4.8)
+    MarkdownPatterns.boldItalicAsterisk.findAll(text).forEach { m ->
+        addCandidate(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
+            priority = 48
+        ))
+    }
+
+    // Bold+Italic ___ (priority 4.9)
+    MarkdownPatterns.boldItalicUnderscore.findAll(text).forEach { m ->
+        addCandidate(MarkdownMatch(
+            range = m.range, displayText = m.groupValues[1],
+            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
+            priority = 49
         ))
     }
 

@@ -180,32 +180,6 @@ Use for: opening apps, media control, settings, device status.""",
         )
 
     /**
-     * Tavily Search tool for real-time web search.
-     * Uses the Tavily Search API to find current and accurate information.
-     */
-    val tavilySearchTool: ToolDefinition =
-        ToolDefinition(
-            name = "tavily_search",
-            description = """Search the internet for real-time information using the Tavily API.
-Use for: web searches, weather, news, facts, current events, research, or anything requiring up-to-date internet access.""",
-            parameters =
-                ToolParameters(
-                    properties =
-                        mapOf(
-                            "query" to ToolProperty("string", "What to search for"),
-                            "search_depth" to
-                                ToolProperty(
-                                    "string",
-                                    "Search depth: basic or advanced (default: basic)",
-                                    enum = listOf("basic", "advanced"),
-                                ),
-                            "max_results" to ToolProperty("number", "Maximum number of results to return (default: 5)"),
-                        ),
-                    required = listOf("query"),
-                ),
-        )
-
-    /**
      * Navigate tool for app navigation and sharing.
      */
     val navigateTool: ToolDefinition =
@@ -448,7 +422,6 @@ Use when: user asks to breathe, relax, calm down, meditate, or de-stress.""",
             askUserTool,
             getNoteByIdTool,
             searchHistoryTool,
-            tavilySearchTool,
             guidedBreathingTool,
         )
 }
