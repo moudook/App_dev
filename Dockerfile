@@ -53,7 +53,10 @@ FROM eclipse-temurin:17-jre-alpine
 RUN apk add --no-cache nodejs npm bash
 
 # Install OpenCode CLI globally and clean npm cache to reduce image size
-RUN npm install -g opencode-ai@1.14.41 && npm cache clean --force
+# --unsafe-perm required because Docker build runs as root and npm >= 7
+# skips postinstall scripts for root users. Without this, the native Go binary
+# (bin/.opencode) is never downloaded by postinstall.mjs and the CLI is broken.
+RUN npm install -g opencode-ai@1.14.41 --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
 RUN addgroup -S appgroup && adduser -S -G appgroup -u 1000 user
