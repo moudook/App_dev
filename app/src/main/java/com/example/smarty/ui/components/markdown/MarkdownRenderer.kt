@@ -637,25 +637,16 @@ private fun RichTextWithLatex(
                 }
             } else {
                 if (segment.content.isNotEmpty()) {
-                    val annotated = parseMarkdownToAnnotatedString(
-                        segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+                    Text(
+                        text = parseMarkdownToAnnotatedString(
+                            segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+                        ),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
+                            fontWeight = FontWeight.Normal, color = normalColor
+                        ),
+                        modifier = Modifier.align(Alignment.CenterVertically)
                     )
-                    
-                    // Split by words and whitespace so FlowRow wraps perfectly
-                    val matcher = java.util.regex.Pattern.compile("\\S+|\\s+").matcher(annotated.text)
-                    while (matcher.find()) {
-                        val word = annotated.subSequence(matcher.start(), matcher.end())
-                        if (word.text.isNotEmpty()) {
-                            Text(
-                                text = word,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
-                                    fontWeight = FontWeight.Normal, color = normalColor
-                                ),
-                                modifier = Modifier.align(Alignment.CenterVertically)
-                            )
-                        }
-                    }
                 }
             }
         }

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import android.util.LruCache
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
@@ -105,6 +106,12 @@ fun preprocessContent(raw: String): String {
     return text
 }
 
+private val annotatedStringCache = object : LruCache<String, AnnotatedString>(256) {
+    override fun sizeOf(key: String, value: AnnotatedString): Int {
+        return key.length / 512 + value.text.length / 512 + 1
+    }
+}
+
 /**
  * Parses markdown content into an [AnnotatedString] with proper styling.
  *
@@ -122,7 +129,10 @@ fun parseMarkdownToAnnotatedString(
     codeColor: Color,
     isStreaming: Boolean = false
 ): AnnotatedString {
-    return buildAnnotatedString {
+    val cacheKey = if (content.length <= 2048) content else content.substring(0, 2048)
+    annotatedStringCache.get(cacheKey)?.let { return it }
+
+    val result = buildAnnotatedString {
         val text = content
 
         data class MarkdownMatch(
@@ -133,8 +143,8 @@ fun parseMarkdownToAnnotatedString(
             val isLink: Boolean = false,
             val url: String? = null,
             val isMath: Boolean = false,
-            val isStrike: Boolean = false,
-            val nestedStyles: List<SpanStyle> = emptyList()
+            val isCode: Boolean = false,
+            val isStrike: Boolean = false
         )
 
         val matches = mutableListOf<MarkdownMatch>()
@@ -154,30 +164,6 @@ fun parseMarkdownToAnnotatedString(
             if (matches.any { it.range.first <= match.range.first && it.range.last >= match.range.last }) return false
             matches.add(match)
             return true
-        }
-
-        fun findNestedStyles(outerText: String): List<SpanStyle> {
-            val nested = mutableListOf<SpanStyle>()
-            if (outerText.length < 4) return nested
-            val innerStart = when {
-                outerText.startsWith("**") || outerText.startsWith("__") -> 2
-                outerText.startsWith("*") || outerText.startsWith("_") -> 1
-                else -> 0
-            }
-            val innerEnd = when {
-                outerText.endsWith("**") || outerText.endsWith("__") -> outerText.length - 2
-                outerText.endsWith("*") || outerText.endsWith("_") -> outerText.length - 1
-                else -> outerText.length
-            }
-            if (innerStart >= innerEnd) return nested
-            val innerText = outerText.substring(innerStart until innerEnd)
-            if (innerText.contains("`") && !innerText.startsWith("`") && !innerText.endsWith("`")) {
-                nested.add(SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)))
-            }
-            if (innerText.contains("~~")) {
-                nested.add(SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough))
-            }
-            return nested
         }
 
         // ── Collect all matches by priority ──────────────────────────
@@ -207,7 +193,7 @@ fun parseMarkdownToAnnotatedString(
             addMatchIfValid(MarkdownMatch(
                 range = m.range, displayText = m.groupValues[1],
                 style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
-                priority = 2
+                priority = 2, isCode = true
             ))
         }
 
@@ -246,7 +232,7 @@ fun parseMarkdownToAnnotatedString(
             addMatchIfValid(MarkdownMatch(
                 range = m.range, displayText = m.groupValues[1],
                 style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-                priority = 5, nestedStyles = findNestedStyles(m.value)
+                priority = 5
             ))
         }
 
@@ -255,7 +241,7 @@ fun parseMarkdownToAnnotatedString(
             addMatchIfValid(MarkdownMatch(
                 range = m.range, displayText = m.groupValues[1],
                 style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-                priority = 6, nestedStyles = findNestedStyles(m.value)
+                priority = 6
             ))
         }
 
@@ -264,7 +250,7 @@ fun parseMarkdownToAnnotatedString(
             addMatchIfValid(MarkdownMatch(
                 range = m.range, displayText = m.groupValues[1],
                 style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-                priority = 7, nestedStyles = findNestedStyles(m.value)
+                priority = 7
             ))
         }
 
@@ -273,7 +259,7 @@ fun parseMarkdownToAnnotatedString(
             addMatchIfValid(MarkdownMatch(
                 range = m.range, displayText = m.groupValues[1],
                 style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-                priority = 8, nestedStyles = findNestedStyles(m.value)
+                priority = 8
             ))
         }
 
@@ -307,15 +293,16 @@ fun parseMarkdownToAnnotatedString(
                     style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
                 )
                 withLink(LinkAnnotation.Url(url = match.url, styles = linkStyle)) {
-                    append(match.displayText)
+                    val innerStr = parseMarkdownToAnnotatedString(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming)
+                    append(innerStr)
                 }
             } else {
                 // Regular styled span
                 withStyle(match.style) {
-                    if (match.nestedStyles.isNotEmpty()) {
-                        match.nestedStyles.forEach { nested -> pushStyle(nested) }
-                        append(match.displayText)
-                        repeat(match.nestedStyles.size) { pop() }
+                    val parseInner = !match.isMath && !match.isCode
+                    if (parseInner) {
+                        val innerStr = parseMarkdownToAnnotatedString(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming)
+                        append(innerStr)
                     } else {
                         append(match.displayText)
                     }
@@ -330,4 +317,6 @@ fun parseMarkdownToAnnotatedString(
             append(text.substring(cursor))
         }
     }
+    annotatedStringCache.put(cacheKey, result)
+    return result
 }

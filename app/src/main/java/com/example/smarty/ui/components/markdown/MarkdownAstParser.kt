@@ -17,7 +17,7 @@ sealed class MarkdownNode {
 data class AccordionItemData(val title: String, val content: String)
 
 object MarkdownAstParser {
-    private val cache = object : android.util.LruCache<String, List<MarkdownNode>>(64) {
+    private val cache = object : android.util.LruCache<String, List<MarkdownNode>>(16) {
         override fun sizeOf(key: String, value: List<MarkdownNode>) = 1
     }
 
