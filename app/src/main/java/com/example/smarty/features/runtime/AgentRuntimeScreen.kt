@@ -5,10 +5,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.ui.components.timeline.*
@@ -19,7 +21,27 @@ fun AgentRuntimeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Auto-connect the live stream when the screen enters composition
+    LaunchedEffect(Unit) {
+        viewModel.connectLiveStream()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        // Connection status chip
+        if (!uiState.isLiveStreamConnected) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+            ) {
+                Text(
+                    text = "Live stream disconnected — retrying…",
+                    modifier = Modifier.padding(8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFBBF24),
+                )
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(16.dp),
