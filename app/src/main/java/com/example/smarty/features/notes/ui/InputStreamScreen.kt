@@ -120,7 +120,6 @@ import com.example.smarty.features.notes.ui.inputstream.NormalModeContent
 import com.example.smarty.features.notes.ui.inputstream.SelectionModeToolbar
 import com.example.smarty.features.notes.ui.inputstream.StacksContent
 import com.example.smarty.features.notes.ui.inputstream.ArchiveContent
-import com.example.smarty.features.notes.ui.inputstream.SettingsContent
 import com.example.smarty.features.notes.ui.inputstream.GamesContent
 import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.features.voice.rememberSpeechToText
@@ -400,9 +399,6 @@ fun InputStreamScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     val settingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Settings inline view state
-    var showSettingsInline by remember { mutableStateOf(false) }
-
     // Games inline view state
     var showGamesInline by remember { mutableStateOf(false) }
 
@@ -411,8 +407,8 @@ fun InputStreamScreen(
 
     // Block shake when any inline view is active (Settings, Calendar, Stacks, Archive, History, Games)
     // This prevents accidental navigation or data loss while editing in these views
-    LaunchedEffect(showSettingsInline, showCalendarInline, showStacksInline, showArchiveInline, showChatHistoryInline, showGamesInline) {
-        val isInlineViewActive = showSettingsInline || showCalendarInline || showStacksInline || showArchiveInline || showChatHistoryInline || showGamesInline
+    LaunchedEffect(showCalendarInline, showStacksInline, showArchiveInline, showChatHistoryInline, showGamesInline) {
+        val isInlineViewActive = showCalendarInline || showStacksInline || showArchiveInline || showChatHistoryInline || showGamesInline
         onSetShakeBlocked(isInlineViewActive)
     }
 
@@ -431,7 +427,6 @@ fun InputStreamScreen(
         showCalendarInline = currentActive == NavigationTab.CALENDAR.name
         showStacksInline = currentActive == NavigationTab.STACKS.name
         showArchiveInline = currentActive == NavigationTab.ARCHIVE.name
-        showSettingsInline = currentActive == NavigationTab.SETTINGS.name
         showGamesInline = currentActive == NavigationTab.GAMES.name
         
         if (currentActive != NavigationTab.CHAT.name) {
@@ -462,7 +457,9 @@ fun InputStreamScreen(
         
         val newTab = NavigationTab.valueOf(tabStackRoutes.last())
         
-        if (newTab == NavigationTab.CHAT) {
+        if (newTab == NavigationTab.SETTINGS) {
+            onNavigateToSettings()
+        } else if (newTab == NavigationTab.CHAT) {
             if (!isChatMode) onEnterChatMode()
         } else {
             if (isChatMode) onExitChatMode()
@@ -1007,7 +1004,6 @@ fun InputStreamScreen(
                 showCalendarInline = showCalendarInline,
                 showStacksInline = showStacksInline,
                 showArchiveInline = showArchiveInline,
-                showSettingsInline = showSettingsInline,
                 showGamesInline = showGamesInline,
                 archiveCount = archivedNotes.size,
                 userIsScrolling = userIsScrolling
@@ -1041,11 +1037,10 @@ fun InputStreamScreen(
                 }
         ) {
             // Determine which content to show
-            // Priority: Stacks > Archive > Settings > Calendar > Chat > Notes
+            // Priority: Stacks > Archive > Calendar > Chat > Notes
             val contentMode = when {
                 showStacksInline -> "stacks"
                 showArchiveInline -> "archive"
-                showSettingsInline -> "settings"
                 showGamesInline -> "games"
                 showCalendarInline -> "calendar"
                 isChatMode -> "chat"
@@ -1058,7 +1053,7 @@ fun InputStreamScreen(
                 derivedStateOf {
                     when (contentMode) {
                         "chat" -> 0; "notes" -> 1; "calendar" -> 2
-                        "stacks" -> 3; "archive" -> 4; "settings" -> 5; "games" -> 6
+                        "stacks" -> 3; "archive" -> 4; "games" -> 5
                         else -> 1
                     }
                 }
@@ -1132,31 +1127,6 @@ fun InputStreamScreen(
                         )
                     }
                     5 -> {
-                        // Settings inline view
-                        SettingsContent(
-                            isDarkTheme = isDarkTheme,
-                            onToggleTheme = onToggleTheme,
-                            cacheSizeBytes = cacheSizeBytes,
-                            onClearCache = onClearCache,
-                            isClearingCache = isClearingCache,
-                            shakeSensitivity = shakeSensitivity,
-                            onShakeSensitivityChange = onShakeSensitivityChange,
-                            onSignOut = onSignOut,
-                            backupContent = backupContent,
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize(),
-                            isCalendarSyncEnabled = isCalendarSyncEnabled,
-                            onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
-                            deviceCalendars = deviceCalendars,
-                            targetCalendarId = targetCalendarId,
-                            onSetTargetCalendarId = onSetTargetCalendarId,
-                            onLoadDeviceCalendars = onLoadDeviceCalendars,
-
-                            connectionStatus = connectionStatus,
-                            onCloudSync = onSyncCloud
-                        )
-                    }
-                    6 -> {
                         GamesContent(
                             contentPadding = contentPaddingWithTop,
                             modifier = Modifier.fillMaxSize()
@@ -1299,7 +1269,6 @@ fun InputStreamScreen(
                 showCalendarInline = showCalendarInline,
                 showStacksInline = showStacksInline,
                 showArchiveInline = showArchiveInline,
-                showSettingsInline = showSettingsInline,
                 showGamesInline = showGamesInline,
                 onSendChatMessage = onSendChatMessage,
                 onAddNote = onAddNote,

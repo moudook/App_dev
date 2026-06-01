@@ -60,7 +60,6 @@ fun HorizontalActionBar(
     isCalendarMode: Boolean = false,
     isStacksMode: Boolean = false,
     isArchiveMode: Boolean = false,
-    isSettingsMode: Boolean = false,
     archiveCount: Int = 0,
     isScrolling: Boolean = false
 ) {

@@ -43,7 +43,6 @@ fun InputStreamTopBar(
     showCalendarInline: Boolean,
     showStacksInline: Boolean,
     showArchiveInline: Boolean,
-    showSettingsInline: Boolean,
     showGamesInline: Boolean,
     archiveCount: Int,
     userIsScrolling: Boolean,
@@ -122,7 +121,6 @@ fun InputStreamTopBar(
             selectedTab = when {
                 showStacksInline -> NavigationTab.STACKS
                 showArchiveInline -> NavigationTab.ARCHIVE
-                showSettingsInline -> NavigationTab.SETTINGS
                 showGamesInline -> NavigationTab.GAMES
                 showCalendarInline -> NavigationTab.CALENDAR
                 isChatMode -> NavigationTab.CHAT
@@ -134,7 +132,6 @@ fun InputStreamTopBar(
             isCalendarMode = showCalendarInline,
             isStacksMode = showStacksInline,
             isArchiveMode = showArchiveInline,
-            isSettingsMode = showSettingsInline,
             archiveCount = archiveCount,
             isScrolling = userIsScrolling
         )

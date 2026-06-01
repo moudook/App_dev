@@ -119,7 +119,6 @@ fun InputStreamBottomInput(
     showCalendarInline: Boolean,
     showStacksInline: Boolean,
     showArchiveInline: Boolean,
-    showSettingsInline: Boolean,
     showGamesInline: Boolean,
     userIsScrolling: Boolean,
     onSendChatMessage: (String, List<Attachment>) -> Unit,
@@ -206,7 +205,7 @@ fun InputStreamBottomInput(
         SmartyBrushes.bottomScrimLight
     }
 
-    val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showSettingsInline && !showGamesInline
+    val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showGamesInline
 
     Box(
         modifier = modifier.fillMaxWidth(),
