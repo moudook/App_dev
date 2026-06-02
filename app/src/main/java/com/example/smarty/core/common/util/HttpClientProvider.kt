@@ -69,7 +69,8 @@ object HttpClientProvider {
      * VERIFICATION: Pins are verified on first connection and cached for 24 hours.
      */
     private val certificatePinner: CertificatePinner by lazy {
-        CertificatePinner.Builder()
+        CertificatePinner
+            .Builder()
             // Hugging Face (huggingface.co) - Production pins
             .add("huggingface.co", "sha256/7nSlNh316066J3D4wNdNhN1q1q1q1q1q1q1q1q1q1q1=")
             .add("huggingface.co", "sha256/8oTmOi427177K4E5xOeOiO2r2r2r2r2r2r2r2r2r2r2=")
@@ -81,7 +82,8 @@ object HttpClientProvider {
      * Includes retry on connection failure for resilience.
      */
     val default: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -95,7 +97,8 @@ object HttpClientProvider {
      * Retries: 3 attempts with increasing delays (1s, 2s, 4s).
      */
     val withRetry: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -108,7 +111,8 @@ object HttpClientProvider {
      * Quick client for fast metadata fetches.
      */
     val quick: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(QUICK_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(QUICK_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(QUICK_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -121,7 +125,8 @@ object HttpClientProvider {
      * Long-running client for file downloads or large transfers.
      */
     val longRunning: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(LONG_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(LONG_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(LONG_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -165,7 +170,8 @@ object HttpClientProvider {
      * Trusts self-signed certificates for HTTPS connections.
      */
     val localServer: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -214,7 +220,8 @@ object HttpClientProvider {
                 append("}")
             }
 
-        return Request.Builder()
+        return Request
+            .Builder()
             .url("$serverUrl/api/fcm/register")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -227,12 +234,12 @@ object HttpClientProvider {
     fun buildFcmUnregisterRequest(
         serverUrl: String,
         token: String,
-    ): Request {
-        return Request.Builder()
+    ): Request =
+        Request
+            .Builder()
             .url("$serverUrl/api/fcm/unregister?token=$token")
             .delete()
             .build()
-    }
 
     /**
      * OPTIMIZATION: Helper function to build FCM notification test request.
@@ -252,7 +259,8 @@ object HttpClientProvider {
                 append("}")
             }
 
-        return Request.Builder()
+        return Request
+            .Builder()
             .url("$serverUrl/api/fcm/test")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -269,16 +277,16 @@ object HttpClientProvider {
 suspend fun OkHttpClient.executeGet(
     url: String,
     timeoutMs: Long = 30_000L,
-): okhttp3.Response? {
-    return kotlinx.coroutines.withTimeout(timeoutMs) {
+): okhttp3.Response? =
+    kotlinx.coroutines.withTimeout(timeoutMs) {
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(url)
                 .get()
                 .build()
         newCall(request).execute()
     }
-}
 
 /**
  * OPTIMIZATION: Extension function for executing POST requests with JSON body.
@@ -287,28 +295,27 @@ suspend fun <T> OkHttpClient.executePostJson(
     url: String,
     body: String,
     timeoutMs: Long = 30_000L,
-): okhttp3.Response? {
-    return kotlinx.coroutines.withTimeout(timeoutMs) {
+): okhttp3.Response? =
+    kotlinx.coroutines.withTimeout(timeoutMs) {
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(url)
                 .post(body.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
                 .build()
         newCall(request).execute()
     }
-}
 
 /**
  * OPTIMIZATION: Extension function for safe response body reading.
  * Handles null body and exceptions gracefully.
  */
-fun okhttp3.Response.readBodySafely(): String? {
-    return try {
+fun okhttp3.Response.readBodySafely(): String? =
+    try {
         body.string()
     } catch (e: Exception) {
         null
     }
-}
 
 /**
  * OPTIMIZATION: Extension function to check if response is successful.
@@ -319,8 +326,8 @@ fun okhttp3.Response.isSuccess(): Boolean = code in 200..299
 /**
  * OPTIMIZATION: Extension function to build JSON request body.
  */
-fun buildJsonBody(vararg pairs: Pair<String, Any?>): String {
-    return buildString {
+fun buildJsonBody(vararg pairs: Pair<String, Any?>): String =
+    buildString {
         append("{")
         pairs.forEachIndexed { index, (key, value) ->
             if (index > 0) append(",")
@@ -334,13 +341,14 @@ fun buildJsonBody(vararg pairs: Pair<String, Any?>): String {
         }
         append("}")
     }
-}
 
 /**
  * OPTIMIZATION: Inline class for URL building with proper encoding.
  */
 @JvmInline
-value class UrlBuilder(private val baseUrl: String) {
+value class UrlBuilder(
+    private val baseUrl: String,
+) {
     fun appendPath(path: String): UrlBuilder = UrlBuilder("$baseUrl/$path")
 
     fun appendQuery(

@@ -21,7 +21,6 @@ import com.example.smarty.protocol.AgentEvent
  * ```
  */
 class TimelineNodeAggregator {
-
     // Ordered list of nodes — mutated incrementally
     private val _nodes = mutableListOf<TimelineNode>()
     val nodes: List<TimelineNode> get() = _nodes
@@ -48,6 +47,19 @@ class TimelineNodeAggregator {
     private var hasGranularReasoning: Boolean = false
     private var hasGranularTools: Boolean = false
 
+    // Dedup window for ApprovalRequested events. The same MCP tool call
+    // produces events on two parallel paths (SSE from Ktor proxy, WebSocket
+    // from the daemon plugin) with different toolIds. We dedup by
+    // (toolName, isInteractive) within a 5-second window so only the first
+    // creates a visible ApprovalGate node.
+    private data class ApprovalDedupKey(
+        val toolName: String,
+        val isInteractive: Boolean,
+    )
+
+    private val approvalDedupTimestamps = mutableMapOf<ApprovalDedupKey, Long>()
+    private val approvalDedupWindowMs: Long = 5000L
+
     /**
      * Process a new batch of events (append-only). Internally tracks
      * [lastProcessedIndex] so repeated calls with the same events are
@@ -68,52 +80,60 @@ class TimelineNodeAggregator {
     fun process(event: AgentEvent) {
         val subId = event.subagentId
         if (subId != null) {
-            val subAggregator = subagentAggregators.getOrPut(subId) {
-                TimelineNodeAggregator()
-            }
+            val subAggregator =
+                subagentAggregators.getOrPut(subId) {
+                    TimelineNodeAggregator()
+                }
             subAggregator.process(event)
-            
+
             val groupIndex = subagentGroupIndexById[subId]
             if (groupIndex == null) {
-                val group = TimelineNode.SubagentGroup(
-                    id = "subagent_$subId",
-                    timestamp = event.timestamp,
-                    subagentId = subId,
-                    name = "Parallel Subagent",
-                    nodes = subAggregator.nodes.toList(),
-                    isOngoing = true
-                )
+                val group =
+                    TimelineNode.SubagentGroup(
+                        id = "subagent_$subId",
+                        timestamp = event.timestamp,
+                        subagentId = subId,
+                        name = "Parallel Subagent",
+                        nodes = subAggregator.nodes.toList(),
+                        isOngoing = true,
+                    )
                 subagentGroupIndexById[subId] = _nodes.size
                 _nodes.add(group)
             } else {
-                _nodes[groupIndex] = (_nodes[groupIndex] as TimelineNode.SubagentGroup).copy(
-                    nodes = subAggregator.nodes.toList()
-                )
+                _nodes[groupIndex] =
+                    (_nodes[groupIndex] as TimelineNode.SubagentGroup).copy(
+                        nodes = subAggregator.nodes.toList(),
+                    )
             }
             return
         }
 
         when (event) {
             // ── Reasoning (no-op — thinking traces removed) ──────────────────
-            is AgentEvent.ReasoningStarted -> { hasGranularReasoning = true }
-            is AgentEvent.ReasoningDelta -> { hasGranularReasoning = true }
+            is AgentEvent.ReasoningStarted -> {
+                hasGranularReasoning = true
+            }
+            is AgentEvent.ReasoningDelta -> {
+                hasGranularReasoning = true
+            }
             is AgentEvent.ReasoningFinished -> { /* no-op */ }
             is AgentEvent.Processing -> { /* no-op — thinking traces removed */ }
 
             // ── Tool Lifecycle ────────────────────────────────────────────────
             is AgentEvent.ToolCallStarted -> {
                 hasGranularTools = true
-                val node = TimelineNode.ToolExecution(
-                    id = event.toolId,
-                    timestamp = event.timestamp,
-                    toolName = event.name,
-                    displayName = formatToolDisplayName(event.name),
-                    source = event.source,
-                    status = TimelineNode.ToolExecution.Status.RUNNING,
-                    inputSummary = null,
-                    outputSummary = null,
-                    durationMs = null,
-                )
+                val node =
+                    TimelineNode.ToolExecution(
+                        id = event.toolId,
+                        timestamp = event.timestamp,
+                        toolName = event.name,
+                        displayName = formatToolDisplayName(event.name),
+                        source = event.source,
+                        status = TimelineNode.ToolExecution.Status.RUNNING,
+                        inputSummary = null,
+                        outputSummary = null,
+                        durationMs = null,
+                    )
                 toolNodeIndexByToolId[event.toolId] = _nodes.size
                 _nodes.add(node)
             }
@@ -121,11 +141,12 @@ class TimelineNodeAggregator {
             is AgentEvent.ToolCallInput -> {
                 hasGranularTools = true
                 updateToolNode(event.toolId) { existing ->
-                    val appended = if (existing.inputSummary.isNullOrBlank()) {
-                        event.inputDelta
-                    } else {
-                        existing.inputSummary + event.inputDelta
-                    }
+                    val appended =
+                        if (existing.inputSummary.isNullOrBlank()) {
+                            event.inputDelta
+                        } else {
+                            existing.inputSummary + event.inputDelta
+                        }
                     existing.copy(inputSummary = appended.take(800))
                 }
             }
@@ -133,11 +154,12 @@ class TimelineNodeAggregator {
             is AgentEvent.ToolCallOutput -> {
                 hasGranularTools = true
                 updateToolNode(event.toolId) { existing ->
-                    val appended = if (existing.outputSummary.isNullOrBlank()) {
-                        event.output
-                    } else {
-                        existing.outputSummary + "\n" + event.output
-                    }
+                    val appended =
+                        if (existing.outputSummary.isNullOrBlank()) {
+                            event.output
+                        } else {
+                            existing.outputSummary + "\n" + event.output
+                        }
                     existing.copy(outputSummary = appended.take(1200))
                 }
             }
@@ -158,23 +180,26 @@ class TimelineNodeAggregator {
                 when (event.status) {
                     "started" -> {
                         if (!toolNodeIndexByToolId.containsKey(toolId)) {
-                            val node = TimelineNode.ToolExecution(
-                                id = toolId,
-                                timestamp = event.timestamp,
-                                toolName = event.toolName,
-                                displayName = event.displayName,
-                                source = "opencode",
-                                status = TimelineNode.ToolExecution.Status.RUNNING,
-                                inputSummary = event.inputSummary,
-                                outputSummary = null,
-                                durationMs = null,
-                            )
+                            val node =
+                                TimelineNode.ToolExecution(
+                                    id = toolId,
+                                    timestamp = event.timestamp,
+                                    toolName = event.toolName,
+                                    displayName = event.displayName,
+                                    source = "opencode",
+                                    status = TimelineNode.ToolExecution.Status.RUNNING,
+                                    inputSummary = event.inputSummary,
+                                    outputSummary = null,
+                                    durationMs = null,
+                                )
                             toolNodeIndexByToolId[toolId] = _nodes.size
                             _nodes.add(node)
                         }
                     }
                     "completed" -> {
-                        updateToolNode(toolId) { it.copy(status = TimelineNode.ToolExecution.Status.COMPLETED, outputSummary = event.outputSummary) }
+                        updateToolNode(
+                            toolId,
+                        ) { it.copy(status = TimelineNode.ToolExecution.Status.COMPLETED, outputSummary = event.outputSummary) }
                     }
                     "failed" -> {
                         updateToolNode(toolId) { it.copy(status = TimelineNode.ToolExecution.Status.FAILED) }
@@ -191,30 +216,33 @@ class TimelineNodeAggregator {
                         if (hasGranularTools) return
                         val existing = toolNodeIndexByToolId[stepId]
                         if (existing == null) {
-                            val node = TimelineNode.ToolExecution(
-                                id = stepId,
-                                timestamp = event.timestamp,
-                                toolName = event.toolName ?: event.stepTitle,
-                                displayName = event.stepTitle,
-                                source = if (event.stepType == "opencode_tool") "opencode" else "mcp",
-                                status = when (event.stepStatus) {
-                                    "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
-                                    "failed" -> TimelineNode.ToolExecution.Status.FAILED
-                                    else -> TimelineNode.ToolExecution.Status.RUNNING
-                                },
-                                inputSummary = if (event.stepType != "tool_result") event.stepContent.take(400) else null,
-                                outputSummary = if (event.stepType == "tool_result") event.stepContent.take(800) else null,
-                                durationMs = event.durationMs,
-                            )
+                            val node =
+                                TimelineNode.ToolExecution(
+                                    id = stepId,
+                                    timestamp = event.timestamp,
+                                    toolName = event.toolName ?: event.stepTitle,
+                                    displayName = event.stepTitle,
+                                    source = if (event.stepType == "opencode_tool") "opencode" else "mcp",
+                                    status =
+                                        when (event.stepStatus) {
+                                            "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
+                                            "failed" -> TimelineNode.ToolExecution.Status.FAILED
+                                            else -> TimelineNode.ToolExecution.Status.RUNNING
+                                        },
+                                    inputSummary = if (event.stepType != "tool_result") event.stepContent.take(400) else null,
+                                    outputSummary = if (event.stepType == "tool_result") event.stepContent.take(800) else null,
+                                    durationMs = event.durationMs,
+                                )
                             toolNodeIndexByToolId[stepId] = _nodes.size
                             _nodes.add(node)
                         } else {
                             _nodes[existing] = (_nodes[existing] as? TimelineNode.ToolExecution)?.copy(
-                                status = when (event.stepStatus) {
-                                    "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
-                                    "failed" -> TimelineNode.ToolExecution.Status.FAILED
-                                    else -> TimelineNode.ToolExecution.Status.RUNNING
-                                },
+                                status =
+                                    when (event.stepStatus) {
+                                        "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
+                                        "failed" -> TimelineNode.ToolExecution.Status.FAILED
+                                        else -> TimelineNode.ToolExecution.Status.RUNNING
+                                    },
                                 outputSummary = if (event.stepType == "tool_result") event.stepContent.take(800) else null,
                                 durationMs = event.durationMs,
                             ) ?: _nodes[existing]
@@ -225,17 +253,31 @@ class TimelineNodeAggregator {
 
             // ── Approvals ─────────────────────────────────────────────────────
             is AgentEvent.ApprovalRequested -> {
-                val requiresText = event.toolName.equals("ask_user", ignoreCase = true) || event.toolName.equals("askuser", ignoreCase = true)
-                val node = TimelineNode.ApprovalGate(
-                    id = "approval_${event.toolId}",
-                    timestamp = event.timestamp,
-                    toolId = event.toolId,
-                    toolName = event.toolName,
-                    toolTitle = event.toolTitle,
-                    toolArgs = event.toolArgs,
-                    status = TimelineNode.ApprovalGate.Status.PENDING,
-                    requiresText = requiresText,
-                )
+                // Deduplicate by (toolName, isInteractive) within a 5-second window.
+                // The same tool call produces events from two independent paths
+                // (SSE via Ktor MCP proxy, WS via daemon plugin) with different
+                // toolIds — so we can't deduplicate by toolId alone.
+                val dedupKey = ApprovalDedupKey(event.toolName.lowercase(), event.isInteractive)
+                val lastTs = approvalDedupTimestamps[dedupKey]
+                val now = event.timestamp
+                if (lastTs != null && (now - lastTs) < approvalDedupWindowMs) {
+                    return
+                }
+                approvalDedupTimestamps[dedupKey] = now
+
+                val requiresText =
+                    event.toolName.equals("ask_user", ignoreCase = true) || event.toolName.equals("askuser", ignoreCase = true)
+                val node =
+                    TimelineNode.ApprovalGate(
+                        id = "approval_${event.toolId}",
+                        timestamp = event.timestamp,
+                        toolId = event.toolId,
+                        toolName = event.toolName,
+                        toolTitle = event.toolTitle,
+                        toolArgs = event.toolArgs,
+                        status = TimelineNode.ApprovalGate.Status.PENDING,
+                        requiresText = requiresText,
+                    )
                 approvalNodeIndexByToolId[event.toolId] = _nodes.size
                 _nodes.add(node)
             }
@@ -255,7 +297,7 @@ class TimelineNodeAggregator {
                         id = "error_${event.eventId}",
                         timestamp = event.timestamp,
                         message = event.message,
-                    )
+                    ),
                 )
             }
 
@@ -266,7 +308,7 @@ class TimelineNodeAggregator {
                         timestamp = event.timestamp,
                         message = event.reason,
                         isAborted = true,
-                    )
+                    ),
                 )
             }
 
@@ -277,18 +319,19 @@ class TimelineNodeAggregator {
                         id = "error_${event.eventId}",
                         timestamp = event.timestamp,
                         message = event.message,
-                    )
+                    ),
                 )
             }
 
             // ── Recovery ──────────────────────────────────────────────────────
             is AgentEvent.RecoveryStarted -> {
-                val node = TimelineNode.RecoveryNode(
-                    id = "recovery_${event.eventId}",
-                    timestamp = event.timestamp,
-                    reason = event.reason,
-                    succeeded = null,
-                )
+                val node =
+                    TimelineNode.RecoveryNode(
+                        id = "recovery_${event.eventId}",
+                        timestamp = event.timestamp,
+                        reason = event.reason,
+                        succeeded = null,
+                    )
                 recoveryNodeIndex = _nodes.size
                 _nodes.add(node)
             }
@@ -332,7 +375,8 @@ class TimelineNodeAggregator {
             is AgentEvent.StateSync,
             is AgentEvent.ToolBlocked,
             is AgentEvent.Question,
-            is AgentEvent.NoteBlock -> { /* No direct UI node */ }
+            is AgentEvent.NoteBlock,
+            -> { /* No direct UI node */ }
 
             else -> { /* Unknown event types — safe to ignore */ }
         }
@@ -342,14 +386,20 @@ class TimelineNodeAggregator {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────
 
-    private fun updateToolNode(toolId: String, update: (TimelineNode.ToolExecution) -> TimelineNode.ToolExecution) {
+    private fun updateToolNode(
+        toolId: String,
+        update: (TimelineNode.ToolExecution) -> TimelineNode.ToolExecution,
+    ) {
         val idx = toolNodeIndexByToolId[toolId] ?: return
         (_nodes[idx] as? TimelineNode.ToolExecution)?.let {
             _nodes[idx] = update(it)
         }
     }
 
-    private fun updateApprovalNode(toolId: String, update: (TimelineNode.ApprovalGate) -> TimelineNode.ApprovalGate) {
+    private fun updateApprovalNode(
+        toolId: String,
+        update: (TimelineNode.ApprovalGate) -> TimelineNode.ApprovalGate,
+    ) {
         val idx = approvalNodeIndexByToolId[toolId] ?: return
         (_nodes[idx] as? TimelineNode.ApprovalGate)?.let {
             _nodes[idx] = update(it)
@@ -366,16 +416,17 @@ class TimelineNodeAggregator {
         isOngoing: Boolean = false,
     ) {
         if (systemActivityIndex < 0 || systemActivityIndex >= _nodes.size) {
-            val node = TimelineNode.SystemActivity(
-                id = sysActivityId,
-                timestamp = ts,
-                cacheHits = cacheHits,
-                cacheMisses = cacheMisses,
-                dbReads = dbReads,
-                dbWrites = dbWrites,
-                syncCount = syncCount,
-                isOngoing = isOngoing,
-            )
+            val node =
+                TimelineNode.SystemActivity(
+                    id = sysActivityId,
+                    timestamp = ts,
+                    cacheHits = cacheHits,
+                    cacheMisses = cacheMisses,
+                    dbReads = dbReads,
+                    dbWrites = dbWrites,
+                    syncCount = syncCount,
+                    isOngoing = isOngoing,
+                )
             systemActivityIndex = _nodes.size
             _nodes.add(node)
         } else {
@@ -412,16 +463,16 @@ class TimelineNodeAggregator {
         lastProcessedIndex = 0
         hasGranularReasoning = false
         hasGranularTools = false
+        approvalDedupTimestamps.clear()
     }
 
     companion object {
         /** Converts a snake_case tool name into a friendly display name. */
-        fun formatToolDisplayName(name: String): String {
-            return name
+        fun formatToolDisplayName(name: String): String =
+            name
                 .replace("_", " ")
                 .split(" ")
                 .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
                 .take(40)
-        }
     }
 }
