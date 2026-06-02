@@ -407,19 +407,33 @@ fun Application.module() {
         // Wire McpServer approval events into the active WebSocket sessions so Android
         // receives ApprovalRequested/Granted/Denied in real time.
         mcpServer.eventEmitter = { event ->
-            log.info("[McpServer] Routing approval event to active session: ${event::class.simpleName}")
-            // Route via ActiveEventBridge (single path).
-            //   - SSE clients register their `eventEmitter` here and receive the event.
-            //   - WebSocket clients register their `wsEmitter` here and receive the event.
-            // Previously we ALSO emitted via AgentRunManager.emitEvent, but the WebSocket
-            // subscribes to BOTH the bridge AND the per-session flow, which caused every
-            // MCP approval event to be delivered twice to the Android app.
+            log.info("[McpServer] Routing approval event: ${event::class.simpleName}")
             val userId =
                 com.example.smarty.server.agent.ActiveUserRegistry
                     .getMostRecentActiveUser()
             if (userId != null) {
+                // ActiveEventBridge delivers to SSE clients and maintains a pending
+                // queue for late-connecting SSE subscribers.
                 com.example.smarty.server.agent.ActiveEventBridge
                     .emit(userId, event)
+                // Per-session flows deliver to WebSocket emitJob subscribers via a
+                // single send() path (eliminating the dual-coroutine WS send that
+                // caused Netty channel corruption on HF Spaces free tier).
+                val sessions = try {
+                    com.example.smarty.server.agent.ActiveSessionManager.getAllSessions()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                for (session in sessions) {
+                    if (session.userId == userId) {
+                        try {
+                            com.example.smarty.server.agent.AgentRunManager
+                                .emitEvent(session.sessionId, event)
+                        } catch (e: Exception) {
+                            log.warn("[McpServer] Failed to emit to session flow: ${session.sessionId}")
+                        }
+                    }
+                }
             }
         }
         routing {

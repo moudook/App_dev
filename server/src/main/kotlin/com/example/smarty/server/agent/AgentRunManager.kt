@@ -54,6 +54,7 @@ object AgentRunManager {
 
     /**
      * Starts an agent run in the background. If a run is already active for this session, it ignores or cancels based on logic.
+     * @return true if the run was started, false if it was skipped (e.g. pending approval)
      */
     fun startRun(
         userId: String,
@@ -75,9 +76,13 @@ object AgentRunManager {
         opencodeSessionId: String?,
         messageId: String? = null,
         variantOverride: String? = null,
-    ) {
+    ): Boolean {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
+            if (ApprovalRegistry.hasPendingForSession(sessionId)) {
+                logger.warn("Agent run already active for session: $sessionId with pending approval. Ignoring new query.")
+                return false
+            }
             logger.warn("Agent run already active for session: $sessionId. Cancelling existing and starting new.")
             existingJob.cancel()
             activeRuns.remove(sessionId)
@@ -287,6 +292,7 @@ object AgentRunManager {
             }
 
         activeRuns[sessionId] = job
+        return true
     }
 
     fun isRunActive(sessionId: String): Boolean = activeRuns[sessionId]?.isActive == true

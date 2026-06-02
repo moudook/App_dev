@@ -183,6 +183,9 @@ class RemoteAgentService(
      * Returns a Flow of partial/final results (content chunks) to be displayed in the UI.
      *
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
+     *
+     * Auto-reconnects on unexpected WebSocket disconnects with exponential backoff.
+     * Terminal events (Result.isFinal, Error) and PENDING_APPROVAL stop retrying.
      */
     fun sendQuery(
         query: String,
@@ -212,113 +215,158 @@ class RemoteAgentService(
 
             Log.i(TAG, ">>> SEND_QUERY: query=${query.take(100)}, sessionId=$sessionId, model=$model, messageId=$messageId")
             Log.i(TAG, ">>> SEND_QUERY: url=${url.substringBefore("?")} (token hidden)")
-            _connectionState.value = ConnectionStatus.CONNECTING
 
-            try {
-                client.webSocket(
-                    urlString = url,
-                    request = {
-                        if (token != null) {
-                            header(HttpHeaders.Authorization, "Bearer $token")
-                        }
-                        header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                        header("X-Smarty-Device-Id", getDeviceId())
-                    },
-                ) {
-                    _connectionState.value = ConnectionStatus.CONNECTED
-                    Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully")
+            var retryDelay = 1_000L
+            val maxRetryDelay = 30_000L
+            var retryCount = 0
+            val maxRetries = 5
 
-                    // Send the query request frame to start the run
-                    val requestObj =
-                        ChatQueryRequest(
-                            query = query,
-                            sessionId = sessionId,
-                            provider = provider,
-                            providerUrl = providerUrl,
-                            model = model,
-                            variant = variant,
-                            timezone = timezone,
-                            clientTime = clientTime,
-                            personality = personality,
-                            messageId = messageId,
-                        )
+            while (retryCount < maxRetries) {
+                _connectionState.value = ConnectionStatus.CONNECTING
+                Log.i(TAG, ">>> SEND_QUERY: attempt ${retryCount + 1}/$maxRetries")
 
-                    val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
-                    send(Frame.Text(requestJson))
-                    Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
+                try {
+                    var isTerminal = false
+                    client.webSocket(
+                        urlString = url,
+                        request = {
+                            if (token != null) {
+                                header(HttpHeaders.Authorization, "Bearer $token")
+                            }
+                            header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                            header("X-Smarty-Device-Id", getDeviceId())
+                        },
+                    ) {
+                        _connectionState.value = ConnectionStatus.CONNECTED
+                        retryDelay = 1_000L // Reset backoff on connect
+                        Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully (attempt ${retryCount + 1})")
 
-                    // Defensive dedup — the server can in theory emit the same
-                    // event twice if a routing layer fires during a reconnect.
-                    // FinalAnswerDelta and Result are the most harmful duplicates
-                    // because they corrupt the streamed text. Cap at 5,000 entries
-                    // to avoid unbounded growth on long-running streams.
-                    val seenEventIds = mutableSetOf<String>()
+                        // Send the query request frame to start the run.
+                        // On retries, this cancels the old agent run (if no pending approval)
+                        // and starts a fresh run with the latest state.
+                        val requestObj =
+                            ChatQueryRequest(
+                                query = query,
+                                sessionId = sessionId,
+                                provider = provider,
+                                providerUrl = providerUrl,
+                                model = model,
+                                variant = variant,
+                                timezone = timezone,
+                                clientTime = clientTime,
+                                personality = personality,
+                                messageId = messageId,
+                            )
 
-                    try {
-                        for (frame in incoming) {
-                            if (frame is Frame.Text) {
-                                val data = frame.readText()
-                                if (data.isBlank()) {
-                                    Log.d(TAG, ">>> WS_RECEIVED: blank frame, skipping")
-                                    continue
-                                }
-                                try {
-                                    Log.d(TAG, ">>> WS_RECEIVED: length=${data.length}, preview=${data.take(200)}")
-                                    val jsonElement = json.parseToJsonElement(data).jsonObject
-                                    val eventId = jsonElement["eventId"]?.jsonPrimitive?.content
-                                    if (eventId != null) {
-                                        if (seenEventIds.contains(eventId)) {
-                                            Log.d(TAG, ">>> WS_DEDUP: skipping duplicate eventId=$eventId")
-                                            continue
-                                        }
-                                        seenEventIds.add(eventId)
-                                        if (seenEventIds.size > 5_000) {
-                                            val iter = seenEventIds.iterator()
-                                            repeat(1_000) { if (iter.hasNext()) iter.next() }
-                                            iter.forEachRemaining { entry -> seenEventIds.remove(entry) }
-                                        }
+                        val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
+                        send(Frame.Text(requestJson))
+                        Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
+
+                        // Defensive dedup — the server can in theory emit the same
+                        // event twice if a routing layer fires during a reconnect.
+                        // FinalAnswerDelta and Result are the most harmful duplicates
+                        // because they corrupt the streamed text. Cap at 5,000 entries
+                        // to avoid unbounded growth on long-running streams.
+                        val seenEventIds = mutableSetOf<String>()
+
+                        try {
+                            for (frame in incoming) {
+                                if (frame is Frame.Text) {
+                                    val data = frame.readText()
+                                    if (data.isBlank()) {
+                                        Log.d(TAG, ">>> WS_RECEIVED: blank frame, skipping")
+                                        continue
                                     }
-                                    val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
+                                    try {
+                                        Log.d(TAG, ">>> WS_RECEIVED: length=${data.length}, preview=${data.take(200)}")
+                                        val jsonElement = json.parseToJsonElement(data).jsonObject
+                                        val eventId = jsonElement["eventId"]?.jsonPrimitive?.content
+                                        if (eventId != null) {
+                                            if (seenEventIds.contains(eventId)) {
+                                                Log.d(TAG, ">>> WS_DEDUP: skipping duplicate eventId=$eventId")
+                                                continue
+                                            }
+                                            seenEventIds.add(eventId)
+                                            if (seenEventIds.size > 5_000) {
+                                                val iter = seenEventIds.iterator()
+                                                repeat(1_000) { if (iter.hasNext()) iter.next() }
+                                                iter.forEachRemaining { entry -> seenEventIds.remove(entry) }
+                                            }
+                                        }
+                                        val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
 
-                                    // Skip server keepalive pings
-                                    if (eventType == "ping") continue
+                                        // Skip server keepalive pings
+                                        if (eventType == "ping") continue
 
-                                    Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
-                                    val agentEvent = decodeAgentEvent(eventType, data)
-                                    Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")
-                                    val shouldStop = handleEvent(agentEvent, this@flow)
-                                    if (shouldStop) {
-                                        Log.i(TAG, ">>> WS_STOP: handleEvent returned true, stopping stream")
-                                        throw EndStreamException()
+                                        Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
+                                        val agentEvent = decodeAgentEvent(eventType, data)
+                                        Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")
+
+                                        // PENDING_APPROVAL means the server refused the query
+                                        // because a prior approval gate is still waiting.
+                                        // This is not a transient error — give up immediately.
+                                        if (agentEvent is AgentEvent.Error && agentEvent.code == "PENDING_APPROVAL") {
+                                            Log.w(TAG, ">>> WS_PENDING_APPROVAL: Server has pending approval, giving up")
+                                            isTerminal = true
+                                            emit(agentEvent)
+                                            break
+                                        }
+
+                                        val shouldStop = handleEvent(agentEvent, this@flow)
+                                        if (shouldStop) {
+                                            Log.i(TAG, ">>> WS_STOP: handleEvent returned true, stopping stream")
+                                            isTerminal = true
+                                            break
+                                        }
+                                    } catch (e: Exception) {
+                                        if (e is EndStreamException) throw e
+                                        Log.e(TAG, "Failed to process WS event (length: ${data.length}): ${e.message}", e)
                                     }
-                                } catch (e: Exception) {
-                                    if (e is EndStreamException) throw e
-                                    Log.e(TAG, "Failed to process WS event (length: ${data.length}): ${e.message}", e)
                                 }
                             }
+                        } catch (e: EndStreamException) {
+                            Log.i(TAG, ">>> WS_COMPLETE: Stream completed normally")
+                            isTerminal = true
                         }
-                    } catch (e: EndStreamException) {
-                        Log.i(TAG, ">>> WS_COMPLETE: Stream completed normally")
+                    }
+                    if (isTerminal) {
+                        Log.i(TAG, ">>> WS_TERMINAL: Stream ended (terminal event or PENDING_APPROVAL)")
+                        if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                            _connectionState.value = ConnectionStatus.DISCONNECTED
+                        }
+                        break // Exit retry loop — agent finished or refused
+                    }
+                    // Clean disconnect without terminal event (shouldn't reach here in practice
+                    // if agent emits Result/Error, but handle gracefully)
+                    if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                        _connectionState.value = ConnectionStatus.DISCONNECTED
+                        Log.i(TAG, ">>> WS_DISCONNECTED: WebSocket closed normally (no terminal event)")
+                    }
+                    break
+                } catch (e: Exception) {
+                    Log.e(TAG, "WS connection failed (attempt ${retryCount + 1}/$maxRetries): ${e.message}", e)
+                    retryCount++
+                    if (retryCount < maxRetries) {
+                        _connectionState.value = ConnectionStatus.OFFLINE
+                        Log.i(TAG, ">>> WS_RETRY: waiting ${retryDelay}ms before retry")
+                        kotlinx.coroutines.delay(retryDelay)
+                        retryDelay = (retryDelay * 2).coerceAtMost(maxRetryDelay)
+                    } else {
+                        Log.e(TAG, ">>> WS_EXHAUSTED: All $maxRetries attempts failed")
+                        _connectionState.value = ConnectionStatus.OFFLINE
+                        emit(
+                            AgentEvent.Error(
+                                eventId =
+                                    java.util.UUID
+                                        .randomUUID()
+                                        .toString(),
+                                timestamp = System.currentTimeMillis(),
+                                message = "[Connection Error: ${e.message ?: "All retries exhausted"}]",
+                                code = "CONNECTION_ERROR",
+                            ),
+                        )
                     }
                 }
-                if (_connectionState.value != ConnectionStatus.OFFLINE) {
-                    _connectionState.value = ConnectionStatus.DISCONNECTED
-                    Log.i(TAG, ">>> WS_DISCONNECTED: WebSocket closed normally")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "WS connection failed: ${e.message}", e)
-                _connectionState.value = ConnectionStatus.OFFLINE
-                emit(
-                    AgentEvent.Error(
-                        eventId =
-                            java.util.UUID
-                                .randomUUID()
-                                .toString(),
-                        timestamp = System.currentTimeMillis(),
-                        message = "[Connection Error: ${e.message}]",
-                        code = "CONNECTION_ERROR",
-                    ),
-                )
             }
         }
 

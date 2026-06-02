@@ -695,16 +695,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 com.example.smarty.server.agent.ActiveUserRegistry
                     .setActive(userId)
 
-                // Register with ActiveEventBridge so MCP approval events reach this WebSocket
-                val wsEmitter: suspend (AgentEvent) -> Unit = { event ->
-                    try {
-                        send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
-                    } catch (e: Exception) {
-                        call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
-                    }
-                }
-                ActiveEventBridge.register(userId, wsEmitter)
-
+                // MCP approval events reach this WebSocket via the AgentRunManager event flow,
+                // NOT via ActiveEventBridge — the emitJob below subscribes to the per-session
+                // flow and delivers every event (agent + MCP) through a single send() path,
+                // eliminating the dual-coroutine Netty channel corruption.
                 val flow =
                     com.example.smarty.server.agent.AgentRunManager
                         .getEventFlow(sessionIdParam)
@@ -757,7 +751,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 }
 
                                 // Launch the run via decoupled manager
-                                com.example.smarty.server.agent.AgentRunManager.startRun(
+                                val started = com.example.smarty.server.agent.AgentRunManager.startRun(
                                     userId = userId,
                                     sessionId = activeSessionId,
                                     query = chatRequest.query,
@@ -778,6 +772,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     messageId = chatRequest.messageId,
                                     variantOverride = chatRequest.variant,
                                 )
+                                if (!started) {
+                                    send(Frame.Text(json.encodeToString(
+                                        AgentEvent.Error(
+                                            eventId = UUID.randomUUID().toString(),
+                                            timestamp = System.currentTimeMillis(),
+                                            message = "Agent run already active with pending approval. Please respond to the pending request first.",
+                                            code = "PENDING_APPROVAL",
+                                        ),
+                                    )))
+                                }
                             } catch (e: kotlinx.serialization.SerializationException) {
                                 // If not ChatRequest, try ClientEvent
                                 try {
@@ -810,13 +814,21 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     emitJob.cancel()
                     heartbeatJob.cancel()
-                    ActiveEventBridge.clear(userId)
-                    com.example.smarty.server.agent.AgentRunManager
-                        .cancelRun(sessionIdParam)
+                    // Don't cancel the run if there are pending approvals — the user
+                    // can still respond via HTTP at /api/v1/chat/events/approval.
+                    // AgentRunManager cleans up on natural completion or 2-hour timeout.
+                    if (!com.example.smarty.server.agent.ApprovalRegistry.hasPendingForSession(sessionIdParam)) {
+                        com.example.smarty.server.agent.AgentRunManager
+                            .cancelRun(sessionIdParam)
+                    } else {
+                        call.application.log.info(
+                            "WS disconnect: preserving agent run for session $sessionIdParam (pending approval)"
+                        )
+                    }
+                    // End the session tracker entry; the agent run remains active
+                    // in AgentRunManager's flow so a reconnecting client can resume.
                     com.example.smarty.server.agent.ActiveSessionManager
                         .endSession(userId, sessionIdParam)
-                    com.example.smarty.server.agent.ActiveUserRegistry
-                        .clearActive(userId)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
             }

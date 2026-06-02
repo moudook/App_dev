@@ -187,4 +187,7 @@ object ApprovalRegistry {
             }
         }
     }
+
+    fun hasPendingForSession(sessionId: String): Boolean =
+        pendingApprovals.values.any { it.sessionId == sessionId }
 }
