@@ -408,22 +408,18 @@ fun Application.module() {
         // receives ApprovalRequested/Granted/Denied in real time.
         mcpServer.eventEmitter = { event ->
             log.info("[McpServer] Routing approval event to active session: ${event::class.simpleName}")
-            // Route 1: ActiveEventBridge → registered WS emitters keyed by userId
+            // Route via ActiveEventBridge (single path).
+            //   - SSE clients register their `eventEmitter` here and receive the event.
+            //   - WebSocket clients register their `wsEmitter` here and receive the event.
+            // Previously we ALSO emitted via AgentRunManager.emitEvent, but the WebSocket
+            // subscribes to BOTH the bridge AND the per-session flow, which caused every
+            // MCP approval event to be delivered twice to the Android app.
             val userId =
                 com.example.smarty.server.agent.ActiveUserRegistry
                     .getMostRecentActiveUser()
             if (userId != null) {
                 com.example.smarty.server.agent.ActiveEventBridge
                     .emit(userId, event)
-                // Route 2: AgentRunManager flow → emitJob in WebSocket handler
-                val sessionId =
-                    com.example.smarty.server.agent.ActiveSessionManager
-                        .getSessionInfo(userId)
-                        ?.sessionId
-                if (sessionId != null) {
-                    com.example.smarty.server.agent.AgentRunManager
-                        .emitEvent(sessionId, event)
-                }
             }
         }
         routing {

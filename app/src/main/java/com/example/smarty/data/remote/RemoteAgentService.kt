@@ -247,6 +247,13 @@ class RemoteAgentService(
                     send(Frame.Text(requestJson))
                     Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
 
+                    // Defensive dedup — the server can in theory emit the same
+                    // event twice if a routing layer fires during a reconnect.
+                    // FinalAnswerDelta and Result are the most harmful duplicates
+                    // because they corrupt the streamed text. Cap at 5,000 entries
+                    // to avoid unbounded growth on long-running streams.
+                    val seenEventIds = mutableSetOf<String>()
+
                     try {
                         for (frame in incoming) {
                             if (frame is Frame.Text) {
@@ -258,6 +265,19 @@ class RemoteAgentService(
                                 try {
                                     Log.d(TAG, ">>> WS_RECEIVED: length=${data.length}, preview=${data.take(200)}")
                                     val jsonElement = json.parseToJsonElement(data).jsonObject
+                                    val eventId = jsonElement["eventId"]?.jsonPrimitive?.content
+                                    if (eventId != null) {
+                                        if (seenEventIds.contains(eventId)) {
+                                            Log.d(TAG, ">>> WS_DEDUP: skipping duplicate eventId=$eventId")
+                                            continue
+                                        }
+                                        seenEventIds.add(eventId)
+                                        if (seenEventIds.size > 5_000) {
+                                            val iter = seenEventIds.iterator()
+                                            repeat(1_000) { if (iter.hasNext()) iter.next() }
+                                            iter.forEachRemaining { entry -> seenEventIds.remove(entry) }
+                                        }
+                                    }
                                     val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
 
                                     // Skip server keepalive pings

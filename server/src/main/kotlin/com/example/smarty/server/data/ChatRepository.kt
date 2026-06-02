@@ -1,5 +1,6 @@
 package com.example.smarty.server.data
 
+import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.llm.LlmMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -338,6 +339,15 @@ class ChatRepository(
                 stmt.executeUpdate()
             }
         }
+        // Register the opencodeSessionId → (userId, chatSessionId) mapping in
+        // ActiveSessionManager so live streaming events arriving from the
+        // OpenCode plugin (which only carry the opencodeSessionId) can be
+        // routed into the correct per-session flow by TimelineBridgeRoutes.
+        ActiveSessionManager.registerOpencodeSessionId(
+            opencodeSessionId = opencodeSessionId,
+            userId = userId,
+            chatSessionId = sessionId,
+        )
     }
 
     suspend fun deleteSession(

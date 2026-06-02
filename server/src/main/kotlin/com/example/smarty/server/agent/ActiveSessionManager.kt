@@ -20,6 +20,16 @@ object ActiveSessionManager {
     private val activeSessions = ConcurrentHashMap<String, SessionInfo>()
     private val mutex = Mutex()
 
+    /**
+     * Reverse lookup: opencodeSessionId → (userId, chatSessionId)
+     * Populated when the Ktor server calls `updateOpencodeSessionId` after the
+     * OpenCode daemon assigns a session ID. Used by `TimelineBridgeRoutes`
+     * to route live `message.part.delta` events (which carry the OpenCode
+     * session ID) into the correct per-session flow so the Android app can
+     * stream them as `FinalAnswerDelta` chunks.
+     */
+    private val opencodeIndex = ConcurrentHashMap<String, Pair<String, String>>()
+
     private const val SESSION_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
 
     private var sweeperJob: kotlinx.coroutines.Job? = null
@@ -94,10 +104,37 @@ object ActiveSessionManager {
             val info = activeSessions[sessionId]
             if (info?.userId == userId) {
                 activeSessions.remove(sessionId)
+                // Drop any opencodeSessionId entries pointing at this chat session.
+                opencodeIndex.entries.removeAll { it.value.second == sessionId }
                 logger.debug("Session ended: userId=$userId, sessionId=$sessionId")
             }
         }
     }
+
+    /**
+     * Register an opencodeSessionId → (userId, chatSessionId) mapping so
+     * that timeline events arriving from the OpenCode plugin (which only
+     * know the opencodeSessionId) can be routed into the right per-session
+     * event flow. Safe to call repeatedly with the same values; calling
+     * with a different `userId`/`chatSessionId` for the same opencodeSessionId
+     * overwrites (this shouldn't happen in practice — one opencode session
+     * is bound to one chat session for its lifetime).
+     */
+    fun registerOpencodeSessionId(
+        opencodeSessionId: String,
+        userId: String,
+        chatSessionId: String,
+    ) {
+        opencodeIndex[opencodeSessionId] = userId to chatSessionId
+        logger.debug("[ActiveSessionManager] opencode session mapped: $opencodeSessionId -> user=$userId, chatSession=$chatSessionId")
+    }
+
+    /**
+     * Resolve an opencodeSessionId to its (userId, chatSessionId) pair, or
+     * null if no mapping has been registered yet (or it has been cleaned up).
+     * Used by `TimelineBridgeRoutes` to route streaming deltas.
+     */
+    fun resolveOpencodeSessionId(opencodeSessionId: String): Pair<String, String>? = opencodeIndex[opencodeSessionId]
 
     /**
      * Check if a user has an active session.

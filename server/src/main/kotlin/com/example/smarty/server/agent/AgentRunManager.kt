@@ -98,8 +98,12 @@ object AgentRunManager {
                 val collectedAgentEvents = mutableListOf<AgentEvent>()
 
                 val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
+                    // Single emission path: the per-session flow is the source of truth.
+                    // Both the /chat/ws WebSocket emitJob and /ws/timeline bridge subscribe
+                    // to this flow (via getEventFlow) so they each receive exactly one copy.
+                    // The ActiveEventBridge is reserved for events that originate OUTSIDE the
+                    // agent loop (e.g. MCP approval events emitted from Application.kt:409-428).
                     flow.emit(event)
-                    ActiveEventBridge.emit(userId, event) // Support legacy SSE active bridge if still needed
 
                     collectedAgentEvents.add(event)
                     if (event is AgentEvent.AgentStep) {

@@ -1,6 +1,8 @@
 package com.example.smarty.server.routes
 
 import com.example.smarty.agent.permissions.ToolPermissionDecision
+import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.permissionRepository
 import com.example.smarty.server.agent.toolPermissionEnforcer
 import com.example.smarty.server.plugins.verifyFirebaseToken
@@ -29,6 +31,7 @@ import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -154,6 +157,27 @@ fun Application.configureTimelineBridgeRoutes() {
 
                 bridge.ingest(kind, sessionID, event, ts)
 
+                // ── Live streaming: translate plugin events into AgentEvents and
+                // push them into the per-session flow so the Android app can render
+                // every step in real time. WebSocket is the only transport — no
+                // polling, no SSE fallback. MCP tool calls are deliberately skipped
+                // per product requirement (they have their own approval flow).
+                val resolved =
+                    ActiveSessionManager.resolveOpencodeSessionId(sessionID)
+                if (resolved != null) {
+                    val (userId, chatSessionId) = resolved
+                    val streamEvents = translatePluginEvent(kind, event, ts)
+                    for (streamEvent in streamEvents) {
+                        com.example.smarty.server.agent.AgentRunManager
+                            .emitEvent(chatSessionId, streamEvent)
+                    }
+                    if (streamEvents.isNotEmpty()) {
+                        logger.debug(
+                            "[STREAM-TRANSLATE] kind=$kind -> ${streamEvents.size} event(s) for user=$userId chat=$chatSessionId",
+                        )
+                    }
+                }
+
                 // Broadcast the raw event to all connected WebSocket clients
                 val wrapped =
                     buildJsonObject {
@@ -259,6 +283,152 @@ fun Application.configureTimelineBridgeRoutes() {
 }
 
 private val logger = LoggerFactory.getLogger("TimelineBridgeRoutes")
+
+/**
+ * MCP tool names are prefixed with `mcp` by the OpenCode CLI (e.g.
+ * `mcp__smarty_ask_user`). The product requirement is to skip streaming
+ * for MCP tool calls — they have their own approval / response flow.
+ */
+private fun isMcpToolName(name: String?): Boolean = !name.isNullOrBlank() && name.startsWith("mcp")
+
+/**
+ * Translate a single plugin event payload into zero or more [AgentEvent]s
+ * for live streaming to the Android app. Returns an empty list when the
+ * event is not streamable (e.g. unknown part type, MCP tool, empty delta).
+ *
+ * Coverage:
+ *   - message.part.delta field=text      -> FinalAnswerDelta
+ *   - message.part.delta field=reasoning -> ReasoningDelta
+ *   - tool.before (non-MCP)              -> ToolCallStarted + ToolCallInput
+ *   - tool.after  (non-MCP)              -> ToolCallOutput + ToolCallFinished
+ *   - part.updated partType=step-start   -> StepStarted
+ *   - part.updated partType=step-finish  -> StepFinished
+ *   - part.updated partType=subtask      -> StepStarted (sub-agent)
+ */
+private fun translatePluginEvent(
+    kind: String,
+    event: JsonObject,
+    ts: Long,
+): List<AgentEvent> {
+    val out = mutableListOf<AgentEvent>()
+
+    when (kind) {
+        "message.part.delta" -> {
+            val field = event["field"]?.jsonPrimitive?.content
+            val delta = event["delta"]?.jsonPrimitive?.content
+            if (delta.isNullOrEmpty()) return emptyList()
+            when (field) {
+                "text" ->
+                    out +=
+                        AgentEvent.FinalAnswerDelta(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            text = delta,
+                        )
+                "reasoning" ->
+                    out +=
+                        AgentEvent.ReasoningDelta(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            text = delta,
+                        )
+            }
+        }
+
+        "tool.before" -> {
+            val tool = event["tool"]?.jsonPrimitive?.content
+            val callId = event["callID"]?.jsonPrimitive?.content
+            if (isMcpToolName(tool)) return emptyList()
+            if (tool.isNullOrBlank() || callId.isNullOrBlank()) return emptyList()
+            val args = event["args"]
+            val argsStr = if (args != null && args != JsonPrimitive(null)) args.toString() else ""
+            out +=
+                AgentEvent.ToolCallStarted(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    toolId = callId,
+                    name = tool,
+                    source = "opencode",
+                )
+            if (argsStr.isNotEmpty()) {
+                out +=
+                    AgentEvent.ToolCallInput(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        toolId = callId,
+                        inputDelta = argsStr,
+                    )
+            }
+        }
+
+        "tool.after" -> {
+            val tool = event["tool"]?.jsonPrimitive?.content
+            val callId = event["callID"]?.jsonPrimitive?.content
+            if (isMcpToolName(tool)) return emptyList()
+            if (callId.isNullOrBlank()) return emptyList()
+            val result = event["result"]
+            val error = event["error"]
+            val outputStr =
+                when {
+                    error != null && error != JsonPrimitive(null) -> "Error: $error"
+                    result != null && result != JsonPrimitive(null) -> result.toString()
+                    else -> ""
+                }
+            if (outputStr.isNotEmpty()) {
+                out +=
+                    AgentEvent.ToolCallOutput(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        toolId = callId,
+                        output = outputStr,
+                    )
+            }
+            out +=
+                AgentEvent.ToolCallFinished(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    toolId = callId,
+                    durationMs = 0L,
+                )
+        }
+
+        "part.updated" -> {
+            val partType = event["partType"]?.jsonPrimitive?.content ?: return emptyList()
+            when (partType) {
+                "step-start" -> {
+                    val step = event["step"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                    out +=
+                        AgentEvent.StepStarted(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            title = "Step $step",
+                        )
+                }
+                "step-finish" -> {
+                    out +=
+                        AgentEvent.StepFinished(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            success = true,
+                        )
+                }
+                "subtask" -> {
+                    val desc = event["description"]?.jsonPrimitive?.content
+                    val agent = event["agent"]?.jsonPrimitive?.content
+                    val title = desc ?: agent?.let { "Sub-agent: $it" } ?: "Sub-agent"
+                    out +=
+                        AgentEvent.StepStarted(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            title = title,
+                        )
+                }
+            }
+        }
+    }
+
+    return out
+}
 
 /**
  * In-memory timeline storage with WebSocket broadcast.
