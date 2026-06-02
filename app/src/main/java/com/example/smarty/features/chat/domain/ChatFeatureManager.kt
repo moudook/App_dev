@@ -1815,6 +1815,7 @@ class ChatFeatureManager(
 
             // Collect chunks from the remote stream and update UI live
             val responseBuilder = StringBuilder()
+            val thinkingBuilder = StringBuilder()
             val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
@@ -1983,11 +1984,116 @@ class ChatFeatureManager(
                                 )
                             chatManager.updateMessageNoteReferences(streamingMessageId, noteRef)
                         }
+                        // ── Plugin-path text streaming (OpenCode CLI deltas) ──
+                        is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
+                            responseBuilder.append(event.text)
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                thinkingBuilder.toString().ifEmpty { null },
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                        }
+                        // ── Plugin-path reasoning streaming ──
+                        is com.example.smarty.protocol.AgentEvent.ReasoningDelta -> {
+                            thinkingBuilder.append(event.text)
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                thinkingBuilder.toString().ifEmpty { null },
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ReasoningStarted -> {
+                            // Start new thinking section — clear previous
+                            thinkingBuilder.clear()
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
+                            // Thinking section complete — flush to message
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                thinkingBuilder.toString().ifEmpty { null },
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                        }
+                        // ── Plugin-path tool lifecycle ──
+                        is com.example.smarty.protocol.AgentEvent.ToolCallStarted -> {
+                            val actionResult =
+                                com.example.smarty.core.domain.model.AgentActionResult(
+                                    action = event.name,
+                                    success = true,
+                                    resultSummary = "Running ${event.name}…",
+                                )
+                            pendingActions.removeAll { it.action == event.name }
+                            pendingActions.add(actionResult)
+                            chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+
+                            val toolCallEntry =
+                                com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                    toolName = event.name,
+                                    displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                                    status = "started",
+                                    inputSummary = "",
+                                    outputSummary = null,
+                                )
+                            pendingToolCalls.removeAll { it.toolName == event.name }
+                            pendingToolCalls.add(toolCallEntry)
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ToolCallOutput -> {
+                            // Match the most recently started tool (tools execute sequentially)
+                            val idx = pendingToolCalls.lastIndex
+                            if (idx >= 0) {
+                                val entry = pendingToolCalls[idx]
+                                pendingToolCalls[idx] = entry.copy(
+                                    outputSummary = event.output.take(800),
+                                )
+                                pendingActions.removeAll { it.action == entry.displayName }
+                                pendingActions.add(
+                                    com.example.smarty.core.domain.model.AgentActionResult(
+                                        action = entry.displayName,
+                                        success = true,
+                                        resultSummary = event.output.take(120),
+                                    ),
+                                )
+                                chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+                            }
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ToolCallFinished -> {
+                            val idx = pendingToolCalls.lastIndex
+                            if (idx >= 0) {
+                                val entry = pendingToolCalls[idx]
+                                pendingToolCalls[idx] = entry.copy(status = "completed")
+                                pendingActions.removeAll { it.action == entry.displayName }
+                                chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+                            }
+                        }
+                        // ── Plugin-path step events ──
+                        is com.example.smarty.protocol.AgentEvent.StepStarted -> {
+                            val uiStep =
+                                com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "tool_call",
+                                    stepTitle = event.title,
+                                    stepContent = "",
+                                    stepStatus = "started",
+                                    stepIndex = collectedAgentSteps.size,
+                                )
+                            collectedAgentSteps.add(uiStep)
+                            chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
+                        }
+                        is com.example.smarty.protocol.AgentEvent.StepFinished -> {
+                            if (collectedAgentSteps.isNotEmpty()) {
+                                val lastIdx = collectedAgentSteps.lastIndex
+                                val updated = collectedAgentSteps[lastIdx].copy(
+                                    stepStatus = if (event.success) "completed" else "failed",
+                                )
+                                collectedAgentSteps[lastIdx] = updated
+                                chatManager.updateMessageAgentSteps(streamingMessageId, updated)
+                            }
+                        }
                         else -> {
-                            // Granular canonical events (Phase 4+): ReasoningStarted, ReasoningDelta,
-                            // ToolCallStarted, ApprovalRequested, SessionError, CacheHit, etc.
-                            // These are persisted in the TimelineEventEntity log and accumulated in
-                            // agentEvents for timeline UI. No additional handling needed here.
+                            // Remaining canonical events: SessionError, CacheHit, etc.
+                            // Approval events are still handled here.
                             if (event is AgentEvent.ApprovalRequested) {
                                 Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}")
                                 _pendingApprovalState.value =
@@ -2056,7 +2162,7 @@ class ChatFeatureManager(
                     id = streamingMessageId,
                     role = ChatRole.SMARTY,
                     content = parsedResponse.answer.ifEmpty { "[No response received. Please try again.]" },
-                    thinking = null,
+                    thinking = thinkingBuilder.toString().ifEmpty { streamingMsg?.thinking },
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = pendingToolCalls.toList(), // Fix #10: Tools not visible - now populated

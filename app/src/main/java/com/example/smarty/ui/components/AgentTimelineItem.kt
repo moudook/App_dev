@@ -7,7 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +19,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.chat.CitationCards
+import com.example.smarty.ui.components.chat.StepTimeline
 import com.example.smarty.ui.components.chat.TextEffectPerWord
+import com.example.smarty.ui.components.chat.ThinkingBlock
+import com.example.smarty.ui.components.chat.ToolCallEntryCard
 
 @Composable
 fun AgentTimelineItem(
@@ -37,12 +41,12 @@ fun AgentTimelineItem(
             modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (isUser) {
             var isExpanded by remember { mutableStateOf(false) }
             var hasOverflow by remember { mutableStateOf(false) }
 
-            // User message: Right-aligned bubble
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.CenterEnd,
@@ -114,7 +118,28 @@ fun AgentTimelineItem(
                 }
             }
         } else {
-            // Agent response: Left-aligned plain text (no bubble, no icon)
+            val thinking = message.thinking
+            if (!thinking.isNullOrBlank()) {
+                ThinkingBlock(thinking = thinking)
+            }
+
+            if (message.toolCalls.isNotEmpty()) {
+                message.toolCalls.forEach { toolCall ->
+                    ToolCallEntryCard(toolCall = toolCall)
+                }
+            }
+
+            if (message.agentSteps.isNotEmpty()) {
+                StepTimeline(steps = message.agentSteps)
+            }
+
+            if (message.citations.isNotEmpty()) {
+                CitationCards(
+                    citations = message.citations,
+                    accentColor = accentColor,
+                )
+            }
+
             if (message.content.isNotBlank() || message.isStreaming) {
                 Box(
                     modifier =

@@ -345,7 +345,7 @@ class ChatManager(
                     if (msg.id == messageId) {
                         msg.copy(
                             content = newContent,
-                            thinking = null,
+                            thinking = newThinking,
                             confidence = confidence ?: msg.confidence,
                             sourceType = sourceType ?: msg.sourceType,
                             agentEvents = agentEvents,
