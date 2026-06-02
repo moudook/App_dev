@@ -67,19 +67,6 @@ fun ThinkingAccordion(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                if (isStreaming) {
-                    TextButton(
-                        onClick = { onSkip() },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(28.dp),
-                    ) {
-                        Text(
-                            text = "Skip",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                            color = accentColor.copy(alpha = 0.8f),
-                        )
-                    }
-                }
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (expanded) "Collapse" else "Expand",

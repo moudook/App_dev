@@ -166,7 +166,7 @@ fun Application.configureTimelineBridgeRoutes() {
                     ActiveSessionManager.resolveOpencodeSessionId(sessionID)
                 if (resolved != null) {
                     val (userId, chatSessionId) = resolved
-                    val streamEvents = translatePluginEvent(kind, event, ts)
+                    val streamEvents = translatePluginEvent(kind, event, ts, sessionID)
                     for (streamEvent in streamEvents) {
                         com.example.smarty.server.agent.AgentRunManager
                             .emitEvent(chatSessionId, streamEvent)
@@ -300,6 +300,19 @@ private val logger = LoggerFactory.getLogger("TimelineBridgeRoutes")
 private fun isMcpToolName(name: String?): Boolean = !name.isNullOrBlank() && name.startsWith("mcp")
 
 /**
+ * Per-session state for computing deltas from snapshot events.
+ * The OpenCode daemon v1.15.13 sends `message.updated` snapshot events
+ * (full accumulated text) rather than `message.part.delta` deltas.
+ * We track the previous text/reasoning per session and emit only the delta.
+ */
+private data class SessionContentState(
+    var text: String = "",
+    var reasoning: String = "",
+)
+
+private val sessionContentStates = ConcurrentHashMap<String, SessionContentState>()
+
+/**
  * Translate a single plugin event payload into zero or more [AgentEvent]s
  * for live streaming to the Android app. Returns an empty list when the
  * event is not streamable (e.g. unknown part type, MCP tool, empty delta).
@@ -307,6 +320,7 @@ private fun isMcpToolName(name: String?): Boolean = !name.isNullOrBlank() && nam
  * Coverage:
  *   - message.part.delta field=text      -> FinalAnswerDelta
  *   - message.part.delta field=reasoning -> ReasoningDelta
+ *   - message.updated (snapshot)         -> FinalAnswerDelta / ReasoningDelta (delta computed)
  *   - tool.before (non-MCP)              -> ToolCallStarted + ToolCallInput
  *   - tool.after  (non-MCP)              -> ToolCallOutput + ToolCallFinished
  *   - part.updated partType=step-start   -> StepStarted
@@ -317,6 +331,7 @@ private fun translatePluginEvent(
     kind: String,
     event: JsonObject,
     ts: Long,
+    sessionId: String,
 ): List<AgentEvent> {
     val out = mutableListOf<AgentEvent>()
 
@@ -340,6 +355,93 @@ private fun translatePluginEvent(
                             timestamp = ts,
                             text = delta,
                         )
+            }
+        }
+
+        "message.updated" -> {
+            // The daemon sends snapshot events with the full accumulated text.
+            // Extract text/reasoning from the message parts array, compute deltas
+            // from the previous state, and emit only the new content.
+            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+            val messageObj = event["message"]?.jsonObject ?: event
+            val parts = messageObj["parts"]
+            if (parts != null) {
+                val partsArray = parts.toString().let { raw ->
+                    try {
+                        Json.parseToJsonElement(raw).jsonObject
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                // Try array-style parts: {"0": {"type":"text","text":"..."}, "1": {...}}
+                // or list-style: [{"type":"text","text":"..."}]
+                if (partsArray != null) {
+                    for ((_, partRaw) in partsArray) {
+                        val part = partRaw?.jsonObject ?: continue
+                        val partType = part["type"]?.jsonPrimitive?.content
+                        when (partType) {
+                            "text" -> {
+                                val fullText = part["text"]?.jsonPrimitive?.content ?: ""
+                                if (fullText.length > state.text.length) {
+                                    val delta = fullText.substring(state.text.length)
+                                    state.text = fullText
+                                    if (delta.isNotEmpty()) {
+                                        out +=
+                                            AgentEvent.FinalAnswerDelta(
+                                                eventId = UUID.randomUUID().toString(),
+                                                timestamp = ts,
+                                                text = delta,
+                                            )
+                                    }
+                                }
+                            }
+                            "reasoning" -> {
+                                val fullReasoning = part["reasoning"]?.jsonPrimitive?.content ?: ""
+                                if (fullReasoning.length > state.reasoning.length) {
+                                    val delta = fullReasoning.substring(state.reasoning.length)
+                                    state.reasoning = fullReasoning
+                                    if (delta.isNotEmpty()) {
+                                        out +=
+                                            AgentEvent.ReasoningDelta(
+                                                eventId = UUID.randomUUID().toString(),
+                                                timestamp = ts,
+                                                text = delta,
+                                            )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Also handle flat structure: event has direct "text" or "reasoning" fields
+            if (out.isEmpty()) {
+                val fullText = event["text"]?.jsonPrimitive?.content
+                if (fullText != null && fullText.length > state.text.length) {
+                    val delta = fullText.substring(state.text.length)
+                    state.text = fullText
+                    if (delta.isNotEmpty()) {
+                        out +=
+                            AgentEvent.FinalAnswerDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = ts,
+                                text = delta,
+                            )
+                    }
+                }
+                val fullReasoning = event["reasoning"]?.jsonPrimitive?.content
+                if (fullReasoning != null && fullReasoning.length > state.reasoning.length) {
+                    val delta = fullReasoning.substring(state.reasoning.length)
+                    state.reasoning = fullReasoning
+                    if (delta.isNotEmpty()) {
+                        out +=
+                            AgentEvent.ReasoningDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = ts,
+                                text = delta,
+                            )
+                    }
+                }
             }
         }
 
@@ -430,6 +532,40 @@ private fun translatePluginEvent(
                             timestamp = ts,
                             title = title,
                         )
+                }
+                "text" -> {
+                    // part.updated snapshot with full accumulated text — compute delta
+                    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+                    val fullText = event["text"]?.jsonPrimitive?.content ?: ""
+                    if (fullText.length > state.text.length) {
+                        val delta = fullText.substring(state.text.length)
+                        state.text = fullText
+                        if (delta.isNotEmpty()) {
+                            out +=
+                                AgentEvent.FinalAnswerDelta(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = ts,
+                                    text = delta,
+                                )
+                        }
+                    }
+                }
+                "reasoning" -> {
+                    // part.updated snapshot with full accumulated reasoning — compute delta
+                    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+                    val fullReasoning = event["reasoning"]?.jsonPrimitive?.content ?: ""
+                    if (fullReasoning.length > state.reasoning.length) {
+                        val delta = fullReasoning.substring(state.reasoning.length)
+                        state.reasoning = fullReasoning
+                        if (delta.isNotEmpty()) {
+                            out +=
+                                AgentEvent.ReasoningDelta(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = ts,
+                                    text = delta,
+                                )
+                        }
+                    }
                 }
             }
         }
