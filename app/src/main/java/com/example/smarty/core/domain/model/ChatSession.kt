@@ -154,8 +154,6 @@ data class ChatMessageEntity(
                 emptyList()
             }
 
-        val cleanThinking: String? = null
-
         // agentEventsJson is NOT deserialized here — it's overwritten by timeline_events
         // in getMessagesForSessionOnce(). Deserializing it here wastes ~0.4MB per 100 messages.
 
@@ -169,7 +167,7 @@ data class ChatMessageEntity(
             referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
             citations = citations,
             inlineImages = inlineImages,
-            thinking = null,
+            thinking = thinking,
             toolCalls = toolCalls,
             agentSteps = parseAgentStepsJson(agentStepsJson),
             agentEvents = emptyList(),
@@ -232,7 +230,7 @@ data class ChatMessageEntity(
                 referencedNoteIds = message.referencedNoteIds.joinToString(","),
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson,
-                thinking = null,
+                thinking = message.thinking,
                 toolCallsJson = toolCallsJson,
                 agentStepsJson = agentStepsJson,
                 agentEventsJson = agentEventsJson,

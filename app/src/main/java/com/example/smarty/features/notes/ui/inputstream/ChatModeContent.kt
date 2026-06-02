@@ -72,6 +72,7 @@ fun ChatModeContent(
     onCopyMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
     onRegenerateMessage: (String) -> Unit = {},
+    onStopGeneration: () -> Unit = {},
     onEditMessage: ((ChatMessage) -> Unit)? = null,
     onClarificationSubmit: ((String) -> Unit)? = null,
     onRetryFailed: (FailedMessage) -> Unit = {},
@@ -173,6 +174,7 @@ fun ChatModeContent(
                             message = message,
                             onCopyMessage = onCopyMessage,
                             onRegenerateMessage = onRegenerateMessage,
+                            onSkip = onStopGeneration,
                             modifier = Modifier.padding(top = topSpacing),
                         )
                     }

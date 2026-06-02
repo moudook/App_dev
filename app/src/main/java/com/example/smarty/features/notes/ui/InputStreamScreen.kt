@@ -1150,6 +1150,7 @@ fun InputStreamScreen(
                                         onEventClickById = onEventClickById,
                                         onSendChatMessage = onSendChatMessage,
                                         onDeleteChatMessage = onDeleteChatMessage,
+                                        onStopGeneration = onStopGeneration,
                                         onSetChatHistory = { showChatHistoryInline = it },
                                         modifier = Modifier.fillMaxSize(),
                                     )

@@ -1,8 +1,8 @@
 package com.example.smarty.ui.components.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,8 +26,12 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 
 @Composable
-fun ThinkingBlock(thinking: String) {
-    var expanded by remember { mutableStateOf(false) }
+fun ThinkingAccordion(
+    thinking: String,
+    isStreaming: Boolean,
+    onSkip: () -> Unit = {},
+) {
+    var expanded by remember(thinking) { mutableStateOf(isStreaming) }
     val accentColor = LocalAccentColor.current
     val isDark = isSystemInDarkTheme()
     val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
@@ -47,33 +50,47 @@ fun ThinkingBlock(thinking: String) {
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) { expanded = !expanded }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    Icons.Default.Psychology,
-                    null,
-                    tint = accentColor.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp),
-                )
+                if (isStreaming) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor.copy(alpha = 0.7f),
+                    )
+                }
                 Text(
-                    text = "Reasoning",
+                    text = if (isStreaming) "Thinking\u2026" else "Thought",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                if (isStreaming) {
+                    TextButton(
+                        onClick = { onSkip() },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(28.dp),
+                    ) {
+                        Text(
+                            text = "Skip",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                            color = accentColor.copy(alpha = 0.8f),
+                        )
+                    }
+                }
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                     modifier = Modifier.size(18.dp),
                 )
             }
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f)) + fadeIn(animationSpec = tween(200)),
-                exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(150)),
+                enter = expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeOut(),
             ) {
                 Box(
                     modifier =
@@ -83,8 +100,11 @@ fun ThinkingBlock(thinking: String) {
                 ) {
                     Text(
                         text = thinking,
-                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                     )
                 }
             }

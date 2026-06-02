@@ -137,7 +137,7 @@ data class ChatMessage(
     /**
      * Check if this message has a thinking/reasoning section
      */
-    val hasThinking: Boolean get() = false
+    val hasThinking: Boolean get() = !thinking.isNullOrBlank()
 
     /**
      * Check if this message has agent action blocks to display

@@ -48,6 +48,7 @@ fun ChatModeSection(
     onEventClickById: (String) -> Unit,
     onSendChatMessage: (String, List<Attachment>) -> Unit,
     onDeleteChatMessage: (String) -> Unit,
+    onStopGeneration: () -> Unit = {},
     onSetChatHistory: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -140,6 +141,7 @@ fun ChatModeSection(
                     contentPadding = contentPaddingWithTop,
                     isChatProcessing = isChatProcessing,
                     agentActivity = agentActivity,
+                    onStopGeneration = onStopGeneration,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

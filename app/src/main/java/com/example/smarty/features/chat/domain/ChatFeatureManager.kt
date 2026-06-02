@@ -2005,8 +2005,10 @@ class ChatFeatureManager(
                             )
                         }
                         is com.example.smarty.protocol.AgentEvent.ReasoningStarted -> {
-                            // Start new thinking section — clear previous
-                            thinkingBuilder.clear()
+                            // New reasoning round — append separator if we already have content
+                            if (thinkingBuilder.isNotEmpty()) {
+                                thinkingBuilder.append("\n\n───\n\n")
+                            }
                         }
                         is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
                             // Thinking section complete — flush to message
@@ -2037,7 +2039,6 @@ class ChatFeatureManager(
                                     inputSummary = "",
                                     outputSummary = null,
                                 )
-                            pendingToolCalls.removeAll { it.toolName == event.name }
                             pendingToolCalls.add(toolCallEntry)
                         }
                         is com.example.smarty.protocol.AgentEvent.ToolCallOutput -> {
@@ -2166,6 +2167,7 @@ class ChatFeatureManager(
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = pendingToolCalls.toList(), // Fix #10: Tools not visible - now populated
+                    agentSteps = collectedAgentSteps.toList(), // Fix #12: Preserve agent steps in final message
                     citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                     inlineImages = pendingInlineImages.toList(),
                     isStreaming = false,

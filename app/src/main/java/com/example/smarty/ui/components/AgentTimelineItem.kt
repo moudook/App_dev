@@ -22,7 +22,7 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.chat.CitationCards
 import com.example.smarty.ui.components.chat.StepTimeline
 import com.example.smarty.ui.components.chat.TextEffectPerWord
-import com.example.smarty.ui.components.chat.ThinkingBlock
+import com.example.smarty.ui.components.chat.ThinkingAccordion
 import com.example.smarty.ui.components.chat.ToolCallEntryCard
 
 @Composable
@@ -32,6 +32,7 @@ fun AgentTimelineItem(
     onCopyMessage: (String) -> Unit = {},
     onRegenerateMessage: (String) -> Unit = {},
     onApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
+    onSkip: () -> Unit = {},
 ) {
     val isUser = message.isUser
     val accentColor = LocalAccentColor.current
@@ -120,7 +121,11 @@ fun AgentTimelineItem(
         } else {
             val thinking = message.thinking
             if (!thinking.isNullOrBlank()) {
-                ThinkingBlock(thinking = thinking)
+                ThinkingAccordion(
+                    thinking = thinking,
+                    isStreaming = message.isStreaming,
+                    onSkip = onSkip,
+                )
             }
 
             if (message.toolCalls.isNotEmpty()) {
