@@ -13,9 +13,9 @@ fun Application.configureAuthRoutes() {
     routing {
         post("/auth/verify") {
             // Get the Bearer token from the X-Firebase-Auth header (set by Cloudflare proxy)
-            val token = call.request.header("X-Firebase-Auth")
+            val token = call.request.header("X-Firebase-Auth")?.removePrefix("Bearer ")?.trim()
             if (token.isNullOrBlank()) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid X-Firebase-Auth header"))
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid token"))
                 return@post
             }
             val deviceId = call.request.header("X-Smarty-Device-Id")

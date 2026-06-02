@@ -308,9 +308,12 @@ fun Application.configureSecurity() {
         bearer("firebase") {
             realm = "Smarty API"
             authHeader { call ->
-                call.request.header("X-Firebase-Auth")?.let { token ->
-                    HttpAuthHeader.Single("Bearer", token)
-                }
+                call.request.header("X-Firebase-Auth")
+                    ?.removePrefix("Bearer ")
+                    ?.trim()
+                    ?.let { token ->
+                        HttpAuthHeader.Single("Bearer", token)
+                    }
             }
             authenticate { credential ->
                 try {
