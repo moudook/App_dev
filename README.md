@@ -134,5 +134,19 @@ Open the project in Android Studio, sync Gradle, and run the `:app` configuratio
 
 ---
 
+# Security Notes
+
+## Admin Email Whitelist (⚠️ REMOVE BEFORE PUBLIC RELEASE)
+
+The server enforces an **admin-only email whitelist** at the authentication layer. Only `forpblcusz@gmail.com` can access the server.
+
+### Where to remove/change:
+1. `server/.../plugins/Security.kt` → `ADMIN_EMAIL` constant and `isAdminEmail()` function
+2. `server/.../routes/AuthRoutes.kt` → email check in `/auth/verify` handler
+3. To disable: Set `ADMIN_EMAIL` to `null` or remove the checks, or delete the `isAdminEmail()` calls
+
+### Why it exists:
+This allows the Hugging Face Space to be public (enabling direct WebSocket connections) while ensuring only the owner's Google account can access data. Remove this when the app is ready for multi-user support.
+
 # License
 MIT License
