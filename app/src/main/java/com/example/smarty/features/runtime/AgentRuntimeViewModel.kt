@@ -4,11 +4,11 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarty.agent.permissions.ToolPermissionDecision
+import com.example.smarty.agent.permissions.ToolPermissionPolicy
 import com.example.smarty.core.common.util.HttpClientProvider
 import com.example.smarty.core.common.util.buildJsonBody
 import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.agent.permissions.ToolPermissionDecision
-import com.example.smarty.agent.permissions.ToolPermissionPolicy
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.ui.components.timeline.TimelineNode
 import com.example.smarty.ui.components.timeline.TimelineNodeAggregator
@@ -69,8 +69,9 @@ data class RuntimeUiState(
  *   MCP tool coroutine. The tool returns, the plugin sees `tool.execute.after`, and the
  *   timeline flips the tool from "awaiting" → "done".
  */
-class AgentRuntimeViewModel(application: Application) : AndroidViewModel(application) {
-
+class AgentRuntimeViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(RuntimeUiState())
     val uiState: StateFlow<RuntimeUiState> = _uiState.asStateFlow()
 
@@ -92,6 +93,10 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
     private val wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var reconnectJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var connectUrl: String = ""
+    private var authToken: String? = null
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 10
 
     /**
      * Open a persistent WebSocket to Ktor's `/ws/timeline`. Translates raw plugin
@@ -103,128 +108,196 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
         if (webSocket != null) return
         viewModelScope.launch {
             val serverUrl = securePreferences.getSmartyServerUrl()
-            val token = withContext(Dispatchers.IO) {
-                runCatching {
-                    FirebaseAuth.getInstance().currentUser
-                        ?.getIdToken(false)
-                        ?.await()
-                        ?.token
-                }.getOrNull()
-            }
-            val wsUrl = serverUrl
-                .replace("https://", "wss://")
-                .replace("http://", "ws://")
-                .let { "$it/ws/timeline" }
-                .let { if (token != null) "$it?token=$token" else it }
+            val token =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        FirebaseAuth
+                            .getInstance()
+                            .currentUser
+                            ?.getIdToken(false)
+                            ?.await()
+                            ?.token
+                    }.getOrNull()
+                }
+            val wsUrl =
+                serverUrl
+                    .replace("https://", "wss://")
+                    .replace("http://", "ws://")
+                    .let { "$it/ws/timeline" }
 
-            Log.i(TAG, "Connecting to live stream: ${wsUrl.take(80)}…")
-            openWebSocket(wsUrl)
+            Log.i(TAG, "Connecting to live stream: $wsUrl (authorized via header)")
+            openWebSocket(wsUrl, token)
         }
     }
 
-    private fun openWebSocket(url: String) {
-        val request = Request.Builder().url(url).build()
-        webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.i(TAG, "Live stream connected")
-                _uiState.update { it.copy(isLiveStreamConnected = true) }
-                startHeartbeat()
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    val json = JSONObject(text)
-                    val kind = json.optString("kind")
-                    val sessionID = json.optString("sessionID")
-                    val event = translateToAgentEvent(kind, json)
-                    if (event != null) {
-                        // Defensive policy short-circuit: if a non-interactive
-                        // `permission.asked` event slipped through for a tool
-                        // the policy already allows/denies, auto-respond and
-                        // DON'T feed it to the aggregator (so no spurious
-                        // `ApprovalGate` node appears in the timeline). The
-                        // CLI normally handles allow/deny before emitting,
-                        // so this is a safety net.
-                        if (event is AgentEvent.ApprovalRequested && !event.isInteractive) {
-                            val decision = toolPermissionPolicy.decide(event.toolName)
-                            when (decision) {
-                                ToolPermissionDecision.ALLOW -> {
-                                    Log.i(
-                                        TAG,
-                                        ">>> POLICY_AUTO_APPROVE: tool=${event.toolName} (defensive short-circuit; CLI normally handles this)",
-                                    )
-                                    sendPluginAskResponse(
-                                        sessionId = sessionID.ifBlank { null },
-                                        callId = event.toolId,
-                                        response = "auto-approved by policy",
-                                    )
-                                    return  // don't render in timeline
-                                }
-                                ToolPermissionDecision.DENY -> {
-                                    Log.i(
-                                        TAG,
-                                        ">>> POLICY_AUTO_DENY: tool=${event.toolName} (defensive short-circuit; CLI normally blocks this)",
-                                    )
-                                    sendPluginAskResponse(
-                                        sessionId = sessionID.ifBlank { null },
-                                        callId = event.toolId,
-                                        response = "denied by policy",
-                                    )
-                                    return  // don't render in timeline
-                                }
-                                ToolPermissionDecision.DEFAULT -> {
-                                    // No policy rule — fall through to the
-                                    // normal aggregator path which renders
-                                    // the approval card.
-                                }
-                            }
-                        }
-                        handleIncomingEvent(event)
+    private fun openWebSocket(
+        url: String,
+        token: String? = null,
+    ) {
+        reconnectAttempts = 0 // Reset on successful connect attempt
+        connectUrl = url
+        authToken = token
+        val request =
+            Request
+                .Builder()
+                .url(url)
+                .apply {
+                    if (token != null) {
+                        addHeader("Authorization", "Bearer $token")
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to parse WS message: ${e.message}")
-                }
-            }
+                }.build()
+        webSocket =
+            okHttpClient.newWebSocket(
+                request,
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response,
+                    ) {
+                        Log.i(TAG, "Live stream connected")
+                        _uiState.update { it.copy(isLiveStreamConnected = true) }
+                        startHeartbeat()
+                    }
 
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.i(TAG, "Live stream closing: $code $reason")
-                webSocket.close(1000, null)
-            }
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        try {
+                            val json = JSONObject(text)
+                            val kind = json.optString("kind")
+                            val sessionID = json.optString("sessionID")
+                            val event = translateToAgentEvent(kind, json)
+                            if (event != null) {
+                                // Defensive policy short-circuit: if a non-interactive
+                                // `permission.asked` event slipped through for a tool
+                                // the policy already allows/denies, auto-respond and
+                                // DON'T feed it to the aggregator (so no spurious
+                                // `ApprovalGate` node appears in the timeline). The
+                                // CLI normally handles allow/deny before emitting,
+                                // so this is a safety net.
+                                if (event is AgentEvent.ApprovalRequested && !event.isInteractive) {
+                                    val decision = toolPermissionPolicy.decide(event.toolName)
+                                    when (decision) {
+                                        ToolPermissionDecision.ALLOW -> {
+                                            Log.i(
+                                                TAG,
+                                                ">>> POLICY_AUTO_APPROVE: tool=${event.toolName} (defensive short-circuit; CLI normally handles this)",
+                                            )
+                                            sendPluginAskResponse(
+                                                sessionId = sessionID.ifBlank { null },
+                                                callId = event.toolId,
+                                                response = "auto-approved by policy",
+                                            )
+                                            return // don't render in timeline
+                                        }
+                                        ToolPermissionDecision.DENY -> {
+                                            Log.i(
+                                                TAG,
+                                                ">>> POLICY_AUTO_DENY: tool=${event.toolName} (defensive short-circuit; CLI normally blocks this)",
+                                            )
+                                            sendPluginAskResponse(
+                                                sessionId = sessionID.ifBlank { null },
+                                                callId = event.toolId,
+                                                response = "denied by policy",
+                                            )
+                                            return // don't render in timeline
+                                        }
+                                        ToolPermissionDecision.DEFAULT -> {
+                                            // No policy rule — fall through to the
+                                            // normal aggregator path which renders
+                                            // the approval card.
+                                        }
+                                    }
+                                }
+                                handleIncomingEvent(event)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to parse WS message: ${e.message}")
+                        }
+                    }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.i(TAG, "Live stream closed: $code $reason")
-                _uiState.update { it.copy(isLiveStreamConnected = false) }
-                scheduleReconnect(url)
-            }
+                    override fun onClosing(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String,
+                    ) {
+                        Log.i(TAG, "Live stream closing: $code $reason")
+                        webSocket.close(1000, null)
+                    }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "Live stream failure: ${t.message}")
-                _uiState.update { it.copy(isLiveStreamConnected = false) }
-                scheduleReconnect(url)
-            }
-        })
+                    override fun onClosed(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String,
+                    ) {
+                        Log.i(TAG, "Live stream closed: $code $reason")
+                        _uiState.update { it.copy(isLiveStreamConnected = false) }
+                        // Don't reconnect on normal close (1000) — intentional disconnect
+                        if (code != 1000) {
+                            scheduleReconnect(url)
+                        }
+                    }
+
+                    override fun onFailure(
+                        webSocket: WebSocket,
+                        t: Throwable,
+                        response: Response?,
+                    ) {
+                        Log.w(TAG, "Live stream failure: ${t.message}")
+                        _uiState.update { it.copy(isLiveStreamConnected = false) }
+                        scheduleReconnect(url)
+                    }
+                },
+            )
     }
 
     private fun startHeartbeat() {
         heartbeatJob?.cancel()
-        heartbeatJob = wsScope.launch {
-            while (true) {
-                delay(15_000)
-                try {
-                    webSocket?.send("""{"type":"ping"}""")
-                } catch (e: Exception) {
-                    // ignore — onFailure/onClosed will trigger reconnect
+        heartbeatJob =
+            wsScope.launch {
+                while (true) {
+                    delay(15_000)
+                    try {
+                        val ok = webSocket?.send("""{"type":"ping"}""") ?: false
+                        if (!ok) {
+                            Log.w(TAG, "Heartbeat send failed (queue full), will reconnect")
+                            break
+                        }
+                    } catch (e: Exception) {
+                        // ignore — onFailure/onClosed will trigger reconnect
+                        break
+                    }
                 }
             }
-        }
     }
 
     private fun scheduleReconnect(url: String) {
-        reconnectJob?.cancel()
-        reconnectJob = wsScope.launch {
-            delay(2_000)
-            openWebSocket(url)
+        reconnectAttempts++
+        if (reconnectAttempts > maxReconnectAttempts) {
+            Log.w(TAG, "Max reconnect attempts ($maxReconnectAttempts) reached, giving up")
+            _uiState.update { it.copy(isLiveStreamConnected = false) }
+            return
         }
+        reconnectJob?.cancel()
+        reconnectJob =
+            wsScope.launch {
+                val delayMs = (2_000L * reconnectAttempts).coerceAtMost(30_000L)
+                delay(delayMs)
+                // Refresh the token before reconnect in case it expired
+                val freshToken =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            FirebaseAuth
+                                .getInstance()
+                                .currentUser
+                                ?.getIdToken(false)
+                                ?.await()
+                                ?.token
+                        }.getOrNull()
+                    }
+                openWebSocket(url, freshToken ?: authToken)
+            }
     }
 
     /**
@@ -233,7 +306,10 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
      * between the plugin's bespoke schema and the Android app's existing
      * timeline model.
      */
-    private fun translateToAgentEvent(kind: String, json: JSONObject): AgentEvent? {
+    private fun translateToAgentEvent(
+        kind: String,
+        json: JSONObject,
+    ): AgentEvent? {
         val ts = System.currentTimeMillis()
         val eventId = UUID.randomUUID().toString()
         val sessionID = json.optString("sessionID")
@@ -253,17 +329,26 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                 // or "askuser" (case-insensitive). We map all interactive tool
                 // names to "ask_user" so the UI shows a text input.
                 val rawTool = json.optString("tool", "ask_user").lowercase()
-                val isInteractive = rawTool in setOf(
-                    "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify",
-                )
+                val isInteractive =
+                    rawTool in
+                        setOf(
+                            "ask_user",
+                            "askuser",
+                            "ask",
+                            "input",
+                            "confirm",
+                            "question",
+                            "clarify",
+                        )
                 val tool = if (isInteractive) "ask_user" else rawTool
                 val callId = json.optString("callID", eventId)
                 val question = json.optString("question", "")
-                val toolArgs = if (question.isNotEmpty()) {
-                    JSONObject().apply { put("question", question) }.toString()
-                } else {
-                    json.optJSONObject("args")?.toString() ?: "{}"
-                }
+                val toolArgs =
+                    if (question.isNotEmpty()) {
+                        JSONObject().apply { put("question", question) }.toString()
+                    } else {
+                        json.optJSONObject("args")?.toString() ?: "{}"
+                    }
                 AgentEvent.ApprovalRequested(
                     eventId = eventId,
                     timestamp = ts,
@@ -312,25 +397,28 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                         val input = json.optJSONObject("input")?.toString()
                         val output = json.optJSONObject("output")?.toString()
                         when (state) {
-                            "running", "pending" -> AgentEvent.ToolCallStarted(
-                                eventId = eventId,
-                                timestamp = ts,
-                                toolId = toolCallID,
-                                name = tool,
-                                source = "opencode",
-                            )
-                            "complete", "completed" -> AgentEvent.ToolCallFinished(
-                                eventId = eventId,
-                                timestamp = ts,
-                                toolId = toolCallID,
-                                durationMs = 0L,
-                            )
-                            "error" -> AgentEvent.ToolBlocked(
-                                eventId = eventId,
-                                timestamp = ts,
-                                toolName = tool,
-                                reason = json.optString("error", "Tool failed"),
-                            )
+                            "running", "pending" ->
+                                AgentEvent.ToolCallStarted(
+                                    eventId = eventId,
+                                    timestamp = ts,
+                                    toolId = toolCallID,
+                                    name = tool,
+                                    source = "opencode",
+                                )
+                            "complete", "completed" ->
+                                AgentEvent.ToolCallFinished(
+                                    eventId = eventId,
+                                    timestamp = ts,
+                                    toolId = toolCallID,
+                                    durationMs = 0L,
+                                )
+                            "error" ->
+                                AgentEvent.ToolBlocked(
+                                    eventId = eventId,
+                                    timestamp = ts,
+                                    toolName = tool,
+                                    reason = json.optString("error", "Tool failed"),
+                                )
                             else -> null
                         }
                     }
@@ -449,36 +537,45 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
      *   tool returns. The OpenCode plugin then sees `tool.execute.after` and the
      *   live timeline flips the tool from "awaiting user input" to "done".
      */
-    fun sendApproval(toolId: String, approved: Boolean, feedback: String? = null) {
+    fun sendApproval(
+        toolId: String,
+        approved: Boolean,
+        feedback: String? = null,
+    ) {
         viewModelScope.launch {
             try {
                 val serverUrl = securePreferences.getSmartyServerUrl()
-                val token = withContext(Dispatchers.IO) {
-                    runCatching {
-                        FirebaseAuth.getInstance().currentUser
-                            ?.getIdToken(false)
-                            ?.await()
-                            ?.token
-                    }.getOrNull()
-                }
+                val token =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            FirebaseAuth
+                                .getInstance()
+                                .currentUser
+                                ?.getIdToken(false)
+                                ?.await()
+                                ?.token
+                        }.getOrNull()
+                    }
                 val url = "$serverUrl/api/v1/chat/events/approval"
 
-                val jsonBody = buildJsonBody(
-                    "toolId" to toolId,
-                    "approved" to approved,
-                    "feedback" to feedback,
-                )
+                val jsonBody =
+                    buildJsonBody(
+                        "toolId" to toolId,
+                        "approved" to approved,
+                        "feedback" to feedback,
+                    )
 
                 withContext(Dispatchers.IO) {
-                    val request = Request.Builder()
-                        .url(url)
-                        .post(jsonBody.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
-                        .apply {
-                            if (token != null) {
-                                addHeader("Authorization", "Bearer $token")
-                            }
-                        }
-                        .build()
+                    val request =
+                        Request
+                            .Builder()
+                            .url(url)
+                            .post(jsonBody.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
+                            .apply {
+                                if (token != null) {
+                                    addHeader("Authorization", "Bearer $token")
+                                }
+                            }.build()
 
                     okHttpClient.newCall(request).execute().use { response ->
                         Log.i(TAG, "Approval sent: $approved for $toolId -> ${response.code}")
@@ -517,14 +614,17 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             try {
                 val serverUrl = securePreferences.getSmartyServerUrl()
-                val token = withContext(Dispatchers.IO) {
-                    runCatching {
-                        FirebaseAuth.getInstance().currentUser
-                            ?.getIdToken(false)
-                            ?.await()
-                            ?.token
-                    }.getOrNull()
-                }
+                val token =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            FirebaseAuth
+                                .getInstance()
+                                .currentUser
+                                ?.getIdToken(false)
+                                ?.await()
+                                ?.token
+                        }.getOrNull()
+                    }
                 // Path-param safety — Ktor enforces [A-Za-z0-9_-]+.
                 if (!sessionId.matches(Regex("[A-Za-z0-9_-]+")) ||
                     !callId.matches(Regex("[A-Za-z0-9_-]+"))
@@ -538,15 +638,16 @@ class AgentRuntimeViewModel(application: Application) : AndroidViewModel(applica
                 val url = "$serverUrl/opencode/ask-response/$sessionId/$callId"
                 val jsonBody = buildJsonBody("response" to response)
                 withContext(Dispatchers.IO) {
-                    val request = Request.Builder()
-                        .url(url)
-                        .post(jsonBody.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
-                        .apply {
-                            if (!token.isNullOrBlank()) {
-                                addHeader("Authorization", "Bearer $token")
-                            }
-                        }
-                        .build()
+                    val request =
+                        Request
+                            .Builder()
+                            .url(url)
+                            .post(jsonBody.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
+                            .apply {
+                                if (!token.isNullOrBlank()) {
+                                    addHeader("Authorization", "Bearer $token")
+                                }
+                            }.build()
                     okHttpClient.newCall(request).execute().use { resp ->
                         Log.i(
                             TAG,

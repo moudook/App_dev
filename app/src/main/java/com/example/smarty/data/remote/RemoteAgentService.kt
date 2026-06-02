@@ -3,6 +3,7 @@ package com.example.smarty.data.remote
 import android.util.Base64
 import android.util.Log
 import com.example.smarty.BuildConfig
+import com.example.smarty.core.common.util.HttpClientProvider
 import com.example.smarty.features.chat.agent.AgentEventSink
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
@@ -15,6 +16,7 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +72,22 @@ class RemoteAgentService(
         }
 
     /**
+     * Long-running Ktor client for POST requests that can take >5 minutes
+     * (e.g., [sendQueryWithContext] which waits for the full server agent loop).
+     * Uses [HttpClientProvider.longRunning] OkHttp client (10 min read timeout).
+     */
+    private val longRunningClient: HttpClient by lazy {
+        val cfg = HttpClientProvider.longRunning
+        val jsonConfig = json
+        HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
+            engine { preconfigured = cfg }
+            install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+                json(jsonConfig)
+            }
+        }
+    }
+
+    /**
      * Decode an SSE event into the correct AgentEvent subclass.
      * The server sends the type in the SSE `event:` field, NOT in the JSON data.
      *
@@ -79,8 +97,8 @@ class RemoteAgentService(
     private fun decodeAgentEvent(
         eventType: String,
         data: String,
-    ): AgentEvent {
-        return try {
+    ): AgentEvent =
+        try {
             when (eventType) {
                 "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
                 "tool_call" -> json.decodeFromString<AgentEvent.ToolCall>(data)
@@ -115,13 +133,15 @@ class RemoteAgentService(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode '$eventType' event (data length: ${data.length}): ${e.message}")
             AgentEvent.Error(
-                eventId = java.util.UUID.randomUUID().toString(),
+                eventId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 timestamp = System.currentTimeMillis(),
                 message = "[Decode Error: $eventType] ${e.message?.take(200)}",
                 code = "DECODE_ERROR",
             )
         }
-    }
 
     private val _connectionState = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
@@ -130,8 +150,8 @@ class RemoteAgentService(
      * Get Firebase ID token for authentication.
      * Returns null if user is not signed in.
      */
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             if (user != null) {
                 val tokenResult = user.getIdToken(false).await()
@@ -144,18 +164,16 @@ class RemoteAgentService(
             Log.e(TAG, "Failed to get Firebase token: ${e.message}")
             null
         }
-    }
 
     /**
      * Get a unique device identifier for security handshake.
      */
-    private fun getDeviceId(): String {
-        return try {
+    private fun getDeviceId(): String =
+        try {
             deviceIdProvider()
         } catch (e: Exception) {
             "smarty-unknown"
         }
-    }
 
     // Custom exception to exit the flow gracefully
     private class EndStreamException : Exception()
@@ -180,18 +198,20 @@ class RemoteAgentService(
             val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
             val token = getFirebaseToken()
 
-            val timezone = java.util.TimeZone.getDefault().id
+            val timezone =
+                java.util.TimeZone
+                    .getDefault()
+                    .id
             val clientTime = System.currentTimeMillis()
 
             val url =
                 buildString {
                     append("$baseUrl/chat/ws")
-                    append("?token=${token ?: ""}")
-                    if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
+                    if (sessionId != null) append("?sessionId=${sessionId.encodeURLParameter()}")
                 }
 
             Log.i(TAG, ">>> SEND_QUERY: query=${query.take(100)}, sessionId=$sessionId, model=$model, messageId=$messageId")
-            Log.i(TAG, ">>> SEND_QUERY: url=$url")
+            Log.i(TAG, ">>> SEND_QUERY: url=${url.substringBefore("?")} (token hidden)")
             _connectionState.value = ConnectionStatus.CONNECTING
 
             try {
@@ -207,21 +227,22 @@ class RemoteAgentService(
                 ) {
                     _connectionState.value = ConnectionStatus.CONNECTED
                     Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully")
-                    
+
                     // Send the query request frame to start the run
-                    val requestObj = ChatQueryRequest(
-                        query = query,
-                        sessionId = sessionId,
-                        provider = provider,
-                        providerUrl = providerUrl,
-                        model = model,
-                        variant = variant,
-                        timezone = timezone,
-                        clientTime = clientTime,
-                        personality = personality,
-                        messageId = messageId,
-                    )
-                    
+                    val requestObj =
+                        ChatQueryRequest(
+                            query = query,
+                            sessionId = sessionId,
+                            provider = provider,
+                            providerUrl = providerUrl,
+                            model = model,
+                            variant = variant,
+                            timezone = timezone,
+                            clientTime = clientTime,
+                            personality = personality,
+                            messageId = messageId,
+                        )
+
                     val requestJson = json.encodeToString(ChatQueryRequest.serializer(), requestObj)
                     send(Frame.Text(requestJson))
                     Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
@@ -236,12 +257,12 @@ class RemoteAgentService(
                                 }
                                 try {
                                     Log.d(TAG, ">>> WS_RECEIVED: length=${data.length}, preview=${data.take(200)}")
-                        val jsonElement = json.parseToJsonElement(data).jsonObject
+                                    val jsonElement = json.parseToJsonElement(data).jsonObject
                                     val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"
-                                    
+
                                     // Skip server keepalive pings
                                     if (eventType == "ping") continue
-                                    
+
                                     Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
                                     val agentEvent = decodeAgentEvent(eventType, data)
                                     Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")
@@ -269,7 +290,10 @@ class RemoteAgentService(
                 _connectionState.value = ConnectionStatus.OFFLINE
                 emit(
                     AgentEvent.Error(
-                        eventId = java.util.UUID.randomUUID().toString(),
+                        eventId =
+                            java.util.UUID
+                                .randomUUID()
+                                .toString(),
                         timestamp = System.currentTimeMillis(),
                         message = "[Connection Error: ${e.message}]",
                         code = "CONNECTION_ERROR",
@@ -325,65 +349,76 @@ class RemoteAgentService(
     fun observeTimelineEvents(): Flow<AgentEvent> =
         flow {
             val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
-            val token = getFirebaseToken()
-            val url =
-                buildString {
-                    append("$baseUrl/ws/timeline")
-                    if (!token.isNullOrBlank()) {
-                        append("?token=$token")
-                    }
-                }
-
-            Log.i(TAG, ">>> TIMELINE_WS: connecting to $url")
-            _connectionState.value = ConnectionStatus.CONNECTING
 
             // Translation function — converts a raw plugin JSON frame to an
             // AgentEvent. Lives inside the flow so the json instance is captured
             // by closure without leaking `this`.
             val translate = translateTimelineEvent
+            var retryDelay = 1_000L
+            val maxRetryDelay = 30_000L
+            var retryCount = 0
+            val maxRetries = 10
 
-            try {
-                client.webSocket(urlString = url) {
-                    _connectionState.value = ConnectionStatus.CONNECTED
-                    Log.i(TAG, ">>> TIMELINE_WS: connected")
+            while (retryCount < maxRetries) {
+                val token = getFirebaseToken()
+                val url = "$baseUrl/ws/timeline"
 
-                    // Heartbeat — Ktor's WS expects a periodic ping or it
-                    // tears the connection after ~30s idle.
-                    val heartbeatJob =
-                        launch {
-                            while (isActive) {
-                                kotlinx.coroutines.delay(15_000L)
+                Log.i(TAG, ">>> TIMELINE_WS: connecting to $url (authorized via header)")
+                _connectionState.value = ConnectionStatus.CONNECTING
+
+                try {
+                    client.webSocket(urlString = url, request = {
+                        if (token != null) {
+                            header(io.ktor.http.HttpHeaders.Authorization, "Bearer $token")
+                        }
+                    }) {
+                        retryDelay = 1_000L // Reset backoff on successful connect
+                        _connectionState.value = ConnectionStatus.CONNECTED
+                        Log.i(TAG, ">>> TIMELINE_WS: connected")
+
+                        // Heartbeat — Ktor's WS expects a periodic ping or it
+                        // tears the connection after ~30s idle.
+                        val heartbeatJob =
+                            launch {
+                                while (isActive) {
+                                    kotlinx.coroutines.delay(15_000L)
+                                    try {
+                                        send(Frame.Text("""{"type":"ping"}"""))
+                                    } catch (e: Exception) {
+                                        break
+                                    }
+                                }
+                            }
+
+                        try {
+                            for (frame in incoming) {
+                                if (frame !is Frame.Text) continue
+                                val text = frame.readText()
+                                if (text.isBlank()) continue
                                 try {
-                                    send(Frame.Text("""{"type":"ping"}"""))
+                                    val event = translate(text)
+                                    if (event != null) {
+                                        emit(event)
+                                    }
+                                } catch (e: kotlinx.serialization.SerializationException) {
+                                    Log.w(TAG, "Timeline event decode failed: ${e.message}")
                                 } catch (e: Exception) {
-                                    break
+                                    Log.w(TAG, "Timeline event parse failed: ${e.message}")
                                 }
                             }
+                        } finally {
+                            heartbeatJob.cancel()
                         }
-
-                    try {
-                        for (frame in incoming) {
-                            if (frame !is Frame.Text) continue
-                            val text = frame.readText()
-                            if (text.isBlank()) continue
-                            try {
-                                val event = translate(text)
-                                if (event != null) {
-                                    emit(event)
-                                }
-                            } catch (e: kotlinx.serialization.SerializationException) {
-                                Log.w(TAG, "Timeline event decode failed: ${e.message}")
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Timeline event parse failed: ${e.message}")
-                            }
-                        }
-                    } finally {
-                        heartbeatJob.cancel()
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Timeline WS failed: ${e.message}, reconnecting in ${retryDelay}ms", e)
+                    _connectionState.value = ConnectionStatus.OFFLINE
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Timeline WS failed: ${e.message}", e)
-                _connectionState.value = ConnectionStatus.OFFLINE
+
+                // Backoff before reconnect
+                retryCount++
+                kotlinx.coroutines.delay(retryDelay)
+                retryDelay = (retryDelay * 2).coerceAtMost(maxRetryDelay)
             }
         }
 
@@ -414,62 +449,71 @@ class RemoteAgentService(
             val kind = obj["kind"]?.jsonPrimitive?.contentOrNullSafe ?: return@translate null
             val sessionID = obj["sessionID"]?.jsonPrimitive?.contentOrNullSafe
             val ts = obj["ts"]?.jsonPrimitive?.longOrNullSafe ?: System.currentTimeMillis()
-            val eventId = java.util.UUID.randomUUID().toString()
+            val eventId =
+                java.util.UUID
+                    .randomUUID()
+                    .toString()
 
             when (kind) {
                 "session.created" -> AgentEvent.SessionStarted(eventId, ts, sessionID ?: "unknown")
                 "session.idle" -> AgentEvent.SessionCompleted(eventId, ts)
-                "session.error" -> AgentEvent.SessionError(
-                    eventId = eventId,
-                    timestamp = ts,
-                    message = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Unknown error",
-                )
-                "session.compacted", "compaction.start" -> AgentEvent.RecoveryStarted(
-                    eventId = eventId,
-                    timestamp = ts,
-                    reason = "Context compressed",
-                )
+                "session.error" ->
+                    AgentEvent.SessionError(
+                        eventId = eventId,
+                        timestamp = ts,
+                        message = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Unknown error",
+                    )
+                "session.compacted", "compaction.start" ->
+                    AgentEvent.RecoveryStarted(
+                        eventId = eventId,
+                        timestamp = ts,
+                        reason = "Context compressed",
+                    )
 
                 "permission.asked", "user.input.required" -> {
                     val rawTool = (obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "ask_user").lowercase()
-                    val tool = when (rawTool) {
-                        "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify" -> "ask_user"
-                        else -> rawTool
-                    }
+                    val tool =
+                        when (rawTool) {
+                            "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify" -> "ask_user"
+                            else -> rawTool
+                        }
                     val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
                     val question = obj["question"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
                     val optionsArr = obj["options"] as? kotlinx.serialization.json.JsonArray
-                    val optionsStrings = optionsArr?.mapNotNull { el ->
-                        (el as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe
-                    }.orEmpty()
+                    val optionsStrings =
+                        optionsArr
+                            ?.mapNotNull { el ->
+                                (el as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe
+                            }.orEmpty()
                     val isInteractive = tool == "ask_user"
-                    val toolArgs = when {
-                        isInteractive && question.isNotEmpty() -> {
-                            // Emit a `questions` array (matching the Ktor MCP
-                            // ask_user schema) so `AssistOverlayScreen` can
-                            // parse it into `ClarificationRequest` with
-                            // option chips. Falls back to a single
-                            // `question` field if `questions` parsing fails.
-                            buildString {
-                                append("{\"questions\":[{")
-                                append("\"question\":")
-                                append(json.encodeToString(JsonPrimitive(question)))
-                                append(",\"allow_custom\":true")
-                                if (optionsStrings.isNotEmpty()) {
-                                    append(",\"options\":")
-                                    append(
-                                        json.encodeToString(
-                                            ListSerializer(String.serializer()),
-                                            optionsStrings,
-                                        ),
-                                    )
+                    val toolArgs =
+                        when {
+                            isInteractive && question.isNotEmpty() -> {
+                                // Emit a `questions` array (matching the Ktor MCP
+                                // ask_user schema) so `AssistOverlayScreen` can
+                                // parse it into `ClarificationRequest` with
+                                // option chips. Falls back to a single
+                                // `question` field if `questions` parsing fails.
+                                buildString {
+                                    append("{\"questions\":[{")
+                                    append("\"question\":")
+                                    append(json.encodeToString(JsonPrimitive(question)))
+                                    append(",\"allow_custom\":true")
+                                    if (optionsStrings.isNotEmpty()) {
+                                        append(",\"options\":")
+                                        append(
+                                            json.encodeToString(
+                                                ListSerializer(String.serializer()),
+                                                optionsStrings,
+                                            ),
+                                        )
+                                    }
+                                    append("}]}")
                                 }
-                                append("}]}")
                             }
+                            isInteractive -> obj["args"]?.toString() ?: "{}"
+                            else -> obj["args"]?.toString() ?: "{}"
                         }
-                        isInteractive -> obj["args"]?.toString() ?: "{}"
-                        else -> obj["args"]?.toString() ?: "{}"
-                    }
                     AgentEvent.ApprovalRequested(
                         eventId = eventId,
                         timestamp = ts,
@@ -484,11 +528,15 @@ class RemoteAgentService(
 
                 "permission.replied" -> {
                     val granted = obj["granted"]?.jsonPrimitive?.booleanOrNullSafe ?: false
-                    val callId = obj["toolId"]?.jsonPrimitive?.contentOrNullSafe
-                        ?: obj["callID"]?.jsonPrimitive?.contentOrNullSafe
-                        ?: eventId
-                    if (granted) AgentEvent.ApprovalGranted(eventId, ts, callId)
-                    else AgentEvent.ApprovalDenied(eventId, ts, callId)
+                    val callId =
+                        obj["toolId"]?.jsonPrimitive?.contentOrNullSafe
+                            ?: obj["callID"]?.jsonPrimitive?.contentOrNullSafe
+                            ?: eventId
+                    if (granted) {
+                        AgentEvent.ApprovalGranted(eventId, ts, callId)
+                    } else {
+                        AgentEvent.ApprovalDenied(eventId, ts, callId)
+                    }
                 }
 
                 "part.updated" -> {
@@ -515,42 +563,49 @@ class RemoteAgentService(
                             val inputJson = obj["input"]?.toString()
                             val outputJson = obj["output"]?.toString()
                             when (state) {
-                                "running", "pending" -> AgentEvent.ToolCallStarted(
-                                    eventId = eventId,
-                                    timestamp = ts,
-                                    toolId = toolCallID,
-                                    name = tool,
-                                    source = "opencode",
-                                )
-                                "complete", "completed" -> {
-                                    // Also fire ToolCallOutput if we have result data
-                                    val result = if (outputJson != null) {
-                                        AgentEvent.ToolCallOutput(eventId, ts, toolCallID, outputJson)
-                                    } else null
-                                    val finished = AgentEvent.ToolCallFinished(
+                                "running", "pending" ->
+                                    AgentEvent.ToolCallStarted(
                                         eventId = eventId,
                                         timestamp = ts,
                                         toolId = toolCallID,
-                                        durationMs = 0L,
+                                        name = tool,
+                                        source = "opencode",
                                     )
+                                "complete", "completed" -> {
+                                    // Also fire ToolCallOutput if we have result data
+                                    val result =
+                                        if (outputJson != null) {
+                                            AgentEvent.ToolCallOutput(eventId, ts, toolCallID, outputJson)
+                                        } else {
+                                            null
+                                        }
+                                    val finished =
+                                        AgentEvent.ToolCallFinished(
+                                            eventId = eventId,
+                                            timestamp = ts,
+                                            toolId = toolCallID,
+                                            durationMs = 0L,
+                                        )
                                     // Return the first event; ChatFeatureManager will
                                     // accumulate both via the rawEvents list.
                                     result ?: finished
                                 }
-                                "error" -> AgentEvent.ToolBlocked(
-                                    eventId = eventId,
-                                    timestamp = ts,
-                                    toolName = tool,
-                                    reason = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Tool failed",
-                                )
+                                "error" ->
+                                    AgentEvent.ToolBlocked(
+                                        eventId = eventId,
+                                        timestamp = ts,
+                                        toolName = tool,
+                                        reason = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Tool failed",
+                                    )
                                 else -> null
                             }
                         }
-                        "step-start" -> AgentEvent.StepStarted(
-                            eventId = eventId,
-                            timestamp = ts,
-                            title = "Step ${obj["step"]?.jsonPrimitive?.intOrNullSafe ?: ""}",
-                        )
+                        "step-start" ->
+                            AgentEvent.StepStarted(
+                                eventId = eventId,
+                                timestamp = ts,
+                                title = "Step ${obj["step"]?.jsonPrimitive?.intOrNullSafe ?: ""}",
+                            )
                         "step-finish" -> AgentEvent.StepFinished(eventId, ts, success = true)
                         "subtask" -> {
                             val agent = obj["agent"]?.jsonPrimitive?.contentOrNullSafe ?: "subagent"
@@ -702,11 +757,13 @@ class RemoteAgentService(
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
                     contentType(ContentType.Application.Json)
-                    setBody(buildString {
-                        append("{\"response\":")
-                        append(json.encodeToString(JsonPrimitive(response)))
-                        append("}")
-                    })
+                    setBody(
+                        buildString {
+                            append("{\"response\":")
+                            append(json.encodeToString(JsonPrimitive(response)))
+                            append("}")
+                        },
+                    )
                 }
 
             if (httpResponse.status.isSuccess()) {
@@ -763,7 +820,10 @@ class RemoteAgentService(
             if (response.status.isSuccess()) {
                 val body = response.bodyAsText()
                 try {
-                    val jsonMap = com.google.gson.JsonParser.parseString(body).asJsonObject
+                    val jsonMap =
+                        com.google.gson.JsonParser
+                            .parseString(body)
+                            .asJsonObject
                     jsonMap.get("deletedCount")?.asInt ?: 0
                 } catch (e: Exception) {
                     0
@@ -803,7 +863,10 @@ class RemoteAgentService(
                 val body = response.bodyAsText()
                 Log.d(TAG, "Models API response body (first 500 chars): ${body.take(500)}")
 
-                val jsonObject = com.google.gson.JsonParser.parseString(body).asJsonObject
+                val jsonObject =
+                    com.google.gson.JsonParser
+                        .parseString(body)
+                        .asJsonObject
 
                 // Check if models array exists
                 if (!jsonObject.has("models")) {
@@ -853,9 +916,8 @@ class RemoteAgentService(
     /**
      * Legacy variant — returns plain (modelId, label) pairs for backward compat.
      */
-    suspend fun getOpencodeModelPairs(refresh: Boolean = false): List<Pair<String, String>> {
-        return getOpencodeModels(refresh).map { it.id to it.label }
-    }
+    suspend fun getOpencodeModelPairs(refresh: Boolean = false): List<Pair<String, String>> =
+        getOpencodeModels(refresh).map { it.id to it.label }
 
     /**
      * Analyze content on the server.
@@ -863,8 +925,8 @@ class RemoteAgentService(
     suspend fun analyzeContent(
         content: String,
         attachments: List<AttachmentInfo>? = null,
-    ): AIResponse? {
-        return try {
+    ): AIResponse? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -887,7 +949,6 @@ class RemoteAgentService(
             Log.e(TAG, "Content analysis error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Analyze a document on the server.
@@ -896,8 +957,8 @@ class RemoteAgentService(
         text: String,
         fileName: String? = null,
         userContext: String? = null,
-    ): DocumentAnalysisResponse? {
-        return try {
+    ): DocumentAnalysisResponse? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -920,7 +981,6 @@ class RemoteAgentService(
             Log.e(TAG, "Document analysis error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Process an image with OCR on the server.
@@ -929,8 +989,8 @@ class RemoteAgentService(
         imageBytes: ByteArray,
         mimeType: String,
         analysisType: String = "ocr",
-    ): ImageProcessingResult? {
-        return try {
+    ): ImageProcessingResult? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
             val base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
@@ -954,7 +1014,6 @@ class RemoteAgentService(
             Log.e(TAG, "Image processing error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Process a PDF on the server.
@@ -963,8 +1022,8 @@ class RemoteAgentService(
         pdfBytes: ByteArray,
         fileName: String? = null,
         useOcr: Boolean = true,
-    ): PdfProcessingResult? {
-        return try {
+    ): PdfProcessingResult? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
             val base64Pdf = Base64.encodeToString(pdfBytes, Base64.NO_WRAP)
@@ -988,7 +1047,6 @@ class RemoteAgentService(
             Log.e(TAG, "PDF processing error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Upload a file using the direct-to-Drive Signed URL approach.
@@ -1004,21 +1062,28 @@ class RemoteAgentService(
             val token = getFirebaseToken()
 
             // 1. Get Signed URL from Ktor
-            val urlResponse = client.post("$baseUrl/files/upload-url") {
-                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("fileName" to fileName, "mimeType" to contentType))
-            }
+            val urlResponse =
+                client.post("$baseUrl/files/upload-url") {
+                    if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("fileName" to fileName, "mimeType" to contentType))
+                }
 
             if (!urlResponse.status.isSuccess()) {
                 Log.e(TAG, "Failed to get upload URL: ${urlResponse.status}")
                 return null
             }
 
-            val uploadUrl = try {
-                val jsonBody = com.google.gson.JsonParser.parseString(urlResponse.bodyAsText()).asJsonObject
-                jsonBody.get("uploadUrl")?.asString
-            } catch (e: Exception) { null }
+            val uploadUrl =
+                try {
+                    val jsonBody =
+                        com.google.gson.JsonParser
+                            .parseString(urlResponse.bodyAsText())
+                            .asJsonObject
+                    jsonBody.get("uploadUrl")?.asString
+                } catch (e: Exception) {
+                    null
+                }
 
             if (uploadUrl == null) {
                 Log.e(TAG, "Missing uploadUrl in response")
@@ -1026,15 +1091,19 @@ class RemoteAgentService(
             }
 
             // 2. Upload directly to Google Drive via PUT
-            val uploadResponse = client.put(uploadUrl) {
-                // Do NOT send Firebase token here, this goes directly to Google APIs
-                setBody(fileBytes)
-            }
+            val uploadResponse =
+                client.put(uploadUrl) {
+                    // Do NOT send Firebase token here, this goes directly to Google APIs
+                    setBody(fileBytes)
+                }
 
             if (uploadResponse.status.isSuccess()) {
                 // Google Drive returns the File resource metadata
                 try {
-                    val fileMeta = com.google.gson.JsonParser.parseString(uploadResponse.bodyAsText()).asJsonObject
+                    val fileMeta =
+                        com.google.gson.JsonParser
+                            .parseString(uploadResponse.bodyAsText())
+                            .asJsonObject
                     val fileId = fileMeta.get("id")?.asString
                     return fileId ?: uploadUrl // fallback to URL if ID parsing fails
                 } catch (e: Exception) {
@@ -1059,19 +1128,26 @@ class RemoteAgentService(
             val token = getFirebaseToken()
 
             // 1. Get Signed Download URL from Ktor
-            val urlResponse = client.get("$baseUrl/files/download-url/$fileId") {
-                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
-            }
+            val urlResponse =
+                client.get("$baseUrl/files/download-url/$fileId") {
+                    if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                }
 
             if (!urlResponse.status.isSuccess()) {
                 Log.e(TAG, "Failed to get download URL: ${urlResponse.status}")
                 return null
             }
 
-            val downloadUrl = try {
-                val jsonBody = com.google.gson.JsonParser.parseString(urlResponse.bodyAsText()).asJsonObject
-                jsonBody.get("downloadUrl")?.asString
-            } catch (e: Exception) { null }
+            val downloadUrl =
+                try {
+                    val jsonBody =
+                        com.google.gson.JsonParser
+                            .parseString(urlResponse.bodyAsText())
+                            .asJsonObject
+                    jsonBody.get("downloadUrl")?.asString
+                } catch (e: Exception) {
+                    null
+                }
 
             if (downloadUrl == null) {
                 Log.e(TAG, "Missing downloadUrl in response")
@@ -1080,7 +1156,7 @@ class RemoteAgentService(
 
             // 2. Download directly from Google Drive
             val downloadResponse = client.get(downloadUrl)
-            
+
             if (downloadResponse.status.isSuccess()) {
                 downloadResponse.readRawBytes()
             } else {
@@ -1096,8 +1172,8 @@ class RemoteAgentService(
     /**
      * Test connection to the server.
      */
-    suspend fun testConnection(): Boolean {
-        return try {
+    suspend fun testConnection(): Boolean =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -1115,7 +1191,6 @@ class RemoteAgentService(
             Log.e(TAG, "Connection test failed: ${e.message}")
             false
         }
-    }
 
     /**
      * Send a query with optional file context (for large payloads like PDF text).
@@ -1148,7 +1223,10 @@ class RemoteAgentService(
             _connectionState.value = ConnectionStatus.CONNECTING
 
             try {
-                val timezone = java.util.TimeZone.getDefault().id
+                val timezone =
+                    java.util.TimeZone
+                        .getDefault()
+                        .id
                 val clientTime = System.currentTimeMillis()
 
                 val request =
@@ -1169,7 +1247,7 @@ class RemoteAgentService(
                     )
 
                 val response =
-                    client.post("$baseUrl/chat/query") {
+                    longRunningClient.post("$baseUrl/chat/query") {
                         if (token != null) {
                             header(HttpHeaders.Authorization, "Bearer $token")
                         }
@@ -1217,8 +1295,8 @@ class RemoteAgentService(
     /**
      * Generate a daily briefing.
      */
-    suspend fun generateBriefing(prompt: String): String? {
-        return try {
+    suspend fun generateBriefing(prompt: String): String? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -1242,7 +1320,6 @@ class RemoteAgentService(
             Log.e(TAG, "Briefing generation error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Workflow B: Direct Image Generation.
@@ -1251,8 +1328,8 @@ class RemoteAgentService(
     suspend fun generateImageDirect(
         prompt: String,
         aspectRatio: String = "1:1",
-    ): DirectImageGenerationResponse? {
-        return try {
+    ): DirectImageGenerationResponse? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -1272,7 +1349,6 @@ class RemoteAgentService(
             Log.e(TAG, "Direct image generation error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Get current authenticated user info.
@@ -1292,8 +1368,8 @@ class RemoteAgentService(
     private suspend fun handleStringEvent(
         event: AgentEvent,
         flowCollector: kotlinx.coroutines.flow.FlowCollector<String>,
-    ): Boolean {
-        return when (event) {
+    ): Boolean =
+        when (event) {
             is AgentEvent.Processing -> {
                 if (!event.content.isNullOrEmpty()) {
                     flowCollector.emit(event.content)
@@ -1351,7 +1427,6 @@ class RemoteAgentService(
             }
             else -> false // Handle all other canonical events seamlessly
         }
-    }
 
     /**
      * Handles events streaming from the SSE endpoint and emits whole AgentEvents
@@ -1430,8 +1505,8 @@ class RemoteAgentService(
     /**
      * Perform a security/capability handshake with the remote agent.
      */
-    suspend fun performHandshake(request: com.example.smarty.protocol.HandshakeRequest): com.example.smarty.protocol.HandshakeResponse? {
-        return try {
+    suspend fun performHandshake(request: com.example.smarty.protocol.HandshakeRequest): com.example.smarty.protocol.HandshakeResponse? =
+        try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken()
 
@@ -1461,7 +1536,6 @@ class RemoteAgentService(
             Log.e(TAG, "Handshake error: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Interrupt ongoing agent execution for a session.
