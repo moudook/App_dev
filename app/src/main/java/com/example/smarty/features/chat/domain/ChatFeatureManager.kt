@@ -2174,6 +2174,51 @@ class ChatFeatureManager(
                                 Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
                                 _pendingApprovalState.value = null
                                 _pendingClarificationRequests.value = emptyList()
+                            } else if (event is AgentEvent.SessionStarted) {
+                                Log.i(TAG, ">>> SESSION_STARTED: id=${event.sessionId}")
+                            } else if (event is AgentEvent.SessionCompleted) {
+                                Log.i(TAG, ">>> SESSION_COMPLETED")
+                                // Push any final content out
+                                chatManager.updateMessageWithThinking(
+                                    streamingMessageId,
+                                    responseBuilder.toString(),
+                                    thinkingBuilder.toString().ifEmpty { null },
+                                    agentEvents = agentEventsBuilder.toList(),
+                                )
+                            } else if (event is AgentEvent.SessionError) {
+                                Log.e(TAG, ">>> SESSION_ERROR: ${event.message}")
+                                responseBuilder.append("\n[Session error: ${event.message}]")
+                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                            } else if (event is AgentEvent.SessionAborted) {
+                                Log.w(TAG, ">>> SESSION_ABORTED: reason=${event.reason}")
+                            } else if (event is AgentEvent.FinalAnswerStarted) {
+                                Log.d(TAG, ">>> FINAL_ANSWER_STARTED")
+                            } else if (event is AgentEvent.FinalAnswerFinished) {
+                                Log.d(TAG, ">>> FINAL_ANSWER_FINISHED")
+                            } else if (event is AgentEvent.ToolCallInput) {
+                                // Optional: surface tool args summary for debugging
+                                Log.d(TAG, ">>> TOOL_CALL_INPUT: toolId=${event.toolId}, deltaLen=${event.inputDelta.length}")
+                            } else if (event is AgentEvent.RecoveryStarted ||
+                                       event is AgentEvent.RecoveryFinished ||
+                                       event is AgentEvent.CacheHit ||
+                                       event is AgentEvent.CacheMiss ||
+                                       event is AgentEvent.DbWrite ||
+                                       event is AgentEvent.DbRead ||
+                                       event is AgentEvent.SyncStarted ||
+                                       event is AgentEvent.SyncFinished ||
+                                       event is AgentEvent.ToolCallCompleted
+                            ) {
+                                Log.d(TAG, ">>> RELIABILITY: ${event::class.simpleName}")
+                            } else if (event is AgentEvent.OpencodeRawEvent) {
+                                // Pass-through events from the daemon we haven't typed
+                                // (mcp.*, file.*, web.*, lsp.*, todo.*, command.*,
+                                // message.part.{tool, snapshot, patch, agent,
+                                // compaction, retry, hook, file, command, tool_result})
+                                Log.d(TAG, ">>> OPENCODE_RAW: eventName=${event.eventName}, dataLen=${event.data.length}")
+                            } else {
+                                // Truly unhandled — visible in logcat so we can add an
+                                // explicit handler in a follow-up
+                                Log.d(TAG, ">>> UNHANDLED_EVENT: ${event::class.simpleName}")
                             }
                         }
                     }

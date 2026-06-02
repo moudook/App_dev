@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -312,20 +313,51 @@ private data class SessionContentState(
 
 private val sessionContentStates = ConcurrentHashMap<String, SessionContentState>()
 
+// Track which (sessionId, kind) pairs we've already dumped to the log — once is enough
+// to confirm payload structure without spamming the log on every event.
+private val debugLoggedKinds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
 /**
- * Translate a single plugin event payload into zero or more [AgentEvent]s
- * for live streaming to the Android app. Returns an empty list when the
- * event is not streamable (e.g. unknown part type, MCP tool, empty delta).
+ * Comprehensive OpenCode v1.15.13+ event → AgentEvent translator.
  *
- * Coverage:
- *   - message.part.delta field=text      -> FinalAnswerDelta
- *   - message.part.delta field=reasoning -> ReasoningDelta
- *   - message.updated (snapshot)         -> FinalAnswerDelta / ReasoningDelta (delta computed)
- *   - tool.before (non-MCP)              -> ToolCallStarted + ToolCallInput
- *   - tool.after  (non-MCP)              -> ToolCallOutput + ToolCallFinished
- *   - part.updated partType=step-start   -> StepStarted
- *   - part.updated partType=step-finish  -> StepFinished
- *   - part.updated partType=subtask      -> StepStarted (sub-agent)
+ * Maps every event kind the daemon emits into typed [AgentEvent]s for the
+ * Android app. The daemon's wire format includes:
+ *
+ *   Session lifecycle
+ *     session.created, session.idle, session.error, session.aborted,
+ *     session.resumed, session.completed, session.compacted, compaction.*
+ *
+ *   Message lifecycle
+ *     message.created, message.updated, message.completed, message.deleted
+ *
+ *   Message parts (granular deltas + snapshots)
+ *     message.part.created, message.part.delta, message.part.updated,
+ *     message.part.completed, message.part.deleted,
+ *     message.part.reasoning*, message.part.text*,
+ *     message.part.step_start, message.part.step_finish, message.part.subtask,
+ *     message.part.{tool, snapshot, patch, agent, compaction, retry, hook,
+ *                  command, file}
+ *
+ *   Tool execution
+ *     tool.before, tool.after  (ALL tools including MCP)
+ *
+ *   Permission / approval
+ *     permission.asked, permission.granted, permission.denied
+ *     user.input.required
+ *
+ *   MCP
+ *     mcp.tools.changed, mcp.connected, mcp.disconnected
+ *
+ *   Misc (forwarded as OpencodeRawEvent)
+ *     todo.*, file.*, command.*, web.*, lsp.*
+ *
+ *   Catchall: any unknown kind → AgentEvent.OpencodeRawEvent
+ *
+ * The daemon v1.15.13 sends `message.updated` SNAPSHOT events (full
+ * accumulated text). We track per-session text/reasoning state to
+ * compute deltas so Android's `responseBuilder.append(event.text)`
+ * doesn't duplicate content. State resets on `message.created` (new turn)
+ * and clears on `session.idle` / `session.completed`.
  */
 private fun translatePluginEvent(
     kind: String,
@@ -335,243 +367,500 @@ private fun translatePluginEvent(
 ): List<AgentEvent> {
     val out = mutableListOf<AgentEvent>()
 
+    // One-time debug log: dump the first 800 chars of major event kinds so we
+    // can confirm payload structure. Without this we'd be guessing at field names.
+    if (debugLoggedKinds.add("$sessionId:$kind") &&
+        (kind.startsWith("message.") || kind.startsWith("tool.") ||
+         kind.startsWith("permission.") || kind.startsWith("mcp."))
+    ) {
+        val preview = event.toString().take(800)
+        logger.info("[STREAM-MAP-DEBUG] first $kind: $preview")
+    }
+
     when (kind) {
+        // ── Session lifecycle ──
+        "session.created", "session.resumed" -> {
+            out += AgentEvent.SessionStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                sessionId = sessionId,
+            )
+        }
+        "session.idle", "session.completed" -> {
+            sessionContentStates.remove(sessionId)
+            out += AgentEvent.SessionCompleted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+            )
+        }
+        "session.error" -> {
+            val msg = event["error"]?.let {
+                if (it is JsonObject) it["message"]?.jsonPrimitive?.content
+                else it.jsonPrimitive?.content
+            } ?: event["message"]?.jsonPrimitive?.content ?: "Unknown error"
+            out += AgentEvent.SessionError(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                message = msg,
+            )
+        }
+        "session.aborted" -> {
+            val reason = event["reason"]?.jsonPrimitive?.content ?: "aborted"
+            out += AgentEvent.SessionAborted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                reason = reason,
+            )
+        }
+        "session.compacted", "compaction.start", "compaction.completed" -> {
+            val reason = when (kind) {
+                "compaction.start" -> "Context compressing"
+                else -> "Compaction completed"
+            }
+            out += AgentEvent.RecoveryStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                reason = reason,
+            )
+        }
+
+        // ── Message lifecycle ──
+        "message.created" -> {
+            // New turn — reset per-session content state so deltas start fresh
+            sessionContentStates[sessionId] = SessionContentState()
+            out += AgentEvent.FinalAnswerStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+            )
+        }
+        "message.completed" -> {
+            out += AgentEvent.FinalAnswerFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+            )
+            // Keep state alive — late `message.updated` snapshots may still fire
+        }
+        "message.deleted" -> { /* marker — no event */ }
+
+        // ── Message snapshot (parts array) ──
+        "message.updated" -> {
+            extractFromMessageParts(event, ts, sessionId, out)
+        }
+
+        // ── Message part events (granular deltas) ──
+        "message.part.created", "message.part.completed", "message.part.deleted" -> { /* markers */ }
+
         "message.part.delta" -> {
             val field = event["field"]?.jsonPrimitive?.content
             val delta = event["delta"]?.jsonPrimitive?.content
-            if (delta.isNullOrEmpty()) return emptyList()
-            when (field) {
-                "text" ->
-                    out +=
-                        AgentEvent.FinalAnswerDelta(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            text = delta,
-                        )
-                "reasoning" ->
-                    out +=
-                        AgentEvent.ReasoningDelta(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            text = delta,
-                        )
-            }
-        }
-
-        "message.updated" -> {
-            // The daemon sends snapshot events with the full accumulated text.
-            // Extract text/reasoning from the message parts array, compute deltas
-            // from the previous state, and emit only the new content.
-            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-            val messageObj = event["message"]?.jsonObject ?: event
-            val parts = messageObj["parts"]
-            if (parts != null) {
-                val partsArray = parts.toString().let { raw ->
-                    try {
-                        Json.parseToJsonElement(raw).jsonObject
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-                // Try array-style parts: {"0": {"type":"text","text":"..."}, "1": {...}}
-                // or list-style: [{"type":"text","text":"..."}]
-                if (partsArray != null) {
-                    for ((_, partRaw) in partsArray) {
-                        val part = partRaw?.jsonObject ?: continue
-                        val partType = part["type"]?.jsonPrimitive?.content
-                        when (partType) {
-                            "text" -> {
-                                val fullText = part["text"]?.jsonPrimitive?.content ?: ""
-                                if (fullText.length > state.text.length) {
-                                    val delta = fullText.substring(state.text.length)
-                                    state.text = fullText
-                                    if (delta.isNotEmpty()) {
-                                        out +=
-                                            AgentEvent.FinalAnswerDelta(
-                                                eventId = UUID.randomUUID().toString(),
-                                                timestamp = ts,
-                                                text = delta,
-                                            )
-                                    }
-                                }
-                            }
-                            "reasoning" -> {
-                                val fullReasoning = part["reasoning"]?.jsonPrimitive?.content ?: ""
-                                if (fullReasoning.length > state.reasoning.length) {
-                                    val delta = fullReasoning.substring(state.reasoning.length)
-                                    state.reasoning = fullReasoning
-                                    if (delta.isNotEmpty()) {
-                                        out +=
-                                            AgentEvent.ReasoningDelta(
-                                                eventId = UUID.randomUUID().toString(),
-                                                timestamp = ts,
-                                                text = delta,
-                                            )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // Also handle flat structure: event has direct "text" or "reasoning" fields
-            if (out.isEmpty()) {
-                val fullText = event["text"]?.jsonPrimitive?.content
-                if (fullText != null && fullText.length > state.text.length) {
-                    val delta = fullText.substring(state.text.length)
-                    state.text = fullText
-                    if (delta.isNotEmpty()) {
-                        out +=
-                            AgentEvent.FinalAnswerDelta(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = ts,
-                                text = delta,
-                            )
-                    }
-                }
-                val fullReasoning = event["reasoning"]?.jsonPrimitive?.content
-                if (fullReasoning != null && fullReasoning.length > state.reasoning.length) {
-                    val delta = fullReasoning.substring(state.reasoning.length)
-                    state.reasoning = fullReasoning
-                    if (delta.isNotEmpty()) {
-                        out +=
-                            AgentEvent.ReasoningDelta(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = ts,
-                                text = delta,
-                            )
-                    }
+            if (!delta.isNullOrEmpty()) {
+                when (field) {
+                    "text" -> out += AgentEvent.FinalAnswerDelta(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        text = delta,
+                    )
+                    "reasoning" -> out += AgentEvent.ReasoningDelta(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        text = delta,
+                    )
                 }
             }
         }
 
+        "message.part.updated" -> {
+            extractFromPartUpdated(event, ts, sessionId, out)
+        }
+
+        "message.part.reasoning", "message.part.reasoning_delta" -> {
+            val delta = event["delta"]?.jsonPrimitive?.content
+                ?: event["reasoning"]?.jsonPrimitive?.content
+                ?: event["text"]?.jsonPrimitive?.content
+                ?: ""
+            if (delta.isNotEmpty()) {
+                out += AgentEvent.ReasoningDelta(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    text = delta,
+                )
+            }
+        }
+        "message.part.reasoning_completed" -> {
+            out += AgentEvent.ReasoningFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+            )
+        }
+        "message.part.text", "message.part.text_delta" -> {
+            val delta = event["delta"]?.jsonPrimitive?.content
+                ?: event["text"]?.jsonPrimitive?.content
+                ?: ""
+            if (delta.isNotEmpty()) {
+                out += AgentEvent.FinalAnswerDelta(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    text = delta,
+                )
+            }
+        }
+        "message.part.text_completed" -> {
+            out += AgentEvent.FinalAnswerFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+            )
+        }
+        "message.part.step_start" -> {
+            val step = event["step"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+            out += AgentEvent.StepStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                title = "Step $step",
+            )
+        }
+        "message.part.step_finish" -> {
+            out += AgentEvent.StepFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                success = true,
+            )
+        }
+        "message.part.subtask" -> {
+            val desc = event["description"]?.jsonPrimitive?.content
+            val agent = event["agent"]?.jsonPrimitive?.content
+            val title = desc ?: agent?.let { "Sub-agent: $it" } ?: "Sub-agent"
+            out += AgentEvent.StepStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                title = title,
+            )
+        }
+        "message.part.tool", "message.part.tool_result",
+        "message.part.snapshot", "message.part.patch", "message.part.agent",
+        "message.part.compaction", "message.part.retry", "message.part.hook",
+        "message.part.command", "message.part.file" -> {
+            out += AgentEvent.OpencodeRawEvent(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                data = event.toString().take(8192),
+                eventName = kind,
+            )
+        }
+
+        // ── Backwards-compatible: old daemon v1.14.x used `part.updated` (no message. prefix) ──
+        "part.updated" -> {
+            extractFromPartUpdated(event, ts, sessionId, out)
+        }
+
+        // ── Tool lifecycle (ALL tools, including MCP — was previously filtered out) ──
         "tool.before" -> {
             val tool = event["tool"]?.jsonPrimitive?.content
             val callId = event["callID"]?.jsonPrimitive?.content
-            if (isMcpToolName(tool)) return emptyList()
-            if (tool.isNullOrBlank() || callId.isNullOrBlank()) return emptyList()
+                ?: event["callId"]?.jsonPrimitive?.content
+            if (tool.isNullOrBlank() || callId.isNullOrBlank()) return out
+            out += AgentEvent.ToolCallStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+                name = tool,
+                source = if (isMcpToolName(tool)) "mcp" else "opencode",
+            )
             val args = event["args"]
             val argsStr = if (args != null && args != JsonPrimitive(null)) args.toString() else ""
-            out +=
-                AgentEvent.ToolCallStarted(
+            if (argsStr.isNotEmpty()) {
+                out += AgentEvent.ToolCallInput(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = ts,
                     toolId = callId,
-                    name = tool,
-                    source = "opencode",
+                    inputDelta = argsStr,
                 )
-            if (argsStr.isNotEmpty()) {
-                out +=
-                    AgentEvent.ToolCallInput(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = ts,
-                        toolId = callId,
-                        inputDelta = argsStr,
-                    )
             }
         }
-
         "tool.after" -> {
             val tool = event["tool"]?.jsonPrimitive?.content
             val callId = event["callID"]?.jsonPrimitive?.content
-            if (isMcpToolName(tool)) return emptyList()
-            if (callId.isNullOrBlank()) return emptyList()
+                ?: event["callId"]?.jsonPrimitive?.content
+            if (callId.isNullOrBlank()) return out
             val result = event["result"]
             val error = event["error"]
-            val outputStr =
-                when {
-                    error != null && error != JsonPrimitive(null) -> "Error: $error"
-                    result != null && result != JsonPrimitive(null) -> result.toString()
-                    else -> ""
-                }
-            if (outputStr.isNotEmpty()) {
-                out +=
-                    AgentEvent.ToolCallOutput(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = ts,
-                        toolId = callId,
-                        output = outputStr,
-                    )
+            val outputStr = when {
+                error != null && error != JsonPrimitive(null) -> "Error: $error"
+                result != null && result != JsonPrimitive(null) -> result.toString()
+                else -> ""
             }
-            out +=
-                AgentEvent.ToolCallFinished(
+            if (outputStr.isNotEmpty()) {
+                out += AgentEvent.ToolCallOutput(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = ts,
                     toolId = callId,
-                    durationMs = 0L,
+                    output = outputStr,
                 )
+            }
+            out += AgentEvent.ToolCallFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+                durationMs = 0L,
+            )
         }
 
-        "part.updated" -> {
-            val partType = event["partType"]?.jsonPrimitive?.content ?: return emptyList()
-            when (partType) {
-                "step-start" -> {
-                    val step = event["step"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                    out +=
-                        AgentEvent.StepStarted(
+        // ── Permission / approval flow ──
+        "permission.asked" -> {
+            val callId = event["callID"]?.jsonPrimitive?.content
+                ?: event["callId"]?.jsonPrimitive?.content
+                ?: return out
+            val tool = event["tool"]?.jsonPrimitive?.content ?: return out
+            val title = event["title"]?.jsonPrimitive?.content ?: tool
+            val args = event["args"]
+            val toolArgs = if (args != null && args != JsonPrimitive(null)) args.toString() else ""
+            out += AgentEvent.ApprovalRequested(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+                toolName = tool,
+                toolTitle = title,
+                toolArgs = toolArgs,
+                sessionId = sessionId,
+                isInteractive = false,
+            )
+        }
+        "permission.granted" -> {
+            val callId = event["callID"]?.jsonPrimitive?.content
+                ?: event["callId"]?.jsonPrimitive?.content
+                ?: return out
+            out += AgentEvent.ApprovalGranted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+            )
+        }
+        "permission.denied" -> {
+            val callId = event["callID"]?.jsonPrimitive?.content
+                ?: event["callId"]?.jsonPrimitive?.content
+                ?: return out
+            out += AgentEvent.ApprovalDenied(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+            )
+        }
+        "user.input.required" -> {
+            val callId = event["callID"]?.jsonPrimitive?.content
+                ?: event["callId"]?.jsonPrimitive?.content
+                ?: UUID.randomUUID().toString()
+            val tool = event["tool"]?.jsonPrimitive?.content ?: "ask_user"
+            val title = event["title"]?.jsonPrimitive?.content ?: tool
+            val args = event["args"]
+            val toolArgs = if (args != null && args != JsonPrimitive(null)) args.toString() else ""
+            out += AgentEvent.ApprovalRequested(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                toolId = callId,
+                toolName = tool,
+                toolTitle = title,
+                toolArgs = toolArgs,
+                sessionId = sessionId,
+                isInteractive = true,
+            )
+        }
+
+        // ── MCP events ──
+        "mcp.tools.changed" -> {
+            out += AgentEvent.StateSync(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                syncType = "mcp_tools",
+                data = event.toString().take(4096),
+            )
+        }
+        "mcp.connected", "mcp.disconnected" -> {
+            out += AgentEvent.OpencodeRawEvent(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                data = event.toString().take(2048),
+                eventName = kind,
+            )
+        }
+
+        // ── Misc events (forwarded as raw for Android to display) ──
+        "todo.updated", "todo.completed",
+        "file.edited", "file.read", "file.written",
+        "command.executed",
+        "web.searched", "web.fetched",
+        "lsp.client.diagnostics", "lsp.indexed" -> {
+            out += AgentEvent.OpencodeRawEvent(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                data = event.toString().take(4096),
+                eventName = kind,
+            )
+        }
+
+        // ── Catchall: forward any unknown event so Android can see it ──
+        else -> {
+            out += AgentEvent.OpencodeRawEvent(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                data = event.toString().take(4096),
+                eventName = kind,
+            )
+        }
+    }
+
+    return out
+}
+
+/**
+ * Extract text/reasoning from a `message.updated` snapshot's parts array.
+ * Handles JsonArray parts, JsonObject indexed parts, and flat structure.
+ */
+private fun extractFromMessageParts(
+    event: JsonObject,
+    ts: Long,
+    sessionId: String,
+    out: MutableList<AgentEvent>,
+) {
+    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+    val messageObj = event["message"]?.jsonObject ?: event
+    val parts = messageObj["parts"]
+
+    val partList: List<JsonObject> = when (parts) {
+        is JsonArray -> parts.mapNotNull { runCatching { it.jsonObject }.getOrNull() }
+        is JsonObject -> parts.values.mapNotNull { runCatching { it.jsonObject }.getOrNull() }
+        else -> emptyList()
+    }
+
+    for (part in partList) {
+        val partType = part["type"]?.jsonPrimitive?.content
+        when (partType) {
+            "text" -> {
+                val fullText = part["text"]?.jsonPrimitive?.content ?: ""
+                if (fullText.length > state.text.length) {
+                    val delta = fullText.substring(state.text.length)
+                    state.text = fullText
+                    if (delta.isNotEmpty()) {
+                        out += AgentEvent.FinalAnswerDelta(
                             eventId = UUID.randomUUID().toString(),
                             timestamp = ts,
-                            title = "Step $step",
+                            text = delta,
                         )
-                }
-                "step-finish" -> {
-                    out +=
-                        AgentEvent.StepFinished(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            success = true,
-                        )
-                }
-                "subtask" -> {
-                    val desc = event["description"]?.jsonPrimitive?.content
-                    val agent = event["agent"]?.jsonPrimitive?.content
-                    val title = desc ?: agent?.let { "Sub-agent: $it" } ?: "Sub-agent"
-                    out +=
-                        AgentEvent.StepStarted(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            title = title,
-                        )
-                }
-                "text" -> {
-                    // part.updated snapshot with full accumulated text — compute delta
-                    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-                    val fullText = event["text"]?.jsonPrimitive?.content ?: ""
-                    if (fullText.length > state.text.length) {
-                        val delta = fullText.substring(state.text.length)
-                        state.text = fullText
-                        if (delta.isNotEmpty()) {
-                            out +=
-                                AgentEvent.FinalAnswerDelta(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = ts,
-                                    text = delta,
-                                )
-                        }
                     }
                 }
-                "reasoning" -> {
-                    // part.updated snapshot with full accumulated reasoning — compute delta
-                    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-                    val fullReasoning = event["reasoning"]?.jsonPrimitive?.content ?: ""
-                    if (fullReasoning.length > state.reasoning.length) {
-                        val delta = fullReasoning.substring(state.reasoning.length)
-                        state.reasoning = fullReasoning
-                        if (delta.isNotEmpty()) {
-                            out +=
-                                AgentEvent.ReasoningDelta(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = ts,
-                                    text = delta,
-                                )
-                        }
+            }
+            "reasoning" -> {
+                val fullReasoning = part["reasoning"]?.jsonPrimitive?.content ?: ""
+                if (fullReasoning.length > state.reasoning.length) {
+                    val delta = fullReasoning.substring(state.reasoning.length)
+                    state.reasoning = fullReasoning
+                    if (delta.isNotEmpty()) {
+                        out += AgentEvent.ReasoningDelta(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            text = delta,
+                        )
                     }
                 }
             }
         }
     }
 
-    return out
+    // Fallback: flat structure (event has direct "text" or "reasoning" fields)
+    if (out.isEmpty()) {
+        val fullText = event["text"]?.jsonPrimitive?.content
+        if (fullText != null && fullText.length > state.text.length) {
+            val delta = fullText.substring(state.text.length)
+            state.text = fullText
+            if (delta.isNotEmpty()) {
+                out += AgentEvent.FinalAnswerDelta(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    text = delta,
+                )
+            }
+        }
+        val fullReasoning = event["reasoning"]?.jsonPrimitive?.content
+        if (fullReasoning != null && fullReasoning.length > state.reasoning.length) {
+            val delta = fullReasoning.substring(state.reasoning.length)
+            state.reasoning = fullReasoning
+            if (delta.isNotEmpty()) {
+                out += AgentEvent.ReasoningDelta(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = ts,
+                    text = delta,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Extract from a `message.part.updated` (or legacy `part.updated`) event.
+ * Handles text, reasoning, step-start, step-finish, subtask part types.
+ */
+private fun extractFromPartUpdated(
+    event: JsonObject,
+    ts: Long,
+    sessionId: String,
+    out: MutableList<AgentEvent>,
+) {
+    val partType = event["partType"]?.jsonPrimitive?.content ?: return
+    when (partType) {
+        "text" -> {
+            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+            val fullText = event["text"]?.jsonPrimitive?.content ?: ""
+            if (fullText.length > state.text.length) {
+                val delta = fullText.substring(state.text.length)
+                state.text = fullText
+                if (delta.isNotEmpty()) {
+                    out += AgentEvent.FinalAnswerDelta(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        text = delta,
+                    )
+                }
+            }
+        }
+        "reasoning" -> {
+            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+            val fullReasoning = event["reasoning"]?.jsonPrimitive?.content ?: ""
+            if (fullReasoning.length > state.reasoning.length) {
+                val delta = fullReasoning.substring(state.reasoning.length)
+                state.reasoning = fullReasoning
+                if (delta.isNotEmpty()) {
+                    out += AgentEvent.ReasoningDelta(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = ts,
+                        text = delta,
+                    )
+                }
+            }
+        }
+        "step-start" -> {
+            val step = event["step"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+            out += AgentEvent.StepStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                title = "Step $step",
+            )
+        }
+        "step-finish" -> {
+            out += AgentEvent.StepFinished(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                success = true,
+            )
+        }
+        "subtask" -> {
+            val desc = event["description"]?.jsonPrimitive?.content
+            val agent = event["agent"]?.jsonPrimitive?.content
+            val title = desc ?: agent?.let { "Sub-agent: $it" } ?: "Sub-agent"
+            out += AgentEvent.StepStarted(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                title = title,
+            )
+        }
+    }
 }
 
 /**
