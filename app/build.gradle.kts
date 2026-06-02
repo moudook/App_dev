@@ -57,7 +57,7 @@ android {
             buildConfigField(
                 "String",
                 "SERVER_URL",
-                System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"https://K1tt3n-Friday_server.hf.space\"",
+                System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"https://K1tt3n-Friday-server.hf.space\"",
             )
             // HF Token for direct HF Space connection (stored in local.properties)
             buildConfigField(

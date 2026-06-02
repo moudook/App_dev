@@ -124,7 +124,7 @@ class SecurePreferences(private val context: Context) {
 
         // Remote Server Configuration - HF Space
         private const val KEY_SERVER_URL = "server_url"
-        private const val DEFAULT_SERVER_URL = "https://K1tt3n-Friday_server.hf.space"
+        private const val DEFAULT_SERVER_URL = "https://K1tt3n-Friday-server.hf.space"
 
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
