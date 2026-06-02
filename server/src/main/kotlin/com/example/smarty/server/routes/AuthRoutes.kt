@@ -4,7 +4,6 @@ import com.example.smarty.server.plugins.verifyFirebaseToken
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
-import io.ktor.server.request.authorization
 import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.post
@@ -13,14 +12,12 @@ import io.ktor.server.routing.routing
 fun Application.configureAuthRoutes() {
     routing {
         post("/auth/verify") {
-            // Get the Bearer token from the Authorization header
-            val authHeader = call.request.authorization()
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid Authorization header"))
+            // Get the Bearer token from the X-Firebase-Auth header (set by Cloudflare proxy)
+            val token = call.request.header("X-Firebase-Auth")
+            if (token.isNullOrBlank()) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid X-Firebase-Auth header"))
                 return@post
             }
-
-            val token = authHeader.removePrefix("Bearer ")
             val deviceId = call.request.header("X-Smarty-Device-Id")
 
             try {

@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import io.ktor.http.*
+import io.ktor.http.auth.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -306,6 +307,11 @@ fun Application.configureSecurity() {
 
         bearer("firebase") {
             realm = "Smarty API"
+            authHeader { call ->
+                call.request.header("X-Firebase-Auth")?.let { token ->
+                    HttpAuthHeader.Single("Bearer", token)
+                }
+            }
             authenticate { credential ->
                 try {
                     val deviceId = this.request.header("X-Smarty-Device-Id")
