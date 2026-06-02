@@ -122,9 +122,9 @@ class SecurePreferences(private val context: Context) {
         // FTS Maintenance
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
 
-        // Remote Server Configuration - Cloudflare proxy
+        // Remote Server Configuration - HF Space
         private const val KEY_SERVER_URL = "server_url"
-        private const val DEFAULT_SERVER_URL = "https://friday-proxy.forpblcusz.workers.dev"
+        private const val DEFAULT_SERVER_URL = "https://K1tt3n-Friday_server.hf.space"
 
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
