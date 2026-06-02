@@ -540,22 +540,6 @@ fun SettingsScreen(
                 label = "scrimColor"
             )
 
-            // Bottom Gradient Scrim (Applied Globally as requested)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                scrimColor.copy(alpha = 0.8f),
-                                scrimColor
-                            )
-                        )
-                    )
-            )
         }
     }
 }
