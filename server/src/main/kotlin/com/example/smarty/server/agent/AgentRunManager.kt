@@ -102,22 +102,41 @@ object AgentRunManager {
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
                 val collectedAgentEvents = mutableListOf<AgentEvent>()
 
-                val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
-                    // Single emission path: the per-session flow is the source of truth.
-                    // Both the /chat/ws WebSocket emitJob and /ws/timeline bridge subscribe
-                    // to this flow (via getEventFlow) so they each receive exactly one copy.
-                    // The ActiveEventBridge is reserved for events that originate OUTSIDE the
-                    // agent loop (e.g. MCP approval events emitted from Application.kt:409-428).
-                    flow.emit(event)
+                var hasActivePluginBridge = false
 
-                    collectedAgentEvents.add(event)
-                    if (event is AgentEvent.AgentStep) {
-                        collectedAgentSteps[event.stepIndex] = event
-                    }
-                    if (event is AgentEvent.Command) {
-                        val cmd = event.command
-                        if (cmd is AgentCommand.NotifyCitations) {
-                            collectedCitations.addAll(cmd.citations)
+                val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
+                    val isContentEvent =
+                        event is AgentEvent.Processing ||
+                            event is AgentEvent.Result ||
+                            event is AgentEvent.ToolCall ||
+                            event is AgentEvent.AgentStep
+
+                    if (hasActivePluginBridge && isContentEvent) {
+                        // Plugin bridge is authoritative for content — suppress ServerAgent
+                        // duplicates. Still preserve standalone thinking and metadata.
+                        when (event) {
+                            is AgentEvent.Processing -> {
+                                if (!event.thinking.isNullOrBlank()) {
+                                    flow.emit(event.copy(content = ""))
+                                }
+                            }
+                            is AgentEvent.Result -> {
+                                flow.emit(event.copy(content = ""))
+                            }
+                            else -> { /* ToolCall, AgentStep — skip entirely */ }
+                        }
+                        collectedAgentEvents.add(event)
+                    } else {
+                        flow.emit(event)
+                        collectedAgentEvents.add(event)
+                        if (event is AgentEvent.AgentStep) {
+                            collectedAgentSteps[event.stepIndex] = event
+                        }
+                        if (event is AgentEvent.Command) {
+                            val cmd = event.command
+                            if (cmd is AgentCommand.NotifyCitations) {
+                                collectedCitations.addAll(cmd.citations)
+                            }
                         }
                     }
                 }
@@ -161,6 +180,7 @@ object AgentRunManager {
                                 personality = personality,
                                 opencodeSessionId = opencodeSessionId,
                                 onOpencodeSessionCreated = { newOpencodeSessionId ->
+                                    hasActivePluginBridge = true
                                     if (chatRepository != null) {
                                         try {
                                             chatRepository.updateOpencodeSessionId(userId, sessionId, newOpencodeSessionId)

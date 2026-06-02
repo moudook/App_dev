@@ -6,11 +6,28 @@ data class ParsedResponse(
 )
 
 object ThinkingParser {
-    fun parse(content: String): ParsedResponse = ParsedResponse(null, content)
+    private val thinkTagPattern = Regex("""\[think\](.*?)\[/think\]""", RegexOption.DOT_MATCHES_ALL)
+    private val thinkHtmlPattern = Regex("""<think>(.*?)</think>""", RegexOption.DOT_MATCHES_ALL)
 
-    fun hasThinking(content: String): Boolean = false
+    fun parse(content: String): ParsedResponse {
+        val match = thinkTagPattern.find(content) ?: thinkHtmlPattern.find(content)
+        return if (match != null) {
+            val thinking = match.groupValues[1].trim()
+            val answer = content.replace(thinkTagPattern, "").replace(thinkHtmlPattern, "").trim()
+            ParsedResponse(thinking = thinking.ifEmpty { null }, answer = answer)
+        } else {
+            ParsedResponse(null, content)
+        }
+    }
 
-    fun extractThinking(content: String): String? = null
+    fun hasThinking(content: String): Boolean =
+        thinkTagPattern.containsMatchIn(content) || thinkHtmlPattern.containsMatchIn(content)
 
-    fun extractAnswer(content: String): String = content
+    fun extractThinking(content: String): String? {
+        val match = thinkTagPattern.find(content) ?: thinkHtmlPattern.find(content)
+        return match?.groupValues?.get(1)?.trim()?.ifEmpty { null }
+    }
+
+    fun extractAnswer(content: String): String =
+        content.replace(thinkTagPattern, "").replace(thinkHtmlPattern, "").trim()
 }

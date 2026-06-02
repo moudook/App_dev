@@ -1817,6 +1817,7 @@ class ChatFeatureManager(
             val responseBuilder = StringBuilder()
             val thinkingBuilder = StringBuilder()
             val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
+            var hasReceivedPluginEvents = false
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
             var capturedConfidence: String? = null // Fix #3: Capture confidence from Result events
             var capturedSourceType: String? = null // Fix #3: Capture sourceType from Result events
@@ -1835,27 +1836,35 @@ class ChatFeatureManager(
                     Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
                     when (event) {
                         is AgentEvent.Processing -> {
-                            if (event.content.isNotEmpty()) {
-                                responseBuilder.clear()
-                                responseBuilder.append(event.content)
+                            if (hasReceivedPluginEvents) {
+                                // Plugin bridge is authoritative — don't let ServerAgent
+                                // accumulated content overwrite clean FinalAnswerDelta deltas.
+                                // Still capture standalone thinking for backward compat.
+                                if (!event.thinking.isNullOrBlank() && thinkingBuilder.isEmpty()) {
+                                    thinkingBuilder.append(event.thinking)
+                                    chatManager.updateMessageWithThinking(
+                                        streamingMessageId,
+                                        responseBuilder.toString(),
+                                        thinkingBuilder.toString().ifEmpty { null },
+                                        agentEvents = agentEventsBuilder.toList(),
+                                    )
+                                }
+                            } else {
+                                if (event.content.isNotEmpty()) {
+                                    responseBuilder.clear()
+                                    responseBuilder.append(event.content)
+                                }
+                                extractAndStripInlineTags(responseBuilder, streamingMessageId)
+                                chatManager.updateMessageWithThinking(
+                                    streamingMessageId,
+                                    responseBuilder.toString(),
+                                    null,
+                                    agentEvents = agentEventsBuilder.toList(),
+                                )
                             }
-                            extractAndStripInlineTags(responseBuilder, streamingMessageId)
-                            chatManager.updateMessageWithThinking(
-                                streamingMessageId,
-                                responseBuilder.toString(),
-                                null,
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
                         }
                         is AgentEvent.Result -> {
-                            // Result contains the COMPLETE final response — use it directly
-                            // This prevents duplication from accumulated Processing chunks
-                            val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
-                            // CRITICAL: Update responseBuilder so post-loop code reads correct content
-                            responseBuilder.clear()
-                            responseBuilder.append(finalContent)
-                            extractAndStripInlineTags(StringBuilder(finalContent), streamingMessageId)
-                            // Capture citations from Result event (primary source for web search results)
+                            // Always capture citations, confidence, sourceType from Result
                             if (event.citations.isNotEmpty()) {
                                 event.citations.forEach { citation ->
                                     if (pendingCitations.none { it.url == citation.url }) {
@@ -1867,13 +1876,22 @@ class ChatFeatureManager(
                                     pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                                 )
                             }
-                            // Fix #3: Capture confidence from Result event directly
                             capturedConfidence = event.confidence ?: capturedConfidence
                             capturedSourceType = event.sourceType ?: capturedSourceType
+
+                            if (!hasReceivedPluginEvents) {
+                                // No plugin events — use ServerAgent final content (legacy mode)
+                                val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                                responseBuilder.clear()
+                                responseBuilder.append(finalContent)
+                                extractAndStripInlineTags(StringBuilder(finalContent), streamingMessageId)
+                            }
+
+                            val currentContent = responseBuilder.toString()
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
-                                finalContent,
-                                null,
+                                currentContent,
+                                thinkingBuilder.toString().ifEmpty { null },
                                 capturedConfidence,
                                 capturedSourceType,
                                 agentEventsBuilder.toList(),
@@ -1898,43 +1916,48 @@ class ChatFeatureManager(
                             _pendingClarificationRequests.value = emptyList()
                         }
                         is AgentEvent.ToolCall -> {
-                            // Also add to pending actions so it appears inside the thinking block immediately
-                            val actionResult =
-                                com.example.smarty.core.domain.model.AgentActionResult(
-                                    action = event.displayName,
-                                    success = event.status == "completed" || event.status == "started",
-                                    resultSummary = "Server action ${event.status}",
-                                )
-                            pendingActions.removeAll { it.action == event.displayName }
-                            pendingActions.add(actionResult)
-                            chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+                            if (hasReceivedPluginEvents) {
+                                // Plugin handles tool calls via ToolCallStarted/Output/Finished
+                                // Skip ServerAgent's legacy ToolCall to avoid duplicates
+                            } else {
+                                // ServerAgent legacy ToolCall — only used when plugin is not active
+                                val actionResult =
+                                    com.example.smarty.core.domain.model.AgentActionResult(
+                                        action = event.displayName,
+                                        success = event.status == "completed" || event.status == "started",
+                                        resultSummary = "Server action ${event.status}",
+                                    )
+                                pendingActions.removeAll { it.action == event.displayName }
+                                pendingActions.add(actionResult)
+                                chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
 
-                            val toolCallEntry =
-                                com.example.smarty.core.domain.model.AgentToolCallEntry(
-                                    toolName = event.toolName,
-                                    displayName = event.displayName,
-                                    status = event.status,
-                                    inputSummary = event.inputSummary,
-                                    outputSummary = event.outputSummary,
-                                    searchQueries =
-                                        event.searchQueries.map {
-                                            com.example.smarty.core.domain.model.SearchQueryEntry(
-                                                query = it.query,
-                                                result = it.result,
-                                            )
-                                        },
-                                )
-                            pendingToolCalls.removeAll { it.toolName == event.toolName }
-                            pendingToolCalls.add(toolCallEntry)
+                                val toolCallEntry =
+                                    com.example.smarty.core.domain.model.AgentToolCallEntry(
+                                        toolName = event.toolName,
+                                        displayName = event.displayName,
+                                        status = event.status,
+                                        inputSummary = event.inputSummary,
+                                        outputSummary = event.outputSummary,
+                                        searchQueries =
+                                            event.searchQueries.map {
+                                                com.example.smarty.core.domain.model.SearchQueryEntry(
+                                                    query = it.query,
+                                                    result = it.result,
+                                                )
+                                            },
+                                    )
+                                pendingToolCalls.removeAll { it.toolName == event.toolName }
+                                pendingToolCalls.add(toolCallEntry)
 
-                            // Trigger unified sync to ensure tool actions are reflected immediately
-                            scope.launch {
-                                try {
-                                    com.example.smarty.di.ServiceLocator
-                                        .provideSyncCoordinator(application)
-                                        .syncAll()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to sync after AgentEvent.ToolCall", e)
+                                // Trigger unified sync to ensure tool actions are reflected immediately
+                                scope.launch {
+                                    try {
+                                        com.example.smarty.di.ServiceLocator
+                                            .provideSyncCoordinator(application)
+                                            .syncAll()
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to sync after AgentEvent.ToolCall", e)
+                                    }
                                 }
                             }
                         }
@@ -1942,19 +1965,22 @@ class ChatFeatureManager(
                             Log.d(TAG, "Command received: ${event.command}")
                         }
                         is AgentEvent.AgentStep -> {
-                            // Map incoming AgentStep to the UI model and add it to the message
-                            val uiStep =
-                                com.example.smarty.core.domain.model.AgentStepEntry(
-                                    stepType = event.stepType,
-                                    stepTitle = event.stepTitle,
-                                    stepContent = event.stepContent,
-                                    stepStatus = event.stepStatus,
-                                    stepIndex = event.stepIndex,
-                                    toolName = event.toolName,
-                                    durationMs = event.durationMs,
-                                )
-                            collectedAgentSteps.add(uiStep)
-                            chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
+                            if (!hasReceivedPluginEvents) {
+                                // Plugin handles steps via StepStarted/StepFinished
+                                // Skip ServerAgent's legacy AgentStep to avoid duplicates
+                                val uiStep =
+                                    com.example.smarty.core.domain.model.AgentStepEntry(
+                                        stepType = event.stepType,
+                                        stepTitle = event.stepTitle,
+                                        stepContent = event.stepContent,
+                                        stepStatus = event.stepStatus,
+                                        stepIndex = event.stepIndex,
+                                        toolName = event.toolName,
+                                        durationMs = event.durationMs,
+                                    )
+                                collectedAgentSteps.add(uiStep)
+                                chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
+                            }
                         }
                         is AgentEvent.StateSync -> {
                             // State sync handled by eventSink
@@ -1986,6 +2012,7 @@ class ChatFeatureManager(
                         }
                         // ── Plugin-path text streaming (OpenCode CLI deltas) ──
                         is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
+                            hasReceivedPluginEvents = true
                             responseBuilder.append(event.text)
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
@@ -1996,6 +2023,7 @@ class ChatFeatureManager(
                         }
                         // ── Plugin-path reasoning streaming ──
                         is com.example.smarty.protocol.AgentEvent.ReasoningDelta -> {
+                            hasReceivedPluginEvents = true
                             thinkingBuilder.append(event.text)
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
@@ -2021,6 +2049,7 @@ class ChatFeatureManager(
                         }
                         // ── Plugin-path tool lifecycle ──
                         is com.example.smarty.protocol.AgentEvent.ToolCallStarted -> {
+                            hasReceivedPluginEvents = true
                             val actionResult =
                                 com.example.smarty.core.domain.model.AgentActionResult(
                                     action = event.name,
@@ -2071,6 +2100,7 @@ class ChatFeatureManager(
                         }
                         // ── Plugin-path step events ──
                         is com.example.smarty.protocol.AgentEvent.StepStarted -> {
+                            hasReceivedPluginEvents = true
                             val uiStep =
                                 com.example.smarty.core.domain.model.AgentStepEntry(
                                     stepType = "tool_call",
