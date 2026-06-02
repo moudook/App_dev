@@ -291,7 +291,7 @@ fun Application.configureTimelineBridgeRoutes() {
     logger.info("[KTOR] /opencode/events, /ws/timeline, /opencode/ask-response routes registered")
 }
 
-private val logger = LoggerFactory.getLogger("TimelineBridgeRoutes")
+private val logger = LoggerFactory.getLogger("com.example.smarty.server.routes.TimelineBridgeRoutes")
 
 /**
  * MCP tool names are prefixed with `mcp` by the OpenCode CLI (e.g.
@@ -319,7 +319,7 @@ private val sessionContentStates = ConcurrentHashMap<String, SessionContentState
 // (#1) AND the assistant response (#2, #3) in the same run.
 private val debugLoggedKinds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 private val msgUpdatedCounters = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>()
-private const val MSG_UPDATED_LOG_LIMIT = 3
+private const val MSG_UPDATED_LOG_LIMIT = 10
 
 /**
  * Comprehensive OpenCode v1.15.13+ event → AgentEvent translator.
