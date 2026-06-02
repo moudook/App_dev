@@ -609,6 +609,10 @@ class ChatViewModel(
 
                     // ── Final result (stream complete) ──
                     is com.example.smarty.protocol.AgentEvent.Result -> {
+                        // CRITICAL: Update responseBuilder with final content from Result event
+                        val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                        responseBuilder.clear()
+                        responseBuilder.append(finalContent)
                         currentStreamingMessage =
                             currentStreamingMessage.copy(
                                 isStreaming = false,

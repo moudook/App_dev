@@ -1816,6 +1816,9 @@ class ChatFeatureManager(
                             // Result contains the COMPLETE final response — use it directly
                             // This prevents duplication from accumulated Processing chunks
                             val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
+                            // CRITICAL: Update responseBuilder so post-loop code reads correct content
+                            responseBuilder.clear()
+                            responseBuilder.append(finalContent)
                             extractAndStripInlineTags(StringBuilder(finalContent), streamingMessageId)
                             // Capture citations from Result event (primary source for web search results)
                             if (event.citations.isNotEmpty()) {
