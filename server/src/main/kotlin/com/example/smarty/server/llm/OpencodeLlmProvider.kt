@@ -46,7 +46,9 @@ private fun JsonElement?.deepStr(): String? {
             ?: this["output"]?.deepStr()
             ?: this["data"]?.deepStr()
             ?: if (this.keys.size == 1 && this.values.first() is JsonPrimitive) {
-                this.values.first().jsonPrimitive.contentOrNull
+                this.values
+                    .first()
+                    .jsonPrimitive.contentOrNull
             } else {
                 this.toString()
             }
@@ -73,6 +75,10 @@ class OpencodeLlmProvider(
     companion object {
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
         private val TAG_STRIP_REGEX = Regex("</?(think|final)>", RegexOption.IGNORE_CASE)
+        private const val MAX_SSE_LINE_LENGTH = 1_000_000 // 1 MB per line
+        private const val MAX_BUSY_RETRIES = 3
+        private const val BUSY_RETRY_DELAY_MS = 5_000L
+
         fun stripThinkFinalTags(text: String): String = text.replace(TAG_STRIP_REGEX, "").trim()
     }
 
@@ -188,9 +194,16 @@ class OpencodeLlmProvider(
                             val channel = response.bodyAsChannel()
                             var currentEvent: String? = null
                             val currentData = StringBuilder()
+                            var busyRetries = 0
 
                             while (!channel.isClosedForRead) {
                                 val rawLine = channel.readLine() ?: break
+                                if (rawLine.length > MAX_SSE_LINE_LENGTH) {
+                                    logger.warn(
+                                        "[OpenCode.SSE][inference=$inferenceId] Line exceeds ${MAX_SSE_LINE_LENGTH} bytes, skipping",
+                                    )
+                                    continue
+                                }
                                 val line =
                                     rawLine.replace(
                                         Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"),
@@ -201,7 +214,10 @@ class OpencodeLlmProvider(
 
                                 if (line.isBlank()) {
                                     if (currentData.isNotEmpty()) {
-                                        flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
+                                        if (!flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)) {
+                                            // Error detected — escalate to caller
+                                            return@execute
+                                        }
                                         currentData.setLength(0)
                                         currentEvent = null
                                     }
@@ -213,13 +229,21 @@ class OpencodeLlmProvider(
                                 } else if (line.startsWith("data:")) {
                                     val data = line.substringAfter("data:").trim()
                                     if (data.startsWith("{") && data.endsWith("}")) {
-                                        flowCollector.processSseEvent(currentEvent ?: "message", data, context)
+                                        if (!flowCollector.processSseEvent(currentEvent ?: "message", data, context)) {
+                                            return@execute
+                                        }
                                     } else {
                                         if (currentData.isNotEmpty()) currentData.append("\n")
+                                        if (currentData.length + data.length > MAX_SSE_LINE_LENGTH * 2) {
+                                            logger.warn("[OpenCode.SSE][inference=$inferenceId] Multi-line data exceeds max, truncating")
+                                            continue
+                                        }
                                         currentData.append(data)
                                     }
                                 } else if (line.startsWith("{")) {
-                                    flowCollector.processSseEvent("message", line, context)
+                                    if (!flowCollector.processSseEvent("message", line, context)) {
+                                        return@execute
+                                    }
                                 }
                             }
 
@@ -255,18 +279,19 @@ class OpencodeLlmProvider(
             null
         }
 
+    /** Process a single SSE event. Returns false if the stream should stop (error/terminal). */
     private suspend fun FlowCollector<LlmChunk>.processSseEvent(
         eventType: String,
         data: String,
         context: StreamContext,
-    ) {
+    ): Boolean {
         val inferenceId = context.inferenceId
         logger.debug("[OpenCode.SSE][inference=$inferenceId] eventType=$eventType data=${data.take(200)}")
 
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
         if (data.startsWith("{")) {
-            val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return
+            val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return true
 
             val jsonKind = json["kind"]?.safeStr
             if (eventType == "session.status" || jsonKind == "session.status") {
@@ -277,15 +302,24 @@ class OpencodeLlmProvider(
                         val errorMsg = statusObj["message"]?.safeStr ?: "AI service returned error status"
                         val fullMsg = "OpenCode free tier: $errorMsg"
                         logger.error("[OpenCode.Error][inference=$inferenceId] $fullMsg")
-                        throw IllegalStateException(fullMsg)
+                        // Emit error chunk instead of throwing — lets agent loop retry upstream
+                        emit(LlmChunk(content = null, finishReason = "error", sseEvent = eventType))
+                        return false
                     }
-                    if (statusType == "busy") return
+                    if (statusType == "busy") {
+                        logger.warn("[OpenCode.Busy][inference=$inferenceId] Daemon is busy, will retry upstream")
+                        emit(LlmChunk(content = null, finishReason = "busy", sseEvent = eventType))
+                        return false
+                    }
                 }
             }
 
             if ((json["name"].safeStr ?: "").endsWith("Error")) {
-                logger.error("[OpenCode.Error][inference=$inferenceId] Daemon error: $data")
-                return
+                val errorMsg = "Daemon error: ${json["message"]?.safeStr ?: data.take(200)}"
+                logger.error("[OpenCode.Error][inference=$inferenceId] $errorMsg")
+                // Emit error chunk for upstream retry instead of silent swallow
+                emit(LlmChunk(content = null, finishReason = "error", sseEvent = eventType))
+                return false
             }
 
             parseCanonicalResponse(json, eventType)?.parts?.forEachIndexed { i, part ->
@@ -294,7 +328,12 @@ class OpencodeLlmProvider(
                         "text" -> {
                             val c = part.content
                             LlmChunk(
-                                content = if (c != null) { stripThinkFinalTags(c) } else null,
+                                content =
+                                    if (c != null) {
+                                        stripThinkFinalTags(c)
+                                    } else {
+                                        null
+                                    },
                                 reasoning = null,
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
@@ -308,18 +347,22 @@ class OpencodeLlmProvider(
                                 sseEvent = eventType,
                             )
                         "tool_use", "tool", "call" -> {
-                            val pendingQ = if (part.toolName == "ask_user" || part.toolName == "askuser") {
-                                extractQuestionFromArgs(part.toolArgs)
-                            } else null
+                            val pendingQ =
+                                if (part.toolName == "ask_user" || part.toolName == "askuser") {
+                                    extractQuestionFromArgs(part.toolArgs)
+                                } else {
+                                    null
+                                }
 
                             LlmChunk(
                                 content = null,
-                                toolCall = LlmToolCall(
-                                    "tool-${System.currentTimeMillis()}-$i",
-                                    part.toolName ?: "unknown",
-                                    part.toolArgs ?: "",
-                                    status = part.status,
-                                ),
+                                toolCall =
+                                    LlmToolCall(
+                                        "tool-${System.currentTimeMillis()}-$i",
+                                        part.toolName ?: "unknown",
+                                        part.toolArgs ?: "",
+                                        status = part.status,
+                                    ),
                                 question = pendingQ,
                                 subagentId = part.subagentId,
                                 sseEvent = eventType,
@@ -339,6 +382,7 @@ class OpencodeLlmProvider(
                 logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$eventType")
             }
         }
+        return true
     }
 
     private fun extractQuestionFromArgs(argsJson: String?): PendingQuestion? {
@@ -348,9 +392,10 @@ class OpencodeLlmProvider(
 
             var questionStr = json["question"]?.safeStr ?: "What would you like?"
             var options: List<String> = emptyList()
-            var allowCustom = json["allowCustom"]?.safeStr?.toBooleanStrictOrNull()
-                ?: json["allow_custom"]?.safeStr?.toBooleanStrictOrNull()
-                ?: false
+            var allowCustom =
+                json["allowCustom"]?.safeStr?.toBooleanStrictOrNull()
+                    ?: json["allow_custom"]?.safeStr?.toBooleanStrictOrNull()
+                    ?: false
 
             val questions = json["questions"]?.jsonArray
             if (questions != null && questions.isNotEmpty()) {
@@ -377,7 +422,10 @@ class OpencodeLlmProvider(
         }
     }
 
-    private fun parseCanonicalResponse(json: JsonObject, eventType: String? = null): CanonicalResponse? {
+    private fun parseCanonicalResponse(
+        json: JsonObject,
+        eventType: String? = null,
+    ): CanonicalResponse? {
         val topSubagentId = json["subagent_id"].safeStr
 
         // ── Handle SSE event types where the type is in the event: line, not the JSON ──
@@ -509,22 +557,26 @@ class OpencodeLlmProvider(
                 // Handle message.updated — may contain assembled parts array
                 "message.updated" -> {
                     // Parts could be at top level or inside an "info" or "message" object
-                    val partsArray = json["parts"]?.jsonArray
-                        ?: json["info"]?.jsonObject?.get("parts")?.jsonArray
-                        ?: json["message"]?.jsonObject?.get("parts")?.jsonArray
+                    val partsArray =
+                        json["parts"]?.jsonArray
+                            ?: json["info"]?.jsonObject?.get("parts")?.jsonArray
+                            ?: json["message"]?.jsonObject?.get("parts")?.jsonArray
                     if (partsArray != null) {
-                        val parts = partsArray.flatMap { el ->
-                            val obj = el as? JsonObject ?: return@flatMap emptyList<CanonicalPart>()
-                            val pType = obj["type"].safeStr ?: "unknown"
-                            val pContent = obj.deepStr()
-                            when (pType) {
-                                "text", "content" -> listOf(CanonicalPart("text", pContent, subagentId = sid))
-                                "reasoning" -> listOf(CanonicalPart("reasoning", pContent, subagentId = sid))
-                                else -> emptyList()
+                        val parts =
+                            partsArray.flatMap { el ->
+                                val obj = el as? JsonObject ?: return@flatMap emptyList<CanonicalPart>()
+                                val pType = obj["type"].safeStr ?: "unknown"
+                                val pContent = obj.deepStr()
+                                when (pType) {
+                                    "text", "content" -> listOf(CanonicalPart("text", pContent, subagentId = sid))
+                                    "reasoning" -> listOf(CanonicalPart("reasoning", pContent, subagentId = sid))
+                                    else -> emptyList()
+                                }
                             }
-                        }
                         if (parts.isNotEmpty()) CanonicalResponse(parts) else null
-                    } else null
+                    } else {
+                        null
+                    }
                 }
                 // Ignore status events — they carry no text content
                 "session.status" -> null

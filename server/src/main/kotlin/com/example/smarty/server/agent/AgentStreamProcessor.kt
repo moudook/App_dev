@@ -28,6 +28,7 @@ class AgentStreamProcessor(
     var isToolCallInProgress = false
     var totalUsage: LlmUsage? = null
     var currentSubagentId: String? = null
+    var finishReason: String? = null
 
     private var stepIndex = 0
     private var currentThinkingStepId: String? = null
@@ -89,6 +90,9 @@ class AgentStreamProcessor(
         chunk.usage?.let { totalUsage = it }
         chunk.subagentId?.let { currentSubagentId = it }
 
+        // Track finish reason (error/busy/done) for upstream retry decisions
+        chunk.finishReason?.let { finishReason = it }
+
         chunk.rawJson?.let { raw ->
             this.emit(
                 AgentEvent.OpencodeRawEvent(
@@ -99,7 +103,14 @@ class AgentStreamProcessor(
                     subagentId = currentSubagentId,
                 ),
             )
-            if (chunk.content == null && chunk.reasoning == null && chunk.toolCall == null && chunk.toolResult == null) return
+            if (chunk.content == null &&
+                chunk.reasoning == null &&
+                chunk.toolCall == null &&
+                chunk.toolResult == null &&
+                chunk.finishReason == null
+            ) {
+                return
+            }
         }
 
         if (!chunk.reasoning.isNullOrEmpty()) {
@@ -234,5 +245,6 @@ class AgentStreamProcessor(
         stepIndex = 0
         currentThinkingStepId = null
         currentThinkingContent.clear()
+        finishReason = null
     }
 }

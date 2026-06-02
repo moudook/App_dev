@@ -202,6 +202,7 @@ class ServerAgent(
         var lastFailedToolName: String? = null
         var consecutiveToolFailures = 0
         var agentIteration = 0
+        var busyRetries = 0
 
         while (agentIteration < MAX_ITERATIONS) {
             agentIteration++
@@ -209,8 +210,24 @@ class ServerAgent(
             streamProcessor.reset()
 
             try {
-                llmProvider.stream(messagesForAgent, tools, modelOverride, opencodeSessionId, onOpencodeSessionCreated, variantOverride).collect { chunk ->
-                    streamProcessor.processChunk(chunk)
+                llmProvider
+                    .stream(
+                        messagesForAgent,
+                        tools,
+                        modelOverride,
+                        opencodeSessionId,
+                        onOpencodeSessionCreated,
+                        variantOverride,
+                    ).collect { chunk ->
+                        streamProcessor.processChunk(chunk)
+                    }
+
+                // Retry on busy — the daemon may be processing another request
+                if (streamProcessor.finishReason == "busy" && busyRetries < 3) {
+                    busyRetries++
+                    logger.warn("Daemon busy, retrying (attempt $busyRetries/3) for session $sessionId")
+                    kotlinx.coroutines.delay(busyRetries * 5_000L)
+                    continue
                 }
 
                 val duration = System.currentTimeMillis() - startTime
@@ -420,7 +437,15 @@ class ServerAgent(
                         continue
                     }
                 } else if (streamProcessor.currentContent.isNotEmpty()) {
-                    stateManager.putCache(messagesForAgent, tools, query, streamProcessor.currentContent, toolCallCount > 0, modelOverride, variantOverride)
+                    stateManager.putCache(
+                        messagesForAgent,
+                        tools,
+                        query,
+                        streamProcessor.currentContent,
+                        toolCallCount > 0,
+                        modelOverride,
+                        variantOverride,
+                    )
 
                     val citationCount = toolCallHistory.size
                     val confidence =
@@ -451,6 +476,19 @@ class ServerAgent(
 
                     return streamProcessor.currentContent
                 } else {
+                    val reason = streamProcessor.finishReason
+                    if (reason == "error") {
+                        logger.warn("LLM stream ended with error for user: $userId")
+                        emit(
+                            AgentEvent.Error(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                message = "The AI service encountered an error. Please try again.",
+                                code = "LLM_STREAM_ERROR",
+                            ),
+                        )
+                        return ""
+                    }
                     logger.warn("LLM stream completed with no content for user: $userId")
                     tracer.trace(
                         AgentTraceEvent(
