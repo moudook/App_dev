@@ -112,7 +112,8 @@ class MigrationManager(
     private fun hasMigrated(): Boolean = prefs.getBoolean(KEY_MIGRATED, false)
 
     private fun markMigrationComplete() {
-        prefs.edit()
+        prefs
+            .edit()
             .putBoolean(KEY_MIGRATED, true)
             .putLong(KEY_MIGRATION_TIME, System.currentTimeMillis())
             .apply()
@@ -132,9 +133,15 @@ class MigrationManager(
 }
 
 sealed class MigrationResult {
-    data class Success(val notes: Int, val sessions: Int, val events: Int) : MigrationResult()
+    data class Success(
+        val notes: Int,
+        val sessions: Int,
+        val events: Int,
+    ) : MigrationResult()
 
     object AlreadyMigrated : MigrationResult()
 
-    data class Error(val message: String) : MigrationResult()
+    data class Error(
+        val message: String,
+    ) : MigrationResult()
 }

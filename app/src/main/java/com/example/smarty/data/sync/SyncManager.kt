@@ -20,11 +20,19 @@ import kotlinx.serialization.json.Json
  * Result of a sync operation.
  */
 sealed class SyncResult {
-    data class Success(val serverTimestamp: Long) : SyncResult()
+    data class Success(
+        val serverTimestamp: Long,
+    ) : SyncResult()
 
-    data class Conflict(val serverData: String, val localData: String) : SyncResult()
+    data class Conflict(
+        val serverData: String,
+        val localData: String,
+    ) : SyncResult()
 
-    data class Error(val message: String, val retryable: Boolean) : SyncResult()
+    data class Error(
+        val message: String,
+        val retryable: Boolean,
+    ) : SyncResult()
 }
 
 /**
@@ -98,15 +106,14 @@ class SyncManager(
     /**
      * Force immediate sync.
      */
-    suspend fun syncNow(): Boolean {
-        return try {
+    suspend fun syncNow(): Boolean =
+        try {
             processSyncQueue()
             true
         } catch (e: Exception) {
             Log.e(TAG, "Force sync failed: ${e.message}", e)
             false
         }
-    }
 
     /**
      * Enqueue a note operation for sync.
@@ -297,8 +304,8 @@ data class NotePayload(
     val createdAt: Long,
     val updatedAt: Long,
 ) {
-    fun toPushItem(): com.example.smarty.protocol.NotePushItem {
-        return com.example.smarty.protocol.NotePushItem(
+    fun toPushItem(): com.example.smarty.protocol.NotePushItem =
+        com.example.smarty.protocol.NotePushItem(
             id = id,
             title = title,
             content = content,
@@ -331,11 +338,10 @@ data class NotePayload(
             reminderExpiresAt = reminderExpiresAt,
             updatedAt = updatedAt,
         )
-    }
 
     companion object {
-        fun fromNote(note: com.example.smarty.core.domain.model.Note): NotePayload {
-            return NotePayload(
+        fun fromNote(note: com.example.smarty.core.domain.model.Note): NotePayload =
+            NotePayload(
                 id = note.id,
                 title = note.title,
                 content = note.content,
@@ -369,7 +375,6 @@ data class NotePayload(
                 createdAt = note.createdAt,
                 updatedAt = note.updatedAt,
             )
-        }
     }
 }
 
@@ -389,8 +394,8 @@ data class EventPayload(
     val createdAt: Long,
     val updatedAt: Long,
 ) {
-    fun toPushItem(): com.example.smarty.protocol.EventPushItem {
-        return com.example.smarty.protocol.EventPushItem(
+    fun toPushItem(): com.example.smarty.protocol.EventPushItem =
+        com.example.smarty.protocol.EventPushItem(
             id = id,
             title = title,
             description = description,
@@ -402,11 +407,10 @@ data class EventPayload(
             googleEventId = googleEventId,
             isEventPrivate = isEventPrivate,
         )
-    }
 
     companion object {
-        fun fromEvent(event: com.example.smarty.core.domain.model.CalendarEvent): EventPayload {
-            return EventPayload(
+        fun fromEvent(event: com.example.smarty.core.domain.model.CalendarEvent): EventPayload =
+            EventPayload(
                 id = event.id,
                 title = event.title,
                 description = event.description,
@@ -421,6 +425,5 @@ data class EventPayload(
                 createdAt = event.createdAt,
                 updatedAt = event.updatedAt,
             )
-        }
     }
 }

@@ -11,15 +11,9 @@ class ManageMemoriesUseCase(
     suspend fun store(
         content: String,
         scope: String? = null,
-    ): Boolean {
-        return memoryFeatureManager.storeMemory(content, scope)
-    }
+    ): Boolean = memoryFeatureManager.storeMemory(content, scope)
 
-    suspend fun delete(id: String): Boolean {
-        return memoryFeatureManager.deleteMemory(id)
-    }
+    suspend fun delete(id: String): Boolean = memoryFeatureManager.deleteMemory(id)
 
-    suspend fun clearAll(): Boolean {
-        return memoryFeatureManager.clearAllMemories()
-    }
+    suspend fun clearAll(): Boolean = memoryFeatureManager.clearAllMemories()
 }

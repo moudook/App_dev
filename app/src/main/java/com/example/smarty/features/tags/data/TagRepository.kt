@@ -1,6 +1,5 @@
 package com.example.smarty.features.tags.data
 
-import com.example.smarty.core.domain.model.NoteForTag
 import com.example.smarty.core.domain.model.Tag
 import com.example.smarty.core.domain.model.TagCreateRequest
 import com.example.smarty.core.domain.model.TagCreateResponse
@@ -14,9 +13,11 @@ class TagRepository(
 ) {
     suspend fun getTags(): TagsResponse? = remoteDataSource.getTags()
 
-    suspend fun createTag(name: String, color: String, tagType: String = "MANUAL"): TagCreateResponse? {
-        return remoteDataSource.createTag(TagCreateRequest(name = name, color = color, tagType = tagType))
-    }
+    suspend fun createTag(
+        name: String,
+        color: String,
+        tagType: String = "MANUAL",
+    ): TagCreateResponse? = remoteDataSource.createTag(TagCreateRequest(name = name, color = color, tagType = tagType))
 
     suspend fun updateTag(tag: Tag): TagResponse? = remoteDataSource.updateTag(tag)
 
@@ -24,7 +25,13 @@ class TagRepository(
 
     suspend fun getNotesForTag(tagId: String): TagNotesResponse? = remoteDataSource.getNotesForTag(tagId)
 
-    suspend fun assignTagToNote(tagId: String, noteId: String): TagResponse? = remoteDataSource.assignTagToNote(tagId, noteId)
+    suspend fun assignTagToNote(
+        tagId: String,
+        noteId: String,
+    ): TagResponse? = remoteDataSource.assignTagToNote(tagId, noteId)
 
-    suspend fun removeTagFromNote(tagId: String, noteId: String): TagResponse? = remoteDataSource.removeTagFromNote(tagId, noteId)
+    suspend fun removeTagFromNote(
+        tagId: String,
+        noteId: String,
+    ): TagResponse? = remoteDataSource.removeTagFromNote(tagId, noteId)
 }

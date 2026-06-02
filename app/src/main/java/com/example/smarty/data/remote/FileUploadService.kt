@@ -68,8 +68,14 @@ class FileUploadService(
     }
 
     sealed class UploadResult {
-        data class Success(val url: String, val fileId: String, val fileName: String) : UploadResult()
+        data class Success(
+            val url: String,
+            val fileId: String,
+            val fileName: String,
+        ) : UploadResult()
 
-        data class Error(val message: String) : UploadResult()
+        data class Error(
+            val message: String,
+        ) : UploadResult()
     }
 }

@@ -2,15 +2,13 @@ package com.example.smarty.ui.components.common
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.window.Dialog
 
 /**
  * Generic Confirm Delete Dialog.
- * 
+ *
  * Single Responsibility: Only handles delete confirmation UI.
  * DRY: Replaces repeated delete dialog patterns in 5+ screens.
- * 
+ *
  * @param title Dialog title (default: "Delete")
  * @param message Confirmation message (default: "Are you sure?")
  * @param confirmText Confirm button text (default: "Delete")
@@ -28,7 +26,7 @@ fun <T> ConfirmDeleteDialog(
     dismissText: String = "Cancel",
     isDestructive: Boolean = true,
     onConfirm: (T) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     if (item != null) {
         SmartyDialog(
@@ -38,7 +36,7 @@ fun <T> ConfirmDeleteDialog(
             onDismiss = onDismiss,
             confirmText = confirmText,
             dismissText = dismissText,
-            isDestructive = isDestructive
+            isDestructive = isDestructive,
         )
     }
 }
@@ -54,7 +52,7 @@ fun ConfirmDialog(
     dismissText: String = "Cancel",
     isDestructive: Boolean = false,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     SmartyDialog(
         title = title,
@@ -63,7 +61,7 @@ fun ConfirmDialog(
         onDismiss = onDismiss,
         confirmText = confirmText,
         dismissText = dismissText,
-        isDestructive = isDestructive
+        isDestructive = isDestructive,
     )
 }
 
@@ -78,7 +76,7 @@ fun <T> ActionDialog(
     actionText: String,
     isDestructive: Boolean = false,
     onAction: (T) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     if (item != null) {
         SmartyDialog(
@@ -87,7 +85,7 @@ fun <T> ActionDialog(
             onConfirm = { onAction(item) },
             onDismiss = onDismiss,
             confirmText = actionText,
-            isDestructive = isDestructive
+            isDestructive = isDestructive,
         )
     }
 }

@@ -56,16 +56,12 @@ class LoadingState {
     /**
      * Check if a specific operation is loading.
      */
-    fun isLoading(operationId: String): Boolean {
-        return _loadingOperations.value[operationId] == true
-    }
+    fun isLoading(operationId: String): Boolean = _loadingOperations.value[operationId] == true
 
     /**
      * Get StateFlow for a specific operation's loading state.
      */
-    fun isLoadingFlow(operationId: String): Boolean {
-        return isLoading(operationId)
-    }
+    fun isLoadingFlow(operationId: String): Boolean = isLoading(operationId)
 
     /**
      * Check if any operation is loading.

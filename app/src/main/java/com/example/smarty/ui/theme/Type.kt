@@ -35,149 +35,166 @@ import androidx.compose.ui.text.googlefonts.Font
 import com.example.smarty.R
 
 // Google Font Provider Configuration
-val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
+val provider =
+    GoogleFont.Provider(
+        providerAuthority = "com.google.android.gms.fonts",
+        providerPackage = "com.google.android.gms",
+        certificates = R.array.com_google_android_gms_fonts_certs,
+    )
 
 // Using Outfit - a premium, geometric sans-serif that is very easy on the eyes.
 // It features large x-heights and open letterforms, making it highly readable.
-val BrandSans = FontFamily(
-    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Bold),
-)
+val BrandSans =
+    FontFamily(
+        Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Light),
+        Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Normal),
+        Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Medium),
+        Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.SemiBold),
+        Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Bold),
+    )
 
-val InterFont = BrandSans  // Alias maintained for compatibility
-val MonoFont = FontFamily.Monospace   // For code/terminal elements
+val InterFont = BrandSans // Alias maintained for compatibility
+val MonoFont = FontFamily.Monospace // For code/terminal elements
 
-val MavenProFont = FontFamily(
-    androidx.compose.ui.text.font.Font(R.font.maven_pro)
-)
+val MavenProFont =
+    FontFamily(
+        androidx.compose.ui.text.font
+            .Font(R.font.maven_pro),
+    )
 
 /** Cursive font for breathing/meditation screens */
-val CursiveFont = FontFamily(
-    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Bold),
-)
-
-val SmartyTypography = Typography(
-    // Display styles - Hero/H1 (35sp = 32 + 10%)
-    displayLarge = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = 35.sp,
-        lineHeight = 44.sp,
-        letterSpacing = (-0.02).em  // Tight tracking for headings
-    ),
-    displayMedium = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = 31.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.02).em
-    ),
-    displaySmall = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = 26.sp,  // H2 from spec
-        lineHeight = 35.sp,
-        letterSpacing = (-0.02).em
-    ),
-
-    // Headline styles
-    headlineLarge = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 31.sp,
-        letterSpacing = (-0.02).em
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 31.sp,
-        letterSpacing = (-0.02).em
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 26.sp,
-        letterSpacing = (-0.01).em
-    ),
-
-    // Title styles
-    titleLarge = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 26.sp,
-        letterSpacing = 0.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,  // Body from spec
-        lineHeight = 24.sp,
-        letterSpacing = 0.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Medium,
-        fontSize = 15.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.sp
-    ),
-
-    // Body styles - high legibility
-    bodyLarge = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,  // Body from spec
-        lineHeight = 26.sp,
-        letterSpacing = 0.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,  // Caption from spec
-        lineHeight = 18.sp,
-        letterSpacing = 0.sp
-    ),
-
-    // Label styles - for micro-copy
-    labelLarge = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Medium,
-        fontSize = 15.sp,  // Caption from spec
-        lineHeight = 22.sp,
-        letterSpacing = 0.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.02.em  // Wider tracking for labels
-    ),
-    labelSmall = TextStyle(
-        fontFamily = InterFont,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.02.em
+val CursiveFont =
+    FontFamily(
+        Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Light),
+        Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Normal),
+        Font(googleFont = GoogleFont("Dancing Script"), fontProvider = provider, weight = FontWeight.Bold),
     )
-)
+
+val SmartyTypography =
+    Typography(
+        // Display styles - Hero/H1 (35sp = 32 + 10%)
+        displayLarge =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 35.sp,
+                lineHeight = 44.sp,
+                letterSpacing = (-0.02).em, // Tight tracking for headings
+            ),
+        displayMedium =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 31.sp,
+                lineHeight = 40.sp,
+                letterSpacing = (-0.02).em,
+            ),
+        displaySmall =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 26.sp, // H2 from spec
+                lineHeight = 35.sp,
+                letterSpacing = (-0.02).em,
+            ),
+        // Headline styles
+        headlineLarge =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                lineHeight = 31.sp,
+                letterSpacing = (-0.02).em,
+            ),
+        headlineMedium =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 22.sp,
+                lineHeight = 31.sp,
+                letterSpacing = (-0.02).em,
+            ),
+        headlineSmall =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+                letterSpacing = (-0.01).em,
+            ),
+        // Title styles
+        titleLarge =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+                letterSpacing = 0.sp,
+            ),
+        titleMedium =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp, // Body from spec
+                lineHeight = 24.sp,
+                letterSpacing = 0.sp,
+            ),
+        titleSmall =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                letterSpacing = 0.sp,
+            ),
+        // Body styles - high legibility
+        bodyLarge =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Normal,
+                fontSize = 18.sp, // Body from spec
+                lineHeight = 26.sp,
+                letterSpacing = 0.sp,
+            ),
+        bodyMedium =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Normal,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                letterSpacing = 0.sp,
+            ),
+        bodySmall =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Normal,
+                fontSize = 13.sp, // Caption from spec
+                lineHeight = 18.sp,
+                letterSpacing = 0.sp,
+            ),
+        // Label styles - for micro-copy
+        labelLarge =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp, // Caption from spec
+                lineHeight = 22.sp,
+                letterSpacing = 0.sp,
+            ),
+        labelMedium =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                letterSpacing = 0.02.em, // Wider tracking for labels
+            ),
+        labelSmall =
+            TextStyle(
+                fontFamily = InterFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                letterSpacing = 0.02.em,
+            ),
+    )

@@ -38,11 +38,23 @@ object SemanticSearchEngine {
     // GLUT-047 FIX: Pre-compile soundex map to avoid creation on every call
     private val SOUNDEX_MAP =
         mapOf(
-            'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
-            'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
-            'D' to '3', 'T' to '3',
+            'B' to '1',
+            'F' to '1',
+            'P' to '1',
+            'V' to '1',
+            'C' to '2',
+            'G' to '2',
+            'J' to '2',
+            'K' to '2',
+            'Q' to '2',
+            'S' to '2',
+            'X' to '2',
+            'Z' to '2',
+            'D' to '3',
+            'T' to '3',
             'L' to '4',
-            'M' to '5', 'N' to '5',
+            'M' to '5',
+            'N' to '5',
             'R' to '6',
         )
 
@@ -336,7 +348,12 @@ object SemanticSearchEngine {
         val jaro = jaroSimilarity(s1, s2)
 
         // Winkler modification - boost for common prefix
-        val prefixLength = s1.zip(s2).takeWhile { (a, b) -> a == b }.size.coerceAtMost(4)
+        val prefixLength =
+            s1
+                .zip(s2)
+                .takeWhile { (a, b) -> a == b }
+                .size
+                .coerceAtMost(4)
         val scalingFactor = 0.1
 
         return jaro + (prefixLength * scalingFactor * (1 - jaro))
@@ -578,23 +595,22 @@ object SemanticSearchEngine {
      * Normalize text for comparison - lowercase, remove special chars.
      * Uses pre-compiled Regex patterns for better performance.
      */
-    fun normalizeText(text: String): String {
-        return text.lowercase()
+    fun normalizeText(text: String): String =
+        text
+            .lowercase()
             .replace(SEPARATOR_REGEX, " ") // Replace separators with spaces
             .replace(SPECIAL_CHAR_REGEX, "") // Remove special chars
             .replace(MULTI_SPACE_REGEX, " ") // Collapse multiple spaces
             .trim()
-    }
 
     /**
      * Tokenize text into individual words.
      */
-    fun tokenize(text: String): List<String> {
-        return normalizeText(text)
+    fun tokenize(text: String): List<String> =
+        normalizeText(text)
             .split(" ")
             .filter { it.length >= 2 } // Filter out very short tokens
             .distinct()
-    }
 
     /**
      * Extract meaningful keywords from text, filtering common words.
@@ -602,12 +618,61 @@ object SemanticSearchEngine {
     fun extractKeywords(text: String): List<String> {
         val stopWords =
             setOf(
-                "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-                "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-                "been", "being", "have", "has", "had", "do", "does", "did", "will",
-                "would", "could", "should", "may", "might", "must", "shall", "can",
-                "this", "that", "these", "those", "it", "its", "my", "your", "his",
-                "her", "our", "their", "me", "you", "him", "us", "them",
+                "the",
+                "a",
+                "an",
+                "and",
+                "or",
+                "but",
+                "in",
+                "on",
+                "at",
+                "to",
+                "for",
+                "of",
+                "with",
+                "by",
+                "from",
+                "as",
+                "is",
+                "was",
+                "are",
+                "were",
+                "be",
+                "been",
+                "being",
+                "have",
+                "has",
+                "had",
+                "do",
+                "does",
+                "did",
+                "will",
+                "would",
+                "could",
+                "should",
+                "may",
+                "might",
+                "must",
+                "shall",
+                "can",
+                "this",
+                "that",
+                "these",
+                "those",
+                "it",
+                "its",
+                "my",
+                "your",
+                "his",
+                "her",
+                "our",
+                "their",
+                "me",
+                "you",
+                "him",
+                "us",
+                "them",
             )
 
         return tokenize(text).filter { it !in stopWords && it.length >= 3 }

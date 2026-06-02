@@ -10,12 +10,12 @@ fun RefinedLoginScreen(
     shouldSkipSplash: Boolean = false,
 ) {
     // Because we unified the "Tim Cook" level design into the core LoginScreen.kt file,
-    // RefinedLoginScreen simply invokes the S-Tier LoginScreen. 
+    // RefinedLoginScreen simply invokes the S-Tier LoginScreen.
     // This removes code duplication across your codebase!
-    
+
     LoginScreen(
         onLoginSuccess = onLoginSuccess,
         modifier = modifier,
-        shouldSkipSplash = shouldSkipSplash
+        shouldSkipSplash = shouldSkipSplash,
     )
 }

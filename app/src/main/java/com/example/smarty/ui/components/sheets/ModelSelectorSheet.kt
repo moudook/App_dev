@@ -44,7 +44,7 @@ fun ModelSelectorSheet(
     selectedModel: String,
     selectedVariant: String?,
     onModelSelected: (String) -> Unit,
-    onVariantSelected: (String?) -> Unit
+    onVariantSelected: (String?) -> Unit,
 ) {
     if (isVisible) {
         // We use a Popup anchored to the model pill, rather than a full-screen BottomSheet
@@ -52,7 +52,7 @@ fun ModelSelectorSheet(
             alignment = Alignment.BottomCenter,
             offset = IntOffset(0, -120), // Float it above the input block, growing upwards
             onDismissRequest = onDismiss,
-            properties = PopupProperties(focusable = true, dismissOnClickOutside = true, clippingEnabled = false)
+            properties = PopupProperties(focusable = true, dismissOnClickOutside = true, clippingEnabled = false),
         ) {
             val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
             val surfaceColor = if (isDark) Color(0xFF1E1E1E) else Color.White
@@ -60,18 +60,18 @@ fun ModelSelectorSheet(
 
             // Styled EXACTLY like the Smarty Input Block (graphicsLayer shadows, borders, rounded shape)
             Column(
-                modifier = Modifier
-                    .widthIn(min = 220.dp, max = 280.dp)
-                    .graphicsLayer {
-                        shadowElevation = 24.dp.toPx()
-                        shape = RoundedCornerShape(24.dp)
-                        clip = true
-                        ambientShadowColor = Color.Black.copy(alpha = 0.05f)
-                        spotShadowColor = Color.Black.copy(alpha = 0.12f)
-                    }
-                    .background(surfaceColor)
-                    .border(1.dp, borderColor, RoundedCornerShape(24.dp))
-                    .padding(8.dp)
+                modifier =
+                    Modifier
+                        .widthIn(min = 220.dp, max = 280.dp)
+                        .graphicsLayer {
+                            shadowElevation = 24.dp.toPx()
+                            shape = RoundedCornerShape(24.dp)
+                            clip = true
+                            ambientShadowColor = Color.Black.copy(alpha = 0.05f)
+                            spotShadowColor = Color.Black.copy(alpha = 0.12f)
+                        }.background(surfaceColor)
+                        .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+                        .padding(8.dp),
             ) {
                 // Title (Optional, keeping it very minimal)
                 Text(
@@ -79,26 +79,28 @@ fun ModelSelectorSheet(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Gray,
-                    modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
                 )
 
                 // Content
                 var expandedVariantModel by remember { mutableStateOf<String?>(null) }
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     availableModels.forEach { (modelId, label) ->
-                        val cleanLabel = label
-                            .replace(Regex("(?i)-free\\b"), "")
-                            .replace(Regex("(?i)\\bfree\\b"), "")
-                            .replace(Regex("(?i)\\s*\\(free\\)"), "")
-                            .trim()
-                        
+                        val cleanLabel =
+                            label
+                                .replace(Regex("(?i)-free\\b"), "")
+                                .replace(Regex("(?i)\\bfree\\b"), "")
+                                .replace(Regex("(?i)\\s*\\(free\\)"), "")
+                                .trim()
+
                         val variants = modelVariantMap[modelId]
                         val hasVariants = !variants.isNullOrEmpty()
                         val isExpanded = expandedVariantModel == modelId
@@ -116,20 +118,21 @@ fun ModelSelectorSheet(
                                     onModelSelected(modelId)
                                     onDismiss()
                                 }
-                            }
+                            },
                         )
 
                         // Variants Dropdown (Animated accordion)
                         AnimatedVisibility(
                             visible = isExpanded && hasVariants,
                             enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = 300f)) + fadeIn(),
-                            exit = shrinkVertically(tween(200)) + fadeOut()
+                            exit = shrinkVertically(tween(200)) + fadeOut(),
                         ) {
                             Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 variants?.forEach { variant ->
                                     val isSelectedVariant = isSelectedModel && variant == selectedVariant
@@ -140,7 +143,7 @@ fun ModelSelectorSheet(
                                             onModelSelected(modelId)
                                             onVariantSelected(variant)
                                             onDismiss()
-                                        }
+                                        },
                                     )
                                 }
                             }
@@ -158,50 +161,51 @@ private fun ModelRow(
     isSelected: Boolean,
     hasVariants: Boolean,
     isExpanded: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    
+
     val bg = if (isSelected) accentColor.copy(alpha = 0.15f) else Color.Transparent
     val textColor = if (isSelected) accentColor else (if (isDark) Color.White else Color.Black)
-    
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .squishClick {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(bg)
+                .squishClick {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
             fontSize = 15.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             color = textColor,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
-        
+
         if (hasVariants) {
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
                 contentDescription = "Expand",
                 tint = if (isDark) Color.Gray else Color.DarkGray,
-                modifier = Modifier
-                    .size(18.dp)
-                    .graphicsLayer { rotationZ = if (isExpanded) 180f else 0f }
+                modifier =
+                    Modifier
+                        .size(18.dp)
+                        .graphicsLayer { rotationZ = if (isExpanded) 180f else 0f },
             )
         } else if (isSelected) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = "Selected",
                 tint = accentColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -211,41 +215,41 @@ private fun ModelRow(
 private fun VariantRow(
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    
+
     val bg = if (isSelected) accentColor.copy(alpha = 0.1f) else Color.Transparent
     val textColor = if (isSelected) accentColor else (if (isDark) Color.LightGray else Color.DarkGray)
-    
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .squishClick {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(bg)
+                .squishClick {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
             fontSize = 14.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color = textColor,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
-        
+
         if (isSelected) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = "Selected",
                 tint = accentColor,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
         }
     }

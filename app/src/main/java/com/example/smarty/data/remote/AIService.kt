@@ -66,8 +66,8 @@ class AIService(
         documentText: String,
         fileName: String? = null,
         userContext: String? = null,
-    ): DocumentAnalysisResponse {
-        return remoteAgentService.analyzeDocument(documentText, fileName, userContext) ?: DocumentAnalysisResponse(
+    ): DocumentAnalysisResponse =
+        remoteAgentService.analyzeDocument(documentText, fileName, userContext) ?: DocumentAnalysisResponse(
             title = fileName ?: "Document",
             summary = "Analysis failed",
             keyPoints = emptyList(),
@@ -77,7 +77,6 @@ class AIService(
             success = false,
             error = "Server unavailable",
         )
-    }
 
     /**
      * Simple chat for non-agent AI interactions.
@@ -103,10 +102,9 @@ class AIService(
     suspend fun processImage(
         imageBytes: ByteArray,
         mimeType: String,
-    ): String {
-        return remoteAgentService.processImage(imageBytes, mimeType)?.text
+    ): String =
+        remoteAgentService.processImage(imageBytes, mimeType)?.text
             ?: "Image processing failed"
-    }
 
     /**
      * Process a PDF on the server.
@@ -114,10 +112,9 @@ class AIService(
     suspend fun processPdf(
         pdfBytes: ByteArray,
         fileName: String?,
-    ): String {
-        return remoteAgentService.processPdf(pdfBytes, fileName)?.text
+    ): String =
+        remoteAgentService.processPdf(pdfBytes, fileName)?.text
             ?: "PDF processing failed"
-    }
 
     /**
      * Check if AI connection is available.

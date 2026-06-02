@@ -28,22 +28,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import com.example.smarty.R
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
+import com.example.smarty.R
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.AttachmentType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator
-import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.softCardShadow
 import kotlinx.coroutines.delay
-import coil3.request.crossfade
 
 /**
  * Horizontal scrollable row of attachment previews
@@ -52,14 +51,16 @@ import coil3.request.crossfade
 fun AttachmentPreviewRow(
     attachments: List<Attachment>,
     onRemoveAttachment: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(bottom = 8.dp), // Space for shadows
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
+        // Space for shadows
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Leading padding for scroll
         Spacer(Modifier.width(4.dp))
@@ -69,7 +70,7 @@ fun AttachmentPreviewRow(
                 AnimatedAttachmentChip(
                     attachment = attachment,
                     index = index,
-                    onRemove = { onRemoveAttachment(attachment.id) }
+                    onRemove = { onRemoveAttachment(attachment.id) },
                 )
             }
         }
@@ -87,7 +88,7 @@ fun AttachmentPreviewRow(
 private fun AnimatedAttachmentChip(
     attachment: Attachment,
     index: Int,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     var isRemovePressed by remember { mutableStateOf(false) }
@@ -105,37 +106,41 @@ private fun AnimatedAttachmentChip(
     // Entry animations
     val entryScale by animateFloatAsState(
         targetValue = if (appeared) 1f else 0.8f,
-        animationSpec = spring(
-            dampingRatio = 0.6f,
-            stiffness = 300f
-        ),
-        label = "entryScale"
+        animationSpec =
+            spring(
+                dampingRatio = 0.6f,
+                stiffness = 300f,
+            ),
+        label = "entryScale",
     )
 
     val entryAlpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
-        label = "entryAlpha"
+        label = "entryAlpha",
     )
 
     // Chip press animation - scale down when pressed
     val chipScale by animateFloatAsState(
         targetValue = if (isChipPressed) 0.95f else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-        label = "chipScale"
+        label = "chipScale",
     )
 
     // Remove button press animation
     val removeScale by animateFloatAsState(
         targetValue = if (isRemovePressed) 0.75f else 1f,
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
-        label = "removeScale"
+        label = "removeScale",
     )
 
     val attachmentType = attachment.getAttachmentType()
 
     // Soft Minimalist Styling
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
     val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
     val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
 
@@ -145,35 +150,34 @@ private fun AnimatedAttachmentChip(
     val currentBorderColor by animateColorAsState(
         targetValue = if (isChipPressed) LocalAccentColor.current.copy(alpha = 0.5f) else borderColor,
         animationSpec = tween(150),
-        label = "borderColor"
+        label = "borderColor",
     )
 
     Surface(
-        modifier = Modifier
-            .scale(entryScale * chipScale)
-            .graphicsLayer { alpha = entryAlpha }
-            .height(if (attachmentType == AttachmentType.AUDIO) 56.dp else 72.dp)
-            .widthIn(
-                min = 80.dp,
-                max = if (attachmentType == AttachmentType.AUDIO) 280.dp else 140.dp
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isChipPressed = true
-                        tryAwaitRelease()
-                        isChipPressed = false
-                    }
-                )
-            }
-            .softCardShadow(
-                elevation = if (isChipPressed) 8.dp else 4.dp,
-                shape = shape,
-                spotColor = if (isChipPressed) LocalAccentColor.current.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f)
-            ),
+        modifier =
+            Modifier
+                .scale(entryScale * chipScale)
+                .graphicsLayer { alpha = entryAlpha }
+                .height(if (attachmentType == AttachmentType.AUDIO) 56.dp else 72.dp)
+                .widthIn(
+                    min = 80.dp,
+                    max = if (attachmentType == AttachmentType.AUDIO) 280.dp else 140.dp,
+                ).pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isChipPressed = true
+                            tryAwaitRelease()
+                            isChipPressed = false
+                        },
+                    )
+                }.softCardShadow(
+                    elevation = if (isChipPressed) 8.dp else 4.dp,
+                    shape = shape,
+                    spotColor = if (isChipPressed) LocalAccentColor.current.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f),
+                ),
         shape = shape,
         color = backgroundColor,
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, currentBorderColor)
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, currentBorderColor),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Content based on type
@@ -181,30 +185,34 @@ private fun AnimatedAttachmentChip(
                 AttachmentType.IMAGE, AttachmentType.VIDEO -> {
                     // Show thumbnail
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(attachment.uri)
-                            .crossfade(true)
-                            .build(),
+                        model =
+                            ImageRequest
+                                .Builder(LocalContext.current)
+                                .data(attachment.uri)
+                                .crossfade(true)
+                                .build(),
                         contentDescription = attachment.fileName,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(shape)
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .clip(shape),
                     )
 
                     // Video overlay icon
                     if (attachmentType == AttachmentType.VIDEO) {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.3f)),
-                            contentAlignment = Alignment.Center
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayCircle,
                                 contentDescription = stringResource(R.string.type_video),
                                 tint = Color.White,
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(32.dp),
                             )
                         }
                     }
@@ -212,24 +220,26 @@ private fun AnimatedAttachmentChip(
 
                 AttachmentType.AUDIO -> {
                     Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 4.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // Play/Pause circular button
                         Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(LocalAccentColor.current.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(LocalAccentColor.current.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Audiotrack,
                                 contentDescription = stringResource(R.string.open),
                                 tint = LocalAccentColor.current,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(20.dp),
                             )
                         }
 
@@ -237,17 +247,18 @@ private fun AnimatedAttachmentChip(
 
                         // Filename
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp),
-                            verticalArrangement = Arrangement.Center
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp),
+                            verticalArrangement = Arrangement.Center,
                         ) {
                             Text(
                                 text = attachment.fileName,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
@@ -255,7 +266,7 @@ private fun AnimatedAttachmentChip(
                             Text(
                                 text = stringResource(R.string.type_audio),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -264,17 +275,18 @@ private fun AnimatedAttachmentChip(
                 else -> {
                     // Show icon + filename
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         Icon(
                             imageVector = getAttachmentIcon(attachmentType),
                             contentDescription = null,
                             tint = getAttachmentColor(attachmentType),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -284,59 +296,63 @@ private fun AnimatedAttachmentChip(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
             }
 
-
             // Remove button (top-right corner) - Enhanced with better visual feedback
             Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = (-6).dp, y = 6.dp)
-                    .scale(removeScale)
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isRemovePressed) MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
-                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-                    )
-                    .then(
-                        if (!isRemovePressed) {
-                            Modifier.shadow(
-                                elevation = 4.dp,
-                                shape = CircleShape,
-                                spotColor = Color.Black.copy(alpha = 0.2f)
-                            )
-                        } else Modifier
-                    )
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isRemovePressed = true
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                tryAwaitRelease()
-                                isRemovePressed = false
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-6).dp, y = 6.dp)
+                        .scale(removeScale)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isRemovePressed) {
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
+                            } else {
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
                             },
-                            onTap = { onRemove() }
-                        )
-                    },
-                contentAlignment = Alignment.Center
+                        ).then(
+                            if (!isRemovePressed) {
+                                Modifier.shadow(
+                                    elevation = 4.dp,
+                                    shape = CircleShape,
+                                    spotColor = Color.Black.copy(alpha = 0.2f),
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ).pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isRemovePressed = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    tryAwaitRelease()
+                                    isRemovePressed = false
+                                },
+                                onTap = { onRemove() },
+                            )
+                        },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = if (isRemovePressed) Icons.Default.Check else Icons.Default.Close,
                     contentDescription = stringResource(R.string.remove_attachment),
                     tint = if (isRemovePressed) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(if (isRemovePressed) 14.dp else 12.dp)
-                        .graphicsLayer {
-                            if (isRemovePressed) {
-                                scaleX = 1.2f
-                                scaleY = 1.2f
-                            }
-                        }
+                    modifier =
+                        Modifier
+                            .size(if (isRemovePressed) 14.dp else 12.dp)
+                            .graphicsLayer {
+                                if (isRemovePressed) {
+                                    scaleX = 1.2f
+                                    scaleY = 1.2f
+                                }
+                            },
                 )
             }
         }
@@ -346,8 +362,8 @@ private fun AnimatedAttachmentChip(
 /**
  * Get icon for attachment type
  */
-private fun getAttachmentIcon(type: AttachmentType): ImageVector {
-    return when (type) {
+private fun getAttachmentIcon(type: AttachmentType): ImageVector =
+    when (type) {
         AttachmentType.IMAGE -> Icons.Default.Image
         AttachmentType.VIDEO -> Icons.Default.Videocam
         AttachmentType.AUDIO -> Icons.Default.Audiotrack
@@ -358,14 +374,13 @@ private fun getAttachmentIcon(type: AttachmentType): ImageVector {
         AttachmentType.ARCHIVE -> Icons.Default.Archive
         AttachmentType.FILE -> Icons.Default.AttachFile
     }
-}
 
 /**
  * Get color for attachment type
  */
 @Composable
-private fun getAttachmentColor(type: AttachmentType): Color {
-    return when (type) {
+private fun getAttachmentColor(type: AttachmentType): Color =
+    when (type) {
         AttachmentType.IMAGE -> LocalAccentColor.current
         AttachmentType.VIDEO -> com.example.smarty.ui.theme.VideoRed
         AttachmentType.AUDIO -> com.example.smarty.ui.theme.AudioPink
@@ -376,5 +391,3 @@ private fun getAttachmentColor(type: AttachmentType): Color {
         AttachmentType.ARCHIVE -> com.example.smarty.ui.theme.ArchiveYellow
         AttachmentType.FILE -> com.example.smarty.ui.theme.FileGray
     }
-}
-

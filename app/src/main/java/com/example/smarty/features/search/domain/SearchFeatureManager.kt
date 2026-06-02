@@ -1,16 +1,11 @@
 package com.example.smarty.features.search.domain
 
-import android.util.Log
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.core.common.util.PrivacyGuard
 import com.example.smarty.core.common.util.search.SemanticSearchEngine
-import com.example.smarty.features.chat.agent.WebResult
-import com.example.smarty.features.chat.agent.WebSearchResult
-import com.example.smarty.features.chat.agent.models.WebCitation
-import com.example.smarty.features.chat.agent.SearchCitation
 import com.example.smarty.core.common.util.SemanticRecallEngine
 import com.example.smarty.core.common.util.RecallContext
 import com.example.smarty.core.common.util.TimeContext
@@ -38,7 +33,7 @@ class SearchFeatureManager(
     private val repository: SmartyRepository,
     private val allNotes: StateFlow<List<Note>>,
     private val searchHistoryManager: SearchHistoryManager,
-    private val securePreferences: com.example.smarty.data.local.SecurePreferences
+    private val securePreferences: com.example.smarty.data.local.SecurePreferences,
 ) {
     /**
      * Recent search history as a reactive flow.
@@ -62,9 +57,7 @@ class SearchFeatureManager(
     /**
      * Get suggestions from history based on partial query.
      */
-    fun getHistorySuggestions(query: String): List<String> {
-        return searchHistoryManager.getFilteredSuggestions(query)
-    }
+    fun getHistorySuggestions(query: String): List<String> = searchHistoryManager.getFilteredSuggestions(query)
 
     companion object {
         private const val TAG = "SearchFeatureManager"
@@ -78,20 +71,17 @@ class SearchFeatureManager(
     /**
      * Get a reactive flow of notes filtered by category.
      */
-    fun getNotesByCategory(categoryId: String): kotlinx.coroutines.flow.Flow<List<Note>> =
-        repository.getNotesByCategory(categoryId)
+    fun getNotesByCategory(categoryId: String): kotlinx.coroutines.flow.Flow<List<Note>> = repository.getNotesByCategory(categoryId)
 
     /**
      * Get a reactive flow of all notes.
      */
-    fun getAllNotesFlow(): kotlinx.coroutines.flow.Flow<List<Note>> =
-        repository.getAllNotes()
+    fun getAllNotesFlow(): kotlinx.coroutines.flow.Flow<List<Note>> = repository.getAllNotes()
 
     /**
      * Perform a reactive database search.
      */
-    fun searchNotesFlow(query: String): kotlinx.coroutines.flow.Flow<List<Note>> =
-        repository.searchNotes(query, emptyList())
+    fun searchNotesFlow(query: String): kotlinx.coroutines.flow.Flow<List<Note>> = repository.searchNotes(query, emptyList())
 
     /**
      * Standard smart search or filtered retrieval across all visible notes.
@@ -102,7 +92,7 @@ class SearchFeatureManager(
         noteType: String? = null,
         timeRange: String = "all",
         filters: Set<AttachmentOption> = emptySet(),
-        limit: Int = 10
+        limit: Int = 10,
     ): List<SearchResultItem> {
         val rawNotes = allNotes.value
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
@@ -118,9 +108,10 @@ class SearchFeatureManager(
 
         // Apply Attachment/Mime filters
         if (filters.isNotEmpty()) {
-            filtered = filtered.filter { note ->
-                filters.all { filter -> noteMatchesFilter(note, filter) }
-            }
+            filtered =
+                filtered.filter { note ->
+                    filters.all { filter -> noteMatchesFilter(note, filter) }
+                }
         }
 
         val cutoff = calculateTimeCutoff(timeRange)
@@ -130,22 +121,24 @@ class SearchFeatureManager(
 
         // 2. Perform Semantic/Fuzzy Search if query is present
         if (query.isNullOrBlank()) {
-            return filtered.sortedByDescending { it.createdAt }
+            return filtered
+                .sortedByDescending { it.createdAt }
                 .take(limit)
                 .map { it.toSearchResult(1.0f, "search_highlight_recent|${it.type.name.lowercase()}") }
         }
 
-        val results = SemanticSearchEngine.search(
-            query = query,
-            items = filtered,
-            textExtractor = { listOfNotNull(it.title, it.whySaved, it.summary, it.content.take(1000)) }
-        )
+        val results =
+            SemanticSearchEngine.search(
+                query = query,
+                items = filtered,
+                textExtractor = { listOfNotNull(it.title, it.whySaved, it.summary, it.content.take(1000)) },
+            )
 
         return results.take(limit).map { result ->
             SearchResultItem(
                 note = result.item,
                 score = result.score.toFloat(),
-                highlight = "search_highlight_matched|${result.matchType.toString().lowercase()}"
+                highlight = "search_highlight_matched|${result.matchType.toString().lowercase()}",
             )
         }
     }
@@ -154,22 +147,32 @@ class SearchFeatureManager(
      * Check if a note contains content matching the specific filter.
      * Checks both primary note type and all attachments.
      */
-    fun noteMatchesFilter(note: Note, filter: AttachmentOption): Boolean {
+    fun noteMatchesFilter(
+        note: Note,
+        filter: AttachmentOption,
+    ): Boolean {
         // 1. Check primary type
         if (typeMatchesFilter(note.type, filter)) return true
 
         // 2. Check source URL for Link/Website
-        if (filter == AttachmentOption.LINK && (note.sourceUrl != null || note.type == NoteType.WEBSITE || note.type == NoteType.YOUTUBE)) return true
+        if (filter == AttachmentOption.LINK &&
+            (note.sourceUrl != null || note.type == NoteType.WEBSITE || note.type == NoteType.YOUTUBE)
+        ) {
+            return true
+        }
 
         // 3. Check all attachments
         val attachments = note.getAttachments()
         return attachments.any { attachment ->
-             mimeTypeMatchesFilter(attachment.mimeType, filter)
+            mimeTypeMatchesFilter(attachment.mimeType, filter)
         }
     }
 
-    private fun typeMatchesFilter(type: NoteType, filter: AttachmentOption): Boolean {
-        return when (filter) {
+    private fun typeMatchesFilter(
+        type: NoteType,
+        filter: AttachmentOption,
+    ): Boolean =
+        when (filter) {
             AttachmentOption.IMAGE -> type == NoteType.IMAGE || type == NoteType.INSTAGRAM
             AttachmentOption.VIDEO -> type == NoteType.VIDEO || type == NoteType.YOUTUBE
             AttachmentOption.AUDIO -> type == NoteType.AUDIO
@@ -177,18 +180,24 @@ class SearchFeatureManager(
             AttachmentOption.FILE -> type == NoteType.FILE || type == NoteType.ARCHIVE || type == NoteType.APK || type == NoteType.CODE
             AttachmentOption.LINK -> type == NoteType.WEBSITE || type == NoteType.TWITTER
         }
-    }
 
-    private fun mimeTypeMatchesFilter(mimeType: String, filter: AttachmentOption): Boolean {
-        return when (filter) {
+    private fun mimeTypeMatchesFilter(
+        mimeType: String,
+        filter: AttachmentOption,
+    ): Boolean =
+        when (filter) {
             AttachmentOption.IMAGE -> mimeType.startsWith("image/")
             AttachmentOption.VIDEO -> mimeType.startsWith("video/")
             AttachmentOption.AUDIO -> mimeType.startsWith("audio/")
-            AttachmentOption.DOCUMENT -> mimeType.contains("pdf") || mimeType.contains("word") || mimeType.contains("excel") || mimeType.contains("powerpoint") || mimeType.contains("text/")
+            AttachmentOption.DOCUMENT ->
+                mimeType.contains("pdf") ||
+                    mimeType.contains("word") ||
+                    mimeType.contains("excel") ||
+                    mimeType.contains("powerpoint") ||
+                    mimeType.contains("text/")
             AttachmentOption.FILE -> true
             AttachmentOption.LINK -> false
         }
-    }
 
     /**
      * Advanced hybrid search using multiple algorithms.
@@ -197,7 +206,7 @@ class SearchFeatureManager(
         query: String,
         algorithm: String = "hybrid",
         limit: Int = 10,
-        minScore: Double = 0.3
+        minScore: Double = 0.3,
     ): List<SearchResultItem> {
         val allNotes = PrivacyGuard.getAiVisibleNotes(this.allNotes.value)
 
@@ -225,46 +234,55 @@ class SearchFeatureManager(
             parsedKeywords = keywords,
             detectedIntent = intent,
             complexity = complexity,
-            suggestedStrategy = when (complexity) {
-                1 -> "simple"
-                2, 3 -> "semantic"
-                else -> "hybrid"
-            }
+            suggestedStrategy =
+                when (complexity) {
+                    1 -> "simple"
+                    2, 3 -> "semantic"
+                    else -> "hybrid"
+                },
         )
     }
 
     /**
      * Perform contextual semantic recall.
      */
-    suspend fun performRecall(query: String, minScore: Double = 0.3): List<RecallResult> {
-        val context = RecallContext(
-            currentTopic = query,
-            userInterests = SemanticSearchEngine.tokenize(query),
-            recentActivities = listOf(query),
-            preferredCategories = emptyList(),
-            timeContext = TimeContext.Recent
-        )
+    suspend fun performRecall(
+        query: String,
+        minScore: Double = 0.3,
+    ): List<RecallResult> {
+        val context =
+            RecallContext(
+                currentTopic = query,
+                userInterests = SemanticSearchEngine.tokenize(query),
+                recentActivities = listOf(query),
+                preferredCategories = emptyList(),
+                timeContext = TimeContext.Recent,
+            )
 
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes.value)
-        val recallResults = SemanticRecallEngine.semanticRecall(
-            query = query,
-            context = context,
-            allNotes = visibleNotes,
-            minRelevance = minScore
-        )
+        val recallResults =
+            SemanticRecallEngine.semanticRecall(
+                query = query,
+                context = context,
+                allNotes = visibleNotes,
+                minRelevance = minScore,
+            )
 
         return recallResults.map { result ->
             RecallResult(
                 id = result.id,
                 title = result.title,
                 content = result.content,
-                score = result.score,  // Using the score field from the common RecallResult
-                reason = result.reason
+                score = result.score, // Using the score field from the common RecallResult
+                reason = result.reason,
             )
         }
     }
 
-    private fun Note.toSearchResult(score: Float, highlight: String?) = SearchResultItem(this, score, highlight)
+    private fun Note.toSearchResult(
+        score: Float,
+        highlight: String?,
+    ) = SearchResultItem(this, score, highlight)
 
     private fun calculateTimeCutoff(timeRange: String): Long {
         val now = System.currentTimeMillis()
@@ -277,30 +295,41 @@ class SearchFeatureManager(
         }
     }
 
-    private suspend fun performKeywordSearch(query: String, notes: List<Note>, limit: Int, minScore: Double): List<SearchResultItem> {
-        return notes.filter { it.title.contains(query, ignoreCase = true) || it.content.contains(query, ignoreCase = true) }
+    private suspend fun performKeywordSearch(
+        query: String,
+        notes: List<Note>,
+        limit: Int,
+        minScore: Double,
+    ): List<SearchResultItem> =
+        notes
+            .filter { it.title.contains(query, ignoreCase = true) || it.content.contains(query, ignoreCase = true) }
             .take(limit)
             .map { it.toSearchResult(1.0f, "keyword_match") }
-    }
 
-    private suspend fun performVectorSearch(query: String, notes: List<Note>, limit: Int, minScore: Double): List<SearchResultItem> {
+    private suspend fun performVectorSearch(
+        query: String,
+        notes: List<Note>,
+        limit: Int,
+        minScore: Double,
+    ): List<SearchResultItem> {
         // Placeholder for vector search, falling back to semantic
         return search(query, limit = limit).filter { it.score >= minScore }
     }
 
-    private suspend fun performHybridSearch(query: String, notes: List<Note>, limit: Int, minScore: Double): List<SearchResultItem> {
+    private suspend fun performHybridSearch(
+        query: String,
+        notes: List<Note>,
+        limit: Int,
+        minScore: Double,
+    ): List<SearchResultItem> {
         // Simple hybrid: semantic results for now
         return search(query, limit = limit).filter { it.score >= minScore }
     }
 
-    private fun detectIntent(query: String): String {
-        return if (query.contains("search", ignoreCase = true)) "search" else "query"
-    }
+    private fun detectIntent(query: String): String = if (query.contains("search", ignoreCase = true)) "search" else "query"
 
-    private fun calculateQueryComplexity(query: String, keywords: List<String>): Int {
-        return if (keywords.size > 3) 3 else 1
-    }
-
+    private fun calculateQueryComplexity(
+        query: String,
+        keywords: List<String>,
+    ): Int = if (keywords.size > 3) 3 else 1
 }
-
-

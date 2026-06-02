@@ -89,39 +89,42 @@ private fun Routing.permissionRoutes() {
         // Union of (overridden tools) and (every known tool from
         // SMARTY_DEFAULT). Tools only in SMARTY_DEFAULT have
         // isOverridden=false and the static decision is returned.
-        val knownTools: Set<String> = (
-            ToolPermissionPolicy.SMARTY_DEFAULT.allowed +
-                ToolPermissionPolicy.SMARTY_DEFAULT.denied
+        val knownTools: Set<String> =
+            (
+                ToolPermissionPolicy.SMARTY_DEFAULT.allowed +
+                    ToolPermissionPolicy.SMARTY_DEFAULT.denied
             ).toSet()
 
         val allNames = (knownTools + overrideByName.keys).sorted()
 
-        val dtos = allNames.map { name ->
-            val eff = overrideByName[name]
-            if (eff != null) {
-                ToolPermissionDto(
-                    toolName = name,
-                    decision = eff.decision.name,
-                    isOverridden = eff.isOverridden,
-                    overrideSource = eff.overrideSource,
-                    overrideUpdatedAt = eff.overrideUpdatedAt?.toString(),
-                    overrideExpiresAt = eff.overrideExpiresAt?.toString(),
-                )
-            } else {
-                ToolPermissionDto(
-                    toolName = name,
-                    decision = ToolPermissionPolicy.SMARTY_DEFAULT.decide(name).name,
-                    isOverridden = false,
-                    overrideSource = null,
-                    overrideUpdatedAt = null,
-                    overrideExpiresAt = null,
-                )
+        val dtos =
+            allNames.map { name ->
+                val eff = overrideByName[name]
+                if (eff != null) {
+                    ToolPermissionDto(
+                        toolName = name,
+                        decision = eff.decision.name,
+                        isOverridden = eff.isOverridden,
+                        overrideSource = eff.overrideSource,
+                        overrideUpdatedAt = eff.overrideUpdatedAt?.toString(),
+                        overrideExpiresAt = eff.overrideExpiresAt?.toString(),
+                    )
+                } else {
+                    ToolPermissionDto(
+                        toolName = name,
+                        decision = ToolPermissionPolicy.SMARTY_DEFAULT.decide(name).name,
+                        isOverridden = false,
+                        overrideSource = null,
+                        overrideUpdatedAt = null,
+                        overrideExpiresAt = null,
+                    )
+                }
             }
-        }
 
-        val defaultSnapshot: Map<String, String> = knownTools.associateWith {
-            ToolPermissionPolicy.SMARTY_DEFAULT.decide(it).name
-        }
+        val defaultSnapshot: Map<String, String> =
+            knownTools.associateWith {
+                ToolPermissionPolicy.SMARTY_DEFAULT.decide(it).name
+            }
 
         call.respond(
             HttpStatusCode.OK,
@@ -154,12 +157,13 @@ private fun Routing.permissionRoutes() {
             logger.warn("[Permissions] upsert for unknown tool '$toolName' by user=$userId")
         }
 
-        val req = try {
-            call.receive<UpsertPermissionRequest>()
-        } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON: ${e.message}"))
-            return@put
-        }
+        val req =
+            try {
+                call.receive<UpsertPermissionRequest>()
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON: ${e.message}"))
+                return@put
+            }
 
         val decision = req.decision.uppercase()
         if (decision !in setOf("ALLOW", "DENY", "INHERIT")) {
@@ -172,13 +176,14 @@ private fun Routing.permissionRoutes() {
 
         // INHERIT → delete the override row (or upsert a no-op)
         if (decision == "INHERIT") {
-            val ok = repo.setUserPermission(
-                userId = userId,
-                toolName = toolName,
-                decision = "INHERIT",
-                source = "user_request",
-                reason = req.reason ?: "Reset to default",
-            )
+            val ok =
+                repo.setUserPermission(
+                    userId = userId,
+                    toolName = toolName,
+                    decision = "INHERIT",
+                    source = "user_request",
+                    reason = req.reason ?: "Reset to default",
+                )
             if (!ok) {
                 call.respond(
                     HttpStatusCode.ServiceUnavailable,
@@ -197,13 +202,14 @@ private fun Routing.permissionRoutes() {
             return@put
         }
 
-        val ok = repo.setUserPermission(
-            userId = userId,
-            toolName = toolName,
-            decision = decision,
-            source = "user_request",
-            reason = req.reason,
-        )
+        val ok =
+            repo.setUserPermission(
+                userId = userId,
+                toolName = toolName,
+                decision = decision,
+                source = "user_request",
+                reason = req.reason,
+            )
         if (!ok) {
             call.respond(
                 HttpStatusCode.ServiceUnavailable,

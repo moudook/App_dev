@@ -78,8 +78,8 @@ object HealthMonitor {
         activeConnections.decrementAndGet()
     }
 
-    fun getMetrics(): Map<String, Any> {
-        return mapOf(
+    fun getMetrics(): Map<String, Any> =
+        mapOf(
             "requests" to requestCount.get(),
             "errors" to errorCount.get(),
             "errorRate" to (if (requestCount.get() > 0) errorCount.get().toDouble() / requestCount.get() else 0.0),
@@ -87,7 +87,6 @@ object HealthMonitor {
             "activeConnections" to activeConnections.get(),
             "uptimeSeconds" to ((System.currentTimeMillis() - startTime) / 1000),
         )
-    }
 
     suspend fun performHealthCheck(): HealthStatus {
         val checks = mutableMapOf<String, CheckResult>()
@@ -130,12 +129,14 @@ object HealthMonitor {
         return healthStatus
     }
 
-    private suspend fun checkDatabase(): CheckResult {
-        return try {
+    private suspend fun checkDatabase(): CheckResult =
+        try {
             val startTime = System.currentTimeMillis()
 
             // Test database connection
-            val dataSource = com.example.smarty.server.data.DatabaseFactory.getDataSource()
+            val dataSource =
+                com.example.smarty.server.data.DatabaseFactory
+                    .getDataSource()
             val healthy = dataSource != null
 
             val responseTime = System.currentTimeMillis() - startTime
@@ -153,7 +154,6 @@ object HealthMonitor {
                 details = mapOf("error" to (e.message?.toString() ?: "unknown")),
             )
         }
-    }
 
     private fun checkMemory(): CheckResult {
         val runtime = Runtime.getRuntime()

@@ -6,20 +6,11 @@ data class ParsedResponse(
 )
 
 object ThinkingParser {
+    fun parse(content: String): ParsedResponse = ParsedResponse(null, content)
 
-    fun parse(content: String): ParsedResponse {
-        return ParsedResponse(null, content)
-    }
+    fun hasThinking(content: String): Boolean = false
 
-    fun hasThinking(content: String): Boolean {
-        return false
-    }
+    fun extractThinking(content: String): String? = null
 
-    fun extractThinking(content: String): String? {
-        return null
-    }
-
-    fun extractAnswer(content: String): String {
-        return content
-    }
+    fun extractAnswer(content: String): String = content
 }

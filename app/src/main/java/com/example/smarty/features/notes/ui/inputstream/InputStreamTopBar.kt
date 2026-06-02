@@ -46,12 +46,13 @@ fun InputStreamTopBar(
     showGamesInline: Boolean,
     archiveCount: Int,
     userIsScrolling: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val scrollTransition = updateTransition(
-        targetState = userIsScrolling,
-        label = "TopBarScroll"
-    )
+    val scrollTransition =
+        updateTransition(
+            targetState = userIsScrolling,
+            label = "TopBarScroll",
+        )
 
     val topBarAlpha by scrollTransition.animateFloat(
         transitionSpec = {
@@ -61,7 +62,7 @@ fun InputStreamTopBar(
                 tween(durationMillis = 200, easing = LinearOutSlowInEasing)
             }
         },
-        label = "topBarAlpha"
+        label = "topBarAlpha",
     ) { isScrolling -> if (isScrolling) 0f else 1f }
 
     val topBarTranslationY by scrollTransition.animateFloat(
@@ -72,60 +73,65 @@ fun InputStreamTopBar(
                 spring(dampingRatio = 0.75f, stiffness = 400f)
             }
         },
-        label = "topBarTranslationY"
+        label = "topBarTranslationY",
     ) { isScrolling -> if (isScrolling) -300f else 0f }
 
     val topGradientTranslationY by scrollTransition.animateFloat(
         transitionSpec = { spring(dampingRatio = 0.75f, stiffness = 100f) },
-        label = "topGradientTranslationY"
+        label = "topGradientTranslationY",
     ) { isScrolling -> if (isScrolling) -120f else 0f }
 
-    val topGradientBrush = if (isDarkTheme) {
-        SmartyBrushes.topScrimDark
-    } else {
-        SmartyBrushes.topScrimLight
-    }
+    val topGradientBrush =
+        if (isDarkTheme) {
+            SmartyBrushes.topScrimDark
+        } else {
+            SmartyBrushes.topScrimLight
+        }
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer { translationY = topGradientTranslationY }
-            .background(brush = topGradientBrush)
-            .zIndex(2f)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationY = topGradientTranslationY }
+                .background(brush = topGradientBrush)
+                .zIndex(2f),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .height(24.dp),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .height(24.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 ConnectionStatusIndicator(status = connectionStatus)
                 CloudSyncIndicator(
                     syncState = cloudSyncState,
-                    onSyncClick = onSyncCloud
+                    onSyncClick = onSyncCloud,
                 )
             }
         }
 
         HorizontalActionBar(
-            modifier = Modifier.graphicsLayer {
-                alpha = topBarAlpha
-                translationY = topBarTranslationY
-            },
-            selectedTab = when {
-                showStacksInline -> NavigationTab.STACKS
-                showArchiveInline -> NavigationTab.ARCHIVE
-                showGamesInline -> NavigationTab.GAMES
-                showCalendarInline -> NavigationTab.CALENDAR
-                isChatMode -> NavigationTab.CHAT
-                else -> selectedTab
-            },
+            modifier =
+                Modifier.graphicsLayer {
+                    alpha = topBarAlpha
+                    translationY = topBarTranslationY
+                },
+            selectedTab =
+                when {
+                    showStacksInline -> NavigationTab.STACKS
+                    showArchiveInline -> NavigationTab.ARCHIVE
+                    showGamesInline -> NavigationTab.GAMES
+                    showCalendarInline -> NavigationTab.CALENDAR
+                    isChatMode -> NavigationTab.CHAT
+                    else -> selectedTab
+                },
             onTabSelected = { tab -> onTabSelected(tab) },
             isChatMode = isChatMode,
             isHistoryMode = showChatHistoryInline,
@@ -133,7 +139,7 @@ fun InputStreamTopBar(
             isStacksMode = showStacksInline,
             isArchiveMode = showArchiveInline,
             archiveCount = archiveCount,
-            isScrolling = userIsScrolling
+            isScrolling = userIsScrolling,
         )
     }
 }

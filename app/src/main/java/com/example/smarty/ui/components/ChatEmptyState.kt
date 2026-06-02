@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
@@ -27,7 +26,7 @@ import com.example.smarty.ui.theme.LocalShapes
  * =============================================================================
  * EMPTY STATE COMPONENTS (STATIC)
  * =============================================================================
- * 
+ *
  * Simplified empty states without complex animations as per user preference.
  */
 
@@ -40,7 +39,7 @@ fun CalendarEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.calendar),
         subtitle = stringResource(R.string.nothing_planned),
         hint = stringResource(R.string.tap_plus_to_add_something_to_your_schedule),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -50,12 +49,15 @@ fun CalendarEmptyState(modifier: Modifier = Modifier) {
  * Search Empty State
  */
 @Composable
-fun SearchEmptyState(searchQuery: String, modifier: Modifier = Modifier) {
+fun SearchEmptyState(
+    searchQuery: String,
+    modifier: Modifier = Modifier,
+) {
     EmptyStateContainer(
         title = stringResource(R.string.no_matches),
         subtitle = "\"$searchQuery\"",
         hint = stringResource(R.string.try_different_keywords_or_filters),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -70,7 +72,7 @@ fun ChatHistoryEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.history),
         subtitle = stringResource(R.string.no_conversations_yet),
         hint = stringResource(R.string.your_past_chats_will_appear_here_as_you_interact_with_smarty),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -87,34 +89,34 @@ private fun EmptyStateContainer(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    graphic: @Composable BoxScope.() -> Unit
+    graphic: @Composable BoxScope.() -> Unit,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         graphic()
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
             hint?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (actionLabel != null && onAction != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onAction,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(text = actionLabel)
                 }
@@ -130,39 +132,39 @@ private fun EmptyStateContainer(
 fun CompactEmptyState(
     title: String,
     subtitle: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.padding(ComponentSpacing.sheetPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             modifier = Modifier.size(60.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             val accentColor = LocalAccentColor.current
-            
+
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
                     color = accentColor.copy(alpha = 0.15f),
-                    radius = size.minDimension / 2
+                    radius = size.minDimension / 2,
                 )
                 drawCircle(
                     color = accentColor.copy(alpha = 0.4f),
-                    radius = (size.minDimension / 6)
+                    radius = (size.minDimension / 6),
                 )
             }
         }
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -175,27 +177,29 @@ fun CompactEmptyState(
 fun CalmLoadingState(
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 100.dp,
-    shape: androidx.compose.ui.graphics.Shape = LocalShapes.current.card
+    shape: androidx.compose.ui.graphics.Shape = LocalShapes.current.card,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "calm_shimmer")
     val shimmerAlpha by infiniteTransition.animateFloat(
         initialValue = 0.05f,
         targetValue = 0.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shimmer"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "shimmer",
     )
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-            .background(
-                color = LocalAccentColor.current.copy(alpha = shimmerAlpha),
-                shape = shape
-            )
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(
+                    color = LocalAccentColor.current.copy(alpha = shimmerAlpha),
+                    shape = shape,
+                ),
     )
 }
 
@@ -205,18 +209,18 @@ fun CalmLoadingState(
 @Composable
 fun TextSkeletonLoader(
     lines: Int = 3,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         repeat(lines) { index ->
             val widthFraction = if (index == lines - 1) 0.6f else 1f
             CalmLoadingState(
                 height = 14.dp,
                 shape = LocalShapes.current.skeleton,
-                modifier = Modifier.fillMaxWidth(widthFraction)
+                modifier = Modifier.fillMaxWidth(widthFraction),
             )
         }
     }
@@ -230,22 +234,24 @@ fun CalmLinearProgress(
     progress: () -> Float,
     modifier: Modifier = Modifier,
     color: Color = LocalAccentColor.current,
-    trackColor: Color = color.copy(alpha = 0.1f)
+    trackColor: Color = color.copy(alpha = 0.1f),
 ) {
     val targetProgress = progress()
     val animatedProgress by animateFloatAsState(
         targetValue = targetProgress.coerceIn(0f, 1f),
-        animationSpec = spring(
-            dampingRatio = 0.85f,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "calm_progress"
+        animationSpec =
+            spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessLow,
+            ),
+        label = "calm_progress",
     )
 
     Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(4.dp),
     ) {
         val width = size.width
         val height = size.height
@@ -255,7 +261,7 @@ fun CalmLinearProgress(
         drawRoundRect(
             color = trackColor,
             size = Size(width, height),
-            cornerRadius = CornerRadius(radius, radius)
+            cornerRadius = CornerRadius(radius, radius),
         )
 
         // Progress
@@ -263,7 +269,7 @@ fun CalmLinearProgress(
             drawRoundRect(
                 color = color,
                 size = Size(width * animatedProgress, height),
-                cornerRadius = CornerRadius(radius, radius)
+                cornerRadius = CornerRadius(radius, radius),
             )
         }
     }
@@ -278,7 +284,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.smarty),
         subtitle = stringResource(R.string.here_to_help),
         hint = stringResource(R.string.what_can_i_help_with),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -288,14 +294,17 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
  * Notes Empty State
  */
 @Composable
-fun NotesEmptyState(modifier: Modifier = Modifier, onAddNote: (() -> Unit)? = null) {
+fun NotesEmptyState(
+    modifier: Modifier = Modifier,
+    onAddNote: (() -> Unit)? = null,
+) {
     EmptyStateContainer(
         title = stringResource(R.string.notes),
         subtitle = stringResource(R.string.capture_your_thoughts),
         hint = stringResource(R.string.tap_plus_to_create_your_first_note),
         actionLabel = if (onAddNote != null) "Create Note" else null,
         onAction = onAddNote,
-        modifier = modifier
+        modifier = modifier,
     ) {
     }
 }
@@ -309,7 +318,7 @@ fun ArchiveEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.archive),
         subtitle = stringResource(R.string.archives),
         hint = stringResource(R.string.archived_notes_will_appear_here),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -324,7 +333,7 @@ fun StacksEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.stacks),
         subtitle = stringResource(R.string.your_collections),
         hint = stringResource(R.string.ai_will_organize_your_notes_into_smart_stacks),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -334,12 +343,15 @@ fun StacksEmptyState(modifier: Modifier = Modifier) {
  * Category Empty State
  */
 @Composable
-fun CategoryEmptyState(categoryName: String, modifier: Modifier = Modifier) {
+fun CategoryEmptyState(
+    categoryName: String,
+    modifier: Modifier = Modifier,
+) {
     EmptyStateContainer(
         title = categoryName.lowercase(),
         subtitle = stringResource(R.string.focused_notes),
         hint = stringResource(R.string.add_notes_to_this_category),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -354,7 +366,7 @@ fun FilesEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.files),
         subtitle = stringResource(R.string.no_associated_files),
         hint = stringResource(R.string.images_documents_and_audio_will_appear_here),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -369,7 +381,7 @@ fun VersionHistoryEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.history),
         subtitle = stringResource(R.string.no_versions_yet),
         hint = stringResource(R.string.edit_this_note_to_create_a_version),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -381,13 +393,20 @@ fun VersionHistoryEmptyState(modifier: Modifier = Modifier) {
 @Composable
 fun BackupEmptyState(
     isLocal: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     EmptyStateContainer(
         title = if (isLocal) stringResource(R.string.local_archives) else stringResource(R.string.cloud_backups),
         subtitle = if (isLocal) stringResource(R.string.no_local_backups_yet) else stringResource(R.string.no_cloud_backups_found),
-        hint = if (isLocal) stringResource(R.string.create_a_backup_to_save_data_on_your_device) else stringResource(R.string.sign_in_and_backup_to_protect_your_data),
-        modifier = modifier
+        hint =
+            if (isLocal) {
+                stringResource(
+                    R.string.create_a_backup_to_save_data_on_your_device,
+                )
+            } else {
+                stringResource(R.string.sign_in_and_backup_to_protect_your_data)
+            },
+        modifier = modifier,
     ) {
         // No graphic
     }
@@ -402,7 +421,7 @@ fun IntelligenceEmptyState(modifier: Modifier = Modifier) {
         title = stringResource(R.string.intelligence),
         subtitle = stringResource(R.string.no_patterns_detected_yet),
         hint = stringResource(R.string.start_interacting_with_smarty_to_build_your_profile),
-        modifier = modifier
+        modifier = modifier,
     ) {
         // No graphic
     }

@@ -213,15 +213,26 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("session_completed")
-    data class SessionCompleted(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class SessionCompleted(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("session_error")
-    data class SessionError(override val eventId: String, override val timestamp: Long, val message: String) : AgentEvent()
+    data class SessionError(
+        override val eventId: String,
+        override val timestamp: Long,
+        val message: String,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("session_aborted")
-    data class SessionAborted(override val eventId: String, override val timestamp: Long, val reason: String) : AgentEvent()
+    data class SessionAborted(
+        override val eventId: String,
+        override val timestamp: Long,
+        val reason: String,
+    ) : AgentEvent()
 
     // Model Resolution
     @Serializable
@@ -244,11 +255,18 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("reasoning_delta")
-    data class ReasoningDelta(override val eventId: String, override val timestamp: Long, val text: String) : AgentEvent()
+    data class ReasoningDelta(
+        override val eventId: String,
+        override val timestamp: Long,
+        val text: String,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("reasoning_finished")
-    data class ReasoningFinished(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class ReasoningFinished(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     // Steps
     @Serializable
@@ -261,7 +279,11 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("step_finished")
-    data class StepFinished(override val eventId: String, override val timestamp: Long, val success: Boolean) : AgentEvent()
+    data class StepFinished(
+        override val eventId: String,
+        override val timestamp: Long,
+        val success: Boolean,
+    ) : AgentEvent()
 
     // Tool Call Lifecycle
     @Serializable
@@ -387,11 +409,18 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("final_answer_delta")
-    data class FinalAnswerDelta(override val eventId: String, override val timestamp: Long, val text: String) : AgentEvent()
+    data class FinalAnswerDelta(
+        override val eventId: String,
+        override val timestamp: Long,
+        val text: String,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("final_answer_finished")
-    data class FinalAnswerFinished(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class FinalAnswerFinished(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     // Reliability & Cache
     @Serializable
@@ -404,15 +433,25 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("recovery_finished")
-    data class RecoveryFinished(override val eventId: String, override val timestamp: Long, val success: Boolean) : AgentEvent()
+    data class RecoveryFinished(
+        override val eventId: String,
+        override val timestamp: Long,
+        val success: Boolean,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("cache_hit")
-    data class CacheHit(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class CacheHit(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("cache_miss")
-    data class CacheMiss(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class CacheMiss(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     // Data Sync
     @Serializable
@@ -425,15 +464,25 @@ sealed class AgentEvent {
 
     @Serializable
     @SerialName("db_read")
-    data class DbRead(override val eventId: String, override val timestamp: Long, val table: String) : AgentEvent()
+    data class DbRead(
+        override val eventId: String,
+        override val timestamp: Long,
+        val table: String,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("sync_started")
-    data class SyncStarted(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class SyncStarted(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     @Serializable
     @SerialName("sync_finished")
-    data class SyncFinished(override val eventId: String, override val timestamp: Long) : AgentEvent()
+    data class SyncFinished(
+        override val eventId: String,
+        override val timestamp: Long,
+    ) : AgentEvent()
 
     // Raw OpenCode CLI Output
     @Serializable

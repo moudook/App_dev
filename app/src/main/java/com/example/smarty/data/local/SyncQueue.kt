@@ -75,9 +75,12 @@ data class SyncQueueItem(
             entityId: String,
             payloadJson: String,
             baseVersion: Long = 0,
-        ): SyncQueueItem {
-            return SyncQueueItem(
-                id = java.util.UUID.randomUUID().toString(),
+        ): SyncQueueItem =
+            SyncQueueItem(
+                id =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 operation = operation.name,
                 entityType = entityType.name,
                 entityId = entityId,
@@ -85,53 +88,45 @@ data class SyncQueueItem(
                 baseVersion = baseVersion,
                 createdAt = System.currentTimeMillis(),
             )
-        }
     }
 
     /**
      * Check if this item is ready to be retried.
      */
-    fun canRetry(maxRetries: Int = 3): Boolean {
-        return retryCount < maxRetries && status != SyncStatus.IN_FLIGHT.name
-    }
+    fun canRetry(maxRetries: Int = 3): Boolean = retryCount < maxRetries && status != SyncStatus.IN_FLIGHT.name
 
     /**
      * Create a copy with incremented retry count.
      */
-    fun withRetry(error: String): SyncQueueItem {
-        return copy(
+    fun withRetry(error: String): SyncQueueItem =
+        copy(
             retryCount = retryCount + 1,
             status = if (retryCount + 1 >= 3) SyncStatus.FAILED.name else SyncStatus.PENDING.name,
             lastError = error,
         )
-    }
 
     /**
      * Create a copy marked as in-flight.
      */
-    fun markInFlight(): SyncQueueItem {
-        return copy(status = SyncStatus.IN_FLIGHT.name)
-    }
+    fun markInFlight(): SyncQueueItem = copy(status = SyncStatus.IN_FLIGHT.name)
 
     /**
      * Create a copy marked as synced.
      */
-    fun markSynced(serverTs: Long): SyncQueueItem {
-        return copy(
+    fun markSynced(serverTs: Long): SyncQueueItem =
+        copy(
             status = SyncStatus.SYNCED.name,
             serverTimestamp = serverTs,
         )
-    }
 
     /**
      * Create a copy marked as conflict.
      */
-    fun markConflict(error: String): SyncQueueItem {
-        return copy(
+    fun markConflict(error: String): SyncQueueItem =
+        copy(
             status = SyncStatus.CONFLICT.name,
             lastError = error,
         )
-    }
 }
 
 /**
@@ -167,9 +162,12 @@ data class ConflictRecord(
             localTs: Long,
             serverTs: Long,
             resolution: String = "SERVER_WINS",
-        ): ConflictRecord {
-            return ConflictRecord(
-                id = java.util.UUID.randomUUID().toString(),
+        ): ConflictRecord =
+            ConflictRecord(
+                id =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 entityId = entityId,
                 entityType = entityType,
                 localPayloadJson = localPayload,
@@ -179,6 +177,5 @@ data class ConflictRecord(
                 resolvedAt = System.currentTimeMillis(),
                 resolution = resolution,
             )
-        }
     }
 }

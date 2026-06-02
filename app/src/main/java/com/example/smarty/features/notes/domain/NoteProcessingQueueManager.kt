@@ -27,11 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class NoteProcessingQueueManager(
     private val repository: SmartyRepository,
     private val aiService: AIService,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "NoteProcessingQueue"
-        private const val PROCESSING_TIMEOUT_MS = 300_000L  // 5 minutes — prevents premature reset during slow AI calls
+        private const val PROCESSING_TIMEOUT_MS = 300_000L // 5 minutes — prevents premature reset during slow AI calls
         private const val QUEUE_CHECK_INTERVAL_MS = 500L
         private const val PROCESSING_DELAY_MS = 500L
         private const val MAX_RETRY_ATTEMPTS = 3
@@ -46,9 +46,20 @@ class NoteProcessingQueueManager(
     }
 
     sealed class NoteProcessingEvent {
-        data class Retry(val noteId: String, val attempt: Int) : NoteProcessingEvent()
-        data class Failed(val noteId: String, val reason: String) : NoteProcessingEvent()
-        data class Completed(val noteId: String, val noteTitle: String?) : NoteProcessingEvent()
+        data class Retry(
+            val noteId: String,
+            val attempt: Int,
+        ) : NoteProcessingEvent()
+
+        data class Failed(
+            val noteId: String,
+            val reason: String,
+        ) : NoteProcessingEvent()
+
+        data class Completed(
+            val noteId: String,
+            val noteTitle: String?,
+        ) : NoteProcessingEvent()
     }
 
     private val processingMutex = Mutex()
@@ -74,8 +85,10 @@ class NoteProcessingQueueManager(
     private suspend fun forceCompleteVeryOldStuckNotes() {
         val veryOldThreshold = System.currentTimeMillis() - (10 * 60 * 1000L)
         val stuckProcessing = repository.getStuckProcessingNotes(veryOldThreshold)
-        val stuckPending = repository.getNotesByProcessingStatus(ProcessingStatus.PENDING)
-            .filter { it.updatedAt < veryOldThreshold }
+        val stuckPending =
+            repository
+                .getNotesByProcessingStatus(ProcessingStatus.PENDING)
+                .filter { it.updatedAt < veryOldThreshold }
         val allStuck = stuckProcessing + stuckPending
         if (allStuck.isNotEmpty()) {
             Log.w(TAG, "Force completing ${allStuck.size} notes stuck for over 10 minutes")
@@ -110,20 +123,21 @@ class NoteProcessingQueueManager(
 
     private fun startQueueProcessor() {
         if (queueJob?.isActive == true) return
-        queueJob = scope.launch(Dispatchers.IO) {
-            Log.d(TAG, "Queue processor started")
-            _isQueueActive.value = true
-            while (isActive) {
-                try {
-                    processQueue()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Queue processing error: ${e.message}", e)
+        queueJob =
+            scope.launch(Dispatchers.IO) {
+                Log.d(TAG, "Queue processor started")
+                _isQueueActive.value = true
+                while (isActive) {
+                    try {
+                        processQueue()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Queue processing error: ${e.message}", e)
+                    }
+                    delay(QUEUE_CHECK_INTERVAL_MS)
                 }
-                delay(QUEUE_CHECK_INTERVAL_MS)
+                _isQueueActive.value = false
+                Log.d(TAG, "Queue processor stopped")
             }
-            _isQueueActive.value = false
-            Log.d(TAG, "Queue processor stopped")
-        }
     }
 
     private fun triggerProcessing() {
@@ -154,12 +168,13 @@ class NoteProcessingQueueManager(
                 if (pendingNotes.size >= MAX_CONCURRENT_SMALL_NOTES * 2) break
             }
             if (pendingNotes.isEmpty()) return
-            val (smallNotes, largeNotes) = pendingNotes.partition { note ->
-                note.content.length < SMALL_NOTE_THRESHOLD_BYTES &&
-                note.fileUri.isNullOrEmpty() &&
-                note.imageUri.isNullOrEmpty() &&
-                note.attachmentsJson.isNullOrEmpty()
-            }
+            val (smallNotes, largeNotes) =
+                pendingNotes.partition { note ->
+                    note.content.length < SMALL_NOTE_THRESHOLD_BYTES &&
+                        note.fileUri.isNullOrEmpty() &&
+                        note.imageUri.isNullOrEmpty() &&
+                        note.attachmentsJson.isNullOrEmpty()
+                }
             var processedCount = 0
             if (smallNotes.isNotEmpty()) {
                 Log.d(TAG, "Processing ${smallNotes.size} small notes in parallel (batch size: $MAX_CONCURRENT_SMALL_NOTES)")
@@ -187,50 +202,57 @@ class NoteProcessingQueueManager(
         }
     }
 
-    private suspend fun processNoteBatch(notes: List<Note>): Int {
-        return supervisorScope {
-            val results = notes.map { note ->
-                async {
-                    try {
-                        val success = processNote(note)
-                        if (success) retryCount.remove(note.id)
-                        success
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Parallel processing error for ${note.id}: ${e.message}")
-                        try { saveWithDefaultCategory(note) }
-                        catch (e: Exception) { Log.e(TAG, "Failed to save note ${note.id} with default category", e) }
-                        false
+    private suspend fun processNoteBatch(notes: List<Note>): Int =
+        supervisorScope {
+            val results =
+                notes.map { note ->
+                    async {
+                        try {
+                            val success = processNote(note)
+                            if (success) retryCount.remove(note.id)
+                            success
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Parallel processing error for ${note.id}: ${e.message}")
+                            try {
+                                saveWithDefaultCategory(note)
+                            } catch (
+                                e: Exception,
+                            ) {
+                                Log.e(TAG, "Failed to save note ${note.id} with default category", e)
+                            }
+                            false
+                        }
                     }
                 }
-            }
             results.awaitAll().count { it }
         }
-    }
 
     private suspend fun processNote(note: Note): Boolean {
         Log.d(TAG, "Processing note: ${note.id}")
         val currentContentHash = note.content.sha256()
-        
+
         // Skip AI-created notes to prevent infinite processing loops
         if (note.isAiCreated) {
             Log.d(TAG, "Note is AI-created, skipping processing to prevent infinite loops: ${note.id}")
-            val updatedNote = note.copy(
-                processingStatus = ProcessingStatus.COMPLETED,
-                contentHash = currentContentHash,
-                processedContentHash = currentContentHash,
-                updatedAt = System.currentTimeMillis()
-            )
+            val updatedNote =
+                note.copy(
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    contentHash = currentContentHash,
+                    processedContentHash = currentContentHash,
+                    updatedAt = System.currentTimeMillis(),
+                )
             repository.updateNote(updatedNote)
             return true
         }
 
         if (note.processedContentHash != null && note.processedContentHash == currentContentHash) {
             Log.d(TAG, "Note already processed (content hash match), skipping: ${note.id}")
-            val updatedNote = note.copy(
-                processingStatus = ProcessingStatus.COMPLETED,
-                contentHash = currentContentHash,
-                updatedAt = System.currentTimeMillis()
-            )
+            val updatedNote =
+                note.copy(
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    contentHash = currentContentHash,
+                    updatedAt = System.currentTimeMillis(),
+                )
             repository.updateNote(updatedNote)
             return true
         }
@@ -238,17 +260,18 @@ class NoteProcessingQueueManager(
             val result = aiService.analyzeContent(note.content)
             if (result.success) {
                 val category = repository.getOrCreateCategory(result.category)
-                val updatedNote = note.copy(
-                    title = result.title,
-                    summary = result.summary,
-                    categoryId = category.id,
-                    categoryName = category.name,
-                    whySaved = result.whySaved,
-                    processingStatus = ProcessingStatus.COMPLETED,
-                    contentHash = currentContentHash,
-                    processedContentHash = currentContentHash,
-                    updatedAt = System.currentTimeMillis()
-                )
+                val updatedNote =
+                    note.copy(
+                        title = result.title,
+                        summary = result.summary,
+                        categoryId = category.id,
+                        categoryName = category.name,
+                        whySaved = result.whySaved,
+                        processingStatus = ProcessingStatus.COMPLETED,
+                        contentHash = currentContentHash,
+                        processedContentHash = currentContentHash,
+                        updatedAt = System.currentTimeMillis(),
+                    )
                 repository.updateNote(updatedNote)
                 Log.d(TAG, "Note processed successfully: ${note.id}")
                 _processingEvents.emit(NoteProcessingEvent.Completed(note.id, result.title))
@@ -285,9 +308,9 @@ class NoteProcessingQueueManager(
                         note.id,
                         repository.getApplicationContext().getString(
                             com.example.smarty.R.string.processing_error_retries_exceeded,
-                            MAX_RETRY_ATTEMPTS
-                        )
-                    )
+                            MAX_RETRY_ATTEMPTS,
+                        ),
+                    ),
                 )
                 val contentHash = note.content.sha256()
                 saveWithDefaultCategory(note, contentHash)
@@ -299,20 +322,28 @@ class NoteProcessingQueueManager(
         }
     }
 
-    private suspend fun saveWithDefaultCategory(note: Note, contentHash: String? = null) {
-        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(repository.getApplicationContext(), note.content)
+    private suspend fun saveWithDefaultCategory(
+        note: Note,
+        contentHash: String? = null,
+    ) {
+        val fallbackResponse =
+            com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(
+                repository.getApplicationContext(),
+                note.content,
+            )
         val categoryName = fallbackResponse.category
         val category = repository.getOrCreateCategory(categoryName)
-        val updatedNote = note.copy(
-            categoryId = category.id,
-            categoryName = category.name,
-            summary = fallbackResponse.summary.takeIf { it.isNotBlank() },
-            whySaved = fallbackResponse.whySaved.takeIf { it.isNotBlank() },
-            processingStatus = ProcessingStatus.COMPLETED,
-            contentHash = contentHash ?: note.content.sha256(),
-            processedContentHash = contentHash ?: note.content.sha256(),
-            updatedAt = System.currentTimeMillis()
-        )
+        val updatedNote =
+            note.copy(
+                categoryId = category.id,
+                categoryName = category.name,
+                summary = fallbackResponse.summary.takeIf { it.isNotBlank() },
+                whySaved = fallbackResponse.whySaved.takeIf { it.isNotBlank() },
+                processingStatus = ProcessingStatus.COMPLETED,
+                contentHash = contentHash ?: note.content.sha256(),
+                processedContentHash = contentHash ?: note.content.sha256(),
+                updatedAt = System.currentTimeMillis(),
+            )
         repository.updateNote(updatedNote)
         Log.d(TAG, "Saved note ${note.id} with smart fallback category: $categoryName")
     }

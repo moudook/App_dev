@@ -4,7 +4,6 @@ import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
 import com.example.smarty.server.agent.ActiveEventBridge
-import com.example.smarty.server.agent.AgentPersistenceManager
 import com.example.smarty.server.agent.ServerAgent
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
@@ -37,9 +36,9 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
+import io.ktor.server.sse.sse
 import io.ktor.server.websocket.webSocket
 import io.ktor.sse.ServerSentEvent
-import io.ktor.server.sse.sse
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
@@ -441,7 +440,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 val activeSessionId = sessionId ?: UUID.randomUUID().toString()
                 com.example.smarty.server.agent.ActiveSessionManager
                     .startSession(userId, activeSessionId, "chat")
-                com.example.smarty.server.agent.ActiveUserRegistry.setActive(userId)
+                com.example.smarty.server.agent.ActiveUserRegistry
+                    .setActive(userId)
 
                 // Collect citations and agent steps during stream
                 val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
@@ -464,8 +464,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         if (event is AgentEvent.AgentStep) {
                             collectedAgentSteps[event.stepIndex] = event
                         }
-
-
 
                         val eventType =
                             when (event) {
@@ -658,7 +656,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     // Clear the bridge so stale emitters never fire
                     ActiveEventBridge.clear(userId)
-                    com.example.smarty.server.agent.ActiveUserRegistry.clearActive(userId)
+                    com.example.smarty.server.agent.ActiveUserRegistry
+                        .clearActive(userId)
                     // Reject pending approvals to prevent hanging coroutines (C2 fix)
                     com.example.smarty.server.agent.ApprovalRegistry
                         .cancelApprovalsForSession(activeSessionId)
@@ -675,7 +674,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
              * Supports robust reconnection via AgentRunManager.
              */
             webSocket("/chat/ws") {
-                val token = call.request.queryParameters["token"]
+                val token = call.request.headers[io.ktor.http.HttpHeaders.Authorization]?.removePrefix("Bearer ")
                 val user =
                     com.example.smarty.server.plugins
                         .verifyFirebaseToken(token ?: "", null)
@@ -691,8 +690,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.application.log.info("WebSocket connected for user: $userId, session: $sessionIdParam")
 
                 // Register with ActiveSessionManager so MCP server can find this session
-                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, sessionIdParam, "websocket")
-                com.example.smarty.server.agent.ActiveUserRegistry.setActive(userId)
+                com.example.smarty.server.agent.ActiveSessionManager
+                    .startSession(userId, sessionIdParam, "websocket")
+                com.example.smarty.server.agent.ActiveUserRegistry
+                    .setActive(userId)
 
                 // Register with ActiveEventBridge so MCP approval events reach this WebSocket
                 val wsEmitter: suspend (AgentEvent) -> Unit = { event ->
@@ -810,9 +811,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     emitJob.cancel()
                     heartbeatJob.cancel()
                     ActiveEventBridge.clear(userId)
-                    com.example.smarty.server.agent.AgentRunManager.cancelRun(sessionIdParam)
-                    com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, sessionIdParam)
-                    com.example.smarty.server.agent.ActiveUserRegistry.clearActive(userId)
+                    com.example.smarty.server.agent.AgentRunManager
+                        .cancelRun(sessionIdParam)
+                    com.example.smarty.server.agent.ActiveSessionManager
+                        .endSession(userId, sessionIdParam)
+                    com.example.smarty.server.agent.ActiveUserRegistry
+                        .clearActive(userId)
                     call.application.log.info("WebSocket disconnected for user: $userId, session: $sessionIdParam")
                 }
             }
@@ -1315,7 +1319,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             try {
                 // Cancel the coroutine to safely stop the agent without destroying session data
                 if (sessionId.isNotEmpty()) {
-                    val cancelled = com.example.smarty.server.agent.AgentRunManager.cancelRun(sessionId)
+                    val cancelled =
+                        com.example.smarty.server.agent.AgentRunManager
+                            .cancelRun(sessionId)
                     call.respond(
                         HttpStatusCode.OK,
                         InterruptResponse(
@@ -1529,17 +1535,25 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     routing {
         post("/chat/test-ask-user") {
             val userId = call.request.queryParameters["userId"] ?: "test-user"
-            
-            val testEvent = com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                eventId = java.util.UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = java.util.UUID.randomUUID().toString(),
-                toolName = "ask_user",
-                toolTitle = "Ask User",
-                toolArgs = """{"questions": [{"question": "Did the manual test trigger?", "options": ["Yes", "No"], "allow_custom": true}]}"""
-            )
-            
-            com.example.smarty.server.agent.ActiveEventBridge.emit(userId, testEvent)
+
+            val testEvent =
+                com.example.smarty.protocol.AgentEvent.ApprovalRequested(
+                    eventId =
+                        java.util.UUID
+                            .randomUUID()
+                            .toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId =
+                        java.util.UUID
+                            .randomUUID()
+                            .toString(),
+                    toolName = "ask_user",
+                    toolTitle = "Ask User",
+                    toolArgs = """{"questions": [{"question": "Did the manual test trigger?", "options": ["Yes", "No"], "allow_custom": true}]}""",
+                )
+
+            com.example.smarty.server.agent.ActiveEventBridge
+                .emit(userId, testEvent)
             call.respond(mapOf("status" to "emitted", "userId" to userId))
         }
     }

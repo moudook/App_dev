@@ -283,17 +283,17 @@ class AuthenticationFeatureTest {
             }
         }
 
-    private fun isValidEmail(email: String): Boolean {
-        return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
-    }
+    private fun isValidEmail(email: String): Boolean =
+        android.util.Patterns.EMAIL_ADDRESS
+            .matcher(email)
+            .matches()
 
-    private fun isStrongPassword(password: String): Boolean {
-        return password.length >= 8 &&
+    private fun isStrongPassword(password: String): Boolean =
+        password.length >= 8 &&
             password.any { it.isUpperCase() } &&
             password.any { it.isLowerCase() } &&
             password.any { it.isDigit() } &&
             password.any { !it.isLetterOrDigit() }
-    }
 }
 
 /**
@@ -308,7 +308,9 @@ data class AuthUser(
 /**
  * Simple auth use cases for testing
  */
-class AuthUseCases(private val repository: AuthRepository) {
+class AuthUseCases(
+    private val repository: AuthRepository,
+) {
     suspend fun login(
         email: String,
         password: String,

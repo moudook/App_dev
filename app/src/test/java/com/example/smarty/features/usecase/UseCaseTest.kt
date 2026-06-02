@@ -264,7 +264,9 @@ class ChatRepository {
 }
 
 // UseCases
-class NoteUseCase(private val repository: NoteRepository) {
+class NoteUseCase(
+    private val repository: NoteRepository,
+) {
     suspend fun createNote(
         title: String?,
         content: String?,
@@ -285,7 +287,9 @@ class NoteUseCase(private val repository: NoteRepository) {
     suspend fun searchNotes(query: String) = repository.search(query)
 }
 
-class CalendarUseCase(private val repository: CalendarRepository) {
+class CalendarUseCase(
+    private val repository: CalendarRepository,
+) {
     suspend fun createEvent(
         title: String?,
         startTime: Long,
@@ -301,7 +305,9 @@ class CalendarUseCase(private val repository: CalendarRepository) {
     suspend fun deleteEvent(id: String) = repository.delete(id)
 }
 
-class ChatUseCase(private val repository: ChatRepository) {
+class ChatUseCase(
+    private val repository: ChatRepository,
+) {
     suspend fun sendMessage(
         sessionId: String,
         content: String?,

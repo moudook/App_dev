@@ -42,10 +42,12 @@ class BackupRestoreTest {
         context = ApplicationProvider.getApplicationContext()
         // Use in-memory database for testing
         database =
-            Room.inMemoryDatabaseBuilder(
-                context,
-                SmartyDatabase::class.java,
-            ).allowMainThreadQueries().build()
+            Room
+                .inMemoryDatabaseBuilder(
+                    context,
+                    SmartyDatabase::class.java,
+                ).allowMainThreadQueries()
+                .build()
     }
 
     @After
@@ -486,8 +488,8 @@ class BackupRestoreTest {
         excludeFromAiChat: Boolean = false,
         isArchived: Boolean = false,
         isAiCreated: Boolean = false,
-    ): Note {
-        return Note(
+    ): Note =
+        Note(
             id = id,
             title = title,
             content = content,
@@ -502,5 +504,4 @@ class BackupRestoreTest {
             isArchived = isArchived,
             isAiCreated = isAiCreated,
         )
-    }
 }

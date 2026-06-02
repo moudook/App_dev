@@ -49,9 +49,23 @@ object AIResponseParser {
      */
     val VALID_CATEGORIES =
         setOf(
-            "learn", "read", "watch", "idea", "todo", "buy", "meet",
-            "code", "quote", "inspo", "recipe", "health", "finance",
-            "work", "play", "note", "legal",
+            "learn",
+            "read",
+            "watch",
+            "idea",
+            "todo",
+            "buy",
+            "meet",
+            "code",
+            "quote",
+            "inspo",
+            "recipe",
+            "health",
+            "finance",
+            "work",
+            "play",
+            "note",
+            "legal",
         )
 
     // ==================== JSON Extraction ====================
@@ -261,7 +275,8 @@ object AIResponseParser {
                 keyPoints = keyPoints,
                 category = parsed.get("category")?.asString?.trim() ?: "note",
                 actionItems = actionItems,
-                userRelevance = parsed.get("userRelevance")?.asString?.trim() ?: context.getString(com.example.smarty.R.string.mock_ai_intent_note),
+                userRelevance =
+                    parsed.get("userRelevance")?.asString?.trim() ?: context.getString(com.example.smarty.R.string.mock_ai_intent_note),
                 success = true,
             )
         } catch (e: Exception) {
@@ -296,9 +311,11 @@ object AIResponseParser {
             val choices = json.getAsJsonArray("choices")
             if (choices == null || choices.size() == 0) return null
 
-            choices[0].asJsonObject
+            choices[0]
+                .asJsonObject
                 .getAsJsonObject("message")
-                ?.get("content")?.asString
+                ?.get("content")
+                ?.asString
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract $providerName agent text: ${e.message}")
             null
@@ -345,7 +362,8 @@ object AIResponseParser {
             com.example.smarty.core.common.util.ContentTypeDetector.extractTitle(
                 context,
                 content,
-                com.example.smarty.core.common.util.ContentTypeDetector.detectContentType(content),
+                com.example.smarty.core.common.util.ContentTypeDetector
+                    .detectContentType(content),
             )
 
         // URL-based categorization
@@ -381,8 +399,8 @@ object AIResponseParser {
     private fun categorizeByUrl(
         context: android.content.Context,
         lower: String,
-    ): Triple<String, String, String>? {
-        return when {
+    ): Triple<String, String, String>? =
+        when {
             lower.contains("youtube.com") || lower.contains("youtu.be") ->
                 Triple(
                     context.getString(com.example.smarty.R.string.mock_ai_tag_watch),
@@ -445,7 +463,6 @@ object AIResponseParser {
                 )
             else -> null
         }
-    }
 
     /**
      * Categorize content based on keyword patterns.
@@ -457,8 +474,8 @@ object AIResponseParser {
     private fun categorizeByKeywords(
         context: android.content.Context,
         lower: String,
-    ): Triple<String, String, String> {
-        return when {
+    ): Triple<String, String, String> =
+        when {
             // Task/Todo patterns
             TODO_PATTERN.containsMatchIn(lower) ->
                 Triple(
@@ -554,7 +571,6 @@ object AIResponseParser {
                     context.getString(com.example.smarty.R.string.mock_ai_intent_note),
                 )
         }
-    }
 
     // ==================== Validation Helpers ====================
 
@@ -578,7 +594,8 @@ object AIResponseParser {
         // 2. Limit length to prevent UI issues
         // 3. Lowercase (Consistent with Calm Aesthetic)
         val clean =
-            category.trim()
+            category
+                .trim()
                 .replace(Regex("[^a-zA-Z0-9\\s\\-]"), "")
                 .take(20)
                 .lowercase()

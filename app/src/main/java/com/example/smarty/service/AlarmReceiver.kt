@@ -12,18 +12,15 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.smarty.MainActivity
 import com.example.smarty.R
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /**
  * Receives timer/alarm broadcasts and triggers notifications with audio.
- * 
+ *
  * IMPROVEMENTS:
  * - Replaced delay() with withTimeout() for proper timeout handling
  * - Improved structured concurrency with lifecycle-aware scope
@@ -32,7 +29,6 @@ import kotlinx.coroutines.withTimeout
  * - Reduced scope allocation overhead
  */
 class AlarmReceiver : BroadcastReceiver() {
-
     companion object {
         private const val TAG = "AlarmReceiver"
 
@@ -48,13 +44,13 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // WakeLock timeout slightly longer than audio duration to ensure completion
         private const val WAKELOCK_TIMEOUT_MS = 10_000L // 10 seconds
-        
+
         // Audio playback duration
         private const val AUDIO_DURATION_MS = 5_000L
-        
+
         // Timeout buffer for audio completion
         private const val AUDIO_TIMEOUT_BUFFER_MS = 1_000L
-        
+
         // Total timeout for alarm handling
         private const val ALARM_TIMEOUT_MS = AUDIO_DURATION_MS + AUDIO_TIMEOUT_BUFFER_MS + 2_000L
 
@@ -62,24 +58,34 @@ class AlarmReceiver : BroadcastReceiver() {
         internal val DAY_NAME_REGEX = Regex("""\w+""")
 
         // OPTIMIZATION: Pre-computed day order map for O(1) lookup (internal for extension functions)
-        internal val DAY_ORDER_MAP = mapOf(
-            "sunday" to 0, "monday" to 1, "tuesday" to 2, "wednesday" to 3,
-            "thursday" to 4, "friday" to 5, "saturday" to 6
-        )
+        internal val DAY_ORDER_MAP =
+            mapOf(
+                "sunday" to 0,
+                "monday" to 1,
+                "tuesday" to 2,
+                "wednesday" to 3,
+                "thursday" to 4,
+                "friday" to 5,
+                "saturday" to 6,
+            )
 
         // OPTIMIZATION: Pre-computed reverse map for Calendar.DAY_OF_WEEK (internal for extension functions)
-        internal val CALENDAR_DAY_MAP = mapOf(
-            java.util.Calendar.SUNDAY to "sunday",
-            java.util.Calendar.MONDAY to "monday",
-            java.util.Calendar.TUESDAY to "tuesday",
-            java.util.Calendar.WEDNESDAY to "wednesday",
-            java.util.Calendar.THURSDAY to "thursday",
-            java.util.Calendar.FRIDAY to "friday",
-            java.util.Calendar.SATURDAY to "saturday"
-        )
+        internal val CALENDAR_DAY_MAP =
+            mapOf(
+                java.util.Calendar.SUNDAY to "sunday",
+                java.util.Calendar.MONDAY to "monday",
+                java.util.Calendar.TUESDAY to "tuesday",
+                java.util.Calendar.WEDNESDAY to "wednesday",
+                java.util.Calendar.THURSDAY to "thursday",
+                java.util.Calendar.FRIDAY to "friday",
+                java.util.Calendar.SATURDAY to "saturday",
+            )
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         if (intent.action != ACTION_TIMER_TRIGGERED) return
 
         val timerId = intent.getStringExtra(EXTRA_TIMER_ID) ?: return
@@ -96,11 +102,12 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // Acquire WakeLock to prevent CPU sleep during audio playback
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "Smarty:AlarmWakeLock"
-        )
-        
+        val wakeLock =
+            powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "Smarty:AlarmWakeLock",
+            )
+
         try {
             wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
 
@@ -135,11 +142,13 @@ class AlarmReceiver : BroadcastReceiver() {
         timerName: String,
         isAlarm: Boolean,
         isRecurring: Boolean,
-        intent: Intent
+        intent: Intent,
     ) {
         // BUG FIX: Check if timer still exists in DB before playing
         // This prevents zombie alarms if cancellation didn't clear the PendingIntent
-        val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+        val db =
+            com.example.smarty.data.local.SmartyDatabase
+                .getDatabase(context)
         val timer = db.timerDao().getTimerById(timerId)
 
         if (timer == null) {
@@ -163,7 +172,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 timerId,
                 timerName,
                 isAlarm,
-                intent.getStringExtra(EXTRA_REPEAT_DAYS)
+                intent.getStringExtra(EXTRA_REPEAT_DAYS),
             )
         } else {
             // One-time timer/alarm - deactivate in database
@@ -177,69 +186,76 @@ class AlarmReceiver : BroadcastReceiver() {
         context: Context,
         timerId: String,
         timerName: String,
-        isAlarm: Boolean
+        isAlarm: Boolean,
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         // Create notification channel for Android O+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = if (isAlarm) {
-                NotificationManager.IMPORTANCE_HIGH
-            } else {
-                NotificationManager.IMPORTANCE_DEFAULT
-            }
+            val importance =
+                if (isAlarm) {
+                    NotificationManager.IMPORTANCE_HIGH
+                } else {
+                    NotificationManager.IMPORTANCE_DEFAULT
+                }
 
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                NOTIFICATION_CHANNEL_NAME,
-                importance
-            ).apply {
-                description = "Notifications for timers and alarms"
-                enableVibration(isAlarm)
-            }
+            val channel =
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    NOTIFICATION_CHANNEL_NAME,
+                    importance,
+                ).apply {
+                    description = "Notifications for timers and alarms"
+                    enableVibration(isAlarm)
+                }
 
             notificationManager.createNotificationChannel(channel)
         }
 
         // Create intent to open app
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        val contentIntent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
 
-        val pendingContentIntent = PendingIntent.getActivity(
-            context,
-            timerId.hashCode(),
-            contentIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingContentIntent =
+            PendingIntent.getActivity(
+                context,
+                timerId.hashCode(),
+                contentIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         // Create dismiss action to stop audio
-        val dismissIntent = Intent(context, AlarmDismissReceiver::class.java).apply {
-            action = AlarmDismissReceiver.ACTION_DISMISS
-            putExtra(EXTRA_TIMER_ID, timerId)
-        }
+        val dismissIntent =
+            Intent(context, AlarmDismissReceiver::class.java).apply {
+                action = AlarmDismissReceiver.ACTION_DISMISS
+                putExtra(EXTRA_TIMER_ID, timerId)
+            }
 
-        val pendingDismissIntent = PendingIntent.getBroadcast(
-            context,
-            timerId.hashCode() + 1,
-            dismissIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(if (isAlarm) "Alarm" else "Timer")
-            .setContentText(timerName)
-            .setPriority(if (isAlarm) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
-            .setContentIntent(pendingContentIntent)
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Dismiss",
-                pendingDismissIntent
+        val pendingDismissIntent =
+            PendingIntent.getBroadcast(
+                context,
+                timerId.hashCode() + 1,
+                dismissIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            .build()
+
+        val notification =
+            NotificationCompat
+                .Builder(context, NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(if (isAlarm) "Alarm" else "Timer")
+                .setContentText(timerName)
+                .setPriority(if (isAlarm) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .setContentIntent(pendingContentIntent)
+                .addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Dismiss",
+                    pendingDismissIntent,
+                ).build()
 
         notificationManager.notify(timerId.hashCode(), notification)
     }
@@ -253,16 +269,18 @@ class AlarmReceiver : BroadcastReceiver() {
         timerId: String,
         timerName: String,
         isAlarm: Boolean,
-        repeatDaysJson: String?
+        repeatDaysJson: String?,
     ) {
         if (repeatDaysJson.isNullOrEmpty()) return
 
         try {
             // OPTIMIZATION: Use regex to extract day names efficiently
-            val days = DAY_NAME_REGEX.findAll(repeatDaysJson)
-                .map { it.value.lowercase() }
-                .filter { it in DAY_ORDER_MAP }
-                .toList()
+            val days =
+                DAY_NAME_REGEX
+                    .findAll(repeatDaysJson)
+                    .map { it.value.lowercase() }
+                    .filter { it in DAY_ORDER_MAP }
+                    .toList()
 
             if (days.isEmpty()) return
 
@@ -287,14 +305,15 @@ class AlarmReceiver : BroadcastReceiver() {
                 calendar.add(java.util.Calendar.DAY_OF_YEAR, minDaysAway)
                 val nextTriggerTime = calendar.timeInMillis
 
-                val nextTimer = com.example.smarty.core.domain.model.SmartyTimer(
-                    id = timerId,
-                    name = timerName,
-                    triggerTime = nextTriggerTime,
-                    repeatDays = repeatDaysJson,
-                    isAlarm = isAlarm,
-                    isActive = true
-                )
+                val nextTimer =
+                    com.example.smarty.core.domain.model.SmartyTimer(
+                        id = timerId,
+                        name = timerName,
+                        triggerTime = nextTriggerTime,
+                        repeatDays = repeatDaysJson,
+                        isAlarm = isAlarm,
+                        isActive = true,
+                    )
 
                 AlarmScheduler.getInstance(context).scheduleTimer(nextTimer)
                 Log.d(TAG, "Scheduled next occurrence for $timerName in $minDaysAway days")
@@ -309,12 +328,14 @@ class AlarmReceiver : BroadcastReceiver() {
  * Receiver to handle alarm dismissal.
  */
 class AlarmDismissReceiver : BroadcastReceiver() {
-
     companion object {
         const val ACTION_DISMISS = "com.example.smarty.DISMISS_ALARM"
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         if (intent.action != ACTION_DISMISS) return
 
         val timerId = intent.getStringExtra(AlarmReceiver.EXTRA_TIMER_ID) ?: return
@@ -333,12 +354,12 @@ class AlarmDismissReceiver : BroadcastReceiver() {
  * OPTIMIZATION: Extension function for parsing repeat days JSON string.
  * Provides reusable day parsing logic.
  */
-fun String.parseRepeatDays(): List<String> {
-    return AlarmReceiver.DAY_NAME_REGEX.findAll(this)
+fun String.parseRepeatDays(): List<String> =
+    AlarmReceiver.DAY_NAME_REGEX
+        .findAll(this)
         .map { it.value.lowercase() }
         .filter { it in AlarmReceiver.DAY_ORDER_MAP }
         .toList()
-}
 
 /**
  * OPTIMIZATION: Extension function to calculate days until a specific day.
@@ -347,12 +368,12 @@ fun String.parseRepeatDays(): List<String> {
 fun java.util.Calendar.daysUntil(dayName: String): Int {
     val currentDayOfWeek = this.get(java.util.Calendar.DAY_OF_WEEK)
     val currentDayName = AlarmReceiver.CALENDAR_DAY_MAP[currentDayOfWeek] ?: return -1
-    
+
     val currentIdx = AlarmReceiver.DAY_ORDER_MAP[currentDayName] ?: return -1
     val targetIdx = AlarmReceiver.DAY_ORDER_MAP[dayName.lowercase()] ?: return -1
-    
+
     var daysAway = targetIdx - currentIdx
     if (daysAway <= 0) daysAway += 7
-    
+
     return daysAway
 }

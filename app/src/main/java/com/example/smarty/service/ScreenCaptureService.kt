@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 4. Keeps VirtualDisplay ready for fast captures
  */
 class ScreenCaptureService : Service() {
-
     companion object {
         private const val TAG = "ScreenCaptureService"
         private const val CHANNEL_ID = "screen_capture_channel"
@@ -75,12 +74,17 @@ class ScreenCaptureService : Service() {
         /**
          * Start the capture service with MediaProjection data.
          */
-        fun start(context: Context, resultCode: Int, data: Intent) {
-            val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                putExtra(EXTRA_RESULT_CODE, resultCode)
-                putExtra(EXTRA_DATA, data)
-                action = ACTION_START
-            }
+        fun start(
+            context: Context,
+            resultCode: Int,
+            data: Intent,
+        ) {
+            val intent =
+                Intent(context, ScreenCaptureService::class.java).apply {
+                    putExtra(EXTRA_RESULT_CODE, resultCode)
+                    putExtra(EXTRA_DATA, data)
+                    action = ACTION_START
+                }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -122,16 +126,21 @@ class ScreenCaptureService : Service() {
         Log.d(TAG, "Service created")
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         when (intent?.action) {
             ACTION_START -> {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-                val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(EXTRA_DATA)
-                }
+                val data =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(EXTRA_DATA)
+                    }
 
                 if (resultCode == Activity.RESULT_OK && data != null) {
                     startForeground(NOTIFICATION_ID, createNotification())
@@ -157,15 +166,16 @@ class ScreenCaptureService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.screen_capture),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = getString(R.string.enables_save_this_page_feature)
-                setShowBadge(false)
-                setSound(null, null)
-            }
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    getString(R.string.screen_capture),
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = getString(R.string.enables_save_this_page_feature)
+                    setShowBadge(false)
+                    setSound(null, null)
+                }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -173,12 +183,16 @@ class ScreenCaptureService : Service() {
 
     private fun createNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val pendingIntent =
+            PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat
+            .Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.screen_capture_ready))
             .setContentText(getString(R.string.say_save_this_page_to_capture))
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
@@ -205,27 +219,32 @@ class ScreenCaptureService : Service() {
             screenHeight = displayMetrics.heightPixels
             screenDensity = displayMetrics.densityDpi
         }
-        Log.d(TAG, "Screen: ${screenWidth}x${screenHeight} @ ${screenDensity}dpi")
+        Log.d(TAG, "Screen: ${screenWidth}x$screenHeight @ ${screenDensity}dpi")
     }
 
-    private fun initializeMediaProjection(resultCode: Int, data: Intent) {
+    private fun initializeMediaProjection(
+        resultCode: Int,
+        data: Intent,
+    ) {
         try {
             val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = projectionManager.getMediaProjection(resultCode, data)
 
-            mediaProjection?.registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() {
-                    Log.d(TAG, "MediaProjection stopped by system")
-                    isProjectionReady.set(false)
-                    cleanup()
-                }
-            }, handler)
+            mediaProjection?.registerCallback(
+                object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        Log.d(TAG, "MediaProjection stopped by system")
+                        isProjectionReady.set(false)
+                        cleanup()
+                    }
+                },
+                handler,
+            )
 
             // Pre-create ImageReader for fast captures
             setupImageReader()
             isProjectionReady.set(true)
             Log.d(TAG, "MediaProjection initialized - ready for instant captures")
-
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize MediaProjection: ${e.message}", e)
             isProjectionReady.set(false)
@@ -235,10 +254,13 @@ class ScreenCaptureService : Service() {
 
     private fun setupImageReader() {
         imageReader?.close()
-        imageReader = ImageReader.newInstance(
-            screenWidth, screenHeight,
-            PixelFormat.RGBA_8888, 2
-        )
+        imageReader =
+            ImageReader.newInstance(
+                screenWidth,
+                screenHeight,
+                PixelFormat.RGBA_8888,
+                2,
+            )
         Log.d(TAG, "ImageReader created")
     }
 
@@ -259,93 +281,99 @@ class ScreenCaptureService : Service() {
     /**
      * Capture screenshot - fast path, minimal overhead.
      */
-    private suspend fun captureScreen(): String? = captureMutex.withLock {
-        withContext(Dispatchers.IO) {
-            val projection = mediaProjection
-            val reader = imageReader
+    private suspend fun captureScreen(): String? =
+        captureMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val projection = mediaProjection
+                val reader = imageReader
 
-            if (projection == null || reader == null) {
-                Log.e(TAG, "Projection or reader not ready")
-                return@withContext null
-            }
+                if (projection == null || reader == null) {
+                    Log.e(TAG, "Projection or reader not ready")
+                    return@withContext null
+                }
 
-            try {
-                val imageDeferred = CompletableDeferred<Image?>()
+                try {
+                    val imageDeferred = CompletableDeferred<Image?>()
 
-                // Set up one-shot listener
-                reader.setOnImageAvailableListener({ imgReader ->
-                    try {
-                        val image = imgReader.acquireLatestImage()
-                        if (!imageDeferred.isCompleted) {
-                            imageDeferred.complete(image)
-                        } else {
-                            image?.close()
+                    // Set up one-shot listener
+                    reader.setOnImageAvailableListener({ imgReader ->
+                        try {
+                            val image = imgReader.acquireLatestImage()
+                            if (!imageDeferred.isCompleted) {
+                                imageDeferred.complete(image)
+                            } else {
+                                image?.close()
+                            }
+                        } catch (e: Exception) {
+                            if (!imageDeferred.isCompleted) {
+                                imageDeferred.complete(null)
+                            }
                         }
-                    } catch (e: Exception) {
-                        if (!imageDeferred.isCompleted) {
-                            imageDeferred.complete(null)
+                    }, handler)
+
+                    // Create VirtualDisplay to trigger capture
+                    virtualDisplay?.release()
+                    virtualDisplay =
+                        projection.createVirtualDisplay(
+                            "ScreenCapture",
+                            screenWidth,
+                            screenHeight,
+                            screenDensity,
+                            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                            reader.surface,
+                            null,
+                            handler,
+                        )
+
+                    // Wait for image (short timeout for speed)
+                    val image =
+                        withTimeoutOrNull(1000L) {
+                            imageDeferred.await()
                         }
+
+                    // Release virtual display immediately after capture
+                    virtualDisplay?.release()
+                    virtualDisplay = null
+
+                    // Clear listener
+                    reader.setOnImageAvailableListener(null, null)
+
+                    if (image == null) {
+                        Log.e(TAG, "Capture timeout or null image")
+                        return@withContext null
                     }
-                }, handler)
 
-                // Create VirtualDisplay to trigger capture
-                virtualDisplay?.release()
-                virtualDisplay = projection.createVirtualDisplay(
-                    "ScreenCapture",
-                    screenWidth, screenHeight, screenDensity,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    reader.surface, null, handler
-                )
+                    // Convert and save
+                    val bitmap = imageToBitmap(image)
+                    image.close()
 
-                // Wait for image (short timeout for speed)
-                val image = withTimeoutOrNull(1000L) {
-                    imageDeferred.await()
+                    if (bitmap == null) {
+                        Log.e(TAG, "Failed to convert to bitmap")
+                        return@withContext null
+                    }
+
+                    // Save to cache file
+                    val filename = "screenshot_${UUID.randomUUID()}.png"
+                    val file = File(cacheDir, filename)
+
+                    FileOutputStream(file).use { fos ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 85, fos)
+                    }
+                    bitmap.recycle()
+
+                    Log.d(TAG, "Screenshot saved: ${file.absolutePath}")
+                    file.absolutePath
+                } catch (e: Exception) {
+                    Log.e(TAG, "Capture error: ${e.message}", e)
+                    virtualDisplay?.release()
+                    virtualDisplay = null
+                    null
                 }
-
-                // Release virtual display immediately after capture
-                virtualDisplay?.release()
-                virtualDisplay = null
-
-                // Clear listener
-                reader.setOnImageAvailableListener(null, null)
-
-                if (image == null) {
-                    Log.e(TAG, "Capture timeout or null image")
-                    return@withContext null
-                }
-
-                // Convert and save
-                val bitmap = imageToBitmap(image)
-                image.close()
-
-                if (bitmap == null) {
-                    Log.e(TAG, "Failed to convert to bitmap")
-                    return@withContext null
-                }
-
-                // Save to cache file
-                val filename = "screenshot_${UUID.randomUUID()}.png"
-                val file = File(cacheDir, filename)
-
-                FileOutputStream(file).use { fos ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 85, fos)
-                }
-                bitmap.recycle()
-
-                Log.d(TAG, "Screenshot saved: ${file.absolutePath}")
-                file.absolutePath
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Capture error: ${e.message}", e)
-                virtualDisplay?.release()
-                virtualDisplay = null
-                null
             }
         }
-    }
 
-    private fun imageToBitmap(image: Image): Bitmap? {
-        return try {
+    private fun imageToBitmap(image: Image): Bitmap? =
+        try {
             val planes = image.planes
             val buffer = planes[0].buffer
             val pixelStride = planes[0].pixelStride
@@ -368,5 +396,4 @@ class ScreenCaptureService : Service() {
             Log.e(TAG, "Bitmap conversion error: ${e.message}", e)
             null
         }
-    }
 }

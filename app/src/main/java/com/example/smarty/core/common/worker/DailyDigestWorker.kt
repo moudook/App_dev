@@ -57,14 +57,13 @@ class DailyDigestWorker(
                 PeriodicWorkRequestBuilder<DailyDigestWorker>(
                     1,
                     TimeUnit.DAYS,
-                )
-                    .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+                ).setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
                     .setConstraints(
-                        Constraints.Builder()
+                        Constraints
+                            .Builder()
                             .setRequiresBatteryNotLow(true)
                             .build(),
-                    )
-                    .build()
+                    ).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
@@ -148,7 +147,8 @@ class DailyDigestWorker(
         // WORKER-002/MED-001: Exclude private notes from digest to protect user privacy
         val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
         val recentNotes =
-            noteDao.getNotesCreatedAfter(oneDayAgo)
+            noteDao
+                .getNotesCreatedAfter(oneDayAgo)
                 .filter { !it.isFullPrivacy } // Exclude private notes
                 .take(100)
 
@@ -217,7 +217,8 @@ class DailyDigestWorker(
             )
 
         val notification =
-            NotificationCompat.Builder(appContext, CHANNEL_ID)
+            NotificationCompat
+                .Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_shortcut_note)
                 .setContentTitle(digest.title)
                 .setContentText(digest.body)

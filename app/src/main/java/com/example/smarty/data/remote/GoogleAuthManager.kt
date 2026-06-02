@@ -25,7 +25,9 @@ import kotlinx.coroutines.tasks.await
  * Handles authentication flow, account state, and sign-out.
  * Uses DRIVE_FILE and DRIVE_APPDATA scopes for backup operations.
  */
-class GoogleAuthManager(private val context: Context) {
+class GoogleAuthManager(
+    private val context: Context,
+) {
     private val _signedInAccount = MutableStateFlow<GoogleSignInAccount?>(null)
     val signedInAccount: StateFlow<GoogleSignInAccount?> = _signedInAccount.asStateFlow()
 
@@ -34,13 +36,13 @@ class GoogleAuthManager(private val context: Context) {
 
     private val googleSignInClient: GoogleSignInClient by lazy {
         val gso =
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            GoogleSignInOptions
+                .Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
                 .requestScopes(
                     Scope(DriveScopes.DRIVE_FILE),
                     Scope(DriveScopes.DRIVE_APPDATA),
-                )
-                .build()
+                ).build()
 
         GoogleSignIn.getClient(context, gso)
     }
@@ -64,8 +66,8 @@ class GoogleAuthManager(private val context: Context) {
     /**
      * Silent sign-in to refresh the account and token.
      */
-    suspend fun silentSignIn(): Result<GoogleSignInAccount> {
-        return try {
+    suspend fun silentSignIn(): Result<GoogleSignInAccount> =
+        try {
             val account = googleSignInClient.silentSignIn().await()
             if (account != null && hasRequiredScopes(account)) {
                 _signedInAccount.value = account
@@ -79,7 +81,6 @@ class GoogleAuthManager(private val context: Context) {
             _isSignedIn.value = false
             Result.failure(e)
         }
-    }
 
     /**
      * Verify that the account has the required Drive scopes.
@@ -97,7 +98,8 @@ class GoogleAuthManager(private val context: Context) {
      */
     fun getSignInIntent(userEmail: String? = null): Intent {
         val gsoBuilder =
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            GoogleSignInOptions
+                .Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
                 .requestScopes(
                     Scope(DriveScopes.DRIVE_FILE),
@@ -115,8 +117,8 @@ class GoogleAuthManager(private val context: Context) {
     /**
      * Handle the result from the Google Sign-In activity.
      */
-    fun handleSignInResult(data: Intent?): Result<GoogleSignInAccount> {
-        return try {
+    fun handleSignInResult(data: Intent?): Result<GoogleSignInAccount> =
+        try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.getResult(ApiException::class.java)
 
@@ -148,19 +150,17 @@ class GoogleAuthManager(private val context: Context) {
             _isSignedIn.value = false
             Result.failure(e)
         }
-    }
 
     /**
      * Helper to determine if an exception is a UserRecoverableAuthException or UserRecoverableAuthIOException.
      * If true, the UI should use the intent from the exception to ask the user for permission.
      */
-    fun isUserRecoverable(throwable: Throwable?): Intent? {
-        return when (throwable) {
+    fun isUserRecoverable(throwable: Throwable?): Intent? =
+        when (throwable) {
             is UserRecoverableAuthException -> throwable.intent
             is UserRecoverableAuthIOException -> throwable.intent
             else -> null
         }
-    }
 
     /**
      * Sign out from the Google account.
@@ -192,28 +192,20 @@ class GoogleAuthManager(private val context: Context) {
     /**
      * Get the currently signed-in account, if any.
      */
-    fun getCurrentAccount(): GoogleSignInAccount? {
-        return _signedInAccount.value
-    }
+    fun getCurrentAccount(): GoogleSignInAccount? = _signedInAccount.value
 
     /**
      * Get the email of the signed-in user.
      */
-    fun getSignedInEmail(): String? {
-        return _signedInAccount.value?.email
-    }
+    fun getSignedInEmail(): String? = _signedInAccount.value?.email
 
     /**
      * Get the display name of the signed-in user.
      */
-    fun getSignedInDisplayName(): String? {
-        return _signedInAccount.value?.displayName
-    }
+    fun getSignedInDisplayName(): String? = _signedInAccount.value?.displayName
 
     /**
      * Get the photo URL of the signed-in user.
      */
-    fun getSignedInPhotoUrl(): String? {
-        return _signedInAccount.value?.photoUrl?.toString()
-    }
+    fun getSignedInPhotoUrl(): String? = _signedInAccount.value?.photoUrl?.toString()
 }

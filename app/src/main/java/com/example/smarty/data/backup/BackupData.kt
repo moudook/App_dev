@@ -99,8 +99,8 @@ data class NoteBackup(
             note: Note,
             backupImagePath: String? = null,
             backupFilePath: String? = null,
-        ): NoteBackup {
-            return NoteBackup(
+        ): NoteBackup =
+            NoteBackup(
                 id = note.id,
                 title = note.title,
                 content = note.content,
@@ -123,14 +123,13 @@ data class NoteBackup(
                 backupImagePath = backupImagePath,
                 backupFilePath = backupFilePath,
             )
-        }
     }
 
     fun toNote(
         restoredImageUri: String? = null,
         restoredFileUri: String? = null,
-    ): Note {
-        return Note(
+    ): Note =
+        Note(
             id = id,
             title = title,
             content = content,
@@ -161,7 +160,6 @@ data class NoteBackup(
             isArchived = isArchived,
             todoContent = todoContent,
         )
-    }
 }
 
 /**
@@ -184,8 +182,8 @@ data class CategoryBackup(
     val lastUpdated: Long,
 ) {
     companion object {
-        fun fromCategory(category: Category): CategoryBackup {
-            return CategoryBackup(
+        fun fromCategory(category: Category): CategoryBackup =
+            CategoryBackup(
                 id = category.id,
                 name = category.name,
                 description = category.description,
@@ -194,11 +192,10 @@ data class CategoryBackup(
                 createdAt = category.createdAt,
                 lastUpdated = category.lastUpdated,
             )
-        }
     }
 
-    fun toCategory(): Category {
-        return Category(
+    fun toCategory(): Category =
+        Category(
             id = id,
             name = name,
             description = description,
@@ -207,7 +204,6 @@ data class CategoryBackup(
             createdAt = createdAt,
             lastUpdated = lastUpdated,
         )
-    }
 }
 
 /**

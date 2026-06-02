@@ -15,7 +15,9 @@ import org.json.JSONException
  * Thread-safe implementation using synchronized blocks for all operations
  * that access or modify shared state.
  */
-class SearchHistoryManager(context: Context) {
+class SearchHistoryManager(
+    context: Context,
+) {
     companion object {
         private const val PREFS_NAME = "search_history_prefs"
         private const val KEY_SEARCHES = "recent_searches"
@@ -44,7 +46,8 @@ class SearchHistoryManager(context: Context) {
     private fun saveSearches() {
         // Note: Called within synchronized block, no additional sync needed
         val jsonArray = JSONArray(_recentSearches.value)
-        prefs.edit()
+        prefs
+            .edit()
             .putString(KEY_SEARCHES, jsonArray.toString())
             .apply()
     }

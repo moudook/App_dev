@@ -47,7 +47,8 @@ class ChatRepository(
      * Get all chat sessions ordered by most recent
      */
     fun getAllSessions(): Flow<List<ChatSession>> =
-        chatDao.getAllSessions()
+        chatDao
+            .getAllSessions()
             .distinctUntilChanged()
 
     /**
@@ -59,7 +60,8 @@ class ChatRepository(
      * Get active session as Flow for reactive updates
      */
     fun getActiveSessionFlow(): Flow<ChatSession?> =
-        chatDao.getActiveSessionFlow()
+        chatDao
+            .getActiveSessionFlow()
             .distinctUntilChanged()
 
     /**
@@ -128,8 +130,8 @@ class ChatRepository(
     /**
      * Get messages for a session
      */
-    fun getMessagesForSession(sessionId: String): Flow<List<ChatMessage>> {
-        return combine(
+    fun getMessagesForSession(sessionId: String): Flow<List<ChatMessage>> =
+        combine(
             chatDao.getMessagesForSession(sessionId),
             timelineEventDao.getEventsForSessionFlow(sessionId),
         ) { messageEntities, eventEntities ->
@@ -140,7 +142,8 @@ class ChatRepository(
                     eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
                         try {
                             Json.decodeFromString(
-                                com.example.smarty.protocol.AgentEvent.serializer(),
+                                com.example.smarty.protocol.AgentEvent
+                                    .serializer(),
                                 eventEntity.payloadJson,
                             )
                         } catch (e: Exception) {
@@ -150,29 +153,30 @@ class ChatRepository(
                 baseMessage.copy(agentEvents = parsedEvents)
             }
         }.distinctUntilChanged()
-    }
 
-    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> = withContext(Dispatchers.Default) {
-        val messageEntities = chatDao.getMessagesForSessionOnce(sessionId)
-        val eventEntities = timelineEventDao.getEventsForSession(sessionId)
-        val eventsByMessageId = eventEntities.groupBy { it.traceId }
+    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> =
+        withContext(Dispatchers.Default) {
+            val messageEntities = chatDao.getMessagesForSessionOnce(sessionId)
+            val eventEntities = timelineEventDao.getEventsForSession(sessionId)
+            val eventsByMessageId = eventEntities.groupBy { it.traceId }
 
-        messageEntities.map { entity ->
-            val baseMessage = entity.toChatMessage()
-            val parsedEvents =
-                eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
-                    try {
-                        Json.decodeFromString(
-                            com.example.smarty.protocol.AgentEvent.serializer(),
-                            eventEntity.payloadJson,
-                        )
-                    } catch (e: Exception) {
-                        null
-                    }
-                } ?: emptyList()
-            baseMessage.copy(agentEvents = parsedEvents)
+            messageEntities.map { entity ->
+                val baseMessage = entity.toChatMessage()
+                val parsedEvents =
+                    eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                        try {
+                            Json.decodeFromString(
+                                com.example.smarty.protocol.AgentEvent
+                                    .serializer(),
+                                eventEntity.payloadJson,
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } ?: emptyList()
+                baseMessage.copy(agentEvents = parsedEvents)
+            }
         }
-    }
 
     /**
      * Load a page of messages with their timeline events.
@@ -183,28 +187,33 @@ class ChatRepository(
         sessionId: String,
         page: Int,
         pageSize: Int = 20,
-    ): List<ChatMessage> = withContext(Dispatchers.Default) {
-        val offset = page * pageSize
-        val messageEntities = chatDao.getMessagesPage(sessionId, pageSize, offset)
-        if (messageEntities.isEmpty()) return@withContext emptyList()
+    ): List<ChatMessage> =
+        withContext(Dispatchers.Default) {
+            val offset = page * pageSize
+            val messageEntities = chatDao.getMessagesPage(sessionId, pageSize, offset)
+            if (messageEntities.isEmpty()) return@withContext emptyList()
 
-        val messageIds = messageEntities.map { it.id }
-        val eventEntities = timelineEventDao.getEventsForMessageIds(messageIds)
-        val eventsByMessageId = eventEntities.groupBy { it.traceId }
+            val messageIds = messageEntities.map { it.id }
+            val eventEntities = timelineEventDao.getEventsForMessageIds(messageIds)
+            val eventsByMessageId = eventEntities.groupBy { it.traceId }
 
-        messageEntities.map { entity ->
-            val baseMessage = entity.toChatMessage()
-            val parsedEvents = eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
-                try {
-                    Json.decodeFromString(
-                        com.example.smarty.protocol.AgentEvent.serializer(),
-                        eventEntity.payloadJson,
-                    )
-                } catch (e: Exception) { null }
-            } ?: emptyList()
-            baseMessage.copy(agentEvents = parsedEvents)
+            messageEntities.map { entity ->
+                val baseMessage = entity.toChatMessage()
+                val parsedEvents =
+                    eventsByMessageId[entity.id]?.mapNotNull { eventEntity ->
+                        try {
+                            Json.decodeFromString(
+                                com.example.smarty.protocol.AgentEvent
+                                    .serializer(),
+                                eventEntity.payloadJson,
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } ?: emptyList()
+                baseMessage.copy(agentEvents = parsedEvents)
+            }
         }
-    }
 
     suspend fun getMessageCount(sessionId: String): Int = chatDao.getMessageCountForSession(sessionId)
 
@@ -220,13 +229,9 @@ class ChatRepository(
         }
     }
 
-    suspend fun messageExists(messageId: String): Boolean {
-        return chatDao.messageExists(messageId)
-    }
+    suspend fun messageExists(messageId: String): Boolean = chatDao.messageExists(messageId)
 
-    suspend fun getMessageById(messageId: String): ChatMessage? {
-        return chatDao.getMessageById(messageId)?.toChatMessage()
-    }
+    suspend fun getMessageById(messageId: String): ChatMessage? = chatDao.getMessageById(messageId)?.toChatMessage()
 
     /**
      * Save a message to a session.
@@ -345,7 +350,11 @@ class ChatRepository(
         }
 
         // Smarty response must have content or tool calls/images/citations (e.g. image generation has no text, citation-only responses have no content)
-        if (smartyMessage.content.isBlank() && smartyMessage.toolCalls.isEmpty() && smartyMessage.inlineImages.isEmpty() && smartyMessage.citations.isEmpty()) {
+        if (smartyMessage.content.isBlank() &&
+            smartyMessage.toolCalls.isEmpty() &&
+            smartyMessage.inlineImages.isEmpty() &&
+            smartyMessage.citations.isEmpty()
+        ) {
             Log.d(TAG, "Skipping save - smarty content is empty and no tool calls/images/citations")
             return false
         }
@@ -440,16 +449,12 @@ class ChatRepository(
     /**
      * Get all notes linked to a chat message.
      */
-    suspend fun getLinkedNoteIds(messageId: String): List<String> {
-        return chatMessageNotesDao.getLinkedNoteIds(messageId)
-    }
+    suspend fun getLinkedNoteIds(messageId: String): List<String> = chatMessageNotesDao.getLinkedNoteIds(messageId)
 
     /**
      * Get all notes linked to a chat message as Flow.
      */
-    fun getLinkedNoteIdsFlow(messageId: String): Flow<List<String>> {
-        return chatMessageNotesDao.getLinkedNoteIdsFlow(messageId)
-    }
+    fun getLinkedNoteIdsFlow(messageId: String): Flow<List<String>> = chatMessageNotesDao.getLinkedNoteIdsFlow(messageId)
 
     /**
      * Link multiple notes to a message.
@@ -469,16 +474,12 @@ class ChatRepository(
     suspend fun isMessageLinkedToNote(
         messageId: String,
         noteId: String,
-    ): Boolean {
-        return chatMessageNotesDao.isLinked(messageId, noteId)
-    }
+    ): Boolean = chatMessageNotesDao.isLinked(messageId, noteId)
 
     /**
      * Get count of notes linked to a message.
      */
-    suspend fun getLinkedNoteCount(messageId: String): Int {
-        return chatMessageNotesDao.getLinkCountForMessage(messageId)
-    }
+    suspend fun getLinkedNoteCount(messageId: String): Int = chatMessageNotesDao.getLinkCountForMessage(messageId)
 
     // ==================== Helper Functions ====================
 
@@ -510,9 +511,7 @@ class ChatRepository(
     /**
      * Get or create active session
      */
-    suspend fun getOrCreateActiveSession(context: android.content.Context): ChatSession {
-        return getActiveSession() ?: createNewSession(context)
-    }
+    suspend fun getOrCreateActiveSession(context: android.content.Context): ChatSession = getActiveSession() ?: createNewSession(context)
 
     // ==================== Agent Step Persistence ====================
 
@@ -534,18 +533,17 @@ class ChatRepository(
     /**
      * Load agent steps for a message (used when hydrating chat history).
      */
-    suspend fun loadAgentSteps(messageId: String): List<AgentStepEntry> {
-        return agentStepDao.getStepsForMessage(messageId).map { it.toAgentStepEntry() }
-    }
+    suspend fun loadAgentSteps(messageId: String): List<AgentStepEntry> =
+        agentStepDao.getStepsForMessage(messageId).map { it.toAgentStepEntry() }
 
     /**
      * Observe agent steps for a message as a Flow.
      */
-    fun agentStepsFlow(messageId: String): Flow<List<AgentStepEntry>> {
-        return agentStepDao.getStepsForMessageFlow(messageId)
+    fun agentStepsFlow(messageId: String): Flow<List<AgentStepEntry>> =
+        agentStepDao
+            .getStepsForMessageFlow(messageId)
             .map { entities -> entities.map { it.toAgentStepEntry() } }
             .distinctUntilChanged()
-    }
 
     // ==================== Timeline Event Operations ====================
 
@@ -557,11 +555,9 @@ class ChatRepository(
         timelineEventDao.insertEvents(events)
     }
 
-    suspend fun getTimelineEventsForSession(sessionId: String): List<com.example.smarty.data.local.entity.TimelineEventEntity> {
-        return timelineEventDao.getEventsForSession(sessionId)
-    }
+    suspend fun getTimelineEventsForSession(sessionId: String): List<com.example.smarty.data.local.entity.TimelineEventEntity> =
+        timelineEventDao.getEventsForSession(sessionId)
 
-    fun getTimelineEventsForSessionFlow(sessionId: String): Flow<List<com.example.smarty.data.local.entity.TimelineEventEntity>> {
-        return timelineEventDao.getEventsForSessionFlow(sessionId).distinctUntilChanged()
-    }
+    fun getTimelineEventsForSessionFlow(sessionId: String): Flow<List<com.example.smarty.data.local.entity.TimelineEventEntity>> =
+        timelineEventDao.getEventsForSessionFlow(sessionId).distinctUntilChanged()
 }

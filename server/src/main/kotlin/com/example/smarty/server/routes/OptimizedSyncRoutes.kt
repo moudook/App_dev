@@ -432,8 +432,8 @@ fun Application.configureOptimizedSyncRoutes(noteService: com.example.smarty.ser
                                                     linkedNoteId = eventItem.linkedNoteId,
                                                     googleEventId = eventItem.googleEventId,
                                                     isEventPrivate = eventItem.isEventPrivate,
-                                                    createdAt = System.currentTimeMillis()
-                                                )
+                                                    createdAt = System.currentTimeMillis(),
+                                                ),
                                             )
                                         createdEvents.add(id)
                                     }

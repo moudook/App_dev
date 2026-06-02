@@ -50,17 +50,17 @@ class DailyBriefingWorker(
                 PeriodicWorkRequestBuilder<DailyBriefingWorker>(
                     1,
                     TimeUnit.DAYS,
-                )
-                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                ).setInitialDelay(delay, TimeUnit.MILLISECONDS)
                     .setConstraints(
-                        Constraints.Builder()
+                        Constraints
+                            .Builder()
                             .setRequiredNetworkType(NetworkType.CONNECTED)
                             .build(),
-                    )
-                    .addTag(WORK_NAME)
+                    ).addTag(WORK_NAME)
                     .build()
 
-            WorkManager.getInstance(context)
+            WorkManager
+                .getInstance(context)
                 .enqueueUniquePeriodicWork(
                     WORK_NAME,
                     ExistingPeriodicWorkPolicy.UPDATE,
@@ -205,38 +205,37 @@ class DailyBriefingWorker(
         notes: String,
         events: String,
         chats: String,
-    ): String {
-        return """
-            Generate my daily morning briefing. Here's my activity from the last 3 days:
+    ): String =
+        """
+        Generate my daily morning briefing. Here's my activity from the last 3 days:
 
-            RECENT NOTES:
-            $notes
+        RECENT NOTES:
+        $notes
 
-            UPCOMING EVENTS:
-            $events
+        UPCOMING EVENTS:
+        $events
 
-            RECENT CONVERSATIONS:
-            $chats
+        RECENT CONVERSATIONS:
+        $chats
 
-            Based on this, create a brief morning briefing that:
-            1. Greets me warmly (vary the greeting daily)
-            2. Highlights top 3 priorities for today
-            3. Reminds me of any upcoming deadlines or events
-            4. Encourages me on projects I'm working on
-            5. Suggests actionable next steps for anything that seems stuck
-            6. Optionally mentions something interesting related to my interests
+        Based on this, create a brief morning briefing that:
+        1. Greets me warmly (vary the greeting daily)
+        2. Highlights top 3 priorities for today
+        3. Reminds me of any upcoming deadlines or events
+        4. Encourages me on projects I'm working on
+        5. Suggests actionable next steps for anything that seems stuck
+        6. Optionally mentions something interesting related to my interests
 
-            Also return a MEMORY section at the end in this format:
-            ---MEMORY---
-            key: value
-            key: value
-            ---END_MEMORY---
+        Also return a MEMORY section at the end in this format:
+        ---MEMORY---
+        key: value
+        key: value
+        ---END_MEMORY---
 
-            Include any new insights about my preferences, habits, or priorities that should be remembered.
+        Include any new insights about my preferences, habits, or priorities that should be remembered.
 
-            Keep the briefing concise (under 200 words for the main content).
-            """.trimIndent()
-    }
+        Keep the briefing concise (under 200 words for the main content).
+        """.trimIndent()
 
     private suspend fun extractAndSaveMemoryUpdates(response: String) {
         val memoryRegex = Regex("---MEMORY---\\n(.*?)\\n---END_MEMORY---", RegexOption.DOT_MATCHES_ALL)

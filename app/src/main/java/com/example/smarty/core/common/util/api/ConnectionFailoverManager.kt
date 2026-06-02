@@ -159,11 +159,10 @@ class ConnectionFailoverManager private constructor() {
         @Volatile
         private var instance: ConnectionFailoverManager? = null
 
-        fun getInstance(): ConnectionFailoverManager {
-            return instance ?: synchronized(this) {
+        fun getInstance(): ConnectionFailoverManager =
+            instance ?: synchronized(this) {
                 instance ?: ConnectionFailoverManager().also { instance = it }
             }
-        }
     }
 
     // Thread-safe map of connection health states
@@ -172,9 +171,8 @@ class ConnectionFailoverManager private constructor() {
     /**
      * Get health state for a connection, creating if needed.
      */
-    private fun getOrCreateState(connection: AIConnection): ConnectionHealthState {
-        return healthStates.getOrPut(connection) { ConnectionHealthState(connection) }
-    }
+    private fun getOrCreateState(connection: AIConnection): ConnectionHealthState =
+        healthStates.getOrPut(connection) { ConnectionHealthState(connection) }
 
     /**
      * Categorize an exception into an API error category.
@@ -233,8 +231,8 @@ class ConnectionFailoverManager private constructor() {
     /**
      * Categorize error from HTTP status code.
      */
-    fun categorizeHttpError(statusCode: Int): ApiErrorCategory {
-        return when (statusCode) {
+    fun categorizeHttpError(statusCode: Int): ApiErrorCategory =
+        when (statusCode) {
             400 -> ApiErrorCategory.AUTH_ERROR
             401, 403 -> ApiErrorCategory.AUTH_ERROR
             429 -> ApiErrorCategory.RATE_LIMIT
@@ -243,7 +241,6 @@ class ConnectionFailoverManager private constructor() {
             413 -> ApiErrorCategory.CONTEXT_OVERFLOW
             else -> ApiErrorCategory.UNKNOWN
         }
-    }
 
     /**
      * Record a successful API call.
@@ -381,9 +378,7 @@ class ConnectionFailoverManager private constructor() {
     /**
      * Get list of healthy connections.
      */
-    fun getHealthyConnections(connections: List<AIConnection>): List<AIConnection> {
-        return connections.filter { isConnectionAvailable(it) }
-    }
+    fun getHealthyConnections(connections: List<AIConnection>): List<AIConnection> = connections.filter { isConnectionAvailable(it) }
 
     /**
      * Reset health state for a specific connection.

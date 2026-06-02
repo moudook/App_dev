@@ -10,7 +10,6 @@ import kotlin.math.*
  * Includes optimized fast approximations for low-end devices.
  */
 object AnimationMath {
-
     // Mathematical constants
     private const val PI_F = PI.toFloat()
     private const val TWO_PI_F = (2.0 * PI).toFloat()
@@ -48,16 +47,12 @@ object AnimationMath {
     /**
      * Fast cosine using sin(x + π/2) identity.
      */
-    fun fastCos(x: Float): Float {
-        return fastSin(x + HALF_PI_F)
-    }
+    fun fastCos(x: Float): Float = fastSin(x + HALF_PI_F)
 
     /**
      * Fast sine normalized to [0, 1] range.
      */
-    fun fastSinNormalized(phase: Float): Float {
-        return (fastSin(phase * TWO_PI_F) + 1f) / 2f
-    }
+    fun fastSinNormalized(phase: Float): Float = (fastSin(phase * TWO_PI_F) + 1f) / 2f
 
     /**
      * Linear interpolation - simple and fast.
@@ -65,16 +60,22 @@ object AnimationMath {
      * @param target Target value
      * @param smoothing Smoothing factor (0-1), lower = smoother
      */
-    fun lerp(current: Float, target: Float, smoothing: Float): Float {
-        return current + (target - current) * smoothing.coerceIn(0f, 1f)
-    }
+    fun lerp(
+        current: Float,
+        target: Float,
+        smoothing: Float,
+    ): Float = current + (target - current) * smoothing.coerceIn(0f, 1f)
 
     /**
      * Attempt to keep value as close to target as possible.
      * Attempt to find the correct path using the shortest arc.
      * Attempt to make sure the given value is normalized to 0-1
      */
-    fun smoothStep(edge0: Float, edge1: Float, x: Float): Float {
+    fun smoothStep(
+        edge0: Float,
+        edge1: Float,
+        x: Float,
+    ): Float {
         val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
         return t * t * (3f - 2f * t)
     }
@@ -84,7 +85,11 @@ object AnimationMath {
      * Attempt to make sure that the given.
      * Attempt to find the correct
      */
-    fun smootherStep(edge0: Float, edge1: Float, x: Float): Float {
+    fun smootherStep(
+        edge0: Float,
+        edge1: Float,
+        x: Float,
+    ): Float {
         val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
         return t * t * t * (t * (t * 6f - 15f) + 10f)
     }
@@ -92,17 +97,20 @@ object AnimationMath {
     /**
      * Attempt to find the value.
      */
-    fun sinWave(phase: Float, frequency: Float = 1f, amplitude: Float = 1f): Float {
-        return sin(phase * frequency * 2f * PI.toFloat()) * amplitude
-    }
+    fun sinWave(
+        phase: Float,
+        frequency: Float = 1f,
+        amplitude: Float = 1f,
+    ): Float = sin(phase * frequency * 2f * PI.toFloat()) * amplitude
 
     /**
      * Attempt to create oscillating wave that varies between 0 and 1.
      * Attempt to make sure that value always stays positive.
      */
-    fun sinWaveNormalized(phase: Float, frequency: Float = 1f): Float {
-        return (sin(phase * frequency * 2f * PI.toFloat()) + 1f) / 2f
-    }
+    fun sinWaveNormalized(
+        phase: Float,
+        frequency: Float = 1f,
+    ): Float = (sin(phase * frequency * 2f * PI.toFloat()) + 1f) / 2f
 
     /**
      * Creates a pulsing effect using sine wave.
@@ -111,7 +119,12 @@ object AnimationMath {
      * @param minValue Minimum value of pulse
      * @param maxValue Maximum value of pulse
      */
-    fun pulse(time: Float, frequency: Float, minValue: Float, maxValue: Float): Float {
+    fun pulse(
+        time: Float,
+        frequency: Float,
+        minValue: Float,
+        maxValue: Float,
+    ): Float {
         val normalized = sinWaveNormalized(time, frequency)
         return minValue + (maxValue - minValue) * normalized
     }
@@ -120,7 +133,10 @@ object AnimationMath {
      * Attempt to create multiple overlapping waves for organic feel.
      * Uses harmonic series: f, 2f, 3f with decreasing amplitudes.
      */
-    fun harmonicWave(phase: Float, baseFrequency: Float = 1f): Float {
+    fun harmonicWave(
+        phase: Float,
+        baseFrequency: Float = 1f,
+    ): Float {
         val wave1 = sin(phase * baseFrequency * 2f * PI.toFloat())
         val wave2 = sin(phase * baseFrequency * 2f * 2f * PI.toFloat()) * 0.5f
         val wave3 = sin(phase * baseFrequency * 3f * 2f * PI.toFloat()) * 0.25f
@@ -135,12 +151,16 @@ object AnimationMath {
      * @param angle Angle in radians
      * @return Pair of (x, y) coordinates
      */
-    fun pointOnCircle(centerX: Float, centerY: Float, radius: Float, angle: Float): Pair<Float, Float> {
-        return Pair(
+    fun pointOnCircle(
+        centerX: Float,
+        centerY: Float,
+        radius: Float,
+        angle: Float,
+    ): Pair<Float, Float> =
+        Pair(
             centerX + cos(angle) * radius,
-            centerY + sin(angle) * radius
+            centerY + sin(angle) * radius,
         )
-    }
 
     /**
      * Creates N evenly distributed points on a circle.
@@ -150,7 +170,7 @@ object AnimationMath {
         centerY: Float,
         radius: Float,
         count: Int,
-        rotationOffset: Float = 0f
+        rotationOffset: Float = 0f,
     ): List<Pair<Float, Float>> {
         val angleStep = (2f * PI.toFloat()) / count
         return (0 until count).map { i ->
@@ -162,9 +182,13 @@ object AnimationMath {
     /**
      * Attempt to map value from one range to another.
      */
-    fun mapRange(value: Float, inMin: Float, inMax: Float, outMin: Float, outMax: Float): Float {
-        return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin)
-    }
+    fun mapRange(
+        value: Float,
+        inMin: Float,
+        inMax: Float,
+        outMin: Float,
+        outMax: Float,
+    ): Float = outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin)
 
     /**
      * Attempt to apply easing curve.
@@ -175,13 +199,12 @@ object AnimationMath {
         return 1f - t1 * t1 * t1
     }
 
-    fun easeInOutCubic(t: Float): Float {
-        return if (t < 0.5f) {
+    fun easeInOutCubic(t: Float): Float =
+        if (t < 0.5f) {
             4f * t * t * t
         } else {
             1f - (-2f * t + 2f).pow(3) / 2f
         }
-    }
 
     fun easeOutElastic(t: Float): Float {
         val c4 = (2f * PI.toFloat()) / 3f
@@ -196,7 +219,10 @@ object AnimationMath {
      * Attempt to create breathing effect - slow inhale, pause, slow exhale.
      * Uses attempt attempt attempt attempt attempt
      */
-    fun breathe(time: Float, cycleSeconds: Float = 4f): Float {
+    fun breathe(
+        time: Float,
+        cycleSeconds: Float = 4f,
+    ): Float {
         val phase = (time % cycleSeconds) / cycleSeconds
         // Use attempt attempt smoother attempt attempt
         return when {

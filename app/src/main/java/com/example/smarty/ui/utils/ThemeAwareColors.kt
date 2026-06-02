@@ -8,217 +8,188 @@ import androidx.compose.ui.graphics.luminance
 
 /**
  * Theme-Aware Colors Utility.
- * 
+ *
  * Single Responsibility: Only provides theme-aware color calculations.
  * DRY: Replaces repeated luminance checks and color calculations.
- * 
+ *
  * Usage:
  * ```
  * // Get theme-aware background
  * val background = ThemeAwareColors.surfaceBackground()
- * 
+ *
  * // Get theme-aware variant
  * val variant = ThemeAwareColors.surfaceVariant()
- * 
+ *
  * // Check if dark theme
  * if (ThemeAwareColors.isDark()) { ... }
  * ```
  */
 object ThemeAwareColors {
-    
     /**
      * Check if current theme is dark.
      */
     @Composable
     @ReadOnlyComposable
-    fun isDark(): Boolean {
-        return MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    }
-    
+    fun isDark(): Boolean = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+
     /**
      * Get surface background color based on theme.
      */
     @Composable
     @ReadOnlyComposable
-    fun surfaceBackground(): Color {
-        return if (isDark()) {
+    fun surfaceBackground(): Color =
+        if (isDark()) {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
         } else {
             MaterialTheme.colorScheme.surface
         }
-    }
-    
+
     /**
      * Get surface variant color with proper alpha.
      */
     @Composable
     @ReadOnlyComposable
-    fun surfaceVariant(alpha: Float = 1f): Color {
-        return MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)
-    }
-    
+    fun surfaceVariant(alpha: Float = 1f): Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)
+
     /**
      * Get outline variant color based on theme.
      */
     @Composable
     @ReadOnlyComposable
-    fun outlineVariant(alpha: Float = 0.3f): Color {
-        return if (isDark()) {
+    fun outlineVariant(alpha: Float = 0.3f): Color =
+        if (isDark()) {
             Color.White.copy(alpha = alpha)
         } else {
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = alpha)
         }
-    }
-    
+
     /**
      * Get input pill background color.
      */
     @Composable
     @ReadOnlyComposable
-    fun inputPillBackground(): Color {
-        return if (isDark()) {
+    fun inputPillBackground(): Color =
+        if (isDark()) {
             Color(0xFF1E1E1E)
         } else {
             Color(0xFFFFF5F7)
         }
-    }
-    
+
     /**
      * Get input pill border color.
      */
     @Composable
     @ReadOnlyComposable
-    fun inputPillBorder(): Color {
-        return if (isDark()) {
+    fun inputPillBorder(): Color =
+        if (isDark()) {
             Color.White.copy(alpha = 0.15f)
         } else {
             Color(0xFFE8B4C7)
         }
-    }
-    
+
     /**
      * Get card background color.
      */
     @Composable
     @ReadOnlyComposable
-    fun cardBackground(): Color {
-        return if (isDark()) {
+    fun cardBackground(): Color =
+        if (isDark()) {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
         } else {
             MaterialTheme.colorScheme.surface
         }
-    }
-    
+
     /**
      * Get card border color.
      */
     @Composable
     @ReadOnlyComposable
-    fun cardBorder(): Color {
-        return outlineVariant(0.2f)
-    }
-    
+    fun cardBorder(): Color = outlineVariant(0.2f)
+
     /**
      * Get dialog background.
      */
     @Composable
     @ReadOnlyComposable
-    fun dialogBackground(): Color {
-        return if (isDark()) {
+    fun dialogBackground(): Color =
+        if (isDark()) {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
         } else {
             MaterialTheme.colorScheme.surface
         }
-    }
-    
+
     /**
      * Get dialog border color.
      */
     @Composable
     @ReadOnlyComposable
-    fun dialogBorder(): Color {
-        return outlineVariant(0.4f)
-    }
-    
+    fun dialogBorder(): Color = outlineVariant(0.4f)
+
     /**
      * Get menu background.
      */
     @Composable
     @ReadOnlyComposable
-    fun menuBackground(): Color {
-        return dialogBackground()
-    }
-    
+    fun menuBackground(): Color = dialogBackground()
+
     /**
      * Get menu border color.
      */
     @Composable
     @ReadOnlyComposable
-    fun menuBorder(): Color {
-        return dialogBorder()
-    }
-    
+    fun menuBorder(): Color = dialogBorder()
+
     /**
      * Get text color based on theme and emphasis.
      */
     @Composable
     @ReadOnlyComposable
-    fun textColor(emphasis: TextEmphasis = TextEmphasis.HIGH): Color {
-        return when (emphasis) {
+    fun textColor(emphasis: TextEmphasis = TextEmphasis.HIGH): Color =
+        when (emphasis) {
             TextEmphasis.HIGH -> MaterialTheme.colorScheme.onSurface
             TextEmphasis.MEDIUM -> MaterialTheme.colorScheme.onSurfaceVariant
             TextEmphasis.LOW -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         }
-    }
-    
+
     /**
      * Get icon color based on theme and emphasis.
      */
     @Composable
     @ReadOnlyComposable
-    fun iconColor(emphasis: IconEmphasis = IconEmphasis.HIGH): Color {
-        return when (emphasis) {
+    fun iconColor(emphasis: IconEmphasis = IconEmphasis.HIGH): Color =
+        when (emphasis) {
             IconEmphasis.HIGH -> MaterialTheme.colorScheme.onSurface
             IconEmphasis.MEDIUM -> MaterialTheme.colorScheme.onSurfaceVariant
             IconEmphasis.LOW -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         }
-    }
-    
+
     /**
      * Get accent color with proper contrast.
      */
     @Composable
     @ReadOnlyComposable
-    fun accentColor(): Color {
-        return MaterialTheme.colorScheme.primary
-    }
-    
+    fun accentColor(): Color = MaterialTheme.colorScheme.primary
+
     /**
      * Get error color.
      */
     @Composable
     @ReadOnlyComposable
-    fun errorColor(): Color {
-        return MaterialTheme.colorScheme.error
-    }
-    
+    fun errorColor(): Color = MaterialTheme.colorScheme.error
+
     /**
      * Get success color (green).
      */
     @Composable
     @ReadOnlyComposable
-    fun successColor(): Color {
-        return Color(0xFF4CAF50)
-    }
-    
+    fun successColor(): Color = Color(0xFF4CAF50)
+
     /**
      * Get warning color (orange).
      */
     @Composable
     @ReadOnlyComposable
-    fun warningColor(): Color {
-        return Color(0xFFFF9800)
-    }
+    fun warningColor(): Color = Color(0xFFFF9800)
 }
 
 /**
@@ -227,7 +198,7 @@ object ThemeAwareColors {
 enum class TextEmphasis {
     HIGH,
     MEDIUM,
-    LOW
+    LOW,
 }
 
 /**
@@ -236,5 +207,5 @@ enum class TextEmphasis {
 enum class IconEmphasis {
     HIGH,
     MEDIUM,
-    LOW
+    LOW,
 }

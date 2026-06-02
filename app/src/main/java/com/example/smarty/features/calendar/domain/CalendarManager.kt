@@ -49,7 +49,8 @@ class CalendarManager(
      * Use for full calendar view.
      */
     val calendarEvents: StateFlow<List<CalendarEvent>> =
-        repository.getAllEvents()
+        repository
+            .getAllEvents()
             .distinctUntilChanged()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -69,7 +70,8 @@ class CalendarManager(
      * Observable stream of active timers.
      */
     val activeTimers: StateFlow<List<SmartyTimer>> =
-        alarmScheduler?.activeTimers
+        alarmScheduler
+            ?.activeTimers
             ?.stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
             ?: MutableStateFlow(emptyList<SmartyTimer>())
 
@@ -104,7 +106,19 @@ class CalendarManager(
     ) {
         scope.launch(Dispatchers.IO) {
             try {
-                addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
+                addCalendarEventInternal(
+                    title,
+                    description,
+                    startTime,
+                    endTime,
+                    isAllDay,
+                    location,
+                    color,
+                    reminderMinutes,
+                    isPrivate,
+                    linkedNoteId,
+                    googleEventId,
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding calendar event: ${e.message}", e)
             }
@@ -130,7 +144,19 @@ class CalendarManager(
         googleEventId: String? = null,
     ): CalendarEvent =
         withContext(Dispatchers.IO) {
-            addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
+            addCalendarEventInternal(
+                title,
+                description,
+                startTime,
+                endTime,
+                isAllDay,
+                location,
+                color,
+                reminderMinutes,
+                isPrivate,
+                linkedNoteId,
+                googleEventId,
+            )
         }
 
     /**
@@ -255,14 +281,13 @@ class CalendarManager(
     /**
      * Get a single event by ID.
      */
-    suspend fun getEventById(eventId: String): CalendarEvent? {
-        return try {
+    suspend fun getEventById(eventId: String): CalendarEvent? =
+        try {
             repository.getEventById(eventId)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting event by ID: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Get events within a date range.
@@ -273,9 +298,7 @@ class CalendarManager(
     fun getEventsInRange(
         startMillis: Long,
         endMillis: Long,
-    ): Flow<List<CalendarEvent>> {
-        return repository.getEventsInRange(startMillis, endMillis)
-    }
+    ): Flow<List<CalendarEvent>> = repository.getEventsInRange(startMillis, endMillis)
 
     /**
      * Get events for a specific day.
@@ -308,21 +331,18 @@ class CalendarManager(
     /**
      * Get events linked to a specific note.
      */
-    fun getEventsForNote(noteId: String): Flow<List<CalendarEvent>> {
-        return repository.getEventsForNote(noteId)
-    }
+    fun getEventsForNote(noteId: String): Flow<List<CalendarEvent>> = repository.getEventsForNote(noteId)
 
     /**
      * Get AI-visible upcoming events (for agent context).
      */
-    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> {
-        return try {
+    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
+        try {
             repository.getAiVisibleUpcomingEvents(System.currentTimeMillis(), limit)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting AI-visible upcoming events: ${e.message}", e)
             emptyList()
         }
-    }
 
     /**
      * Check if there are events on a specific day.
@@ -340,14 +360,13 @@ class CalendarManager(
     /**
      * Get total event count.
      */
-    suspend fun getEventCount(): Int {
-        return try {
+    suspend fun getEventCount(): Int =
+        try {
             repository.getEventCount()
         } catch (e: Exception) {
             Log.e(TAG, "Error getting event count: ${e.message}", e)
             0
         }
-    }
 
     // ==================== Note Link Operations ====================
 
@@ -567,8 +586,8 @@ class CalendarManager(
     /**
      * Search for events by query text.
      */
-    suspend fun searchEvents(query: String): List<CalendarEvent> {
-        return try {
+    suspend fun searchEvents(query: String): List<CalendarEvent> =
+        try {
             val allEvents = repository.getAllEventsOnce()
             allEvents.filter {
                 it.title.contains(query, ignoreCase = true) ||
@@ -579,7 +598,6 @@ class CalendarManager(
             Log.e(TAG, "Error searching events: ${e.message}", e)
             emptyList()
         }
-    }
 
     /**
      * Bulk delete calendar events by IDs.
@@ -625,14 +643,13 @@ class CalendarManager(
     /**
      * Get all events as a one-shot query (for backup).
      */
-    suspend fun getAllEventsOnce(): List<CalendarEvent> {
-        return try {
+    suspend fun getAllEventsOnce(): List<CalendarEvent> =
+        try {
             repository.getAllEventsOnce()
         } catch (e: Exception) {
             Log.e(TAG, "Error getting all events: ${e.message}", e)
             emptyList()
         }
-    }
 
     /**
      * Delete all events.

@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.example.smarty.core.common.AppConfig
-import com.example.smarty.data.model.DocumentChunk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,13 +22,15 @@ import kotlinx.coroutines.withContext
  *
  * @param context Android context for URI access
  */
-class PDFTextExtractor(private val context: Context) {
+class PDFTextExtractor(
+    private val context: Context,
+) {
     companion object {
         private const val TAG = "PDFTextExtractor"
-        
+
         // Optimized defaults for large language models
-        private const val DEFAULT_MAX_CHUNK_SIZE = 32_000  // Increased from 12K for larger models
-        private const val DEFAULT_OVERLAP = 500  // Reduced from 1K - sufficient for context
+        private const val DEFAULT_MAX_CHUNK_SIZE = 32_000 // Increased from 12K for larger models
+        private const val DEFAULT_OVERLAP = 500 // Reduced from 1K - sufficient for context
     }
 
     /**
@@ -49,74 +50,78 @@ class PDFTextExtractor(private val context: Context) {
     suspend fun extractTextChunked(
         uri: Uri,
         maxChunkSize: Int = AppConfig.pdf.chunkSize,
-        overlap: Int = AppConfig.pdf.overlap
-    ): PDFChunkedResult = withContext(Dispatchers.IO) {
-        try {
-            // Open input stream
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext PDFChunkedResult.Error("Could not open PDF file")
-            
-            inputStream.use { stream ->
-                // Try to load PDF using PDFBox Android
-                try {
-                    // PDFBox integration (requires pdfbox-android dependency)
-                    val documentClass = Class.forName("com.tomroush.pdfbox.pdmodel.PDDocument")
-                    val textStripperClass = Class.forName("com.tomroush.pdfbox.text.PDFTextStripper")
-                    
-                    // Load document via reflection (avoids compile-time dependency)
-                    val loadMethod = documentClass.getMethod("load", java.io.InputStream::class.java)
-                    val document = loadMethod.invoke(null, stream)
-                    
+        overlap: Int = AppConfig.pdf.overlap,
+    ): PDFChunkedResult =
+        withContext(Dispatchers.IO) {
+            try {
+                // Open input stream
+                val inputStream =
+                    context.contentResolver.openInputStream(uri)
+                        ?: return@withContext PDFChunkedResult.Error("Could not open PDF file")
+
+                inputStream.use { stream ->
+                    // Try to load PDF using PDFBox Android
                     try {
-                        // Get number of pages
-                        val numberOfPagesMethod = documentClass.getMethod("numberOfPages")
-                        val totalPages = numberOfPagesMethod.invoke(document) as Int
-                        
-                        if (totalPages == 0) {
-                            return@use PDFChunkedResult.Empty("PDF has no pages")
-                        }
-                        
-                        // Extract text
-                        val textStripper = textStripperClass.getDeclaredConstructor().newInstance()
-                        val getTextMethod = textStripperClass.getMethod("getText", documentClass)
-                        val fullText = getTextMethod.invoke(textStripper, document) as String
-                        
-                        if (fullText.isBlank()) {
-                            return@use PDFChunkedResult.Empty("PDF contains no extractable text")
-                        }
-                        
-                        // Use optimized PdfChunker for efficient chunking
-                        val chunker = PdfChunker(
-                            config = ChunkerConfig(
-                                chunkSize = maxChunkSize,
-                                overlap = overlap
+                        // PDFBox integration (requires pdfbox-android dependency)
+                        val documentClass = Class.forName("com.tomroush.pdfbox.pdmodel.PDDocument")
+                        val textStripperClass = Class.forName("com.tomroush.pdfbox.text.PDFTextStripper")
+
+                        // Load document via reflection (avoids compile-time dependency)
+                        val loadMethod = documentClass.getMethod("load", java.io.InputStream::class.java)
+                        val document = loadMethod.invoke(null, stream)
+
+                        try {
+                            // Get number of pages
+                            val numberOfPagesMethod = documentClass.getMethod("numberOfPages")
+                            val totalPages = numberOfPagesMethod.invoke(document) as Int
+
+                            if (totalPages == 0) {
+                                return@use PDFChunkedResult.Empty("PDF has no pages")
+                            }
+
+                            // Extract text
+                            val textStripper = textStripperClass.getDeclaredConstructor().newInstance()
+                            val getTextMethod = textStripperClass.getMethod("getText", documentClass)
+                            val fullText = getTextMethod.invoke(textStripper, document) as String
+
+                            if (fullText.isBlank()) {
+                                return@use PDFChunkedResult.Empty("PDF contains no extractable text")
+                            }
+
+                            // Use optimized PdfChunker for efficient chunking
+                            val chunker =
+                                PdfChunker(
+                                    config =
+                                        ChunkerConfig(
+                                            chunkSize = maxChunkSize,
+                                            overlap = overlap,
+                                        ),
+                                )
+
+                            val chunks = chunker.chunkWithMetadata(fullText)
+
+                            Log.d(TAG, "Extracted ${chunks.size} chunks from $totalPages pages (${fullText.length} chars)")
+
+                            PDFChunkedResult.Success(
+                                chunks = chunks,
+                                fullText = fullText,
+                                totalPages = totalPages,
+                                totalCharacters = fullText.length,
                             )
-                        )
-                        
-                        val chunks = chunker.chunkWithMetadata(fullText)
-                        
-                        Log.d(TAG, "Extracted ${chunks.size} chunks from $totalPages pages (${fullText.length} chars)")
-                        
-                        PDFChunkedResult.Success(
-                            chunks = chunks,
-                            fullText = fullText,
-                            totalPages = totalPages,
-                            totalCharacters = fullText.length
-                        )
-                    } finally {
-                        // Close document
-                        val closeMethod = documentClass.getMethod("close")
-                        closeMethod.invoke(document)
+                        } finally {
+                            // Close document
+                            val closeMethod = documentClass.getMethod("close")
+                            closeMethod.invoke(document)
+                        }
+                    } catch (e: ClassNotFoundException) {
+                        // PDFBox not available - return error with helpful message
+                        Log.e(TAG, "PDFBox Android not available. Add dependency: com.tom-roush:pdfbox-android", e)
+                        PDFChunkedResult.Error("PDF library not available. Please install PDFBox Android.")
                     }
-                } catch (e: ClassNotFoundException) {
-                    // PDFBox not available - return error with helpful message
-                    Log.e(TAG, "PDFBox Android not available. Add dependency: com.tom-roush:pdfbox-android", e)
-                    PDFChunkedResult.Error("PDF library not available. Please install PDFBox Android.")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error extracting PDF text", e)
+                PDFChunkedResult.Error("Extraction failed: ${e.message ?: "Unknown error"}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error extracting PDF text", e)
-            PDFChunkedResult.Error("Extraction failed: ${e.message ?: "Unknown error"}")
         }
-    }
 }

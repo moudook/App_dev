@@ -32,14 +32,13 @@ class MemorySyncWorker(
                 PeriodicWorkRequestBuilder<MemorySyncWorker>(
                     1,
                     TimeUnit.DAYS,
-                )
-                    .setConstraints(
-                        Constraints.Builder()
-                            .setRequiresBatteryNotLow(true)
-                            .setRequiresStorageNotLow(true)
-                            .build(),
-                    )
-                    .build()
+                ).setConstraints(
+                    Constraints
+                        .Builder()
+                        .setRequiresBatteryNotLow(true)
+                        .setRequiresStorageNotLow(true)
+                        .build(),
+                ).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
@@ -80,7 +79,9 @@ class MemorySyncWorker(
                 )
 
             val securePreferences = SecurePreferences.getInstance(applicationContext)
-            val aiService = com.example.smarty.di.ServiceLocator.provideAIService(applicationContext as android.app.Application)
+            val aiService =
+                com.example.smarty.di.ServiceLocator
+                    .provideAIService(applicationContext as android.app.Application)
 
             // Create a temporary scope for the manager - usually it would be application scope
             // For the worker, we can use the worker's coroutine scope context but wrapped
@@ -94,7 +95,9 @@ class MemorySyncWorker(
                     scope = scope,
                 )
 
-            val memoryFeatureManager = com.example.smarty.viewmodel.managers.MemoryFeatureManager(aiMemoryDao)
+            val memoryFeatureManager =
+                com.example.smarty.viewmodel.managers
+                    .MemoryFeatureManager(aiMemoryDao)
 
             val memorySyncManager =
                 MemorySyncManager(

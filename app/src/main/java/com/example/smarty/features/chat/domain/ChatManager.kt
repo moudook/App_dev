@@ -95,7 +95,8 @@ class ChatManager(
 
     fun initialize() {
         scope.launch {
-            chatRepository.getAllSessions()
+            chatRepository
+                .getAllSessions()
                 .distinctUntilChanged()
                 .collect { sessions ->
                     chatMutex.withLock {
@@ -138,7 +139,8 @@ class ChatManager(
                 preservedProcessingState = false
             } else {
                 val messages =
-                    chatRepository.getMessagesForSessionOnce(activeSession.id)
+                    chatRepository
+                        .getMessagesForSessionOnce(activeSession.id)
                         .distinctBy { it.id }
                 chatMutex.withLock {
                     _chatMessages.value = messages
@@ -203,13 +205,15 @@ class ChatManager(
             totalMessageCount = chatRepository.getMessageCount(sessionId)
 
             // Load first page only (not entire conversation)
-            val messages = chatRepository.loadMessagesPage(sessionId, page = 0, pageSize = PAGE_SIZE)
-                .distinctBy { it.id }
+            val messages =
+                chatRepository
+                    .loadMessagesPage(sessionId, page = 0, pageSize = PAGE_SIZE)
+                    .distinctBy { it.id }
             chatMutex.withLock {
                 _chatMessages.value = messages
             }
             _hasMoreMessages.value = messages.size < totalMessageCount
-            Log.d(TAG, "Switched to chat session: $sessionId — loaded page 0 (${messages.size}/${totalMessageCount} messages)")
+            Log.d(TAG, "Switched to chat session: $sessionId — loaded page 0 (${messages.size}/$totalMessageCount messages)")
         }
     }
 
@@ -225,14 +229,19 @@ class ChatManager(
             _isLoadingPage.value = true
             try {
                 currentPage++
-                val newMessages = chatRepository.loadMessagesPage(sessionId, page = currentPage, pageSize = PAGE_SIZE)
-                    .distinctBy { it.id }
+                val newMessages =
+                    chatRepository
+                        .loadMessagesPage(sessionId, page = currentPage, pageSize = PAGE_SIZE)
+                        .distinctBy { it.id }
                 if (newMessages.isNotEmpty()) {
                     chatMutex.withLock {
                         _chatMessages.value = _chatMessages.value + newMessages
                     }
                     _hasMoreMessages.value = _chatMessages.value.size < totalMessageCount
-                    Log.d(TAG, "Loaded page $currentPage: ${newMessages.size} new messages (${_chatMessages.value.size}/${totalMessageCount} total)")
+                    Log.d(
+                        TAG,
+                        "Loaded page $currentPage: ${newMessages.size} new messages (${_chatMessages.value.size}/$totalMessageCount total)",
+                    )
                 } else {
                     _hasMoreMessages.value = false
                 }
@@ -572,9 +581,7 @@ class ChatManager(
         }
     }
 
-    fun getCompressedHistory(): List<ChatMessage> {
-        return historyCompressor.compress(_chatMessages.value)
-    }
+    fun getCompressedHistory(): List<ChatMessage> = historyCompressor.compress(_chatMessages.value)
 
     fun getHistoryForAgent(): List<Pair<String, String>> {
         val compressed = getCompressedHistory()

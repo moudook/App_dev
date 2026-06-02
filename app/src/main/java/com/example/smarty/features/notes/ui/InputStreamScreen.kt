@@ -1,6 +1,5 @@
 package com.example.smarty.features.notes.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,133 +7,90 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.res.stringResource
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.ui.platform.LocalConfiguration
-import android.content.res.Configuration
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Attachment
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessage
+import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.core.domain.model.MentionState
 import com.example.smarty.core.domain.model.MentionSuggestion
-import com.example.smarty.core.domain.model.Note
-import com.example.smarty.core.domain.model.TodoItem
-import com.example.smarty.ui.LocalAccentColor
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
-import com.example.smarty.features.voice.RecordingState
-import com.example.smarty.features.voice.formatDuration
-
-
-
-import com.example.smarty.ui.animation.SmartyEasing
-import com.example.smarty.ui.animation.StaggerCalculator
-import com.example.smarty.core.domain.model.ChatSession
-import com.example.smarty.ui.components.common.SmartyDialog
-import com.example.smarty.ui.components.SmartyInputField
-import com.example.smarty.ui.components.NoteTodoSheet
-import com.example.smarty.core.domain.model.NoteType
-import com.example.smarty.ui.components.AttachmentOption
-import com.example.smarty.ui.components.SearchFilterTypeSelector
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import com.example.smarty.ui.components.PendingShareData
-import com.example.smarty.ui.components.ShareBottomSheet
-import com.example.smarty.ui.components.getNoteTypeIcon
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.SmartyShapes
-import com.example.smarty.ui.theme.SmartyBrushes
-import com.example.smarty.ui.theme.softCardShadow
-import com.example.smarty.ui.components.ConnectionStatus
-import com.example.smarty.ui.components.ConnectionStatusIndicator
-import com.example.smarty.ui.components.CloudSyncIndicator
-import com.example.smarty.ui.components.NotesEmptyState
-import com.example.smarty.ui.components.SearchEmptyState
-import com.example.smarty.ui.components.HorizontalActionBar
 import com.example.smarty.core.domain.model.NavigationTab
-import com.example.smarty.ui.components.PinterestAction
-import com.example.smarty.ui.components.PinterestMenu
-import androidx.compose.ui.geometry.Offset
-import com.example.smarty.ui.components.SelectionFloatingBar
-import com.example.smarty.ui.components.sheets.CalendarSheet
-import com.example.smarty.ui.components.sheets.StacksSheet
-import com.example.smarty.ui.components.sheets.ArchiveSheet
-import com.example.smarty.ui.components.sheets.SettingsSheet
-import com.example.smarty.ui.components.AnimatedCategoryFilterChip
-import com.example.smarty.ui.components.AddEventDialog
-import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.core.domain.model.TodoItem
+import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
+import com.example.smarty.features.notes.ui.inputstream.ArchiveContent
 import com.example.smarty.features.notes.ui.inputstream.CalendarContent
 import com.example.smarty.features.notes.ui.inputstream.ChatModeSection
+import com.example.smarty.features.notes.ui.inputstream.GamesContent
 import com.example.smarty.features.notes.ui.inputstream.InputStreamBottomInput
 import com.example.smarty.features.notes.ui.inputstream.InputStreamTopBar
 import com.example.smarty.features.notes.ui.inputstream.NormalModeContent
-import com.example.smarty.features.notes.ui.inputstream.SelectionModeToolbar
 import com.example.smarty.features.notes.ui.inputstream.StacksContent
-import com.example.smarty.features.notes.ui.inputstream.ArchiveContent
-import com.example.smarty.features.notes.ui.inputstream.GamesContent
+import com.example.smarty.features.voice.RecordingState
 import com.example.smarty.features.voice.SpeechToTextState
-import com.example.smarty.features.voice.rememberSpeechToText
-import com.example.smarty.core.domain.model.SmartyTimer
-import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.features.voice.VoiceNoteRecorder
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.History
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.TextRange
-import androidx.compose.runtime.saveable.rememberSaveable
-import kotlinx.coroutines.delay
+import com.example.smarty.features.voice.rememberSpeechToText
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.AddEventDialog
+import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.ui.components.NoteTodoSheet
+import com.example.smarty.ui.components.PendingShareData
+import com.example.smarty.ui.components.PinterestAction
+import com.example.smarty.ui.components.PinterestMenu
+import com.example.smarty.ui.components.ShareBottomSheet
+import com.example.smarty.ui.components.common.SmartyDialog
+import com.example.smarty.ui.components.sheets.ArchiveSheet
+import com.example.smarty.ui.components.sheets.CalendarSheet
+import com.example.smarty.ui.components.sheets.SettingsSheet
+import com.example.smarty.ui.components.sheets.StacksSheet
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.SmartyBrushes
+import com.example.smarty.ui.theme.softCardShadow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -176,14 +132,14 @@ fun InputStreamScreen(
     chatMessages: List<ChatMessage> = emptyList(),
     isChatProcessing: Boolean = false,
     agentActivity: com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity? = null,
-    onEnterChatMode: () -> Unit = {},  // Enter chat mode when clicking AI tab
-    onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
+    onEnterChatMode: () -> Unit = {}, // Enter chat mode when clicking AI tab
+    onExitChatMode: () -> Unit = {}, // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onClarificationSubmit: (String, String) -> Unit = { _, _ -> },
     pendingClarificationRequests: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
     pendingApprovalToolId: String? = null,
     onCallApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
-    onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
+    onGenerateImageDirect: (String) -> Unit = {}, // Direct image generation via Krea API
     onStopGeneration: () -> Unit = {},
     // Chat history parameters
     chatSessions: List<ChatSession> = emptyList(),
@@ -192,11 +148,10 @@ fun InputStreamScreen(
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
     onDeleteChatMessage: (String) -> Unit = {},
-    onNoteClickById: (String) -> Unit = {},  // For NoteBlock cards in chat
-
+    onNoteClickById: (String) -> Unit = {}, // For NoteBlock cards in chat
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
-    onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
+    onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text }, // Returns updated text
     // Pending chat text (for "Ask Smarty" from note card)
     pendingChatText: String? = null,
     onClearPendingChatText: () -> Unit = {},
@@ -208,7 +163,6 @@ fun InputStreamScreen(
     // HOISTED STATE: Input attachments from ViewModel (Persistence Fix)
     currentInputAttachments: List<Attachment> = emptyList(),
     onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
-
     // HOISTED STATE: Selected Category Filter (Performance Fix)
     selectedCategory: Category? = null,
     onSelectCategory: (Category?) -> Unit = {},
@@ -218,21 +172,18 @@ fun InputStreamScreen(
     bottomGradientVerticalOffset: androidx.compose.ui.unit.Dp = 60.dp,
     externalSpeechState: SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
-
     // Search and Filter (Backend Integration)
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     selectedFilters: Set<AttachmentOption> = emptySet(),
     onFilterToggle: (AttachmentOption) -> Unit = {},
     onClearFilters: () -> Unit = {},
-
     // Search History (BATCH 5C)
     recentSearches: List<String> = emptyList(),
     onRecordSearch: (String) -> Unit = {},
     onClearSearchHistory: () -> Unit = {},
-
-    wasShakeTriggered: Boolean = false,  // Deprecated: shake indicator removed, kept for API compatibility
-    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
+    wasShakeTriggered: Boolean = false, // Deprecated: shake indicator removed, kept for API compatibility
+    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED, // Phase 7
     cloudSyncState: com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState = com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Idle,
     onSyncCloud: () -> Unit = {},
     onSyncCloudSilent: () -> Unit = {},
@@ -244,18 +195,14 @@ fun InputStreamScreen(
     onPinNote: (String) -> Unit = {},
     onUnpinNote: (String) -> Unit = {},
     onShareNotes: (List<Note>) -> Unit = {},
-
-    // 
+    //
     // CENTRALIZED UI: All features accessible from main screen via bottom sheets
-    // 
-
+    //
     // Theme toggle (always visible in header)
     isDarkTheme: Boolean = false,
     onToggleTheme: (Boolean) -> Unit = {},
-
     // Archived notes for Archive sheet
     archivedNotes: List<Note> = emptyList(),
-
     // Calendar events for Calendar sheet
     calendarEvents: List<CalendarEvent> = emptyList(),
     activeTimers: List<SmartyTimer> = emptyList(),
@@ -264,14 +211,12 @@ fun InputStreamScreen(
     onEventClick: (CalendarEvent) -> Unit = {},
     onEventClickById: (String) -> Unit = {},
     onDeleteCalendarEvent: (CalendarEvent) -> Unit = {},
-
     // Category management for Stacks sheet
     onCreateCategory: (String) -> Unit = {},
     onRenameCategory: (Category, String) -> Unit = { _, _ -> },
     onDeleteCategory: (Category) -> Unit = {},
     onCategoryClick: (Category) -> Unit = {},
-    onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
-
+    onSyncCategoryCounts: () -> Unit = {}, // Sync category counts when entering stacks view
     // Settings props
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
@@ -288,10 +233,8 @@ fun InputStreamScreen(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-
     // Shake Blocking
     onSetShakeBlocked: (Boolean) -> Unit = {},
-
     // Dynamic Model Selection
     selectedModel: String = "opencode/deepseek-v4-flash-free",
     availableModels: List<Pair<String, String>> = emptyList(),
@@ -300,8 +243,7 @@ fun InputStreamScreen(
     selectedVariant: String? = null,
     onVariantSelected: (String?) -> Unit = {},
     onRefreshModels: suspend () -> List<Pair<String, String>> = { emptyList() },
-
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -341,16 +283,19 @@ fun InputStreamScreen(
     // PERSISTENCE FIX: State is now hoisted to ViewModel, passed in via currentInputAttachments
     // Removed local 'attachments' state to prevent data loss on rotation
 
-    // 
+    //
     // @MENTION: Consume pending chat text (from "Ask AI" button on note cards)
-    // 
+    //
     LaunchedEffect(pendingChatText) {
         if (pendingChatText != null && pendingChatText.isNotBlank()) {
             // Set the pending text to chat input
-            chatModeTextValue = TextFieldValue(
-                text = pendingChatText,
-                selection = androidx.compose.ui.text.TextRange(pendingChatText.length)
-            )
+            chatModeTextValue =
+                TextFieldValue(
+                    text = pendingChatText,
+                    selection =
+                        androidx.compose.ui.text
+                            .TextRange(pendingChatText.length),
+                )
             // Clear the pending text so it doesn't re-trigger
             onClearPendingChatText()
         }
@@ -373,9 +318,9 @@ fun InputStreamScreen(
     // Accent color for theming
     val accentColor = LocalAccentColor.current
 
-    // 
+    //
     // CENTRALIZED UI: Bottom Sheet States
-    // 
+    //
     val activeTab = if (isChatMode) NavigationTab.CHAT else selectedTab
 
     var showCalendarSheet by remember { mutableStateOf(false) }
@@ -418,17 +363,17 @@ fun InputStreamScreen(
     // Sync external changes (deep links, back presses, or AI triggers) into the stack and UI state
     LaunchedEffect(selectedTab, isChatMode) {
         val currentActive = if (isChatMode) NavigationTab.CHAT.name else selectedTab.name
-        
+
         if (tabStackRoutes.lastOrNull() != currentActive) {
             tabStackRoutes = tabStackRoutes.filter { it != currentActive } + currentActive
         }
-        
+
         // Sync inline views based on currentActive
         showCalendarInline = currentActive == NavigationTab.CALENDAR.name
         showStacksInline = currentActive == NavigationTab.STACKS.name
         showArchiveInline = currentActive == NavigationTab.ARCHIVE.name
         showGamesInline = currentActive == NavigationTab.GAMES.name
-        
+
         if (currentActive != NavigationTab.CHAT.name) {
             showChatHistoryInline = false
         }
@@ -454,9 +399,9 @@ fun InputStreamScreen(
             // Bring tab to the front of the queue
             tabStackRoutes = tabStackRoutes.filter { it != tab.name } + tab.name
         }
-        
+
         val newTab = NavigationTab.valueOf(tabStackRoutes.last())
-        
+
         if (newTab == NavigationTab.SETTINGS) {
             onNavigateToSettings()
         } else if (newTab == NavigationTab.CHAT) {
@@ -468,15 +413,15 @@ fun InputStreamScreen(
     }
 
     // Voice Input State (Speech-to-Text) - Use external from MainActivity
-    val speechState = externalSpeechState ?: rememberSpeechToText(
-        onResult = { /* Handled by global flow */ }
-    )
+    val speechState =
+        externalSpeechState ?: rememberSpeechToText(
+            onResult = { /* Handled by global flow */ },
+        )
 
     // Voice Recording State (Long-press on mic to record audio note)
     val voiceRecorder = remember { VoiceNoteRecorder(context, scope) }
     val recordingState by voiceRecorder.state.collectAsState()
     val isRecording = recordingState is RecordingState.Recording
-
 
     // Handle recording completion - add as audio attachment
     LaunchedEffect(recordingState) {
@@ -485,20 +430,23 @@ fun InputStreamScreen(
                 // Add the recorded audio as an attachment
                 val file = java.io.File(state.filePath)
                 val uri = android.net.Uri.fromFile(file)
-                val newAttachment = Attachment(
-                    id = java.util.UUID.randomUUID().toString(),
-                    uri = uri.toString(),
-                    mimeType = "audio/mp4",
-                    fileName = file.name,
-                    fileSize = file.length()
-                )
+                val newAttachment =
+                    Attachment(
+                        id =
+                            java.util.UUID
+                                .randomUUID()
+                                .toString(),
+                        uri = uri.toString(),
+                        mimeType = "audio/mp4",
+                        fileName = file.name,
+                        fileSize = file.length(),
+                    )
                 onInputAttachmentsChange(currentInputAttachments + newAttachment)
                 voiceRecorder.reset()
             }
             else -> { /* Other states handled by UI */ }
         }
     }
-
 
     // Cancel recording on dispose if still active
     DisposableEffect(Unit) {
@@ -509,13 +457,12 @@ fun InputStreamScreen(
         }
     }
 
-
     // Handle partial results for progressive text append
     // Use the mode that INITIATED the speech, not the current mode
     LaunchedEffect(speechState) {
         speechState.onPartialResult = { partialText ->
             if (partialText.isNotBlank()) {
-                hadSpeechInput = true  // Mark that we got speech input
+                hadSpeechInput = true // Mark that we got speech input
 
                 // Use the mode that initiated speech to prevent cross-mode text insertion
                 val targetChatMode = speechState.speechInitiatedInChatMode ?: isChatMode
@@ -572,13 +519,14 @@ fun InputStreamScreen(
 
             // Use the base text before any partial results
             // Bounds check: ensure index doesn't exceed current text length
-            val baseText = if (lastPartialText.isNotEmpty()) {
-                val safeIndex = partialTextStartIndex.coerceAtMost(currentText.length)
-                currentText.take(safeIndex)
-            } else {
-                val spacer = if (currentText.isNotEmpty() && !currentText.endsWith(" ")) " " else ""
-                currentText + spacer
-            }
+            val baseText =
+                if (lastPartialText.isNotEmpty()) {
+                    val safeIndex = partialTextStartIndex.coerceAtMost(currentText.length)
+                    currentText.take(safeIndex)
+                } else {
+                    val spacer = if (currentText.isNotEmpty() && !currentText.endsWith(" ")) " " else ""
+                    currentText + spacer
+                }
 
             val newText = baseText + result
             val newValue = TextFieldValue(newText, TextRange(newText.length))
@@ -596,7 +544,6 @@ fun InputStreamScreen(
             // Reset speech initiation mode after processing
             speechState.speechInitiatedInChatMode = null
 
-
             onInputTextChange(newText)
         }
     }
@@ -606,22 +553,23 @@ fun InputStreamScreen(
         if (!speechState.isListening && isChatMode && hadSpeechInput) {
             autoSendActive = true
             autoSendJob?.cancel()
-            autoSendJob = scope.launch {
-                delay(100)  // Reduced to 0.1 seconds for faster auto-send
-                if (autoSendActive) {
-                    val finalChatText = chatModeTextValue.text
-                    if (finalChatText.isNotBlank()) {
-                        onSendChatMessage(finalChatText, currentInputAttachments)
-                        chatModeTextValue = TextFieldValue("")
-                        onInputAttachmentsChange(emptyList())
-                        onInputTextChange("")
-                        autoSendActive = false
-                        hadSpeechInput = false
-                        lastPartialText = ""
-                        partialTextStartIndex = 0
+            autoSendJob =
+                scope.launch {
+                    delay(100) // Reduced to 0.1 seconds for faster auto-send
+                    if (autoSendActive) {
+                        val finalChatText = chatModeTextValue.text
+                        if (finalChatText.isNotBlank()) {
+                            onSendChatMessage(finalChatText, currentInputAttachments)
+                            chatModeTextValue = TextFieldValue("")
+                            onInputAttachmentsChange(emptyList())
+                            onInputTextChange("")
+                            autoSendActive = false
+                            hadSpeechInput = false
+                            lastPartialText = ""
+                            partialTextStartIndex = 0
+                        }
                     }
                 }
-            }
         } else if (speechState.isListening) {
             // Cancel auto-send if user starts speaking again
             autoSendActive = false
@@ -639,7 +587,7 @@ fun InputStreamScreen(
 
     // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
-    
+
     // Image Generation Mode State
     var isImageGenMode by remember { mutableStateOf(false) }
 
@@ -654,12 +602,13 @@ fun InputStreamScreen(
 
     // Selection handlers
     fun toggleSelection(noteId: String) {
-        selectedNoteIds = if (noteId in selectedNoteIds)
-            selectedNoteIds - noteId
-        else {
-            isSelectionMode = true  // Enable selection mode when adding
-            selectedNoteIds + noteId
-        }
+        selectedNoteIds =
+            if (noteId in selectedNoteIds) {
+                selectedNoteIds - noteId
+            } else {
+                isSelectionMode = true // Enable selection mode when adding
+                selectedNoteIds + noteId
+            }
         if (selectedNoteIds.isEmpty()) isSelectionMode = false
     }
 
@@ -674,11 +623,12 @@ fun InputStreamScreen(
         onBulkArchive(ids)
         clearSelection()
         scope.launch {
-            val result = snackbarHostState.showSnackbar(
-                message = context.getString(R.string.notes_archived, ids.size),
-                actionLabel = context.getString(R.string.undo),
-                duration = SnackbarDuration.Short
-            )
+            val result =
+                snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.notes_archived, ids.size),
+                    actionLabel = context.getString(R.string.undo),
+                    duration = SnackbarDuration.Short,
+                )
             if (result == SnackbarResult.ActionPerformed) {
                 onUndoArchive()
             }
@@ -708,7 +658,7 @@ fun InputStreamScreen(
         scope.launch {
             snackbarHostState.showSnackbar(
                 message = context.getString(R.string.notes_deleted, count),
-                duration = SnackbarDuration.Short
+                duration = SnackbarDuration.Short,
             )
         }
     }
@@ -722,13 +672,16 @@ fun InputStreamScreen(
         scope.launch {
             snackbarHostState.showSnackbar(
                 message = context.getString(R.string.notes_pinned, count),
-                duration = SnackbarDuration.Short
+                duration = SnackbarDuration.Short,
             )
         }
     }
 
     // Categorize selected notes
-    fun categorizeSelected(categoryId: String, categoryName: String) {
+    fun categorizeSelected(
+        categoryId: String,
+        categoryName: String,
+    ) {
         val ids = selectedNoteIds.toList()
         ids.forEach { onUpdateNoteCategory(it, categoryId, categoryName) }
         val count = ids.size
@@ -736,7 +689,7 @@ fun InputStreamScreen(
         scope.launch {
             snackbarHostState.showSnackbar(
                 message = "Notes categorized ($count)",
-                duration = SnackbarDuration.Short
+                duration = SnackbarDuration.Short,
             )
         }
     }
@@ -795,64 +748,70 @@ fun InputStreamScreen(
     var showCategorizeDialog by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
-            onInputAttachmentsChange(currentInputAttachments + newAttachments)
+    val imagePickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(),
+        ) { uris ->
+            uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
+                onInputAttachmentsChange(currentInputAttachments + newAttachments)
+            }
         }
-    }
 
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
-            onInputAttachmentsChange(currentInputAttachments + newAttachments)
+    val videoPickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(),
+        ) { uris ->
+            uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
+                onInputAttachmentsChange(currentInputAttachments + newAttachments)
+            }
         }
-    }
 
-    val audioPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
-            onInputAttachmentsChange(currentInputAttachments + newAttachments)
+    val audioPickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenMultipleDocuments(),
+        ) { uris ->
+            uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
+                onInputAttachmentsChange(currentInputAttachments + newAttachments)
+            }
         }
-    }
 
-    val documentPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
-            onInputAttachmentsChange(currentInputAttachments + newAttachments)
+    val documentPickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenMultipleDocuments(),
+        ) { uris ->
+            uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
+                onInputAttachmentsChange(currentInputAttachments + newAttachments)
+            }
         }
-    }
 
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
-            onInputAttachmentsChange(currentInputAttachments + newAttachments)
+    val filePickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenMultipleDocuments(),
+        ) { uris ->
+            uris.mapNotNull { getFileInfo(context, it) }.let { newAttachments ->
+                onInputAttachmentsChange(currentInputAttachments + newAttachments)
+            }
         }
-    }
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && cameraImageUri != null) {
-            getFileInfo(context, cameraImageUri!!)?.let { attachment ->
-                onInputAttachmentsChange(currentInputAttachments + attachment)
+    val cameraLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.TakePicture(),
+        ) { success ->
+            if (success && cameraImageUri != null) {
+                getFileInfo(context, cameraImageUri!!)?.let { attachment ->
+                    onInputAttachmentsChange(currentInputAttachments + attachment)
+                }
             }
         }
-    }
 
     // Handle camera trigger from widget - auto-open image picker
     LaunchedEffect(cameraTriggered) {
         if (cameraTriggered) {
             // Launch the image picker when widget camera button is tapped
             imagePickerLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
             )
             // Clear the trigger so it doesn't fire again
             onClearCameraTrigger()
@@ -872,7 +831,7 @@ fun InputStreamScreen(
     // --- Chat Scrolling State Management ---
     var autoScrollEnabled by remember { mutableStateOf(true) }
     var userIsScrolling by remember { mutableStateOf(false) }
-    
+
     // When the user interacts with the list (dragging or flinging), temporarily disable auto-scroll
     LaunchedEffect(chatListState.isScrollInProgress, gridState.isScrollInProgress) {
         val isScrolling = chatListState.isScrollInProgress || gridState.isScrollInProgress
@@ -890,13 +849,13 @@ fun InputStreamScreen(
     val showScrollToBottomFab by remember {
         androidx.compose.runtime.derivedStateOf {
             if (chatMessages.isEmpty()) return@derivedStateOf false
-            
+
             val layoutInfo = chatListState.layoutInfo
             val visibleItemsInfo = layoutInfo.visibleItemsInfo
             if (visibleItemsInfo.isEmpty()) return@derivedStateOf false
-            
+
             val lastVisibleItem = visibleItemsInfo.last()
-            
+
             // Check if the bottommost item is visible and fully scrolled
             if (lastVisibleItem.index == layoutInfo.totalItemsCount - 1) {
                 val bottomOffset = lastVisibleItem.offset + lastVisibleItem.size
@@ -913,10 +872,10 @@ fun InputStreamScreen(
     LaunchedEffect(chatMessages.size, chatMessages.lastOrNull()?.content?.length, isChatProcessing) {
         // ONLY scroll if the user hasn't explicitly scrolled up and disabled autoScroll
         if (chatMessages.isNotEmpty() && isChatMode && autoScrollEnabled && !userIsScrolling) {
-            // VERY IMPORTANT: Give Compose time to re-measure so totalItemsCount gets updated 
+            // VERY IMPORTANT: Give Compose time to re-measure so totalItemsCount gets updated
             // after the new message was injected. Otherwise we scroll to the old bottom which moves UP!
             kotlinx.coroutines.delay(100)
-            
+
             if (chatListState.layoutInfo.totalItemsCount > 0) {
                 // Scroll to NEWEST at the TOP (index 0) with a large negative offset to hit the edge
                 chatListState.animateScrollToItem(0, scrollOffset = -10000)
@@ -925,561 +884,581 @@ fun InputStreamScreen(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
+        modifier =
+            modifier
+                .fillMaxSize(),
     ) {
         // Root-level gradient that spans behind status bar (edge-to-edge)
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(brush = if (isDarkTheme) SmartyBrushes.topScrimDark else SmartyBrushes.topScrimLight)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(brush = if (isDarkTheme) SmartyBrushes.topScrimDark else SmartyBrushes.topScrimLight),
         )
 
         // Content Box with transparent background to let gradient show through
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Transparent)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Transparent),
         ) {
-        Scaffold(
-        modifier = Modifier.imePadding(), // This handles keyboard
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                // Compact snackbar positioned above floating input field
-                Surface(
-                    modifier = Modifier
-                        .padding(bottom = 120.dp, start = 16.dp, end = 16.dp) // Above input field
-                        .wrapContentWidth(),
-                    shape = androidx.compose.foundation.shape.CircleShape,
-                    color = MaterialTheme.colorScheme.inverseSurface,
-                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                    tonalElevation = 4.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = data.visuals.message.lowercase(),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        
-                        if (lastArchivedNoteId != null) {
-                            Surface(
-                                onClick = {
-                                    lastArchivedNoteId?.let { noteId ->
-                                        onUnarchiveNote(noteId)
-                                        lastArchivedNoteId = null
-                                    }
-                                    data.dismiss()
-                                },
-                                shape = LocalShapes.current.chipSmall,
-                                color = LocalAccentColor.current.copy(alpha = 0.2f)
+            Scaffold(
+                modifier = Modifier.imePadding(), // This handles keyboard
+                snackbarHost = {
+                    SnackbarHost(hostState = snackbarHostState) { data ->
+                        // Compact snackbar positioned above floating input field
+                        Surface(
+                            modifier =
+                                Modifier
+                                    .padding(bottom = 120.dp, start = 16.dp, end = 16.dp) // Above input field
+                                    .wrapContentWidth(),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.inverseSurface,
+                            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                            tonalElevation = 4.dp,
+                            shadowElevation = 4.dp,
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Text(
-                                    text = stringResource(R.string.undo),
-                                    color = LocalAccentColor.current,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                    text = data.visuals.message.lowercase(),
+                                    style = MaterialTheme.typography.labelMedium,
                                 )
+
+                                if (lastArchivedNoteId != null) {
+                                    Surface(
+                                        onClick = {
+                                            lastArchivedNoteId?.let { noteId ->
+                                                onUnarchiveNote(noteId)
+                                                lastArchivedNoteId = null
+                                            }
+                                            data.dismiss()
+                                        },
+                                        shape = LocalShapes.current.chipSmall,
+                                        color = LocalAccentColor.current.copy(alpha = 0.2f),
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.undo),
+                                            color = LocalAccentColor.current,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 6.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
-},
-        topBar = {
-            InputStreamTopBar(
-                isDarkTheme = isDarkTheme,
-                connectionStatus = connectionStatus,
-                cloudSyncState = cloudSyncState,
-                onSyncCloud = onSyncCloud,
-                selectedTab = selectedTab,
-                onTabSelected = { tab -> handleTabSelection(tab) },
-                isChatMode = isChatMode,
-                showChatHistoryInline = showChatHistoryInline,
-                showCalendarInline = showCalendarInline,
-                showStacksInline = showStacksInline,
-                showArchiveInline = showArchiveInline,
-                showGamesInline = showGamesInline,
-                archiveCount = archivedNotes.size,
-                userIsScrolling = userIsScrolling
-            )
-        },
-        bottomBar = {
-            // Deprecated: Input field moved to main Box for floating transparency
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        // Clear focus when tapping outside the input field
-        val topPadding = paddingValues.calculateTopPadding()
-
-        val currentIsListening by rememberUpdatedState(speechState.isListening)
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                // .padding(top = topPadding) -- REMOVED to allow scrolling behind header
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = {
-                            // Clear focus and stop voice input on tap
-                            // Scrolling does NOT trigger this - only deliberate taps
-                            focusManager.clearFocus()
-                            if (currentIsListening) {
-                                speechState.stopListening()
-                            }
-                        }
-                    )
-                }
-        ) {
-            // Determine which content to show
-            // Priority: Stacks > Archive > Calendar > Chat > Notes
-            val contentMode = when {
-                showStacksInline -> "stacks"
-                showArchiveInline -> "archive"
-                showGamesInline -> "games"
-                showCalendarInline -> "calendar"
-                isChatMode -> "chat"
-                else -> "notes"
-            }
-
-            // Animated content switching between notes, chat, and calendar
-            // Pre-compute mode indices to avoid allocation inside transitionSpec
-            val contentModeIndex by remember(contentMode) {
-                derivedStateOf {
-                    when (contentMode) {
-                        "chat" -> 0; "notes" -> 1; "calendar" -> 2
-                        "stacks" -> 3; "archive" -> 4; "games" -> 5
-                        else -> 1
-                    }
-                }
-            }
-
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                AnimatedContent(
-                    targetState = contentModeIndex,
-                    transitionSpec = {
-                        val isClockwise = targetState < initialState
-
-                        val screenSpring = spring<Float>(dampingRatio = 0.8f, stiffness = 350f)
-                        val slideSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.8f, stiffness = 350f)
-
-                        if (isClockwise) {
-                            (scaleIn(initialScale = 0.92f, animationSpec = screenSpring) +
-                             fadeIn(tween(250)) +
-                             slideInVertically(animationSpec = slideSpring) { it / 15 }) togetherWith
-                            (scaleOut(targetScale = 1.08f, animationSpec = screenSpring) +
-                             fadeOut(tween(200)))
-                        } else {
-                            (scaleIn(initialScale = 1.08f, animationSpec = screenSpring) +
-                             fadeIn(tween(250)) +
-                             slideInVertically(animationSpec = slideSpring) { -it / 15 }) togetherWith
-                            (scaleOut(targetScale = 0.92f, animationSpec = screenSpring) +
-                             fadeOut(tween(200)))
-                        } using SizeTransform { _, _ -> 
-                            spring(dampingRatio = 0.75f, stiffness = 400f) 
-                        }
-                    },
-                    label = "contentModeTransition",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .align(Alignment.TopCenter) // Explicitly center content area
-                ) { mode ->
-                    val contentPaddingWithTop = PaddingValues(
-                        top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
-                        bottom = 140.dp + bottomContentPadding // Extra padding for floating input
-                    )
-
-                when (mode) {
-                    3 -> {
-                        // Stacks inline view - categories grid
-                        StacksContent(
-                            categories = categories,
-                            isLoading = isStacksLoading,
-                            onCategoryClick = { category ->
-                                onSelectCategory(category)
-                                showStacksInline = false  // Close and filter notes
-                            },
-                            onCreateCategory = onCreateCategory,
-                            onRenameCategory = onRenameCategory,
-                            onDeleteCategory = onDeleteCategory,
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize(),
-                            onSyncCategoryCounts = onSyncCategoryCounts
-                        )
-                    }
-                    4 -> {
-                        // Archive inline view - archived notes
-                        ArchiveContent(
-                            archivedNotes = archivedNotes,
-                            isLoading = isArchiveLoading,
-                            onDeleteNote = onDeleteNote,
-                            onUnarchiveNote = onUnarchiveNote,
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    5 -> {
-                        GamesContent(
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    2 -> {
-                        // Calendar inline view - same layer as note cards
-                        CalendarContent(
-                            events = calendarEvents,
-                            activeTimers = activeTimers,
-                            onEventClick = onEventClick,
-                            onAddEvent = { selectedDate ->
-                                // Fallback if onCreateEvent not provided
-                                selectedDateForNewEvent = selectedDate
-                                showAddEventDialog = true
-                            },
-                            onDeleteEvent = onDeleteCalendarEvent,
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize(),
-                            // Enable inline event creation (no popup)
-                            onCreateEvent = onCreateCalendarEvent
-                        )
-                    }
-                    0 -> {
-                        ChatModeSection(
+                },
+                topBar = {
+                    InputStreamTopBar(
+                        isDarkTheme = isDarkTheme,
+                        connectionStatus = connectionStatus,
+                        cloudSyncState = cloudSyncState,
+                        onSyncCloud = onSyncCloud,
+                        selectedTab = selectedTab,
+                        onTabSelected = { tab -> handleTabSelection(tab) },
+                        isChatMode = isChatMode,
                         showChatHistoryInline = showChatHistoryInline,
-                        chatSessions = chatSessions,
-                        currentSessionId = currentSessionId,
-                        isChatHistoryLoading = isChatHistoryLoading,
-                        chatMessages = chatMessages,
-                        chatListState = chatListState,
-                        notes = notes,
-                        contentPaddingWithTop = contentPaddingWithTop,
-                        isChatProcessing = isChatProcessing,
-                        agentActivity = agentActivity,
-                        onSwitchChatSession = onSwitchChatSession,
-                        onNewChatSession = onNewChatSession,
-                        onDeleteChatSession = onDeleteChatSession,
-                        onNoteClick = onNoteClick,
-                        onNoteClickById = onNoteClickById,
-                        onEventClickById = onEventClickById,
-                        onSendChatMessage = onSendChatMessage,
-                        onDeleteChatMessage = onDeleteChatMessage,
-                        onSetChatHistory = { showChatHistoryInline = it },
-                        modifier = Modifier.fillMaxSize()
+                        showCalendarInline = showCalendarInline,
+                        showStacksInline = showStacksInline,
+                        showArchiveInline = showArchiveInline,
+                        showGamesInline = showGamesInline,
+                        archiveCount = archivedNotes.size,
+                        userIsScrolling = userIsScrolling,
                     )
+                },
+                bottomBar = {
+                    // Deprecated: Input field moved to main Box for floating transparency
+                },
+                containerColor = Color.Transparent,
+            ) { paddingValues ->
+                // Clear focus when tapping outside the input field
+                val topPadding = paddingValues.calculateTopPadding()
+
+                val currentIsListening by rememberUpdatedState(speechState.isListening)
+
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            // .padding(top = topPadding) -- REMOVED to allow scrolling behind header
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = {
+                                        // Clear focus and stop voice input on tap
+                                        // Scrolling does NOT trigger this - only deliberate taps
+                                        focusManager.clearFocus()
+                                        if (currentIsListening) {
+                                            speechState.stopListening()
+                                        }
+                                    },
+                                )
+                            },
+                ) {
+                    // Determine which content to show
+                    // Priority: Stacks > Archive > Calendar > Chat > Notes
+                    val contentMode =
+                        when {
+                            showStacksInline -> "stacks"
+                            showArchiveInline -> "archive"
+                            showGamesInline -> "games"
+                            showCalendarInline -> "calendar"
+                            isChatMode -> "chat"
+                            else -> "notes"
+                        }
+
+                    // Animated content switching between notes, chat, and calendar
+                    // Pre-compute mode indices to avoid allocation inside transitionSpec
+                    val contentModeIndex by remember(contentMode) {
+                        derivedStateOf {
+                            when (contentMode) {
+                                "chat" -> 0
+                                "notes" -> 1
+                                "calendar" -> 2
+                                "stacks" -> 3
+                                "archive" -> 4
+                                "games" -> 5
+                                else -> 1
+                            }
+                        }
                     }
 
-                    1 -> {
-                        NormalModeContent(
-                            displayedNotes = displayedNotes,
-                            isNotesLoading = isNotesLoading,
-                            isSearchMode = isSearchMode,
-                            searchQuery = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text,
-                            gridState = gridState,
-                            isRefreshing = isRefreshing,
-                            onRefreshNotes = onRefreshNotes,
-                            bottomContentPadding = bottomContentPadding,
-                            topContentPadding = topPadding,
-                            isSelectionMode = isSelectionMode,
-                            selectedNoteIds = selectedNoteIds,
-                            onToggleSelection = { noteId -> toggleSelection(noteId) },
-                            onEnterSelectionMode = { noteId, _ ->
-                                // Normal selection mode - no Pinterest menu
-                                toggleSelection(noteId)
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        AnimatedContent(
+                            targetState = contentModeIndex,
+                            transitionSpec = {
+                                val isClockwise = targetState < initialState
+
+                                val screenSpring = spring<Float>(dampingRatio = 0.8f, stiffness = 350f)
+                                val slideSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.8f, stiffness = 350f)
+
+                                if (isClockwise) {
+                                    (
+                                        scaleIn(initialScale = 0.92f, animationSpec = screenSpring) +
+                                            fadeIn(tween(250)) +
+                                            slideInVertically(animationSpec = slideSpring) { it / 15 }
+                                    ) togetherWith
+                                        (
+                                            scaleOut(targetScale = 1.08f, animationSpec = screenSpring) +
+                                                fadeOut(tween(200))
+                                        )
+                                } else {
+                                    (
+                                        scaleIn(initialScale = 1.08f, animationSpec = screenSpring) +
+                                            fadeIn(tween(250)) +
+                                            slideInVertically(animationSpec = slideSpring) { -it / 15 }
+                                    ) togetherWith
+                                        (
+                                            scaleOut(targetScale = 0.92f, animationSpec = screenSpring) +
+                                                fadeOut(tween(200))
+                                        )
+                                } using
+                                    SizeTransform { _, _ ->
+                                        spring(dampingRatio = 0.75f, stiffness = 400f)
+                                    }
                             },
-                            onNoteClick = onNoteClick,
-                            onArchiveNote = onArchiveNote,
-                            onDeleteNoteRequest = { noteId ->
-                                noteToDeleteId = noteId
-                                showDeleteDialog = true
+                            label = "contentModeTransition",
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .align(Alignment.TopCenter), // Explicitly center content area
+                        ) { mode ->
+                            val contentPaddingWithTop =
+                                PaddingValues(
+                                    top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
+                                    bottom = 140.dp + bottomContentPadding, // Extra padding for floating input
+                                )
+
+                            when (mode) {
+                                3 -> {
+                                    // Stacks inline view - categories grid
+                                    StacksContent(
+                                        categories = categories,
+                                        isLoading = isStacksLoading,
+                                        onCategoryClick = { category ->
+                                            onSelectCategory(category)
+                                            showStacksInline = false // Close and filter notes
+                                        },
+                                        onCreateCategory = onCreateCategory,
+                                        onRenameCategory = onRenameCategory,
+                                        onDeleteCategory = onDeleteCategory,
+                                        contentPadding = contentPaddingWithTop,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onSyncCategoryCounts = onSyncCategoryCounts,
+                                    )
+                                }
+                                4 -> {
+                                    // Archive inline view - archived notes
+                                    ArchiveContent(
+                                        archivedNotes = archivedNotes,
+                                        isLoading = isArchiveLoading,
+                                        onDeleteNote = onDeleteNote,
+                                        onUnarchiveNote = onUnarchiveNote,
+                                        contentPadding = contentPaddingWithTop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                                5 -> {
+                                    GamesContent(
+                                        contentPadding = contentPaddingWithTop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                                2 -> {
+                                    // Calendar inline view - same layer as note cards
+                                    CalendarContent(
+                                        events = calendarEvents,
+                                        activeTimers = activeTimers,
+                                        onEventClick = onEventClick,
+                                        onAddEvent = { selectedDate ->
+                                            // Fallback if onCreateEvent not provided
+                                            selectedDateForNewEvent = selectedDate
+                                            showAddEventDialog = true
+                                        },
+                                        onDeleteEvent = onDeleteCalendarEvent,
+                                        contentPadding = contentPaddingWithTop,
+                                        modifier = Modifier.fillMaxSize(),
+                                        // Enable inline event creation (no popup)
+                                        onCreateEvent = onCreateCalendarEvent,
+                                    )
+                                }
+                                0 -> {
+                                    ChatModeSection(
+                                        showChatHistoryInline = showChatHistoryInline,
+                                        chatSessions = chatSessions,
+                                        currentSessionId = currentSessionId,
+                                        isChatHistoryLoading = isChatHistoryLoading,
+                                        chatMessages = chatMessages,
+                                        chatListState = chatListState,
+                                        notes = notes,
+                                        contentPaddingWithTop = contentPaddingWithTop,
+                                        isChatProcessing = isChatProcessing,
+                                        agentActivity = agentActivity,
+                                        onSwitchChatSession = onSwitchChatSession,
+                                        onNewChatSession = onNewChatSession,
+                                        onDeleteChatSession = onDeleteChatSession,
+                                        onNoteClick = onNoteClick,
+                                        onNoteClickById = onNoteClickById,
+                                        onEventClickById = onEventClickById,
+                                        onSendChatMessage = onSendChatMessage,
+                                        onDeleteChatMessage = onDeleteChatMessage,
+                                        onSetChatHistory = { showChatHistoryInline = it },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+
+                                1 -> {
+                                    NormalModeContent(
+                                        displayedNotes = displayedNotes,
+                                        isNotesLoading = isNotesLoading,
+                                        isSearchMode = isSearchMode,
+                                        searchQuery = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text,
+                                        gridState = gridState,
+                                        isRefreshing = isRefreshing,
+                                        onRefreshNotes = onRefreshNotes,
+                                        bottomContentPadding = bottomContentPadding,
+                                        topContentPadding = topPadding,
+                                        isSelectionMode = isSelectionMode,
+                                        selectedNoteIds = selectedNoteIds,
+                                        onToggleSelection = { noteId -> toggleSelection(noteId) },
+                                        onEnterSelectionMode = { noteId, _ ->
+                                            // Normal selection mode - no Pinterest menu
+                                            toggleSelection(noteId)
+                                        },
+                                        onNoteClick = onNoteClick,
+                                        onArchiveNote = onArchiveNote,
+                                        onDeleteNoteRequest = { noteId ->
+                                            noteToDeleteId = noteId
+                                            showDeleteDialog = true
+                                        },
+                                        onOpenTodo = { noteId -> selectedNoteIdForTodo = noteId },
+                                        onPlayYouTube = onPlayYouTube,
+                                        snackbarHostState = snackbarHostState,
+                                        onSetLastArchivedNoteId = { lastArchivedNoteId = it },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
+                        }
+                    } // Close Box wrapper for centered content
+
+                    InputStreamBottomInput(
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        isDarkTheme = isDarkTheme,
+                        isChatMode = isChatMode,
+                        isSearchMode = isSearchMode,
+                        showChatHistoryInline = showChatHistoryInline,
+                        isSelectionMode = isSelectionMode,
+                        selectedNoteIds = selectedNoteIds,
+                        isMiniPlayerVisible = isMiniPlayerVisible,
+                        bottomContentPadding = bottomContentPadding,
+                        bottomGradientVerticalOffset = bottomGradientVerticalOffset,
+                        currentInputAttachments = currentInputAttachments,
+                        onInputAttachmentsChange = onInputAttachmentsChange,
+                        textValue = textValue,
+                        chatModeTextValue = chatModeTextValue,
+                        normalModeTextValue = normalModeTextValue,
+                        onNormalModeTextValueChange = { newVal -> normalModeTextValue = newVal },
+                        onChatModeTextValueChange = { newVal -> chatModeTextValue = newVal },
+                        onInputTextChange = onInputTextChange,
+                        recentSearches = recentSearches,
+                        onSearchQueryChange = onSearchQueryChange,
+                        onRecordSearch = onRecordSearch,
+                        onClearSearchHistory = onClearSearchHistory,
+                        chatMessages = chatMessages,
+                        pendingClarificationRequests = pendingClarificationRequests,
+                        pendingApprovalToolId = pendingApprovalToolId,
+                        onCallApproval = onCallApproval,
+                        onClarificationSubmit = onClarificationSubmit,
+                        speechState = speechState,
+                        isChatProcessing = isChatProcessing,
+                        voiceRecorder = voiceRecorder,
+                        isRecording = isRecording,
+                        autoSendActive = autoSendActive,
+                        hadSpeechInput = hadSpeechInput,
+                        onSetHadSpeechInput = { hadSpeechInput = it },
+                        autoSendJob = autoSendJob,
+                        onSetAutoSendActive = { autoSendActive = it },
+                        onSetAutoSendJob = { autoSendJob = it },
+                        chatListState = chatListState,
+                        coroutineScope = coroutineScope,
+                        mentionState = mentionState,
+                        onUpdateMentionState = onUpdateMentionState,
+                        onMentionSelected = onMentionSelected,
+                        isImageGenMode = isImageGenMode,
+                        onSetImageGenMode = { isImageGenMode = it },
+                        isAiExcluded = isAiExcluded,
+                        selectedFilters = selectedFilters,
+                        onFilterToggle = onFilterToggle,
+                        onClearFilters = onClearFilters,
+                        selectedModel = selectedModel,
+                        availableModels = availableModels,
+                        onModelSelected = onModelSelected,
+                        modelVariantMap = modelVariantMap,
+                        selectedVariant = selectedVariant,
+                        onVariantSelected = onVariantSelected,
+                        onRefreshModels = onRefreshModels,
+                        showCalendarInline = showCalendarInline,
+                        showStacksInline = showStacksInline,
+                        showArchiveInline = showArchiveInline,
+                        showGamesInline = showGamesInline,
+                        onSendChatMessage = onSendChatMessage,
+                        onAddNote = onAddNote,
+                        onGenerateImageDirect = onGenerateImageDirect,
+                        onNewChatSession = onNewChatSession,
+                        onSetShowChatHistoryInline = { showChatHistoryInline = it },
+                        imagePickerLauncher = imagePickerLauncher,
+                        videoPickerLauncher = videoPickerLauncher,
+                        documentPickerLauncher = documentPickerLauncher,
+                        audioPickerLauncher = audioPickerLauncher,
+                        filePickerLauncher = filePickerLauncher,
+                        cameraLauncher = cameraLauncher,
+                        cameraImageUri = cameraImageUri,
+                        onSetCameraImageUri = { cameraImageUri = it },
+                        onPinSelected = { pinSelected() },
+                        onShareSelected = { shareSelected() },
+                        onArchiveSelected = { archiveSelected() },
+                        onDeleteSelected = { deleteSelected() },
+                        onCategorizeSelected = { showCategorizeDialog = true },
+                        onClearSelection = { clearSelection() },
+                        onToggleSearchMode = {
+                            if (isSearchMode && normalModeTextValue.text.isNotBlank()) {
+                                onRecordSearch(normalModeTextValue.text)
+                            }
+                            isSearchMode = !isSearchMode
+                        },
+                        userIsScrolling = userIsScrolling,
+                        context = context,
+                    )
+                } // Close Box from line 1033
+
+                // Pinterest-style menu implementation
+                pinterestMenuPosition?.let { pos ->
+                    val noteId = activePinterestNoteId
+                    if (noteId != null) {
+                        PinterestMenu(
+                            anchorPosition = pos,
+                            onDismiss = {
+                                pinterestMenuPosition = null
+                                activePinterestNoteId = null
                             },
-                            onOpenTodo = { noteId -> selectedNoteIdForTodo = noteId },
-                            onPlayYouTube = onPlayYouTube,
-                            snackbarHostState = snackbarHostState,
-                            onSetLastArchivedNoteId = { lastArchivedNoteId = it },
-                            modifier = Modifier.fillMaxSize()
+                            onAction = { action ->
+                                when (action) {
+                                    PinterestAction.PIN -> onPinNote(noteId)
+                                    PinterestAction.SHARE -> {
+                                        val note = noteByIdMap[noteId]
+                                        if (note != null) onShareNotes(listOf(note))
+                                    }
+                                    PinterestAction.ARCHIVE -> onArchiveNote(noteId)
+                                    PinterestAction.DELETE -> {
+                                        noteToDeleteId = noteId
+                                        showDeleteDialog = true
+                                    }
+                                }
+                                pinterestMenuPosition = null
+                                activePinterestNoteId = null
+                            },
                         )
                     }
                 }
-            }
-            } // Close Box wrapper for centered content
 
-            InputStreamBottomInput(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                isDarkTheme = isDarkTheme,
-                isChatMode = isChatMode,
-                isSearchMode = isSearchMode,
-                showChatHistoryInline = showChatHistoryInline,
-                isSelectionMode = isSelectionMode,
-                selectedNoteIds = selectedNoteIds,
-                isMiniPlayerVisible = isMiniPlayerVisible,
-                bottomContentPadding = bottomContentPadding,
-                bottomGradientVerticalOffset = bottomGradientVerticalOffset,
-                currentInputAttachments = currentInputAttachments,
-                onInputAttachmentsChange = onInputAttachmentsChange,
-                textValue = textValue,
-                chatModeTextValue = chatModeTextValue,
-                normalModeTextValue = normalModeTextValue,
-                onNormalModeTextValueChange = { newVal -> normalModeTextValue = newVal },
-                onChatModeTextValueChange = { newVal -> chatModeTextValue = newVal },
-                onInputTextChange = onInputTextChange,
-                recentSearches = recentSearches,
-                onSearchQueryChange = onSearchQueryChange,
-                onRecordSearch = onRecordSearch,
-                onClearSearchHistory = onClearSearchHistory,
-                chatMessages = chatMessages,
-                pendingClarificationRequests = pendingClarificationRequests,
-                pendingApprovalToolId = pendingApprovalToolId,
-                onCallApproval = onCallApproval,
-                onClarificationSubmit = onClarificationSubmit,
-                speechState = speechState,
-                isChatProcessing = isChatProcessing,
-                voiceRecorder = voiceRecorder,
-                isRecording = isRecording,
-                autoSendActive = autoSendActive,
-                hadSpeechInput = hadSpeechInput,
-                onSetHadSpeechInput = { hadSpeechInput = it },
-                autoSendJob = autoSendJob,
-                onSetAutoSendActive = { autoSendActive = it },
-                onSetAutoSendJob = { autoSendJob = it },
-                chatListState = chatListState,
-                coroutineScope = coroutineScope,
-                mentionState = mentionState,
-                onUpdateMentionState = onUpdateMentionState,
-                onMentionSelected = onMentionSelected,
-                isImageGenMode = isImageGenMode,
-                onSetImageGenMode = { isImageGenMode = it },
-                isAiExcluded = isAiExcluded,
-                selectedFilters = selectedFilters,
-                onFilterToggle = onFilterToggle,
-                onClearFilters = onClearFilters,
-                selectedModel = selectedModel,
-                availableModels = availableModels,
-                onModelSelected = onModelSelected,
-                modelVariantMap = modelVariantMap,
-                selectedVariant = selectedVariant,
-                onVariantSelected = onVariantSelected,
-                onRefreshModels = onRefreshModels,
-                showCalendarInline = showCalendarInline,
-                showStacksInline = showStacksInline,
-                showArchiveInline = showArchiveInline,
-                showGamesInline = showGamesInline,
-                onSendChatMessage = onSendChatMessage,
-                onAddNote = onAddNote,
-                onGenerateImageDirect = onGenerateImageDirect,
-                onNewChatSession = onNewChatSession,
-                onSetShowChatHistoryInline = { showChatHistoryInline = it },
-                imagePickerLauncher = imagePickerLauncher,
-                videoPickerLauncher = videoPickerLauncher,
-                documentPickerLauncher = documentPickerLauncher,
-                audioPickerLauncher = audioPickerLauncher,
-                filePickerLauncher = filePickerLauncher,
-                cameraLauncher = cameraLauncher,
-                cameraImageUri = cameraImageUri,
-                onSetCameraImageUri = { cameraImageUri = it },
-                onPinSelected = { pinSelected() },
-                onShareSelected = { shareSelected() },
-                onArchiveSelected = { archiveSelected() },
-                onDeleteSelected = { deleteSelected() },
-                onCategorizeSelected = { showCategorizeDialog = true },
-                onClearSelection = { clearSelection() },
-                onToggleSearchMode = {
-                    if (isSearchMode && normalModeTextValue.text.isNotBlank()) {
-                        onRecordSearch(normalModeTextValue.text)
-                    }
-                    isSearchMode = !isSearchMode
-                },
-                userIsScrolling = userIsScrolling,
-                context = context
-            )
-
-    } // Close Box from line 1033
-
-    // Pinterest-style menu implementation
-    pinterestMenuPosition?.let { pos ->
-        val noteId = activePinterestNoteId
-        if (noteId != null) {
-            PinterestMenu(
-                anchorPosition = pos,
-                onDismiss = {
-                    pinterestMenuPosition = null
-                    activePinterestNoteId = null
-                },
-                onAction = { action ->
-                    when (action) {
-                        PinterestAction.PIN -> onPinNote(noteId)
-                        PinterestAction.SHARE -> {
-                            val note = noteByIdMap[noteId]
-                            if (note != null) onShareNotes(listOf(note))
-                        }
-                        PinterestAction.ARCHIVE -> onArchiveNote(noteId)
-                        PinterestAction.DELETE -> {
-                            noteToDeleteId = noteId
-                            showDeleteDialog = true
-                        }
-                    }
-                    pinterestMenuPosition = null
-                    activePinterestNoteId = null
+                // Delete confirmation dialog
+                if (showDeleteDialog && noteToDelete != null) {
+                    SmartyDialog(
+                        title = stringResource(R.string.delete_note),
+                        text = stringResource(R.string.delete_note_warning),
+                        onConfirm = {
+                            onDeleteNote(noteToDelete.id)
+                            showDeleteDialog = false
+                            noteToDeleteId = null
+                        },
+                        onDismiss = {
+                            showDeleteDialog = false
+                            noteToDeleteId = null
+                        },
+                        confirmText = stringResource(R.string.delete),
+                        dismissText = stringResource(R.string.cancel),
+                        isDestructive = true,
+                    )
                 }
-            )
+
+                // Todo bottom sheet - auto-saves on every action
+                selectedNoteForTodo?.let { note ->
+                    NoteTodoSheet(
+                        note = note,
+                        sheetState = todoSheetState,
+                        onDismiss = { selectedNoteIdForTodo = null },
+                        onSaveTodos = { todos ->
+                            // Auto-save without dismissing - user clicks Done to close
+                            onUpdateNoteTodos(note.id, todos, null)
+                        },
+                    )
+                }
+
+                // Share bottom sheet for incoming shared content
+                val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                pendingShare?.let { share ->
+                    ShareBottomSheet(
+                        pendingShare = share,
+                        categories = categories,
+                        sheetState = shareSheetState,
+                        isFullPrivacy = isShareFullPrivacy,
+                        onDismiss = onCancelShare,
+                        onSave = { selectedCategory, aiInstructions ->
+                            onConfirmShare(selectedCategory, aiInstructions)
+                        },
+                    )
+                }
+
+                //
+                // CENTRALIZED UI: Bottom Sheets for all features
+                //
+
+                // Calendar Sheet
+                if (showCalendarSheet) {
+                    CalendarSheet(
+                        events = calendarEvents,
+                        activeTimers = activeTimers,
+                        sheetState = calendarSheetState,
+                        onDismiss = { showCalendarSheet = false },
+                        onAddEvent = onAddCalendarEvent,
+                        onEventClick = onEventClick,
+                        onDeleteEvent = onDeleteCalendarEvent,
+                        onCreateEvent = onCreateCalendarEvent,
+                    )
+                }
+
+                // Stacks Sheet
+                if (showStacksSheet) {
+                    StacksSheet(
+                        categories = categories,
+                        sheetState = stacksSheetState,
+                        onDismiss = { showStacksSheet = false },
+                        onCategoryClick = { category ->
+                            onSelectCategory(category)
+                            showStacksSheet = false
+                        },
+                        onCreateCategory = onCreateCategory,
+                        onDeleteCategory = onDeleteCategory,
+                    )
+                }
+
+                // Archive Sheet
+                if (showArchiveSheet) {
+                    ArchiveSheet(
+                        archivedNotes = archivedNotes,
+                        sheetState = archiveSheetState,
+                        onDismiss = { showArchiveSheet = false },
+                        onDeleteNote = onDeleteNote,
+                        onUnarchiveNote = onUnarchiveNote,
+                    )
+                }
+
+                // Settings Sheet
+                if (showSettingsSheet) {
+                    SettingsSheet(
+                        sheetState = settingsSheetState,
+                        onDismiss = { showSettingsSheet = false },
+                        isDarkTheme = isDarkTheme,
+                        onToggleTheme = onToggleTheme,
+                        cacheSizeBytes = cacheSizeBytes,
+                        onClearCache = onClearCache,
+                        isClearingCache = isClearingCache,
+                        shakeSensitivity = shakeSensitivity,
+                        onShakeSensitivityChange = onShakeSensitivityChange,
+                        onSignOut = onSignOut,
+                        backupContent = backupContent,
+                        // Google Calendar Two-Way Sync
+                        isCalendarSyncEnabled = isCalendarSyncEnabled,
+                        onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
+                        deviceCalendars = deviceCalendars,
+                        targetCalendarId = targetCalendarId,
+                        onSetTargetCalendarId = onSetTargetCalendarId,
+                        onLoadDeviceCalendars = onLoadDeviceCalendars,
+                        onCloudSync = onSyncCloud,
+                    )
+                }
+
+                // Add Event Dialog for inline calendar
+                if (showAddEventDialog && onCreateCalendarEvent != null) {
+                    AddEventDialog(
+                        onDismiss = {
+                            showAddEventDialog = false
+                            selectedDateForNewEvent = null
+                        },
+                        onConfirm = { title, description, startTime, endTime, isAllDay ->
+                            onCreateCalendarEvent(title, description, startTime, endTime, isAllDay)
+                            showAddEventDialog = false
+                            selectedDateForNewEvent = null
+                        },
+                        initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance(),
+                    )
+                }
+
+                // Categorize selected notes dialog
+                if (showCategorizeDialog) {
+                    CategorizeNotesDialog(
+                        categories = categories,
+                        onCategorySelected = { categoryId, categoryName ->
+                            categorizeSelected(categoryId, categoryName)
+                            showCategorizeDialog = false
+                        },
+                        onDismiss = {
+                            showCategorizeDialog = false
+                        },
+                    )
+                }
+            }
         }
     }
-
-    // Delete confirmation dialog
-    if (showDeleteDialog && noteToDelete != null) {
-        SmartyDialog(
-            title = stringResource(R.string.delete_note),
-            text = stringResource(R.string.delete_note_warning),
-            onConfirm = {
-                onDeleteNote(noteToDelete.id)
-                showDeleteDialog = false
-                noteToDeleteId = null
-            },
-            onDismiss = {
-                showDeleteDialog = false
-                noteToDeleteId = null
-            },
-            confirmText = stringResource(R.string.delete),
-            dismissText = stringResource(R.string.cancel),
-            isDestructive = true
-        )
-    }
-
-    // Todo bottom sheet - auto-saves on every action
-    selectedNoteForTodo?.let { note ->
-        NoteTodoSheet(
-            note = note,
-            sheetState = todoSheetState,
-            onDismiss = { selectedNoteIdForTodo = null },
-            onSaveTodos = { todos ->
-                // Auto-save without dismissing - user clicks Done to close
-                onUpdateNoteTodos(note.id, todos, null)
-            }
-        )
-    }
-
-    // Share bottom sheet for incoming shared content
-    val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    pendingShare?.let { share ->
-        ShareBottomSheet(
-            pendingShare = share,
-            categories = categories,
-            sheetState = shareSheetState,
-            isFullPrivacy = isShareFullPrivacy,
-            onDismiss = onCancelShare,
-            onSave = { selectedCategory, aiInstructions ->
-                onConfirmShare(selectedCategory, aiInstructions)
-            }
-        )
-    }
-
-    // 
-    // CENTRALIZED UI: Bottom Sheets for all features
-    // 
-
-    // Calendar Sheet
-    if (showCalendarSheet) {
-        CalendarSheet(
-            events = calendarEvents,
-            activeTimers = activeTimers,
-            sheetState = calendarSheetState,
-            onDismiss = { showCalendarSheet = false },
-            onAddEvent = onAddCalendarEvent,
-            onEventClick = onEventClick,
-            onDeleteEvent = onDeleteCalendarEvent,
-            onCreateEvent = onCreateCalendarEvent
-        )
-    }
-
-    // Stacks Sheet
-    if (showStacksSheet) {
-        StacksSheet(
-            categories = categories,
-            sheetState = stacksSheetState,
-            onDismiss = { showStacksSheet = false },
-            onCategoryClick = { category ->
-                onSelectCategory(category)
-                showStacksSheet = false
-            },
-            onCreateCategory = onCreateCategory,
-            onDeleteCategory = onDeleteCategory
-        )
-    }
-
-    // Archive Sheet
-    if (showArchiveSheet) {
-        ArchiveSheet(
-            archivedNotes = archivedNotes,
-            sheetState = archiveSheetState,
-            onDismiss = { showArchiveSheet = false },
-            onDeleteNote = onDeleteNote,
-            onUnarchiveNote = onUnarchiveNote
-        )
-    }
-
-    // Settings Sheet
-    if (showSettingsSheet) {
-        SettingsSheet(
-            sheetState = settingsSheetState,
-            onDismiss = { showSettingsSheet = false },
-            isDarkTheme = isDarkTheme,
-            onToggleTheme = onToggleTheme,
-            cacheSizeBytes = cacheSizeBytes,
-            onClearCache = onClearCache,
-            isClearingCache = isClearingCache,
-            shakeSensitivity = shakeSensitivity,
-            onShakeSensitivityChange = onShakeSensitivityChange,
-            onSignOut = onSignOut,
-            backupContent = backupContent,
-            // Google Calendar Two-Way Sync
-            isCalendarSyncEnabled = isCalendarSyncEnabled,
-            onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
-            deviceCalendars = deviceCalendars,
-            targetCalendarId = targetCalendarId,
-            onSetTargetCalendarId = onSetTargetCalendarId,
-            onLoadDeviceCalendars = onLoadDeviceCalendars,
-            onCloudSync = onSyncCloud
-        )
-    }
-
-    // Add Event Dialog for inline calendar
-    if (showAddEventDialog && onCreateCalendarEvent != null) {
-        AddEventDialog(
-            onDismiss = {
-                showAddEventDialog = false
-                selectedDateForNewEvent = null
-            },
-            onConfirm = { title, description, startTime, endTime, isAllDay ->
-                onCreateCalendarEvent(title, description, startTime, endTime, isAllDay)
-                showAddEventDialog = false
-                selectedDateForNewEvent = null
-            },
-            initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance()
-        )
-    }
-
-    // Categorize selected notes dialog
-    if (showCategorizeDialog) {
-        CategorizeNotesDialog(
-            categories = categories,
-            onCategorySelected = { categoryId, categoryName ->
-                categorizeSelected(categoryId, categoryName)
-                showCategorizeDialog = false
-            },
-            onDismiss = {
-                showCategorizeDialog = false
-            }
-        )
-    }
-}
-}
-}
 }
 
 /**
@@ -1490,21 +1469,21 @@ fun InputStreamScreen(
 fun CategorizeNotesDialog(
     categories: List<Category>,
     onCategorySelected: (String, String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 text = "Categorize Notes",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
             )
         },
         text = {
             LazyColumn {
                 items(
                     items = categories,
-                    key = { it.id }
+                    key = { it.id },
                 ) { category ->
                     ListItem(
                         headlineContent = { Text(category.name) },
@@ -1512,13 +1491,14 @@ fun CategorizeNotesDialog(
                             Icon(
                                 imageVector = Icons.Default.Folder,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         },
-                        modifier = Modifier
-                            .clickable {
-                                onCategorySelected(category.id, category.name)
-                            }
+                        modifier =
+                            Modifier
+                                .clickable {
+                                    onCategorySelected(category.id, category.name)
+                                },
                     )
                 }
             }
@@ -1527,7 +1507,7 @@ fun CategorizeNotesDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
             }
-        }
+        },
     )
 }
 
@@ -1540,50 +1520,52 @@ fun SearchSuggestionsDropdown(
     suggestions: List<String>,
     onSuggestionClick: (String) -> Unit,
     onClearHistory: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = stringResource(R.string.recent_searches),
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
             TextButton(onClick = onClearHistory) {
                 Text(
                     stringResource(R.string.clear),
                     style = MaterialTheme.typography.labelSmall,
-                    color = LocalAccentColor.current.copy(alpha = 0.7f)
+                    color = LocalAccentColor.current.copy(alpha = 0.7f),
                 )
             }
         }
 
         suggestions.forEach { suggestion ->
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSuggestionClick(suggestion) }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onSuggestionClick(suggestion) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = Icons.Default.History,
                     contentDescription = null, // Decorative icon - indicates search history
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = suggestion,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -1604,149 +1586,157 @@ fun SelectionPillBar(
     onDelete: () -> Unit,
     onCategorize: () -> Unit,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
     val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
     val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
     val accentColor = LocalAccentColor.current
-    
+
     Surface(
-        shape = RoundedCornerShape(28.dp),  // Same as input field
+        shape = RoundedCornerShape(28.dp), // Same as input field
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
-        shadowElevation = 8.dp,  // Same as input field
-        modifier = modifier
-            .softCardShadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(28.dp)
-            )
+        shadowElevation = 8.dp, // Same as input field
+        modifier =
+            modifier
+                .softCardShadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(28.dp),
+                ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Left side: Close button + Count
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Close button (X)
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close selection",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
                 }
-                
+
                 // Selected count pill
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = accentColor.copy(alpha = 0.15f),
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    modifier = Modifier.padding(vertical = 4.dp),
                 ) {
                     Text(
                         text = "$selectedCount selected",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                        style =
+                            MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
                         color = accentColor,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                 }
             }
-            
+
             // Right side: Action buttons
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Categorize
                 IconButton(
                     onClick = onCategorize,
                     modifier = Modifier.size(36.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    colors =
+                        IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Folder,
                         contentDescription = "Categorize",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
-                
+
                 // Pin
                 IconButton(
                     onClick = onPin,
                     modifier = Modifier.size(36.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    colors =
+                        IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.PushPin,
                         contentDescription = "Pin",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
-                
+
                 // Share
                 IconButton(
                     onClick = onShare,
                     modifier = Modifier.size(36.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    colors =
+                        IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "Share",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
-                
+
                 // Archive
                 IconButton(
                     onClick = onArchive,
                     modifier = Modifier.size(36.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    colors =
+                        IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Archive,
                         contentDescription = "Archive",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
-                
+
                 // Delete (red)
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier.size(36.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
+                    colors =
+                        IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.DeleteOutline,
                         contentDescription = "Delete",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
         }
     }
 }
-
-
-

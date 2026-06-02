@@ -34,14 +34,53 @@ object LlmCache {
 
     private val ACTION_KEYWORDS =
         setOf(
-            "play", "pause", "stop", "resume", "search", "find", "look",
-            "check", "show", "display", "tell", "give", "list", "get",
-            "fetch", "read", "open", "archive", "unarchive", "delete",
-            "update", "create", "add", "remove", "edit", "modify", "count",
-            "schedule", "calendar", "timer", "alarm", "reminder", "set",
-            "launch", "notes", "note", "audio", "document", "image",
-            "file", "backup", "settings", "screenshot", "share", "navigate",
-            "go to", "move to",
+            "play",
+            "pause",
+            "stop",
+            "resume",
+            "search",
+            "find",
+            "look",
+            "check",
+            "show",
+            "display",
+            "tell",
+            "give",
+            "list",
+            "get",
+            "fetch",
+            "read",
+            "open",
+            "archive",
+            "unarchive",
+            "delete",
+            "update",
+            "create",
+            "add",
+            "remove",
+            "edit",
+            "modify",
+            "count",
+            "schedule",
+            "calendar",
+            "timer",
+            "alarm",
+            "reminder",
+            "set",
+            "launch",
+            "notes",
+            "note",
+            "audio",
+            "document",
+            "image",
+            "file",
+            "backup",
+            "settings",
+            "screenshot",
+            "share",
+            "navigate",
+            "go to",
+            "move to",
         )
 
     fun isActionQuery(userMessage: String): Boolean {
@@ -68,7 +107,11 @@ object LlmCache {
         // Only use the last 6 messages for the hash — full history makes cache hits rare anyway
         val recentMessages = key.messages.takeLast(6)
         for (msg in recentMessages) {
-            sb.append(msg.role.name).append(':').append(msg.content.take(500)).append('|')
+            sb
+                .append(msg.role.name)
+                .append(':')
+                .append(msg.content.take(500))
+                .append('|')
         }
         sb.append("model=").append(key.modelOverride ?: "default")
         sb.append("|variant=").append(key.variant ?: "default")
@@ -138,9 +181,10 @@ object LlmCache {
      * Remove the oldest N entries by timestamp.
      */
     private fun evictOldest(count: Int) {
-        val toRemove = cache.entries
-            .sortedBy { it.value.timestamp }
-            .take(count)
+        val toRemove =
+            cache.entries
+                .sortedBy { it.value.timestamp }
+                .take(count)
         toRemove.forEach { cache.remove(it.key) }
         if (toRemove.isNotEmpty()) {
             logger.debug("LlmCache eviction: removed ${toRemove.size} oldest entries")

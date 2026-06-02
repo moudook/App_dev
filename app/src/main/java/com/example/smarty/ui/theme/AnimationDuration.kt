@@ -21,8 +21,8 @@ object AnimationDuration {
 
     // Long running (600ms+)
     const val slow = 600
-    const val breath = 640        // Pulsing/breathing
-    const val shimmer = 800       // Loading shimmer
+    const val breath = 640 // Pulsing/breathing
+    const val shimmer = 800 // Loading shimmer
 
     // Infinite animation cycles
     const val shimmerCycle = 1400

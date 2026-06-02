@@ -253,7 +253,9 @@ class RepositoryTest {
 }
 
 // Mock repositories for testing
-class NoteRepository(private val dao: NoteDao) {
+class NoteRepository(
+    private val dao: NoteDao,
+) {
     suspend fun create(note: com.example.smarty.core.domain.model.Note) = dao.insert(note)
 
     suspend fun getById(id: String) = dao.getById(id)
@@ -265,7 +267,9 @@ class NoteRepository(private val dao: NoteDao) {
     suspend fun delete(id: String) = dao.delete(id)
 }
 
-class CalendarRepository(private val dao: CalendarDao) {
+class CalendarRepository(
+    private val dao: CalendarDao,
+) {
     suspend fun create(event: com.example.smarty.core.domain.model.CalendarEvent) = dao.insert(event)
 
     suspend fun getById(id: String) = dao.getById(id)
@@ -280,7 +284,9 @@ class CalendarRepository(private val dao: CalendarDao) {
     suspend fun delete(id: String) = dao.delete(id)
 }
 
-class ChatRepository(private val dao: ChatDao) {
+class ChatRepository(
+    private val dao: ChatDao,
+) {
     suspend fun saveMessage(message: com.example.smarty.core.domain.model.ChatMessage) = dao.insert(message)
 
     suspend fun getMessagesBySession(sessionId: String) = dao.getBySession(sessionId)

@@ -13,8 +13,9 @@ import com.example.smarty.di.ServiceLocator
  * ViewModel for the Dashboard/Home screen.
  * Handles Note and Category operations.
  */
-class DashboardViewModel(application: Application) : AndroidViewModel(application) {
-
+class DashboardViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val noteOperationsManager = ServiceLocator.provideNoteOperationsManager(application)
     private val repository = ServiceLocator.provideRepository(application)
 
@@ -25,7 +26,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     val archivedNotes = noteOperationsManager.getArchivedNotes()
 
     // Note Operations
-    fun addNote(content: String, attachments: List<Attachment> = emptyList()) {
+    fun addNote(
+        content: String,
+        attachments: List<Attachment> = emptyList(),
+    ) {
         noteOperationsManager.addNoteWithAttachments(content, attachments)
     }
 
@@ -49,7 +53,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         noteOperationsManager.unpinNote(noteId)
     }
 
-    fun updateNoteTodos(noteId: String, todos: List<TodoItem>, activeNotes: List<Note>, archivedNotes: List<Note>) {
+    fun updateNoteTodos(
+        noteId: String,
+        todos: List<TodoItem>,
+        activeNotes: List<Note>,
+        archivedNotes: List<Note>,
+    ) {
         noteOperationsManager.updateNoteTodos(noteId, todos, activeNotes, archivedNotes)
     }
 
@@ -59,7 +68,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         newContent: String,
         newSummary: String?,
         newWhySaved: String?,
-        newAttachments: List<NoteAttachment>?
+        newAttachments: List<NoteAttachment>?,
     ) {
         noteOperationsManager.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
     }
@@ -73,7 +82,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         noteOperationsManager.deleteCategory(category)
     }
 
-    fun renameCategory(category: Category, newName: String) {
+    fun renameCategory(
+        category: Category,
+        newName: String,
+    ) {
         noteOperationsManager.renameCategory(category, newName)
     }
 
@@ -86,4 +98,3 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         noteOperationsManager.syncCategoryCounts()
     }
 }
-

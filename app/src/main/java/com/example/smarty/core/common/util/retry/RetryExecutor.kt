@@ -73,14 +73,13 @@ object RetryExecutor {
         maxRetries: Int = 3,
         initialDelayMs: Long = 1000L,
         action: suspend () -> String?,
-    ): String? {
-        return withRetry(
+    ): String? =
+        withRetry(
             maxRetries = maxRetries,
             initialDelayMs = initialDelayMs,
             successCheck = { !it.isNullOrBlank() },
             action = action,
         )
-    }
 
     /**
      * Calculate exponential backoff delay with jitter.

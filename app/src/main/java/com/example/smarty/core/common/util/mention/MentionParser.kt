@@ -382,13 +382,12 @@ object MentionParser {
      * @param query Raw query from mention
      * @return Normalized query for search
      */
-    fun normalizeQuery(query: String): String {
-        return query
+    fun normalizeQuery(query: String): String =
+        query
             .replace('_', ' ')
             .replace(Regex("""\s+"""), " ") // Collapse multiple spaces
             .trim()
             .lowercase()
-    }
 
     /**
      * Calculate similarity score between query and target text.
@@ -482,9 +481,7 @@ object MentionParser {
      * @param query Normalized query
      * @return Matching NoteType or null
      */
-    fun matchTypeFilter(query: String): NoteType? {
-        return TYPE_FILTERS[query.lowercase()]
-    }
+    fun matchTypeFilter(query: String): NoteType? = TYPE_FILTERS[query.lowercase()]
 
     /**
      * Check if a query matches a special filter.
@@ -507,9 +504,7 @@ object MentionParser {
      * @param query Normalized query
      * @return CommandInfo if matched, null otherwise
      */
-    fun matchCommand(query: String): CommandInfo? {
-        return COMMANDS[query.lowercase()]
-    }
+    fun matchCommand(query: String): CommandInfo? = COMMANDS[query.lowercase()]
 
     /**
      * Check if a query starts with any command (for autocomplete).
@@ -546,7 +541,8 @@ object MentionParser {
         }
 
         // Clean up extra whitespace
-        return result.toString()
+        return result
+            .toString()
             .replace(Regex("""\s{2,}"""), " ")
             .trim()
     }
@@ -557,9 +553,7 @@ object MentionParser {
     private fun isWithinRanges(
         position: Int,
         ranges: List<IntRange>,
-    ): Boolean {
-        return ranges.any { position in it }
-    }
+    ): Boolean = ranges.any { position in it }
 
     /**
      * Get display text for a type filter suggestion.
@@ -567,8 +561,8 @@ object MentionParser {
     fun getTypeFilterDisplayName(
         context: android.content.Context,
         type: com.example.smarty.core.domain.model.NoteType,
-    ): String {
-        return when (type) {
+    ): String =
+        when (type) {
             com.example.smarty.core.domain.model.NoteType.AUDIO -> context.getString(com.example.smarty.R.string.mention_type_audios)
             com.example.smarty.core.domain.model.NoteType.DOCUMENT -> context.getString(com.example.smarty.R.string.mention_type_documents)
             com.example.smarty.core.domain.model.NoteType.IMAGE -> context.getString(com.example.smarty.R.string.mention_type_images)
@@ -598,13 +592,12 @@ object MentionParser {
                     com.example.smarty.R.string.mention_type_websites,
                 )
         }
-    }
 
     /**
      * Get the primary keyword for a type filter.
      */
-    fun getTypeFilterKeyword(type: com.example.smarty.core.domain.model.NoteType): String {
-        return when (type) {
+    fun getTypeFilterKeyword(type: com.example.smarty.core.domain.model.NoteType): String =
+        when (type) {
             com.example.smarty.core.domain.model.NoteType.AUDIO -> "audios"
             com.example.smarty.core.domain.model.NoteType.DOCUMENT -> "documents"
             com.example.smarty.core.domain.model.NoteType.IMAGE -> "images"
@@ -622,7 +615,6 @@ object MentionParser {
             com.example.smarty.core.domain.model.NoteType.APK -> "apks"
             com.example.smarty.core.domain.model.NoteType.WEB_CLIPPING -> "web"
         }
-    }
 
     /**
      * Get description for special filters.
@@ -630,12 +622,11 @@ object MentionParser {
     fun getSpecialFilterDescription(
         context: android.content.Context,
         filterName: String,
-    ): String {
-        return when (filterName.lowercase()) {
+    ): String =
+        when (filterName.lowercase()) {
             "recent" -> context.getString(com.example.smarty.R.string.filter_recent_desc)
             "pinned" -> context.getString(com.example.smarty.R.string.filter_pinned_desc)
             "all" -> context.getString(com.example.smarty.R.string.filter_all_desc)
             else -> ""
         }
-    }
 }

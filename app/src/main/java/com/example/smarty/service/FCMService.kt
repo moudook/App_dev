@@ -14,22 +14,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 /**
  * Firebase Cloud Messaging Service
  * Handles push notifications and FCM token management.
- * 
+ *
  * IMPROVEMENTS:
  * - Added TokenManager for FCM token caching (prevents redundant network calls)
  * - Uses singleton Json instance (eliminates per-request allocation)
@@ -38,21 +35,21 @@ import java.util.concurrent.TimeUnit
  * - Added token registration state tracking
  */
 class FCMService : FirebaseMessagingService() {
-
     // OPTIMIZATION: Singleton Json instance - avoids per-request allocation
     companion object {
         private const val TAG = "FCMService"
-        
+
         // OPTIMIZATION: Reusable Json instance with optimized configuration
-        private val jsonFormatter = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = false
-            explicitNulls = false
-        }
-        
+        private val jsonFormatter =
+            Json {
+                ignoreUnknownKeys = true
+                encodeDefaults = false
+                explicitNulls = false
+            }
+
         // OPTIMIZATION: Pre-computed media type
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-        
+
         // Token cache validity period (24 hours)
         private const val TOKEN_CACHE_VALIDITY_MS = 24 * 60 * 60 * 1000L
     }
@@ -75,7 +72,7 @@ class FCMService : FirebaseMessagingService() {
 
         // OPTIMIZATION: Cache token immediately
         cacheToken(token)
-        
+
         // Send the FCM registration token to your app server
         sendRegistrationToServer(token)
     }
@@ -109,7 +106,10 @@ class FCMService : FirebaseMessagingService() {
         // For now, we just log it
     }
 
-    private fun sendNotification(title: String?, messageBody: String?) {
+    private fun sendNotification(
+        title: String?,
+        messageBody: String?,
+    ) {
         val notificationTitle = title ?: "Smarty Notification"
         val notificationBody = messageBody ?: "You have a new message"
 
@@ -135,7 +135,7 @@ class FCMService : FirebaseMessagingService() {
     private fun isCachedTokenValid(): Boolean {
         val timestamp = preferences.getLong("fcm_token_timestamp", -1)
         if (timestamp == -1L) return false
-        
+
         val age = System.currentTimeMillis() - timestamp
         return age < TOKEN_CACHE_VALIDITY_MS
     }
@@ -143,9 +143,7 @@ class FCMService : FirebaseMessagingService() {
     /**
      * OPTIMIZATION: Get cached token without network call.
      */
-    fun getCachedToken(): String? {
-        return preferences.getString("fcm_token", null)
-    }
+    fun getCachedToken(): String? = preferences.getString("fcm_token", null)
 
     /**
      * Send FCM registration token to the backend server.
@@ -185,78 +183,82 @@ class FCMService : FirebaseMessagingService() {
      * @param token FCM registration token
      * @return true if successful, false if server not configured
      */
-    private suspend fun sendTokenToServer(token: String): Boolean = withContext(Dispatchers.IO) {
-        // Get server URL from BuildConfig (configured per build variant)
-        val serverUrl = try {
-            com.example.smarty.BuildConfig.SERVER_URL
-        } catch (e: Exception) {
-            Log.w(TAG, "SERVER_URL not available", e)
-            return@withContext false
-        }
-
-        if (serverUrl.isBlank()) {
-            Log.w(TAG, "Server URL not configured - skipping token registration")
-            return@withContext false
-        }
-
-        // Get user email from SecurePreferences for token association
-        // Note: getEmail requires Context parameter, using application context
-        val userEmail: String? = null  // Email not currently available, can be added later
-        
-        // OPTIMIZATION: Use shared HttpClientProvider instance
-        val client = HttpClientProvider.default
-
-        try {
-            // OPTIMIZATION: Use inline class for request body
-            val requestBody = FcmTokenRequest(
-                fcmToken = token,
-                userEmail = userEmail,
-                deviceId = getDeviceIdentifier(),
-                platform = "android",
-                appVersion = AppConfig.versionName,
-                timestamp = System.currentTimeMillis()
-            )
-
-            // OPTIMIZATION: Use pre-configured Json instance
-            val jsonBody = jsonFormatter.encodeToString(FcmTokenRequest.serializer(), requestBody)
-            
-            val request = okhttp3.Request.Builder()
-                .url("$serverUrl/api/fcm/register")
-                .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-                .build()
-
-            // OPTIMIZATION: Use withTimeout for network call to prevent hanging
-            kotlinx.coroutines.withTimeout(30_000) {
-                val response = client.newCall(request).execute()
-
-                if (response.isSuccessful) {
-                    Log.d(TAG, "Token registered successfully (HTTP ${response.code})")
-                    true
-                } else {
-                    Log.e(TAG, "Server returned error: ${response.code} - ${response.body.string()}")
-                    false
+    private suspend fun sendTokenToServer(token: String): Boolean =
+        withContext(Dispatchers.IO) {
+            // Get server URL from BuildConfig (configured per build variant)
+            val serverUrl =
+                try {
+                    com.example.smarty.BuildConfig.SERVER_URL
+                } catch (e: Exception) {
+                    Log.w(TAG, "SERVER_URL not available", e)
+                    return@withContext false
                 }
+
+            if (serverUrl.isBlank()) {
+                Log.w(TAG, "Server URL not configured - skipping token registration")
+                return@withContext false
             }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            Log.e(TAG, "Token registration timed out", e)
-            false
-        } catch (e: Exception) {
-            Log.e(TAG, "Network error while sending token", e)
-            false
+
+            // Get user email from SecurePreferences for token association
+            // Note: getEmail requires Context parameter, using application context
+            val userEmail: String? = null // Email not currently available, can be added later
+
+            // OPTIMIZATION: Use shared HttpClientProvider instance
+            val client = HttpClientProvider.default
+
+            try {
+                // OPTIMIZATION: Use inline class for request body
+                val requestBody =
+                    FcmTokenRequest(
+                        fcmToken = token,
+                        userEmail = userEmail,
+                        deviceId = getDeviceIdentifier(),
+                        platform = "android",
+                        appVersion = AppConfig.versionName,
+                        timestamp = System.currentTimeMillis(),
+                    )
+
+                // OPTIMIZATION: Use pre-configured Json instance
+                val jsonBody = jsonFormatter.encodeToString(FcmTokenRequest.serializer(), requestBody)
+
+                val request =
+                    okhttp3.Request
+                        .Builder()
+                        .url("$serverUrl/api/fcm/register")
+                        .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                        .build()
+
+                // OPTIMIZATION: Use withTimeout for network call to prevent hanging
+                kotlinx.coroutines.withTimeout(30_000) {
+                    val response = client.newCall(request).execute()
+
+                    if (response.isSuccessful) {
+                        Log.d(TAG, "Token registered successfully (HTTP ${response.code})")
+                        true
+                    } else {
+                        Log.e(TAG, "Server returned error: ${response.code} - ${response.body.string()}")
+                        false
+                    }
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                Log.e(TAG, "Token registration timed out", e)
+                false
+            } catch (e: Exception) {
+                Log.e(TAG, "Network error while sending token", e)
+                false
+            }
         }
-    }
 
     /**
      * Get a unique device identifier.
      * Uses Settings.Secure.ANDROID_ID for a persistent device ID.
      * Renamed from getDeviceId() to avoid conflict with ContextWrapper method.
      */
-    private fun getDeviceIdentifier(): String {
-        return android.provider.Settings.Secure.getString(
+    private fun getDeviceIdentifier(): String =
+        android.provider.Settings.Secure.getString(
             contentResolver,
-            android.provider.Settings.Secure.ANDROID_ID
+            android.provider.Settings.Secure.ANDROID_ID,
         ) ?: "unknown"
-    }
 }
 
 /**
@@ -265,15 +267,24 @@ class FCMService : FirebaseMessagingService() {
  */
 sealed class TokenState {
     object Unknown : TokenState()
-    data class Cached(val token: String) : TokenState()
-    data class Registered(val token: String) : TokenState()
-    data class Failed(val error: String) : TokenState()
+
+    data class Cached(
+        val token: String,
+    ) : TokenState()
+
+    data class Registered(
+        val token: String,
+    ) : TokenState()
+
+    data class Failed(
+        val error: String,
+    ) : TokenState()
 }
 
 /**
  * OPTIMIZATION: Inline class for FCM token registration request.
  * Provides zero-overhead type wrapping for the request data.
- * 
+ *
  * Note: Using data class instead of inline class because:
  * - Inline classes can only wrap a single value
  * - This request has multiple fields that need serialization
@@ -286,7 +297,7 @@ internal data class FcmTokenRequest(
     val deviceId: String,
     val platform: String,
     val appVersion: String,
-    val timestamp: Long
+    val timestamp: Long,
 )
 
 /**
@@ -296,19 +307,20 @@ internal data class FcmTokenRequest(
 internal fun buildFcmTokenRequest(
     token: String,
     userEmail: String?,
-    context: Context
+    context: Context,
 ): FcmTokenRequest {
-    val deviceId = android.provider.Settings.Secure.getString(
-        context.contentResolver,
-        android.provider.Settings.Secure.ANDROID_ID
-    ) ?: "unknown"
-    
+    val deviceId =
+        android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID,
+        ) ?: "unknown"
+
     return FcmTokenRequest(
         fcmToken = token,
         userEmail = userEmail,
         deviceId = deviceId,
         platform = "android",
         appVersion = com.example.smarty.BuildConfig.VERSION_NAME,
-        timestamp = System.currentTimeMillis()
+        timestamp = System.currentTimeMillis(),
     )
 }

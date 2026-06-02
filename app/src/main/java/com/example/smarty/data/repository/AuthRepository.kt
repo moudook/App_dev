@@ -54,55 +54,47 @@ class FirebaseAuthRepository : AuthRepository {
     override suspend fun signIn(
         email: String,
         password: String,
-    ): Result<AuthResult> {
-        return try {
+    ): Result<AuthResult> =
+        try {
             val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 
     override suspend fun signUp(
         email: String,
         password: String,
-    ): Result<AuthResult> {
-        return try {
+    ): Result<AuthResult> =
+        try {
             val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 
-    override suspend fun signInWithGoogleCredential(idToken: String): Result<AuthResult> {
-        return try {
+    override suspend fun signInWithGoogleCredential(idToken: String): Result<AuthResult> =
+        try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = firebaseAuth.signInWithCredential(credential).await()
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 
     override suspend fun signOut() {
         firebaseAuth.signOut()
     }
 
-    override suspend fun resetPassword(email: String): Result<Unit> {
-        return try {
+    override suspend fun resetPassword(email: String): Result<Unit> =
+        try {
             firebaseAuth.sendPasswordResetEmail(email).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 
-    override fun isUserLoggedIn(): Boolean {
-        return firebaseAuth.currentUser != null
-    }
+    override fun isUserLoggedIn(): Boolean = firebaseAuth.currentUser != null
 
-    override fun getCurrentUserUid(): String? {
-        return firebaseAuth.uid
-    }
+    override fun getCurrentUserUid(): String? = firebaseAuth.uid
 }

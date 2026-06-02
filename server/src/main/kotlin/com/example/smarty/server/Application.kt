@@ -39,8 +39,8 @@ import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
-import com.example.smarty.server.routes.configureUserDeviceRoutes
 import com.example.smarty.server.routes.configureTimelineBridgeRoutes
+import com.example.smarty.server.routes.configureUserDeviceRoutes
 import com.example.smarty.server.routes.configureUtilityRoutes
 import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.DigestService
@@ -61,7 +61,6 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.install
 import io.ktor.server.application.log
-
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
 import io.ktor.server.engine.embeddedServer
@@ -264,11 +263,14 @@ fun Application.module() {
     // consults it on every `permission.asked` event from the plugin
     // to decide whether to auto-respond (ALLOW/DENY) or forward to
     // the Android app (DEFAULT).
-    val permissionRepository = com.example.smarty.server.data.PermissionRepository(ds)
-    val toolPermissionEnforcer = com.example.smarty.server.agent.ToolPermissionEnforcer(
-        policy = com.example.smarty.agent.permissions.ToolPermissionPolicy.SMARTY_DEFAULT,
-        repository = permissionRepository,
-    )
+    val permissionRepository =
+        com.example.smarty.server.data
+            .PermissionRepository(ds)
+    val toolPermissionEnforcer =
+        com.example.smarty.server.agent.ToolPermissionEnforcer(
+            policy = com.example.smarty.agent.permissions.ToolPermissionPolicy.SMARTY_DEFAULT,
+            repository = permissionRepository,
+        )
     // Stash on Application attributes so any route / tool can pull it
     // without needing constructor injection.
     attributes.put(
@@ -283,7 +285,8 @@ fun Application.module() {
     // every user-driven approval/denial decision (via the
     // /api/v1/chat/events/approval endpoint → resolveApproval) is
     // recorded in permission_audit_log with actor='user'.
-    com.example.smarty.server.agent.ApprovalRegistry.setRepository(permissionRepository)
+    com.example.smarty.server.agent.ApprovalRegistry
+        .setRepository(permissionRepository)
 
     if (ds != null) {
         val chatMessageNotesRepo = ChatMessageNotesRepository(ds)
@@ -406,13 +409,20 @@ fun Application.module() {
         mcpServer.eventEmitter = { event ->
             log.info("[McpServer] Routing approval event to active session: ${event::class.simpleName}")
             // Route 1: ActiveEventBridge → registered WS emitters keyed by userId
-            val userId = com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()
+            val userId =
+                com.example.smarty.server.agent.ActiveUserRegistry
+                    .getMostRecentActiveUser()
             if (userId != null) {
-                com.example.smarty.server.agent.ActiveEventBridge.emit(userId, event)
+                com.example.smarty.server.agent.ActiveEventBridge
+                    .emit(userId, event)
                 // Route 2: AgentRunManager flow → emitJob in WebSocket handler
-                val sessionId = com.example.smarty.server.agent.ActiveSessionManager.getSessionInfo(userId)?.sessionId
+                val sessionId =
+                    com.example.smarty.server.agent.ActiveSessionManager
+                        .getSessionInfo(userId)
+                        ?.sessionId
                 if (sessionId != null) {
-                    com.example.smarty.server.agent.AgentRunManager.emitEvent(sessionId, event)
+                    com.example.smarty.server.agent.AgentRunManager
+                        .emitEvent(sessionId, event)
                 }
             }
         }
@@ -545,7 +555,8 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopping) {
         log.info("Server stopping — cleaning up resources")
         digestScheduler?.stop()
-        com.example.smarty.server.agent.AgentRunManager.shutdown()
+        com.example.smarty.server.agent.AgentRunManager
+            .shutdown()
         com.example.smarty.server.agent.OpencodeDaemonManager
             .stopMonitoring()
         DatabaseFactory.close()

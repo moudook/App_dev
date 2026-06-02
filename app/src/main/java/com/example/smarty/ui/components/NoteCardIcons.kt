@@ -1,47 +1,39 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-
 import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.automirrored.outlined.StickyNote2
-import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Work
-import androidx.compose.material.icons.filled.VideogameAsset
-import androidx.compose.material.icons.filled.Gavel
-import androidx.compose.material.icons.filled.FolderSpecial
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.AttachFile
@@ -56,10 +48,10 @@ import androidx.compose.material.icons.outlined.Slideshow
 import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.Videocam
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
@@ -87,7 +79,6 @@ import com.example.smarty.ui.theme.SmartyIcons
  * @see NoteType for the list of supported note types
  */
 object NoteCardIcons {
-
     // ==================== Icon Mappings ====================
 
     /**
@@ -112,21 +103,21 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.Outlined.Description,      // BRAIN_DUMP - Standard note
+            Icons.Outlined.Description, // BRAIN_DUMP - Standard note
             Icons.Outlined.PlayCircleOutline, // YOUTUBE
-            Icons.Outlined.Language,         // WEBSITE - Standard web
-            Icons.Outlined.Image,            // IMAGE
-            Icons.Outlined.Tag,              // TWITTER
-            Icons.Outlined.PhotoCamera,      // INSTAGRAM
-            Icons.AutoMirrored.Outlined.Article,          // DOCUMENT
-            Icons.Outlined.TableChart,       // SPREADSHEET
-            Icons.Outlined.Slideshow,        // PRESENTATION
-            Icons.Outlined.Videocam,         // VIDEO
-            Icons.Outlined.Audiotrack,       // AUDIO
-            Icons.Outlined.Code,             // CODE
-            Icons.Outlined.Archive,          // ARCHIVE
-            Icons.Outlined.Android,          // APK
-            Icons.Outlined.AttachFile        // FILE
+            Icons.Outlined.Language, // WEBSITE - Standard web
+            Icons.Outlined.Image, // IMAGE
+            Icons.Outlined.Tag, // TWITTER
+            Icons.Outlined.PhotoCamera, // INSTAGRAM
+            Icons.AutoMirrored.Outlined.Article, // DOCUMENT
+            Icons.Outlined.TableChart, // SPREADSHEET
+            Icons.Outlined.Slideshow, // PRESENTATION
+            Icons.Outlined.Videocam, // VIDEO
+            Icons.Outlined.Audiotrack, // AUDIO
+            Icons.Outlined.Code, // CODE
+            Icons.Outlined.Archive, // ARCHIVE
+            Icons.Outlined.Android, // APK
+            Icons.Outlined.AttachFile, // FILE
         )
     }
 
@@ -173,7 +164,7 @@ object NoteCardIcons {
             Color(0xFF007AFF), // CODE - Blue (technical content)
             Color(0xFF8E8E93), // ARCHIVE - Gray (neutral storage)
             Color(0xFF8E8E93), // APK - Gray (neutral app)
-            Color(0xFF8E8E93)  // FILE - Gray (general file)
+            Color(0xFF8E8E93), // FILE - Gray (general file)
         )
     }
 
@@ -220,7 +211,7 @@ object NoteCardIcons {
             "play" to Icons.Default.VideogameAsset,
             "note" to Icons.Default.Description,
             "legal" to Icons.Default.Gavel,
-            "private_notes" to Icons.Default.Lock
+            "private_notes" to Icons.Default.Lock,
         )
     }
 
@@ -262,7 +253,6 @@ object NoteCardIcons {
         val VisibilityOff = SmartyIcons.VisibilityOff
     }
 
-
     // ==================== Status Colors ====================
 
     /**
@@ -272,10 +262,13 @@ object NoteCardIcons {
     object StatusColors {
         @Composable
         fun getProcessingColor() = LocalAccentColor.current
+
         @Composable
         fun getErrorColor() = MaterialTheme.colorScheme.error
+
         @Composable
         fun getSuccessColor() = MaterialTheme.colorScheme.tertiary
+
         @Composable
         fun getPendingColor() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     }
@@ -300,4 +293,3 @@ fun getNoteTypeIcon(type: NoteType): ImageVector = NoteCardIcons.getIcon(type)
  * @return Semantic color for the note type
  */
 fun getNoteTypeColor(type: NoteType): Color = NoteCardIcons.getColor(type)
-

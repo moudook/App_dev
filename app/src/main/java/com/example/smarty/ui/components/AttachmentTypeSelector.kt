@@ -7,7 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,8 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,14 +31,14 @@ import com.example.smarty.ui.theme.softCardShadow
  */
 enum class AttachmentOption(
     val labelResId: Int,
-    val icon: ImageVector
+    val icon: ImageVector,
 ) {
     IMAGE(R.string.photo, Icons.Default.Image),
     VIDEO(R.string.video, Icons.Default.Videocam),
     DOCUMENT(R.string.document, Icons.Default.Description),
     AUDIO(R.string.audio_label, Icons.Default.Audiotrack),
     FILE(R.string.file, Icons.Default.AttachFile),
-    LINK(R.string.link, Icons.Default.Link)
+    LINK(R.string.link, Icons.Default.Link),
 }
 
 /**
@@ -55,11 +54,14 @@ fun AttachmentTypeSelector(
     onSelectAudio: () -> Unit,
     onSelectFile: () -> Unit,
     onSelectLink: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
 
     // Soft minimalist colors
     val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
@@ -69,60 +71,63 @@ fun AttachmentTypeSelector(
         visible = visible,
         enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
         exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-        modifier = modifier
+        modifier = modifier,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Surface(
                 shape = CircleShape,
                 color = backgroundColor,
                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-                modifier = Modifier.softCardShadow(
-                    elevation = 8.dp,
-                    shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.1f)
-                )
+                modifier =
+                    Modifier.softCardShadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        spotColor = Color.Black.copy(alpha = 0.1f),
+                    ),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), // Reduced padding for compactness
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
 
                         Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    when (option) {
-                                         AttachmentOption.IMAGE -> onSelectImage()
-                                         AttachmentOption.VIDEO -> onSelectVideo()
-                                         AttachmentOption.DOCUMENT -> onSelectDocument()
-                                         AttachmentOption.AUDIO -> onSelectAudio()
-                                         AttachmentOption.FILE -> onSelectFile()
-                                         AttachmentOption.LINK -> onSelectLink()
-                                    }
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp) // Reduced padding
+                            modifier =
+                                Modifier
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        when (option) {
+                                            AttachmentOption.IMAGE -> onSelectImage()
+                                            AttachmentOption.VIDEO -> onSelectVideo()
+                                            AttachmentOption.DOCUMENT -> onSelectDocument()
+                                            AttachmentOption.AUDIO -> onSelectAudio()
+                                            AttachmentOption.FILE -> onSelectFile()
+                                            AttachmentOption.LINK -> onSelectLink()
+                                        }
+                                    }.padding(horizontal = 10.dp, vertical = 6.dp), // Reduced padding
                         ) {
                             Text(
                                 text = stringResource(option.labelResId),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
 
                         if (index < AttachmentOption.entries.lastIndex) {
                             // Separator
                             Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(12.dp) // Slightly shorter separator
-                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                                modifier =
+                                    Modifier
+                                        .width(1.dp)
+                                        .height(12.dp) // Slightly shorter separator
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
                             )
                         }
                     }
@@ -142,11 +147,14 @@ fun SearchFilterTypeSelector(
     selectedFilters: Set<AttachmentOption>,
     onFilterToggle: (AttachmentOption) -> Unit,
     onClearFilters: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
 
     // Soft minimalist colors
     val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
@@ -155,51 +163,53 @@ fun SearchFilterTypeSelector(
     // Only visible if passed true
     if (visible) {
         Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            contentAlignment = Alignment.Center
+            modifier =
+                modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Surface(
                 shape = CircleShape,
                 color = backgroundColor,
                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-                modifier = Modifier.softCardShadow(
-                    elevation = 8.dp,
-                    shape = CircleShape,
-                    spotColor = Color.Black.copy(alpha = 0.1f)
-                )
+                modifier =
+                    Modifier.softCardShadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        spotColor = Color.Black.copy(alpha = 0.1f),
+                    ),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), // Reduced padding
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
                         val isSelected = option in selectedFilters
 
                         val itemBgColor by animateColorAsState(
                             if (isSelected) accentColor else Color.Transparent,
-                            label = "bg"
+                            label = "bg",
                         )
                         val itemContentColor by animateColorAsState(
                             if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                            label = "txt"
+                            label = "txt",
                         )
 
                         Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(itemBgColor)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onFilterToggle(option)
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp) // Reduced padding
+                            modifier =
+                                Modifier
+                                    .clip(CircleShape)
+                                    .background(itemBgColor)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onFilterToggle(option)
+                                    }.padding(horizontal = 10.dp, vertical = 6.dp), // Reduced padding
                         ) {
                             Text(
                                 text = stringResource(option.labelResId),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                                color = itemContentColor
+                                color = itemContentColor,
                             )
                         }
 
@@ -208,10 +218,11 @@ fun SearchFilterTypeSelector(
                             val nextSelected = AttachmentOption.entries[index + 1] in selectedFilters
                             if (!isSelected && !nextSelected) {
                                 Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(12.dp) // Slightly shorter separator
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                                    modifier =
+                                        Modifier
+                                            .width(1.dp)
+                                            .height(12.dp) // Slightly shorter separator
+                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
                                 )
                             } else {
                                 Spacer(Modifier.width(1.dp)) // Maintain spacing logic

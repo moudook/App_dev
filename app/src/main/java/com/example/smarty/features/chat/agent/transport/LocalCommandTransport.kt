@@ -24,8 +24,8 @@ class LocalCommandTransport(
     private val executor: ClientCommandExecutor,
     private val scope: CoroutineScope,
 ) : CommandTransport {
-    override suspend fun dispatch(command: AgentCommand): ClientEvent? {
-        return try {
+    override suspend fun dispatch(command: AgentCommand): ClientEvent? =
+        try {
             when (command) {
                 // === DATA RETRIEVAL (Specialized Responses) ===
                 is AgentCommand.GetActiveNotes -> {
@@ -107,10 +107,9 @@ class LocalCommandTransport(
                 timestamp = System.currentTimeMillis(),
             )
         }
-    }
 
-    private suspend fun executeAction(command: AgentCommand): String? {
-        return when (command) {
+    private suspend fun executeAction(command: AgentCommand): String? =
+        when (command) {
             // === NOTE OPERATIONS ===
             is AgentCommand.AddNote -> {
                 executor.addNote(command.content, command.category)
@@ -243,5 +242,4 @@ class LocalCommandTransport(
             // === UI NOTIFICATIONS ===
             else -> null
         }
-    }
 }

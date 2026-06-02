@@ -5,10 +5,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 
-class MemoryViewModel(application: Application) : AndroidViewModel(application) {
+class MemoryViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     // Managers from ServiceLocator to ensure singleton state across ViewModels
-    private val memorySyncManager = com.example.smarty.di.ServiceLocator.provideMemorySyncManager(application)
-    val memoryFeatureManager = com.example.smarty.di.ServiceLocator.provideMemoryFeatureManager(application)
+    private val memorySyncManager =
+        com.example.smarty.di.ServiceLocator
+            .provideMemorySyncManager(application)
+    val memoryFeatureManager =
+        com.example.smarty.di.ServiceLocator
+            .provideMemoryFeatureManager(application)
 
     // Use Cases
     private val syncMemoriesUseCase = SyncMemoriesUseCase(memorySyncManager)

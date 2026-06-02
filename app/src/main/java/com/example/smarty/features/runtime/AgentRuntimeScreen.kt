@@ -16,9 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.ui.components.timeline.*
 
 @Composable
-fun AgentRuntimeScreen(
-    viewModel: AgentRuntimeViewModel = viewModel()
-) {
+fun AgentRuntimeScreen(viewModel: AgentRuntimeViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
     // Auto-connect the live stream when the screen enters composition
@@ -45,11 +43,11 @@ fun AgentRuntimeScreen(
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(
                 items = uiState.timelineNodes,
-                key = { it.id }
+                key = { it.id },
             ) { node ->
                 RuntimeTimelineNodeItem(node = node, viewModel = viewModel)
             }
@@ -65,21 +63,26 @@ fun AgentRuntimeScreen(
 }
 
 @Composable
-private fun RuntimeTimelineNodeItem(node: TimelineNode, viewModel: AgentRuntimeViewModel) {
+private fun RuntimeTimelineNodeItem(
+    node: TimelineNode,
+    viewModel: AgentRuntimeViewModel,
+) {
     when (node) {
         is TimelineNode.ToolExecution -> ToolCallCard(node = node)
-        is TimelineNode.ApprovalGate -> ApprovalCard(
-            node = node,
-            onGrant = { viewModel.sendApproval(node.toolId, true) },
-            onDeny = { viewModel.sendApproval(node.toolId, false) },
-            onTextSubmit = { text -> viewModel.sendApproval(node.toolId, true, text) },
-        )
+        is TimelineNode.ApprovalGate ->
+            ApprovalCard(
+                node = node,
+                onGrant = { viewModel.sendApproval(node.toolId, true) },
+                onDeny = { viewModel.sendApproval(node.toolId, false) },
+                onTextSubmit = { text -> viewModel.sendApproval(node.toolId, true, text) },
+            )
         is TimelineNode.ErrorNode -> ErrorCard(node = node)
         is TimelineNode.RecoveryNode -> RecoveryCard(node = node)
         is TimelineNode.SystemActivity -> SystemActivityCard(node = node)
-        is TimelineNode.SubagentGroup -> SubagentGroupCard(
-            node = node,
-            nodeRenderer = { childNode -> RuntimeTimelineNodeItem(node = childNode, viewModel = viewModel) }
-        )
+        is TimelineNode.SubagentGroup ->
+            SubagentGroupCard(
+                node = node,
+                nodeRenderer = { childNode -> RuntimeTimelineNodeItem(node = childNode, viewModel = viewModel) },
+            )
     }
 }

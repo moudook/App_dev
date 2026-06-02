@@ -21,9 +21,7 @@ class GetNotesWithTagsUseCase
     constructor(
         private val repository: SmartRepository,
     ) {
-        operator fun invoke(userId: String): Flow<List<NoteWithTags>> {
-            return repository.getNotesWithTagsForAi(userId)
-        }
+        operator fun invoke(userId: String): Flow<List<NoteWithTags>> = repository.getNotesWithTagsForAi(userId)
     }
 
 class CreateNoteWithAutoTaggingUseCase
@@ -34,9 +32,7 @@ class CreateNoteWithAutoTaggingUseCase
         suspend operator fun invoke(
             note: Note,
             userId: String,
-        ): Note {
-            return repository.createNoteWithAutoTagging(note, userId)
-        }
+        ): Note = repository.createNoteWithAutoTagging(note, userId)
     }
 
 class FindRelatedNotesUseCase
@@ -47,9 +43,7 @@ class FindRelatedNotesUseCase
         suspend operator fun invoke(
             noteId: String,
             limit: Int = 10,
-        ): List<Note> {
-            return repository.findRelatedNotes(noteId, limit)
-        }
+        ): List<Note> = repository.findRelatedNotes(noteId, limit)
     }
 
 class UpdateNoteWithVersionUseCase
@@ -78,9 +72,7 @@ class GetOrCreateTagUseCase
             userId: String,
             name: String,
             type: TagEntity.TagType = TagEntity.TagType.MANUAL,
-        ): TagEntity {
-            return repository.getOrCreateTag(userId, name, type)
-        }
+        ): TagEntity = repository.getOrCreateTag(userId, name, type)
     }
 
 class AssignTagToNoteUseCase
@@ -113,9 +105,7 @@ class CreateTaskFromNoteUseCase
             userId: String,
             title: String,
             dueDate: Long? = null,
-        ): TaskEntity {
-            return repository.createTaskFromNote(noteId, userId, title, dueDate)
-        }
+        ): TaskEntity = repository.createTaskFromNote(noteId, userId, title, dueDate)
     }
 
 class CompleteTaskUseCase
@@ -151,12 +141,19 @@ class RecordReasoningStepUseCase
             inputData: String? = null,
             outputData: String? = null,
             confidenceScore: Double = 0.5,
-        ): ReasoningTraceEntity {
-            return repository.recordReasoningStep(
-                sessionId, userId, stepType, title, content,
-                entityType, entityId, inputData, outputData, confidenceScore,
+        ): ReasoningTraceEntity =
+            repository.recordReasoningStep(
+                sessionId,
+                userId,
+                stepType,
+                title,
+                content,
+                entityType,
+                entityId,
+                inputData,
+                outputData,
+                confidenceScore,
             )
-        }
     }
 
 class CreateReasoningSummaryUseCase
@@ -171,8 +168,8 @@ class CreateReasoningSummaryUseCase
             briefSummary: String,
             detailedSummary: String,
             reasoningType: String,
-        ): ReasoningSummaryEntity {
-            return repository.createReasoningSummary(
+        ): ReasoningSummaryEntity =
+            repository.createReasoningSummary(
                 sessionId,
                 userId,
                 oneLiner,
@@ -180,7 +177,6 @@ class CreateReasoningSummaryUseCase
                 detailedSummary,
                 reasoningType,
             )
-        }
     }
 
 class SaveAgentCheckpointUseCase
@@ -196,8 +192,8 @@ class SaveAgentCheckpointUseCase
             memoryJson: String? = null,
             workflowId: String? = null,
             checkpointType: AgentCheckpointEntity.CheckpointType = AgentCheckpointEntity.CheckpointType.AUTO,
-        ): AgentCheckpointEntity {
-            return repository.saveAgentCheckpoint(
+        ): AgentCheckpointEntity =
+            repository.saveAgentCheckpoint(
                 sessionId,
                 userId,
                 stateJson,
@@ -206,7 +202,6 @@ class SaveAgentCheckpointUseCase
                 workflowId,
                 checkpointType,
             )
-        }
     }
 
 // ============================================================
@@ -223,9 +218,7 @@ class RecordSearchUseCase
             query: String,
             searchScope: String = "all",
             aiEnhanced: Boolean = false,
-        ): SearchHistoryEntity {
-            return repository.recordSearch(userId, query, searchScope, aiEnhanced)
-        }
+        ): SearchHistoryEntity = repository.recordSearch(userId, query, searchScope, aiEnhanced)
     }
 
 class UnifiedSearchUseCase
@@ -237,9 +230,7 @@ class UnifiedSearchUseCase
             userId: String,
             query: String,
             includePrivate: Boolean = false,
-        ): SmartRepository.UnifiedSearchResults {
-            return repository.unifiedSearch(userId, query, includePrivate)
-        }
+        ): SmartRepository.UnifiedSearchResults = repository.unifiedSearch(userId, query, includePrivate)
     }
 
 // ============================================================
@@ -258,9 +249,7 @@ class ShareItemUseCase
             sharedWithId: String? = null,
             permission: SharedItemEntity.Permission = SharedItemEntity.Permission.VIEW,
             expiresAt: Long? = null,
-        ): SharedItemEntity {
-            return repository.shareItem(ownerId, itemType, itemId, sharedWithId, permission, expiresAt)
-        }
+        ): SharedItemEntity = repository.shareItem(ownerId, itemType, itemId, sharedWithId, permission, expiresAt)
     }
 
 // ============================================================
@@ -275,9 +264,7 @@ class GenerateDailyDigestUseCase
         suspend operator fun invoke(
             userId: String,
             date: Long,
-        ): DailyDigestEntity {
-            return repository.generateDailyDigest(userId, date)
-        }
+        ): DailyDigestEntity = repository.generateDailyDigest(userId, date)
     }
 
 // ============================================================
@@ -318,9 +305,7 @@ class GetOrCreateUserUseCase
             firebaseUid: String,
             email: String?,
             displayName: String?,
-        ): UserEntity {
-            return repository.getOrCreateUser(firebaseUid, email, displayName)
-        }
+        ): UserEntity = repository.getOrCreateUser(firebaseUid, email, displayName)
     }
 
 class GetUserWithSyncStateUseCase
@@ -328,9 +313,7 @@ class GetUserWithSyncStateUseCase
     constructor(
         private val repository: SmartRepository,
     ) {
-        suspend operator fun invoke(userId: String): SmartRepository.UserWithSyncState? {
-            return repository.getUserWithSyncState(userId)
-        }
+        suspend operator fun invoke(userId: String): SmartRepository.UserWithSyncState? = repository.getUserWithSyncState(userId)
     }
 
 // ============================================================

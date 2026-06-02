@@ -1,39 +1,85 @@
 package com.example.smarty.ui.components.markdown
 
 sealed class MarkdownNode {
-    data class Header(val level: Int, val text: String) : MarkdownNode()
-    data class Paragraph(val text: String) : MarkdownNode()
-    data class CodeBlock(val language: String, val code: String) : MarkdownNode()
-    data class Blockquote(val text: String) : MarkdownNode()
+    data class Header(
+        val level: Int,
+        val text: String,
+    ) : MarkdownNode()
+
+    data class Paragraph(
+        val text: String,
+    ) : MarkdownNode()
+
+    data class CodeBlock(
+        val language: String,
+        val code: String,
+    ) : MarkdownNode()
+
+    data class Blockquote(
+        val text: String,
+    ) : MarkdownNode()
+
     data object HorizontalRule : MarkdownNode()
-    data class Table(val rows: List<String>) : MarkdownNode()
-    data class TaskList(val tasks: List<Pair<Boolean, String>>) : MarkdownNode()
-    data class BulletItem(val text: String) : MarkdownNode()
-    data class NumberedItem(val prefix: String, val text: String) : MarkdownNode()
-    data class LatexBlock(val math: String) : MarkdownNode()
-    data class AccordionGroup(val sections: List<AccordionItemData>) : MarkdownNode()
+
+    data class Table(
+        val rows: List<String>,
+    ) : MarkdownNode()
+
+    data class TaskList(
+        val tasks: List<Pair<Boolean, String>>,
+    ) : MarkdownNode()
+
+    data class BulletItem(
+        val text: String,
+    ) : MarkdownNode()
+
+    data class NumberedItem(
+        val prefix: String,
+        val text: String,
+    ) : MarkdownNode()
+
+    data class LatexBlock(
+        val math: String,
+    ) : MarkdownNode()
+
+    data class AccordionGroup(
+        val sections: List<AccordionItemData>,
+    ) : MarkdownNode()
 }
 
-data class AccordionItemData(val title: String, val content: String)
+data class AccordionItemData(
+    val title: String,
+    val content: String,
+)
 
 object MarkdownAstParser {
-    private val cache = object : android.util.LruCache<String, List<MarkdownNode>>(16) {
-        override fun sizeOf(key: String, value: List<MarkdownNode>) = 1
-    }
+    private val cache =
+        object : android.util.LruCache<String, List<MarkdownNode>>(16) {
+            override fun sizeOf(
+                key: String,
+                value: List<MarkdownNode>,
+            ) = 1
+        }
 
     private val taskUnchecked = Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")
     private val taskChecked = Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")
     private val taskItem = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
     private val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
 
-    fun parse(content: String, skipAccordions: Boolean = false): List<MarkdownNode> {
+    fun parse(
+        content: String,
+        skipAccordions: Boolean = false,
+    ): List<MarkdownNode> {
         val key = if (skipAccordions) "\$skip\$$content" else content
         return cache.get(key) ?: parseInternal(content, skipAccordions).also {
             cache.put(key, it)
         }
     }
 
-    private fun parseInternal(content: String, skipAccordions: Boolean = false): List<MarkdownNode> {
+    private fun parseInternal(
+        content: String,
+        skipAccordions: Boolean = false,
+    ): List<MarkdownNode> {
         val lines = content.lines()
         val nodes = mutableListOf<MarkdownNode>()
         var i = 0
@@ -77,7 +123,7 @@ object MarkdownAstParser {
                 val mathLines = mutableListOf<String>()
                 val startTag = if (trimStart.startsWith("$$")) "$$" else "\\["
                 val endTag = if (trimStart.startsWith("$$")) "$$" else "\\]"
-                
+
                 var inlineClosed = false
                 val firstLineMath = trimStart.removePrefix(startTag).trim()
                 if (firstLineMath.endsWith(endTag)) {
@@ -86,7 +132,7 @@ object MarkdownAstParser {
                 } else if (firstLineMath.isNotEmpty()) {
                     mathLines.add(firstLineMath)
                 }
-                
+
                 i++
                 if (!inlineClosed) {
                     while (i < lines.size) {
@@ -106,28 +152,39 @@ object MarkdownAstParser {
             }
 
             // 2.5 Handle Accordion Group (skip if depth exceeded to prevent recursive composition)
-            if (!skipAccordions && trimStart.trimEnd().startsWith("[[[") && trimStart.trimEnd().endsWith("]]]") && !trimStart.trimEnd().startsWith("[[[/") && trimStart.trimEnd() != "[[[]]]") {
+            if (!skipAccordions &&
+                trimStart.trimEnd().startsWith("[[[") &&
+                trimStart.trimEnd().endsWith("]]]") &&
+                !trimStart.trimEnd().startsWith("[[[/") &&
+                trimStart.trimEnd() != "[[[]]]"
+            ) {
                 val sections = mutableListOf<AccordionItemData>()
-                
+
                 while (i < lines.size) {
                     val line = lines[i]
                     val lineTrim = line.trim()
-                    
+
                     if (lineTrim.startsWith("[[[") && lineTrim.endsWith("]]]") && !lineTrim.startsWith("[[[/") && lineTrim != "[[[]]]") {
                         val rawTitle = lineTrim.removePrefix("[[[").removeSuffix("]]]").trim()
                         val title = stripQuotes(rawTitle)
                         val headerBracketCount = countBrackets(lineTrim)
                         val accordionContentLines = mutableListOf<String>()
                         i++
-                        
+
                         var depth = 1
                         var maxLines = 200
                         while (i < lines.size && maxLines > 0) {
                             maxLines--
                             val nextLine = lines[i]
                             val nextTrim = nextLine.trim()
-                            
-                            if (nextTrim.startsWith("[[[") && nextTrim.endsWith("]]]") && !nextTrim.startsWith("[[[/") && nextTrim != "[[[]]]") {
+
+                            if (nextTrim.startsWith(
+                                    "[[[",
+                                ) &&
+                                nextTrim.endsWith("]]]") &&
+                                !nextTrim.startsWith("[[[/") &&
+                                nextTrim != "[[[]]]"
+                            ) {
                                 val nextBracketCount = countBrackets(nextTrim)
                                 if (nextBracketCount > headerBracketCount) {
                                     depth++
@@ -144,7 +201,7 @@ object MarkdownAstParser {
                             accordionContentLines.add(nextLine)
                             i++
                         }
-                        
+
                         sections.add(AccordionItemData(title, accordionContentLines.joinToString("\n").trim()))
                     } else if (lineTrim.isEmpty()) {
                         i++
@@ -259,15 +316,15 @@ object MarkdownAstParser {
             // 10. Handle Paragraphs (Default)
             val paragraphLines = mutableListOf<String>()
             var insideInlineMath = trimStart.contains("$$") && !trimStart.substringAfter("$$").contains("$$")
-            
+
             while (i < lines.size) {
                 val tLine = lines[i].trimStart()
                 if (tLine.isEmpty()) break
-                
+
                 if (!insideInlineMath && isBlockBreak(tLine)) break
-                
+
                 paragraphLines.add(tLine)
-                
+
                 if (tLine.contains("$$")) {
                     val count = tLine.windowed(2).count { it == "$$" }
                     if (count % 2 != 0) insideInlineMath = !insideInlineMath
@@ -306,7 +363,8 @@ object MarkdownAstParser {
         var result = s
         if ((result.startsWith("\"") && result.endsWith("\"")) ||
             (result.startsWith("'") && result.endsWith("'")) ||
-            (result.startsWith("`") && result.endsWith("`"))) {
+            (result.startsWith("`") && result.endsWith("`"))
+        ) {
             result = result.substring(1, result.length - 1)
         }
         return result.trim()

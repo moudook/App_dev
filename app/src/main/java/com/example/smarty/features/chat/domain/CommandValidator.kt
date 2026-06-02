@@ -20,7 +20,10 @@ object CommandValidator {
     sealed class Result {
         object Valid : Result()
 
-        data class Invalid(val reason: String, val field: String? = null) : Result() {
+        data class Invalid(
+            val reason: String,
+            val field: String? = null,
+        ) : Result() {
             fun toLogString(): String = if (field != null) "$field: $reason" else reason
         }
     }

@@ -7,11 +7,16 @@ sealed class PDFChunkedResult {
         val chunks: List<DocumentChunk>,
         val fullText: String,
         val totalPages: Int,
-        val totalCharacters: Int
+        val totalCharacters: Int,
     ) : PDFChunkedResult() {
         fun getCombinedText(): String = fullText
     }
 
-    data class Empty(val message: String) : PDFChunkedResult()
-    data class Error(val message: String) : PDFChunkedResult()
+    data class Empty(
+        val message: String,
+    ) : PDFChunkedResult()
+
+    data class Error(
+        val message: String,
+    ) : PDFChunkedResult()
 }

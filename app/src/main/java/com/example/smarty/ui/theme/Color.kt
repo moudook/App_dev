@@ -14,8 +14,8 @@ import androidx.compose.ui.graphics.Color
 // MODERN SOFT MINIMALIST - LIGHT THEME (Comfort Edition)
 // =============================================================================
 val SoftBackground = Color(0xFFF5F3F0) // Warm stone canvas — cards pop against this
-val CardWhite = Color(0xFFFFFFFF)       // Pure White cards
-val ElectricBlue = Color(0xFF0066FF)    // Primary Accent (Brand)
+val CardWhite = Color(0xFFFFFFFF) // Pure White cards
+val ElectricBlue = Color(0xFF0066FF) // Primary Accent (Brand)
 val PaleBlueGrey = Color(0xFFEBEFF5) // Secondary Accent - cool tint
 val TextNearBlack = Color(0xFF1A1A1C) // Text Primary - softer black
 val TextCoolGrey = Color(0xFF58585E) // Text Secondary
@@ -26,11 +26,11 @@ val SmartyChipGrayLight = Color(0xFFEDEDED)
 val SmartyChipSeparatorLight = Color(0xFFFFFFFF)
 
 // Pink Theme Tokens — Deep magenta/ruby for maximum contrast against white
-val PinkAccent = Color(0xFFA3004C)  // Dark ruby pink — extremely high contrast
-val PinkLight = Color(0xFFF9E6EE)   // Soft pale pink background
+val PinkAccent = Color(0xFFA3004C) // Dark ruby pink — extremely high contrast
+val PinkLight = Color(0xFFF9E6EE) // Soft pale pink background
 val PinkMedium = Color(0xFFA3004C).copy(alpha = 0.12f)
-val PinkDark = Color(0xFF7A0039)    // Even darker for pressed states
-val PinkText = Color(0xFF1A1A1C)    // Body text stays near-black (not pink)
+val PinkDark = Color(0xFF7A0039) // Even darker for pressed states
+val PinkText = Color(0xFF1A1A1C) // Body text stays near-black (not pink)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
@@ -130,28 +130,29 @@ val DeepResearchPurple = Color(0xFF7C4DFF)
  * Optimized for the Calm Aesthetic.
  */
 object AssistantColors {
- val Red = Color(0xFFEF9A9A) // Soft Red
- val Yellow = Color(0xFFFFE082) // Soft Yellow
- val Green = Color(0xFFA5D6A7) // Soft Green
- val Blue = Color(0xFF90CAF9) // Soft Blue
+    val Red = Color(0xFFEF9A9A) // Soft Red
+    val Yellow = Color(0xFFFFE082) // Soft Yellow
+    val Green = Color(0xFFA5D6A7) // Soft Green
+    val Blue = Color(0xFF90CAF9) // Soft Blue
 
- /** Four-color gradient for glow animation */
- val glowColors = listOf(Red, Yellow, Green, Blue)
+    /** Four-color gradient for glow animation */
+    val glowColors = listOf(Red, Yellow, Green, Blue)
 
- /** Dominant color after initial glow animation */
- val dominantBlue = Blue
+    /** Dominant color after initial glow animation */
+    val dominantBlue = Blue
 
- // Surface colors (Material 3 style)
- val SurfaceLight = Color(0xFFFEFBFF)
- val SurfaceDark = Color(0xFF121212) // True black for dark mode
- val SurfaceContainer = Color(0xFFF3EDF7)
- val SurfaceContainerDark = Color(0xFF1D1B20)
+    // Surface colors (Material 3 style)
+    val SurfaceLight = Color(0xFFFEFBFF)
+    val SurfaceDark = Color(0xFF121212) // True black for dark mode
+    val SurfaceContainer = Color(0xFFF3EDF7)
+    val SurfaceContainerDark = Color(0xFF1D1B20)
 }
 
 // =============================================================================
 // SEMANTIC COLORS — Status / Meaning-bearing tokens
 // (Merged from SemanticColors.kt — import from this file going forward)
 // =============================================================================
+
 /**
  * Semantic color tokens — iOS-style semantic colors.
  * These are theme-independent (same in light/dark) because they convey
@@ -163,55 +164,57 @@ object AssistantColors {
  * Icon(tint = SemanticColors.success)
  */
 object SemanticColors {
- // Status Colors 
- /** Success / Active / Positive (iOS Green) */
- val success = Color(0xFF34C759)
- /** Error / Destructive / Danger (iOS Red) */
- val error = Color(0xFFFF3B30)
- /** Info / Interactive / Link (iOS Blue) */
- val info = Color(0xFF007AFF)
- /** Warning / Caution (iOS Yellow/Amber) */
- val warning = Color(0xFFEAB308)
+    // Status Colors
+    /** Success / Active / Positive (iOS Green) */
+    val success = Color(0xFF34C759)
 
- // Content Type Colors 
- /** Neutral / General file / Media (System Gray) */
- val neutral = Color(0xFF8E8E93)
+    /** Error / Destructive / Danger (iOS Red) */
+    val error = Color(0xFFFF3B30)
 
+    /** Info / Interactive / Link (iOS Blue) */
+    val info = Color(0xFF007AFF)
 
- // Bubble Colors 
- /** User bubble background — inverted: light on dark, dark on light */
- val userBubbleLight = Color(0xFFF5F5F5)
- val userBubbleDark = Color(0xFF1A1A1A)
+    /** Warning / Caution (iOS Yellow/Amber) */
+    val warning = Color(0xFFEAB308)
+
+    // Content Type Colors
+    /** Neutral / General file / Media (System Gray) */
+    val neutral = Color(0xFF8E8E93)
+
+    // Bubble Colors
+    /** User bubble background — inverted: light on dark, dark on light */
+    val userBubbleLight = Color(0xFFF5F5F5)
+    val userBubbleDark = Color(0xFF1A1A1A)
 }
 
 /**
  * Component-specific color roles for consistent application-wide styling.
  */
 object ComponentColors {
- /**
- * Technical Surface (Glassy feel) Background.
- * Used in overlays and floating panels.
- * OPAQUE - No transparency for solid background
- */
- val technicalSurfaceLight = Color(0xFF1A1C1E) // Opaque dark
- val technicalSurfaceDark = Color(0xFF050E1E) // Opaque darker blue
+    /**
+     * Technical Surface (Glassy feel) Background.
+     * Used in overlays and floating panels.
+     * OPAQUE - No transparency for solid background
+     */
+    val technicalSurfaceLight = Color(0xFF1A1C1E) // Opaque dark
+    val technicalSurfaceDark = Color(0xFF050E1E) // Opaque darker blue
 
- /** Breath instruction/skipped button color */
- val breathingAccent = Color(0xFF4FACFE)
+    /** Breath instruction/skipped button color */
+    val breathingAccent = Color(0xFF4FACFE)
 
- /** AI/Assistant Accent Colors (HAL aesthetic) */
- val assistantPurple = Color(0xFFB39DDB)
- val assistantCyan = Color(0xFF00F2FE)
+    /** AI/Assistant Accent Colors (HAL aesthetic) */
+    val assistantPurple = Color(0xFFB39DDB)
+    val assistantCyan = Color(0xFF00F2FE)
 
- /** Voice Input Accent Color - Active/Listening state */
- val voiceAccent = ElectricBlue
+    /** Voice Input Accent Color - Active/Listening state */
+    val voiceAccent = ElectricBlue
 
- /** Input Field Background Colors */
- val inputPillBackgroundLight = Color(0xFFF2F2F7)
- val inputPillBackgroundDark = Color(0xFF1A1A1E) // Darker than default for better contrast
+    /** Input Field Background Colors */
+    val inputPillBackgroundLight = Color(0xFFF2F2F7)
+    val inputPillBackgroundDark = Color(0xFF1A1A1E) // Darker than default for better contrast
 
- /** Ask Question Header Colors */
- val askQuestionBarAccent = PinkAccent
- val askQuestionHeaderBgLight = PinkLight
- val askQuestionHeaderBgDark = SurfaceDarkElevated
+    /** Ask Question Header Colors */
+    val askQuestionBarAccent = PinkAccent
+    val askQuestionHeaderBgLight = PinkLight
+    val askQuestionHeaderBgDark = SurfaceDarkElevated
 }

@@ -1,14 +1,11 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,13 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.Dialog
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
@@ -35,7 +32,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 
+ *
  * PREMIUM EDIT EVENT SHEET
  *
  * Design: Calm Aesthetic, theme-aware
@@ -43,19 +40,20 @@ import java.util.*
  * - Electric Blue accent (consistent with Smarty design)
  * - Pre-populated with existing event data
  * - Delete option with confirmation
- * 
+ *
  */
 
 // Reminder options (minutes, display text)
-private val reminderOptions = listOf(
-    null to "none",
-    5 to "5_minutes_before",
-    10 to "10_minutes_before",
-    15 to "15_minutes_before",
-    30 to "30_minutes_before",
-    60 to "1_hour_before",
-    1440 to "1_day_before"
-)
+private val reminderOptions =
+    listOf(
+        null to "none",
+        5 to "5_minutes_before",
+        10 to "10_minutes_before",
+        15 to "15_minutes_before",
+        30 to "30_minutes_before",
+        60 to "1_hour_before",
+        1440 to "1_day_before",
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,18 +62,20 @@ fun EditEventSheet(
     onDismiss: () -> Unit,
     onSave: (CalendarEvent) -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
 
     // Parse existing event data
-    val existingCalendar = remember(event) {
-        Calendar.getInstance().apply { timeInMillis = event.startTime }
-    }
-    val existingEndCalendar = remember(event) {
-        Calendar.getInstance().apply { timeInMillis = event.endTime }
-    }
+    val existingCalendar =
+        remember(event) {
+            Calendar.getInstance().apply { timeInMillis = event.startTime }
+        }
+    val existingEndCalendar =
+        remember(event) {
+            Calendar.getInstance().apply { timeInMillis = event.endTime }
+        }
 
     // Form state - pre-populated from event
     var title by remember { mutableStateOf(event.title) }
@@ -105,99 +105,117 @@ fun EditEventSheet(
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
     // Calculate times for display
-    val startTimeDisplay = remember(startHour, startMinute) {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, startHour)
-        cal.set(Calendar.MINUTE, startMinute)
-        timeFormat.format(cal.time)
-    }
+    val startTimeDisplay =
+        remember(startHour, startMinute) {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.HOUR_OF_DAY, startHour)
+            cal.set(Calendar.MINUTE, startMinute)
+            timeFormat.format(cal.time)
+        }
 
-    val endTimeDisplay = remember(endHour, endMinute) {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, endHour)
-        cal.set(Calendar.MINUTE, endMinute)
-        timeFormat.format(cal.time)
-    }
+    val endTimeDisplay =
+        remember(endHour, endMinute) {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.HOUR_OF_DAY, endHour)
+            cal.set(Calendar.MINUTE, endMinute)
+            timeFormat.format(cal.time)
+        }
 
     // Date picker state
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = selectedDate.timeInMillis
-    )
+    val datePickerState =
+        rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.timeInMillis,
+        )
 
     // Time picker states
-    val startTimePickerState = rememberTimePickerState(
-        initialHour = startHour,
-        initialMinute = startMinute
-    )
+    val startTimePickerState =
+        rememberTimePickerState(
+            initialHour = startHour,
+            initialMinute = startMinute,
+        )
 
-    val endTimePickerState = rememberTimePickerState(
-        initialHour = endHour,
-        initialMinute = endMinute
-    )
+    val endTimePickerState =
+        rememberTimePickerState(
+            initialHour = endHour,
+            initialMinute = endMinute,
+        )
 
     // Check if any changes were made
-    val hasChanges = remember(
-        title, description, isAllDay, location,
-        selectedReminder, isPrivate, selectedDate, startHour,
-        startMinute, endHour, endMinute
-    ) {
-        title != event.title ||
-        description != (event.description ?: "") ||
-        isAllDay != event.isAllDay ||
-        location != (event.location ?: "") ||
-        selectedReminder != event.reminderMinutes ||
-        isPrivate != event.isEventPrivate ||
-        selectedDate.get(Calendar.DAY_OF_YEAR) != existingCalendar.get(Calendar.DAY_OF_YEAR) ||
-        selectedDate.get(Calendar.YEAR) != existingCalendar.get(Calendar.YEAR) ||
-        startHour != existingCalendar.get(Calendar.HOUR_OF_DAY) ||
-        startMinute != existingCalendar.get(Calendar.MINUTE) ||
-        endHour != existingEndCalendar.get(Calendar.HOUR_OF_DAY) ||
-        endMinute != existingEndCalendar.get(Calendar.MINUTE)
-    }
+    val hasChanges =
+        remember(
+            title,
+            description,
+            isAllDay,
+            location,
+            selectedReminder,
+            isPrivate,
+            selectedDate,
+            startHour,
+            startMinute,
+            endHour,
+            endMinute,
+        ) {
+            title != event.title ||
+                description != (event.description ?: "") ||
+                isAllDay != event.isAllDay ||
+                location != (event.location ?: "") ||
+                selectedReminder != event.reminderMinutes ||
+                isPrivate != event.isEventPrivate ||
+                selectedDate.get(Calendar.DAY_OF_YEAR) != existingCalendar.get(Calendar.DAY_OF_YEAR) ||
+                selectedDate.get(Calendar.YEAR) != existingCalendar.get(Calendar.YEAR) ||
+                startHour != existingCalendar.get(Calendar.HOUR_OF_DAY) ||
+                startMinute != existingCalendar.get(Calendar.MINUTE) ||
+                endHour != existingEndCalendar.get(Calendar.HOUR_OF_DAY) ||
+                endMinute != existingEndCalendar.get(Calendar.MINUTE)
+        }
 
-    // 
+    //
     // MAIN SHEET (Dark Theme)
-    // 
+    //
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        color = MaterialTheme.colorScheme.background
+        color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding(),
         ) {
             // Drag handle
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                    modifier =
+                        Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)),
                 )
             }
 
-            // 
+            //
             // HEADER
-            // 
+            //
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                 ) {
                     Text(stringResource(R.string.cancel), fontWeight = FontWeight.Medium)
                 }
@@ -206,7 +224,7 @@ fun EditEventSheet(
                     text = stringResource(R.string.edit_event),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 TextButton(
@@ -225,26 +243,28 @@ fun EditEventSheet(
                             endCal.set(Calendar.SECOND, if (isAllDay) 59 else 0)
                             endCal.set(Calendar.MILLISECOND, 0)
 
-                            val updatedEvent = event.copy(
-                                title = title,
-                                description = description.ifBlank { null },
-                                startTime = startCal.timeInMillis,
-                                endTime = endCal.timeInMillis,
-                                isAllDay = isAllDay,
-                                location = location.ifBlank { null },
-                                color = event.color, // Preserve existing color, option removed
-                                reminderMinutes = selectedReminder,
-                                isEventPrivate = isPrivate,
-                                updatedAt = System.currentTimeMillis()
-                            )
+                            val updatedEvent =
+                                event.copy(
+                                    title = title,
+                                    description = description.ifBlank { null },
+                                    startTime = startCal.timeInMillis,
+                                    endTime = endCal.timeInMillis,
+                                    isAllDay = isAllDay,
+                                    location = location.ifBlank { null },
+                                    color = event.color, // Preserve existing color, option removed
+                                    reminderMinutes = selectedReminder,
+                                    isEventPrivate = isPrivate,
+                                    updatedAt = System.currentTimeMillis(),
+                                )
                             onSave(updatedEvent)
                         }
                     },
                     enabled = title.isNotBlank() && hasChanges,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = accentColor,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
+                    colors =
+                        ButtonDefaults.textButtonColors(
+                            contentColor = accentColor,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        ),
                 ) {
                     Text(stringResource(R.string.save), fontWeight = FontWeight.Bold)
                 }
@@ -252,28 +272,30 @@ fun EditEventSheet(
 
             // Divider
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
             )
 
-            // 
+            //
             // SCROLLABLE FORM
-            // 
+            //
             Column(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier =
+                    Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Title field
                 EditDarkTextField(
                     value = title,
                     onValueChange = { title = it },
                     placeholder = stringResource(R.string.event_title),
-                    singleLine = true
+                    singleLine = true,
                 )
 
                 // Description field
@@ -282,7 +304,7 @@ fun EditEventSheet(
                     onValueChange = { description = it },
                     placeholder = stringResource(R.string.description),
                     minLines = 2,
-                    maxLines = 4
+                    maxLines = 4,
                 )
 
                 // All Day Toggle
@@ -296,14 +318,15 @@ fun EditEventSheet(
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 isAllDay = it
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = accentColor,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            colors =
+                                SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = accentColor,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
                         )
-                    }
+                    },
                 )
 
                 // Date Selection
@@ -311,28 +334,28 @@ fun EditEventSheet(
                     icon = Icons.Default.Event,
                     title = stringResource(R.string.date_label, ""), // Empty placeholder for dynamic label
                     value = dateFormat.format(selectedDate.time).lowercase(),
-                    onClick = { showDatePicker = true }
+                    onClick = { showDatePicker = true },
                 )
 
                 // Time Selection (if not all day)
                 AnimatedVisibility(
                     visible = !isAllDay,
                     enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
+                    exit = shrinkVertically() + fadeOut(),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         EditDarkFormRow(
                             icon = Icons.Default.Schedule,
                             title = stringResource(R.string.start_time),
                             value = startTimeDisplay.lowercase(),
-                            onClick = { showStartTimePicker = true }
+                            onClick = { showStartTimePicker = true },
                         )
 
                         EditDarkFormRow(
                             icon = Icons.Default.Schedule,
                             title = stringResource(R.string.end_time),
                             value = endTimeDisplay.lowercase(),
-                            onClick = { showEndTimePicker = true }
+                            onClick = { showEndTimePicker = true },
                         )
                     }
                 }
@@ -341,7 +364,7 @@ fun EditEventSheet(
                 EditDarkFormRow(
                     icon = Icons.Default.LocationOn,
                     title = if (location.isBlank()) stringResource(R.string.add_location) else location.lowercase(),
-                    onClick = { /* Could expand to full input */ }
+                    onClick = { /* Could expand to full input */ },
                 )
 
                 // Reminder Selection
@@ -349,7 +372,7 @@ fun EditEventSheet(
                     icon = Icons.Default.NotificationsNone,
                     title = stringResource(R.string.reminder),
                     value = reminderOptions.find { it.first == selectedReminder }?.second ?: stringResource(R.string.none),
-                    onClick = { showReminderMenu = true }
+                    onClick = { showReminderMenu = true },
                 )
 
                 // Privacy Toggle
@@ -364,48 +387,51 @@ fun EditEventSheet(
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 isPrivate = it
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = accentColor,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            colors =
+                                SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = accentColor,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
                         )
-                    }
+                    },
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Delete Button
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showDeleteConfirmation = true
-                        },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showDeleteConfirmation = true
+                            },
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             imageVector = Icons.Default.DeleteOutline,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(R.string.delete_event),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.error
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
@@ -415,13 +441,13 @@ fun EditEventSheet(
         }
     }
 
-    // 
+    //
     // DIALOGS (Dark themed)
-    // 
+    //
 
     // Date Picker Dialog
     if (showDatePicker) {
-            DatePickerDialog(
+        DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(
@@ -431,7 +457,7 @@ fun EditEventSheet(
                         }
                         showDatePicker = false
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
+                    colors = ButtonDefaults.textButtonColors(contentColor = accentColor),
                 ) {
                     Text(stringResource(R.string.ok))
                 }
@@ -439,25 +465,26 @@ fun EditEventSheet(
             dismissButton = {
                 TextButton(
                     onClick = { showDatePicker = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                 ) {
                     Text(stringResource(R.string.cancel))
                 }
-            }
+            },
         ) {
             DatePicker(
                 state = datePickerState,
-                colors = DatePickerDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    headlineContentColor = MaterialTheme.colorScheme.onSurface,
-                    weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    dayContentColor = MaterialTheme.colorScheme.onSurface,
-                    selectedDayContainerColor = accentColor,
-                    selectedDayContentColor = Color.White,
-                    todayContentColor = accentColor,
-                    todayDateBorderColor = accentColor
-                )
+                colors =
+                    DatePickerDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        headlineContentColor = MaterialTheme.colorScheme.onSurface,
+                        weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        dayContentColor = MaterialTheme.colorScheme.onSurface,
+                        selectedDayContainerColor = accentColor,
+                        selectedDayContentColor = Color.White,
+                        todayContentColor = accentColor,
+                        todayDateBorderColor = accentColor,
+                    ),
             )
         }
     }
@@ -473,25 +500,26 @@ fun EditEventSheet(
                     endHour = (startHour + 1) % 24
                 }
                 showStartTimePicker = false
-            }
+            },
         ) {
             TimePicker(
                 state = startTimePickerState,
-                colors = TimePickerDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
-                    clockDialSelectedContentColor = Color.White,
-                    clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectorColor = accentColor,
-                    periodSelectorSelectedContainerColor = accentColor,
-                    periodSelectorSelectedContentColor = Color.White,
-                    periodSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    timeSelectorSelectedContainerColor = accentColor,
-                    timeSelectorSelectedContentColor = Color.White,
-                    timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                colors =
+                    TimePickerDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
+                        clockDialSelectedContentColor = Color.White,
+                        clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectorColor = accentColor,
+                        periodSelectorSelectedContainerColor = accentColor,
+                        periodSelectorSelectedContentColor = Color.White,
+                        periodSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        timeSelectorSelectedContainerColor = accentColor,
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
             )
         }
     }
@@ -504,25 +532,26 @@ fun EditEventSheet(
                 endHour = endTimePickerState.hour
                 endMinute = endTimePickerState.minute
                 showEndTimePicker = false
-            }
+            },
         ) {
             TimePicker(
                 state = endTimePickerState,
-                colors = TimePickerDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
-                    clockDialSelectedContentColor = Color.White,
-                    clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectorColor = accentColor,
-                    periodSelectorSelectedContainerColor = accentColor,
-                    periodSelectorSelectedContentColor = Color.White,
-                    periodSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    timeSelectorSelectedContainerColor = accentColor,
-                    timeSelectorSelectedContentColor = Color.White,
-                    timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                colors =
+                    TimePickerDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
+                        clockDialSelectedContentColor = Color.White,
+                        clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectorColor = accentColor,
+                        periodSelectorSelectedContainerColor = accentColor,
+                        periodSelectorSelectedContentColor = Color.White,
+                        periodSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        timeSelectorSelectedContainerColor = accentColor,
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
             )
         }
     }
@@ -532,17 +561,17 @@ fun EditEventSheet(
         Dialog(onDismissRequest = { showReminderMenu = false }) {
             Surface(
                 shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface
+                color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = stringResource(R.string.reminder),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -550,24 +579,24 @@ fun EditEventSheet(
                     Column {
                         reminderOptions.forEach { (minutes, label) ->
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedReminder = minutes
-                                        showReminderMenu = false
-                                    }
-                                    .padding(vertical = 14.dp, horizontal = 12.dp),
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            selectedReminder = minutes
+                                            showReminderMenu = false
+                                        }.padding(vertical = 14.dp, horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(label.lowercase(), color = MaterialTheme.colorScheme.onSurface)
                                 if (selectedReminder == minutes) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = stringResource(R.string.selected),
-                                        tint = accentColor
+                                        tint = accentColor,
                                     )
                                 }
                             }
@@ -583,17 +612,17 @@ fun EditEventSheet(
         Dialog(onDismissRequest = { showDeleteConfirmation = false }) {
             Surface(
                 shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface
+                color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = stringResource(R.string.delete_event),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -602,19 +631,19 @@ fun EditEventSheet(
                         text = stringResource(R.string.delete_event_confirm, event.title),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         OutlinedButton(
                             onClick = { showDeleteConfirmation = false },
                             modifier = Modifier.weight(1f),
-                            shape = MaterialTheme.shapes.medium
+                            shape = MaterialTheme.shapes.medium,
                         ) {
                             Text(stringResource(R.string.cancel))
                         }
@@ -627,9 +656,10 @@ fun EditEventSheet(
                             },
                             modifier = Modifier.weight(1f),
                             shape = MaterialTheme.shapes.medium,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                ),
                         ) {
                             Text(stringResource(R.string.remove))
                         }
@@ -640,9 +670,9 @@ fun EditEventSheet(
     }
 }
 
-// 
+//
 // DARK THEMED FORM COMPONENTS FOR EDIT SHEET
-// 
+//
 
 @Composable
 private fun EditDarkTextField(
@@ -651,7 +681,7 @@ private fun EditDarkTextField(
     placeholder: String,
     singleLine: Boolean = false,
     minLines: Int = 1,
-    maxLines: Int = 1
+    maxLines: Int = 1,
 ) {
     val accentColor = LocalAccentColor.current
     OutlinedTextField(
@@ -663,15 +693,16 @@ private fun EditDarkTextField(
         minLines = minLines,
         maxLines = maxLines,
         shape = RoundedCornerShape(16.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            focusedBorderColor = accentColor,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-            cursorColor = accentColor
-        )
+        colors =
+            OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedBorderColor = accentColor,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                cursorColor = accentColor,
+            ),
     )
 }
 
@@ -682,41 +713,43 @@ private fun EditDarkFormRow(
     value: String? = null,
     subtitle: String? = null,
     onClick: (() -> Unit)? = null,
-    trailing: @Composable (() -> Unit)? = null
+    trailing: @Composable (() -> Unit)? = null,
 ) {
     val accentColor = LocalAccentColor.current
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(22.dp),
             )
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 subtitle?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -728,7 +761,7 @@ private fun EditDarkFormRow(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
                     color = accentColor,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
             }
 
@@ -737,7 +770,7 @@ private fun EditDarkFormRow(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -747,49 +780,47 @@ private fun EditDarkFormRow(
 @Composable
 private fun EditDarkFormSection(
     title: String,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
         )
         content()
     }
 }
-
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditDarkTimePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface
+            color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = stringResource(R.string.select_time),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Box(
                     modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     content()
                 }
@@ -798,12 +829,12 @@ private fun EditDarkTimePickerDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
@@ -811,7 +842,7 @@ private fun EditDarkTimePickerDialog(
                     Button(
                         onClick = onConfirm,
                         modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text(stringResource(R.string.ok))
                     }

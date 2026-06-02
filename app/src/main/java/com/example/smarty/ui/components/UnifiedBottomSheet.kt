@@ -16,20 +16,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.Alpha
 
 /**
  * Reimagined Unified Bottom Sheet (The "Smart Frame").
- * 
+ *
  * Features:
  * - Glassmorphic Header with Mesh Gradient
  * - Tactile Machined Drag Handle
@@ -47,7 +43,7 @@ fun UnifiedBottomSheet(
     iconTint: Color = LocalAccentColor.current,
     heightFraction: Float = 0.92f,
     useDarkTheme: Boolean = false,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val containerColor = MaterialTheme.colorScheme.surface
     val isDark = !containerColor.luminance().let { it > 0.5f }
@@ -59,23 +55,26 @@ fun UnifiedBottomSheet(
         containerColor = containerColor,
         dragHandle = { UnifiedDragHandle() },
         modifier = Modifier.fillMaxHeight(heightFraction),
-        scrimColor = Color.Black.copy(alpha = 0.45f)
+        scrimColor = Color.Black.copy(alpha = 0.45f),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Glassmorphic Header Area
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Background Mesh Glow
-                Canvas(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .blur(40.dp)
+                Canvas(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            .blur(40.dp),
                 ) {
                     drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(iconTint.copy(alpha = 0.15f), Color.Transparent),
-                            center = Offset(size.width * 0.1f, 0f),
-                            radius = size.width * 0.6f
-                        )
+                        brush =
+                            Brush.radialGradient(
+                                colors = listOf(iconTint.copy(alpha = 0.15f), Color.Transparent),
+                                center = Offset(size.width * 0.1f, 0f),
+                                radius = size.width * 0.6f,
+                            ),
                     )
                 }
 
@@ -84,53 +83,60 @@ fun UnifiedBottomSheet(
                     subtitle = subtitle,
                     icon = icon,
                     iconTint = iconTint,
-                    isDark = isDark
+                    isDark = isDark,
                 )
             }
 
             // Body Content Area with Dynamic Scrims
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
             ) {
                 // Content
                 Column(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 ) {
                     content()
                 }
 
                 // Top Fade Scrim (Matches PREFERRED_UI_REFERENCE logic) - Reduced height to prevent obscuration
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(16.dp)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    containerColor,
-                                    Color.Transparent
-                                )
-                            )
-                        )
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(16.dp)
+                            .align(Alignment.TopCenter)
+                            .background(
+                                brush =
+                                    Brush.verticalGradient(
+                                        colors =
+                                            listOf(
+                                                containerColor,
+                                                Color.Transparent,
+                                            ),
+                                    ),
+                            ),
                 )
 
                 // Bottom Fade Scrim - Reduced height
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    containerColor
-                                )
-                            )
-                        )
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                brush =
+                                    Brush.verticalGradient(
+                                        colors =
+                                            listOf(
+                                                Color.Transparent,
+                                                containerColor,
+                                            ),
+                                    ),
+                            ),
                 )
             }
         }
@@ -140,17 +146,19 @@ fun UnifiedBottomSheet(
 @Composable
 fun UnifiedDragHandle() {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp, bottom = 0.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 0.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .width(36.dp)
-                .height(3.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            modifier =
+                Modifier
+                    .width(36.dp)
+                    .height(3.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)),
         )
     }
 }
@@ -161,13 +169,14 @@ private fun UnifiedSheetHeader(
     subtitle: String?,
     icon: ImageVector?,
     iconTint: Color,
-    isDark: Boolean
+    isDark: Boolean,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             // Premium Icon Surface with Outer Glow
@@ -176,25 +185,26 @@ private fun UnifiedSheetHeader(
                 Surface(
                     shape = CircleShape,
                     color = iconTint.copy(alpha = 0.12f),
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(56.dp),
                 ) {}
-                
+
                 // Icon Core
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = containerColor(isDark).copy(alpha = 0.8f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent))
-                    ),
-                    modifier = Modifier.size(44.dp)
+                    border =
+                        androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Brush.linearGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent)),
+                        ),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null, // Decorative icon - sheet title provides context
                             tint = iconTint,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 }
@@ -205,20 +215,22 @@ private fun UnifiedSheetHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1).sp // Tighter tracking for premium feel
-                ),
-                color = if (isDark) Color.White else Color.Black // Preference Reference: High Contrast
+                style =
+                    MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-1).sp, // Tighter tracking for premium feel
+                    ),
+                color = if (isDark) Color.White else Color.Black, // Preference Reference: High Contrast
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        letterSpacing = 0.5.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    color = (if (isDark) Color.White else Color.Black).copy(alpha = 0.5f)
+                    style =
+                        MaterialTheme.typography.labelLarge.copy(
+                            letterSpacing = 0.5.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                    color = (if (isDark) Color.White else Color.Black).copy(alpha = 0.5f),
                 )
             }
         }
@@ -226,7 +238,9 @@ private fun UnifiedSheetHeader(
 }
 
 @Composable
-private fun containerColor(isDark: Boolean): Color {
-    return if (isDark) MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp)
-    else Color.White
-}
+private fun containerColor(isDark: Boolean): Color =
+    if (isDark) {
+        MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp)
+    } else {
+        Color.White
+    }

@@ -51,9 +51,7 @@ class GlobalErrorState {
     fun reportError(
         message: String,
         feature: Feature = Feature.GENERAL,
-    ): String {
-        return reportError(AppError(message = message, severity = ErrorSeverity.MEDIUM, feature = feature))
-    }
+    ): String = reportError(AppError(message = message, severity = ErrorSeverity.MEDIUM, feature = feature))
 
     /**
      * Dismiss an error by ID.

@@ -5,66 +5,53 @@ import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.features.chat.domain.state.ChatState
 
 object ChatMessageMapper {
+    fun cleanContent(content: String): String = content
 
-    fun cleanContent(content: String): String {
-        return content
-    }
+    fun extractThinking(content: String): String? = null
 
-    fun extractThinking(content: String): String? {
-        return null
-    }
+    fun hasPartialThinkTag(content: String): Boolean = false
 
-    fun hasPartialThinkTag(content: String): Boolean {
-        return false
-    }
+    fun isMessageComplete(content: String): Boolean = true
 
-    fun isMessageComplete(content: String): Boolean {
-        return true
-    }
-
-    fun formatForDisplay(message: ChatMessage): String {
-        return if (message.role == ChatRole.USER) {
+    fun formatForDisplay(message: ChatMessage): String =
+        if (message.role == ChatRole.USER) {
             message.content
         } else {
             cleanContent(message.content)
         }
-    }
 
     fun calculateDisplayPosition(
         messageId: String,
         fullText: String,
         isStreaming: Boolean,
         previousPosition: Int = 0,
-    ): Int {
-        return if (isStreaming) {
+    ): Int =
+        if (isStreaming) {
             val charsPerFrame = 2
             val remaining = fullText.length - previousPosition
             minOf(previousPosition + charsPerFrame, fullText.length)
         } else {
             fullText.length
         }
-    }
 
     fun getVisibleText(
         fullText: String,
         displayPosition: Int,
-    ): String {
-        return if (displayPosition >= fullText.length) {
+    ): String =
+        if (displayPosition >= fullText.length) {
             fullText
         } else {
             fullText.substring(0, displayPosition)
         }
-    }
 
     fun addMessageToState(
         currentState: ChatState,
         message: ChatMessage,
-    ): ChatState {
-        return currentState.copy(
+    ): ChatState =
+        currentState.copy(
             messages = currentState.messages + message,
             lastUpdated = System.currentTimeMillis(),
         )
-    }
 
     fun updateMessageInState(
         currentState: ChatState,

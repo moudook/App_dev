@@ -26,8 +26,8 @@ import com.example.smarty.features.chat.agent.ClientCommandExecutor
 import com.example.smarty.features.chat.agent.models.*
 import com.example.smarty.features.chat.agent.transport.CommandTransport
 import com.example.smarty.features.chat.agent.transport.LocalCommandTransport
-import com.example.smarty.features.notes.domain.NoteOperationsManager
 import com.example.smarty.features.chat.domain.state.PendingApproval
+import com.example.smarty.features.notes.domain.NoteOperationsManager
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
 import com.example.smarty.protocol.AgentCommand
@@ -35,15 +35,11 @@ import com.example.smarty.service.CommandResult
 import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.viewmodel.managers.MemoryFeatureManager
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.sse.SSE
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * ViewModel for AssistActivity - Handles Smarty overlay functionality
@@ -184,7 +180,8 @@ class AssistViewModel(
         object : ClientCommandExecutor {
             override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_notes.value)
 
-            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_archivedNotes.value.map { it.copy(isArchived = false) })
+            override fun getArchivedNotes(): List<Note> =
+                PrivacyGuard.getAiVisibleNotes(_archivedNotes.value.map { it.copy(isArchived = false) })
 
             override fun getCategories(): List<Category> = _categories.value
 
@@ -495,7 +492,9 @@ class AssistViewModel(
         }
 
     private val remoteAgentService: RemoteAgentService by lazy {
-        val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
+        val client =
+            com.example.smarty.di.ServiceLocator
+                .provideHttpClient()
         val securePrefs = SecurePreferences.getInstance(application)
         RemoteAgentService(
             client = client,
@@ -517,7 +516,10 @@ class AssistViewModel(
     private val _assistContext = MutableStateFlow<AssistContext?>(null)
     val assistContext: StateFlow<AssistContext?> = _assistContext.asStateFlow()
 
-    data class AssistContext(val selectedText: String?, val referringPackage: String)
+    data class AssistContext(
+        val selectedText: String?,
+        val referringPackage: String,
+    )
 
     val isDarkTheme: StateFlow<Boolean> = settingsFeatureManager.isDarkTheme
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
@@ -561,8 +563,8 @@ class AssistViewModel(
         _selectedVariant.value = variant
     }
 
-    suspend fun refreshModelsNow(): List<Pair<String, String>> {
-        return try {
+    suspend fun refreshModelsNow(): List<Pair<String, String>> =
+        try {
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             if (refreshed.isNotEmpty()) {
                 val pairs = refreshed.map { it.id to it.label }
@@ -577,7 +579,6 @@ class AssistViewModel(
             Log.e(TAG, "Failed to refresh models in Assist: ${e.message}")
             securePreferences.getAvailableModels(AIConnection.LOCAL_PC)
         }
-    }
 
     init {
         viewModelScope.launch {
@@ -634,7 +635,18 @@ class AssistViewModel(
                 val commandResult = localCommandProcessor.process(content)
                 if (commandResult is CommandResult.Handled) {
                     chatManager.markApiCallSuccessful()
-                    addSmartyMessage(ChatMessage(id = java.util.UUID.randomUUID().toString(), role = ChatRole.SMARTY, content = commandResult.response, timestamp = System.currentTimeMillis()), userMessage)
+                    addSmartyMessage(
+                        ChatMessage(
+                            id =
+                                java.util.UUID
+                                    .randomUUID()
+                                    .toString(),
+                            role = ChatRole.SMARTY,
+                            content = commandResult.response,
+                            timestamp = System.currentTimeMillis(),
+                        ),
+                        userMessage,
+                    )
                 } else {
                     processRemoteQuery(content, userMessage)
                 }
@@ -653,18 +665,92 @@ class AssistViewModel(
                 chatManager.resetApiCallFlag()
                 val userMessage = chatManager.addUserMessage(prompt)
                 _isProcessing.value = true
-                val streamingMessageId = java.util.UUID.randomUUID().toString()
-                chatManager.addSmartyMessage(ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), isStreaming = true, toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "started", displayName = "Direct Request", inputSummary = prompt))))
+                val streamingMessageId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()
+                chatManager.addSmartyMessage(
+                    ChatMessage(
+                        id = streamingMessageId,
+                        role = ChatRole.SMARTY,
+                        content = "",
+                        timestamp = System.currentTimeMillis(),
+                        isStreaming = true,
+                        toolCalls =
+                            listOf(
+                                AgentToolCallEntry(
+                                    toolName = "generate_image",
+                                    status = "started",
+                                    displayName = "Direct Request",
+                                    inputSummary = prompt,
+                                ),
+                            ),
+                    ),
+                )
                 val result = remoteAgentService.generateImageDirect(prompt, aspectRatio)
                 if (result != null && result.success) {
-                    chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "", timestamp = System.currentTimeMillis(), toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "completed", displayName = "Direct Request", inputSummary = prompt, outputSummary = result.url))))
+                    chatManager.replaceMessage(
+                        streamingMessageId,
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "",
+                            timestamp = System.currentTimeMillis(),
+                            toolCalls =
+                                listOf(
+                                    AgentToolCallEntry(
+                                        toolName = "generate_image",
+                                        status = "completed",
+                                        displayName = "Direct Request",
+                                        inputSummary = prompt,
+                                        outputSummary = result.url,
+                                    ),
+                                ),
+                        ),
+                    )
                     chatManager.markApiCallSuccessful()
-                    chatManager.saveMessagePair(userMessage, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Generated image for: $prompt", timestamp = System.currentTimeMillis(), toolCalls = listOf(AgentToolCallEntry(toolName = "generate_image", status = "completed", displayName = "Direct Request", inputSummary = prompt, outputSummary = result.url))))
+                    chatManager.saveMessagePair(
+                        userMessage,
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "Generated image for: $prompt",
+                            timestamp = System.currentTimeMillis(),
+                            toolCalls =
+                                listOf(
+                                    AgentToolCallEntry(
+                                        toolName = "generate_image",
+                                        status = "completed",
+                                        displayName = "Direct Request",
+                                        inputSummary = prompt,
+                                        outputSummary = result.url,
+                                    ),
+                                ),
+                        ),
+                    )
                 } else {
                     val errorMsg = result?.error ?: result?.message ?: "Please try again."
-                    chatManager.replaceMessage(streamingMessageId, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Failed to generate image: $errorMsg", timestamp = System.currentTimeMillis(), isError = true))
+                    chatManager.replaceMessage(
+                        streamingMessageId,
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "Failed to generate image: $errorMsg",
+                            timestamp = System.currentTimeMillis(),
+                            isError = true,
+                        ),
+                    )
                     chatManager.markApiCallSuccessful()
-                    chatManager.saveMessagePair(userMessage, ChatMessage(id = streamingMessageId, role = ChatRole.SMARTY, content = "Failed to generate image: $errorMsg", timestamp = System.currentTimeMillis(), isError = true))
+                    chatManager.saveMessagePair(
+                        userMessage,
+                        ChatMessage(
+                            id = streamingMessageId,
+                            role = ChatRole.SMARTY,
+                            content = "Failed to generate image: $errorMsg",
+                            timestamp = System.currentTimeMillis(),
+                            isError = true,
+                        ),
+                    )
                 }
                 _isProcessing.value = false
             }
@@ -679,7 +765,10 @@ class AssistViewModel(
         pendingToolCalls.clear()
         val responseBuilder = StringBuilder()
         val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
-        val streamingMessageId = java.util.UUID.randomUUID().toString()
+        val streamingMessageId =
+            java.util.UUID
+                .randomUUID()
+                .toString()
         chatManager.addSmartyMessage(
             ChatMessage(
                 id = streamingMessageId,
@@ -692,118 +781,120 @@ class AssistViewModel(
 
         try {
             val selectedModel = selectedModel.value
-            remoteAgentService.sendQuery(
-                content,
-                sessionId = chatManager.currentSessionId.value,
-                model = selectedModel,
-                messageId = streamingMessageId,
-            ).collect {
-                    event ->
-                try {
-                    val eventType = event::class.simpleName ?: "Unknown"
-                    val payloadJson =
-                        kotlinx.serialization.json.Json.encodeToString(
-                            com.example.smarty.protocol.AgentEvent.serializer(),
-                            event,
-                        )
-                    chatRepository.saveTimelineEvent(
-                        com.example.smarty.data.local.entity.TimelineEventEntity(
-                            eventId = event.eventId,
-                            traceId = streamingMessageId,
-                            timestamp = event.timestamp,
-                            sessionId = chatManager.currentSessionId.value ?: "unknown",
-                            eventType = eventType,
-                            payloadJson = payloadJson,
-                        ),
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to save timeline event: ${e.message}")
-                }
-
-                // 2) Accumulate in-memory for UI timeline
-                agentEventsBuilder.add(event)
-
-                when (event) {
-                    is com.example.smarty.protocol.AgentEvent.Processing -> {
-                        event.content.let { responseBuilder.append(it) }
-                        chatManager.updateMessageWithThinking(
-                            streamingMessageId,
-                            responseBuilder.toString(),
-                            null,
-                            agentEvents = agentEventsBuilder.toList(),
-                        )
-                    }
-                    is com.example.smarty.protocol.AgentEvent.Result -> {
-                        // Server sends empty content in Result to avoid duplication.
-                        // The accumulated content from Processing events is the final answer.
-                        chatManager.updateMessageWithThinking(
-                            streamingMessageId,
-                            responseBuilder.toString(),
-                            null,
-                            agentEvents = agentEventsBuilder.toList(),
-                        )
-                        if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
-                    }
-                    is com.example.smarty.protocol.AgentEvent.ToolCall -> {
-                        val toolRoute = when (event.toolName.lowercase()) {
-                            "tic_tac_toe", "tictactoe" -> "tic_tac_toe"
-                            "coin_toss", "cointoss" -> "coin_toss"
-                            "guided_breathing", "breathing" -> "guided_breathing"
-                            else -> null
-                        }
-                        if (toolRoute != null) {
-                            systemFeatureManager.navigateTo(toolRoute)
-                        }
-
-                        pendingToolCalls.add(
-                            AgentToolCallEntry(
-                                toolName = event.toolName,
-                                status = event.status,
-                                displayName = event.displayName,
-                                inputSummary = event.inputSummary,
-                                outputSummary = event.outputSummary,
+            remoteAgentService
+                .sendQuery(
+                    content,
+                    sessionId = chatManager.currentSessionId.value,
+                    model = selectedModel,
+                    messageId = streamingMessageId,
+                ).collect { event ->
+                    try {
+                        val eventType = event::class.simpleName ?: "Unknown"
+                        val payloadJson =
+                            kotlinx.serialization.json.Json.encodeToString(
+                                com.example.smarty.protocol.AgentEvent
+                                    .serializer(),
+                                event,
+                            )
+                        chatRepository.saveTimelineEvent(
+                            com.example.smarty.data.local.entity.TimelineEventEntity(
+                                eventId = event.eventId,
+                                traceId = streamingMessageId,
                                 timestamp = event.timestamp,
+                                sessionId = chatManager.currentSessionId.value ?: "unknown",
+                                eventType = eventType,
+                                payloadJson = payloadJson,
                             ),
                         )
-                        chatManager.updateMessageWithThinking(
-                            streamingMessageId,
-                            responseBuilder.toString(),
-                            null,
-                            agentEvents = agentEventsBuilder.toList(),
-                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to save timeline event: ${e.message}")
                     }
-                    is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
-                        Log.i(TAG, "Approval requested: ${event.toolName}")
-                        _pendingApprovalState.update {
-                            PendingApproval(
-                                messageId = streamingMessageId,
-                                sessionId = chatManager.currentSessionId.value ?: "unknown",
-                                eventId = event.eventId,
-                                toolId = event.toolId,
-                                toolName = event.toolName,
-                                toolTitle = event.toolTitle,
-                                toolArgs = event.toolArgs,
+
+                    // 2) Accumulate in-memory for UI timeline
+                    agentEventsBuilder.add(event)
+
+                    when (event) {
+                        is com.example.smarty.protocol.AgentEvent.Processing -> {
+                            event.content.let { responseBuilder.append(it) }
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                null,
+                                agentEvents = agentEventsBuilder.toList(),
                             )
                         }
-                        _isProcessing.value = true
-                    }
-                    is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
-                        _pendingApprovalState.update { null }
-                        _isProcessing.value = true
-                    }
-                    is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
-                        _pendingApprovalState.update { null }
-                    }
-                    else -> {
-                        chatManager.updateMessageWithThinking(
-                            streamingMessageId,
-                            responseBuilder.toString(),
-                            null,
-                            agentEvents = agentEventsBuilder.toList(),
-                        )
+                        is com.example.smarty.protocol.AgentEvent.Result -> {
+                            // Server sends empty content in Result to avoid duplication.
+                            // The accumulated content from Processing events is the final answer.
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                null,
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                            if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ToolCall -> {
+                            val toolRoute =
+                                when (event.toolName.lowercase()) {
+                                    "tic_tac_toe", "tictactoe" -> "tic_tac_toe"
+                                    "coin_toss", "cointoss" -> "coin_toss"
+                                    "guided_breathing", "breathing" -> "guided_breathing"
+                                    else -> null
+                                }
+                            if (toolRoute != null) {
+                                systemFeatureManager.navigateTo(toolRoute)
+                            }
+
+                            pendingToolCalls.add(
+                                AgentToolCallEntry(
+                                    toolName = event.toolName,
+                                    status = event.status,
+                                    displayName = event.displayName,
+                                    inputSummary = event.inputSummary,
+                                    outputSummary = event.outputSummary,
+                                    timestamp = event.timestamp,
+                                ),
+                            )
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                null,
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
+                            Log.i(TAG, "Approval requested: ${event.toolName}")
+                            _pendingApprovalState.update {
+                                PendingApproval(
+                                    messageId = streamingMessageId,
+                                    sessionId = chatManager.currentSessionId.value ?: "unknown",
+                                    eventId = event.eventId,
+                                    toolId = event.toolId,
+                                    toolName = event.toolName,
+                                    toolTitle = event.toolTitle,
+                                    toolArgs = event.toolArgs,
+                                )
+                            }
+                            _isProcessing.value = true
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
+                            _pendingApprovalState.update { null }
+                            _isProcessing.value = true
+                        }
+                        is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
+                            _pendingApprovalState.update { null }
+                        }
+                        else -> {
+                            chatManager.updateMessageWithThinking(
+                                streamingMessageId,
+                                responseBuilder.toString(),
+                                null,
+                                agentEvents = agentEventsBuilder.toList(),
+                            )
+                        }
                     }
                 }
-            }
             val contentToSave = responseBuilder.toString()
             val smartyMessage =
                 ChatMessage(
@@ -881,9 +972,9 @@ class AssistViewModel(
     }
 }
 
-class AssistViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+class AssistViewModelFactory(
+    private val application: Application,
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return AssistViewModel(application) as T
-    }
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistViewModel(application) as T
 }

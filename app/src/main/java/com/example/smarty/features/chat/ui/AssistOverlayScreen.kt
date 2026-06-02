@@ -1,10 +1,7 @@
 package com.example.smarty.features.chat.ui
 
 import android.Manifest
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +19,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,14 +30,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.smarty.core.domain.model.ClarificationRequest
+import com.example.smarty.features.breathing.GuidedBreathingContent
 import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.voice.rememberSpeechToText
-import com.example.smarty.features.breathing.GuidedBreathingContent
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.ui.components.UnifiedDragHandle
@@ -334,21 +330,22 @@ fun AssistOverlayScreen(
                     // Input field at bottom OR Standard Approval UI
                     if (approval != null && approval.toolName != "ask_user" && approval.toolName != "askuser") {
                         // Standard Approval
-                        val node = TimelineNode.ApprovalGate(
-                            id = "approval_${approval.toolId}",
-                            timestamp = System.currentTimeMillis(),
-                            toolId = approval.toolId,
-                            toolName = approval.toolName,
-                            toolTitle = approval.toolTitle,
-                            toolArgs = approval.toolArgs,
-                            status = TimelineNode.ApprovalGate.Status.PENDING,
-                            requiresText = false
-                        )
+                        val node =
+                            TimelineNode.ApprovalGate(
+                                id = "approval_${approval.toolId}",
+                                timestamp = System.currentTimeMillis(),
+                                toolId = approval.toolId,
+                                toolName = approval.toolName,
+                                toolTitle = approval.toolTitle,
+                                toolArgs = approval.toolArgs,
+                                status = TimelineNode.ApprovalGate.Status.PENDING,
+                                requiresText = false,
+                            )
                         ApprovalCard(
                             node = node,
                             onGrant = { viewModel.callApproval(approval.toolId, true) },
                             onDeny = { viewModel.callApproval(approval.toolId, false) },
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(16.dp),
                         )
                     } else {
                         SmartyInputField(
@@ -379,7 +376,10 @@ fun AssistOverlayScreen(
                             isAgentWorking = viewModel.isProcessing.collectAsState().value,
                             onStopGeneration = { viewModel.stopGeneration() },
                             onStartVoiceInput = {
-                                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                if (androidx.core.content.ContextCompat
+                                        .checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                    PackageManager.PERMISSION_GRANTED
+                                ) {
                                     speechState.startListening(isChatMode = true)
                                 } else {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)

@@ -2,11 +2,11 @@ package com.example.smarty.server.plugins
 
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.ratelimit.*
-import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Firewall and security configuration.
@@ -18,7 +18,11 @@ private val logger = LoggerFactory.getLogger("Firewall")
 // Environment-based configuration
 private val ENABLE_IP_ALLOWLIST = System.getenv("ENABLE_IP_ALLOWLIST")?.toBoolean() ?: false
 private val ALLOWED_IPS =
-    System.getenv("ALLOWED_IPS")?.split(",")?.map { it.trim() }?.toSet()
+    System
+        .getenv("ALLOWED_IPS")
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.toSet()
         ?: setOf("127.0.0.1", "0:0:0:0:0:0:0:1", "::1") // Localhost by default
 
 // Request size limits (in bytes)
@@ -113,13 +117,9 @@ fun ApplicationCall.hasValidClientHandshake(): Boolean {
 /**
  * Get client device ID from headers.
  */
-fun ApplicationCall.clientDeviceId(): String? {
-    return request.header(DEVICE_ID_HEADER)
-}
+fun ApplicationCall.clientDeviceId(): String? = request.header(DEVICE_ID_HEADER)
 
 /**
  * Get client version from headers.
  */
-fun ApplicationCall.clientVersion(): String? {
-    return request.header(CLIENT_VERSION_HEADER)
-}
+fun ApplicationCall.clientVersion(): String? = request.header(CLIENT_VERSION_HEADER)

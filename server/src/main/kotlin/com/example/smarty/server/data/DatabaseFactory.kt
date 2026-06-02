@@ -105,7 +105,9 @@ object DatabaseFactory {
                         }
 
                         val duration = System.currentTimeMillis() - startTime
-                        logger.info("Database migrations completed - applied: $applied, skipped: $skipped, failed: $failed in ${duration}ms")
+                        logger.info(
+                            "Database migrations completed - applied: $applied, skipped: $skipped, failed: $failed in ${duration}ms",
+                        )
                         if (failed > 0) {
                             logger.error("$failed migration statements failed! Database schema may be incomplete.")
                         }

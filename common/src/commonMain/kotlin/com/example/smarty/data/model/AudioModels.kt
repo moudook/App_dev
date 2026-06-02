@@ -36,8 +36,13 @@ data class AgentAudioTrack(
  */
 sealed class AudioSearchResult {
     /** Exact or partial match found */
-    data class ExactMatch(val track: AgentAudioTrack) : AudioSearchResult()
+    data class ExactMatch(
+        val track: AgentAudioTrack,
+    ) : AudioSearchResult()
 
     /** No direct match found, providing fallback recommendations */
-    data class Fallback(val tracks: List<AgentAudioTrack>, val reason: String) : AudioSearchResult()
+    data class Fallback(
+        val tracks: List<AgentAudioTrack>,
+        val reason: String,
+    ) : AudioSearchResult()
 }

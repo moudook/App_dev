@@ -73,13 +73,15 @@ class AuthFeatureManager(
 
         val gso =
             if (webClientId != null && webClientId != "YOUR_WEB_CLIENT_ID_HERE") {
-                GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                GoogleSignInOptions
+                    .Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                     .requestIdToken(webClientId)
                     .requestEmail()
                     .build()
             } else {
                 Log.w(TAG, application.getString(R.string.error_google_auth_no_token))
-                GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                GoogleSignInOptions
+                    .Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                     .requestEmail()
                     .build()
             }
@@ -118,7 +120,8 @@ class AuthFeatureManager(
                         // After Firebase success, verify with our backend for single-user restriction
                         verifyBackendAuth()
                     } else {
-                        _error.value = authResult.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_google_sign_in)
+                        _error.value =
+                            authResult.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_google_sign_in)
                         _authState.value = AuthState.ERROR
                     }
                 } else {
@@ -126,7 +129,12 @@ class AuthFeatureManager(
                     _authState.value = AuthState.ERROR
                 }
             } catch (e: ApiException) {
-                _error.value = application.getString(R.string.error_google_sign_in_code, application.getString(R.string.error_google_sign_in), e.statusCode)
+                _error.value =
+                    application.getString(
+                        R.string.error_google_sign_in_code,
+                        application.getString(R.string.error_google_sign_in),
+                        e.statusCode,
+                    )
                 _authState.value = AuthState.ERROR
             } catch (e: Exception) {
                 _error.value = e.localizedMessage ?: application.getString(R.string.error_google_sign_in)
@@ -252,7 +260,7 @@ class AuthFeatureManager(
                 // Allow them to proceed offline if they previously authenticated, or fail if we want strict mode.
                 // Assuming success for offline fallback, but we can't be sure they are the allowed user.
                 // For a single-user system, we might want to strictly require online verification on first login.
-                _authState.value = AuthState.SUCCESS 
+                _authState.value = AuthState.SUCCESS
                 Log.w(TAG, "Backend verification network error, allowing offline access. Error: ${verificationResult.error}")
             }
         }

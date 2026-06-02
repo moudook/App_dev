@@ -1,6 +1,5 @@
 package com.example.smarty.service
 
-import android.os.Bundle
 import android.service.voice.VoiceInteractionService
 import android.util.Log
 
@@ -12,7 +11,6 @@ import android.util.Log
  * (edge swipe, home button hold, etc.).
  */
 class AssistInteractionService : VoiceInteractionService() {
-
     companion object {
         private const val TAG = "AssistInteractionSvc"
     }

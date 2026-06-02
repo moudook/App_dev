@@ -21,7 +21,9 @@ import kotlinx.coroutines.tasks.await
  * Digest Preferences ViewModel
  * Manages digest settings and operations
  */
-class DigestViewModel(application: Application) : AndroidViewModel(application) {
+class DigestViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
 
@@ -78,14 +80,13 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             user?.getIdToken(false)?.await()?.token
         } catch (e: Exception) {
             null
         }
-    }
 }
 
 data class DigestUiState(

@@ -335,15 +335,14 @@ object FileStorageHelper {
     /**
      * Checks if a URI is already a local file (doesn't need copying)
      */
-    fun isLocalFile(uri: String): Boolean {
-        return uri.startsWith("file://") ||
+    fun isLocalFile(uri: String): Boolean =
+        uri.startsWith("file://") ||
             uri.startsWith("/") ||
             uri.contains("${DIR_ATTACHMENTS}/") ||
             uri.contains("${DIR_IMAGES}/") ||
             uri.contains("${DIR_AUDIO}/") ||
             uri.contains("${DIR_VIDEO}/") ||
             uri.contains("${DIR_DOCUMENTS}/")
-    }
 
     /**
      * Checks if the file at the given URI exists and is accessible
@@ -449,25 +448,26 @@ object FileStorageHelper {
             val progressMutex = Mutex()
 
             coroutineScope {
-                inputs.mapIndexed { index, input ->
-                    async {
-                        val result =
-                            copyToInternalStorageAsFile(
-                                context = context,
-                                sourceUri = input.sourceUri,
-                                mimeType = input.mimeType,
-                                originalFileName = input.originalFileName,
-                            )
-                        results[index] = result
+                inputs
+                    .mapIndexed { index, input ->
+                        async {
+                            val result =
+                                copyToInternalStorageAsFile(
+                                    context = context,
+                                    sourceUri = input.sourceUri,
+                                    mimeType = input.mimeType,
+                                    originalFileName = input.originalFileName,
+                                )
+                            results[index] = result
 
-                        progressMutex.withLock {
-                            completedCount++
-                            onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            progressMutex.withLock {
+                                completedCount++
+                                onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            }
+
+                            result
                         }
-
-                        result
-                    }
-                }.awaitAll()
+                    }.awaitAll()
             }
 
             results.filterNotNull()
@@ -495,25 +495,26 @@ object FileStorageHelper {
             val progressMutex = Mutex()
 
             coroutineScope {
-                inputs.mapIndexed { index, input ->
-                    async {
-                        val result =
-                            compressAndStore(
-                                context = context,
-                                sourceUri = input.sourceUri,
-                                mimeType = input.mimeType,
-                                originalFileName = input.originalFileName,
-                            )
-                        results[index] = result
+                inputs
+                    .mapIndexed { index, input ->
+                        async {
+                            val result =
+                                compressAndStore(
+                                    context = context,
+                                    sourceUri = input.sourceUri,
+                                    mimeType = input.mimeType,
+                                    originalFileName = input.originalFileName,
+                                )
+                            results[index] = result
 
-                        progressMutex.withLock {
-                            completedCount++
-                            onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            progressMutex.withLock {
+                                completedCount++
+                                onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            }
+
+                            result
                         }
-
-                        result
-                    }
-                }.awaitAll()
+                    }.awaitAll()
             }
 
             results.filterNotNull()
@@ -529,8 +530,8 @@ object FileStorageHelper {
     private fun getFileName(
         context: Context,
         uri: Uri,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -542,7 +543,6 @@ object FileStorageHelper {
         } catch (e: Exception) {
             uri.lastPathSegment
         }
-    }
 
     private fun generateFileName(mimeType: String?): String {
         val extension =
@@ -575,8 +575,8 @@ object FileStorageHelper {
         return candidate
     }
 
-    private fun getSubdirectory(mimeType: String?): String {
-        return when {
+    private fun getSubdirectory(mimeType: String?): String =
+        when {
             mimeType == null -> DIR_ATTACHMENTS
             mimeType.startsWith("image/") -> DIR_IMAGES
             mimeType.startsWith("audio/") -> DIR_AUDIO
@@ -586,7 +586,6 @@ object FileStorageHelper {
                 mimeType.contains("text/") -> DIR_DOCUMENTS
             else -> DIR_ATTACHMENTS
         }
-    }
 
     private fun getMimeTypeFromFile(file: File): String {
         val extension = file.extension.lowercase()
@@ -600,8 +599,8 @@ object FileStorageHelper {
     private fun getFileSizeFromUri(
         context: Context,
         uri: Uri,
-    ): Long? {
-        return try {
+    ): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -613,7 +612,6 @@ object FileStorageHelper {
         } catch (e: Exception) {
             null
         }
-    }
 
     /**
      * High-performance NIO-based file copy.

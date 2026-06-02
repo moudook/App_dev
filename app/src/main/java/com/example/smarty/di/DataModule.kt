@@ -11,48 +11,28 @@ import kotlinx.coroutines.SupervisorJob
  * Dependency Injection Module for Database Components
  */
 object DatabaseModule {
-    fun provideSmartDatabase(context: Context): SmartyDatabase {
-        return SmartyDatabase.getDatabase(context)
-    }
+    fun provideSmartDatabase(context: Context): SmartyDatabase = SmartyDatabase.getDatabase(context)
 
-    fun provideSmartDao(database: SmartyDatabase): SmartDatabaseDao {
-        return database.smartDao()
-    }
+    fun provideSmartDao(database: SmartyDatabase): SmartDatabaseDao = database.smartDao()
 
-    fun provideLegacyNoteDao(database: SmartyDatabase): NoteDao {
-        return database.noteDao()
-    }
+    fun provideLegacyNoteDao(database: SmartyDatabase): NoteDao = database.noteDao()
 
-    fun provideLegacyCategoryDao(database: SmartyDatabase): CategoryDao {
-        return database.categoryDao()
-    }
+    fun provideLegacyCategoryDao(database: SmartyDatabase): CategoryDao = database.categoryDao()
 
-    fun provideLegacyChatDao(database: SmartyDatabase): ChatDao {
-        return database.chatDao()
-    }
+    fun provideLegacyChatDao(database: SmartyDatabase): ChatDao = database.chatDao()
 
-    fun provideLegacyCalendarDao(database: SmartyDatabase): CalendarDao {
-        return database.calendarDao()
-    }
+    fun provideLegacyCalendarDao(database: SmartyDatabase): CalendarDao = database.calendarDao()
 
-    fun provideSyncQueueDao(database: SmartyDatabase): SyncQueueDao {
-        return database.syncQueueDao()
-    }
+    fun provideSyncQueueDao(database: SmartyDatabase): SyncQueueDao = database.syncQueueDao()
 
-    fun provideLegacySyncQueueDao(database: SmartyDatabase): com.example.smarty.data.local.SyncQueueDao {
-        return database.syncQueueDao()
-    }
+    fun provideLegacySyncQueueDao(database: SmartyDatabase): com.example.smarty.data.local.SyncQueueDao = database.syncQueueDao()
 
-    fun provideCRDTManager(): CRDTManager {
-        return CRDTManager()
-    }
+    fun provideCRDTManager(): CRDTManager = CRDTManager()
 
     fun provideOfflineFirstSyncManager(
         database: SmartyDatabase,
         crdtManager: CRDTManager,
-    ): OfflineFirstSyncManager {
-        return OfflineFirstSyncManager(database, crdtManager)
-    }
+    ): OfflineFirstSyncManager = OfflineFirstSyncManager(database, crdtManager)
 }
 
 /**
@@ -63,17 +43,15 @@ object RepositoryModule {
         database: SmartyDatabase,
         crdtManager: CRDTManager,
         offlineSyncManager: OfflineFirstSyncManager,
-    ): SmartRepository {
-        return SmartRepository(database, crdtManager, offlineSyncManager)
-    }
+    ): SmartRepository = SmartRepository(database, crdtManager, offlineSyncManager)
 
     fun provideLegacyRepository(
         noteDao: NoteDao,
         categoryDao: CategoryDao,
         calendarDao: CalendarDao,
         context: Context,
-    ): SmartyRepository {
-        return SmartyRepository(
+    ): SmartyRepository =
+        SmartyRepository(
             noteDao = noteDao,
             categoryDao = categoryDao,
             calendarDao = calendarDao,
@@ -81,14 +59,11 @@ object RepositoryModule {
             context = context,
             syncRepository = null,
         )
-    }
 }
 
 /**
  * Application Component
  */
 object ApplicationModule {
-    fun provideApplicationScope(): CoroutineScope {
-        return CoroutineScope(Dispatchers.IO + SupervisorJob())
-    }
+    fun provideApplicationScope(): CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 }

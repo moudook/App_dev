@@ -29,7 +29,7 @@ import kotlin.random.Random
 @Composable
 fun LiquidLoader(
     modifier: Modifier = Modifier,
-    audioAmplitude: Float = 0f
+    audioAmplitude: Float = 0f,
 ) {
     val isDark = isSystemInDarkTheme()
 
@@ -40,7 +40,7 @@ fun LiquidLoader(
     // High-frequency time driver — pauses when backgrounded
     var time by remember { mutableDoubleStateOf(0.0) }
     LaunchedEffect(shouldAnimate) {
-        if (!shouldAnimate) return@LaunchedEffect  // Zero CPU when backgrounded
+        if (!shouldAnimate) return@LaunchedEffect // Zero CPU when backgrounded
         var last = withFrameNanos { it }
         while (true) {
             withFrameNanos { now ->
@@ -52,42 +52,44 @@ fun LiquidLoader(
     }
 
     // OPTIMIZED: Reduced from 120 to 60 particles (halves per-frame math, similar visual)
-    val backgroundParticles = remember {
-        List(60) {
-            CosmicParticle(
-                x = Random.nextFloat(),
-                y = Random.nextFloat(),
-                depth = Random.nextFloat(),
-                size = Random.nextFloat() * 1.5f + 0.5f,
-                driftSpeed = Random.nextFloat() * 0.02f + 0.005f,
-                twinkleSpeed = Random.nextFloat() * 3f + 1f
-            )
+    val backgroundParticles =
+        remember {
+            List(60) {
+                CosmicParticle(
+                    x = Random.nextFloat(),
+                    y = Random.nextFloat(),
+                    depth = Random.nextFloat(),
+                    size = Random.nextFloat() * 1.5f + 0.5f,
+                    driftSpeed = Random.nextFloat() * 0.02f + 0.005f,
+                    twinkleSpeed = Random.nextFloat() * 3f + 1f,
+                )
+            }
         }
-    }
 
     // Pre-allocate planet list once (avoids list creation on every frame)
-    val planets = remember {
-        listOf(
-            PlanetInfo(0.20f, 0.025f, 5.0f, Color(0xFF9E9E9E)),
-            PlanetInfo(0.30f, 0.042f, 2.2f, Color(0xFFFFB74D)),
-            PlanetInfo(0.42f, 0.048f, 1.4f, Color(0xFF4FC3F7)),
-            PlanetInfo(0.55f, 0.035f, 0.8f, Color(0xFFFF5252)),
-            PlanetInfo(0.70f, 0.105f, 0.4f, Color(0xFFFFE0B2)),
-            PlanetInfo(0.85f, 0.090f, 0.25f, Color(0xFFFFF176)),
-            PlanetInfo(0.95f, 0.065f, 0.15f, Color(0xFF80DEEA))
-        )
-    }
+    val planets =
+        remember {
+            listOf(
+                PlanetInfo(0.20f, 0.025f, 5.0f, Color(0xFF9E9E9E)),
+                PlanetInfo(0.30f, 0.042f, 2.2f, Color(0xFFFFB74D)),
+                PlanetInfo(0.42f, 0.048f, 1.4f, Color(0xFF4FC3F7)),
+                PlanetInfo(0.55f, 0.035f, 0.8f, Color(0xFFFF5252)),
+                PlanetInfo(0.70f, 0.105f, 0.4f, Color(0xFFFFE0B2)),
+                PlanetInfo(0.85f, 0.090f, 0.25f, Color(0xFFFFF176)),
+                PlanetInfo(0.95f, 0.065f, 0.15f, Color(0xFF80DEEA)),
+            )
+        }
 
     // 2. Solar Pulse Animation
     val pulseFactor by animateFloatAsState(
         targetValue = 1f + (audioAmplitude * 0.35f),
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "SolarPulse"
+        label = "SolarPulse",
     )
 
     // 3. Planet Trails History (For particle-like trailing)
     // We'll use a simple approximation for trails to keep performance smooth
-    
+
     val sunColor = if (isDark) Color(0xFFFFE082) else Color(0xFFFFD54F)
     val starColor = if (isDark) Color.White else Color(0xFF455A64)
 
@@ -100,56 +102,59 @@ fun LiquidLoader(
             val drift = (time * p.driftSpeed).toFloat()
             val px = (p.x + drift * p.depth) % 1f
             val py = p.y
-            
+
             val twinkle = (sin(time * p.twinkleSpeed + p.x * 100).toFloat() + 1f) / 2f
             val alpha = if (isDark) (0.1f + 0.4f * twinkle * p.depth) else (0.05f + 0.1f * twinkle)
-            
+
             drawCircle(
                 color = starColor.copy(alpha = alpha),
                 radius = p.size * (0.5f + 0.5f * p.depth),
-                center = Offset(px * size.width, py * size.height)
+                center = Offset(px * size.width, py * size.height),
             )
         }
 
         // --- DRAW SUN (Layered Glow & Core) ---
         val sunRadius = viewRadius * 0.12f * pulseFactor
-        
+
         // Far Glow
         drawCircle(
-            brush = Brush.radialGradient(
-                0.0f to sunColor.copy(alpha = 0.2f),
-                1.0f to Color.Transparent,
-                center = center,
-                radius = sunRadius * 4.5f
-            ),
+            brush =
+                Brush.radialGradient(
+                    0.0f to sunColor.copy(alpha = 0.2f),
+                    1.0f to Color.Transparent,
+                    center = center,
+                    radius = sunRadius * 4.5f,
+                ),
             radius = sunRadius * 4.5f,
-            center = center
+            center = center,
         )
 
         // Corona
         drawCircle(
-            brush = Brush.radialGradient(
-                0.0f to sunColor.copy(alpha = 0.5f),
-                0.6f to sunColor.copy(alpha = 0.1f),
-                1.0f to Color.Transparent,
-                center = center,
-                radius = sunRadius * 1.8f
-            ),
+            brush =
+                Brush.radialGradient(
+                    0.0f to sunColor.copy(alpha = 0.5f),
+                    0.6f to sunColor.copy(alpha = 0.1f),
+                    1.0f to Color.Transparent,
+                    center = center,
+                    radius = sunRadius * 1.8f,
+                ),
             radius = sunRadius * 1.8f,
-            center = center
+            center = center,
         )
 
         // Core
         drawCircle(
-            brush = Brush.radialGradient(
-                0.0f to Color.White,
-                0.3f to sunColor,
-                1.0f to sunColor.copy(alpha = 0.8f),
-                center = center,
-                radius = sunRadius
-            ),
+            brush =
+                Brush.radialGradient(
+                    0.0f to Color.White,
+                    0.3f to sunColor,
+                    1.0f to sunColor.copy(alpha = 0.8f),
+                    center = center,
+                    radius = sunRadius,
+                ),
             radius = sunRadius,
-            center = center
+            center = center,
         )
 
         // --- DRAW PLANETS (precomputed planet list from remember) ---
@@ -167,59 +172,63 @@ fun LiquidLoader(
                 color = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
                 radius = orbitRadius,
                 center = center,
-                style = Stroke(width = 0.5.dp.toPx())
+                style = Stroke(width = 0.5.dp.toPx()),
             )
 
             // 2. Atmospheric Glow (Realistic Layer)
             drawCircle(
-                brush = Brush.radialGradient(
-                    0.0f to p.color.copy(alpha = 0.4f),
-                    1.0f to Color.Transparent,
-                    center = pCenter,
-                    radius = pRadius * 2.2f
-                ),
+                brush =
+                    Brush.radialGradient(
+                        0.0f to p.color.copy(alpha = 0.4f),
+                        1.0f to Color.Transparent,
+                        center = pCenter,
+                        radius = pRadius * 2.2f,
+                    ),
                 radius = pRadius * 2.2f,
-                center = pCenter
+                center = pCenter,
             )
 
             // 3. Particle Trail simulation (Smooth gradient arc)
             val trailLength = 35f * p.speed.coerceIn(0.5f, 3f)
             drawArc(
-                brush = Brush.sweepGradient(
-                    0f to Color.Transparent,
-                    0.9f to p.color.copy(alpha = 0.15f),
-                    1f to Color.Transparent,
-                    center = center
-                ),
+                brush =
+                    Brush.sweepGradient(
+                        0f to Color.Transparent,
+                        0.9f to p.color.copy(alpha = 0.15f),
+                        1f to Color.Transparent,
+                        center = center,
+                    ),
                 startAngle = Math.toDegrees(angle.toDouble()).toFloat() - trailLength,
                 sweepAngle = trailLength,
                 useCenter = false,
                 topLeft = Offset(center.x - orbitRadius, center.y - orbitRadius),
                 size = Size(orbitRadius * 2, orbitRadius * 2),
-                style = Stroke(width = pRadius * 0.6f, cap = StrokeCap.Round)
+                style = Stroke(width = pRadius * 0.6f, cap = StrokeCap.Round),
             )
 
             // 4. Planet Body with Refraction Lighting
             // Light source always from the sun (center)
             val lightAngle = atan2(py - center.y, px - center.x)
-            val highlightOffset = Offset(
-                px - cos(lightAngle) * pRadius * 0.4f,
-                py - sin(lightAngle) * pRadius * 0.4f
-            )
+            val highlightOffset =
+                Offset(
+                    px - cos(lightAngle) * pRadius * 0.4f,
+                    py - sin(lightAngle) * pRadius * 0.4f,
+                )
 
-            val bodyBrush = Brush.radialGradient(
-                0.0f to Color.White.copy(alpha = 0.8f), // Specular reflection
-                0.2f to p.color,
-                0.7f to p.color.copy(alpha = 0.9f),
-                1.0f to Color.Black.copy(alpha = 0.4f), // Dark side
-                center = highlightOffset,
-                radius = pRadius * 1.5f
-            )
+            val bodyBrush =
+                Brush.radialGradient(
+                    0.0f to Color.White.copy(alpha = 0.8f), // Specular reflection
+                    0.2f to p.color,
+                    0.7f to p.color.copy(alpha = 0.9f),
+                    1.0f to Color.Black.copy(alpha = 0.4f), // Dark side
+                    center = highlightOffset,
+                    radius = pRadius * 1.5f,
+                )
 
             drawCircle(
                 brush = bodyBrush,
                 radius = pRadius,
-                center = pCenter
+                center = pCenter,
             )
 
             // 5. Special Features: Saturn's Rings
@@ -231,14 +240,14 @@ fun LiquidLoader(
                         color = p.color.copy(alpha = 0.3f),
                         topLeft = Offset(px - pRadius * 2.2f, py - pRadius * 0.6f),
                         size = Size(pRadius * 4.4f, pRadius * 1.2f),
-                        style = Stroke(width = 2.dp.toPx())
+                        style = Stroke(width = 2.dp.toPx()),
                     )
                     // Fainter outer ring
                     drawOval(
                         color = p.color.copy(alpha = 0.15f),
                         topLeft = Offset(px - pRadius * 2.6f, py - pRadius * 0.8f),
                         size = Size(pRadius * 5.2f, pRadius * 1.6f),
-                        style = Stroke(width = 1.dp.toPx())
+                        style = Stroke(width = 1.dp.toPx()),
                     )
                 }
             }
@@ -249,18 +258,18 @@ fun LiquidLoader(
                 val mAngle = (time * 12.0 * 0.15).toFloat()
                 val mx = px + cos(mAngle) * moonDist
                 val my = py + sin(mAngle) * moonDist
-                
+
                 // Moon Glow
                 drawCircle(
                     color = Color.White.copy(alpha = 0.1f),
                     radius = pRadius * 0.8f,
-                    center = Offset(mx, my)
+                    center = Offset(mx, my),
                 )
                 // Moon Body
                 drawCircle(
                     color = if (isDark) Color(0xFFCFD8DC) else Color(0xFF90A4AE),
                     radius = pRadius * 0.25f,
-                    center = Offset(mx, my)
+                    center = Offset(mx, my),
                 )
             }
         }
@@ -273,14 +282,12 @@ private data class CosmicParticle(
     val depth: Float,
     val size: Float,
     val driftSpeed: Float,
-    val twinkleSpeed: Float
+    val twinkleSpeed: Float,
 )
 
 private data class PlanetInfo(
     val orbitFactor: Float,
     val sizeFactor: Float,
     val speed: Float,
-    val color: Color
+    val color: Color,
 )
-
-

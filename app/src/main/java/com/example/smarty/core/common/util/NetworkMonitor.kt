@@ -19,7 +19,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * IMPORTANT: Supports server-side AI connections:
  * - Server-side AI: Requires validated internet (NET_CAPABILITY_VALIDATED)
  */
-class NetworkMonitor(context: Context) {
+class NetworkMonitor(
+    context: Context,
+) {
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
@@ -76,7 +78,8 @@ class NetworkMonitor(context: Context) {
             // Use a broad network request that captures WiFi, USB, and Ethernet
             // Don't require NET_CAPABILITY_INTERNET as local networks may not have it
             val request =
-                NetworkRequest.Builder()
+                NetworkRequest
+                    .Builder()
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                     .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                     .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
@@ -133,8 +136,8 @@ class NetworkMonitor(context: Context) {
      * Determine connection status based on network capabilities.
      * Handles both cloud APIs (validated internet) and local LLM scenarios (WiFi/USB without validation).
      */
-    private fun determineStatus(caps: NetworkCapabilities?): ConnectionStatus {
-        return when {
+    private fun determineStatus(caps: NetworkCapabilities?): ConnectionStatus =
+        when {
             caps == null -> ConnectionStatus.OFFLINE
 
             // Fully validated internet (for server-side AI processing)
@@ -156,5 +159,4 @@ class NetworkMonitor(context: Context) {
             // Other network types without validation
             else -> ConnectionStatus.CONNECTING
         }
-    }
 }

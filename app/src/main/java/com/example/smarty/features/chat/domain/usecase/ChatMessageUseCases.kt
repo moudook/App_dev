@@ -33,7 +33,10 @@ class SendMessageUseCase(
 
         val message =
             ChatMessage(
-                id = java.util.UUID.randomUUID().toString(),
+                id =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 role = ChatRole.USER,
                 content = content,
                 timestamp = System.currentTimeMillis(),
@@ -88,16 +91,12 @@ class GetMessagesUseCase(
     /**
      * Execute: Get flow of messages for a session.
      */
-    fun execute(sessionId: String): kotlinx.coroutines.flow.Flow<List<ChatMessage>> {
-        return chatRepository.getMessagesForSession(sessionId)
-    }
+    fun execute(sessionId: String): kotlinx.coroutines.flow.Flow<List<ChatMessage>> = chatRepository.getMessagesForSession(sessionId)
 
     /**
      * Execute: Get all messages for a session (one-time).
      */
-    suspend fun getAllMessages(sessionId: String): List<ChatMessage> {
-        return chatRepository.getMessagesForSessionOnce(sessionId)
-    }
+    suspend fun getAllMessages(sessionId: String): List<ChatMessage> = chatRepository.getMessagesForSessionOnce(sessionId)
 }
 
 /**
@@ -131,9 +130,7 @@ class DeleteMessageUseCase(
     /**
      * Execute: Delete a specific message.
      */
-    suspend fun execute(messageId: String): Boolean {
-        return chatRepository.deleteMessage(messageId)
-    }
+    suspend fun execute(messageId: String): Boolean = chatRepository.deleteMessage(messageId)
 }
 
 /**
@@ -150,7 +147,5 @@ class DeleteMessageBySessionUseCase(
     suspend fun execute(
         sessionId: String,
         messageId: String,
-    ): Boolean {
-        return chatRepository.deleteMessage(messageId)
-    }
+    ): Boolean = chatRepository.deleteMessage(messageId)
 }

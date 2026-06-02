@@ -34,37 +34,41 @@ fun AudioWaveform(
     barWidth: Dp = 3.dp,
     barGap: Dp = 2.dp,
     cornerRadius: Dp = 2.dp,
-    onSeek: ((Float) -> Unit)? = null
+    onSeek: ((Float) -> Unit)? = null,
 ) {
     val haptic = LocalHapticFeedback.current
 
     Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(100.dp)
-            .then(
-                if (onSeek != null) {
-                    Modifier.pointerInput(Unit) {
-                        detectTapGestures { offset ->
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val seekProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                            onSeek(seekProgress)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .then(
+                    if (onSeek != null) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val seekProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                                onSeek(seekProgress)
+                            }
                         }
-                    }
-                } else Modifier
-            )
+                    } else {
+                        Modifier
+                    },
+                ),
     ) {
         val barWidthPx = barWidth.toPx()
         val barGapPx = barGap.toPx()
         val cornerRadiusPx = cornerRadius.toPx()
 
         // If no waveform data, generate placeholder bars
-        val amplitudes = if (waveformData.isEmpty()) {
-            // Generate 50 placeholder bars with random-ish heights
-            List(50) { i -> 0.3f + (abs((i * 17 % 10) - 5) / 10f) * 0.5f }
-        } else {
-            waveformData
-        }
+        val amplitudes =
+            if (waveformData.isEmpty()) {
+                // Generate 50 placeholder bars with random-ish heights
+                List(50) { i -> 0.3f + (abs((i * 17 % 10) - 5) / 10f) * 0.5f }
+            } else {
+                waveformData
+            }
 
         val totalBars = amplitudes.size
         if (totalBars == 0) return@Canvas
@@ -91,7 +95,7 @@ fun AudioWaveform(
                 color = color,
                 topLeft = Offset(x, centerY - halfHeight),
                 size = Size(actualBarWidth, barHeight),
-                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
             )
         }
     }
@@ -107,25 +111,28 @@ fun AudioProgressBar(
     playedColor: Color = AudioPink,
     unplayedColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
     height: Dp = 4.dp,
-    onSeek: ((Float) -> Unit)? = null
+    onSeek: ((Float) -> Unit)? = null,
 ) {
     val haptic = LocalHapticFeedback.current
 
     Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-            .then(
-                if (onSeek != null) {
-                    Modifier.pointerInput(Unit) {
-                        detectTapGestures { offset ->
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val seekProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                            onSeek(seekProgress)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(height)
+                .then(
+                    if (onSeek != null) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val seekProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                                onSeek(seekProgress)
+                            }
                         }
-                    }
-                } else Modifier
-            )
+                    } else {
+                        Modifier
+                    },
+                ),
     ) {
         val cornerRadiusPx = size.height / 2
 
@@ -134,7 +141,7 @@ fun AudioProgressBar(
             color = unplayedColor,
             topLeft = Offset.Zero,
             size = Size(size.width, size.height),
-            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
         )
 
         // Progress fill
@@ -143,7 +150,7 @@ fun AudioProgressBar(
                 color = playedColor,
                 topLeft = Offset.Zero,
                 size = Size(size.width * progress, size.height),
-                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
             )
         }
     }

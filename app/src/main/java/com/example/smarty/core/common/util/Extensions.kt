@@ -26,13 +26,12 @@ package com.example.smarty.core.common.util
 fun String.truncate(
     maxLength: Int,
     suffix: String = "…",
-): String {
-    return if (length <= maxLength) {
+): String =
+    if (length <= maxLength) {
         this
     } else {
         take(maxLength) + suffix
     }
-}
 
 /**
  * Returns this string if not blank, or [default] otherwise.
@@ -42,9 +41,7 @@ fun String.truncate(
  * "".orDefault("Untitled") → "Untitled"
  * "My Note".orDefault("Untitled") → "My Note"
  */
-fun String?.orDefault(default: String): String {
-    return if (this.isNullOrBlank()) default else this
-}
+fun String?.orDefault(default: String): String = if (this.isNullOrBlank()) default else this
 
 /**
  * Capitalizes the first letter of each word.
@@ -52,11 +49,10 @@ fun String?.orDefault(default: String): String {
  * Example:
  * "hello world".capitalizeWords() → "Hello World"
  */
-fun String.capitalizeWords(): String {
-    return split(" ").joinToString(" ") { word ->
+fun String.capitalizeWords(): String =
+    split(" ").joinToString(" ") { word ->
         word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
-}
 
 //
 // COLLECTION EXTENSIONS
@@ -73,9 +69,7 @@ fun String.capitalizeWords(): String {
 fun Int.countLabel(
     singular: String,
     plural: String,
-): String {
-    return "$this ${if (this == 1) singular else plural}"
-}
+): String = "$this ${if (this == 1) singular else plural}"
 
 //
 // FILE SIZE FORMATTING
@@ -89,11 +83,10 @@ fun Int.countLabel(
  * 1048576L.formatFileSize() → "1.0 MB"
  * 500L.formatFileSize() → "500 B"
  */
-fun Long.formatFileSize(): String {
-    return when {
+fun Long.formatFileSize(): String =
+    when {
         this < 1024 -> "$this B"
         this < 1024 * 1024 -> "%.1f KB".format(this / 1024.0)
         this < 1024 * 1024 * 1024 -> "%.1f MB".format(this / (1024.0 * 1024.0))
         else -> "%.2f GB".format(this / (1024.0 * 1024.0 * 1024.0))
     }
-}

@@ -2,7 +2,6 @@ package com.example.smarty.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,37 +30,40 @@ fun SmartyButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     containerColor: Color = LocalAccentColor.current,
-    contentColor: Color = Color.White
+    contentColor: Color = Color.White,
 ) {
     val shapes = LocalShapes.current
     Button(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(ComponentSpacing.buttonHeight),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(ComponentSpacing.buttonHeight),
         enabled = enabled && !isLoading,
         shape = shapes.button,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = 0.5f),
-            disabledContentColor = contentColor.copy(alpha = 0.7f)
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 0.dp,
-            pressedElevation = 2.dp
-        )
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = containerColor,
+                contentColor = contentColor,
+                disabledContainerColor = containerColor.copy(alpha = 0.5f),
+                disabledContentColor = contentColor.copy(alpha = 0.7f),
+            ),
+        elevation =
+            ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 2.dp,
+            ),
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(IconSize.xl),
                 color = contentColor,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         } else {
             Text(
                 text = text,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             )
         }
     }
@@ -69,7 +71,7 @@ fun SmartyButton(
 
 /**
  * Standard Outlined Text Field for Smarty App
- * 
+ *
  * @param value Current text value
  * @param onValueChange Callback when value changes
  * @param label Field label
@@ -97,7 +99,7 @@ fun SmartyOutlinedTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     trailingIcon: @Composable (() -> Unit)? = null,
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val shapes = LocalShapes.current
@@ -119,25 +121,26 @@ fun SmartyOutlinedTextField(
             visualTransformation = visualTransformation,
             singleLine = singleLine,
             shape = shapes.button,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = borderColor,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                focusedLabelColor = borderColor,
-                errorBorderColor = MaterialTheme.colorScheme.error,
-                errorLabelColor = MaterialTheme.colorScheme.error,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            interactionSource = interactionSource
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = borderColor,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = borderColor,
+                    errorBorderColor = MaterialTheme.colorScheme.error,
+                    errorLabelColor = MaterialTheme.colorScheme.error,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ),
+            interactionSource = interactionSource,
         )
-        
+
         if (!errorMessage.isNullOrBlank() && isError) {
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = ComponentSpacing.inputPadding, top = 4.dp)
+                modifier = Modifier.padding(start = ComponentSpacing.inputPadding, top = 4.dp),
             )
         }
     }
@@ -150,29 +153,30 @@ fun SmartyOutlinedTextField(
 fun SmartyGoogleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
 ) {
     val shapes = LocalShapes.current
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(ComponentSpacing.buttonHeight),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(ComponentSpacing.buttonHeight),
         shape = shapes.button,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        enabled = !isLoading
+        enabled = !isLoading,
     ) {
         if (isLoading) {
-             CircularProgressIndicator(
+            CircularProgressIndicator(
                 modifier = Modifier.size(IconSize.xl),
                 color = LocalAccentColor.current,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         } else {
             Text(
                 text = stringResource(R.string.continue_with_google),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }

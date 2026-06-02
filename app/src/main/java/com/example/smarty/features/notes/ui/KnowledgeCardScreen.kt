@@ -1,64 +1,49 @@
 package com.example.smarty.features.notes.ui
 
-import android.content.Intent
-import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.*
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.RelatedNotesSection
+import com.example.smarty.ui.components.audio.AudioWaveform
 import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.components.getNoteTypeIcon
-import com.example.smarty.ui.theme.*
+import com.example.smarty.ui.components.markdown.MarkdownRenderer
 import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
-import com.example.smarty.ui.components.markdown.MarkdownRenderer
-import com.example.smarty.ui.components.RelatedNotesSection
-import com.example.smarty.ui.utils.AnimationLifecycleState
-import com.example.smarty.ui.utils.rememberAnimationLifecycleState
-import com.example.smarty.core.common.util.ContentTypeDetector
-import com.example.smarty.ui.components.audio.AudioWaveform
+import com.example.smarty.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -85,7 +70,7 @@ fun KnowledgeCardScreen(
     // Related Notes
     allNotes: List<Note> = emptyList(),
     onNavigateToNote: (Note) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -147,7 +132,7 @@ fun KnowledgeCardScreen(
                     content,
                     note.summary,
                     note.whySaved,
-                    currentAttachments
+                    currentAttachments,
                 )
             }
         }
@@ -172,7 +157,7 @@ fun KnowledgeCardScreen(
                             content,
                             note.summary,
                             note.whySaved,
-                            currentAttachments
+                            currentAttachments,
                         )
                     },
                     onArchive = onArchiveClick,
@@ -181,24 +166,27 @@ fun KnowledgeCardScreen(
                         onLoadVersions()
                         showVersionHistory = true
                     },
-                    onAskSmarty = onAskSmarty
+                    onAskSmarty = onAskSmarty,
                 )
             },
             containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets.statusBars
+            contentWindowInsets = WindowInsets.statusBars,
         ) { paddingValues ->
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 100.dp + bottomContentPadding), // Space for FAB/Player
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 100.dp + bottomContentPadding),
+                    // Space for FAB/Player
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -206,10 +194,11 @@ fun KnowledgeCardScreen(
                     BasicTextField(
                         value = title,
                         onValueChange = { title = it },
-                        textStyle = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        ),
+                        textStyle =
+                            MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            ),
                         cursorBrush = SolidColor(LocalAccentColor.current),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         decorationBox = { innerTextField ->
@@ -217,15 +206,16 @@ fun KnowledgeCardScreen(
                                 if (title.isEmpty()) {
                                     Text(
                                         text = stringResource(R.string.title_placeholder),
-                                        style = MaterialTheme.typography.displaySmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                        )
+                                        style =
+                                            MaterialTheme.typography.displaySmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                            ),
                                     )
                                 }
                                 innerTextField()
                             }
-                        }
+                        },
                     )
 
                     // 2. Inline Audio Player (if applicable)
@@ -239,8 +229,22 @@ fun KnowledgeCardScreen(
                                 isPlaying = audioUiState.isPlaying && audioUiState.currentTrack?.uri == trackUri,
                                 progress = if (audioUiState.currentTrack?.uri == trackUri) audioUiState.progress else 0f,
                                 waveform = if (audioUiState.currentTrack?.uri == trackUri) audioUiState.waveformData else emptyList(),
-                                duration = if (audioUiState.currentTrack?.uri == trackUri) audioUiState.durationFormatted else formatDuration(0L),
-                                currentTime = if (audioUiState.currentTrack?.uri == trackUri) audioUiState.currentPositionFormatted else "0:00",
+                                duration =
+                                    if (audioUiState.currentTrack?.uri ==
+                                        trackUri
+                                    ) {
+                                        audioUiState.durationFormatted
+                                    } else {
+                                        formatDuration(0L)
+                                    },
+                                currentTime =
+                                    if (audioUiState.currentTrack?.uri ==
+                                        trackUri
+                                    ) {
+                                        audioUiState.currentPositionFormatted
+                                    } else {
+                                        "0:00"
+                                    },
                                 onPlayPause = {
                                     if (audioUiState.isPlaying && audioUiState.currentTrack?.uri == trackUri) {
                                         onPauseAudio()
@@ -251,12 +255,12 @@ fun KnowledgeCardScreen(
                                                 title = note.title,
                                                 fileName = audioAttachment?.fileName,
                                                 sourceNoteId = note.id,
-                                                mimeType = "audio/mpeg"
-                                            )
+                                                mimeType = "audio/mpeg",
+                                            ),
                                         )
                                     }
                                 },
-                                onSeek = onSeekAudio
+                                onSeek = onSeekAudio,
                             )
                         }
                     }
@@ -266,7 +270,7 @@ fun KnowledgeCardScreen(
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             currentAttachments.forEach { attachment ->
                                 if (!attachment.mimeType.startsWith("audio/")) { // Hide audio as it is shown in player
@@ -290,7 +294,7 @@ fun KnowledgeCardScreen(
                                                     showDocumentViewer = true
                                                 }
                                             }
-                                        }
+                                        },
                                     )
                                 }
                             }
@@ -307,15 +311,16 @@ fun KnowledgeCardScreen(
                             linkColor = LocalAccentColor.current,
                             codeColor = LocalAccentColor.current,
                             codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
                         )
                     } else {
                         Text(
                             text = stringResource(R.string.note_content_placeholder),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                                lineHeight = 28.sp
-                            )
+                            style =
+                                MaterialTheme.typography.bodyLarge.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                    lineHeight = 28.sp,
+                                ),
                         )
                     }
 
@@ -326,17 +331,17 @@ fun KnowledgeCardScreen(
                         Text(
                             text = "Created ${formatDate(note.createdAt)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Icon(
                             imageVector = getNoteTypeIcon(note.type),
                             contentDescription = null, // Decorative icon - note type indicator
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
                         )
                     }
-                    
+
                     // 6. Related Notes Section
                     if (allNotes.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -345,7 +350,7 @@ fun KnowledgeCardScreen(
                         com.example.smarty.ui.components.RelatedNotesSection(
                             currentNote = note,
                             allNotes = allNotes,
-                            onNoteClick = { relatedNote -> onNavigateToNote(relatedNote) }
+                            onNoteClick = { relatedNote -> onNavigateToNote(relatedNote) },
                         )
                     }
                 }
@@ -365,22 +370,31 @@ fun KnowledgeCardScreen(
             onDismiss = { showDeleteDialog = false },
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
-            isDestructive = true
+            isDestructive = true,
         )
     }
 
     if (showImageViewer && imageViewerUri != null) {
-        FullScreenImageViewer(imageUri = imageViewerUri!!, onDismiss = { showImageViewer = false; imageViewerUri = null })
+        FullScreenImageViewer(imageUri = imageViewerUri!!, onDismiss = {
+            showImageViewer = false
+            imageViewerUri = null
+        })
     }
     if (showVideoPlayer && videoPlayerUri != null) {
-        FullScreenVideoPlayer(videoUri = videoPlayerUri!!, onDismiss = { showVideoPlayer = false; videoPlayerUri = null })
+        FullScreenVideoPlayer(videoUri = videoPlayerUri!!, onDismiss = {
+            showVideoPlayer = false
+            videoPlayerUri = null
+        })
     }
     if (showDocumentViewer && documentViewerUri != null) {
         FullScreenDocumentViewer(
             documentUri = documentViewerUri!!,
             mimeType = documentViewerMimeType,
             fileName = documentViewerFileName,
-            onDismiss = { showDocumentViewer = false; documentViewerUri = null }
+            onDismiss = {
+                showDocumentViewer = false
+                documentViewerUri = null
+            },
         )
     }
 
@@ -407,7 +421,7 @@ private fun KnowledgeTopBar(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onHistory: () -> Unit,
-    onAskSmarty: (() -> Unit)?
+    onAskSmarty: (() -> Unit)?,
 ) {
     TopAppBar(
         title = {},
@@ -421,12 +435,12 @@ private fun KnowledgeTopBar(
             AnimatedVisibility(
                 visible = isModified,
                 enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut()
+                exit = fadeOut() + scaleOut(),
             ) {
                 FilledTonalButton(
                     onClick = onSave,
                     modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                 ) {
                     Text(stringResource(R.string.save))
                 }
@@ -447,29 +461,38 @@ private fun KnowledgeTopBar(
                 }
                 DropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
+                    onDismissRequest = { showMenu = false },
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.history)) },
                         leadingIcon = { Icon(Icons.Default.History, null) },
-                        onClick = { showMenu = false; onHistory() }
+                        onClick = {
+                            showMenu = false
+                            onHistory()
+                        },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.archive)) },
                         leadingIcon = { Icon(Icons.Outlined.Archive, null) },
-                        onClick = { showMenu = false; onArchive() }
+                        onClick = {
+                            showMenu = false
+                            onArchive()
+                        },
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
                         leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = { showMenu = false; onDelete() },
-                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
+                        onClick = {
+                            showMenu = false
+                            onDelete()
+                        },
+                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error),
                     )
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
     )
 }
 
@@ -483,29 +506,30 @@ private fun InlineAudioPlayer(
     duration: String,
     currentTime: String,
     onPlayPause: () -> Unit,
-    onSeek: (Float) -> Unit
+    onSeek: (Float) -> Unit,
 ) {
     Surface(
         shape = LocalShapes.current.cardSmall,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Play Button
                 FilledIconButton(
                     onClick = onPlayPause,
                     modifier = Modifier.size(48.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    colors =
+                        IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        ),
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play"
+                        contentDescription = if (isPlaying) "Pause" else "Play",
                     )
                 }
 
@@ -514,12 +538,12 @@ private fun InlineAudioPlayer(
                     Text(
                         text = "Audio Recording", // Or trackTitle
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
                         text = "$currentTime / $duration",
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -530,12 +554,13 @@ private fun InlineAudioPlayer(
             AudioWaveform(
                 waveformData = waveform,
                 progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
                 activeColor = MaterialTheme.colorScheme.primary,
                 inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                onSeek = onSeek
+                onSeek = onSeek,
             )
         }
     }
@@ -544,24 +569,24 @@ private fun InlineAudioPlayer(
 @Composable
 private fun AttachmentChip(
     attachment: NoteAttachment,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Surface(
         onClick = onClick,
         shape = LocalShapes.current.skeleton,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
                 imageVector = Icons.Outlined.AttachFile,
                 contentDescription = null, // Decorative icon - attachment indicator, filename shown in text
                 modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = attachment.fileName,
@@ -569,10 +594,8 @@ private fun AttachmentChip(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 120.dp)
+                modifier = Modifier.widthIn(max = 120.dp),
             )
         }
     }
 }
-
-

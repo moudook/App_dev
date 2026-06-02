@@ -23,7 +23,9 @@ import java.util.Locale
  * - App version info
  * - Custom keys for filtering
  */
-class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandler {
+class CrashLogger(
+    private val context: Context,
+) : Thread.UncaughtExceptionHandler {
     private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
 
     override fun uncaughtException(
@@ -54,7 +56,6 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
             @Suppress("DEPRECATION")
             val threadId = t.id
             crashlytics.setCustomKey("thread_id", threadId)
-
 
             // Report to Firebase Crashlytics
             crashlytics.recordException(e)
@@ -117,14 +118,13 @@ class CrashLogger(private val context: Context) : Thread.UncaughtExceptionHandle
         file.appendText(content)
     }
 
-    private fun getAppVersion(context: Context): String {
-        return try {
+    private fun getAppVersion(context: Context): String =
+        try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             "${packageInfo.versionName} (${packageInfo.longVersionCode})"
         } catch (e: Exception) {
             "unknown"
         }
-    }
 
     companion object {
         fun init(context: Context) {

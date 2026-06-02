@@ -86,63 +86,71 @@ object FastMath {
  * - ζ > 1: Overdamped (sluggish)
  */
 object SmartyMotion {
-
     // Spring configurations matching Apple's motion design
     // Based on UIKit's CASpringAnimation defaults
 
     /** Snappy response for UI feedback - critically damped */
-    val snappy = spring<Float>(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessHigh
-    )
+    val snappy =
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessHigh,
+        )
 
     /** Default interactive spring - slight bounce */
-    val interactive = spring<Float>(
-        dampingRatio = 0.8f,
-        stiffness = 400f
-    )
+    val interactive =
+        spring<Float>(
+            dampingRatio = 0.8f,
+            stiffness = 400f,
+        )
 
     /** Gentle spring for larger movements */
-    val gentle = spring<Float>(
-        dampingRatio = 0.9f,
-        stiffness = 200f
-    )
+    val gentle =
+        spring<Float>(
+            dampingRatio = 0.9f,
+            stiffness = 200f,
+        )
 
     /** Bouncy spring for playful feedback */
-    val bouncy = spring<Float>(
-        dampingRatio = 0.6f,
-        stiffness = 300f
-    )
+    val bouncy =
+        spring<Float>(
+            dampingRatio = 0.6f,
+            stiffness = 300f,
+        )
 
     /** Very bouncy for emphasis */
-    val veryBouncy = spring<Float>(
-        dampingRatio = 0.5f,
-        stiffness = 350f
-    )
+    val veryBouncy =
+        spring<Float>(
+            dampingRatio = 0.5f,
+            stiffness = 350f,
+        )
 
     /** Smooth settle for subtle animations */
-    val smooth = spring<Float>(
-        dampingRatio = 1f,  // Critically damped
-        stiffness = 150f
-    )
+    val smooth =
+        spring<Float>(
+            dampingRatio = 1f, // Critically damped
+            stiffness = 150f,
+        )
 
     /** Quick response for micro-interactions */
-    val quick = spring<Float>(
-        dampingRatio = 0.85f,
-        stiffness = 600f
-    )
+    val quick =
+        spring<Float>(
+            dampingRatio = 0.85f,
+            stiffness = 600f,
+        )
 
     /** Bouncy spring for IntOffset animations */
-    val offsetBouncy = spring<androidx.compose.ui.unit.IntOffset>(
-        dampingRatio = 0.6f,
-        stiffness = 300f
-    )
+    val offsetBouncy =
+        spring<androidx.compose.ui.unit.IntOffset>(
+            dampingRatio = 0.6f,
+            stiffness = 300f,
+        )
 
     /** Quick spring for IntOffset animations */
-    val offsetQuick = spring<androidx.compose.ui.unit.IntOffset>(
-        dampingRatio = 0.85f,
-        stiffness = 600f
-    )
+    val offsetQuick =
+        spring<androidx.compose.ui.unit.IntOffset>(
+            dampingRatio = 0.85f,
+            stiffness = 600f,
+        )
 }
 
 /**
@@ -150,7 +158,6 @@ object SmartyMotion {
  * Bezier curve: B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
  */
 object SmartyEasing {
-
     /** Apple's ease-out curve - fast start, smooth end */
     val appleEaseOut = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
 
@@ -170,33 +177,37 @@ object SmartyEasing {
      * Custom exponential ease-out: f(t) = 1 - 2^(-10t)
      * Creates a very smooth deceleration curve
      */
-    val exponentialOut = Easing { fraction ->
-        if (fraction == 1f) 1f else 1f - 2f.pow(-10f * fraction)
-    }
+    val exponentialOut =
+        Easing { fraction ->
+            if (fraction == 1f) 1f else 1f - 2f.pow(-10f * fraction)
+        }
 
     /**
      * Elastic ease-out using sine wave decay
      * f(t) = 2^(-10t) * sin((t - 0.075) * (2π / 0.3)) + 1
      */
-    val elasticOut = Easing { fraction ->
-        if (fraction == 0f || fraction == 1f) fraction
-        else {
-            val p = 0.3f
-            val s = p / 4f
-            2f.pow(-10f * fraction) * sin((fraction - s) * (2f * PI.toFloat()) / p) + 1f
+    val elasticOut =
+        Easing { fraction ->
+            if (fraction == 0f || fraction == 1f) {
+                fraction
+            } else {
+                val p = 0.3f
+                val s = p / 4f
+                2f.pow(-10f * fraction) * sin((fraction - s) * (2f * PI.toFloat()) / p) + 1f
+            }
         }
-    }
 
     /**
      * Back ease-out - overshoots then settles
      * f(t) = 1 + c₃(t-1)³ + c₁(t-1)²
      */
-    val backOut = Easing { fraction ->
-        val c1 = 1.70158f
-        val c3 = c1 + 1f
-        val t = fraction - 1f
-        1f + c3 * t * t * t + c1 * t * t
-    }
+    val backOut =
+        Easing { fraction ->
+            val c1 = 1.70158f
+            val c3 = c1 + 1f
+            val t = fraction - 1f
+            1f + c3 * t * t * t + c1 * t * t
+        }
 }
 
 /**
@@ -204,18 +215,23 @@ object SmartyEasing {
  * Creates natural-feeling cascading animations.
  */
 object StaggerCalculator {
-
     /**
      * Linear stagger: delay(i) = baseDelay * i
      * Simple but effective for short lists
      */
-    fun linear(index: Int, baseDelayMs: Int = 50): Int = baseDelayMs * index
+    fun linear(
+        index: Int,
+        baseDelayMs: Int = 50,
+    ): Int = baseDelayMs * index
 
     /**
      * Fibonacci-based stagger for organic feel
      * Uses ratio φ = (1 + √5) / 2 ≈ 1.618
      */
-    fun fibonacci(index: Int, baseDelayMs: Int = 30): Int {
+    fun fibonacci(
+        index: Int,
+        baseDelayMs: Int = 30,
+    ): Int {
         val phi = 1.618f
         return (baseDelayMs * phi.pow(index.coerceAtMost(5))).toInt()
     }
@@ -224,7 +240,10 @@ object StaggerCalculator {
      * Logarithmic stagger - fast start, slowing down
      * delay(i) = baseDelay * ln(i + 1) / ln(2)
      */
-    fun logarithmic(index: Int, baseDelayMs: Int = 40): Int {
+    fun logarithmic(
+        index: Int,
+        baseDelayMs: Int = 40,
+    ): Int {
         if (index == 0) return 0
         return (baseDelayMs * ln((index + 1).toDouble()) / ln(2.0)).toInt()
     }
@@ -233,15 +252,19 @@ object StaggerCalculator {
      * Quadratic ease stagger - accelerating delays
      * delay(i) = baseDelay * i²
      */
-    fun quadratic(index: Int, baseDelayMs: Int = 10): Int = baseDelayMs * index * index
+    fun quadratic(
+        index: Int,
+        baseDelayMs: Int = 10,
+    ): Int = baseDelayMs * index * index
 
     /**
      * Wave stagger using sine - creates ripple effect
      * delay(i) = baseDelay * |sin(i * π/4)| * i
      */
-    fun wave(index: Int, baseDelayMs: Int = 30): Int {
-        return (baseDelayMs * abs(sin(index * PI / 4)) * index).toInt()
-    }
+    fun wave(
+        index: Int,
+        baseDelayMs: Int = 30,
+    ): Int = (baseDelayMs * abs(sin(index * PI / 4)) * index).toInt()
 }
 
 /**
@@ -250,15 +273,16 @@ object StaggerCalculator {
 fun Modifier.animatedScale(
     pressed: Boolean,
     pressedScale: Float = 0.95f,
-    spec: SpringSpec<Float> = SmartyMotion.quick
-): Modifier = composed {
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = spec,
-        label = "scale"
-    )
-    this.scale(scale)
-}
+    spec: SpringSpec<Float> = SmartyMotion.quick,
+): Modifier =
+    composed {
+        val scale by animateFloatAsState(
+            targetValue = if (pressed) pressedScale else 1f,
+            animationSpec = spec,
+            label = "scale",
+        )
+        this.scale(scale)
+    }
 
 /**
  * Combined transform animation for cards - scale + slight rotation
@@ -266,23 +290,26 @@ fun Modifier.animatedScale(
 @Composable
 fun animatedCardTransform(
     pressed: Boolean,
-    index: Int = 0
+    index: Int = 0,
 ): Pair<Float, Float> {
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
         animationSpec = SmartyMotion.quick,
-        label = "cardScale"
+        label = "cardScale",
     )
 
     // Slight rotation based on index for variety - max ±1.5 degrees
-    val targetRotation = if (pressed) {
-        ((index % 3) - 1) * 0.5f // -0.5, 0, 0.5 degrees
-    } else 0f
+    val targetRotation =
+        if (pressed) {
+            ((index % 3) - 1) * 0.5f // -0.5, 0, 0.5 degrees
+        } else {
+            0f
+        }
 
     val rotation by animateFloatAsState(
         targetValue = targetRotation,
         animationSpec = SmartyMotion.bouncy,
-        label = "cardRotation"
+        label = "cardRotation",
     )
 
     return scale to rotation
@@ -294,12 +321,11 @@ fun animatedCardTransform(
 @Composable
 fun rememberStaggeredAnimationState(
     itemCount: Int,
-    delayCalculator: (Int) -> Int = StaggerCalculator::logarithmic
-): List<Animatable<Float, AnimationVector1D>> {
-    return remember(itemCount) {
+    delayCalculator: (Int) -> Int = StaggerCalculator::logarithmic,
+): List<Animatable<Float, AnimationVector1D>> =
+    remember(itemCount) {
         List(itemCount) { Animatable(0f) }
     }
-}
 
 /**
  * OPTIMIZED: Infinite rotation animation with smooth easing
@@ -310,7 +336,7 @@ fun rememberStaggeredAnimationState(
 @Composable
 fun rememberInfiniteRotation(
     durationMs: Int = 800,
-    easing: Easing = LinearEasing
+    easing: Easing = LinearEasing,
 ): Float {
     // LIFECYCLE-AWARE: Only animate when app is in foreground
     val lifecycleState by rememberAnimationLifecycleState()
@@ -322,11 +348,12 @@ fun rememberInfiniteRotation(
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = easing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "infiniteRotation"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMs, easing = easing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "infiniteRotation",
     )
     return rotation
 }
@@ -341,7 +368,7 @@ fun rememberInfiniteRotation(
 fun rememberPulsingScale(
     minScale: Float = 0.95f,
     maxScale: Float = 1.05f,
-    durationMs: Int = 640
+    durationMs: Int = 640,
 ): Float {
     // LIFECYCLE-AWARE: Only animate when app is in foreground
     val lifecycleState by rememberAnimationLifecycleState()
@@ -353,11 +380,12 @@ fun rememberPulsingScale(
     val scale by infiniteTransition.animateFloat(
         initialValue = minScale,
         targetValue = maxScale,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = SmartyEasing.appleEaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulsingScale"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMs, easing = SmartyEasing.appleEaseInOut),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "pulsingScale",
     )
     return scale
 }
@@ -370,9 +398,7 @@ fun rememberPulsingScale(
  * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 @Composable
-fun rememberShimmerOffset(
-    durationMs: Int = 960
-): Float {
+fun rememberShimmerOffset(durationMs: Int = 960): Float {
     // LIFECYCLE-AWARE: Only animate when app is in foreground
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
@@ -383,11 +409,12 @@ fun rememberShimmerOffset(
     val offset by infiniteTransition.animateFloat(
         initialValue = -1f,
         targetValue = 2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerOffset"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMs, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "shimmerOffset",
     )
     return offset
 }
@@ -407,30 +434,33 @@ fun rememberBreathingScale(
     baseScale: Float = 1f,
     amplitude: Float = 0.03f,
     periodMs: Int = 1600,
-    isActive: Boolean = true
+    isActive: Boolean = true,
 ): Float {
     // Early exit when not active - no animation overhead
     if (!isActive) return baseScale
 
-    val infiniteTransition = com.example.smarty.ui.utils.rememberStaticAwareTransition(
-        isActive = true,
-        label = "breathing"
-    )
-
-    val progress = if (infiniteTransition != null) {
-        val animatedProgress by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(periodMs, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "breathingProgress"
+    val infiniteTransition =
+        com.example.smarty.ui.utils.rememberStaticAwareTransition(
+            isActive = true,
+            label = "breathing",
         )
-        animatedProgress
-    } else {
-        0.5f  // Static mid-value when paused
-    }
+
+    val progress =
+        if (infiniteTransition != null) {
+            val animatedProgress by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(periodMs, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart,
+                    ),
+                label = "breathingProgress",
+            )
+            animatedProgress
+        } else {
+            0.5f // Static mid-value when paused
+        }
 
     // OPTIMIZED: Use FastMath.fastSin instead of kotlin.math.sin
     return baseScale + amplitude * FastMath.fastSin(2f * PI.toFloat() * progress)
@@ -443,7 +473,7 @@ data class CardTilt(
     val rotationX: Float = 0f,
     val rotationY: Float = 0f,
     val scale: Float = 1f,
-    val elevation: Float = 0f
+    val elevation: Float = 0f,
 )
 
 @Composable
@@ -453,7 +483,7 @@ fun animateCardTilt(
     touchY: Float = 0.5f, // 0-1 normalized
     maxTilt: Float = 5f,
     pressedScale: Float = 0.98f,
-    pressedElevation: Float = 8f
+    pressedElevation: Float = 8f,
 ): CardTilt {
     // Calculate tilt based on touch position relative to center
     val targetRotationY = if (pressed) (touchX - 0.5f) * 2f * maxTilt else 0f
@@ -462,22 +492,22 @@ fun animateCardTilt(
     val rotationX by animateFloatAsState(
         targetValue = targetRotationX,
         animationSpec = SmartyMotion.interactive,
-        label = "tiltX"
+        label = "tiltX",
     )
     val rotationY by animateFloatAsState(
         targetValue = targetRotationY,
         animationSpec = SmartyMotion.interactive,
-        label = "tiltY"
+        label = "tiltY",
     )
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
         animationSpec = SmartyMotion.quick,
-        label = "tiltScale"
+        label = "tiltScale",
     )
     val elevation by animateFloatAsState(
         targetValue = if (pressed) pressedElevation else 0f,
         animationSpec = SmartyMotion.smooth,
-        label = "tiltElevation"
+        label = "tiltElevation",
     )
 
     return CardTilt(rotationX, rotationY, scale, elevation)
@@ -488,15 +518,16 @@ fun animateCardTilt(
  */
 fun Modifier.cardTilt3D(
     tilt: CardTilt,
-    cameraDistance: Float = 12f
-): Modifier = graphicsLayer {
-    this.cameraDistance = cameraDistance * density
-    rotationX = tilt.rotationX
-    rotationY = tilt.rotationY
-    scaleX = tilt.scale
-    scaleY = tilt.scale
-    shadowElevation = tilt.elevation
-}
+    cameraDistance: Float = 12f,
+): Modifier =
+    graphicsLayer {
+        this.cameraDistance = cameraDistance * density
+        rotationX = tilt.rotationX
+        rotationY = tilt.rotationY
+        scaleX = tilt.scale
+        scaleY = tilt.scale
+        shadowElevation = tilt.elevation
+    }
 
 /**
  * OPTIMIZED: Shake animation for error states
@@ -508,7 +539,7 @@ fun animateShake(
     trigger: Boolean,
     amplitude: Float = 10f,
     frequency: Float = 4f, // oscillations
-    dampingRatio: Float = 0.5f
+    dampingRatio: Float = 0.5f,
 ): Float {
     var shakeOffset by remember { mutableFloatStateOf(0f) }
 
@@ -517,10 +548,11 @@ fun animateShake(
             val animatable = Animatable(amplitude)
             animatable.animateTo(
                 targetValue = 0f,
-                animationSpec = spring(
-                    dampingRatio = dampingRatio,
-                    stiffness = Spring.StiffnessMedium
-                )
+                animationSpec =
+                    spring(
+                        dampingRatio = dampingRatio,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
             ) {
                 // Apply oscillation during animation using FastMath
                 val progress = 1f - (value / amplitude)
@@ -541,12 +573,12 @@ fun animateShake(
 @Composable
 fun animateIntAsState(
     targetValue: Int,
-    animationSpec: AnimationSpec<Float> = tween(240, easing = SmartyEasing.appleEaseOut)
+    animationSpec: AnimationSpec<Float> = tween(240, easing = SmartyEasing.appleEaseOut),
 ): Int {
     val animatedFloat by animateFloatAsState(
         targetValue = targetValue.toFloat(),
         animationSpec = animationSpec,
-        label = "counter"
+        label = "counter",
     )
     return animatedFloat.roundToInt()
 }
@@ -558,12 +590,12 @@ fun animateIntAsState(
 @Composable
 fun animateProgressArc(
     progress: Float, // 0-1
-    durationMs: Int = 400
+    durationMs: Int = 400,
 ): Float {
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
         animationSpec = tween(durationMs, easing = SmartyEasing.appleEaseOut),
-        label = "progressArc"
+        label = "progressArc",
     )
     return animatedProgress * 360f
 }

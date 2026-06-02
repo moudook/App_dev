@@ -12,11 +12,11 @@ class BitboardEngine {
     var whiteOccupancy = 0L
     var blackOccupancy = 0L
     var allOccupancy = 0L
-    
+
     var turn = Col.W
     var epSquare: Int = -1 // 0-63
     var cr = CastleRights()
-    
+
     // Zobrist Hashing for Transposition Tables
     private val pieceKeys = Array(12) { LongArray(64) { kotlin.random.Random.nextLong() } }
     private val sideKey = kotlin.random.Random.nextLong()
@@ -33,18 +33,18 @@ class BitboardEngine {
         boards[9] = bit(0) or bit(7) // R
         boards[7] = bit(1) or bit(6) // N
         boards[8] = bit(2) or bit(5) // B
-        boards[10] = bit(3)          // Q
-        boards[11] = bit(4)          // K
-        boards[6] = (0xFFL shl 8)    // P
-        
+        boards[10] = bit(3) // Q
+        boards[11] = bit(4) // K
+        boards[6] = (0xFFL shl 8) // P
+
         // White pieces (Rows 6, 7)
-        boards[0] = (0xFFL shl 48)   // P
+        boards[0] = (0xFFL shl 48) // P
         boards[3] = bit(56) or bit(63) // R
         boards[1] = bit(57) or bit(62) // N
         boards[2] = bit(58) or bit(61) // B
-        boards[4] = bit(59)          // Q
-        boards[5] = bit(60)          // K
-        
+        boards[4] = bit(59) // Q
+        boards[5] = bit(60) // K
+
         updateOccupancy()
         turn = Col.W
         epSquare = -1
@@ -85,11 +85,11 @@ class BitboardEngine {
         val isWhite = color == Col.W
         val self = if (isWhite) whiteOccupancy else blackOccupancy
         val opponent = if (isWhite) blackOccupancy else whiteOccupancy
-        
+
         // 1. Pawn Moves
         val pawns = if (isWhite) boards[0] else boards[6]
         // Simplified move gen for brevity in this step, full implementation follows
-        
+
         return moves
     }
 
@@ -98,20 +98,24 @@ class BitboardEngine {
      */
     fun getPieceAt(sq: Int): Pc? {
         for (i in 0..5) if ((boards[i] and bit(sq)) != 0L) return Pc(Typ.values()[i], Col.W)
-        for (i in 6..11) if ((boards[i] and bit(sq)) != 0L) return Pc(Typ.values()[i-6], Col.B)
+        for (i in 6..11) if ((boards[i] and bit(sq)) != 0L) return Pc(Typ.values()[i - 6], Col.B)
         return null
     }
 
-    fun makeMove(from: Int, to: Int, flags: Int = 0): Boolean {
+    fun makeMove(
+        from: Int,
+        to: Int,
+        flags: Int = 0,
+    ): Boolean {
         // Logic to move bits, update castling/EP, and switch turn
         val movingPc = getPieceAt(from) ?: return false
         if (movingPc.c != turn) return false
-        
+
         // Basic Move (Full bitwise implementation needed here)
         val pIdx = if (turn == Col.W) movingPc.t.ordinal else movingPc.t.ordinal + 6
         boards[pIdx] = boards[pIdx] and bit(from).inv()
         boards[pIdx] = boards[pIdx] or bit(to)
-        
+
         // Remove captured piece
         for (i in 0..11) {
             if (i != pIdx) boards[i] = boards[i] and bit(to).inv()

@@ -37,8 +37,8 @@ object FileUtil {
         context: Context,
         uri: Uri,
         destFile: File,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val fileSize = getFileSizeFromUri(context, uri) ?: 0L
                 if (fileSize > LARGE_FILE_THRESHOLD) {
@@ -56,7 +56,6 @@ object FileUtil {
             Log.e(TAG, "Failed to copy file from $uri to ${destFile.absolutePath}", e)
             false
         }
-    }
 
     /**
      * NIO-based file copy for large files.
@@ -84,8 +83,8 @@ object FileUtil {
     fun getFileSizeFromUri(
         context: Context,
         uri: Uri,
-    ): Long? {
-        return try {
+    ): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -98,7 +97,6 @@ object FileUtil {
             Log.e(TAG, "Failed to get file size for $uri", e)
             null
         }
-    }
 
     /**
      * Get file name from URI.
@@ -106,8 +104,8 @@ object FileUtil {
     fun getFileNameFromUri(
         context: Context,
         uri: Uri,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -120,7 +118,6 @@ object FileUtil {
             Log.e(TAG, "Failed to get file name for $uri", e)
             null
         } ?: uri.lastPathSegment ?: "unknown_file"
-    }
 
     /**
      * Get MIME type from URI.
@@ -128,9 +125,7 @@ object FileUtil {
     fun getMimeTypeFromUri(
         context: Context,
         uri: Uri,
-    ): String {
-        return context.contentResolver.getType(uri) ?: "application/octet-stream"
-    }
+    ): String = context.contentResolver.getType(uri) ?: "application/octet-stream"
 
     /**
      * Create a temporary file in app's cache directory.
@@ -150,15 +145,13 @@ object FileUtil {
     fun createAppFile(
         context: Context,
         filename: String,
-    ): File {
-        return File(context.filesDir, filename)
-    }
+    ): File = File(context.filesDir, filename)
 
     /**
      * Delete file safely.
      */
-    fun deleteFile(file: File): Boolean {
-        return try {
+    fun deleteFile(file: File): Boolean =
+        try {
             if (file.exists()) {
                 file.delete()
             } else {
@@ -168,17 +161,15 @@ object FileUtil {
             Log.e(TAG, "Failed to delete file ${file.absolutePath}", e)
             false
         }
-    }
 
     /**
      * Get human-readable file size string.
      */
-    fun formatFileSize(size: Long): String {
-        return when {
+    fun formatFileSize(size: Long): String =
+        when {
             size < 1024 -> "$size B"
             size < 1024 * 1024 -> "${size / 1024} KB"
             size < 1024 * 1024 * 1024 -> "${size / (1024 * 1024)} MB"
             else -> "${size / (1024 * 1024 * 1024)} GB"
         }
-    }
 }

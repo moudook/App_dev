@@ -30,7 +30,7 @@ class BackupFeatureManager(
     private val authManager: GoogleAuthManager,
     private val driveService: DriveService,
     private val cloudBackupManager: BackupManager,
-    private val localBackupManager: LocalBackupManager
+    private val localBackupManager: LocalBackupManager,
 ) {
     companion object {
         private const val TAG = "BackupFeatureManager"
@@ -39,8 +39,9 @@ class BackupFeatureManager(
     // --- Cloud Backup State ---
     val backupState: StateFlow<BackupOperationState> = cloudBackupManager.backupState
     val restoreState: StateFlow<BackupOperationState> = cloudBackupManager.restoreState
-    val isSignedIn: StateFlow<Boolean> = authManager.isSignedIn
-        .stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+    val isSignedIn: StateFlow<Boolean> =
+        authManager.isSignedIn
+            .stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _availableCloudBackups = MutableStateFlow<List<BackupMetadata>>(emptyList())
     val availableCloudBackups: StateFlow<List<BackupMetadata>> = _availableCloudBackups.asStateFlow()
@@ -171,14 +172,15 @@ class BackupFeatureManager(
     /**
      * Create a share intent for a local backup file.
      */
-    fun createLocalBackupShareIntent(metadata: LocalBackupMetadata): Intent {
-        return localBackupManager.createShareIntent(metadata)
-    }
+    fun createLocalBackupShareIntent(metadata: LocalBackupMetadata): Intent = localBackupManager.createShareIntent(metadata)
 
     /**
      * Configure auto-backup settings.
      */
-    fun setAutoBackup(enabled: Boolean, intervalDays: Int = 1) {
+    fun setAutoBackup(
+        enabled: Boolean,
+        intervalDays: Int = 1,
+    ) {
         securePreferences.setAutoBackupEnabled(enabled)
         securePreferences.setAutoBackupIntervalDays(intervalDays)
         _autoBackupEnabled.value = enabled

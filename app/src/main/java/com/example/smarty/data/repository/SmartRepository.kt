@@ -75,12 +75,11 @@ class SmartRepository
         /**
          * Get user with sync state
          */
-        suspend fun getUserWithSyncState(userId: String): UserWithSyncState? {
-            return smartDao.getUserById(userId)?.let { user ->
+        suspend fun getUserWithSyncState(userId: String): UserWithSyncState? =
+            smartDao.getUserById(userId)?.let { user ->
                 val syncState = smartDao.getSyncState(userId)
                 UserWithSyncState(user, syncState)
             }
-        }
 
         // ============================================================
         // NOTE OPERATIONS WITH AI ENHANCEMENT
@@ -159,9 +158,7 @@ class SmartRepository
         /**
          * Get notes with tags for AI context
          */
-        fun getNotesWithTagsForAi(userId: String): Flow<List<NoteWithTags>> {
-            return smartDao.getNotesWithTagsForAi()
-        }
+        fun getNotesWithTagsForAi(userId: String): Flow<List<NoteWithTags>> = smartDao.getNotesWithTagsForAi()
 
         /**
          * Find related notes by tags
@@ -169,9 +166,7 @@ class SmartRepository
         suspend fun findRelatedNotes(
             noteId: String,
             limit: Int = 10,
-        ): List<Note> {
-            return smartDao.findRelatedNotesByTags(noteId, limit)
-        }
+        ): List<Note> = smartDao.findRelatedNotesByTags(noteId, limit)
 
         // ============================================================
         // TAG MANAGEMENT
@@ -353,7 +348,12 @@ class SmartRepository
                     totalSteps = traces.size,
                     totalDurationMs = traces.sumOf { it.durationMs },
                     totalTokens = traces.sumOf { it.tokenCount },
-                    confidenceScore = traces.map { it.confidenceScore }.average().toFloat().toDouble(),
+                    confidenceScore =
+                        traces
+                            .map { it.confidenceScore }
+                            .average()
+                            .toFloat()
+                            .toDouble(),
                     complexityScore = calculateComplexityScore(traces),
                     reasoningType = reasoningType,
                     tags = "[]",
@@ -429,7 +429,9 @@ class SmartRepository
             includePrivate: Boolean = false,
         ): UnifiedSearchResults {
             val notes =
-                smartDao.getUserActiveNotes().first()
+                smartDao
+                    .getUserActiveNotes()
+                    .first()
                     .filter { note ->
                         note.title.contains(query, ignoreCase = true) ||
                             note.content.contains(query, ignoreCase = true) ||
@@ -566,17 +568,11 @@ class SmartRepository
             return words.take(5)
         }
 
-        private suspend fun getNextStepIndex(sessionId: String): Int {
-            return smartDao.getSessionReasoningTraces(sessionId).first().size + 1
-        }
+        private suspend fun getNextStepIndex(sessionId: String): Int = smartDao.getSessionReasoningTraces(sessionId).first().size + 1
 
-        private fun calculateComplexityScore(traces: List<ReasoningTraceEntity>): Double {
-            return traces.map { it.importanceScore }.average()
-        }
+        private fun calculateComplexityScore(traces: List<ReasoningTraceEntity>): Double = traces.map { it.importanceScore }.average()
 
-        private fun generateDeviceFingerprint(): String {
-            return UUID.randomUUID().toString()
-        }
+        private fun generateDeviceFingerprint(): String = UUID.randomUUID().toString()
 
         // ============================================================
         // DATA CLASSES

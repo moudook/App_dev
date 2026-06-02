@@ -91,9 +91,7 @@ fun Modifier.leftAccentBar(
 inline fun Modifier.conditionalModifier(
     condition: Boolean,
     modifier: Modifier.() -> Modifier,
-): Modifier {
-    return if (condition) this.modifier() else this
-}
+): Modifier = if (condition) this.modifier() else this
 
 //
 // PIXEL / DP CONVERSIONS

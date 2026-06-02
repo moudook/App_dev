@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,19 +24,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.res.stringResource
-import com.example.smarty.R
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.example.smarty.R
 
 /**
  * Full-screen video player using Media3 ExoPlayer.
@@ -57,19 +56,20 @@ import androidx.media3.ui.PlayerView
 @Composable
 fun FullScreenVideoPlayer(
     videoUri: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        )
+        properties =
+            DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+            ),
     ) {
         VideoPlayerContent(
             videoUri = videoUri,
-            onDismiss = onDismiss
+            onDismiss = onDismiss,
         )
     }
 }
@@ -77,7 +77,7 @@ fun FullScreenVideoPlayer(
 @Composable
 private fun VideoPlayerContent(
     videoUri: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -87,15 +87,17 @@ private fun VideoPlayerContent(
 
     // Create player only once when composable enters composition
     DisposableEffect(videoUri) {
-        val player = ExoPlayer.Builder(context)
-            .build()
-            .apply {
-                val mediaItem = MediaItem.fromUri(Uri.parse(videoUri))
-                setMediaItem(mediaItem)
-                playWhenReady = true
-                repeatMode = Player.REPEAT_MODE_OFF
-                prepare()
-            }
+        val player =
+            ExoPlayer
+                .Builder(context)
+                .build()
+                .apply {
+                    val mediaItem = MediaItem.fromUri(Uri.parse(videoUri))
+                    setMediaItem(mediaItem)
+                    playWhenReady = true
+                    repeatMode = Player.REPEAT_MODE_OFF
+                    prepare()
+                }
         exoPlayer = player
 
         onDispose {
@@ -108,20 +110,21 @@ private fun VideoPlayerContent(
 
     // Lifecycle observer for pause/resume
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> {
-                    exoPlayer?.pause()
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> {
+                        exoPlayer?.pause()
+                    }
+                    Lifecycle.Event.ON_RESUME -> {
+                        // Don't auto-resume, let user control
+                    }
+                    Lifecycle.Event.ON_STOP -> {
+                        exoPlayer?.pause()
+                    }
+                    else -> {}
                 }
-                Lifecycle.Event.ON_RESUME -> {
-                    // Don't auto-resume, let user control
-                }
-                Lifecycle.Event.ON_STOP -> {
-                    exoPlayer?.pause()
-                }
-                else -> {}
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
 
         onDispose {
@@ -130,9 +133,10 @@ private fun VideoPlayerContent(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
     ) {
         // Video player view - only created when exoPlayer exists
         exoPlayer?.let { player ->
@@ -142,26 +146,28 @@ private fun VideoPlayerContent(
                         this.player = player
                         useController = true
                         setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                        layoutParams = FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
+                        layoutParams =
+                            FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                            )
                     }
                 },
                 update = { playerView ->
                     playerView.player = player
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
         // Close button - static, no animations
         Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp),
             shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.5f)
+            color = Color.Black.copy(alpha = 0.5f),
         ) {
             IconButton(
                 onClick = {
@@ -169,12 +175,12 @@ private fun VideoPlayerContent(
                     exoPlayer?.stop()
                     onDismiss()
                 },
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.close),
-                    tint = Color.White
+                    tint = Color.White,
                 )
             }
         }

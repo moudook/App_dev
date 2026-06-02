@@ -148,9 +148,10 @@ fun CalendarScreen(
             val dayEnd = dayStart.clone() as Calendar
             dayEnd.add(Calendar.DAY_OF_MONTH, 1)
 
-            events.filter { event ->
-                event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
-            }.sortedBy { it.startTime }
+            events
+                .filter { event ->
+                    event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
+                }.sortedBy { it.startTime }
         }
 
     // Events for month (for indicators) - tracks both event days and recurring event days
@@ -164,7 +165,8 @@ fun CalendarScreen(
             val end = start.clone() as Calendar
             end.add(Calendar.MONTH, 1)
 
-            events.filter { it.startTime >= start.timeInMillis && it.startTime < end.timeInMillis }
+            events
+                .filter { it.startTime >= start.timeInMillis && it.startTime < end.timeInMillis }
                 .map { event ->
                     val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
                     cal.get(Calendar.DAY_OF_MONTH)
@@ -182,14 +184,15 @@ fun CalendarScreen(
             val end = start.clone() as Calendar
             end.add(Calendar.MONTH, 1)
 
-            events.filter {
-                it.startTime >= start.timeInMillis &&
-                    it.startTime < end.timeInMillis &&
-                    it.isRecurring
-            }.map { event ->
-                val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
-                cal.get(Calendar.DAY_OF_MONTH)
-            }.toSet()
+            events
+                .filter {
+                    it.startTime >= start.timeInMillis &&
+                        it.startTime < end.timeInMillis &&
+                        it.isRecurring
+                }.map { event ->
+                    val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
+                    cal.get(Calendar.DAY_OF_MONTH)
+                }.toSet()
         }
 
     // Generate month days
@@ -782,8 +785,7 @@ private fun PremiumDayCell(
                             }
                         else -> Modifier
                     },
-                )
-                .clickable(onClick = onClick),
+                ).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

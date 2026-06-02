@@ -28,10 +28,11 @@ class IntegrationTest {
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         database =
-            Room.inMemoryDatabaseBuilder(
-                context,
-                SmartyDatabase::class.java,
-            ).build()
+            Room
+                .inMemoryDatabaseBuilder(
+                    context,
+                    SmartyDatabase::class.java,
+                ).build()
         dao = database.smartDao()
         crdtManager = CRDTManager()
     }

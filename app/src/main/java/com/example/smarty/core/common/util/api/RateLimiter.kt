@@ -35,7 +35,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * rateLimiter.recordCall()
  * ```
  */
-class RateLimiter private constructor(context: Context) {
+class RateLimiter private constructor(
+    context: Context,
+) {
     companion object {
         private const val TAG = "RateLimiter"
         private const val PREFS_NAME = "rate_limiter_prefs"
@@ -54,11 +56,10 @@ class RateLimiter private constructor(context: Context) {
         @Volatile
         private var instance: RateLimiter? = null
 
-        fun getInstance(context: Context): RateLimiter {
-            return instance ?: synchronized(this) {
+        fun getInstance(context: Context): RateLimiter =
+            instance ?: synchronized(this) {
                 instance ?: RateLimiter(context.applicationContext).also { instance = it }
             }
-        }
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -265,7 +266,8 @@ class RateLimiter private constructor(context: Context) {
      * Save state to SharedPreferences.
      */
     private fun saveState() {
-        prefs.edit()
+        prefs
+            .edit()
             .putInt(KEY_DAILY_COUNT, dailyCallCount)
             .putLong(KEY_DAY_START, dayStartTimestamp)
             .apply()
@@ -309,9 +311,8 @@ data class RateLimitStats(
     /** Is per-minute budget exhausted? */
     val isMinuteExhausted: Boolean get() = minuteUsed >= minuteLimit
 
-    override fun toString(): String {
-        return "RateLimitStats(daily=$dailyUsed/$dailyLimit, minute=$minuteUsed/$minuteLimit, " +
+    override fun toString(): String =
+        "RateLimitStats(daily=$dailyUsed/$dailyLimit, minute=$minuteUsed/$minuteLimit, " +
             "dailyRemaining=$dailyRemaining, minuteRemaining=$minuteRemaining, " +
             "resetIn=$timeUntilDayReset)"
-    }
 }

@@ -1,21 +1,20 @@
 package com.example.smarty.features.notes.ui
 
 import android.graphics.Bitmap
-import androidx.compose.foundation.Canvas
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -23,27 +22,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
+import com.example.smarty.core.common.util.CategoryShareManager
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CategoryEmptyState
 import com.example.smarty.ui.components.NoteCard
-import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.core.common.util.CategoryShareManager
 import kotlinx.coroutines.launch
-import kotlin.math.min
-
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +51,7 @@ fun CategoryNotesScreen(
     onDeleteCategory: (Category) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     isLoading: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -88,18 +82,20 @@ fun CategoryNotesScreen(
                     Column {
                         Text(
                             text = category.name.lowercase(),
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.5).sp
-                            )
+                            style =
+                                MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.5).sp,
+                                ),
                         )
                         Text(
                             text = stringResource(R.string.items_count, categoryNotes.size),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp,
-                                color = LocalAccentColor.current.copy(alpha = 0.7f)
-                            )
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp,
+                                    color = LocalAccentColor.current.copy(alpha = 0.7f),
+                                ),
                         )
                     }
                 },
@@ -107,7 +103,7 @@ fun CategoryNotesScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
+                            contentDescription = stringResource(R.string.back),
                         )
                     }
                 },
@@ -117,7 +113,7 @@ fun CategoryNotesScreen(
                         Icon(
                             imageVector = Icons.Default.QrCodeScanner,
                             contentDescription = stringResource(R.string.show_qr_code),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         )
                     }
                     // Edit button
@@ -125,7 +121,7 @@ fun CategoryNotesScreen(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = stringResource(R.string.edit_stack),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         )
                     }
                     // Delete button
@@ -133,7 +129,7 @@ fun CategoryNotesScreen(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.delete_stack),
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
                         )
                     }
                     // Share button
@@ -144,53 +140,53 @@ fun CategoryNotesScreen(
                                     context = context,
                                     category = category,
                                     notes = categoryNotes,
-                                    includeQRCode = true
+                                    includeQRCode = true,
                                 )
                             }
-                        }
+                        },
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = stringResource(R.string.share_stack),
-                            tint = LocalAccentColor.current
+                            tint = LocalAccentColor.current,
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         val accentColor = LocalAccentColor.current
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-
-
             if (isLoading) {
                 com.example.smarty.ui.components.NotesLoadingState(
                     count = 4,
-                    modifier = Modifier.fillMaxSize().padding(16.dp)
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
                 )
             } else if (categoryNotes.isEmpty()) {
                 com.example.smarty.ui.components.CategoryEmptyState(
                     categoryName = category.name,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             } else {
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 16.dp,
-                        bottom = 16.dp + bottomContentPadding
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding =
+                        PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 16.dp + bottomContentPadding,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(
                         items = categoryNotes,
-                        key = { it.id }
+                        key = { it.id },
                     ) { note ->
                         NoteCard(
                             note = note,
@@ -200,7 +196,7 @@ fun CategoryNotesScreen(
                             isArchiveView = false,
                             onArchive = { onArchiveNote(note.id) },
                             onLongPress = { /* Optional: can enable Pinterest menu here too */ },
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -222,7 +218,7 @@ fun CategoryNotesScreen(
             },
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
-            isDestructive = true
+            isDestructive = true,
         )
     }
 
@@ -239,11 +235,11 @@ fun CategoryNotesScreen(
                         context = context,
                         category = category,
                         notes = categoryNotes,
-                        includeQRCode = true
+                        includeQRCode = true,
                     )
                 }
                 showQRDialog = false
-            }
+            },
         )
     }
 }
@@ -254,29 +250,31 @@ private fun QRCodeDialog(
     noteCount: Int,
     qrBitmap: Bitmap?,
     onDismiss: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = LocalShapes.current.dialog,
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.border(
-                1.dp,
-                MaterialTheme.colorScheme.outline,
-                LocalShapes.current.dialog
-            )
+            modifier =
+                Modifier.border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline,
+                    LocalShapes.current.dialog,
+                ),
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = stringResource(R.string.share_stack),
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
+                    style =
+                        MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp,
+                        ),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -284,13 +282,13 @@ private fun QRCodeDialog(
                 Text(
                     text = categoryName.lowercase(),
                     style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.2.sp),
-                    color = LocalAccentColor.current
+                    color = LocalAccentColor.current,
                 )
 
                 Text(
                     text = stringResource(R.string.notes_count, noteCount),
                     style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -298,30 +296,38 @@ private fun QRCodeDialog(
                 // QR Code
                 if (qrBitmap != null) {
                     // Use a slightly softer white in dark mode to reduce harsh contrast, but keep it light for scanning
-                    val qrBackground = if (isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFFF5F5F5) else androidx.compose.ui.graphics.Color.White
+                    val qrBackground =
+                        if (isSystemInDarkTheme()) {
+                            androidx.compose.ui.graphics.Color(
+                                0xFFF5F5F5,
+                            )
+                        } else {
+                            androidx.compose.ui.graphics.Color.White
+                        }
 
                     Box(
-                        modifier = Modifier
-                            .size(200.dp)
-                            .clip(LocalShapes.current.tag)
-                            .background(qrBackground)
-                            .padding(8.dp)
+                        modifier =
+                            Modifier
+                                .size(200.dp)
+                                .clip(LocalShapes.current.tag)
+                                .background(qrBackground)
+                                .padding(8.dp),
                     ) {
                         Image(
                             bitmap = qrBitmap.asImageBitmap(),
                             contentDescription = stringResource(R.string.qr_code_description, categoryName),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                 } else {
                     Box(
                         modifier = Modifier.size(200.dp),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(48.dp),
                             color = LocalAccentColor.current,
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
                         )
                     }
                 }
@@ -331,19 +337,19 @@ private fun QRCodeDialog(
                 Text(
                     text = stringResource(R.string.scan_to_import_this_stack),
                     style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = LocalShapes.current.button
+                        shape = LocalShapes.current.button,
                     ) {
                         Text(stringResource(R.string.close), style = MaterialTheme.typography.labelLarge)
                     }
@@ -352,16 +358,17 @@ private fun QRCodeDialog(
                         onClick = onShare,
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = LocalShapes.current.button,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = LocalAccentColor.current,
-                            contentColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(0.dp)
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = LocalAccentColor.current,
+                                contentColor = MaterialTheme.colorScheme.surface,
+                            ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.share), style = MaterialTheme.typography.labelLarge)
@@ -371,7 +378,3 @@ private fun QRCodeDialog(
         }
     }
 }
-
-
-
-

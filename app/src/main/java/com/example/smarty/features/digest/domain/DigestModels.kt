@@ -70,8 +70,8 @@ data class UpdatePreferencesRequest(
 )
 
 // Conversion to UI model
-fun DigestPreferences.toUiModel(): com.example.smarty.features.digest.ui.DigestPreferences {
-    return com.example.smarty.features.digest.ui.DigestPreferences(
+fun DigestPreferences.toUiModel(): com.example.smarty.features.digest.ui.DigestPreferences =
+    com.example.smarty.features.digest.ui.DigestPreferences(
         dailyTime = dailyTime.split(":").let { it[0].toInt() * 100 + (it.getOrNull(1)?.toInt() ?: 0) },
         weeklyDay =
             when (weeklyDay) {
@@ -90,10 +90,9 @@ fun DigestPreferences.toUiModel(): com.example.smarty.features.digest.ui.DigestP
         includeTasks = true,
         includeCalendar = calendarLogging,
     )
-}
 
-fun com.example.smarty.features.digest.ui.DigestPreferences.toDomainModel(): DigestPreferences {
-    return DigestPreferences(
+fun com.example.smarty.features.digest.ui.DigestPreferences.toDomainModel(): DigestPreferences =
+    DigestPreferences(
         dailyTime = String.format("%02d:%02d", dailyTime / 100, dailyTime % 100),
         weeklyDay =
             when (weeklyDay) {
@@ -110,4 +109,3 @@ fun com.example.smarty.features.digest.ui.DigestPreferences.toDomainModel(): Dig
         weeklyEnabled = enableWeekly,
         calendarLogging = includeCalendar,
     )
-}

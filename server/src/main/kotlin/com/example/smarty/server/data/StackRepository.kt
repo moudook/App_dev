@@ -43,7 +43,10 @@ class StackRepository(
             }
         }
 
-    suspend fun getStacksForUser(userId: String, limit: Int = 50): List<Stack> =
+    suspend fun getStacksForUser(
+        userId: String,
+        limit: Int = 50,
+    ): List<Stack> =
         withContext(Dispatchers.IO) {
             val stacks = mutableListOf<Stack>()
             dataSource.connection.use { conn ->
@@ -157,7 +160,10 @@ class StackRepository(
             stacks
         }
 
-    suspend fun getNotesForStack(stackId: String, limit: Int = 500): List<String> =
+    suspend fun getNotesForStack(
+        stackId: String,
+        limit: Int = 500,
+    ): List<String> =
         withContext(Dispatchers.IO) {
             val noteIds = mutableListOf<String>()
             dataSource.connection.use { conn ->

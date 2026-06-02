@@ -5,7 +5,10 @@ package com.example.smarty.core.domain.model
  * Each time a note is updated, a version snapshot is saved.
  */
 data class NoteVersion(
-    val id: String = java.util.UUID.randomUUID().toString(),
+    val id: String =
+        java.util.UUID
+            .randomUUID()
+            .toString(),
     val noteId: String,
     val title: String,
     val content: String,

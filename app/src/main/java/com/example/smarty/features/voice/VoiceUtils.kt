@@ -9,12 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 // Helper function to create a state that can be used with delegation
 @Composable
-fun <T> rememberStateFlow(initialValue: T): MutableStateFlow<T> {
-    return remember { MutableStateFlow(initialValue) }
-}
+fun <T> rememberStateFlow(initialValue: T): MutableStateFlow<T> = remember { MutableStateFlow(initialValue) }
 
 // Extension function to convert StateFlow to State for delegation
 @Composable
-fun <T> StateFlow<T>.collectAsDelegatedState(): State<T> {
-    return this.collectAsState(this.value)
-}
+fun <T> StateFlow<T>.collectAsDelegatedState(): State<T> = this.collectAsState(this.value)

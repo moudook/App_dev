@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  */
 class SettingsFeatureManager(
     private val securePreferences: SecurePreferences,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "SettingsFeatureManager"
@@ -58,14 +58,13 @@ class SettingsFeatureManager(
         }
     }
 
-    private fun calculateCacheSize(): Long {
-        return try {
+    private fun calculateCacheSize(): Long =
+        try {
             val cacheDir = securePreferences.getContext().cacheDir
             getFolderSize(cacheDir)
         } catch (e: Exception) {
             0L
         }
-    }
 
     private fun getFolderSize(file: java.io.File): Long {
         var size: Long = 0
@@ -106,9 +105,7 @@ class SettingsFeatureManager(
     // --- Server Settings Actions ---
     // Deprecated IP/Port actions removed
 
-    fun getSmartyServerUrl(): String {
-        return securePreferences.getSmartyServerUrl()
-    }
+    fun getSmartyServerUrl(): String = securePreferences.getSmartyServerUrl()
 
     // --- UI/System Actions ---
     fun setDarkTheme(isDark: Boolean) {
@@ -140,14 +137,17 @@ class SettingsFeatureManager(
      */
     sealed class LocalServerTestResult {
         data object Success : LocalServerTestResult()
-        data class Failure(val message: String) : LocalServerTestResult()
+
+        data class Failure(
+            val message: String,
+        ) : LocalServerTestResult()
     }
 
     /**
      * Test connection to Smarty Server
      */
-    suspend fun testServerConnection(url: String): LocalServerTestResult {
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun testServerConnection(url: String): LocalServerTestResult =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // Ensure URL has protocol
                 var testUrl = url.trim()
@@ -156,10 +156,11 @@ class SettingsFeatureManager(
                 }
 
                 // Remove existing endpoints if user pasted full URL
-                val baseUrl = testUrl
-                    .removeSuffix("/")
-                    .removeSuffix("/v1/models")
-                    .removeSuffix("/health")
+                val baseUrl =
+                    testUrl
+                        .removeSuffix("/")
+                        .removeSuffix("/v1/models")
+                        .removeSuffix("/health")
 
                 val fullUrl = "$baseUrl/health"
                 Log.d(TAG, "Testing connection to: $fullUrl")
@@ -167,47 +168,55 @@ class SettingsFeatureManager(
                 val useHttps = testUrl.startsWith("https")
 
                 // Build appropriate OkHttp client
-                val client = if (useHttps) {
-                    // Create trust-all SSL configuration for self-signed certs
-                    val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(
-                        object : javax.net.ssl.X509TrustManager {
-                            @Throws(java.security.cert.CertificateException::class)
-                            override fun checkClientTrusted(
-                                chain: Array<java.security.cert.X509Certificate>,
-                                authType: String
-                            ) {}
+                val client =
+                    if (useHttps) {
+                        // Create trust-all SSL configuration for self-signed certs
+                        val trustAllCerts =
+                            arrayOf<javax.net.ssl.TrustManager>(
+                                object : javax.net.ssl.X509TrustManager {
+                                    @Throws(java.security.cert.CertificateException::class)
+                                    override fun checkClientTrusted(
+                                        chain: Array<java.security.cert.X509Certificate>,
+                                        authType: String,
+                                    ) {}
 
-                            @Throws(java.security.cert.CertificateException::class)
-                            override fun checkServerTrusted(
-                                chain: Array<java.security.cert.X509Certificate>,
-                                authType: String
-                            ) {}
+                                    @Throws(java.security.cert.CertificateException::class)
+                                    override fun checkServerTrusted(
+                                        chain: Array<java.security.cert.X509Certificate>,
+                                        authType: String,
+                                    ) {}
 
-                            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                        }
-                    )
+                                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                                },
+                            )
 
-                    // Use TLSv1.2 and TLSv1.3 for maximum compatibility
-                    val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
-                    sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                        // Use TLSv1.2 and TLSv1.3 for maximum compatibility
+                        val sslContext =
+                            javax.net.ssl.SSLContext
+                                .getInstance("TLS")
+                        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
 
-                    okhttp3.OkHttpClient.Builder()
-                        .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
-                        .hostnameVerifier { _, _ -> true } // Accept any hostname
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Increased to 10s
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        okhttp3.OkHttpClient
+                            .Builder()
+                            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+                            .hostnameVerifier { _, _ -> true } // Accept any hostname
+                            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Increased to 10s
+                            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                    } else {
+                        okhttp3.OkHttpClient
+                            .Builder()
+                            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Increased to 10s
+                            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                    }
+
+                val request =
+                    okhttp3.Request
+                        .Builder()
+                        .url(fullUrl)
+                        .get()
                         .build()
-                } else {
-                    okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Increased to 10s
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-                }
-
-                val request = okhttp3.Request.Builder()
-                    .url(fullUrl)
-                    .get()
-                    .build()
 
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -257,7 +266,4 @@ class SettingsFeatureManager(
                 }
             }
         }
-    }
 }
-
-

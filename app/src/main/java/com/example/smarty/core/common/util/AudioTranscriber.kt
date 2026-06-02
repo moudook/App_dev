@@ -402,8 +402,8 @@ object AudioTranscriber {
     private fun createWavFile(
         context: Context,
         pcmData: ByteArray,
-    ): File? {
-        return try {
+    ): File? =
+        try {
             val wavFile = File.createTempFile("segment_", ".wav", context.cacheDir)
 
             FileOutputStream(wavFile).use { fos ->
@@ -416,7 +416,6 @@ object AudioTranscriber {
             Log.e(TAG, "Error creating WAV: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Write WAV header.
@@ -496,21 +495,22 @@ object AudioTranscriber {
                                             )
 
                                         val audioTrackBuilder =
-                                            AudioTrack.Builder()
+                                            AudioTrack
+                                                .Builder()
                                                 .setAudioAttributes(
-                                                    android.media.AudioAttributes.Builder()
+                                                    android.media.AudioAttributes
+                                                        .Builder()
                                                         .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
                                                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                                                         .build(),
-                                                )
-                                                .setAudioFormat(
-                                                    AudioFormat.Builder()
+                                                ).setAudioFormat(
+                                                    AudioFormat
+                                                        .Builder()
                                                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                                                         .setSampleRate(SAMPLE_RATE)
                                                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                                                         .build(),
-                                                )
-                                                .setBufferSizeInBytes(minBufferSize)
+                                                ).setBufferSizeInBytes(minBufferSize)
                                                 .setTransferMode(AudioTrack.MODE_STREAM)
 
                                         audioTrack = audioTrackBuilder.build()

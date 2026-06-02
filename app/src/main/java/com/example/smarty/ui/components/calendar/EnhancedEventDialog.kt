@@ -1,9 +1,5 @@
 package com.example.smarty.ui.components.calendar
 
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.res.stringResource
-import com.example.smarty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,39 +17,46 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.example.smarty.R
 import com.example.smarty.core.domain.model.CalendarEvent
 import java.text.SimpleDateFormat
 import java.util.*
 
 // Color presets for events - Softened Calm Palette
-val eventColors = listOf(
-    Color(0xFF90CAF9), // Soft Blue
-    Color(0xFFA5D6A7), // Soft Green
-    Color(0xFFEF9A9A), // Soft Red
-    Color(0xFFFFE082), // Soft Yellow
-    Color(0xFFB39DDB), // Soft Purple
-    Color(0xFF80DEEA), // Soft Cyan
-)
+val eventColors =
+    listOf(
+        Color(0xFF90CAF9), // Soft Blue
+        Color(0xFFA5D6A7), // Soft Green
+        Color(0xFFEF9A9A), // Soft Red
+        Color(0xFFFFE082), // Soft Yellow
+        Color(0xFFB39DDB), // Soft Purple
+        Color(0xFF80DEEA), // Soft Cyan
+    )
 
 // Reminder options (minutes, display resource)
-private val reminderOptions = listOf(
-    null to R.string.none,
-    5 to R.string.five_minutes_before,
-    15 to R.string.fifteen_minutes_before,
-    30 to R.string.thirty_minutes_before,
-    60 to R.string.one_hour_before,
-    1440 to R.string.one_day_before
-)
+private val reminderOptions =
+    listOf(
+        null to R.string.none,
+        5 to R.string.five_minutes_before,
+        15 to R.string.fifteen_minutes_before,
+        30 to R.string.thirty_minutes_before,
+        60 to R.string.one_hour_before,
+        1440 to R.string.one_day_before,
+    )
 
 // Recurrence options (RRULE, display resource)
-val recurrenceOptions = listOf(
-    "" to R.string.does_not_repeat,
-    "FREQ=DAILY" to R.string.daily,
-    "FREQ=WEEKLY" to R.string.weekly,
-    "FREQ=MONTHLY" to R.string.monthly,
-    "FREQ=YEARLY" to R.string.yearly
-)
+val recurrenceOptions =
+    listOf(
+        "" to R.string.does_not_repeat,
+        "FREQ=DAILY" to R.string.daily,
+        "FREQ=WEEKLY" to R.string.weekly,
+        "FREQ=MONTHLY" to R.string.monthly,
+        "FREQ=YEARLY" to R.string.yearly,
+    )
 
 /**
  * Enhanced dialog for creating and editing calendar events.
@@ -64,8 +67,8 @@ val recurrenceOptions = listOf(
 fun EnhancedEventDialog(
     onDismiss: () -> Unit,
     onSave: (CalendarEvent) -> Unit,
-    existingEvent: CalendarEvent? = null,  // For editing
-    modifier: Modifier = Modifier
+    existingEvent: CalendarEvent? = null, // For editing
+    modifier: Modifier = Modifier,
 ) {
     // State for all fields
     var title by remember { mutableStateOf(existingEvent?.title ?: "") }
@@ -88,12 +91,14 @@ fun EnhancedEventDialog(
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     // Calendar instances for date/time manipulation
-    val startCalendar = remember(startTime) {
-        Calendar.getInstance().apply { timeInMillis = startTime }
-    }
-    val endCalendar = remember(endTime) {
-        Calendar.getInstance().apply { timeInMillis = endTime }
-    }
+    val startCalendar =
+        remember(startTime) {
+            Calendar.getInstance().apply { timeInMillis = startTime }
+        }
+    val endCalendar =
+        remember(endTime) {
+            Calendar.getInstance().apply { timeInMillis = endTime }
+        }
 
     // Time state for pickers
     var startHour by remember { mutableIntStateOf(startCalendar.get(Calendar.HOUR_OF_DAY)) }
@@ -123,27 +128,28 @@ fun EnhancedEventDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface
+            color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = dialogTitle,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp) // Limit height so it doesn't overflow screen
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) // Limit height so it doesn't overflow screen
+                            .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     // 1. Title field (required)
                     OutlinedTextField(
@@ -152,7 +158,7 @@ fun EnhancedEventDialog(
                         label = { Text(stringResource(R.string.event_title)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        isError = title.isBlank()
+                        isError = title.isBlank(),
                     )
 
                     // 2. Description field
@@ -162,7 +168,7 @@ fun EnhancedEventDialog(
                         label = { Text(stringResource(R.string.description)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
-                        maxLines = 4
+                        maxLines = 4,
                     )
 
                     // 3. Location field with icon
@@ -175,28 +181,28 @@ fun EnhancedEventDialog(
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.LocationOn,
-                                contentDescription = stringResource(R.string.add_location)
+                                contentDescription = stringResource(R.string.add_location),
                             )
-                        }
+                        },
                     )
 
                     // 4. Date display
                     Text(
                         text = "${stringResource(R.string.date_label, dateFormat.format(Date(startTime)).lowercase())}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     // 5. All-day toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(stringResource(R.string.all_day_event))
                         Switch(
                             checked = isAllDay,
-                            onCheckedChange = { isAllDay = it }
+                            onCheckedChange = { isAllDay = it },
                         )
                     }
 
@@ -204,13 +210,13 @@ fun EnhancedEventDialog(
                     if (!isAllDay) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             // Start time
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = stringResource(R.string.start),
-                                    style = MaterialTheme.typography.labelMedium
+                                    style = MaterialTheme.typography.labelMedium,
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     OutlinedTextField(
@@ -221,7 +227,7 @@ fun EnhancedEventDialog(
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        singleLine = true
+                                        singleLine = true,
                                     )
                                     Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                     OutlinedTextField(
@@ -232,7 +238,7 @@ fun EnhancedEventDialog(
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        singleLine = true
+                                        singleLine = true,
                                     )
                                 }
                             }
@@ -241,7 +247,7 @@ fun EnhancedEventDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = stringResource(R.string.end),
-                                    style = MaterialTheme.typography.labelMedium
+                                    style = MaterialTheme.typography.labelMedium,
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     OutlinedTextField(
@@ -252,7 +258,7 @@ fun EnhancedEventDialog(
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        singleLine = true
+                                        singleLine = true,
                                     )
                                     Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                     OutlinedTextField(
@@ -263,7 +269,7 @@ fun EnhancedEventDialog(
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        singleLine = true
+                                        singleLine = true,
                                     )
                                 }
                             }
@@ -274,32 +280,32 @@ fun EnhancedEventDialog(
                     Column {
                         Text(
                             text = stringResource(R.string.accent_color),
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             eventColors.forEach { color ->
                                 Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .then(
-                                            if (selectedColor == color) {
-                                                Modifier.border(
-                                                    width = 3.dp,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    shape = CircleShape
-                                                )
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
-                                        .clickable {
-                                            selectedColor = if (selectedColor == color) null else color
-                                        }
+                                    modifier =
+                                        Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .then(
+                                                if (selectedColor == color) {
+                                                    Modifier.border(
+                                                        width = 3.dp,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        shape = CircleShape,
+                                                    )
+                                                } else {
+                                                    Modifier
+                                                },
+                                            ).clickable {
+                                                selectedColor = if (selectedColor == color) null else color
+                                            },
                                 )
                             }
                         }
@@ -309,25 +315,29 @@ fun EnhancedEventDialog(
                     Column {
                         Text(
                             text = stringResource(R.string.reminder),
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         ExposedDropdownMenuBox(
                             expanded = reminderExpanded,
-                            onExpandedChange = { reminderExpanded = it }
+                            onExpandedChange = { reminderExpanded = it },
                         ) {
                             OutlinedTextField(
-                                value = stringResource(reminderOptions.find { it.first == reminderMinutes }?.second ?: R.string.none).lowercase(),
+                                value =
+                                    stringResource(
+                                        reminderOptions.find { it.first == reminderMinutes }?.second ?: R.string.none,
+                                    ).lowercase(),
                                 onValueChange = {},
                                 readOnly = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reminderExpanded) }
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reminderExpanded) },
                             )
                             ExposedDropdownMenu(
                                 expanded = reminderExpanded,
-                                onDismissRequest = { reminderExpanded = false }
+                                onDismissRequest = { reminderExpanded = false },
                             ) {
                                 reminderOptions.forEach { (minutes, labelRes) ->
                                     DropdownMenuItem(
@@ -335,7 +345,7 @@ fun EnhancedEventDialog(
                                         onClick = {
                                             reminderMinutes = minutes
                                             reminderExpanded = false
-                                        }
+                                        },
                                     )
                                 }
                             }
@@ -346,7 +356,7 @@ fun EnhancedEventDialog(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(stringResource(R.string.recurring_event))
                         Switch(
@@ -354,27 +364,31 @@ fun EnhancedEventDialog(
                             onCheckedChange = {
                                 isRecurring = it
                                 if (!it) recurrenceRule = ""
-                            }
+                            },
                         )
                     }
 
                     if (isRecurring) {
                         ExposedDropdownMenuBox(
                             expanded = recurrenceExpanded,
-                            onExpandedChange = { recurrenceExpanded = it }
+                            onExpandedChange = { recurrenceExpanded = it },
                         ) {
                             OutlinedTextField(
-                                value = stringResource(recurrenceOptions.find { it.first == recurrenceRule }?.second ?: R.string.does_not_repeat).lowercase(),
+                                value =
+                                    stringResource(
+                                        recurrenceOptions.find { it.first == recurrenceRule }?.second ?: R.string.does_not_repeat,
+                                    ).lowercase(),
                                 onValueChange = {},
                                 readOnly = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceExpanded) }
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceExpanded) },
                             )
                             ExposedDropdownMenu(
                                 expanded = recurrenceExpanded,
-                                onDismissRequest = { recurrenceExpanded = false }
+                                onDismissRequest = { recurrenceExpanded = false },
                             ) {
                                 recurrenceOptions.drop(1).forEach { (rule, labelRes) ->
                                     DropdownMenuItem(
@@ -382,7 +396,7 @@ fun EnhancedEventDialog(
                                         onClick = {
                                             recurrenceRule = rule
                                             recurrenceExpanded = false
-                                        }
+                                        },
                                     )
                                 }
                             }
@@ -394,12 +408,12 @@ fun EnhancedEventDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
@@ -407,53 +421,63 @@ fun EnhancedEventDialog(
                     Button(
                         onClick = {
                             if (title.isNotBlank()) {
-                                val finalStartTime = if (isAllDay) {
-                                    Calendar.getInstance().apply {
-                                        timeInMillis = startTime
-                                        set(Calendar.HOUR_OF_DAY, 0)
-                                        set(Calendar.MINUTE, 0)
-                                        set(Calendar.SECOND, 0)
-                                        set(Calendar.MILLISECOND, 0)
-                                    }.timeInMillis
-                                } else {
-                                    startTime
-                                }
+                                val finalStartTime =
+                                    if (isAllDay) {
+                                        Calendar
+                                            .getInstance()
+                                            .apply {
+                                                timeInMillis = startTime
+                                                set(Calendar.HOUR_OF_DAY, 0)
+                                                set(Calendar.MINUTE, 0)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                    } else {
+                                        startTime
+                                    }
 
-                                val finalEndTime = if (isAllDay) {
-                                    Calendar.getInstance().apply {
-                                        timeInMillis = startTime
-                                        set(Calendar.HOUR_OF_DAY, 23)
-                                        set(Calendar.MINUTE, 59)
-                                        set(Calendar.SECOND, 59)
-                                        set(Calendar.MILLISECOND, 0)
-                                    }.timeInMillis
-                                } else {
-                                    endTime
-                                }
+                                val finalEndTime =
+                                    if (isAllDay) {
+                                        Calendar
+                                            .getInstance()
+                                            .apply {
+                                                timeInMillis = startTime
+                                                set(Calendar.HOUR_OF_DAY, 23)
+                                                set(Calendar.MINUTE, 59)
+                                                set(Calendar.SECOND, 59)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                    } else {
+                                        endTime
+                                    }
 
-                                val event = CalendarEvent(
-                                    id = existingEvent?.id ?: java.util.UUID.randomUUID().toString(),
-                                    title = title.trim(),
-                                    description = description.ifBlank { null },
-                                    location = location.ifBlank { null },
-                                    startTime = finalStartTime,
-                                    endTime = finalEndTime,
-                                    isAllDay = isAllDay,
-                                    color = selectedColor?.toArgb(),
-                                    reminderMinutes = reminderMinutes,
-                                    isRecurring = isRecurring,
-                                    recurrenceRule = recurrenceRule.ifBlank { null },
-                                    linkedNoteId = existingEvent?.linkedNoteId,
-                                    isEventPrivate = existingEvent?.isEventPrivate ?: false,
-                                    createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
-                                    updatedAt = System.currentTimeMillis()
-                                )
+                                val event =
+                                    CalendarEvent(
+                                        id =
+                                            existingEvent?.id ?: java.util.UUID
+                                                .randomUUID()
+                                                .toString(),
+                                        title = title.trim(),
+                                        description = description.ifBlank { null },
+                                        location = location.ifBlank { null },
+                                        startTime = finalStartTime,
+                                        endTime = finalEndTime,
+                                        isAllDay = isAllDay,
+                                        color = selectedColor?.toArgb(),
+                                        reminderMinutes = reminderMinutes,
+                                        isRecurring = isRecurring,
+                                        recurrenceRule = recurrenceRule.ifBlank { null },
+                                        linkedNoteId = existingEvent?.linkedNoteId,
+                                        isEventPrivate = existingEvent?.isEventPrivate ?: false,
+                                        createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
+                                        updatedAt = System.currentTimeMillis(),
+                                    )
                                 onSave(event)
                             }
                         },
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.medium,
-                        enabled = title.isNotBlank()
+                        enabled = title.isNotBlank(),
                     ) {
                         Text(confirmText)
                     }

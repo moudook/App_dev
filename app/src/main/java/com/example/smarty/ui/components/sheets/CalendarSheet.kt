@@ -6,11 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.example.smarty.core.domain.model.CalendarEvent
-import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.features.calendar.ui.CalendarScreen
+import com.example.smarty.ui.components.AddEventDialog
 import java.util.Calendar
 
 /**
@@ -29,7 +27,7 @@ fun CalendarSheet(
     onAddEvent: () -> Unit, // Legacy callback - still used for actual event creation
     onEventClick: (CalendarEvent) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
-    onCreateEvent: ((title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit)? = null
+    onCreateEvent: ((title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit)? = null,
 ) {
     // State for showing add event dialog
     var showAddEventDialog by remember { mutableStateOf(false) }
@@ -42,11 +40,12 @@ fun CalendarSheet(
 
     // Full-page overlay - respects system theme
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+                .statusBarsPadding()
+                .navigationBarsPadding(),
     ) {
         CalendarScreen(
             events = events,
@@ -63,7 +62,7 @@ fun CalendarSheet(
                 }
             },
             onEventClick = onEventClick,
-            onDeleteEvent = onDeleteEvent
+            onDeleteEvent = onDeleteEvent,
         )
     }
 
@@ -79,7 +78,7 @@ fun CalendarSheet(
                 showAddEventDialog = false
                 selectedDateForNewEvent = null
             },
-            initialDate = selectedDateForNewEvent ?: Calendar.getInstance()
+            initialDate = selectedDateForNewEvent ?: Calendar.getInstance(),
         )
     }
 }

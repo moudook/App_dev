@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
 
@@ -37,51 +36,56 @@ fun AccordionSection(
     onExpandChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     accentColor: Color = LocalAccentColor.current,
-    depth: Int = 0
+    depth: Int = 0,
 ) {
     val displayTitle = if (title.isBlank()) "Details" else title
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    onExpandChange(!expanded)
-                }
+            border =
+                androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        onExpandChange(!expanded)
+                    },
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = displayTitle,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
+                    style =
+                        MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -89,23 +93,25 @@ fun AccordionSection(
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(tween(250)) + fadeIn(tween(200)),
-            exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+            exit = shrinkVertically(tween(200)) + fadeOut(tween(150)),
         ) {
             if (content.isNotBlank()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
                 ) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            accentColor.copy(alpha = 0.15f)
-                        ),
+                        border =
+                            androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                accentColor.copy(alpha = 0.15f),
+                            ),
                         tonalElevation = 0.dp,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Box(modifier = Modifier.padding(14.dp)) {
                             MarkdownRenderer(
@@ -117,7 +123,7 @@ fun AccordionSection(
                                 codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
                                 codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                                depth = depth + 1
+                                depth = depth + 1,
                             )
                         }
                     }
@@ -136,7 +142,7 @@ fun AccordionGroup(
     sections: List<AccordionParser.AccordionSection>,
     modifier: Modifier = Modifier,
     initiallyExpandedIndex: Int = -1,
-    depth: Int = 0
+    depth: Int = 0,
 ) {
     if (sections.isEmpty()) return
 
@@ -144,13 +150,13 @@ fun AccordionGroup(
 
     var expandedIndices by remember {
         mutableStateOf(
-            if (safeInitialIndex >= 0) setOf(safeInitialIndex) else emptySet<Int>()
+            if (safeInitialIndex >= 0) setOf(safeInitialIndex) else emptySet<Int>(),
         )
     }
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         sections.forEachIndexed { index, section ->
             AccordionSection(
@@ -158,14 +164,15 @@ fun AccordionGroup(
                 content = section.content,
                 expanded = expandedIndices.contains(index),
                 onExpandChange = { isExpanded ->
-                    expandedIndices = if (isExpanded) {
-                        expandedIndices + index
-                    } else {
-                        expandedIndices - index
-                    }
+                    expandedIndices =
+                        if (isExpanded) {
+                            expandedIndices + index
+                        } else {
+                            expandedIndices - index
+                        }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                depth = depth
+                depth = depth,
             )
         }
     }
@@ -177,7 +184,7 @@ fun AccordionGroup(
 @Composable
 fun AccordionResponse(
     parsedContent: AccordionParser.ParsedContent,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (parsedContent.introText.isNotBlank()) {
@@ -189,14 +196,14 @@ fun AccordionResponse(
                 linkColor = LocalAccentColor.current,
                 codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                 codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
 
         AccordionGroup(
             sections = parsedContent.accordions,
-            initiallyExpandedIndex = -1
+            initiallyExpandedIndex = -1,
         )
     }
 }

@@ -27,9 +27,7 @@ object ToolResultCache {
     fun generateKey(
         toolName: String,
         args: String,
-    ): String {
-        return "$toolName:${args.hashCode()}"
-    }
+    ): String = "$toolName:${args.hashCode()}"
 
     fun get(key: String): String? {
         val entry = cache.get(key) ?: return null

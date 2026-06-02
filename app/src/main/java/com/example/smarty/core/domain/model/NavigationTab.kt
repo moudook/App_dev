@@ -14,5 +14,5 @@ enum class NavigationTab(
     STACKS("stacks", opensSheet = true),
     ARCHIVE("archive", opensSheet = true),
     SETTINGS("settings", opensSheet = true),
-    GAMES("games", opensSheet = true)
+    GAMES("games", opensSheet = true),
 }

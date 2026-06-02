@@ -370,21 +370,18 @@ object LazyDecompressor {
     /**
      * Get current cache stats
      */
-    fun getCacheStats(): CacheStats {
-        return CacheStats(
+    fun getCacheStats(): CacheStats =
+        CacheStats(
             entries = decompressedCache?.size() ?: 0,
             maxEntries = maxCacheEntries,
             currentSizeBytes = currentCacheSize,
             maxSizeBytes = maxCacheSizeBytes,
         )
-    }
 
     /**
      * Get decompression state for a file
      */
-    fun getState(fileId: String): DecompState {
-        return _decompressionStates.value[fileId] ?: DecompState.IDLE
-    }
+    fun getState(fileId: String): DecompState = _decompressionStates.value[fileId] ?: DecompState.IDLE
 
     // =========================================================================
     // WORKER
@@ -465,8 +462,8 @@ object LazyDecompressor {
     // DECOMPRESSION LOGIC
     // =========================================================================
 
-    private suspend fun decompressFile(request: DecompressionRequest): DecompressionResult {
-        return when (request.compressionType) {
+    private suspend fun decompressFile(request: DecompressionRequest): DecompressionResult =
+        when (request.compressionType) {
             CompressionType.NONE -> {
                 // No compression - just return the file
                 DecompressionResult(
@@ -489,7 +486,6 @@ object LazyDecompressor {
                 decompressGzip(request)
             }
         }
-    }
 
     private suspend fun decompressGzip(request: DecompressionRequest): DecompressionResult =
         withContext(Dispatchers.IO) {
@@ -563,21 +559,19 @@ object LazyDecompressor {
             }
     }
 
-    private fun shouldThrottle(): Boolean {
-        return try {
+    private fun shouldThrottle(): Boolean =
+        try {
             ResourceManager.shouldThrottle()
         } catch (e: Exception) {
             false
         }
-    }
 
-    private fun getThrottleDelay(): Long {
-        return try {
+    private fun getThrottleDelay(): Long =
+        try {
             ResourceManager.getThrottleDelay()
         } catch (e: Exception) {
             50L
         }
-    }
 
     // =========================================================================
     // DATA CLASSES
@@ -596,7 +590,9 @@ object LazyDecompressor {
         ERROR, // Failed
     }
 
-    enum class Priority(val value: Int) {
+    enum class Priority(
+        val value: Int,
+    ) {
         LOW(0),
         NORMAL(1),
         HIGH(2),

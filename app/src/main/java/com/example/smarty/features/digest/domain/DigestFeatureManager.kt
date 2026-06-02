@@ -56,8 +56,8 @@ class DigestFeatureManager(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             if (user != null) {
                 val tokenResult = user.getIdToken(false).await()
@@ -70,15 +70,13 @@ class DigestFeatureManager(
             Log.e(TAG, "Failed to get Firebase token: ${e.message}")
             null
         }
-    }
 
-    private fun getDeviceId(): String {
-        return try {
+    private fun getDeviceId(): String =
+        try {
             deviceIdProvider()
         } catch (e: Exception) {
             "smarty-unknown"
         }
-    }
 
     /**
      * Fetch all digests for the current user.
@@ -256,16 +254,12 @@ class DigestFeatureManager(
     /**
      * Get the most recent digest.
      */
-    fun getMostRecentDigest(): DigestResult? {
-        return _digests.value.firstOrNull()
-    }
+    fun getMostRecentDigest(): DigestResult? = _digests.value.firstOrNull()
 
     /**
      * Get digests by type.
      */
-    fun getDigestsByType(type: String): List<DigestResult> {
-        return _digests.value.filter { it.digestType == type }
-    }
+    fun getDigestsByType(type: String): List<DigestResult> = _digests.value.filter { it.digestType == type }
 
     /**
      * Clear error.

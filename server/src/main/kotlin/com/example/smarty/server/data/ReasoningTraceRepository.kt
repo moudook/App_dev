@@ -181,7 +181,10 @@ class ReasoningTraceRepository(
     /**
      * Get reasoning timeline for UI
      */
-    suspend fun getReasoningTimeline(sessionId: String, limit: Int = 200): List<ReasoningTraceWithSummary> =
+    suspend fun getReasoningTimeline(
+        sessionId: String,
+        limit: Int = 200,
+    ): List<ReasoningTraceWithSummary> =
         withContext(Dispatchers.IO) {
             val traces = mutableListOf<ReasoningTraceWithSummary>()
 

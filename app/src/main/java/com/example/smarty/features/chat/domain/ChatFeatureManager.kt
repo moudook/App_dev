@@ -29,16 +29,11 @@ import com.example.smarty.core.common.util.mention.MentionParser
 import com.example.smarty.core.common.util.mention.NoteContextBuilder
 import com.example.smarty.features.audio.domain.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.features.chat.domain.thinking.ThinkingParser
-import com.example.smarty.features.chat.domain.thinking.ParsedResponse
 import com.example.smarty.core.domain.model.SearchResultItem
 import com.example.smarty.core.domain.model.SearchQueryAnalysis
 import com.example.smarty.core.domain.model.RecallResult
 import com.example.smarty.R
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
 // import io.ktor.client.plugins.contentnegotiation.ContentNegotiation // Removed - not available in minimal Ktor
-import io.ktor.client.plugins.sse.SSE
-import kotlin.time.Duration.Companion.seconds
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -48,7 +43,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 
 /**
@@ -137,7 +131,10 @@ class ChatFeatureManager(
     sealed class CommandValidationResult {
         object Valid : CommandValidationResult()
 
-        data class Invalid(val reason: String, val field: String? = null) : CommandValidationResult() {
+        data class Invalid(
+            val reason: String,
+            val field: String? = null,
+        ) : CommandValidationResult() {
             fun toLogString(): String = if (field != null) "$field: $reason" else reason
         }
     }
@@ -521,7 +518,10 @@ class ChatFeatureManager(
     }
 
     private val androidLogger by lazy { AndroidLogger() }
-    private val historyCompressor by lazy { com.example.smarty.core.common.util.HistoryCompressor(androidLogger) }
+    private val historyCompressor by lazy {
+        com.example.smarty.core.common.util
+            .HistoryCompressor(androidLogger)
+    }
 
     // Reuse existing ChatManager for basic state and session management
     private val chatManager =
@@ -539,15 +539,18 @@ class ChatFeatureManager(
     }
 
     private val allNotes =
-        noteOperationsManager.getAllNotes()
+        noteOperationsManager
+            .getAllNotes()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val archivedNotes =
-        noteOperationsManager.getArchivedNotes()
+        noteOperationsManager
+            .getArchivedNotes()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val allCategories =
-        noteOperationsManager.getAllCategories()
+        noteOperationsManager
+            .getAllCategories()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Local command processor for fast-path handling
@@ -568,7 +571,9 @@ class ChatFeatureManager(
     // Task 15: Remote Agent Service (Thin Client)
     // Replaces local SmartyAgentOptimized and SmartyAgentProvider
     private val remoteAgentService: RemoteAgentService by lazy {
-        val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
+        val client =
+            com.example.smarty.di.ServiceLocator
+                .provideHttpClient()
 
         RemoteAgentService(
             client = client,
@@ -783,7 +788,8 @@ class ChatFeatureManager(
                 return PrivacyGuard.getAiVisibleNotes(rawNotes)
             }
 
-            override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value.map { it.copy(isArchived = false) })
+            override fun getArchivedNotes(): List<Note> =
+                PrivacyGuard.getAiVisibleNotes(archivedNotes.value.map { it.copy(isArchived = false) })
 
             override fun getCategories(): List<Category> = allCategories.value
 
@@ -814,14 +820,13 @@ class ChatFeatureManager(
 
             override fun getCurrentScreen(): String = currentScreen.value
 
-            override fun getSystemStatus(): Map<String, String> {
-                return systemFeatureManager.getSystemStatus(
+            override fun getSystemStatus(): Map<String, String> =
+                systemFeatureManager.getSystemStatus(
                     isDarkTheme = isDarkTheme.value,
                     connectionStatus = connectionStatus.value.name,
                     cacheSize = ContentTypeDetector.formatFileSize(application, cacheSizeBytes.value),
                     unreadMemoryCount = 0, // Placeholder to fix compilation
                 )
-            }
 
             override fun addNote(
                 content: String,
@@ -889,13 +894,10 @@ class ChatFeatureManager(
                 noteOperationsManager.processNoteWithAi(note)
             }
 
-            override suspend fun onCreateCategory(name: String): Category {
-                return noteOperationsManager.getOrCreateCategory(name)
-            }
+            override suspend fun onCreateCategory(name: String): Category = noteOperationsManager.getOrCreateCategory(name)
 
-            override suspend fun getCategoryStats(): List<CategoryStatInfo> {
-                return noteOperationsManager.getCategoryStats(allCategories.value, allNotes.value)
-            }
+            override suspend fun getCategoryStats(): List<CategoryStatInfo> =
+                noteOperationsManager.getCategoryStats(allCategories.value, allNotes.value)
 
             override fun toggleTheme(isDark: Boolean) {
                 systemFeatureManager.toggleTheme(isDark)
@@ -935,29 +937,21 @@ class ChatFeatureManager(
                 noteType: String?,
                 timeRange: String,
                 limit: Int,
-            ): List<SearchResultItem> {
-                return searchFeatureManager.search(query, category, noteType, timeRange, emptySet(), limit)
-            }
+            ): List<SearchResultItem> = searchFeatureManager.search(query, category, noteType, timeRange, emptySet(), limit)
 
             override suspend fun advancedSearch(
                 query: String,
                 algorithm: String,
                 limit: Int,
                 minScore: Double,
-            ): List<SearchResultItem> {
-                return searchFeatureManager.advancedSearch(query, algorithm, limit, minScore)
-            }
+            ): List<SearchResultItem> = searchFeatureManager.advancedSearch(query, algorithm, limit, minScore)
 
-            override fun analyzeQuery(query: String): SearchQueryAnalysis {
-                return searchFeatureManager.analyzeQuery(query)
-            }
+            override fun analyzeQuery(query: String): SearchQueryAnalysis = searchFeatureManager.analyzeQuery(query)
 
             override suspend fun performRecall(
                 query: String,
                 minScore: Double,
-            ): List<RecallResult> {
-                return searchFeatureManager.performRecall(query, minScore)
-            }
+            ): List<RecallResult> = searchFeatureManager.performRecall(query, minScore)
 
             override fun requestAudioPlayback(track: AudioTrack) {
                 audioFeatureManager.play(track)
@@ -974,13 +968,9 @@ class ChatFeatureManager(
                 systemFeatureManager.launchApp(packageName)
             }
 
-            override fun findPackageName(appName: String): String? {
-                return systemFeatureManager.findPackageName(appName)
-            }
+            override fun findPackageName(appName: String): String? = systemFeatureManager.findPackageName(appName)
 
-            override suspend fun findMatchingAudio(query: String): AudioSearchResult {
-                return audioFeatureManager.findAudioTrack(query)
-            }
+            override suspend fun findMatchingAudio(query: String): AudioSearchResult = audioFeatureManager.findAudioTrack(query)
 
             override suspend fun controlAudio(action: String) {
                 when (action.lowercase()) {
@@ -1031,21 +1021,13 @@ class ChatFeatureManager(
                 audioFeatureManager.previous()
             }
 
-            override fun getCurrentAudioTrack(): AudioTrack? {
-                return audioFeatureManager.getCurrentTrack()
-            }
+            override fun getCurrentAudioTrack(): AudioTrack? = audioFeatureManager.getCurrentTrack()
 
-            override fun getCurrentAudioPosition(): Long {
-                return audioFeatureManager.getCurrentPosition()
-            }
+            override fun getCurrentAudioPosition(): Long = audioFeatureManager.getCurrentPosition()
 
-            override fun getAudioDuration(): Long {
-                return audioFeatureManager.getDuration()
-            }
+            override fun getAudioDuration(): Long = audioFeatureManager.getDuration()
 
-            override fun isAudioPlaying(): Boolean {
-                return audioFeatureManager.isPlaying()
-            }
+            override fun isAudioPlaying(): Boolean = audioFeatureManager.isPlaying()
 
             override fun addCalendarEvent(
                 title: String,
@@ -1090,21 +1072,18 @@ class ChatFeatureManager(
                 )
             }
 
-            override suspend fun listEvents(date: Long): List<CalendarEvent> {
-                return calendarFeatureManager.getEventsForDay(date)
-            }
+            override suspend fun listEvents(date: Long): List<CalendarEvent> = calendarFeatureManager.getEventsForDay(date)
 
             override suspend fun deleteEvent(eventId: String) {
                 calendarFeatureManager.deleteCalendarEvent(eventId)
             }
 
-            override suspend fun queryCalendarEvents(query: String?): List<CalendarEvent> {
-                return if (query.isNullOrBlank()) {
+            override suspend fun queryCalendarEvents(query: String?): List<CalendarEvent> =
+                if (query.isNullOrBlank()) {
                     calendarFeatureManager.getTodayEvents()
                 } else {
                     calendarFeatureManager.searchEvents(query)
                 }
-            }
 
             override fun bulkDeleteEvents(eventIds: List<String>) {
                 eventIds.forEach { id ->
@@ -1225,11 +1204,16 @@ class ChatFeatureManager(
 
     // Approval state for ask_user and other tool approvals
     private val _pendingApprovalState = MutableStateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?>(null)
-    val pendingApprovalState: StateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?> = _pendingApprovalState.asStateFlow()
+    val pendingApprovalState: StateFlow<com.example.smarty.features.chat.domain.state.PendingApproval?> =
+        _pendingApprovalState
+            .asStateFlow()
 
     // Parsed clarification requests from ApprovalRequested events (for SmartyInputField)
-    private val _pendingClarificationRequests = MutableStateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>>(emptyList())
-    val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> = _pendingClarificationRequests.asStateFlow()
+    private val _pendingClarificationRequests =
+        MutableStateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>>(emptyList())
+    val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> =
+        _pendingClarificationRequests
+            .asStateFlow()
 
     // Navigation state delegated to SharedAppState via onNavigate callback
     // private val _navigationRequest = MutableStateFlow<String?>(null)
@@ -1465,7 +1449,10 @@ class ChatFeatureManager(
                 val userMessage = chatManager.addUserMessage("Generate image: $prompt")
 
                 // Show streaming placeholder with tool call card
-                val streamingMessageId = java.util.UUID.randomUUID().toString()
+                val streamingMessageId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()
                 chatManager.addSmartyMessage(
                     ChatMessage(
                         id = streamingMessageId,
@@ -1547,7 +1534,10 @@ class ChatFeatureManager(
 
                 val errorMessage =
                     ChatMessage(
-                        id = java.util.UUID.randomUUID().toString(),
+                        id =
+                            java.util.UUID
+                                .randomUUID()
+                                .toString(),
                         role = ChatRole.SMARTY,
                         content = "Image generation failed: ${e.message}",
                         timestamp = System.currentTimeMillis(),
@@ -1609,7 +1599,15 @@ class ChatFeatureManager(
                         is CommandResult.Handled -> {
                             chatManager.markApiCallSuccessful()
                             val smartyMessage =
-                                ChatMessage(id = java.util.UUID.randomUUID().toString(), role = ChatRole.SMARTY, content = commandResult.response, timestamp = System.currentTimeMillis())
+                                ChatMessage(
+                                    id =
+                                        java.util.UUID
+                                            .randomUUID()
+                                            .toString(),
+                                    role = ChatRole.SMARTY,
+                                    content = commandResult.response,
+                                    timestamp = System.currentTimeMillis(),
+                                )
                             chatManager.addSmartyMessage(smartyMessage)
                             chatManager.saveMessagePair(
                                 userMessage = userMessage,
@@ -1622,7 +1620,15 @@ class ChatFeatureManager(
                             navigateTo(commandResult.route)
                             val response = application.getString(R.string.navigating_success, commandResult.route)
                             val smartyMessage =
-                                ChatMessage(id = java.util.UUID.randomUUID().toString(), role = ChatRole.SMARTY, content = response, timestamp = System.currentTimeMillis())
+                                ChatMessage(
+                                    id =
+                                        java.util.UUID
+                                            .randomUUID()
+                                            .toString(),
+                                    role = ChatRole.SMARTY,
+                                    content = response,
+                                    timestamp = System.currentTimeMillis(),
+                                )
                             chatManager.addSmartyMessage(smartyMessage)
                             chatManager.saveMessagePair(
                                 userMessage = userMessage,
@@ -1632,7 +1638,15 @@ class ChatFeatureManager(
                         }
                         is CommandResult.HandledAndPassToLLM -> {
                             val localMessage =
-                                ChatMessage(id = java.util.UUID.randomUUID().toString(), role = ChatRole.SMARTY, content = commandResult.response, timestamp = System.currentTimeMillis())
+                                ChatMessage(
+                                    id =
+                                        java.util.UUID
+                                            .randomUUID()
+                                            .toString(),
+                                    role = ChatRole.SMARTY,
+                                    content = commandResult.response,
+                                    timestamp = System.currentTimeMillis(),
+                                )
                             chatManager.addSmartyMessage(localMessage)
                         }
                         is CommandResult.SavePageRequest -> {
@@ -1641,7 +1655,10 @@ class ChatFeatureManager(
                             val response = application.getString(R.string.capturing_screenshot)
                             val smartyMessage =
                                 ChatMessage(
-                                    id = java.util.UUID.randomUUID().toString(),
+                                    id =
+                                        java.util.UUID
+                                            .randomUUID()
+                                            .toString(),
                                     role = ChatRole.SMARTY,
                                     content = response,
                                     timestamp = System.currentTimeMillis(),
@@ -1660,7 +1677,21 @@ class ChatFeatureManager(
                     processRemoteQuery(content, userMessage)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in dispatcher: ${e.message}", e)
-                    chatManager.addSmartyMessage(ChatMessage(id = java.util.UUID.randomUUID().toString(), role = ChatRole.SMARTY, content = application.getString(R.string.error_prefix, e.message ?: application.getString(R.string.unknown_error)), timestamp = System.currentTimeMillis()))
+                    chatManager.addSmartyMessage(
+                        ChatMessage(
+                            id =
+                                java.util.UUID
+                                    .randomUUID()
+                                    .toString(),
+                            role = ChatRole.SMARTY,
+                            content =
+                                application.getString(
+                                    R.string.error_prefix,
+                                    e.message ?: application.getString(R.string.unknown_error),
+                                ),
+                            timestamp = System.currentTimeMillis(),
+                        ),
+                    )
                 } finally {
                     // Clear agent activity state
                     _agentActivity.value = null
@@ -1765,7 +1796,10 @@ class ChatFeatureManager(
         // Local logic (history compression, context building) is handled by the server now.
 
         // Create a streaming placeholder message that updates live
-        val streamingMessageId = java.util.UUID.randomUUID().toString()
+        val streamingMessageId =
+            java.util.UUID
+                .randomUUID()
+                .toString()
 
         try {
             // Add a "thinking" placeholder message immediately
@@ -1788,14 +1822,14 @@ class ChatFeatureManager(
             val sessionId = currentSessionId.value
             val selectedModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
             val selectedVariant = securePreferences.getSelectedVariant()
-            remoteAgentService.sendQuery(
-                query = content,
-                sessionId = sessionId,
-                model = selectedModel,
-                variant = selectedVariant,
-                messageId = streamingMessageId,
-            )
-                .collect { event ->
+            remoteAgentService
+                .sendQuery(
+                    query = content,
+                    sessionId = sessionId,
+                    model = selectedModel,
+                    variant = selectedVariant,
+                    messageId = streamingMessageId,
+                ).collect { event ->
                     agentEventsBuilder.add(event)
                     Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
                     when (event) {
@@ -1847,7 +1881,9 @@ class ChatFeatureManager(
                             // Trigger unified sync to pull down any server-side generated content
                             scope.launch {
                                 try {
-                                    com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                                    com.example.smarty.di.ServiceLocator
+                                        .provideSyncCoordinator(application)
+                                        .syncAll()
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Failed to sync after AgentEvent.Result", e)
                                 }
@@ -1893,7 +1929,9 @@ class ChatFeatureManager(
                             // Trigger unified sync to ensure tool actions are reflected immediately
                             scope.launch {
                                 try {
-                                    com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                                    com.example.smarty.di.ServiceLocator
+                                        .provideSyncCoordinator(application)
+                                        .syncAll()
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Failed to sync after AgentEvent.ToolCall", e)
                                 }
@@ -1952,15 +1990,16 @@ class ChatFeatureManager(
                             // agentEvents for timeline UI. No additional handling needed here.
                             if (event is AgentEvent.ApprovalRequested) {
                                 Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}")
-                                _pendingApprovalState.value = com.example.smarty.features.chat.domain.state.PendingApproval(
-                                    messageId = streamingMessageId,
-                                    sessionId = chatManager.currentSessionId.value,
-                                    eventId = event.eventId,
-                                    toolId = event.toolId,
-                                    toolName = event.toolName,
-                                    toolTitle = event.toolTitle,
-                                    toolArgs = event.toolArgs,
-                                )
+                                _pendingApprovalState.value =
+                                    com.example.smarty.features.chat.domain.state.PendingApproval(
+                                        messageId = streamingMessageId,
+                                        sessionId = chatManager.currentSessionId.value,
+                                        eventId = event.eventId,
+                                        toolId = event.toolId,
+                                        toolName = event.toolName,
+                                        toolTitle = event.toolTitle,
+                                        toolArgs = event.toolArgs,
+                                    )
                                 try {
                                     val json = org.json.JSONObject(event.toolArgs)
                                     val questionsArray = json.optJSONArray("questions")
@@ -1976,11 +2015,13 @@ class ChatFeatureManager(
                                                     qOptions.add(optionsArray.getString(j))
                                                 }
                                             }
-                                            parsed.add(com.example.smarty.core.domain.model.ClarificationRequest(
-                                                question = qText,
-                                                options = qOptions,
-                                                allowCustomInput = q.optBoolean("allow_custom", false),
-                                            ))
+                                            parsed.add(
+                                                com.example.smarty.core.domain.model.ClarificationRequest(
+                                                    question = qText,
+                                                    options = qOptions,
+                                                    allowCustomInput = q.optBoolean("allow_custom", false),
+                                                ),
+                                            )
                                         }
                                     }
                                     _pendingClarificationRequests.value = parsed
@@ -2059,12 +2100,14 @@ class ChatFeatureManager(
                 scope.launch {
                     delay(3000L)
                     try {
-                        com.example.smarty.di.ServiceLocator.provideSyncCoordinator(application).syncAll()
+                        com.example.smarty.di.ServiceLocator
+                            .provideSyncCoordinator(application)
+                            .syncAll()
                         val syncedMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
                         if (syncedMsg != null && syncedMsg.content.isNullOrEmpty()) {
                             chatManager.updateMessageById(
                                 streamingMessageId,
-                                application.getString(R.string.error_prefix, "No response received - connection was lost")
+                                application.getString(R.string.error_prefix, "No response received - connection was lost"),
                             )
                         }
                     } catch (e: Exception) {
@@ -2092,8 +2135,8 @@ class ChatFeatureManager(
     /**
      * Generate a brief human-readable summary for an agent command.
      */
-    private fun getCommandSummary(command: AgentCommand): String {
-        return when (command) {
+    private fun getCommandSummary(command: AgentCommand): String =
+        when (command) {
             is AgentCommand.AddNote -> "Created note"
             is AgentCommand.SearchNotes -> "Searched notes for \"${command.query}\""
             is AgentCommand.UpdateNote -> "Updated note"
@@ -2117,7 +2160,6 @@ class ChatFeatureManager(
             is AgentCommand.ShowBreathing -> "Guided breathing"
             else -> command::class.simpleName ?: "Action"
         }
-    }
 
     fun navigateTo(screen: String) {
         scope.launch {
@@ -2282,9 +2324,11 @@ class ChatFeatureManager(
             if (parts.size > 1) {
                 // Try to parse numeric arguments if possible
                 val args =
-                    parts.subList(1, parts.size).map {
-                        it.toIntOrNull() ?: it
-                    }.toTypedArray<Any>()
+                    parts
+                        .subList(1, parts.size)
+                        .map {
+                            it.toIntOrNull() ?: it
+                        }.toTypedArray<Any>()
 
                 try {
                     application.getString(resId, *args)

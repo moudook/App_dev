@@ -310,7 +310,10 @@ Use for: clarification, preference gathering, scoping research, multi-choice dec
                                                             items = ToolProperty("string"),
                                                         ),
                                                     "allow_custom" to
-                                                        ToolProperty("boolean", "Set true to allow free-text input. Default: false. Only set true when options may not cover the user's needs."),
+                                                        ToolProperty(
+                                                            "boolean",
+                                                            "Set true to allow free-text input. Default: false. Only set true when options may not cover the user's needs.",
+                                                        ),
                                                 ),
                                             required = listOf("question", "options"),
                                         ),

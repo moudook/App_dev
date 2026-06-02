@@ -100,8 +100,8 @@ object CategoryShareManager {
         context: Context,
         bitmap: Bitmap,
         categoryName: String,
-    ): Uri? {
-        return try {
+    ): Uri? =
+        try {
             val cachePath = File(context.cacheDir, "shared_qr")
             cachePath.mkdirs()
             val fileName = "Smarty_${categoryName.replace(" ", "_")}_qr.png"
@@ -120,7 +120,6 @@ object CategoryShareManager {
             Log.e("CategoryShareManager", "Failed to save QR code to cache", e)
             null
         }
-    }
 
     /**
      * Share category via Android's share sheet (integrates with Quick Share)
@@ -179,14 +178,13 @@ object CategoryShareManager {
     /**
      * Parse imported category data
      */
-    fun parseShareableData(jsonData: String): ShareableCategory? {
-        return try {
+    fun parseShareableData(jsonData: String): ShareableCategory? =
+        try {
             gson.fromJson(jsonData, ShareableCategory::class.java)
         } catch (e: Exception) {
             Log.e("CategoryShareManager", "Failed to parse shareable category data", e)
             null
         }
-    }
 
     /**
      * Parse deep link and extract category data

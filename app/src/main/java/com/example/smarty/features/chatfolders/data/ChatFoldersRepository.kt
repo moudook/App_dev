@@ -16,9 +16,8 @@ class ChatFoldersRepository(
         name: String,
         color: String,
         sortOrder: Int = 0,
-    ): ChatFolderCreateResponse? {
-        return remoteDataSource.createChatFolder(ChatFolderCreateRequest(name = name, color = color, sortOrder = sortOrder))
-    }
+    ): ChatFolderCreateResponse? =
+        remoteDataSource.createChatFolder(ChatFolderCreateRequest(name = name, color = color, sortOrder = sortOrder))
 
     suspend fun updateFolder(folder: ChatFolder): ChatFolderResponse? = remoteDataSource.updateChatFolder(folder)
 

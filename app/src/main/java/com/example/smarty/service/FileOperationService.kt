@@ -16,7 +16,6 @@ import androidx.core.app.NotificationCompat
 import com.example.smarty.R
 import com.example.smarty.core.common.util.CompressedFileResult
 import com.example.smarty.core.common.util.FileCompressor
-import com.example.smarty.core.common.util.ResourceManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,11 +44,10 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * =============================================================================
  */
 class FileOperationService : Service() {
-
     companion object {
         private const val TAG = "FileOperationService"
         private const val CHANNEL_ID = "file_operations_channel"
-        private const val NOTIFICATION_ID = 1002  // Unique ID to avoid conflicts with other services
+        private const val NOTIFICATION_ID = 1002 // Unique ID to avoid conflicts with other services
 
         // Actions
         const val ACTION_COMPRESS_FILE = "com.example.smarty.action.COMPRESS_FILE"
@@ -73,16 +71,17 @@ class FileOperationService : Service() {
             mimeType: String?,
             fileName: String?,
             destDir: String,
-            operationId: String
+            operationId: String,
         ) {
-            val intent = Intent(context, FileOperationService::class.java).apply {
-                action = ACTION_COMPRESS_FILE
-                putExtra(EXTRA_SOURCE_URI, sourceUri.toString())
-                putExtra(EXTRA_MIME_TYPE, mimeType)
-                putExtra(EXTRA_FILE_NAME, fileName)
-                putExtra(EXTRA_DEST_DIR, destDir)
-                putExtra(EXTRA_OPERATION_ID, operationId)
-            }
+            val intent =
+                Intent(context, FileOperationService::class.java).apply {
+                    action = ACTION_COMPRESS_FILE
+                    putExtra(EXTRA_SOURCE_URI, sourceUri.toString())
+                    putExtra(EXTRA_MIME_TYPE, mimeType)
+                    putExtra(EXTRA_FILE_NAME, fileName)
+                    putExtra(EXTRA_DEST_DIR, destDir)
+                    putExtra(EXTRA_OPERATION_ID, operationId)
+                }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -95,9 +94,10 @@ class FileOperationService : Service() {
          * Cancel all pending operations
          */
         fun cancelAll(context: Context) {
-            val intent = Intent(context, FileOperationService::class.java).apply {
-                action = ACTION_CANCEL_ALL
-            }
+            val intent =
+                Intent(context, FileOperationService::class.java).apply {
+                    action = ACTION_CANCEL_ALL
+                }
             context.startService(intent)
         }
     }
@@ -134,7 +134,11 @@ class FileOperationService : Service() {
         Log.d(TAG, "FileOperationService created")
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         when (intent?.action) {
             ACTION_COMPRESS_FILE -> {
                 val sourceUri = intent.getStringExtra(EXTRA_SOURCE_URI)?.let { Uri.parse(it) }
@@ -150,8 +154,8 @@ class FileOperationService : Service() {
                             sourceUri = sourceUri,
                             mimeType = mimeType,
                             fileName = fileName,
-                            destDir = File(destDir)
-                        )
+                            destDir = File(destDir),
+                        ),
                     )
                 }
             }
@@ -204,41 +208,45 @@ class FileOperationService : Service() {
                 while (operationQueue.isNotEmpty()) {
                     val operation = operationQueue.poll() ?: break
 
-                    _operationState.value = OperationState.Processing(
-                        operationId = operation.id,
-                        progress = 0f,
-                        message = getString(R.string.processing_item, operation.id)
-                    )
+                    _operationState.value =
+                        OperationState.Processing(
+                            operationId = operation.id,
+                            progress = 0f,
+                            message = getString(R.string.processing_item, operation.id),
+                        )
 
                     updateNotification(getString(R.string.processing_item, operation.id))
 
                     try {
-                        val result = when (operation) {
-                            is FileOperation.Compress -> processCompress(operation)
-                            is FileOperation.Copy -> processCopy(operation)
-                        }
+                        val result =
+                            when (operation) {
+                                is FileOperation.Compress -> processCompress(operation)
+                                is FileOperation.Copy -> processCopy(operation)
+                            }
 
                         completedOperations[operation.id] = result
 
-                        _operationState.value = OperationState.Completed(
-                            operationId = operation.id,
-                            success = result.success,
-                            message = result.message
-                        )
-
+                        _operationState.value =
+                            OperationState.Completed(
+                                operationId = operation.id,
+                                success = result.success,
+                                message = result.message,
+                            )
                     } catch (e: Exception) {
                         Log.e(TAG, "Operation failed: ${operation.id}", e)
 
-                        completedOperations[operation.id] = OperationResult(
-                            operationId = operation.id,
-                            success = false,
-                            message = e.message ?: "Unknown error"
-                        )
+                        completedOperations[operation.id] =
+                            OperationResult(
+                                operationId = operation.id,
+                                success = false,
+                                message = e.message ?: "Unknown error",
+                            )
 
-                        _operationState.value = OperationState.Error(
-                            operationId = operation.id,
-                            error = e.message ?: "Unknown error"
-                        )
+                        _operationState.value =
+                            OperationState.Error(
+                                operationId = operation.id,
+                                error = e.message ?: "Unknown error",
+                            )
                     }
 
                     // Brief pause between operations to prevent resource exhaustion
@@ -262,31 +270,31 @@ class FileOperationService : Service() {
     /**
      * Process compress operation
      */
-    private suspend fun processCompress(operation: FileOperation.Compress): OperationResult {
-        return try {
-            val result = FileCompressor.compressFile(
-                context = this@FileOperationService,
-                sourceUri = operation.sourceUri,
-                mimeType = operation.mimeType,
-                originalFileName = operation.fileName,
-                destDir = operation.destDir
-            )
+    private suspend fun processCompress(operation: FileOperation.Compress): OperationResult =
+        try {
+            val result =
+                FileCompressor.compressFile(
+                    context = this@FileOperationService,
+                    sourceUri = operation.sourceUri,
+                    mimeType = operation.mimeType,
+                    originalFileName = operation.fileName,
+                    destDir = operation.destDir,
+                )
 
             OperationResult(
                 operationId = operation.id,
                 success = true,
                 message = getString(R.string.compressed_successfully),
                 resultFile = result.compressedFile,
-                compressionResult = result
+                compressionResult = result,
             )
         } catch (e: Exception) {
             OperationResult(
                 operationId = operation.id,
                 success = false,
-                message = e.message ?: getString(R.string.failed)
+                message = e.message ?: getString(R.string.failed),
             )
         }
-    }
 
     /**
      * Process copy operation
@@ -296,7 +304,7 @@ class FileOperationService : Service() {
         return OperationResult(
             operationId = operation.id,
             success = true,
-            message = getString(R.string.copy_completed)
+            message = getString(R.string.copy_completed),
         )
     }
 
@@ -332,14 +340,15 @@ class FileOperationService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "File Operations",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Shows progress of file operations"
-                setShowBadge(false)
-            }
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "File Operations",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Shows progress of file operations"
+                    setShowBadge(false)
+                }
 
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
@@ -347,15 +356,20 @@ class FileOperationService : Service() {
     }
 
     private fun createNotification(message: String): Notification {
-        val cancelIntent = Intent(this, FileOperationService::class.java).apply {
-            action = ACTION_CANCEL_ALL
-        }
-        val cancelPendingIntent = PendingIntent.getService(
-            this, 0, cancelIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val cancelIntent =
+            Intent(this, FileOperationService::class.java).apply {
+                action = ACTION_CANCEL_ALL
+            }
+        val cancelPendingIntent =
+            PendingIntent.getService(
+                this,
+                0,
+                cancelIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat
+            .Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -364,9 +378,8 @@ class FileOperationService : Service() {
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 getString(R.string.cancel),
-                cancelPendingIntent
-            )
-            .build()
+                cancelPendingIntent,
+            ).build()
     }
 
     private fun updateNotification(message: String) {
@@ -378,19 +391,21 @@ class FileOperationService : Service() {
     // DATA CLASSES
     // =========================================================================
 
-    sealed class FileOperation(open val id: String) {
+    sealed class FileOperation(
+        open val id: String,
+    ) {
         data class Compress(
             override val id: String,
             val sourceUri: Uri,
             val mimeType: String?,
             val fileName: String?,
-            val destDir: File
+            val destDir: File,
         ) : FileOperation(id)
 
         data class Copy(
             override val id: String,
             val sourceUri: Uri,
-            val destDir: File
+            val destDir: File,
         ) : FileOperation(id)
     }
 
@@ -400,18 +415,18 @@ class FileOperationService : Service() {
         data class Processing(
             val operationId: String,
             val progress: Float,
-            val message: String
+            val message: String,
         ) : OperationState()
 
         data class Completed(
             val operationId: String,
             val success: Boolean,
-            val message: String
+            val message: String,
         ) : OperationState()
 
         data class Error(
             val operationId: String,
-            val error: String
+            val error: String,
         ) : OperationState()
     }
 
@@ -420,6 +435,6 @@ class FileOperationService : Service() {
         val success: Boolean,
         val message: String,
         val resultFile: File? = null,
-        val compressionResult: CompressedFileResult? = null
+        val compressionResult: CompressedFileResult? = null,
     )
 }

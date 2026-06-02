@@ -1,6 +1,5 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -23,11 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
@@ -40,7 +38,7 @@ import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 fun PrivacyModeIndicator(
     isActive: Boolean,
     modifier: Modifier = Modifier,
-    showLabel: Boolean = true
+    showLabel: Boolean = true,
 ) {
     if (!isActive) return
 
@@ -48,55 +46,60 @@ fun PrivacyModeIndicator(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val scale = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
-        val animatedScale by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(800),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulse_scale"
-        )
-        animatedScale
-    } else {
-        1.05f // Static mid-point value
-    }
+    val scale =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+            val animatedScale by infiniteTransition.animateFloat(
+                initialValue = 1f,
+                targetValue = 1.1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(800),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                label = "pulse_scale",
+            )
+            animatedScale
+        } else {
+            1.05f // Static mid-point value
+        }
 
-    val alpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
-        val animatedAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.7f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(800),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulse_alpha"
-        )
-        animatedAlpha
-    } else {
-        0.85f // Static mid-point value
-    }
+    val alpha =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+            val animatedAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.7f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(800),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                label = "pulse_alpha",
+            )
+            animatedAlpha
+        } else {
+            0.85f // Static mid-point value
+        }
 
     Row(
-        modifier = modifier
-            .background(
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier =
+            modifier
+                .background(
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                ).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
             imageVector = Icons.Default.Security,
             contentDescription = stringResource(R.string.privacy_mode_active),
             tint = MaterialTheme.colorScheme.error.copy(alpha = alpha),
-            modifier = Modifier
-                .size(20.dp)
-                .scale(scale)
+            modifier =
+                Modifier
+                    .size(20.dp)
+                    .scale(scale),
         )
 
         if (showLabel) {
@@ -104,7 +107,7 @@ fun PrivacyModeIndicator(
                 text = stringResource(R.string.full_privacy_mode),
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -115,14 +118,12 @@ fun PrivacyModeIndicator(
  * Just shows the shield icon without label
  */
 @Composable
-fun PrivacyModeIcon(
-    modifier: Modifier = Modifier
-) {
+fun PrivacyModeIcon(modifier: Modifier = Modifier) {
     Icon(
         imageVector = Icons.Default.Security,
         contentDescription = stringResource(R.string.privacy_note),
         tint = MaterialTheme.colorScheme.error,
-        modifier = modifier.size(16.dp)
+        modifier = modifier.size(16.dp),
     )
 }
 
@@ -132,7 +133,7 @@ fun PrivacyModeIcon(
 @Composable
 fun PrivacyModeBanner(
     isActive: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (!isActive) return
 
@@ -140,46 +141,48 @@ fun PrivacyModeBanner(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val bgAlpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "banner_pulse")
-        val animatedAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.1f,
-            targetValue = 0.2f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1000),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "bg_alpha"
-        )
-        animatedAlpha
-    } else {
-        0.15f // Static mid-point value
-    }
+    val bgAlpha =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "banner_pulse")
+            val animatedAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.1f,
+                targetValue = 0.2f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(1000),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                label = "bg_alpha",
+            )
+            animatedAlpha
+        } else {
+            0.15f // Static mid-point value
+        }
 
     Box(
-        modifier = modifier
-            .background(
-                color = MaterialTheme.colorScheme.error.copy(alpha = bgAlpha),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .padding(16.dp)
+        modifier =
+            modifier
+                .background(
+                    color = MaterialTheme.colorScheme.error.copy(alpha = bgAlpha),
+                    shape = RoundedCornerShape(12.dp),
+                ).padding(16.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Icon(
                 imageVector = Icons.Default.Security,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(24.dp),
             )
 
             Text(
                 text = stringResource(R.string.full_privacy_no_ai),
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
         }
     }

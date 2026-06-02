@@ -87,9 +87,15 @@ class GoogleCalendarSyncManager(
 
         object Syncing : SyncState()
 
-        data class Completed(val importedCount: Int, val totalCount: Int) : SyncState()
+        data class Completed(
+            val importedCount: Int,
+            val totalCount: Int,
+        ) : SyncState()
 
-        data class Error(val message: String, val isPermissionError: Boolean = false) : SyncState()
+        data class Error(
+            val message: String,
+            val isPermissionError: Boolean = false,
+        ) : SyncState()
     }
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
@@ -113,22 +119,20 @@ class GoogleCalendarSyncManager(
     /**
      * Check if calendar permission is granted
      */
-    fun hasCalendarPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
+    fun hasCalendarPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CALENDAR,
         ) == PackageManager.PERMISSION_GRANTED
-    }
 
     /**
      * Check if calendar write permission is granted
      */
-    fun hasWriteCalendarPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
+    fun hasWriteCalendarPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.WRITE_CALENDAR,
         ) == PackageManager.PERMISSION_GRANTED
-    }
 
     /**
      * Export a local event to the device's Google Calendar
@@ -252,26 +256,27 @@ class GoogleCalendarSyncManager(
 
             try {
                 // Use .use{} to ensure cursor is always closed (fixes memory leak)
-                context.contentResolver.query(
-                    uri,
-                    CALENDAR_PROJECTION,
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val calendar =
-                            DeviceCalendar(
-                                id = cursor.getLong(CALENDAR_ID_INDEX),
-                                displayName = cursor.getString(CALENDAR_DISPLAY_NAME_INDEX) ?: "Unknown",
-                                accountName = cursor.getString(CALENDAR_ACCOUNT_NAME_INDEX) ?: "",
-                                accountType = cursor.getString(CALENDAR_ACCOUNT_TYPE_INDEX) ?: "",
-                                color = if (!cursor.isNull(CALENDAR_COLOR_INDEX)) cursor.getInt(CALENDAR_COLOR_INDEX) else null,
-                                isVisible = cursor.getInt(CALENDAR_VISIBLE_INDEX) == 1,
-                            )
-                        calendars.add(calendar)
+                context.contentResolver
+                    .query(
+                        uri,
+                        CALENDAR_PROJECTION,
+                        null,
+                        null,
+                        null,
+                    )?.use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val calendar =
+                                DeviceCalendar(
+                                    id = cursor.getLong(CALENDAR_ID_INDEX),
+                                    displayName = cursor.getString(CALENDAR_DISPLAY_NAME_INDEX) ?: "Unknown",
+                                    accountName = cursor.getString(CALENDAR_ACCOUNT_NAME_INDEX) ?: "",
+                                    accountType = cursor.getString(CALENDAR_ACCOUNT_TYPE_INDEX) ?: "",
+                                    color = if (!cursor.isNull(CALENDAR_COLOR_INDEX)) cursor.getInt(CALENDAR_COLOR_INDEX) else null,
+                                    isVisible = cursor.getInt(CALENDAR_VISIBLE_INDEX) == 1,
+                                )
+                            calendars.add(calendar)
+                        }
                     }
-                }
 
                 Log.d(TAG, "Found ${calendars.size} calendars on device")
             } catch (e: SecurityException) {
@@ -401,50 +406,51 @@ class GoogleCalendarSyncManager(
 
         try {
             // Use .use{} to ensure cursor is always closed (fixes memory leak)
-            context.contentResolver.query(
-                uri,
-                EVENT_PROJECTION,
-                selection,
-                selectionArgs,
-                "${CalendarContract.Events.DTSTART} ASC",
-            )?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    val eventId = cursor.getLong(EVENT_ID_INDEX)
-                    val title = cursor.getString(EVENT_TITLE_INDEX) ?: context.getString(R.string.untitled_event)
-                    val description = cursor.getString(EVENT_DESCRIPTION_INDEX)
-                    val dtStart = cursor.getLong(EVENT_DTSTART_INDEX)
-                    val dtEnd =
-                        if (!cursor.isNull(EVENT_DTEND_INDEX)) {
-                            cursor.getLong(EVENT_DTEND_INDEX)
-                        } else {
-                            // Default to 1 hour if no end time
-                            dtStart + (60 * 60 * 1000)
-                        }
-                    val allDay = cursor.getInt(EVENT_ALL_DAY_INDEX) == 1
-                    val location = cursor.getString(EVENT_LOCATION_INDEX)
-                    val color = if (!cursor.isNull(EVENT_COLOR_INDEX)) cursor.getInt(EVENT_COLOR_INDEX) else null
+            context.contentResolver
+                .query(
+                    uri,
+                    EVENT_PROJECTION,
+                    selection,
+                    selectionArgs,
+                    "${CalendarContract.Events.DTSTART} ASC",
+                )?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val eventId = cursor.getLong(EVENT_ID_INDEX)
+                        val title = cursor.getString(EVENT_TITLE_INDEX) ?: context.getString(R.string.untitled_event)
+                        val description = cursor.getString(EVENT_DESCRIPTION_INDEX)
+                        val dtStart = cursor.getLong(EVENT_DTSTART_INDEX)
+                        val dtEnd =
+                            if (!cursor.isNull(EVENT_DTEND_INDEX)) {
+                                cursor.getLong(EVENT_DTEND_INDEX)
+                            } else {
+                                // Default to 1 hour if no end time
+                                dtStart + (60 * 60 * 1000)
+                            }
+                        val allDay = cursor.getInt(EVENT_ALL_DAY_INDEX) == 1
+                        val location = cursor.getString(EVENT_LOCATION_INDEX)
+                        val color = if (!cursor.isNull(EVENT_COLOR_INDEX)) cursor.getInt(EVENT_COLOR_INDEX) else null
 
-                    // Use a composite ID to track imported events
-                    val compositeId = "gcal_${calendarId}_$eventId"
+                        // Use a composite ID to track imported events
+                        val compositeId = "gcal_${calendarId}_$eventId"
 
-                    events.add(
-                        CalendarEvent(
-                            id = compositeId,
-                            title = title,
-                            description = description,
-                            startTime = dtStart,
-                            endTime = dtEnd,
-                            isAllDay = allDay,
-                            location = location,
-                            color = color,
-                            googleEventId = eventId.toString(),
-                            isEventPrivate = false, // Synced events are not private by default
-                            createdAt = System.currentTimeMillis(),
-                            updatedAt = System.currentTimeMillis(),
-                        ),
-                    )
+                        events.add(
+                            CalendarEvent(
+                                id = compositeId,
+                                title = title,
+                                description = description,
+                                startTime = dtStart,
+                                endTime = dtEnd,
+                                isAllDay = allDay,
+                                location = location,
+                                color = color,
+                                googleEventId = eventId.toString(),
+                                isEventPrivate = false, // Synced events are not private by default
+                                createdAt = System.currentTimeMillis(),
+                                updatedAt = System.currentTimeMillis(),
+                            ),
+                        )
+                    }
                 }
-            }
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException querying events: ${e.message}")
         } catch (e: Exception) {

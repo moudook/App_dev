@@ -2,27 +2,23 @@ package com.example.smarty.navigation
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assistant
 import com.example.smarty.core.domain.model.Attachment
-import com.example.smarty.ui.components.AttachmentOption
-import com.example.smarty.ui.components.ConnectionStatus
-import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.AudioPlayerUiState
+import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessage
@@ -34,69 +30,90 @@ import com.example.smarty.core.domain.model.NoteAttachment
 import com.example.smarty.core.domain.model.NoteVersion
 import com.example.smarty.core.domain.model.SmartyTimer
 import com.example.smarty.core.domain.model.TodoItem
-import com.example.smarty.ui.components.PendingShareData
-
-import com.example.smarty.features.settings.domain.BackupViewModel
-import com.example.smarty.features.settings.ui.SettingsScreen
-import com.example.smarty.features.settings.ui.BackupSettingsScreen
+import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.features.auth.ui.OnboardingScreen
+import com.example.smarty.features.auth.ui.RefinedLoginScreen
+import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.features.calendar.ui.CalendarScreen
+import com.example.smarty.features.digest.ui.DigestDetailScreen
+import com.example.smarty.features.digest.ui.DigestScreen
+import com.example.smarty.features.games.ui.ChessScreen
+import com.example.smarty.features.games.ui.CoinTossScreen
+import com.example.smarty.features.games.ui.TicTacToeScreen
+import com.example.smarty.features.notes.domain.SmartyViewModel
 import com.example.smarty.features.notes.ui.ArchiveScreen
 import com.example.smarty.features.notes.ui.CategoryNotesScreen
+import com.example.smarty.features.notes.ui.InputStreamScreen
 import com.example.smarty.features.notes.ui.KnowledgeCardScreen
 import com.example.smarty.features.notes.ui.StacksScreen
-import com.example.smarty.features.notes.ui.InputStreamScreen
-import com.example.smarty.features.games.ui.TicTacToeScreen
-import com.example.smarty.features.games.ui.CoinTossScreen
-import com.example.smarty.features.games.ui.ChessScreen
-import com.example.smarty.features.digest.ui.DigestScreen
+import com.example.smarty.features.notifications.ui.NotificationsScreen
+import com.example.smarty.features.settings.domain.BackupViewModel
+import com.example.smarty.features.settings.ui.BackupSettingsScreen
+import com.example.smarty.features.settings.ui.SettingsScreen
+import com.example.smarty.features.tags.ui.TagNotesScreen
+import com.example.smarty.features.tags.ui.TagsScreen
+import com.example.smarty.features.tasks.ui.TasksScreen
+import com.example.smarty.features.voice.SpeechToTextState
+import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.ui.components.PendingShareData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import com.example.smarty.features.digest.ui.DigestDetailScreen
-import com.example.smarty.features.breathing.GuidedBreathingScreen
-import com.example.smarty.features.auth.ui.RefinedLoginScreen
-import com.example.smarty.features.voice.SpeechToTextState
-import com.example.smarty.features.notes.domain.SmartyViewModel
-import com.example.smarty.features.tasks.ui.TasksScreen
-import com.example.smarty.features.tags.ui.TagsScreen
-import com.example.smarty.features.tags.ui.TagNotesScreen
-import com.example.smarty.features.notifications.ui.NotificationsScreen
-import com.example.smarty.features.auth.ui.OnboardingScreen
-import com.example.smarty.data.local.SecurePreferences
 
 /**
  * Safe popBackStack that prevents crashes on empty back stack.
  * Uses direct popBackStack() without previousBackStackEntry guard,
  * which can be null even with entries on the stack when saveState/restoreState is active.
  */
-private fun NavHostController.safePopBackStack(): Boolean {
-    return try {
+private fun NavHostController.safePopBackStack(): Boolean =
+    try {
         popBackStack()
     } catch (e: Exception) {
         android.util.Log.w("SmartyNavigation", "Safe pop failed: ${e.message}")
         false
     }
-}
 
-sealed class Screen(val route: String) {
+sealed class Screen(
+    val route: String,
+) {
     data object InputStream : Screen("input_stream")
+
     data object Stacks : Screen("stacks")
+
     data object CategoryNotes : Screen("category_notes")
+
     data object KnowledgeCard : Screen("knowledge_card")
+
     data object Settings : Screen("settings")
+
     data object Archive : Screen("archive")
+
     data object BackupSettings : Screen("backup_settings")
+
     data object Calendar : Screen("calendar")
+
     data object Login : Screen("login")
+
     data object Onboarding : Screen("onboarding")
+
     data object TicTacToe : Screen("tic_tac_toe")
+
     data object CoinToss : Screen("coin_toss")
+
     data object Chess : Screen("chess")
+
     data object Digest : Screen("digest")
+
     data object GuidedBreathing : Screen("guided_breathing")
+
     data object Tasks : Screen("tasks")
+
     data object Tags : Screen("tags")
+
     data object TagNotes : Screen("tag_notes")
+
     data object Notifications : Screen("notifications")
+
     data object ChatFolders : Screen("chat_folders")
 }
 
@@ -116,7 +133,7 @@ fun SmartyNavHost(
     onCreateCategory: (String) -> Unit,
     onRenameCategory: (Category, String) -> Unit = { _, _ -> },
     onDeleteCategory: (Category) -> Unit,
-    onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
+    onSyncCategoryCounts: () -> Unit = {}, // Sync category counts when entering stacks view
     onArchiveNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
     onBulkArchive: (List<String>) -> Unit = {},
@@ -131,12 +148,12 @@ fun SmartyNavHost(
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
-    onEditNote: (String, String, String, String?, String?, List<NoteAttachment>) -> Unit = { _, _, _, _, _, _ -> },  // noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments
+    onEditNote: (String, String, String, String?, String?, List<NoteAttachment>) -> Unit = { _, _, _, _, _, _ -> }, // noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments
     onMarkAsViewed: (String) -> Unit = {}, // New tracking action
     // Version history
     selectedNoteVersions: List<NoteVersion> = emptyList(),
-    onLoadNoteVersions: (String) -> Unit = {},  // noteId
-    onRestoreNoteVersion: (String, String) -> Unit = { _, _ -> },  // noteId, versionId
+    onLoadNoteVersions: (String) -> Unit = {}, // noteId
+    onRestoreNoteVersion: (String, String) -> Unit = { _, _ -> }, // noteId, versionId
     // Pin and share management
     onPinNote: (String) -> Unit = {},
     onUnpinNote: (String) -> Unit = {},
@@ -152,10 +169,10 @@ fun SmartyNavHost(
     isChatProcessing: Boolean = false,
     agentActivity: com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity? = null,
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
-    onGenerateImageDirect: (String) -> Unit = {},  // Direct image generation via Krea API
-    onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
-    onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
-    onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
+    onGenerateImageDirect: (String) -> Unit = {}, // Direct image generation via Krea API
+    onExitChatMode: () -> Unit = {}, // Back button handler for chat mode
+    onEnterChatMode: () -> Unit = {}, // Enter chat mode when AI tab is clicked
+    onEnterChatWithNoteReference: (String) -> Unit = {}, // @Mention: Enter chat with note pre-referenced
     pendingClarificationRequests: List<com.example.smarty.core.domain.model.ClarificationRequest> = emptyList(),
     pendingApprovalToolId: String? = null,
     onCallApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
@@ -195,7 +212,7 @@ fun SmartyNavHost(
     onPlayAudio: (AudioTrack) -> Unit = {},
     onPauseAudio: () -> Unit = {},
     onSeekAudio: (Float) -> Unit = {},
-    isMiniPlayerVisible: Boolean = false,  // Audio player visibility for gradient adjustment
+    isMiniPlayerVisible: Boolean = false, // Audio player visibility for gradient adjustment
     // Theme management
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
@@ -230,12 +247,11 @@ fun SmartyNavHost(
         location: String?,
         color: Int?,
         reminderMinutes: Int?,
-        isPrivate: Boolean
+        isPrivate: Boolean,
     ) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
     onUpdateCalendarEvent: (CalendarEvent) -> Unit = {},
     onDeleteCalendarEvent: (String) -> Unit = {},
     onCancelTimer: (SmartyTimer) -> Unit = {},
-
     onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
@@ -243,7 +259,6 @@ fun SmartyNavHost(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
-
     // Screen change callback for shake detection
     onScreenChange: (String) -> Unit = {},
     // Shake blocking control
@@ -261,12 +276,12 @@ fun SmartyNavHost(
     onLoadDeviceCalendars: () -> Unit = {},
     // AI Navigation
     navigationRequest: String? = null,
-    onClearNavigationRequest: () -> Unit = {}
+    onClearNavigationRequest: () -> Unit = {},
 ) {
     val securePreferences = SecurePreferences.getInstance(androidx.compose.ui.platform.LocalContext.current)
     // Decide start destination based on onboarding state
     val startDestination = if (securePreferences.isOnboarded()) Screen.InputStream.route else Screen.Onboarding.route
-    
+
     val viewModel: com.example.smarty.features.notes.domain.SmartyViewModel = viewModel()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val isSettingsLoading by viewModel.isSettingsLoading.collectAsState()
@@ -278,17 +293,18 @@ fun SmartyNavHost(
     // Handle AI-triggered navigation requests
     androidx.compose.runtime.LaunchedEffect(navigationRequest) {
         navigationRequest?.let { target ->
-            val route = when (target.lowercase()) {
-                "input_stream", "main", "home" -> Screen.InputStream.route
-                "stacks", "categories" -> Screen.Stacks.route
-                "settings", "config" -> Screen.Settings.route
-                "calendar", "events" -> Screen.Calendar.route
-                "archive" -> Screen.Archive.route
-                "backup" -> Screen.BackupSettings.route
-                "tictactoe", "game", "play" -> Screen.TicTacToe.route
-                "cointoss", "flip", "decision", "coin" -> Screen.CoinToss.route
-                else -> null
-            }
+            val route =
+                when (target.lowercase()) {
+                    "input_stream", "main", "home" -> Screen.InputStream.route
+                    "stacks", "categories" -> Screen.Stacks.route
+                    "settings", "config" -> Screen.Settings.route
+                    "calendar", "events" -> Screen.Calendar.route
+                    "archive" -> Screen.Archive.route
+                    "backup" -> Screen.BackupSettings.route
+                    "tictactoe", "game", "play" -> Screen.TicTacToe.route
+                    "cointoss", "flip", "decision", "coin" -> Screen.CoinToss.route
+                    else -> null
+                }
 
             route?.let {
                 android.util.Log.i("SmartyNavigation", "AI navigating to: $it")
@@ -298,7 +314,7 @@ fun SmartyNavHost(
                         if (navController.currentBackStackEntry?.destination?.route != Screen.InputStream.route) {
                             navController.popBackStack(Screen.InputStream.route, inclusive = false)
                         }
-                        
+
                         // Update selected tab to trigger the inline view via LaunchedEffect in InputStreamScreen
                         when (route) {
                             Screen.InputStream.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.NOTES)
@@ -340,40 +356,64 @@ fun SmartyNavHost(
         modifier = modifier,
         enterTransition = {
             androidx.compose.animation.slideInVertically(
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 400f
-                ),
-                initialOffsetY = { it / 10 }
-            ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200))
+                animationSpec =
+                    androidx.compose.animation.core.spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 400f,
+                    ),
+                initialOffsetY = { it / 10 },
+            ) +
+                androidx.compose.animation.fadeIn(
+                    animationSpec =
+                        androidx.compose.animation.core
+                            .tween(200),
+                )
         },
         exitTransition = {
             androidx.compose.animation.slideOutVertically(
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 400f
-                ),
-                targetOffsetY = { -it / 10 }
-            ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200))
+                animationSpec =
+                    androidx.compose.animation.core.spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 400f,
+                    ),
+                targetOffsetY = { -it / 10 },
+            ) +
+                androidx.compose.animation.fadeOut(
+                    animationSpec =
+                        androidx.compose.animation.core
+                            .tween(200),
+                )
         },
         popEnterTransition = {
             androidx.compose.animation.slideInVertically(
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 400f
-                ),
-                initialOffsetY = { -it / 10 }
-            ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200))
+                animationSpec =
+                    androidx.compose.animation.core.spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 400f,
+                    ),
+                initialOffsetY = { -it / 10 },
+            ) +
+                androidx.compose.animation.fadeIn(
+                    animationSpec =
+                        androidx.compose.animation.core
+                            .tween(200),
+                )
         },
         popExitTransition = {
             androidx.compose.animation.slideOutVertically(
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 400f
-                ),
-                targetOffsetY = { it / 10 }
-            ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200))
-        }
+                animationSpec =
+                    androidx.compose.animation.core.spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 400f,
+                    ),
+                targetOffsetY = { it / 10 },
+            ) +
+                androidx.compose.animation.fadeOut(
+                    animationSpec =
+                        androidx.compose.animation.core
+                            .tween(200),
+                )
+        },
     ) {
         composable(Screen.InputStream.route) { _ ->
             InputStreamScreen(
@@ -456,14 +496,15 @@ fun SmartyNavHost(
                 onEventClickById = { eventId ->
                     // Reuse Note detail sheet for Calendar Event as requested
                     calendarEvents.find { it.id == eventId }?.let { event ->
-                        val tempNote = com.example.smarty.core.domain.model.Note(
-                            id = event.id,
-                            title = "Event: ${event.title}",
-                            content = "Time: ${java.util.Date(event.startTime)}\n\n${event.description ?: "No description provided."}",
-                            createdAt = event.startTime,
-                            updatedAt = event.startTime,
-                            type = com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP
-                        )
+                        val tempNote =
+                            com.example.smarty.core.domain.model.Note(
+                                id = event.id,
+                                title = "Event: ${event.title}",
+                                content = "Time: ${java.util.Date(event.startTime)}\n\n${event.description ?: "No description provided."}",
+                                createdAt = event.startTime,
+                                updatedAt = event.startTime,
+                                type = com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP,
+                            )
                         onSelectNote(tempNote)
                     }
                 },
@@ -510,18 +551,14 @@ fun SmartyNavHost(
                 onPinNote = onPinNote,
                 onUnpinNote = onUnpinNote,
                 onShareNotes = onShareNotes,
-
-                // 
+                //
                 // CENTRALIZED UI: All features accessible from main screen
-                // 
-
+                //
                 // Theme toggle
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme,
-
                 // Archive
                 archivedNotes = archivedNotes,
-
                 // Calendar
                 calendarEvents = calendarEvents,
                 activeTimers = activeTimers,
@@ -535,7 +572,6 @@ fun SmartyNavHost(
                     // Event click handling - could open edit sheet
                 },
                 onDeleteCalendarEvent = { event -> onDeleteCalendarEvent(event.id) },
-
                 // Categories/Stacks
                 onCreateCategory = onCreateCategory,
                 onDeleteCategory = onDeleteCategory,
@@ -545,7 +581,6 @@ fun SmartyNavHost(
                     onSelectCategory(category)
                     navController.navigate(Screen.CategoryNotes.route)
                 },
-
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
                 isClearingCache = isClearingCache,
@@ -557,7 +592,7 @@ fun SmartyNavHost(
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
-                        isEmbedded = true
+                        isEmbedded = true,
                     )
                 },
                 selectedModel = selectedModel,
@@ -566,16 +601,14 @@ fun SmartyNavHost(
                 modelVariantMap = modelVariantMap,
                 selectedVariant = selectedVariant,
                 onVariantSelected = { viewModel.selectVariant(it) },
-                onRefreshModels = { viewModel.refreshModels() }
+                onRefreshModels = { viewModel.refreshModels() },
             )
         }
 
-
-            
         composable(Screen.Stacks.route) { _ ->
             // Clear selected category when viewing Stacks to ensure clean state
             LaunchedEffect(Unit) {
-                 onSelectCategory(null)
+                onSelectCategory(null)
             }
 
             StacksScreen(
@@ -591,13 +624,13 @@ fun SmartyNavHost(
                 onCreateCategory = onCreateCategory,
                 onRenameCategory = onRenameCategory,
                 onDeleteCategory = onDeleteCategory,
-                bottomContentPadding = bottomContentPadding
+                bottomContentPadding = bottomContentPadding,
             )
         }
 
         composable(
             route = "${Screen.CategoryNotes.route}/{categoryId}",
-            arguments = listOf(navArgument("categoryId") { type = NavType.StringType })
+            arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
         ) { backStackEntry ->
             val categoryId = backStackEntry.arguments?.getString("categoryId")
             val category = categories.find { it.id == categoryId }
@@ -616,7 +649,7 @@ fun SmartyNavHost(
                         navController.navigate(Screen.KnowledgeCard.route)
                     },
                     onArchiveNote = onArchiveNote,
-                    bottomContentPadding = bottomContentPadding
+                    bottomContentPadding = bottomContentPadding,
                 )
             }
         }
@@ -652,7 +685,7 @@ fun SmartyNavHost(
                     onAskSmarty = {
                         onEnterChatWithNoteReference(note.title)
                         navController.safePopBackStack()
-                    }
+                    },
                 )
             }
         }
@@ -679,7 +712,7 @@ fun SmartyNavHost(
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
-                        isEmbedded = true
+                        isEmbedded = true,
                     )
                 },
                 // Google Calendar Two-Way Sync
@@ -701,10 +734,9 @@ fun SmartyNavHost(
                 },
                 onNavigateToChatFolders = {
                     navController.navigate(Screen.ChatFolders.route)
-                }
+                },
             )
         }
-
 
         composable(Screen.Archive.route) { _ ->
             ArchiveScreen(
@@ -714,7 +746,7 @@ fun SmartyNavHost(
                     navController.safePopBackStack()
                 },
                 onDeleteNote = onDeleteNoteById,
-                onUnarchiveNote = onUnarchiveNote
+                onUnarchiveNote = onUnarchiveNote,
             )
         }
 
@@ -722,7 +754,7 @@ fun SmartyNavHost(
             BackupSettingsRoute(
                 onBackClick = {
                     navController.safePopBackStack()
-                }
+                },
             )
         }
 
@@ -735,7 +767,7 @@ fun SmartyNavHost(
                 onAddCalendarEvent = onAddCalendarEvent,
                 onUpdateCalendarEvent = onUpdateCalendarEvent,
                 onDeleteCalendarEvent = onDeleteCalendarEvent,
-                onCancelTimer = onCancelTimer
+                onCancelTimer = onCancelTimer,
             )
         }
 
@@ -745,7 +777,7 @@ fun SmartyNavHost(
                     navController.navigate(Screen.InputStream.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                }
+                },
             )
         }
 
@@ -756,51 +788,51 @@ fun SmartyNavHost(
                     navController.navigate(Screen.InputStream.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
-                }
+                },
             )
         }
 
         composable(Screen.TicTacToe.route) { _ ->
             TicTacToeScreen(
-                onClose = { navController.safePopBackStack() }
+                onClose = { navController.safePopBackStack() },
             )
         }
 
         composable(Screen.CoinToss.route) { _ ->
             CoinTossScreen(
-                onClose = { navController.safePopBackStack() }
+                onClose = { navController.safePopBackStack() },
             )
         }
 
         composable(Screen.Chess.route) { _ ->
             ChessScreen(
-                onClose = { navController.safePopBackStack() }
+                onClose = { navController.safePopBackStack() },
             )
         }
-        
+
         composable(Screen.Digest.route) { _ ->
             DigestRoute(
                 onBackClick = { navController.safePopBackStack() },
                 onDigestClick = { digest ->
                     navController.navigate("digest_detail/${digest.id}")
-                }
+                },
             )
         }
 
         composable(
             route = "digest_detail/{digestId}",
-            arguments = listOf(navArgument("digestId") { type = NavType.StringType })
+            arguments = listOf(navArgument("digestId") { type = NavType.StringType }),
         ) { backStackEntry ->
             val digestId = backStackEntry.arguments?.getString("digestId") ?: ""
             DigestDetailRoute(
                 digestId = digestId,
-                onBackClick = { navController.safePopBackStack() }
+                onBackClick = { navController.safePopBackStack() },
             )
         }
 
         composable(Screen.GuidedBreathing.route) { _ ->
             GuidedBreathingScreen(
-                onDismiss = { navController.safePopBackStack() }
+                onDismiss = { navController.safePopBackStack() },
             )
         }
 
@@ -810,7 +842,7 @@ fun SmartyNavHost(
             val tasks by viewModel.tasks.collectAsState()
 
             TasksScreen(
-                onNavigateBack = { navController.safePopBackStack() }
+                onNavigateBack = { navController.safePopBackStack() },
             )
         }
 
@@ -819,13 +851,13 @@ fun SmartyNavHost(
                 onNavigateBack = { navController.safePopBackStack() },
                 onTagClick = { tagId ->
                     navController.navigate("tag_notes/$tagId")
-                }
+                },
             )
         }
 
         composable(
             route = "tag_notes/{tagId}",
-            arguments = listOf(navArgument("tagId") { type = NavType.StringType })
+            arguments = listOf(navArgument("tagId") { type = NavType.StringType }),
         ) { backStackEntry ->
             val tagId = backStackEntry.arguments?.getString("tagId") ?: ""
             val tagName = backStackEntry.arguments?.getString("tagName") ?: ""
@@ -835,19 +867,19 @@ fun SmartyNavHost(
                 tagId = tagId,
                 tagName = tagName,
                 tagColor = tagColor,
-                onNavigateBack = { navController.safePopBackStack() }
+                onNavigateBack = { navController.safePopBackStack() },
             )
         }
 
         composable(Screen.Notifications.route) { _ ->
             NotificationsScreen(
-                onNavigateBack = { navController.safePopBackStack() }
+                onNavigateBack = { navController.safePopBackStack() },
             )
         }
 
         composable(Screen.ChatFolders.route) { _ ->
             com.example.smarty.features.chatfolders.ui.ChatFoldersScreen(
-                onNavigateBack = { navController.safePopBackStack() }
+                onNavigateBack = { navController.safePopBackStack() },
             )
         }
     }
@@ -860,7 +892,7 @@ fun SmartyNavHost(
 fun BackupSettingsRoute(
     onBackClick: () -> Unit,
     isEmbedded: Boolean = false,
-    viewModel: BackupViewModel = viewModel()
+    viewModel: BackupViewModel = viewModel(),
 ) {
     val isSignedIn by viewModel.isSignedIn.collectAsState()
     val backupState by viewModel.backupState.collectAsState()
@@ -877,11 +909,12 @@ fun BackupSettingsRoute(
     val isLoadingLocalBackups by viewModel.isLoadingLocalBackups.collectAsState()
 
     // Activity result launcher for Google Sign-In
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        viewModel.handleSignInResult(result.data)
-    }
+    val signInLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            viewModel.handleSignInResult(result.data)
+        }
 
     // Refresh backup list when screen appears
     LaunchedEffect(isSignedIn) {
@@ -950,7 +983,7 @@ fun BackupSettingsRoute(
         onResetLocalBackupState = {
             viewModel.resetLocalBackupState()
         },
-        isEmbedded = isEmbedded
+        isEmbedded = isEmbedded,
     )
 }
 
@@ -960,27 +993,31 @@ fun BackupSettingsRoute(
 @Composable
 fun DigestRoute(
     onBackClick: () -> Unit,
-    onDigestClick: (com.example.smarty.features.digest.domain.DigestResult) -> Unit
+    onDigestClick: (com.example.smarty.features.digest.domain.DigestResult) -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val application = context.applicationContext as? android.app.Application
-    
-    val digestFeatureManager = remember(application) {
-        application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
-    }
-    
+
+    val digestFeatureManager =
+        remember(application) {
+            application?.let {
+                com.example.smarty.di.ServiceLocator
+                    .provideDigestFeatureManager(it)
+            }
+        }
+
     val digests by digestFeatureManager?.digests?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     val isLoading by digestFeatureManager?.isLoading?.collectAsState() ?: remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(Unit) {
         digestFeatureManager?.fetchDigests()
     }
-    
+
     DigestScreen(
         digests = digests,
         isLoading = isLoading,
         onNavigateBack = onBackClick,
-        onDigestClick = onDigestClick
+        onDigestClick = onDigestClick,
     )
 }
 
@@ -988,14 +1025,18 @@ fun DigestRoute(
 @Composable
 fun DigestDetailRoute(
     digestId: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val application = context.applicationContext as? android.app.Application
 
-    val digestFeatureManager = remember(application) {
-        application?.let { com.example.smarty.di.ServiceLocator.provideDigestFeatureManager(it) }
-    }
+    val digestFeatureManager =
+        remember(application) {
+            application?.let {
+                com.example.smarty.di.ServiceLocator
+                    .provideDigestFeatureManager(it)
+            }
+        }
 
     var digest by remember { mutableStateOf<com.example.smarty.features.digest.domain.DigestResult?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -1009,19 +1050,19 @@ fun DigestDetailRoute(
     if (isLoading) {
         androidx.compose.foundation.layout.Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             androidx.compose.material3.CircularProgressIndicator()
         }
     } else if (digest != null) {
         DigestDetailScreen(
             digest = digest!!,
-            onNavigateBack = onBackClick
+            onNavigateBack = onBackClick,
         )
     } else {
         androidx.compose.foundation.layout.Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             androidx.compose.material3.Text("Digest not found")
         }
@@ -1046,12 +1087,12 @@ fun CalendarRoute(
         location: String?,
         color: Int?,
         reminderMinutes: Int?,
-        isPrivate: Boolean
+        isPrivate: Boolean,
     ) -> Unit,
     onUpdateCalendarEvent: (CalendarEvent) -> Unit,
     onDeleteCalendarEvent: (String) -> Unit,
     onCancelTimer: (SmartyTimer) -> Unit = {},
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
 ) {
     var showAddSheet by remember { mutableStateOf(false) }
     var selectedEventForEdit by remember { mutableStateOf<CalendarEvent?>(null) }
@@ -1074,22 +1115,23 @@ fun CalendarRoute(
         },
         onCancelTimer = { timer ->
             onCancelTimer(timer)
-        }
+        },
     )
 
     // Add Event/Timer Sheet (Updated to use new TimeEditor)
     if (showAddSheet) {
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { showAddSheet = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(
-                skipPartiallyExpanded = true
-            ),
+            sheetState =
+                androidx.compose.material3.rememberModalBottomSheetState(
+                    skipPartiallyExpanded = true,
+                ),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            dragHandle = null
+            dragHandle = null,
         ) {
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 com.example.smarty.ui.components.TimeEditor(
                     onSave = { h, m, t ->
@@ -1097,18 +1139,18 @@ fun CalendarRoute(
                         val startTime = selectedDateForNewEvent?.timeInMillis ?: System.currentTimeMillis()
                         val endTime = startTime + durationMs
                         onAddCalendarEvent(
-                            t, 
-                            "Created via quick sheet", 
-                            startTime, 
+                            t,
+                            "Created via quick sheet",
+                            startTime,
                             endTime,
                             false,
                             null,
                             null,
                             null,
-                            false
+                            false,
                         )
                         showAddSheet = false
-                    }
+                    },
                 )
             }
         }
@@ -1118,11 +1160,12 @@ fun CalendarRoute(
     selectedEventForEdit?.let { event ->
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { selectedEventForEdit = null },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(
-                skipPartiallyExpanded = true
-            ),
+            sheetState =
+                androidx.compose.material3.rememberModalBottomSheetState(
+                    skipPartiallyExpanded = true,
+                ),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            dragHandle = null
+            dragHandle = null,
         ) {
             com.example.smarty.ui.components.EditEventSheet(
                 event = event,
@@ -1134,7 +1177,7 @@ fun CalendarRoute(
                 onDelete = {
                     onDeleteCalendarEvent(event.id)
                     selectedEventForEdit = null
-                }
+                },
             )
         }
     }

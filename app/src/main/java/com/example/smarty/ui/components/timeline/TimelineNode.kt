@@ -28,11 +28,11 @@ sealed class TimelineNode {
      */
     @Immutable
     data class ToolExecution(
-        override val id: String,        // toolId from the events
+        override val id: String, // toolId from the events
         override val timestamp: Long,
         val toolName: String,
         val displayName: String,
-        val source: String,             // "opencode" | "mcp" | "native"
+        val source: String, // "opencode" | "mcp" | "native"
         val status: Status,
         val inputSummary: String?,
         val outputSummary: String?,
@@ -80,7 +80,7 @@ sealed class TimelineNode {
         override val id: String,
         override val timestamp: Long,
         val reason: String,
-        val succeeded: Boolean?,        // null = still running
+        val succeeded: Boolean?, // null = still running
     ) : TimelineNode()
 
     /**

@@ -6,8 +6,6 @@ import com.example.smarty.server.agent.OpencodeDaemonManager
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.application
 import io.ktor.server.application.call
@@ -16,10 +14,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import java.io.File
 
 /**
  * Health check response model.

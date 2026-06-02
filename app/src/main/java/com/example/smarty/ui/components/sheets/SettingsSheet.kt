@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.features.settings.ui.SettingsScreen
 
@@ -30,16 +29,17 @@ fun SettingsSheet(
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
     onCloudSync: () -> Unit = {},
-    backupContent: @Composable (onDismiss: () -> Unit) -> Unit
+    backupContent: @Composable (onDismiss: () -> Unit) -> Unit,
 ) {
     BackHandler(enabled = true) {
         onDismiss()
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
     ) {
         SettingsScreen(
             isDarkTheme = isDarkTheme,
@@ -58,8 +58,7 @@ fun SettingsSheet(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            onCloudSync = onCloudSync
+            onCloudSync = onCloudSync,
         )
     }
 }
-

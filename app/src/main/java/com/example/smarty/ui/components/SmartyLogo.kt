@@ -15,18 +15,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import androidx.compose.ui.res.stringResource
+import coil3.request.crossfade
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
-import coil3.request.crossfade
 
 /**
  * Smarty Logo component - renders the hand gesture logo
@@ -36,7 +35,7 @@ import coil3.request.crossfade
 fun SmartyLogo(
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
-    showShimmer: Boolean = false
+    showShimmer: Boolean = false,
 ) {
     val accentColor = LocalAccentColor.current
 
@@ -44,58 +43,66 @@ fun SmartyLogo(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING && showShimmer
 
-    val shimmerOffset = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "logoShimmer")
-        val animatedOffset by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(2000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "shimmerOffset"
-        )
-        animatedOffset
-    } else {
-        0.5f // Static mid-point value
-    }
+    val shimmerOffset =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "logoShimmer")
+            val animatedOffset by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(2000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart,
+                    ),
+                label = "shimmerOffset",
+            )
+            animatedOffset
+        } else {
+            0.5f // Static mid-point value
+        }
 
     Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(size / 4)),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(size)
+                .clip(RoundedCornerShape(size / 4)),
+        contentAlignment = Alignment.Center,
     ) {
         // Try to load the image
         var imageLoadError by remember { mutableStateOf(false) }
 
         if (!imageLoadError) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data("file:///android_asset/Smarty_Icon.png")
-                    .crossfade(true)
-                    .build(),
+                model =
+                    ImageRequest
+                        .Builder(LocalContext.current)
+                        .data("file:///android_asset/Smarty_Icon.png")
+                        .crossfade(true)
+                        .build(),
                 contentDescription = stringResource(R.string.app_name),
                 modifier = Modifier.fillMaxSize(),
-                onError = { imageLoadError = true }
+                onError = { imageLoadError = true },
             )
         }
 
         // Fallback: Stylized logo representation
         if (imageLoadError) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                MaterialTheme.colorScheme.surface
-                            )
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush =
+                                Brush.verticalGradient(
+                                    colors =
+                                        listOf(
+                                            MaterialTheme.colorScheme.surfaceVariant,
+                                            MaterialTheme.colorScheme.surface,
+                                        ),
+                                ),
+                            shape = RoundedCornerShape(size / 4),
                         ),
-                        shape = RoundedCornerShape(size / 4)
-                    ),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 // Draw stylized hand icon
                 Canvas(modifier = Modifier.size(size * 0.7f)) {
@@ -105,32 +112,35 @@ fun SmartyLogo(
 
                     // Glow effect
                     drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                accentColor.copy(alpha = 0.4f),
-                                accentColor.copy(alpha = 0f)
+                        brush =
+                            Brush.radialGradient(
+                                colors =
+                                    listOf(
+                                        accentColor.copy(alpha = 0.4f),
+                                        accentColor.copy(alpha = 0f),
+                                    ),
+                                center = Offset(centerX, centerY + handSize * 0.3f),
+                                radius = handSize * 1.5f,
                             ),
-                            center = Offset(centerX, centerY + handSize * 0.3f),
-                            radius = handSize * 1.5f
-                        ),
                         radius = handSize * 1.5f,
-                        center = Offset(centerX, centerY + handSize * 0.3f)
+                        center = Offset(centerX, centerY + handSize * 0.3f),
                     )
 
                     // Simple hand shape (using paths)
-                    val handPath = Path().apply {
-                        // Palm base
-                        moveTo(centerX - handSize * 0.3f, centerY + handSize * 0.3f)
-                        lineTo(centerX + handSize * 0.3f, centerY + handSize * 0.3f)
-                        lineTo(centerX + handSize * 0.3f, centerY - handSize * 0.1f)
-                        lineTo(centerX - handSize * 0.3f, centerY - handSize * 0.1f)
-                        close()
-                    }
+                    val handPath =
+                        Path().apply {
+                            // Palm base
+                            moveTo(centerX - handSize * 0.3f, centerY + handSize * 0.3f)
+                            lineTo(centerX + handSize * 0.3f, centerY + handSize * 0.3f)
+                            lineTo(centerX + handSize * 0.3f, centerY - handSize * 0.1f)
+                            lineTo(centerX - handSize * 0.3f, centerY - handSize * 0.1f)
+                            close()
+                        }
 
                     // Draw palm
                     drawPath(
                         path = handPath,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = Color.White.copy(alpha = 0.9f),
                     )
 
                     // Draw fingers (stylized)
@@ -144,7 +154,7 @@ fun SmartyLogo(
                             start = Offset(centerX + handSize * xOffset, centerY - handSize * 0.1f),
                             end = Offset(centerX + handSize * xOffset, centerY - fingerHeight),
                             strokeWidth = handSize * 0.12f,
-                            cap = StrokeCap.Round
+                            cap = StrokeCap.Round,
                         )
                     }
 
@@ -154,7 +164,7 @@ fun SmartyLogo(
                         start = Offset(centerX - handSize * 0.35f, centerY),
                         end = Offset(centerX - handSize * 0.5f, centerY - handSize * 0.2f),
                         strokeWidth = handSize * 0.1f,
-                        cap = StrokeCap.Round
+                        cap = StrokeCap.Round,
                     )
 
                     // Pinky (extended for ILY sign)
@@ -163,7 +173,7 @@ fun SmartyLogo(
                         start = Offset(centerX + handSize * 0.35f, centerY),
                         end = Offset(centerX + handSize * 0.5f, centerY - handSize * 0.3f),
                         strokeWidth = handSize * 0.08f,
-                        cap = StrokeCap.Round
+                        cap = StrokeCap.Round,
                     )
                 }
             }
@@ -174,19 +184,22 @@ fun SmartyLogo(
             val shimmerWidth = 200f
             val shimmerStartX = (shimmerOffset * (shimmerWidth * 2)) - shimmerWidth
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.2f),
-                                Color.Transparent
-                            ),
-                            start = Offset(shimmerStartX, 0f),
-                            end = Offset(shimmerStartX + shimmerWidth, shimmerWidth)
-                        )
-                    )
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush =
+                                Brush.linearGradient(
+                                    colors =
+                                        listOf(
+                                            Color.Transparent,
+                                            Color.White.copy(alpha = 0.2f),
+                                            Color.Transparent,
+                                        ),
+                                    start = Offset(shimmerStartX, 0f),
+                                    end = Offset(shimmerStartX + shimmerWidth, shimmerWidth),
+                                ),
+                        ),
             )
         }
     }
@@ -200,7 +213,7 @@ fun SmartyLogo(
 fun ShimmerBox(
     modifier: Modifier = Modifier,
     isLoading: Boolean = true,
-    content: @Composable BoxScope.() -> Unit
+    content: @Composable BoxScope.() -> Unit,
 ) {
     val accentColor = LocalAccentColor.current
 
@@ -208,21 +221,23 @@ fun ShimmerBox(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING && isLoading
 
-    val shimmerOffset = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-        val animatedOffset by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "shimmerOffset"
-        )
-        animatedOffset
-    } else {
-        0.5f // Static mid-point value
-    }
+    val shimmerOffset =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+            val animatedOffset by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(1500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart,
+                    ),
+                label = "shimmerOffset",
+            )
+            animatedOffset
+        } else {
+            0.5f // Static mid-point value
+        }
 
     Box(modifier = modifier) {
         content()
@@ -233,21 +248,24 @@ fun ShimmerBox(
             val shimmerStartX = (shimmerOffset * (shimmerWidth * 3)) - shimmerWidth
 
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                accentColor.copy(alpha = 0.15f),
-                                Color.White.copy(alpha = 0.25f),
-                                accentColor.copy(alpha = 0.15f),
-                                Color.Transparent
-                            ),
-                            start = Offset(shimmerStartX, 0f),
-                            end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f)
-                        )
-                    )
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            brush =
+                                Brush.linearGradient(
+                                    colors =
+                                        listOf(
+                                            Color.Transparent,
+                                            accentColor.copy(alpha = 0.15f),
+                                            Color.White.copy(alpha = 0.25f),
+                                            accentColor.copy(alpha = 0.15f),
+                                            Color.Transparent,
+                                        ),
+                                    start = Offset(shimmerStartX, 0f),
+                                    end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f),
+                                ),
+                        ),
             )
         }
     }
@@ -260,7 +278,7 @@ fun ShimmerBox(
 @Composable
 fun DecompressionPlaceholder(
     modifier: Modifier = Modifier,
-    aspectRatio: Float = 16f / 9f
+    aspectRatio: Float = 16f / 9f,
 ) {
     val accentColor = LocalAccentColor.current
 
@@ -268,82 +286,90 @@ fun DecompressionPlaceholder(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val alpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        val animatedAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = 0.6f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulseAlpha"
-        )
-        animatedAlpha
-    } else {
-        0.45f // Static mid-point value
-    }
+    val alpha =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+            val animatedAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 0.6f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                label = "pulseAlpha",
+            )
+            animatedAlpha
+        } else {
+            0.45f // Static mid-point value
+        }
 
-    val shimmerOffset = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        val animatedOffset by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "shimmerOffset"
-        )
-        animatedOffset
-    } else {
-        0.5f // Static mid-point value
-    }
+    val shimmerOffset =
+        if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+            val animatedOffset by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(1500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart,
+                    ),
+                label = "shimmerOffset",
+            )
+            animatedOffset
+        } else {
+            0.5f // Static mid-point value
+        }
 
     Box(
-        modifier = modifier
-            .aspectRatio(aspectRatio)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .aspectRatio(aspectRatio)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+        contentAlignment = Alignment.Center,
     ) {
         // Shimmer sweep
         val shimmerWidth = 300f
         val shimmerStartX = (shimmerOffset * (shimmerWidth * 3)) - shimmerWidth
 
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            accentColor.copy(alpha = 0.1f),
-                            Color.White.copy(alpha = 0.2f),
-                            accentColor.copy(alpha = 0.1f),
-                            Color.Transparent
-                        ),
-                        start = Offset(shimmerStartX, 0f),
-                        end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f)
-                    )
-                )
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .background(
+                        brush =
+                            Brush.linearGradient(
+                                colors =
+                                    listOf(
+                                        Color.Transparent,
+                                        accentColor.copy(alpha = 0.1f),
+                                        Color.White.copy(alpha = 0.2f),
+                                        accentColor.copy(alpha = 0.1f),
+                                        Color.Transparent,
+                                    ),
+                                start = Offset(shimmerStartX, 0f),
+                                end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f),
+                            ),
+                    ),
         )
 
         // Loading indicator
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 color = accentColor,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
 
             Text(
                 text = stringResource(R.string.decompressing),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
     }
@@ -355,23 +381,22 @@ fun DecompressionPlaceholder(
 @Composable
 fun SmartyHeader(
     modifier: Modifier = Modifier,
-    showShimmer: Boolean = false
+    showShimmer: Boolean = false,
 ) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SmartyLogo(
             size = 28.dp,
-            showShimmer = false // Disabled per user request
+            showShimmer = false, // Disabled per user request
         )
 
         Text(
             text = stringResource(R.string.app_name).lowercase() + "_",
             style = MaterialTheme.typography.titleLarge,
-            color = LocalAccentColor.current
+            color = LocalAccentColor.current,
         )
     }
 }
-

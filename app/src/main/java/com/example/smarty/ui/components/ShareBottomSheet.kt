@@ -17,8 +17,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,16 +27,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
+import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
 
 /**
@@ -48,7 +46,7 @@ data class PendingFileInfo(
     val fileUri: String,
     val fileName: String?,
     val mimeType: String?,
-    val fileSize: Long?
+    val fileSize: Long?,
 )
 
 /**
@@ -56,14 +54,14 @@ data class PendingFileInfo(
  */
 data class PendingShareData(
     val text: String? = null,
-    val fileUri: String? = null,  // Legacy single file
+    val fileUri: String? = null, // Legacy single file
     val fileName: String? = null,
     val mimeType: String? = null,
     val fileSize: Long? = null,
     val detectedType: NoteType = NoteType.FILE,
     val suggestedCategory: String? = null,
     val relatedNotes: List<Note> = emptyList(),
-    val files: List<PendingFileInfo> = emptyList()  // Multiple files
+    val files: List<PendingFileInfo> = emptyList(), // Multiple files
 ) {
     /** Get all files (combines legacy single + multiple) */
     fun getAllFiles(): List<PendingFileInfo> {
@@ -90,7 +88,7 @@ fun ShareBottomSheet(
     sheetState: SheetState,
     isFullPrivacy: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (selectedCategory: String?, aiInstructions: String) -> Unit
+    onSave: (selectedCategory: String?, aiInstructions: String) -> Unit,
 ) {
     // Add pendingShare as dependency to reset state when share data changes
     val shareKey = pendingShare.text ?: pendingShare.fileUri ?: pendingShare.fileName
@@ -116,25 +114,26 @@ fun ShareBottomSheet(
             Surface(
                 modifier = Modifier.padding(vertical = 12.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(2.dp)
+                shape = RoundedCornerShape(2.dp),
             ) {
                 Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
             }
-        }
+        },
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp)
-                .navigationBarsPadding()
-                .imePadding() // Handle keyboard
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp)
+                    .navigationBarsPadding()
+                    .imePadding(), // Handle keyboard
         ) {
             if (isFullPrivacy) {
                 PrivacyModeBanner(
                     isActive = isFullPrivacy,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 )
             }
 
@@ -142,25 +141,26 @@ fun ShareBottomSheet(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = stringResource(R.string.save_to_smarty),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                    ),
-                    color = LocalAccentColor.current
+                    style =
+                        MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        ),
+                    color = LocalAccentColor.current,
                 )
                 IconButton(
                     onClick = { if (!isProcessing) onDismiss() },
                     enabled = !isProcessing,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.cancel),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -176,46 +176,48 @@ fun ShareBottomSheet(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = stringResource(R.string.category),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 // Inline AI Toggle
                 if (!isFullPrivacy) {
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { letAIDecide = !letAIDecide }
-                            .padding(4.dp),
+                        modifier =
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { letAIDecide = !letAIDecide }
+                                .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             tint = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
                         )
                         Text(
                             text = stringResource(R.string.auto_sort),
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)
+                            color = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f),
                         )
                         Switch(
                             checked = letAIDecide,
                             onCheckedChange = { letAIDecide = it },
                             modifier = Modifier.scale(0.7f).height(32.dp),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = LocalAccentColor.current,
-                                checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.2f),
-                                checkedBorderColor = Color.Transparent,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                            )
+                            colors =
+                                SwitchDefaults.colors(
+                                    checkedThumbColor = LocalAccentColor.current,
+                                    checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.2f),
+                                    checkedBorderColor = Color.Transparent,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                ),
                         )
                     }
                 }
@@ -225,11 +227,11 @@ fun ShareBottomSheet(
             AnimatedVisibility(
                 visible = !letAIDecide || isFullPrivacy,
                 enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                exit = fadeOut() + shrinkVertically(),
             ) {
                 LazyRow(
                     modifier = Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(categories) { category ->
                         FilterChip(
@@ -238,15 +240,17 @@ fun ShareBottomSheet(
                                 selectedCategory = if (selectedCategory == category.name) null else category.name
                             },
                             label = { Text(category.name) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = LocalAccentColor.current.copy(alpha = 0.15f),
-                                selectedLabelColor = LocalAccentColor.current
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = selectedCategory == category.name,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
+                            colors =
+                                FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = LocalAccentColor.current.copy(alpha = 0.15f),
+                                    selectedLabelColor = LocalAccentColor.current,
+                                ),
+                            border =
+                                FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = selectedCategory == category.name,
+                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                ),
                         )
                     }
                 }
@@ -258,7 +262,7 @@ fun ShareBottomSheet(
             Text(
                 text = stringResource(R.string.add_context),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -266,32 +270,35 @@ fun ShareBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLow, // Distinct background
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (aiInstructions.isNotEmpty()) LocalAccentColor.current.copy(0.5f) else Color.Transparent
-                )
+                border =
+                    androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (aiInstructions.isNotEmpty()) LocalAccentColor.current.copy(0.5f) else Color.Transparent,
+                    ),
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                        .heightIn(min = 60.dp) // Reduced height
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                            .heightIn(min = 60.dp), // Reduced height
                 ) {
                     if (aiInstructions.isEmpty()) {
                         Text(
                             text = stringResource(R.string.summarize_key_points),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                     }
                     BasicTextField(
                         value = aiInstructions,
                         onValueChange = { aiInstructions = it },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(LocalAccentColor.current)
+                        textStyle =
+                            MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        cursorBrush = SolidColor(LocalAccentColor.current),
                     )
                 }
             }
@@ -301,16 +308,17 @@ fun ShareBottomSheet(
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(0.3f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    colors =
+                        ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                 ) {
                     Text(stringResource(R.string.cancel))
                 }
@@ -324,23 +332,24 @@ fun ShareBottomSheet(
                     enabled = !isProcessing,
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LocalAccentColor.current,
-                        contentColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = LocalAccentColor.current,
+                            contentColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             color = MaterialTheme.colorScheme.surface,
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Save,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.save_note))
@@ -354,35 +363,39 @@ fun ShareBottomSheet(
 @Composable
 private fun SharePreviewCard(pendingShare: PendingShareData) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh) // Higher contrast container
-            .padding(vertical = 8.dp, horizontal = 12.dp), // Tighter vertical padding
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh) // Higher contrast container
+                .padding(vertical = 8.dp, horizontal = 12.dp),
+        // Tighter vertical padding
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Compact Thumbnail
         Box(
-            modifier = Modifier
-                .size(40.dp) // Smaller thumbnail (was 48dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(getTypeColor(pendingShare.detectedType).copy(alpha = 0.2f)), // Stronger background
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .size(40.dp) // Smaller thumbnail (was 48dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(getTypeColor(pendingShare.detectedType).copy(alpha = 0.2f)),
+            // Stronger background
+            contentAlignment = Alignment.Center,
         ) {
             if (pendingShare.fileUri != null && pendingShare.mimeType?.startsWith("image/") == true) {
                 AsyncImage(
                     model = pendingShare.fileUri,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
                 )
             } else {
                 Icon(
                     imageVector = getTypeIcon(pendingShare.detectedType),
                     contentDescription = null,
                     tint = getTypeColor(pendingShare.detectedType),
-                    modifier = Modifier.size(20.dp) // Smaller icon (was 24dp)
+                    modifier = Modifier.size(20.dp), // Smaller icon (was 24dp)
                 )
             }
         }
@@ -394,23 +407,28 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = pendingShare.detectedType.name.lowercase().replace("_", " "),
+                    text =
+                        pendingShare.detectedType.name
+                            .lowercase()
+                            .replace("_", " "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (pendingShare.fileSize != null && pendingShare.fileSize > 0) {
                     val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
-                        text = "${stringResource(R.string.bullet_separator)} ${ContentTypeDetector.formatFileSize(context, pendingShare.fileSize)}",
+                        text = "${stringResource(
+                            R.string.bullet_separator,
+                        )} ${ContentTypeDetector.formatFileSize(context, pendingShare.fileSize)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -418,8 +436,8 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
     }
 }
 
-private fun getTypeIcon(type: NoteType): ImageVector {
-    return when (type) {
+private fun getTypeIcon(type: NoteType): ImageVector =
+    when (type) {
         NoteType.IMAGE -> Icons.Default.Image
         NoteType.VIDEO -> Icons.Default.Videocam
         NoteType.AUDIO -> Icons.Default.Audiotrack
@@ -430,10 +448,9 @@ private fun getTypeIcon(type: NoteType): ImageVector {
         NoteType.ARCHIVE -> Icons.Default.Archive
         else -> Icons.Default.AttachFile
     }
-}
 
-private fun getTypeColor(type: NoteType): androidx.compose.ui.graphics.Color {
-    return when (type) {
+private fun getTypeColor(type: NoteType): androidx.compose.ui.graphics.Color =
+    when (type) {
         NoteType.IMAGE -> ImageTeal
         NoteType.VIDEO -> VideoRed
         NoteType.AUDIO -> AudioPink
@@ -442,11 +459,10 @@ private fun getTypeColor(type: NoteType): androidx.compose.ui.graphics.Color {
         NoteType.CODE -> CodeCyan
         else -> FileGray
     }
-}
 
 @Composable
-private fun getTypeName(type: NoteType): String {
-    return when (type) {
+private fun getTypeName(type: NoteType): String =
+    when (type) {
         NoteType.BRAIN_DUMP -> stringResource(R.string.type_brain_dump)
         NoteType.YOUTUBE -> stringResource(R.string.youtube_video)
         NoteType.WEBSITE -> stringResource(R.string.type_web_link)
@@ -456,6 +472,3 @@ private fun getTypeName(type: NoteType): String {
         NoteType.DOCUMENT -> stringResource(R.string.type_document)
         else -> stringResource(R.string.type_file)
     }
-}
-
-

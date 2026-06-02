@@ -50,7 +50,7 @@ fun AlphabetFastScroller(
     notes: List<Note>,
     lazyListState: LazyListState,
     modifier: Modifier = Modifier,
-    alignment: Alignment.Horizontal = Alignment.End
+    alignment: Alignment.Horizontal = Alignment.End,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -79,7 +79,10 @@ fun AlphabetFastScroller(
     }
 
     // Calculate letter index from Y position
-    fun calculateLetterIndex(touchY: Float, totalHeight: Float): Int {
+    fun calculateLetterIndex(
+        touchY: Float,
+        totalHeight: Float,
+    ): Int {
         val padding = with(density) { 40.dp.toPx() }
         val effectiveHeight = totalHeight - (2 * padding)
         if (effectiveHeight <= 0) return 0
@@ -100,86 +103,89 @@ fun AlphabetFastScroller(
 
     Box(
         modifier = modifier.fillMaxHeight(),
-        contentAlignment = if (alignment == Alignment.End) Alignment.CenterEnd else Alignment.CenterStart
+        contentAlignment = if (alignment == Alignment.End) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         // Touch detection zone (invisible, covers screen edge)
         Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(40.dp)
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            isVisible = true
-                            selectedIndex = calculateLetterIndex(offset.y, size.height.toFloat())
-                            if (selectedIndex != lastSelectedIndex) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                lastSelectedIndex = selectedIndex
-                            }
-                        },
-                        onDrag = { change, _ ->
-                            val newIndex = calculateLetterIndex(change.position.y, size.height.toFloat())
-                            if (newIndex != selectedIndex) {
-                                selectedIndex = newIndex
+            modifier =
+                Modifier
+                    .fillMaxHeight()
+                    .width(40.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                isVisible = true
+                                selectedIndex = calculateLetterIndex(offset.y, size.height.toFloat())
                                 if (selectedIndex != lastSelectedIndex) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     lastSelectedIndex = selectedIndex
                                 }
-                                // Scroll as user drags
+                            },
+                            onDrag = { change, _ ->
+                                val newIndex = calculateLetterIndex(change.position.y, size.height.toFloat())
+                                if (newIndex != selectedIndex) {
+                                    selectedIndex = newIndex
+                                    if (selectedIndex != lastSelectedIndex) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        lastSelectedIndex = selectedIndex
+                                    }
+                                    // Scroll as user drags
+                                    scrollToLetter(selectedIndex)
+                                }
+                            },
+                            onDragEnd = {
+                                // Final scroll on release
                                 scrollToLetter(selectedIndex)
-                            }
-                        },
-                        onDragEnd = {
-                            // Final scroll on release
-                            scrollToLetter(selectedIndex)
-                            selectedIndex = -1
-                        },
-                        onDragCancel = {
-                            selectedIndex = -1
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = { offset ->
-                            isVisible = true
-                            selectedIndex = calculateLetterIndex(offset.y, size.height.toFloat())
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            tryAwaitRelease()
-                            scrollToLetter(selectedIndex)
-                            selectedIndex = -1
-                        }
-                    )
-                }
+                                selectedIndex = -1
+                            },
+                            onDragCancel = {
+                                selectedIndex = -1
+                            },
+                        )
+                    }.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = { offset ->
+                                isVisible = true
+                                selectedIndex = calculateLetterIndex(offset.y, size.height.toFloat())
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                tryAwaitRelease()
+                                scrollToLetter(selectedIndex)
+                                selectedIndex = -1
+                            },
+                        )
+                    },
         )
 
         // Animated visibility for the scroller strip
         AnimatedVisibility(
             visible = isVisible,
-            enter = fadeIn(tween(150)) + slideInHorizontally(
-                initialOffsetX = { if (alignment == Alignment.End) it else -it },
-                animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
-            ),
-            exit = fadeOut(tween(200)) + slideOutHorizontally(
-                targetOffsetX = { if (alignment == Alignment.End) it else -it }
-            )
+            enter =
+                fadeIn(tween(150)) +
+                    slideInHorizontally(
+                        initialOffsetX = { if (alignment == Alignment.End) it else -it },
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
+                    ),
+            exit =
+                fadeOut(tween(200)) +
+                    slideOutHorizontally(
+                        targetOffsetX = { if (alignment == Alignment.End) it else -it },
+                    ),
         ) {
             // Letter column with fisheye effect
             Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(vertical = 40.dp)
-                    .padding(
-                        start = if (alignment == Alignment.End) 0.dp else 4.dp,
-                        end = if (alignment == Alignment.End) 4.dp else 0.dp
-                    )
-                    .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 40.dp)
+                        .padding(
+                            start = if (alignment == Alignment.End) 0.dp else 4.dp,
+                            end = if (alignment == Alignment.End) 4.dp else 0.dp,
+                        ).background(
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                            shape = RoundedCornerShape(16.dp),
+                        ).padding(horizontal = 6.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.SpaceEvenly,
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 ('A'..'Z').forEachIndexed { index, letter ->
                     FisheyeLetter(
@@ -187,7 +193,7 @@ fun AlphabetFastScroller(
                         index = index,
                         selectedIndex = selectedIndex,
                         isAvailable = letter in availableLetters,
-                        alignment = alignment
+                        alignment = alignment,
                     )
                 }
             }
@@ -204,14 +210,14 @@ private fun FisheyeLetter(
     index: Int,
     selectedIndex: Int,
     isAvailable: Boolean,
-    alignment: Alignment.Horizontal
+    alignment: Alignment.Horizontal,
 ) {
     // Animated scale with fisheye effect
     val targetScale = FisheyeAnimations.calculateFisheyeScale(index, selectedIndex)
     val scale by animateFloatAsState(
         targetValue = targetScale,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "letterScale"
+        label = "letterScale",
     )
 
     // Animated horizontal offset (wave bulge)
@@ -219,17 +225,20 @@ private fun FisheyeLetter(
     val offsetX by animateFloatAsState(
         targetValue = if (alignment == Alignment.End) -targetOffset else targetOffset,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "letterOffset"
+        label = "letterOffset",
     )
 
     // Animated alpha
-    val targetAlpha = if (isAvailable) {
-        FisheyeAnimations.calculateFisheyeAlpha(index, selectedIndex)
-    } else 0.2f
+    val targetAlpha =
+        if (isAvailable) {
+            FisheyeAnimations.calculateFisheyeAlpha(index, selectedIndex)
+        } else {
+            0.2f
+        }
     val alpha by animateFloatAsState(
         targetValue = targetAlpha,
         animationSpec = tween(100),
-        label = "letterAlpha"
+        label = "letterAlpha",
     )
 
     // Font weight for selected letter
@@ -237,21 +246,24 @@ private fun FisheyeLetter(
 
     Text(
         text = letter.toString(),
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 14.sp,
-            fontWeight = fontWeight
-        ),
-        color = when {
-            index == selectedIndex -> LocalAccentColor.current
-            isAvailable -> MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-        },
-        modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationX = with(this) { offsetX }
-            }
+        style =
+            MaterialTheme.typography.labelSmall.copy(
+                fontSize = 14.sp,
+                fontWeight = fontWeight,
+            ),
+        color =
+            when {
+                index == selectedIndex -> LocalAccentColor.current
+                isAvailable -> MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+            },
+        modifier =
+            Modifier
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = with(this) { offsetX }
+                },
     )
 }
 

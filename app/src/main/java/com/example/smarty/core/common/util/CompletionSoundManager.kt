@@ -35,7 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Automatically detects foreground/background state
  * - Does NOT play for AI assistant (voice mode) - caller should filter
  */
-class CompletionSoundManager private constructor(private val context: Context) {
+class CompletionSoundManager private constructor(
+    private val context: Context,
+) {
     companion object {
         private const val TAG = "CompletionSound"
 
@@ -51,13 +53,12 @@ class CompletionSoundManager private constructor(private val context: Context) {
         @Volatile
         private var instance: CompletionSoundManager? = null
 
-        fun getInstance(context: Context): CompletionSoundManager {
-            return instance ?: synchronized(this) {
+        fun getInstance(context: Context): CompletionSoundManager =
+            instance ?: synchronized(this) {
                 instance ?: CompletionSoundManager(context.applicationContext).also {
                     instance = it
                 }
             }
-        }
     }
 
     // Thread-safety
@@ -85,7 +86,8 @@ class CompletionSoundManager private constructor(private val context: Context) {
             val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}")
 
             val audioAttributes =
-                AudioAttributes.Builder()
+                AudioAttributes
+                    .Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .build()
@@ -209,7 +211,8 @@ class CompletionSoundManager private constructor(private val context: Context) {
             mediaPlayer =
                 MediaPlayer().apply {
                     setAudioAttributes(
-                        AudioAttributes.Builder()
+                        AudioAttributes
+                            .Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
                             .build(),
@@ -267,7 +270,8 @@ class CompletionSoundManager private constructor(private val context: Context) {
                 )
 
             val notification =
-                NotificationCompat.Builder(context, CHANNEL_ID)
+                NotificationCompat
+                    .Builder(context, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_launcher_foreground)
                     .setContentTitle(title)
                     .setContentText(message)
@@ -280,8 +284,7 @@ class CompletionSoundManager private constructor(private val context: Context) {
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
                             setSound(Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}"))
                         }
-                    }
-                    .build()
+                    }.build()
 
             notificationManager.notify(notificationId, notification)
             Log.d(TAG, "Sent completion notification: $title")
@@ -294,14 +297,13 @@ class CompletionSoundManager private constructor(private val context: Context) {
      * Check if music is currently playing.
      * We don't want to interrupt the user's music.
      */
-    private fun isMusicPlaying(): Boolean {
-        return try {
+    private fun isMusicPlaying(): Boolean =
+        try {
             audioManager.isMusicActive
         } catch (e: Exception) {
             Log.w(TAG, "Failed to check music state: ${e.message}")
             false
         }
-    }
 
     /**
      * Release MediaPlayer resources.

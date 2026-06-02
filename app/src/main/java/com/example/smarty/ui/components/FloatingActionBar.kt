@@ -32,17 +32,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.softCardShadow
-import com.example.smarty.ui.theme.DarkSurfaceElevated2
 import com.example.smarty.ui.theme.DarkBorder2
+import com.example.smarty.ui.theme.DarkSurfaceElevated2
 import com.example.smarty.ui.theme.SoftBackground
 import com.example.smarty.ui.theme.SubtleBorder
+import com.example.smarty.ui.theme.softCardShadow
 
-// 
+//
 // SOFT MINIMALIST STYLES
-// 
+//
 
 private val PILL_HEIGHT = 44.dp
 
@@ -60,26 +59,27 @@ fun FloatingActionBar(
     isVisible: Boolean = true,
     isEditing: Boolean = false,
     // @Mention: Ask Smarty about this note
-    onAskSmarty: (() -> Unit)? = null
+    onAskSmarty: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = isVisible,
         enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        modifier = modifier
+        modifier = modifier,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = ComponentSpacing.screenPadding),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = ComponentSpacing.screenPadding),
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             FloatingActionPill(
                 icon = if (isEditing) Icons.Default.CheckCircle else Icons.Default.Edit,
                 onClick = onEdit,
                 tint = if (isEditing) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                contentDescription = if (isEditing) stringResource(R.string.save) else stringResource(R.string.edit_note)
+                contentDescription = if (isEditing) stringResource(R.string.save) else stringResource(R.string.edit_note),
             )
 
             if (!isEditing) {
@@ -89,7 +89,7 @@ fun FloatingActionBar(
                     icon = Icons.Default.Archive,
                     onClick = onArchive,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = stringResource(R.string.archive)
+                    contentDescription = stringResource(R.string.archive),
                 )
 
                 Spacer(modifier = Modifier.width(20.dp))
@@ -98,7 +98,7 @@ fun FloatingActionBar(
                     icon = Icons.Default.DeleteOutline,
                     onClick = onDelete,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = stringResource(R.string.delete)
+                    contentDescription = stringResource(R.string.delete),
                 )
 
                 // Ask Smarty button (for @mention quick reference)
@@ -109,7 +109,7 @@ fun FloatingActionBar(
                         icon = Icons.Default.AutoAwesome,
                         onClick = onAskSmarty,
                         tint = LocalAccentColor.current,
-                        contentDescription = stringResource(R.string.ask_ai)
+                        contentDescription = stringResource(R.string.ask_ai),
                     )
                 }
             }
@@ -123,42 +123,44 @@ private fun FloatingActionPill(
     onClick: () -> Unit,
     tint: Color,
     contentDescription: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     // Soft Minimalist: Solid background with soft shadow
     // No glassmorphism, no blurs, no complex borders
 
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
     val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
     val borderColor = if (isDark) DarkBorder2 else SubtleBorder
 
     Box(
-        modifier = modifier
-            .size(PILL_HEIGHT)
-            .softCardShadow(
-                elevation = 6.dp,
-                shape = CircleShape,
-                spotColor = Color.Black.copy(alpha = 0.12f)
-            )
-            .clip(CircleShape)
-            .background(backgroundColor)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = CircleShape
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = tint),
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(PILL_HEIGHT)
+                .softCardShadow(
+                    elevation = 6.dp,
+                    shape = CircleShape,
+                    spotColor = Color.Black.copy(alpha = 0.12f),
+                ).clip(CircleShape)
+                .background(backgroundColor)
+                .border(
+                    width = 1.dp,
+                    color = borderColor,
+                    shape = CircleShape,
+                ).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ripple(color = tint),
+                    onClick = onClick,
+                ),
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = tint,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(20.dp),
         )
     }
 }
@@ -174,10 +176,13 @@ fun SelectionFloatingBar(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onCategorize: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     // Apply soft shadow to the selection bar as well
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val isDark =
+        !MaterialTheme.colorScheme.surface
+            .luminance()
+            .let { it > 0.5f }
     val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
     val borderColor = if (isDark) DarkBorder2 else SubtleBorder
 
@@ -185,24 +190,26 @@ fun SelectionFloatingBar(
         shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
-        modifier = modifier.softCardShadow(
-            elevation = 12.dp,
-            shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
-            spotColor = Color.Black.copy(alpha = 0.15f)
-        )
+        modifier =
+            modifier.softCardShadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+                spotColor = Color.Black.copy(alpha = 0.15f),
+            ),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Selection count
             Text(
                 text = stringResource(R.string.selected_count, selectedCount),
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = LocalAccentColor.current
+                style =
+                    MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                color = LocalAccentColor.current,
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -212,7 +219,7 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.PushPin,
                     contentDescription = stringResource(R.string.pin),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -220,7 +227,7 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.Folder,
                     contentDescription = "Categorize",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -228,7 +235,7 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.Share,
                     contentDescription = stringResource(R.string.share),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -236,7 +243,7 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.Archive,
                     contentDescription = stringResource(R.string.archive),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -244,7 +251,7 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
                     contentDescription = stringResource(R.string.delete),
-                    tint = MaterialTheme.colorScheme.error
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         }

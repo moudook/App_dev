@@ -12,9 +12,11 @@ import com.example.smarty.protocol.LocalProcessingCapabilities
 import com.example.smarty.protocol.MediaCapabilities
 import com.example.smarty.protocol.SystemCapabilities
 
-class DeviceInfoProvider(private val context: Context) {
-    fun getDeviceCapabilities(): DeviceCapabilities {
-        return DeviceCapabilities(
+class DeviceInfoProvider(
+    private val context: Context,
+) {
+    fun getDeviceCapabilities(): DeviceCapabilities =
+        DeviceCapabilities(
             hardware =
                 HardwareCapabilities(
                     flashlight = hasSystemFeature("android.hardware.camera.flash"),
@@ -47,7 +49,6 @@ class DeviceInfoProvider(private val context: Context) {
                     storageFreeMb = getFreeStorageMb(),
                 ),
         )
-    }
 
     fun getDeviceContext(): DeviceContext {
         val batteryStatus = (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
@@ -62,9 +63,7 @@ class DeviceInfoProvider(private val context: Context) {
         )
     }
 
-    private fun hasSystemFeature(feature: String): Boolean {
-        return context.packageManager.hasSystemFeature(feature)
-    }
+    private fun hasSystemFeature(feature: String): Boolean = context.packageManager.hasSystemFeature(feature)
 
     private fun getDeviceClass(): String {
         val ram = getAvailableMemoryMb()

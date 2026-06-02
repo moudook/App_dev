@@ -8,8 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.data.local.SmartyDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,8 +28,9 @@ import kotlinx.coroutines.launch
  *
  * HARDENING: Now persists all timers to Room database to survive app kills and reboots.
  */
-class AlarmScheduler(private val context: Context) {
-
+class AlarmScheduler(
+    private val context: Context,
+) {
     private val database = SmartyDatabase.getDatabase(context)
     private val timerDao = database.timerDao()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -41,8 +42,10 @@ class AlarmScheduler(private val context: Context) {
     /**
      * Observable stream of active timers.
      */
-    val activeTimers: StateFlow<List<SmartyTimer>> = timerDao.getActiveTimers()
-        .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val activeTimers: StateFlow<List<SmartyTimer>> =
+        timerDao
+            .getActiveTimers()
+            .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     companion object {
         private const val TAG = "AlarmScheduler"
@@ -51,13 +54,12 @@ class AlarmScheduler(private val context: Context) {
         @Volatile
         private var INSTANCE: AlarmScheduler? = null
 
-        fun getInstance(context: Context): AlarmScheduler {
-            return INSTANCE ?: synchronized(this) {
+        fun getInstance(context: Context): AlarmScheduler =
+            INSTANCE ?: synchronized(this) {
                 INSTANCE ?: AlarmScheduler(context.applicationContext).also {
                     INSTANCE = it
                 }
             }
-        }
     }
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -75,21 +77,23 @@ class AlarmScheduler(private val context: Context) {
             timerDao.insertTimer(timer)
         }
 
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = AlarmReceiver.ACTION_TIMER_TRIGGERED
-            putExtra(AlarmReceiver.EXTRA_TIMER_ID, timer.id)
-            putExtra(AlarmReceiver.EXTRA_TIMER_NAME, timer.name)
-            putExtra(AlarmReceiver.EXTRA_IS_ALARM, timer.isAlarm)
-            putExtra(AlarmReceiver.EXTRA_IS_RECURRING, timer.isRecurring)
-            putExtra(AlarmReceiver.EXTRA_REPEAT_DAYS, timer.repeatDays)
-        }
+        val intent =
+            Intent(context, AlarmReceiver::class.java).apply {
+                action = AlarmReceiver.ACTION_TIMER_TRIGGERED
+                putExtra(AlarmReceiver.EXTRA_TIMER_ID, timer.id)
+                putExtra(AlarmReceiver.EXTRA_TIMER_NAME, timer.name)
+                putExtra(AlarmReceiver.EXTRA_IS_ALARM, timer.isAlarm)
+                putExtra(AlarmReceiver.EXTRA_IS_RECURRING, timer.isRecurring)
+                putExtra(AlarmReceiver.EXTRA_REPEAT_DAYS, timer.repeatDays)
+            }
 
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            timer.id.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                timer.id.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         // Use exact alarm for precise timing
         try {
@@ -98,14 +102,14 @@ class AlarmScheduler(private val context: Context) {
                     alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         timer.triggerTime,
-                        pendingIntent
+                        pendingIntent,
                     )
                 } else {
                     // Fallback to inexact alarm
                     alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         timer.triggerTime,
-                        pendingIntent
+                        pendingIntent,
                     )
                     Log.w(TAG, "Cannot schedule exact alarms, using inexact")
                 }
@@ -113,7 +117,7 @@ class AlarmScheduler(private val context: Context) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     timer.triggerTime,
-                    pendingIntent
+                    pendingIntent,
                 )
             }
             Log.d(TAG, "Timer scheduled successfully: ${timer.name}")
@@ -128,21 +132,23 @@ class AlarmScheduler(private val context: Context) {
     fun cancelTimer(timerId: String) {
         Log.d(TAG, "Cancelling timer: $timerId")
 
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = AlarmReceiver.ACTION_TIMER_TRIGGERED
-            putExtra(AlarmReceiver.EXTRA_TIMER_ID, timerId)
-            putExtra(AlarmReceiver.EXTRA_TIMER_NAME, "") // Not needed for cancellation
-            putExtra(AlarmReceiver.EXTRA_IS_ALARM, false)
-            putExtra(AlarmReceiver.EXTRA_IS_RECURRING, false)
-            putExtra(AlarmReceiver.EXTRA_REPEAT_DAYS, "")
-        }
+        val intent =
+            Intent(context, AlarmReceiver::class.java).apply {
+                action = AlarmReceiver.ACTION_TIMER_TRIGGERED
+                putExtra(AlarmReceiver.EXTRA_TIMER_ID, timerId)
+                putExtra(AlarmReceiver.EXTRA_TIMER_NAME, "") // Not needed for cancellation
+                putExtra(AlarmReceiver.EXTRA_IS_ALARM, false)
+                putExtra(AlarmReceiver.EXTRA_IS_RECURRING, false)
+                putExtra(AlarmReceiver.EXTRA_REPEAT_DAYS, "")
+            }
 
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            timerId.hashCode(),
-            intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                timerId.hashCode(),
+                intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         pendingIntent?.let {
             alarmManager.cancel(it)
@@ -162,13 +168,12 @@ class AlarmScheduler(private val context: Context) {
     /**
      * Check if exact alarms can be scheduled.
      */
-    fun canScheduleExactAlarms(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    fun canScheduleExactAlarms(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else {
             true
         }
-    }
 
     /**
      * BUG FIX (RX-02): Create intent to request SCHEDULE_EXACT_ALARM permission.
@@ -177,8 +182,8 @@ class AlarmScheduler(private val context: Context) {
      *
      * Usage: Launch this intent from an Activity to open system settings.
      */
-    fun createExactAlarmPermissionIntent(): Intent? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    fun createExactAlarmPermissionIntent(): Intent? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                 data = Uri.parse("package:${context.packageName}")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -186,24 +191,20 @@ class AlarmScheduler(private val context: Context) {
         } else {
             null // Not needed on older Android versions
         }
-    }
 
     /**
      * BUG FIX (RX-02): Check if exact alarm permission should be requested.
      * Returns true if on Android 12+ and permission is not granted.
      */
-    fun shouldRequestExactAlarmPermission(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms()
-    }
+    fun shouldRequestExactAlarmPermission(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms()
 
     /**
      * BUG FIX (RX-02): Get user-friendly message about exact alarm permission.
      */
-    fun getExactAlarmPermissionMessage(): String {
-        return if (shouldRequestExactAlarmPermission()) {
+    fun getExactAlarmPermissionMessage(): String =
+        if (shouldRequestExactAlarmPermission()) {
             "For precise timer functionality, please allow exact alarms in Settings."
         } else {
             ""
         }
-    }
 }

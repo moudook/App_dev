@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 
 data class ChatFoldersUiState(
     val isLoading: Boolean = false,
@@ -26,10 +25,14 @@ data class ChatFoldersUiState(
     val searchQuery: String = "",
 )
 
-class ChatFoldersViewModel(application: Application) : AndroidViewModel(application) {
+class ChatFoldersViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val serverUrl = SecurePreferences.getInstance(application).getServerUrl()
 
-    private val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
+    private val client =
+        com.example.smarty.di.ServiceLocator
+            .provideHttpClient()
 
     private val remoteDataSource =
         RemoteDataSource(

@@ -48,8 +48,8 @@ data class AttachmentMetadata(
         /**
          * Infer human-readable file type from MIME type
          */
-        private fun inferFileType(mimeType: String): String {
-            return when {
+        private fun inferFileType(mimeType: String): String =
+            when {
                 mimeType.startsWith("image/") -> "Image"
                 mimeType.startsWith("video/") -> "Video"
                 mimeType.startsWith("audio/") -> "Audio"
@@ -61,6 +61,5 @@ data class AttachmentMetadata(
                 mimeType == "application/vnd.android.package-archive" -> "App"
                 else -> "File"
             }
-        }
     }
 }

@@ -85,11 +85,10 @@ fun <T> LiveData<T>.getOrAwaitValue(
 suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstValue(
     time: Long = 2,
     timeUnit: TimeUnit = TimeUnit.SECONDS,
-): T {
-    return kotlinx.coroutines.withTimeout(timeUnit.toMillis(time)) {
+): T =
+    kotlinx.coroutines.withTimeout(timeUnit.toMillis(time)) {
         first()
     }
-}
 
 /**
  * Collect all values emitted by a Flow during a test.

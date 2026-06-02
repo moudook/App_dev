@@ -63,16 +63,17 @@ class ToolPermissionEnforcer(
         userId: String,
         toolName: String,
     ): EffectiveDecision {
-        val repo = repository
-            ?: return EffectiveDecision(
-                userId = userId,
-                toolName = toolName,
-                decision = policy.decide(toolName),
-                isOverridden = false,
-                overrideSource = null,
-                overrideUpdatedAt = null,
-                overrideExpiresAt = null,
-            )
+        val repo =
+            repository
+                ?: return EffectiveDecision(
+                    userId = userId,
+                    toolName = toolName,
+                    decision = policy.decide(toolName),
+                    isOverridden = false,
+                    overrideSource = null,
+                    overrideUpdatedAt = null,
+                    overrideExpiresAt = null,
+                )
         return repo.resolveEffectiveDecision(userId, toolName)
     }
 
@@ -82,8 +83,7 @@ class ToolPermissionEnforcer(
      * policy explicitly allows or denies the tool, meaning the CLI
      * would have handled it internally and the event is a leak.
      */
-    fun shouldShortCircuit(toolName: String): Boolean =
-        decide(toolName) != ToolPermissionDecision.DEFAULT
+    fun shouldShortCircuit(toolName: String): Boolean = decide(toolName) != ToolPermissionDecision.DEFAULT
 
     /**
      * Per-user variant: should we short-circuit for *this* user,
@@ -105,8 +105,7 @@ class ToolPermissionEnforcer(
      * Sync variant uses the static policy (used when no user
      * context is available, e.g. anonymous WebSocket events).
      */
-    fun syntheticResponse(toolName: String): String =
-        syntheticResponseForDecision(decide(toolName))
+    fun syntheticResponse(toolName: String): String = syntheticResponseForDecision(decide(toolName))
 
     /**
      * Async variant — takes the per-user decision into account.

@@ -144,13 +144,14 @@ class TokenManagerTest {
         testScope.runTest {
             // When
             // Simulate a failure scenario (would happen in real usage)
-            tokenManager::class.java.getDeclaredMethod(
-                "updateState",
-                TokenState::class.java,
-            ).apply {
-                isAccessible = true
-                invoke(tokenManager, TokenState.Failed("Test error"))
-            }
+            tokenManager::class.java
+                .getDeclaredMethod(
+                    "updateState",
+                    TokenState::class.java,
+                ).apply {
+                    isAccessible = true
+                    invoke(tokenManager, TokenState.Failed("Test error"))
+                }
 
             // Then
             val state = tokenManager.tokenState.value

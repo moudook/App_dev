@@ -27,9 +27,8 @@ object ActiveUserRegistry {
      * Used by McpServer when the daemon calls ask_user from localhost
      * and there's no authenticated principal.
      */
-    fun getMostRecentActiveUser(): String? {
-        return activeUsers.entries
+    fun getMostRecentActiveUser(): String? =
+        activeUsers.entries
             .maxByOrNull { it.value }
             ?.key
-    }
 }

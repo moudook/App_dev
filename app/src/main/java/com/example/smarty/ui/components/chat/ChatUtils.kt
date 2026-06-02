@@ -25,10 +25,10 @@ fun cleanContent(raw: String): String {
     text = CleaningPatterns.thinkBlock.replace(text, "")
     text = CleaningPatterns.thinkOpen.replace(text, "")
     text = text.replace("<final>", "").replace("</final>", "")
-    
+
     // Clean up partial tags when streaming
     text = CleaningPatterns.partialFinal.replace(text, "")
     text = CleaningPatterns.partialThink.replace(text, "")
-    
+
     return text.trim()
 }

@@ -265,9 +265,9 @@ class NoteService(
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
-    private fun String.normalizeForDedup(): String {
-        return this.replace("\r\n", "\n")
+    private fun String.normalizeForDedup(): String =
+        this
+            .replace("\r\n", "\n")
             .replace(Regex("\\s+"), " ")
             .trim()
-    }
 }

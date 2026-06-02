@@ -18,8 +18,8 @@ data class Attachment(
      * Get the attachment type based on MIME type
      * Uses O(1) prefix matching for performance
      */
-    fun getAttachmentType(): AttachmentType {
-        return when {
+    fun getAttachmentType(): AttachmentType =
+        when {
             mimeType.startsWith("image/") -> AttachmentType.IMAGE
             mimeType.startsWith("video/") -> AttachmentType.VIDEO
             mimeType.startsWith("audio/") -> AttachmentType.AUDIO
@@ -31,7 +31,6 @@ data class Attachment(
             mimeType.contains("zip") || mimeType.contains("rar") || mimeType.contains("7z") -> AttachmentType.ARCHIVE
             else -> AttachmentType.FILE
         }
-    }
 }
 
 /**

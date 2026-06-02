@@ -8,10 +8,6 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.tools.KreaImageTool
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -600,7 +596,10 @@ class ToolExecutor(
         }
     }
 
-    private suspend fun executeDeviceTool(args: UnifiedToolArgs, sessionId: String): String {
+    private suspend fun executeDeviceTool(
+        args: UnifiedToolArgs,
+        sessionId: String,
+    ): String {
         return when (args.action) {
             "open" -> {
                 emitDeviceCommand(
@@ -640,7 +639,10 @@ class ToolExecutor(
                 "${args.setting} $statusStr"
             }
             "status" -> {
-                val commandId = java.util.UUID.randomUUID().toString()
+                val commandId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()
                 emitDeviceCommand(
                     AgentCommand.GetDeviceInfo(
                         commandId = commandId,
@@ -649,9 +651,10 @@ class ToolExecutor(
                 )
                 // Wait for client to respond with device status
                 val deferred = DeviceResponseRegistry.createPendingRequest(commandId, sessionId)
-                val result = runCatching {
-                    kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() }
-                }.getOrNull()
+                val result =
+                    runCatching {
+                        kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() }
+                    }.getOrNull()
                 if (result != null && result.status.isNotEmpty()) {
                     result.status.entries.joinToString(", ") { "${it.key}: ${it.value}" }
                 } else {
@@ -687,7 +690,11 @@ class ToolExecutor(
         toolCallId: String,
         sessionId: String,
     ): String {
-        logger.info("[ToolExecutor] ask_user called with questions=${args.questions?.size}, question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}")
+        logger.info(
+            "[ToolExecutor] ask_user called with questions=${args.questions?.size}, question=${args.question?.take(
+                100,
+            )}, options=${args.options?.toString()?.take(100)}",
+        )
 
         // Validate arguments BEFORE emitting ApprovalRequested — return error string if malformed
         val validationError = validateAskUserArgs(args)
@@ -702,7 +709,10 @@ class ToolExecutor(
         // Emit ApprovalRequested event (same as McpServer does)
         emit(
             com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                eventId = java.util.UUID.randomUUID().toString(),
+                eventId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 timestamp = System.currentTimeMillis(),
                 toolId = toolCallId,
                 toolName = "ask_user",
@@ -724,7 +734,10 @@ class ToolExecutor(
         if (result.feedback == "Approval timed out") {
             emit(
                 com.example.smarty.protocol.AgentEvent.ApprovalDenied(
-                    eventId = java.util.UUID.randomUUID().toString(),
+                    eventId =
+                        java.util.UUID
+                            .randomUUID()
+                            .toString(),
                     timestamp = System.currentTimeMillis(),
                     toolId = toolCallId,
                 ),
@@ -747,18 +760,33 @@ class ToolExecutor(
         // Format 1: 'questions' array (preferred — each item is a {question, options, allow_custom?} object)
         if (args.questions != null && args.questions.isNotEmpty()) {
             for ((i, element) in args.questions.withIndex()) {
-                val qObj = try { element.jsonObject } catch (_: Exception) { null }
+                val qObj =
+                    try {
+                        element.jsonObject
+                    } catch (_: Exception) {
+                        null
+                    }
                 if (qObj == null) {
                     return "ERROR: Question at index $i is not a valid JSON object. " +
                         "Each item in 'questions' must be an object with 'question' (string) and 'options' (array of strings)."
                 }
-                val questionText = try { qObj["question"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+                val questionText =
+                    try {
+                        qObj["question"]?.jsonPrimitive?.content
+                    } catch (_: Exception) {
+                        null
+                    }
                 if (questionText.isNullOrBlank()) {
                     return "ERROR: Question at index $i is missing a valid 'question' field or it is not a string. " +
                         "Every question needs a non-empty 'question' string. " +
                         """Example: {"question": "What would you like?", "options": ["Option A", "Option B"]}"""
                 }
-                val optionsArray = try { qObj["options"]?.jsonArray } catch (_: Exception) { null }
+                val optionsArray =
+                    try {
+                        qObj["options"]?.jsonArray
+                    } catch (_: Exception) {
+                        null
+                    }
                 if (optionsArray == null || optionsArray.isEmpty()) {
                     return """ERROR: Question "$questionText" (index $i) has no options. """ +
                         "You must provide at least 1 option so the user can tap to answer. " +
@@ -766,7 +794,12 @@ class ToolExecutor(
                         """Example: {"question": "$questionText", "options": ["Choice 1", "Choice 2"], "allow_custom": true}"""
                 }
                 for ((j, opt) in optionsArray.withIndex()) {
-                    val optText = try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+                    val optText =
+                        try {
+                            opt.jsonPrimitive.content
+                        } catch (_: Exception) {
+                            null
+                        }
                     if (optText.isNullOrBlank()) {
                         return """ERROR: Question "$questionText" (index $i) has an empty or invalid option at index $j. """ +
                             "Every option must be a non-empty string so the user can read and tap it."
@@ -782,7 +815,12 @@ class ToolExecutor(
                 "Provide a 'questions' array with question objects, or a single 'question' string with 'options'. " +
                 """Example: ask_user(questions=[{"question": "What color?", "options": ["Red", "Blue"]}])"""
         }
-        val optionsArray = try { args.options?.jsonArray } catch (_: Exception) { null }
+        val optionsArray =
+            try {
+                args.options?.jsonArray
+            } catch (_: Exception) {
+                null
+            }
         if (optionsArray == null || optionsArray.isEmpty()) {
             return """ERROR: Question "${args.question}" has no options. """ +
                 "The 'ask_user' tool requires at least 1 option per question so the user can respond. " +

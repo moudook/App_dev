@@ -49,7 +49,9 @@ class FCMServiceTest {
         mockkStatic("com.example.smarty.core.common.util.NotificationHelperKt")
         every {
             com.example.smarty.core.common.util.NotificationHelper.showNotification(
-                any(), any(), any(),
+                any(),
+                any(),
+                any(),
             )
         } returns Unit
     }

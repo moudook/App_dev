@@ -39,7 +39,7 @@ fun OptimizedOrbVisualizer(
     size: Dp = 48.dp,
     primaryColor: Color = AudioPink,
     secondaryColor: Color = AudioPink.copy(alpha = 0.5f),
-    backgroundColor: Color = AudioPink.copy(alpha = 0.1f)
+    backgroundColor: Color = AudioPink.copy(alpha = 0.1f),
 ) {
     // Smooth amplitude using simple exponential smoothing
     // Avoids expensive spring calculations
@@ -63,22 +63,24 @@ fun OptimizedOrbVisualizer(
     val animatedPhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "phase",
     )
     val phase = if (shouldAnimate) animatedPhase else 0f
 
     val animatedRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = TWO_PI_F,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "rotation",
     )
     val rotation = if (shouldAnimate) animatedRotation else 0f
 
@@ -89,11 +91,12 @@ fun OptimizedOrbVisualizer(
         val center = Offset(centerX, centerY)
 
         // Effective amplitude with base activity when playing
-        val effectiveAmp = if (isPlaying) {
-            0.1f + smoothAmplitude * 0.9f
-        } else {
-            smoothAmplitude * 0.2f
-        }
+        val effectiveAmp =
+            if (isPlaying) {
+                0.1f + smoothAmplitude * 0.9f
+            } else {
+                smoothAmplitude * 0.2f
+            }
 
         // === LAYER 1: Outer Glow (Simple radial gradient - GPU accelerated) ===
         drawOuterGlow(
@@ -101,7 +104,7 @@ fun OptimizedOrbVisualizer(
             maxRadius = maxRadius,
             amplitude = effectiveAmp,
             color = secondaryColor,
-            isPlaying = isPlaying
+            isPlaying = isPlaying,
         )
 
         // === LAYER 2: Core Orb (Single gradient circle) ===
@@ -112,7 +115,7 @@ fun OptimizedOrbVisualizer(
             amplitude = effectiveAmp,
             primaryColor = primaryColor,
             secondaryColor = secondaryColor,
-            isPlaying = isPlaying
+            isPlaying = isPlaying,
         )
 
         // === LAYER 3: Amplitude Ring (Responsive to audio) ===
@@ -123,7 +126,7 @@ fun OptimizedOrbVisualizer(
                 phase = phase,
                 amplitude = effectiveAmp,
                 rotation = rotation,
-                color = primaryColor
+                color = primaryColor,
             )
         }
     }
@@ -138,7 +141,7 @@ private fun DrawScope.drawOuterGlow(
     maxRadius: Float,
     amplitude: Float,
     color: Color,
-    isPlaying: Boolean
+    isPlaying: Boolean,
 ) {
     // Pulse glow size based on amplitude (pre-calculated, no trig)
     val glowMultiplier = 0.7f + amplitude * 0.3f
@@ -147,17 +150,19 @@ private fun DrawScope.drawOuterGlow(
     val glowAlpha = if (isPlaying) 0.3f + amplitude * 0.2f else 0.15f
 
     drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                color.copy(alpha = glowAlpha),
-                color.copy(alpha = glowAlpha * 0.4f),
-                Color.Transparent
+        brush =
+            Brush.radialGradient(
+                colors =
+                    listOf(
+                        color.copy(alpha = glowAlpha),
+                        color.copy(alpha = glowAlpha * 0.4f),
+                        Color.Transparent,
+                    ),
+                center = center,
+                radius = glowRadius * 1.5f,
             ),
-            center = center,
-            radius = glowRadius * 1.5f
-        ),
         radius = glowRadius * 1.5f,
-        center = center
+        center = center,
     )
 }
 
@@ -172,7 +177,7 @@ private fun DrawScope.drawCoreOrb(
     amplitude: Float,
     primaryColor: Color,
     secondaryColor: Color,
-    isPlaying: Boolean
+    isPlaying: Boolean,
 ) {
     // Breathing effect using fast sine approximation
     val breathe = fastSineNormalized(phase)
@@ -187,38 +192,43 @@ private fun DrawScope.drawCoreOrb(
 
     // Single gradient draw call
     drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                primaryColor.copy(alpha = coreAlpha),
-                primaryColor.copy(alpha = coreAlpha * 0.7f),
-                secondaryColor.copy(alpha = coreAlpha * 0.4f)
+        brush =
+            Brush.radialGradient(
+                colors =
+                    listOf(
+                        primaryColor.copy(alpha = coreAlpha),
+                        primaryColor.copy(alpha = coreAlpha * 0.7f),
+                        secondaryColor.copy(alpha = coreAlpha * 0.4f),
+                    ),
+                center = center,
+                radius = coreRadius,
             ),
-            center = center,
-            radius = coreRadius
-        ),
         radius = coreRadius,
-        center = center
+        center = center,
     )
 
     // Inner highlight for 3D effect (tiny, simple)
     val highlightOffset = coreRadius * 0.25f
-    val highlightCenter = Offset(
-        center.x - highlightOffset * 0.5f,
-        center.y - highlightOffset
-    )
+    val highlightCenter =
+        Offset(
+            center.x - highlightOffset * 0.5f,
+            center.y - highlightOffset,
+        )
     val highlightRadius = coreRadius * 0.25f
 
     drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.35f),
-                Color.Transparent
+        brush =
+            Brush.radialGradient(
+                colors =
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.Transparent,
+                    ),
+                center = highlightCenter,
+                radius = highlightRadius,
             ),
-            center = highlightCenter,
-            radius = highlightRadius
-        ),
         radius = highlightRadius,
-        center = highlightCenter
+        center = highlightCenter,
     )
 }
 
@@ -232,7 +242,7 @@ private fun DrawScope.drawAmplitudeRing(
     phase: Float,
     amplitude: Float,
     rotation: Float,
-    color: Color
+    color: Color,
 ) {
     // Ring radius expands with amplitude
     val ringRadius = maxRadius * (0.5f + amplitude * 0.15f)
@@ -253,7 +263,7 @@ private fun DrawScope.drawAmplitudeRing(
         color = color.copy(alpha = ringAlpha),
         radius = finalRadius,
         center = center,
-        style = Stroke(width = thickness, cap = StrokeCap.Round)
+        style = Stroke(width = thickness, cap = StrokeCap.Round),
     )
 
     // Optional: Draw 4 orbital dots (fixed positions, rotated)
@@ -263,7 +273,7 @@ private fun DrawScope.drawAmplitudeRing(
             radius = finalRadius,
             rotation = rotation,
             amplitude = amplitude,
-            color = color
+            color = color,
         )
     }
 }
@@ -277,7 +287,7 @@ private fun DrawScope.drawOrbitalDots(
     radius: Float,
     rotation: Float,
     amplitude: Float,
-    color: Color
+    color: Color,
 ) {
     val dotRadius = (1.5f + amplitude * 2f)
     val dotAlpha = 0.4f + amplitude * 0.4f
@@ -296,7 +306,7 @@ private fun DrawScope.drawOrbitalDots(
         drawCircle(
             color = color.copy(alpha = dotAlpha),
             radius = dotRadius,
-            center = Offset(x, y)
+            center = Offset(x, y),
         )
     }
 }
@@ -340,20 +350,18 @@ private fun fastSine(x: Float): Float {
 /**
  * Fast cosine using sin(x + π/2) identity.
  */
-private fun fastCosine(x: Float): Float {
-    return fastSine(x + HALF_PI_F)
-}
+private fun fastCosine(x: Float): Float = fastSine(x + HALF_PI_F)
 
 /**
  * Fast sine normalized to [0, 1] range.
  */
-private fun fastSineNormalized(x: Float): Float {
-    return (fastSine(x * TWO_PI_F) + 1f) / 2f
-}
+private fun fastSineNormalized(x: Float): Float = (fastSine(x * TWO_PI_F) + 1f) / 2f
 
 /**
  * Linear interpolation - simple and fast.
  */
-private fun lerp(start: Float, end: Float, fraction: Float): Float {
-    return start + (end - start) * fraction
-}
+private fun lerp(
+    start: Float,
+    end: Float,
+    fraction: Float,
+): Float = start + (end - start) * fraction

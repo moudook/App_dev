@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +39,6 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CalendarEmptyState
 import com.example.smarty.ui.components.CalendarLoadingState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -48,23 +46,22 @@ import java.util.*
 @Composable
 fun Modifier.squishClick(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ): Modifier {
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = spring(dampingRatio = 0.5f, stiffness = 500f),
-        label = "squish"
+        label = "squish",
     )
     return this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
-        }
-        .clickable(
+        }.clickable(
             interactionSource = interactionSource,
             indication = null, // No cheap Android ripple!
-            onClick = onClick
+            onClick = onClick,
         )
 }
 
@@ -80,60 +77,61 @@ fun CalendarContent(
     contentPadding: PaddingValues,
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
-    onCreateEvent: ((
-        title: String,
-        description: String?,
-        startTime: Long,
-        endTime: Long,
-        isAllDay: Boolean
-    ) -> Unit)? = null
+    onCreateEvent: (
+        (
+            title: String,
+            description: String?,
+            startTime: Long,
+            endTime: Long,
+            isAllDay: Boolean,
+        ) -> Unit
+    )? = null,
 ) {
     val view = LocalView.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val listState = rememberLazyListState()
-    
+
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
     val surfaceColor = MaterialTheme.colorScheme.surface
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val accentColor = LocalAccentColor.current // Uses Smarty's dynamic/selected theme color
-    
+
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
     var isCreatingEvent by remember { mutableStateOf(false) }
 
     // Generate current week mathematically for the sliding track
-    val weekDays = remember(selectedDate) {
-        val cal = selectedDate.clone() as Calendar
-        cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
-        List(7) { 
-            val day = cal.clone() as Calendar
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            day
+    val weekDays =
+        remember(selectedDate) {
+            val cal = selectedDate.clone() as Calendar
+            cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+            List(7) {
+                val day = cal.clone() as Calendar
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+                day
+            }
         }
-    }
 
     val selectedDateEvents = remember(events, selectedDate) { filterEventsForDate(events, selectedDate) }
 
     Box(modifier = modifier.fillMaxSize().background(bgColor)) {
-        
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = contentPadding.calculateTopPadding() + 180.dp, bottom = 120.dp), // Massive top padding for Parallax Header
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         ) {
-            
             // ── 1. THE SLIDING PILL WEEK TRACK ──
             item {
                 STierSlidingWeekTrack(
                     weekDays = weekDays,
                     selectedDate = selectedDate,
-                    onDateSelect = { 
+                    onDateSelect = {
                         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        selectedDate = it 
+                        selectedDate = it
                     },
                     accentColor = accentColor,
-                    isDark = isDark
+                    isDark = isDark,
                 )
                 Spacer(Modifier.height(32.dp))
             }
@@ -142,14 +140,20 @@ fun CalendarContent(
             if (activeTimers.isNotEmpty()) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-                        Text("ACTIVE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.2.sp)
+                        Text(
+                            "ACTIVE",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp,
+                        )
                         Spacer(Modifier.height(12.dp))
                         activeTimers.forEach { timer ->
                             STierLiveTimerCard(
                                 timer = timer,
                                 accentColor = accentColor,
                                 surfaceColor = surfaceColor,
-                                onCancel = { onCancelTimer(timer) }
+                                onCancel = { onCancelTimer(timer) },
                             )
                             Spacer(Modifier.height(12.dp))
                         }
@@ -165,7 +169,7 @@ fun CalendarContent(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = textColor,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp),
                 )
                 Spacer(Modifier.height(16.dp))
             }
@@ -175,7 +179,7 @@ fun CalendarContent(
                 AnimatedVisibility(
                     visible = isCreatingEvent && onCreateEvent != null,
                     enter = expandVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeOut()
+                    exit = shrinkVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeOut(),
                 ) {
                     Box(modifier = Modifier.padding(horizontal = 24.dp)) {
                         com.example.smarty.ui.components.TimeEditor(
@@ -185,7 +189,7 @@ fun CalendarContent(
                                 val endTime = startTime + durationMs
                                 onCreateEvent?.invoke(t, null, startTime, endTime, false)
                                 isCreatingEvent = false
-                            }
+                            },
                         )
                     }
                 }
@@ -195,7 +199,7 @@ fun CalendarContent(
                 item {
                     CalendarLoadingState(
                         count = 3,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                     )
                 }
             } else if (selectedDateEvents.isEmpty() && !isCreatingEvent) {
@@ -214,7 +218,7 @@ fun CalendarContent(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                             onEventClick(event)
-                        }
+                        },
                     )
                 }
             }
@@ -225,31 +229,34 @@ fun CalendarContent(
         val scrollOffset = remember { derivedStateOf { listState.firstVisibleItemScrollOffset } }
         val headerScale by animateFloatAsState(
             targetValue = if (scrollOffset.value > 50) 0.85f else 1f,
-            animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f), label = "headerScale"
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f),
+            label = "headerScale",
         )
         val headerAlpha by animateFloatAsState(
             targetValue = if (scrollOffset.value > 150) 0f else 1f,
-            animationSpec = tween(200), label = "headerAlpha"
+            animationSpec = tween(200),
+            label = "headerAlpha",
         )
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(contentPadding.calculateTopPadding() + 160.dp)
-                .background(Brush.verticalGradient(listOf(bgColor, bgColor.copy(alpha = 0f))))
-                .graphicsLayer {
-                    translationY = -scrollOffset.value * 0.4f // Pure Parallax!
-                    scaleX = headerScale
-                    scaleY = headerScale
-                    alpha = headerAlpha
-                }
-                .padding(horizontal = 24.dp).padding(bottom = 32.dp),
-            contentAlignment = Alignment.BottomStart
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(contentPadding.calculateTopPadding() + 160.dp)
+                    .background(Brush.verticalGradient(listOf(bgColor, bgColor.copy(alpha = 0f))))
+                    .graphicsLayer {
+                        translationY = -scrollOffset.value * 0.4f // Pure Parallax!
+                        scaleX = headerScale
+                        scaleY = headerScale
+                        alpha = headerAlpha
+                    }.padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+            contentAlignment = Alignment.BottomStart,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Column {
                     Text(
@@ -257,7 +264,7 @@ fun CalendarContent(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp,
-                        color = accentColor
+                        color = accentColor,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -265,34 +272,35 @@ fun CalendarContent(
                         fontSize = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = textColor,
-                        letterSpacing = (-1).sp
+                        letterSpacing = (-1).sp,
                     )
                 }
-                
+
                 // Floating Action Button fused into the header
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(18.dp)) // Squircle FAB
-                        .background(if (isCreatingEvent) Color.Gray.copy(0.3f) else accentColor)
-                        .squishClick {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            if (onCreateEvent != null) {
-                                isCreatingEvent = !isCreatingEvent
-                                if (!isCreatingEvent) {
-                                    keyboardController?.hide()
+                    modifier =
+                        Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(18.dp)) // Squircle FAB
+                            .background(if (isCreatingEvent) Color.Gray.copy(0.3f) else accentColor)
+                            .squishClick {
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                if (onCreateEvent != null) {
+                                    isCreatingEvent = !isCreatingEvent
+                                    if (!isCreatingEvent) {
+                                        keyboardController?.hide()
+                                    }
+                                } else {
+                                    onAddEvent(selectedDate)
                                 }
-                            } else {
-                                onAddEvent(selectedDate)
-                            }
-                        }
+                            },
                 ) {
                     Icon(
-                        if (isCreatingEvent) Icons.Rounded.Close else Icons.Rounded.Add, 
-                        contentDescription = "Add", 
-                        tint = Color.White, 
-                        modifier = Modifier.size(28.dp)
+                        if (isCreatingEvent) Icons.Rounded.Close else Icons.Rounded.Add,
+                        contentDescription = "Add",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
             }
@@ -307,46 +315,50 @@ fun STierSlidingWeekTrack(
     selectedDate: Calendar,
     onDateSelect: (Calendar) -> Unit,
     accentColor: Color,
-    isDark: Boolean
+    isDark: Boolean,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val trackPadding = 24.dp
     val availableWidth = screenWidth - (trackPadding * 2)
     val dayWidth = availableWidth / 7
-    
+
     val surfaceColor = MaterialTheme.colorScheme.surface
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
-    val selectedIndex = weekDays.indexOfFirst { 
-        it.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR) &&
-        it.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
-    }.coerceAtLeast(0)
+    val selectedIndex =
+        weekDays
+            .indexOfFirst {
+                it.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR) &&
+                    it.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
+            }.coerceAtLeast(0)
 
     // Mathematically pure sliding animation (Zero recomposition on sliding items)
     val slidingOffset by animateDpAsState(
         targetValue = dayWidth * selectedIndex,
         animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f),
-        label = "slidingPill"
+        label = "slidingPill",
     )
 
     Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = trackPadding)
-                    .height(72.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(surfaceColor)
-                    .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.03f), RoundedCornerShape(24.dp))
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = trackPadding)
+                .height(72.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(surfaceColor)
+                .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.03f), RoundedCornerShape(24.dp)),
     ) {
         // The Physical Background Pill that slides
         Box(
-            modifier = Modifier
-                .offset(x = slidingOffset)
-                .width(dayWidth)
-                .fillMaxHeight()
-                .padding(4.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(accentColor)
+            modifier =
+                Modifier
+                    .offset(x = slidingOffset)
+                    .width(dayWidth)
+                    .fillMaxHeight()
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(accentColor),
         )
 
         // The text layers sitting on top
@@ -355,29 +367,31 @@ fun STierSlidingWeekTrack(
                 val isSelected = index == selectedIndex
                 val itemTextColor by animateColorAsState(
                     targetValue = if (isSelected) Color.White else onSurfaceColor.copy(alpha = 0.6f),
-                    animationSpec = tween(200), label = "textColor"
+                    animationSpec = tween(200),
+                    label = "textColor",
                 )
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .width(dayWidth)
-                        .fillMaxHeight()
-                        .squishClick { onDateSelect(day) }
+                    modifier =
+                        Modifier
+                            .width(dayWidth)
+                            .fillMaxHeight()
+                            .squishClick { onDateSelect(day) },
                 ) {
                     Text(
                         text = SimpleDateFormat("E", Locale.getDefault()).format(day.time).take(1),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = itemTextColor.copy(alpha = if (isSelected) 0.8f else 0.5f)
+                        color = itemTextColor.copy(alpha = if (isSelected) 0.8f else 0.5f),
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = day.get(Calendar.DAY_OF_MONTH).toString(),
                         fontSize = 18.sp,
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = itemTextColor
+                        color = itemTextColor,
                     )
                 }
             }
@@ -394,51 +408,56 @@ fun BentoTimelineNode(
     accentColor: Color,
     surfaceColor: Color,
     onSurfaceColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val isHappeningNow = event.isHappeningNow()
     val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
     // Breathing Glow for "Now"
     val glow by rememberInfiniteTransition().animateFloat(
-        initialValue = 0f, targetValue = if (isHappeningNow) 0.4f else 0f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearOutSlowInEasing), RepeatMode.Reverse), label = "glow"
+        initialValue = 0f,
+        targetValue = if (isHappeningNow) 0.4f else 0f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearOutSlowInEasing), RepeatMode.Reverse),
+        label = "glow",
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .height(IntrinsicSize.Min) // Matches row height to content
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .height(IntrinsicSize.Min), // Matches row height to content
     ) {
         // Left Timeline
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(50.dp)
+            modifier = Modifier.width(50.dp),
         ) {
             Text(
                 text = timeFormat.format(Date(event.startTime)).replace(" AM", "am").replace(" PM", "pm"),
                 fontSize = 12.sp,
                 fontWeight = if (isHappeningNow) FontWeight.Bold else FontWeight.Medium,
-                color = if (isHappeningNow) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isHappeningNow) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
-            
+
             // Connected line with glowing dot
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .width(2.dp)
-                    .background(if (isDark) Color.White.copy(0.1f) else Color.Black.copy(0.05f))
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .width(2.dp)
+                        .background(if (isDark) Color.White.copy(0.1f) else Color.Black.copy(0.05f)),
             ) {
                 if (isHappeningNow) {
                     Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .offset(x = (-3).dp, y = 10.dp) // Float the dot
-                            .clip(CircleShape)
-                            .background(accentColor)
-                            .border(2.dp, accentColor.copy(alpha = glow), CircleShape)
+                        modifier =
+                            Modifier
+                                .size(8.dp)
+                                .offset(x = (-3).dp, y = 10.dp) // Float the dot
+                                .clip(CircleShape)
+                                .background(accentColor)
+                                .border(2.dp, accentColor.copy(alpha = glow), CircleShape),
                     )
                 }
             }
@@ -450,21 +469,27 @@ fun BentoTimelineNode(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = surfaceColor,
-            modifier = Modifier
-                .weight(1f)
-                .padding(bottom = if (isLast) 0.dp else 20.dp)
-                .squishClick(onClick = onClick)
-                .graphicsLayer {
-                    shadowElevation = if (isDark) 0f else 12.dp.toPx()
-                    ambientShadowColor = Color.Black.copy(0.03f)
-                    spotShadowColor = Color.Black.copy(0.05f)
-                }
-                .border(
-                    width = 1.dp,
-                    color = if (isHappeningNow) accentColor.copy(alpha = 0.5f + glow) 
-                            else if (isDark) Color.White.copy(0.05f) else Color.Transparent,
-                    shape = RoundedCornerShape(24.dp)
-                )
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(bottom = if (isLast) 0.dp else 20.dp)
+                    .squishClick(onClick = onClick)
+                    .graphicsLayer {
+                        shadowElevation = if (isDark) 0f else 12.dp.toPx()
+                        ambientShadowColor = Color.Black.copy(0.03f)
+                        spotShadowColor = Color.Black.copy(0.05f)
+                    }.border(
+                        width = 1.dp,
+                        color =
+                            if (isHappeningNow) {
+                                accentColor.copy(alpha = 0.5f + glow)
+                            } else if (isDark) {
+                                Color.White.copy(0.05f)
+                            } else {
+                                Color.Transparent
+                            },
+                        shape = RoundedCornerShape(24.dp),
+                    ),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -478,14 +503,14 @@ fun BentoTimelineNode(
                         fontWeight = FontWeight.Bold,
                         color = onSurfaceColor,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                
+
                 val desc = event.description
                 if (!desc.isNullOrBlank() || !event.location.isNullOrBlank()) {
                     Spacer(Modifier.height(12.dp))
-                    
+
                     if (!desc.isNullOrBlank()) {
                         Text(
                             text = desc,
@@ -493,7 +518,7 @@ fun BentoTimelineNode(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            lineHeight = 20.sp
+                            lineHeight = 20.sp,
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -503,11 +528,17 @@ fun BentoTimelineNode(
                     if (!loc.isNullOrBlank()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .background(if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.05f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier =
+                                Modifier
+                                    .background(if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.05f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                         ) {
-                            Icon(Icons.Rounded.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
+                            Icon(
+                                Icons.Rounded.LocationOn,
+                                null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp),
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text(loc, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                         }
@@ -520,10 +551,15 @@ fun BentoTimelineNode(
 
 // ── S-TIER LIVE ACTIVITY TIMER (FROM PREVIOUS ITERATION) ────────────
 @Composable
-fun STierLiveTimerCard(timer: SmartyTimer, accentColor: Color, surfaceColor: Color, onCancel: () -> Unit) {
+fun STierLiveTimerCard(
+    timer: SmartyTimer,
+    accentColor: Color,
+    surfaceColor: Color,
+    onCancel: () -> Unit,
+) {
     var ticks by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(timer) {
-        while(true) {
+        while (true) {
             ticks = System.currentTimeMillis()
             delay(1000)
         }
@@ -531,48 +567,63 @@ fun STierLiveTimerCard(timer: SmartyTimer, accentColor: Color, surfaceColor: Col
 
     val timeRemaining = if (!timer.isAlarm) (timer.triggerTime - ticks).coerceAtLeast(0) else 0L
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-    val statusText = if (timer.isAlarm) {
-        timeFormat.format(Date(timer.triggerTime)).lowercase()
-    } else {
-        val minutes = timeRemaining / 60000
-        val seconds = (timeRemaining % 60000) / 1000
-        String.format("%d:%02d", minutes, seconds)
-    }
+    val statusText =
+        if (timer.isAlarm) {
+            timeFormat.format(Date(timer.triggerTime)).lowercase()
+        } else {
+            val minutes = timeRemaining / 60000
+            val seconds = (timeRemaining % 60000) / 1000
+            String.format("%d:%02d", minutes, seconds)
+        }
 
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = surfaceColor,
-        modifier = Modifier.fillMaxWidth().graphicsLayer {
-            shadowElevation = 12.dp.toPx()
-            ambientShadowColor = accentColor.copy(alpha = 0.4f)
-            spotShadowColor = accentColor.copy(alpha = 0.4f)
-        }
+        modifier =
+            Modifier.fillMaxWidth().graphicsLayer {
+                shadowElevation = 12.dp.toPx()
+                ambientShadowColor = accentColor.copy(alpha = 0.4f)
+                spotShadowColor = accentColor.copy(alpha = 0.4f)
+            },
     ) {
         Row(
             modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             val infiniteTransition = rememberInfiniteTransition()
             val alpha by infiniteTransition.animateFloat(
-                initialValue = 0.3f, targetValue = 1f,
-                animationSpec = infiniteRepeatable(tween(800, easing = LinearOutSlowInEasing), RepeatMode.Reverse)
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(tween(800, easing = LinearOutSlowInEasing), RepeatMode.Reverse),
             )
             Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(accentColor.copy(alpha = alpha)))
-            
+
             Spacer(Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(timer.name, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(statusText, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Text(
+                    statusText,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                )
             }
-            
+
             Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .squishClick(onClick = onCancel),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(32.dp)
+                        .squishClick(onClick = onCancel),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.StopCircle, contentDescription = "Stop", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
+                Icon(
+                    Icons.Rounded.StopCircle,
+                    contentDescription = "Stop",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(28.dp),
+                )
             }
         }
     }
@@ -580,15 +631,23 @@ fun STierLiveTimerCard(timer: SmartyTimer, accentColor: Color, surfaceColor: Col
 
 // ============ Helper Functions ============
 
-private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean =
-    cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) && cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+private fun isSameDay(
+    cal1: Calendar,
+    cal2: Calendar,
+): Boolean = cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) && cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 
-private fun isSameDay(cal: Calendar, timestamp: Long): Boolean {
+private fun isSameDay(
+    cal: Calendar,
+    timestamp: Long,
+): Boolean {
     val other = Calendar.getInstance().apply { timeInMillis = timestamp }
     return isSameDay(cal, other)
 }
 
-private fun filterEventsForDate(events: List<CalendarEvent>, date: Calendar): List<CalendarEvent> {
+private fun filterEventsForDate(
+    events: List<CalendarEvent>,
+    date: Calendar,
+): List<CalendarEvent> {
     val dayStart = date.clone() as Calendar
     dayStart.set(Calendar.HOUR_OF_DAY, 0)
     dayStart.set(Calendar.MINUTE, 0)
@@ -598,7 +657,8 @@ private fun filterEventsForDate(events: List<CalendarEvent>, date: Calendar): Li
     val dayEnd = dayStart.clone() as Calendar
     dayEnd.add(Calendar.DAY_OF_MONTH, 1)
 
-    return events.filter { event ->
-        event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
-    }.sortedBy { it.startTime }
+    return events
+        .filter { event ->
+            event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
+        }.sortedBy { it.startTime }
 }

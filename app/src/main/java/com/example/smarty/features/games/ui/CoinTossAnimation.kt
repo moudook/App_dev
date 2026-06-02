@@ -16,8 +16,8 @@ import com.example.smarty.features.games.ui.CoinTossConstants.DEFAULT_CAMERA_DIS
 import com.example.smarty.features.games.ui.CoinTossConstants.DEFAULT_ZOOM
 import com.example.smarty.features.games.ui.CoinTossConstants.FALL_TIME
 import com.example.smarty.features.games.ui.CoinTossConstants.LAUNCH_HEIGHT
-import com.example.smarty.features.games.ui.CoinTossConstants.LAUNCH_TIME
 import com.example.smarty.features.games.ui.CoinTossConstants.LAUNCH_TILT_X
+import com.example.smarty.features.games.ui.CoinTossConstants.LAUNCH_TIME
 import com.example.smarty.features.games.ui.CoinTossConstants.LAUNCH_ZOOM
 import com.example.smarty.features.games.ui.CoinTossConstants.MIN_SPINS
 import com.example.smarty.features.games.ui.CoinTossConstants.PEAK_TILT_X
@@ -38,7 +38,7 @@ data class CoinAnimationState(
     val translationY: Animatable<Float, AnimationVector1D> = Animatable(0f),
     val shadowScale: Animatable<Float, AnimationVector1D> = Animatable(1f),
     val zoomScale: Animatable<Float, AnimationVector1D> = Animatable(1f),
-    val cameraDist: Animatable<Float, AnimationVector1D> = Animatable(DEFAULT_CAMERA_DIST)
+    val cameraDist: Animatable<Float, AnimationVector1D> = Animatable(DEFAULT_CAMERA_DIST),
 )
 
 /**
@@ -58,9 +58,8 @@ suspend fun performToss(
     onResult: (isHeads: Boolean) -> Unit,
     onLand: () -> Unit,
     onStart: () -> Unit,
-    onEnd: () -> Unit
+    onEnd: () -> Unit,
 ) = coroutineScope {
-
     onStart()
 
     val isHeads = Random.nextBoolean()
@@ -77,15 +76,15 @@ suspend fun performToss(
     launch {
         state.rotationX.animateTo(
             currentRot + (targetRotation - currentRot) * 0.45f,
-            tween(LAUNCH_TIME, easing = LinearOutSlowInEasing)
+            tween(LAUNCH_TIME, easing = LinearOutSlowInEasing),
         )
         state.rotationX.animateTo(
             currentRot + (targetRotation - currentRot) * 0.55f,
-            tween(PEAK_TIME, easing = LinearEasing)
+            tween(PEAK_TIME, easing = LinearEasing),
         )
         state.rotationX.animateTo(
             targetRotation,
-            tween(FALL_TIME, easing = FastOutLinearInEasing)
+            tween(FALL_TIME, easing = FastOutLinearInEasing),
         )
     }
 

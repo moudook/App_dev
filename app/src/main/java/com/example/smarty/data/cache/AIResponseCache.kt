@@ -36,9 +36,7 @@ class AIResponseCache(
         val timestamp: Long = System.currentTimeMillis(),
         var lastAccess: Long = System.currentTimeMillis(),
     ) {
-        fun isExpired(ttlMs: Long = 30 * 60 * 1000L): Boolean {
-            return System.currentTimeMillis() - timestamp > ttlMs
-        }
+        fun isExpired(ttlMs: Long = 30 * 60 * 1000L): Boolean = System.currentTimeMillis() - timestamp > ttlMs
     }
 
     private val memoryCache = ConcurrentHashMap<String, MemoryEntry>()
@@ -70,7 +68,8 @@ class AIResponseCache(
     fun generateKey(content: String): String {
         // Normalize content: trim, collapse whitespace
         val normalized =
-            content.trim()
+            content
+                .trim()
                 .replace(Regex("\\s+"), " ")
                 .take(2000) // Only hash first 2000 chars for performance
 
@@ -179,8 +178,8 @@ class AIResponseCache(
      * Prune expired entries from Room cache.
      * @return number of entries pruned
      */
-    suspend fun pruneExpired(): Int {
-        return try {
+    suspend fun pruneExpired(): Int =
+        try {
             val before = cacheDao.getCount()
             cacheDao.pruneExpired(System.currentTimeMillis())
             val after = cacheDao.getCount()
@@ -189,7 +188,6 @@ class AIResponseCache(
             Log.e(TAG, "Error pruning cache", e)
             0
         }
-    }
 
     /**
      * Clear all cached entries (both memory and Room).
@@ -257,16 +255,15 @@ class AIResponseCache(
                 val timestamp: Long = System.currentTimeMillis(),
                 var lastAccess: Long = System.currentTimeMillis(),
             ) {
-                fun isExpired(ttlMs: Long = DEFAULT_TTL_MS): Boolean {
-                    return System.currentTimeMillis() - timestamp > ttlMs
-                }
+                fun isExpired(ttlMs: Long = DEFAULT_TTL_MS): Boolean = System.currentTimeMillis() - timestamp > ttlMs
             }
 
             private val cache = ConcurrentHashMap<String, CacheEntry>()
 
             fun generateKey(content: String): String {
                 val normalized =
-                    content.trim()
+                    content
+                        .trim()
                         .replace(Regex("\\s+"), " ")
                         .take(2000)
 

@@ -118,11 +118,22 @@ object ImpressedLogConstants {
      */
     val POSITIVE_KEYWORDS =
         listOf(
-            "thanks", "thank you", "thx",
-            "great", "awesome", "amazing", "wonderful",
-            "perfect", "exactly", "that's it",
-            "nice", "good", "excellent",
-            "helpful", "love it", "brilliant",
+            "thanks",
+            "thank you",
+            "thx",
+            "great",
+            "awesome",
+            "amazing",
+            "wonderful",
+            "perfect",
+            "exactly",
+            "that's it",
+            "nice",
+            "good",
+            "excellent",
+            "helpful",
+            "love it",
+            "brilliant",
         )
 
     /**

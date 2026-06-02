@@ -6,8 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-
-
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,13 +16,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.features.games.ui.TicTacToeGameContent
-import com.example.smarty.features.games.ui.CoinTossGameContent
-import com.example.smarty.features.games.ui.ChessScreen
 import com.example.smarty.features.breathing.GuidedBreathingContent
+import com.example.smarty.features.games.ui.ChessScreen
+import com.example.smarty.features.games.ui.CoinTossGameContent
+import com.example.smarty.features.games.ui.TicTacToeGameContent
 import com.example.smarty.ui.components.UnifiedDragHandle
-import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.ComponentColors
+import com.example.smarty.ui.theme.LocalShapes
 
 /**
  * Games Hub — Anthropic-aesthetic redesign.
@@ -40,18 +38,19 @@ private data class GameCardData(
     val emoji: String,
 )
 
-private val gameCards = listOf(
-    GameCardData("Tic-Tac-Toe", "Challenge the AI or a friend", "✕ ○"),
-    GameCardData("Chess", "Strategic play, your pace", "♟"),
-    GameCardData("Coin Toss", "Let fate decide", "⊙"),
-    GameCardData("Guided Breathing", "Calm your mind", "◎")
-)
+private val gameCards =
+    listOf(
+        GameCardData("Tic-Tac-Toe", "Challenge the AI or a friend", "✕ ○"),
+        GameCardData("Chess", "Strategic play, your pace", "♟"),
+        GameCardData("Coin Toss", "Let fate decide", "⊙"),
+        GameCardData("Guided Breathing", "Calm your mind", "◎"),
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GamesContent(
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val isDark = isSystemInDarkTheme()
     val shapes = LocalShapes.current
@@ -66,40 +65,46 @@ fun GamesContent(
     val coinTossSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val chessSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val breathingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val iOSSheetShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)
+    val iOSSheetShape =
+        androidx.compose.foundation.shape
+            .RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)
 
     // ── Main layout ────────────────────────────────────────────────────
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(contentPadding)
+                .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         // Tiny section label — Anthropic style
         Text(
             text = "GAMES",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 10.sp,
-                letterSpacing = 1.5.sp
-            ),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.5.sp,
+                ),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
         )
 
-        val accentColors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.secondaryContainer,
-            MaterialTheme.colorScheme.tertiaryContainer,
-            ComponentColors.breathingAccent
-        )
-        val onClicks = listOf(
-            { showTicTacToe = true },
-            { showChess = true },
-            { showCoinToss = true },
-            { showGuidedBreathing = true }
-        )
+        val accentColors =
+            listOf(
+                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.colorScheme.secondaryContainer,
+                MaterialTheme.colorScheme.tertiaryContainer,
+                ComponentColors.breathingAccent,
+            )
+        val onClicks =
+            listOf(
+                { showTicTacToe = true },
+                { showChess = true },
+                { showCoinToss = true },
+                { showGuidedBreathing = true },
+            )
 
         gameCards.forEachIndexed { index, game ->
             GameHubCard(
@@ -108,7 +113,7 @@ fun GamesContent(
                 emoji = game.emoji,
                 accentBg = accentColors[index],
                 isDark = isDark,
-                onClick = onClicks[index]
+                onClick = onClicks[index],
             )
         }
 
@@ -123,7 +128,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = iOSSheetShape
+            shape = iOSSheetShape,
         ) {
             TicTacToeGameContent(onClose = { showTicTacToe = false })
         }
@@ -137,7 +142,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = iOSSheetShape
+            shape = iOSSheetShape,
         ) {
             ChessScreen(onClose = { showChess = false })
         }
@@ -151,7 +156,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = iOSSheetShape
+            shape = iOSSheetShape,
         ) {
             CoinTossGameContent(onClose = { showCoinToss = false })
         }
@@ -165,7 +170,7 @@ fun GamesContent(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             dragHandle = { UnifiedDragHandle() },
-            shape = iOSSheetShape
+            shape = iOSSheetShape,
         ) {
             GuidedBreathingContent(onClose = { showGuidedBreathing = false })
         }
@@ -183,76 +188,84 @@ private fun GameHubCard(
     emoji: String,
     accentBg: Color,
     isDark: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val shapes = LocalShapes.current
-    val borderColor = if (isDark)
-        Color.White.copy(alpha = 0.06f)
-    else
-        Color.Black.copy(alpha = 0.05f)
+    val borderColor =
+        if (isDark) {
+            Color.White.copy(alpha = 0.06f)
+        } else {
+            Color.Black.copy(alpha = 0.05f)
+        }
 
-    val cardBg = if (isDark)
-        Color.White.copy(alpha = 0.03f)
-    else
-        Color.White.copy(alpha = 0.70f)
+    val cardBg =
+        if (isDark) {
+            Color.White.copy(alpha = 0.03f)
+        } else {
+            Color.White.copy(alpha = 0.70f)
+        }
 
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "cardScale"
+        label = "cardScale",
     )
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayerScale(scale)
-            .clip(shapes.card)
-            .clickable(
-                onClick = onClick,
-                onClickLabel = "Open $title"
-            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayerScale(scale)
+                .clip(shapes.card)
+                .clickable(
+                    onClick = onClick,
+                    onClickLabel = "Open $title",
+                ),
         shape = shapes.card,
         color = cardBg,
         border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
-        tonalElevation = 0.dp
+        tonalElevation = 0.dp,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground
+                    style =
+                        MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp,
+                        ),
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
                 )
             }
 
             // Accent blob with emoji
             Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(shapes.cardSmall)
-                    .background(accentBg),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(52.dp)
+                        .clip(shapes.cardSmall)
+                        .background(accentBg),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = emoji,
                     fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                 )
             }
         }
@@ -263,5 +276,5 @@ private fun GameHubCard(
 private fun Modifier.graphicsLayerScale(scale: Float): Modifier =
     this.graphicsLayer(
         scaleX = scale,
-        scaleY = scale
+        scaleY = scale,
     )

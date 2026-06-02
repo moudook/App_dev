@@ -85,9 +85,8 @@ class ThinkingModeProcessor(
         return query.trim()
     }
 
-    private fun isDocumentType(type: NoteType): Boolean {
-        return type == NoteType.DOCUMENT || type == NoteType.CODE || type == NoteType.SPREADSHEET || type == NoteType.PRESENTATION
-    }
+    private fun isDocumentType(type: NoteType): Boolean =
+        type == NoteType.DOCUMENT || type == NoteType.CODE || type == NoteType.SPREADSHEET || type == NoteType.PRESENTATION
 
     private suspend fun extractFullDocumentContent(note: Note): String {
         val fileUri = note.fileUri ?: return note.content

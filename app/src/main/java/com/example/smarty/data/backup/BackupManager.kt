@@ -110,7 +110,8 @@ class BackupManager(
                 val notes = database.noteDao().getAllNotesOnce()
                 val categories = database.categoryDao().getAllCategoriesOnce()
 
-                _backupState.value = BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
+                _backupState.value =
+                    BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
 
                 // Create temp directory for backup
                 val tempDir = File(context.cacheDir, "backup_temp_${System.currentTimeMillis()}")
@@ -123,7 +124,8 @@ class BackupManager(
                     imagesDir.mkdirs()
                     filesDir.mkdirs()
 
-                    _backupState.value = BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
 
                     // Copy attachments and build backup notes with relative paths
                     var attachmentCount = 0
@@ -172,7 +174,8 @@ class BackupManager(
                             NoteBackup.fromNote(note, backupImagePath, backupFilePath)
                         }
 
-                    _backupState.value = BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.backup_creating_export))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.backup_creating_export))
 
                     // Create database backup
                     val categoryBackups = categories.map { CategoryBackup.fromCategory(it) }
@@ -180,14 +183,16 @@ class BackupManager(
                     val databaseJson = gson.toJson(databaseBackup)
                     File(tempDir, DatabaseBackup.DATABASE_FILENAME).writeText(databaseJson)
 
-                    _backupState.value = BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
 
                     // Create preferences backup
                     val preferencesBackup = createPreferencesBackup()
                     val preferencesJson = gson.toJson(preferencesBackup)
                     File(tempDir, PREFERENCES_FILENAME).writeText(preferencesJson)
 
-                    _backupState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
 
                     // Create manifest
                     val manifest =
@@ -212,7 +217,8 @@ class BackupManager(
                     val manifestJson = gson.toJson(manifest)
                     File(tempDir, BackupManifest.MANIFEST_FILENAME).writeText(manifestJson)
 
-                    _backupState.value = BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_creating_archive))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_creating_archive))
 
                     // Create ZIP file
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -221,24 +227,27 @@ class BackupManager(
 
                     createZipFile(tempDir, zipFile)
 
-                    _backupState.value = BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_uploading))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_uploading))
 
                     // Upload to Drive
                     val fileId =
-                        driveService.uploadBackupWithMetadata(
-                            localFile = zipFile,
-                            fileName = zipFileName,
-                            manifest = manifest,
-                        ) { uploadProgress ->
-                            val totalProgress = 0.75f + (0.2f * uploadProgress)
-                            _backupState.value =
-                                BackupOperationState.InProgress(
-                                    totalProgress,
-                                    context.getString(com.example.smarty.R.string.backup_uploading),
-                                )
-                        }.getOrThrow()
+                        driveService
+                            .uploadBackupWithMetadata(
+                                localFile = zipFile,
+                                fileName = zipFileName,
+                                manifest = manifest,
+                            ) { uploadProgress ->
+                                val totalProgress = 0.75f + (0.2f * uploadProgress)
+                                _backupState.value =
+                                    BackupOperationState.InProgress(
+                                        totalProgress,
+                                        context.getString(com.example.smarty.R.string.backup_uploading),
+                                    )
+                            }.getOrThrow()
 
-                    _backupState.value = BackupOperationState.InProgress(0.95f, context.getString(com.example.smarty.R.string.backup_cleaning_old))
+                    _backupState.value =
+                        BackupOperationState.InProgress(0.95f, context.getString(com.example.smarty.R.string.backup_cleaning_old))
 
                     // Clean up old backups
                     driveService.deleteOldBackups()
@@ -303,29 +312,33 @@ class BackupManager(
                     throw Exception("connection_lost")
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.02f, context.getString(com.example.smarty.R.string.restore_creating_safety))
+                _restoreState.value =
+                    BackupOperationState.InProgress(0.02f, context.getString(com.example.smarty.R.string.restore_creating_safety))
 
                 // Save current data for potential rollback
                 preRestoreNotes = database.noteDao().getAllNotesOnce()
                 preRestoreCategories = database.categoryDao().getAllCategoriesOnce()
 
-                _restoreState.value = BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.restore_downloading))
+                _restoreState.value =
+                    BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.restore_downloading))
 
                 // Download backup file
                 val downloadFile = File(context.cacheDir, "restore_${System.currentTimeMillis()}.zip")
-                driveService.downloadBackup(
-                    fileId = metadata.driveFileId,
-                    destinationFile = downloadFile,
-                ) { progress ->
-                    val totalProgress = 0.05f + (0.25f * progress)
-                    _restoreState.value =
-                        BackupOperationState.InProgress(
-                            totalProgress,
-                            context.getString(com.example.smarty.R.string.restore_downloading),
-                        )
-                }.getOrThrow()
+                driveService
+                    .downloadBackup(
+                        fileId = metadata.driveFileId,
+                        destinationFile = downloadFile,
+                    ) { progress ->
+                        val totalProgress = 0.05f + (0.25f * progress)
+                        _restoreState.value =
+                            BackupOperationState.InProgress(
+                                totalProgress,
+                                context.getString(com.example.smarty.R.string.restore_downloading),
+                            )
+                    }.getOrThrow()
 
-                _restoreState.value = BackupOperationState.InProgress(0.3f, context.getString(com.example.smarty.R.string.restore_extracting))
+                _restoreState.value =
+                    BackupOperationState.InProgress(0.3f, context.getString(com.example.smarty.R.string.restore_extracting))
 
                 // Extract ZIP
                 val extractDir = File(context.cacheDir, "restore_extract_${System.currentTimeMillis()}")
@@ -334,7 +347,8 @@ class BackupManager(
                 try {
                     extractZipFile(downloadFile, extractDir)
 
-                    _restoreState.value = BackupOperationState.InProgress(0.4f, context.getString(com.example.smarty.R.string.restore_verifying))
+                    _restoreState.value =
+                        BackupOperationState.InProgress(0.4f, context.getString(com.example.smarty.R.string.restore_verifying))
 
                     // INPUT-001: Validate backup size before processing
                     val totalSize = extractDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -367,7 +381,8 @@ class BackupManager(
                         )
                     }
 
-                    _restoreState.value = BackupOperationState.InProgress(0.45f, context.getString(com.example.smarty.R.string.restore_reading_db))
+                    _restoreState.value =
+                        BackupOperationState.InProgress(0.45f, context.getString(com.example.smarty.R.string.restore_reading_db))
 
                     // Read database backup
                     val databaseFile = File(extractDir, DatabaseBackup.DATABASE_FILENAME)
@@ -384,20 +399,23 @@ class BackupManager(
                         throw Exception(context.getString(com.example.smarty.R.string.error_backup_missing_data))
                     }
 
-                    _restoreState.value = BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.restore_clearing_data))
+                    _restoreState.value =
+                        BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.restore_clearing_data))
 
                     // Clear existing database
                     database.noteDao().deleteAllNotes()
                     database.categoryDao().deleteAllCategories()
 
-                    _restoreState.value = BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.restore_restoring_categories))
+                    _restoreState.value =
+                        BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.restore_restoring_categories))
 
                     // Restore categories first (notes depend on them)
                     databaseBackup.categories.forEach { categoryBackup ->
                         database.categoryDao().insertCategory(categoryBackup.toCategory())
                     }
 
-                    _restoreState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.restore_restoring_notes))
+                    _restoreState.value =
+                        BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.restore_restoring_notes))
 
                     // Restore notes with attachments
                     val attachmentsDir = File(context.filesDir, "restored_attachments")
@@ -408,7 +426,11 @@ class BackupManager(
                         _restoreState.value =
                             BackupOperationState.InProgress(
                                 progress,
-                                context.getString(com.example.smarty.R.string.restore_restoring_progress, index + 1, databaseBackup.notes.size),
+                                context.getString(
+                                    com.example.smarty.R.string.restore_restoring_progress,
+                                    index + 1,
+                                    databaseBackup.notes.size,
+                                ),
                             )
 
                         var restoredImageUri: String? = null
@@ -527,8 +549,8 @@ class BackupManager(
 
     // Helper functions
 
-    private fun createPreferencesBackup(): PreferencesBackup {
-        return PreferencesBackup(
+    private fun createPreferencesBackup(): PreferencesBackup =
+        PreferencesBackup(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
@@ -538,7 +560,6 @@ class BackupManager(
             shakeSensitivity = securePreferences.getShakeSensitivity(),
             soundEnabled = securePreferences.isSoundEnabled(),
         )
-    }
 
     private fun restorePreferences(backup: PreferencesBackup) {
         securePreferences.setDarkTheme(backup.isDarkTheme)
@@ -560,8 +581,8 @@ class BackupManager(
     private fun copyUriToFile(
         uri: Uri,
         destFile: File,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val fileSize = getFileSizeFromUri(uri) ?: 0L
                 if (fileSize > LARGE_FILE_THRESHOLD) {
@@ -578,7 +599,6 @@ class BackupManager(
         } catch (e: Exception) {
             false
         }
-    }
 
     /**
      * NIO-based file copy for large files.
@@ -603,8 +623,8 @@ class BackupManager(
     /**
      * Gets file size from URI for optimization decisions.
      */
-    private fun getFileSizeFromUri(uri: Uri): Long? {
-        return try {
+    private fun getFileSizeFromUri(uri: Uri): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -616,10 +636,9 @@ class BackupManager(
         } catch (e: Exception) {
             null
         }
-    }
 
-    private fun getFileNameFromUri(uri: Uri): String? {
-        return try {
+    private fun getFileNameFromUri(uri: Uri): String? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -631,7 +650,6 @@ class BackupManager(
         } catch (e: Exception) {
             uri.lastPathSegment
         }
-    }
 
     /**
      * Check if network is available for cloud operations.
@@ -640,10 +658,11 @@ class BackupManager(
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
         val network = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(network)
-        return capabilities != null && (
-            capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        )
+        return capabilities != null &&
+            (
+                capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            )
     }
 
     /**
@@ -727,30 +746,31 @@ class BackupManager(
             val progressMutex = Mutex()
 
             coroutineScope {
-                attachmentData.mapIndexed { index, data ->
-                    async {
-                        copySemaphore.withPermit {
-                            val result =
-                                try {
-                                    if (copyUriToFile(data.sourceUri, data.destFile)) {
-                                        AttachmentCopyResult(data.noteId, data.relativePath, true)
-                                    } else {
+                attachmentData
+                    .mapIndexed { index, data ->
+                        async {
+                            copySemaphore.withPermit {
+                                val result =
+                                    try {
+                                        if (copyUriToFile(data.sourceUri, data.destFile)) {
+                                            AttachmentCopyResult(data.noteId, data.relativePath, true)
+                                        } else {
+                                            AttachmentCopyResult(data.noteId, null, false)
+                                        }
+                                    } catch (e: Exception) {
                                         AttachmentCopyResult(data.noteId, null, false)
                                     }
-                                } catch (e: Exception) {
-                                    AttachmentCopyResult(data.noteId, null, false)
+                                results[index] = result
+
+                                progressMutex.withLock {
+                                    completedCount++
+                                    onProgress(completedCount, attachmentData.size)
                                 }
-                            results[index] = result
 
-                            progressMutex.withLock {
-                                completedCount++
-                                onProgress(completedCount, attachmentData.size)
+                                result
                             }
-
-                            result
                         }
-                    }
-                }.awaitAll()
+                    }.awaitAll()
             }
 
             results.filterNotNull()

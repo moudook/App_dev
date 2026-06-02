@@ -14,15 +14,17 @@ import kotlinx.coroutines.launch
  * This is essential for reliability, as AlarmManager loses all alarms on reboot.
  */
 class BootReceiver : BroadcastReceiver() {
-
     companion object {
         private const val TAG = "BootReceiver"
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent.action == "android.intent.action.QUICKBOOT_POWERON") {
-
+            intent.action == "android.intent.action.QUICKBOOT_POWERON"
+        ) {
             Log.d(TAG, "Device reboot detected - rescheduling alarms")
 
             val pendingResult = goAsync()

@@ -139,13 +139,12 @@ object FileCompressor {
         object : LruCache<String, File>(getMaxCacheEntries()) {
             private var totalSize = 0L
 
-            private fun getMaxCacheSizeBytes(): Long {
-                return try {
+            private fun getMaxCacheSizeBytes(): Long =
+                try {
                     ResourceManager.getMaxCacheSize()
                 } catch (e: Exception) {
                     50 * 1024 * 1024L
                 }
-            }
 
             override fun entryRemoved(
                 evicted: Boolean,
@@ -169,8 +168,8 @@ object FileCompressor {
             fun getCurrentSize(): Long = totalSize
         }
 
-    private fun getMaxCacheEntries(): Int {
-        return try {
+    private fun getMaxCacheEntries(): Int =
+        try {
             when (ResourceManager.getDeviceClass()) {
                 ResourceManager.DeviceClass.EDGE -> 5
                 ResourceManager.DeviceClass.LOW -> 10
@@ -181,7 +180,6 @@ object FileCompressor {
         } catch (e: Exception) {
             20
         }
-    }
 
     private val cacheMutex = Mutex()
 
@@ -267,11 +265,10 @@ object FileCompressor {
     /**
      * Check if metadata should be stripped for this file type
      */
-    private fun shouldStripMetadata(mimeType: String?): Boolean {
-        return mimeType?.let {
+    private fun shouldStripMetadata(mimeType: String?): Boolean =
+        mimeType?.let {
             it.startsWith("image/") || it.startsWith("video/") || it.startsWith("audio/")
         } ?: false
-    }
 
     /**
      * Strip metadata before compression for privacy and size reduction.
@@ -766,9 +763,7 @@ object FileCompressor {
     /**
      * Gets the current decompression state for a file.
      */
-    fun getDecompressionState(fileId: String): DecompressionState {
-        return _decompressionStates.value[fileId] ?: DecompressionState.IDLE
-    }
+    fun getDecompressionState(fileId: String): DecompressionState = _decompressionStates.value[fileId] ?: DecompressionState.IDLE
 
     /**
      * Clears the decompression cache.
@@ -819,27 +814,28 @@ object FileCompressor {
 
             // Process files in parallel with semaphore control
             coroutineScope {
-                inputs.mapIndexed { index, input ->
-                    async {
-                        val result =
-                            compressFile(
-                                context = context,
-                                sourceUri = input.sourceUri,
-                                mimeType = input.mimeType,
-                                originalFileName = input.originalFileName,
-                                destDir = destDir,
-                            )
-                        results[index] = result
+                inputs
+                    .mapIndexed { index, input ->
+                        async {
+                            val result =
+                                compressFile(
+                                    context = context,
+                                    sourceUri = input.sourceUri,
+                                    mimeType = input.mimeType,
+                                    originalFileName = input.originalFileName,
+                                    destDir = destDir,
+                                )
+                            results[index] = result
 
-                        // Update progress
-                        progressMutex.withLock {
-                            completedCount++
-                            onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            // Update progress
+                            progressMutex.withLock {
+                                completedCount++
+                                onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                            }
+
+                            result
                         }
-
-                        result
-                    }
-                }.awaitAll()
+                    }.awaitAll()
             }
 
             results.filterNotNull()
@@ -863,27 +859,28 @@ object FileCompressor {
             var completedCount = 0
 
             coroutineScope {
-                sources.map { (uri, fileName) ->
-                    async {
-                        val destFileName = fileName ?: "file_${System.currentTimeMillis()}"
-                        val destFile = File(destDir, destFileName)
+                sources
+                    .map { (uri, fileName) ->
+                        async {
+                            val destFileName = fileName ?: "file_${System.currentTimeMillis()}"
+                            val destFile = File(destDir, destFileName)
 
-                        val inputStream = context.contentResolver.openInputStream(uri)
-                        if (inputStream != null) {
-                            BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { out ->
-                                BufferedInputStream(inputStream, FAST_BUFFER_SIZE).use { input ->
-                                    input.copyTo(out, FAST_BUFFER_SIZE)
+                            val inputStream = context.contentResolver.openInputStream(uri)
+                            if (inputStream != null) {
+                                BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { out ->
+                                    BufferedInputStream(inputStream, FAST_BUFFER_SIZE).use { input ->
+                                        input.copyTo(out, FAST_BUFFER_SIZE)
+                                    }
+                                }
+
+                                resultsMutex.withLock {
+                                    results.add(destFile)
+                                    completedCount++
+                                    onProgress?.invoke(completedCount.toFloat() / sources.size)
                                 }
                             }
-
-                            resultsMutex.withLock {
-                                results.add(destFile)
-                                completedCount++
-                                onProgress?.invoke(completedCount.toFloat() / sources.size)
-                            }
                         }
-                    }
-                }.awaitAll()
+                    }.awaitAll()
             }
 
             results
@@ -906,8 +903,8 @@ object FileCompressor {
     private fun getFileSize(
         context: Context,
         uri: Uri,
-    ): Long? {
-        return try {
+    ): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
@@ -919,23 +916,20 @@ object FileCompressor {
         } catch (e: Exception) {
             null
         }
-    }
 
-    private fun formatSize(bytes: Long): String {
-        return when {
+    private fun formatSize(bytes: Long): String =
+        when {
             bytes < 1024 -> "$bytes B"
             bytes < 1024 * 1024 -> "${bytes / 1024} KB"
             else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
         }
-    }
 
     /**
      * Determines if a file is compressed based on its path.
      */
-    fun isCompressedFile(filePath: String): Boolean {
-        return filePath.endsWith(COMPRESSED_FILE_EXT) ||
+    fun isCompressedFile(filePath: String): Boolean =
+        filePath.endsWith(COMPRESSED_FILE_EXT) ||
             filePath.endsWith(COMPRESSED_IMAGE_EXT)
-    }
 
     /**
      * Gets the compression type from a file path.
@@ -943,14 +937,13 @@ object FileCompressor {
     fun getCompressionType(
         filePath: String,
         mimeType: String?,
-    ): CompressionType {
-        return when {
+    ): CompressionType =
+        when {
             filePath.endsWith(COMPRESSED_FILE_EXT) -> CompressionType.GZIP
             filePath.endsWith(COMPRESSED_IMAGE_EXT) -> CompressionType.WEBP
             mimeType?.startsWith("image/webp") == true -> CompressionType.WEBP
             else -> CompressionType.NONE
         }
-    }
 }
 
 /**

@@ -25,8 +25,8 @@ class PrivacyGuardTest {
         isFullPrivacy: Boolean = false,
         excludeFromAiChat: Boolean = false,
         isArchived: Boolean = false,
-    ): Note {
-        return Note(
+    ): Note =
+        Note(
             id = id,
             title = title,
             content = content,
@@ -36,7 +36,6 @@ class PrivacyGuardTest {
             excludeFromAiChat = excludeFromAiChat,
             isArchived = isArchived,
         )
-    }
 
     // =========================================================================
     // NOTE PRIVACY STATUS TESTS

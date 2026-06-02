@@ -2,9 +2,9 @@ package com.example.smarty.ui.utils
 
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.PI
 import kotlin.math.abs
 
@@ -36,9 +36,9 @@ import kotlin.math.abs
  * =============================================================================
  */
 
-// 
+//
 // MATHEMATICAL CONSTANTS (Public for inline function access)
-// 
+//
 
 const val TWO_PI_F = 2f * PI.toFloat()
 const val PI_F = PI.toFloat()
@@ -52,9 +52,9 @@ const val PERCEPTUAL_THRESHOLD = 0.02f
 const val FOUR_F = 4f
 const val FIVE_PI_SQ_F = 5f * PI.toFloat() * PI.toFloat()
 
-// 
+//
 // FAST TRIGONOMETRIC FUNCTIONS (Bhaskara I Approximation)
-// 
+//
 
 /**
  * Bhaskara I's sine approximation - O(1), 99.7% accurate
@@ -72,11 +72,12 @@ inline fun fastSin(x: Float): Float {
     val xMod = if (normalized < 0f) normalized + TWO_PI_F else normalized
 
     // Map to [0, π] with sign tracking
-    val (xPi, sign) = if (xMod > PI_F) {
-        (xMod - PI_F) to -1f
-    } else {
-        xMod to 1f
-    }
+    val (xPi, sign) =
+        if (xMod > PI_F) {
+            (xMod - PI_F) to -1f
+        } else {
+            xMod to 1f
+        }
 
     // Bhaskara I formula
     val xPiMinusX = xPi * (PI_F - xPi)
@@ -89,17 +90,17 @@ inline fun fastSin(x: Float): Float {
 @Suppress("NOTHING_TO_INLINE")
 inline fun fastCos(x: Float): Float = fastSin(x + HALF_PI_F)
 
-// 
+//
 // LIFECYCLE-AWARE ANIMATION STATE
-// 
+//
 
 /**
  * Animation lifecycle state - controls when animations should run
  */
 enum class AnimationLifecycleState {
-    RUNNING,    // Animation actively updating
-    PAUSED,     // Temporarily paused (app backgrounded)
-    STOPPED     // Completely stopped (not visible)
+    RUNNING, // Animation actively updating
+    PAUSED, // Temporarily paused (app backgrounded)
+    STOPPED, // Completely stopped (not visible)
 }
 
 /**
@@ -116,15 +117,17 @@ fun rememberAnimationLifecycleState(): State<AnimationLifecycleState> {
     val animationState = remember { mutableStateOf(AnimationLifecycleState.RUNNING) }
 
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            animationState.value = when (event) {
-                Lifecycle.Event.ON_RESUME -> AnimationLifecycleState.RUNNING
-                Lifecycle.Event.ON_PAUSE -> AnimationLifecycleState.PAUSED
-                Lifecycle.Event.ON_STOP -> AnimationLifecycleState.STOPPED
-                Lifecycle.Event.ON_DESTROY -> AnimationLifecycleState.STOPPED
-                else -> animationState.value
+        val observer =
+            LifecycleEventObserver { _, event ->
+                animationState.value =
+                    when (event) {
+                        Lifecycle.Event.ON_RESUME -> AnimationLifecycleState.RUNNING
+                        Lifecycle.Event.ON_PAUSE -> AnimationLifecycleState.PAUSED
+                        Lifecycle.Event.ON_STOP -> AnimationLifecycleState.STOPPED
+                        Lifecycle.Event.ON_DESTROY -> AnimationLifecycleState.STOPPED
+                        else -> animationState.value
+                    }
             }
-        }
 
         lifecycleOwner.lifecycle.addObserver(observer)
 
@@ -146,9 +149,9 @@ fun shouldAnimationRun(): Boolean {
     return state == AnimationLifecycleState.RUNNING
 }
 
-// 
+//
 // LIFECYCLE-AWARE INFINITE TRANSITION
-// 
+//
 
 /**
  * A lifecycle-aware infinite transition that automatically pauses when
@@ -192,24 +195,23 @@ fun animateFloatWithLifecycle(
     targetValue: Float,
     animationSpec: InfiniteRepeatableSpec<Float>,
     label: String,
-    pausedValue: Float = initialValue
-): State<Float> {
-    return if (transition != null) {
+    pausedValue: Float = initialValue,
+): State<Float> =
+    if (transition != null) {
         transition.animateFloat(
             initialValue = initialValue,
             targetValue = targetValue,
             animationSpec = animationSpec,
-            label = label
+            label = label,
         )
     } else {
         // Return static state when paused - no animation overhead
         remember { mutableStateOf(pausedValue) }
     }
-}
 
-// 
+//
 // PERCEPTUAL OPTIMIZATION (Weber-Fechner Law)
-// 
+//
 
 /**
  * Perceptual change detector using Weber-Fechner law.
@@ -234,7 +236,7 @@ fun animateFloatWithLifecycle(
 inline fun isPerceptibleChange(
     oldValue: Float,
     newValue: Float,
-    threshold: Float = PERCEPTUAL_THRESHOLD
+    threshold: Float = PERCEPTUAL_THRESHOLD,
 ): Boolean {
     val absOld = abs(oldValue).coerceAtLeast(0.001f) // Avoid division by zero
     val delta = abs(newValue - oldValue)
@@ -250,7 +252,7 @@ inline fun isPerceptibleChange(
  */
 class PerceptualAnimationState(
     initialValue: Float,
-    private val threshold: Float = PERCEPTUAL_THRESHOLD
+    private val threshold: Float = PERCEPTUAL_THRESHOLD,
 ) {
     private var _value: Float = initialValue
     private var lastEmittedValue: Float = initialValue
@@ -262,20 +264,19 @@ class PerceptualAnimationState(
      * Updates the value only if the change is perceptually significant.
      * @return true if the value was updated
      */
-    fun updateIfPerceptible(newValue: Float): Boolean {
-        return if (isPerceptibleChange(lastEmittedValue, newValue, threshold)) {
+    fun updateIfPerceptible(newValue: Float): Boolean =
+        if (isPerceptibleChange(lastEmittedValue, newValue, threshold)) {
             _value = newValue
             lastEmittedValue = newValue
             true
         } else {
             false
         }
-    }
 }
 
-// 
+//
 // TEMPORAL COHERENCE OPTIMIZER
-// 
+//
 
 /**
  * Tracks animation state across frames to detect redundant updates.
@@ -288,7 +289,7 @@ class PerceptualAnimationState(
  * for smooth animations, meaning ~99% of state is predictable.
  */
 class TemporalCoherenceTracker<T>(
-    private val equalityCheck: (T, T) -> Boolean
+    private val equalityCheck: (T, T) -> Boolean,
 ) {
     private var lastState: T? = null
 
@@ -322,14 +323,12 @@ class TemporalCoherenceTracker<T>(
  */
 @Composable
 inline fun <reified T> rememberCoherenceTracker(
-    noinline equalityCheck: (T, T) -> Boolean = { a, b -> a == b }
-): TemporalCoherenceTracker<T> {
-    return remember { TemporalCoherenceTracker(equalityCheck) }
-}
+    noinline equalityCheck: (T, T) -> Boolean = { a, b -> a == b },
+): TemporalCoherenceTracker<T> = remember { TemporalCoherenceTracker(equalityCheck) }
 
-// 
+//
 // ADAPTIVE FRAME RATE CONTROLLER
-// 
+//
 
 /**
  * Adaptive frame rate controller that adjusts animation update frequency
@@ -343,12 +342,14 @@ inline fun <reified T> rememberCoherenceTracker(
  * Mathematical model: Update probability P = 1 / decimationFactor
  * Expected frame rate = 60 / decimationFactor
  */
-enum class AnimationPriority(val decimationFactor: Int) {
-    CRITICAL(1),    // 60fps - user interactions, feedback
-    HIGH(1),        // 60fps - prominent UI animations
-    MEDIUM(2),      // 30fps - ambient decorations
-    LOW(3),         // 20fps - subtle background effects
-    MINIMAL(6)      // 10fps - very subtle, non-essential
+enum class AnimationPriority(
+    val decimationFactor: Int,
+) {
+    CRITICAL(1), // 60fps - user interactions, feedback
+    HIGH(1), // 60fps - prominent UI animations
+    MEDIUM(2), // 30fps - ambient decorations
+    LOW(3), // 20fps - subtle background effects
+    MINIMAL(6), // 10fps - very subtle, non-essential
 }
 
 /**
@@ -356,7 +357,7 @@ enum class AnimationPriority(val decimationFactor: Int) {
  * Returns true on frames where animation should update.
  */
 class AdaptiveFrameController(
-    private val priority: AnimationPriority
+    private val priority: AnimationPriority,
 ) {
     private var frameCount = 0
 
@@ -376,9 +377,9 @@ class AdaptiveFrameController(
     }
 }
 
-// 
+//
 // COMBINED OPTIMIZED ANIMATION DRIVER
-// 
+//
 
 /**
  * Comprehensive animation state that combines all optimizations.
@@ -393,7 +394,7 @@ class AdaptiveFrameController(
 data class OptimizedAnimationConfig(
     val durationMs: Int,
     val priority: AnimationPriority = AnimationPriority.MEDIUM,
-    val perceptualThreshold: Float = PERCEPTUAL_THRESHOLD
+    val perceptualThreshold: Float = PERCEPTUAL_THRESHOLD,
 )
 
 /**
@@ -407,41 +408,44 @@ data class OptimizedAnimationConfig(
 @Composable
 fun rememberOptimizedPhase(
     config: OptimizedAnimationConfig,
-    label: String
+    label: String,
 ): State<Float?> {
     val lifecycleState by rememberAnimationLifecycleState()
 
     // Only create transition when running
-    val transition = if (lifecycleState == AnimationLifecycleState.RUNNING) {
-        rememberInfiniteTransition(label = label)
-    } else {
-        null
-    }
+    val transition =
+        if (lifecycleState == AnimationLifecycleState.RUNNING) {
+            rememberInfiniteTransition(label = label)
+        } else {
+            null
+        }
 
-    val phase = transition?.animateFloat(
-        initialValue = 0f,
-        targetValue = TWO_PI_F,
-        animationSpec = infiniteRepeatable(
-            animation = tween(config.durationMs, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "${label}_phase"
-    )
+    val phase =
+        transition?.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(config.durationMs, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart,
+                ),
+            label = "${label}_phase",
+        )
 
     return remember(phase, lifecycleState) {
         derivedStateOf {
             when (lifecycleState) {
                 AnimationLifecycleState.RUNNING -> phase?.value
-                AnimationLifecycleState.PAUSED -> null  // Paused - return null
+                AnimationLifecycleState.PAUSED -> null // Paused - return null
                 AnimationLifecycleState.STOPPED -> null // Stopped - return null
             }
         }
     }
 }
 
-// 
+//
 // UTILITY EXTENSIONS
-// 
+//
 
 /**
  * Safely get animation phase value, returning a default when paused.
@@ -456,9 +460,9 @@ inline fun Float?.ifActive(block: (Float) -> Unit) {
     if (this != null) block(this)
 }
 
-// 
+//
 // CLICK DEBOUNCING (BUG-013 FIX)
-// 
+//
 
 /**
  * Remembers a debounced click handler that prevents rapid consecutive clicks.
@@ -470,7 +474,7 @@ inline fun Float?.ifActive(block: (Float) -> Unit) {
 @Composable
 fun rememberDebouncedClick(
     debounceMs: Long = 300L,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ): () -> Unit {
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
@@ -495,7 +499,7 @@ fun rememberDebouncedClick(
 @Composable
 fun <T> rememberDebouncedClickWithParam(
     debounceMs: Long = 300L,
-    onClick: (T) -> Unit
+    onClick: (T) -> Unit,
 ): (T) -> Unit {
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
@@ -510,9 +514,9 @@ fun <T> rememberDebouncedClickWithParam(
     }
 }
 
-// 
+//
 // STATIC RENDERING CONTROLLER - Global Animation State Management
-// 
+//
 
 /**
  * Global controller for static rendering optimization.
@@ -606,7 +610,7 @@ fun TrackAnimation(isActive: Boolean) {
 @Composable
 fun rememberStaticAwareTransition(
     isActive: Boolean,
-    label: String
+    label: String,
 ): InfiniteTransition? {
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldRun = isActive && lifecycleState == AnimationLifecycleState.RUNNING
@@ -644,7 +648,7 @@ fun rememberStaticAwareFloat(
     targetValue: Float,
     durationMs: Int,
     label: String,
-    pausedValue: Float = (initialValue + targetValue) / 2f
+    pausedValue: Float = (initialValue + targetValue) / 2f,
 ): Float {
     val transition = rememberStaticAwareTransition(isActive, label)
 
@@ -652,11 +656,12 @@ fun rememberStaticAwareFloat(
         val animatedValue by transition.animateFloat(
             initialValue = initialValue,
             targetValue = targetValue,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMs, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "${label}_value"
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(durationMs, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart,
+                ),
+            label = "${label}_value",
         )
         animatedValue
     } else {
@@ -678,14 +683,13 @@ fun rememberStaticAwareFloat(
 fun rememberStaticAwareProgress(
     isActive: Boolean,
     durationMs: Int = 1500,
-    label: String = "progress"
-): Float {
-    return rememberStaticAwareFloat(
+    label: String = "progress",
+): Float =
+    rememberStaticAwareFloat(
         isActive = isActive,
         initialValue = 0f,
         targetValue = 1f,
         durationMs = durationMs,
         label = label,
-        pausedValue = 0f
+        pausedValue = 0f,
     )
-}

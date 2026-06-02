@@ -24,9 +24,7 @@ class ThumbnailCache(
     suspend fun put(
         url: String,
         bitmap: Bitmap,
-    ): File? {
-        return cacheManager.cacheThumbnail(url, bitmap)
-    }
+    ): File? = cacheManager.cacheThumbnail(url, bitmap)
 
     /**
      * Remove a cached thumbnail
@@ -41,14 +39,10 @@ class ThumbnailCache(
     /**
      * Get the cache file path for a URL (may or may not exist)
      */
-    fun getCacheFile(url: String): File {
-        return cacheManager.getThumbnailFile(url)
-    }
+    fun getCacheFile(url: String): File = cacheManager.getThumbnailFile(url)
 
     /**
      * Check if thumbnail exists in cache
      */
-    fun exists(url: String): Boolean {
-        return cacheManager.getThumbnailFile(url).exists()
-    }
+    fun exists(url: String): Boolean = cacheManager.getThumbnailFile(url).exists()
 }

@@ -52,7 +52,8 @@ object AppShortcutsManager {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
 
-        return ShortcutInfoCompat.Builder(context, SHORTCUT_NEW_NOTE)
+        return ShortcutInfoCompat
+            .Builder(context, SHORTCUT_NEW_NOTE)
             .setShortLabel(context.getString(R.string.shortcut_new_note_short))
             .setLongLabel(context.getString(R.string.shortcut_new_note_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_note))
@@ -68,7 +69,8 @@ object AppShortcutsManager {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
 
-        return ShortcutInfoCompat.Builder(context, SHORTCUT_CHAT)
+        return ShortcutInfoCompat
+            .Builder(context, SHORTCUT_CHAT)
             .setShortLabel(context.getString(R.string.shortcut_chat_short))
             .setLongLabel(context.getString(R.string.shortcut_chat_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_chat))
@@ -84,7 +86,8 @@ object AppShortcutsManager {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
 
-        return ShortcutInfoCompat.Builder(context, SHORTCUT_CALENDAR)
+        return ShortcutInfoCompat
+            .Builder(context, SHORTCUT_CALENDAR)
             .setShortLabel(context.getString(R.string.shortcut_calendar_short))
             .setLongLabel(context.getString(R.string.shortcut_calendar_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_calendar))
@@ -100,7 +103,8 @@ object AppShortcutsManager {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
 
-        return ShortcutInfoCompat.Builder(context, SHORTCUT_STACKS)
+        return ShortcutInfoCompat
+            .Builder(context, SHORTCUT_STACKS)
             .setShortLabel(context.getString(R.string.shortcut_stacks_short))
             .setLongLabel(context.getString(R.string.shortcut_stacks_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_stacks))

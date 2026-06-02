@@ -22,7 +22,9 @@ import com.google.gson.Gson
  *
  * @property securePreferences Secure storage for settings
  */
-class AIConnectionOrchestrator(private val securePreferences: SecurePreferences) {
+class AIConnectionOrchestrator(
+    private val securePreferences: SecurePreferences,
+) {
     companion object {
         private const val TAG = "AIConnectionOrchestrator"
         const val MAX_RETRIES = 3
@@ -55,18 +57,15 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
     /**
      * Get the connection instance for an AIConnection enum value.
      */
-    fun getConnection(connection: AIConnection): AIConnectionContract {
-        return when (connection) {
+    fun getConnection(connection: AIConnection): AIConnectionContract =
+        when (connection) {
             AIConnection.LOCAL_PC -> serverConnection
         }
-    }
 
     /**
      * Get the selected model for a connection from SecurePreferences.
      */
-    fun getModelForConnection(connection: AIConnection): String {
-        return securePreferences.getSelectedModel(connection)
-    }
+    fun getModelForConnection(connection: AIConnection): String = securePreferences.getSelectedModel(connection)
 
     /**
      * Get ordered list of connections to try based on user priority.
@@ -82,9 +81,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
     /**
      * Get ALL connections in priority order.
      */
-    fun getAllConnectionsInOrder(): List<AIConnection> {
-        return listOf(AIConnection.LOCAL_PC)
-    }
+    fun getAllConnectionsInOrder(): List<AIConnection> = listOf(AIConnection.LOCAL_PC)
 
     /**
      * Record a successful API call for a connection.
@@ -116,9 +113,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
     /**
      * Check if a connection is currently healthy and available.
      */
-    fun isConnectionHealthy(connection: AIConnection): Boolean {
-        return failoverManager.isConnectionAvailable(connection)
-    }
+    fun isConnectionHealthy(connection: AIConnection): Boolean = failoverManager.isConnectionAvailable(connection)
 
     /**
      * Reset health state for a connection.

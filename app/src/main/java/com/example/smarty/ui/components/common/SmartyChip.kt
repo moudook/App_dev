@@ -7,10 +7,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.ripple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -61,7 +61,7 @@ enum class ChipVariant {
     Muted,
 
     /** Category-style chip for filter/tag purposes */
-    Category
+    Category,
 }
 
 /**
@@ -75,7 +75,7 @@ enum class ChipSize {
     Medium,
 
     /** Larger chip for prominent actions */
-    Large
+    Large,
 }
 
 /**
@@ -85,7 +85,7 @@ private data class ChipSizeConfig(
     val height: Dp,
     val horizontalPadding: Dp,
     val iconSize: Dp,
-    val iconSpacing: Dp
+    val iconSpacing: Dp,
 )
 
 /**
@@ -97,7 +97,7 @@ private data class ChipColorConfig(
     val contentColor: Color,
     val selectedContentColor: Color,
     val borderColor: Color?,
-    val selectedBorderColor: Color?
+    val selectedBorderColor: Color?,
 )
 
 /**
@@ -123,135 +123,149 @@ fun SmartyChip(
     isSelected: Boolean = false,
     variant: ChipVariant = ChipVariant.Default,
     size: ChipSize = ChipSize.Medium,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val accentColor = LocalAccentColor.current
     val spacing = LocalSpacing.current
     val shapes = LocalShapes.current
 
     // Get size configuration
-    val sizeConfig = remember(size) {
-        when (size) {
-            ChipSize.Small -> ChipSizeConfig(
-                height = 28.dp,
-                horizontalPadding = 10.dp,
-                iconSize = 14.dp,
-                iconSpacing = 4.dp
-            )
-            ChipSize.Medium -> ChipSizeConfig(
-                height = 36.dp,
-                horizontalPadding = 14.dp,
-                iconSize = 16.dp,
-                iconSpacing = 6.dp
-            )
-            ChipSize.Large -> ChipSizeConfig(
-                height = 44.dp,
-                horizontalPadding = 18.dp,
-                iconSize = 20.dp,
-                iconSpacing = 8.dp
-            )
+    val sizeConfig =
+        remember(size) {
+            when (size) {
+                ChipSize.Small ->
+                    ChipSizeConfig(
+                        height = 28.dp,
+                        horizontalPadding = 10.dp,
+                        iconSize = 14.dp,
+                        iconSpacing = 4.dp,
+                    )
+                ChipSize.Medium ->
+                    ChipSizeConfig(
+                        height = 36.dp,
+                        horizontalPadding = 14.dp,
+                        iconSize = 16.dp,
+                        iconSpacing = 6.dp,
+                    )
+                ChipSize.Large ->
+                    ChipSizeConfig(
+                        height = 44.dp,
+                        horizontalPadding = 18.dp,
+                        iconSize = 20.dp,
+                        iconSpacing = 8.dp,
+                    )
+            }
         }
-    }
 
     // Get color configuration based on variant
     // Note: Colors from MaterialTheme.colorScheme must be accessed at composition time
     val colorScheme = MaterialTheme.colorScheme
-    val colorConfig = when (variant) {
-        ChipVariant.Default -> ChipColorConfig(
-            backgroundColor = colorScheme.surfaceVariant,
-            selectedBackgroundColor = accentColor.copy(alpha = Alpha.medium),
-            contentColor = colorScheme.onSurfaceVariant,
-            selectedContentColor = accentColor,
-            borderColor = null,
-            selectedBorderColor = accentColor.copy(alpha = Alpha.emphasis)
-        )
-        ChipVariant.Accent -> ChipColorConfig(
-            backgroundColor = accentColor.copy(alpha = Alpha.light),
-            selectedBackgroundColor = accentColor.copy(alpha = Alpha.strong),
-            contentColor = accentColor,
-            selectedContentColor = accentColor,
-            borderColor = accentColor.copy(alpha = Alpha.moderate),
-            selectedBorderColor = accentColor
-        )
-        ChipVariant.Muted -> ChipColorConfig(
-            backgroundColor = colorScheme.surface,
-            selectedBackgroundColor = colorScheme.surfaceVariant,
-            contentColor = colorScheme.onSurface.copy(alpha = Alpha.prominent),
-            selectedContentColor = colorScheme.onSurface,
-            borderColor = colorScheme.outline.copy(alpha = Alpha.hint),
-            selectedBorderColor = colorScheme.outline.copy(alpha = Alpha.moderate)
-        )
-        ChipVariant.Category -> ChipColorConfig(
-            backgroundColor = accentColor.copy(alpha = Alpha.subtle),
-            selectedBackgroundColor = accentColor.copy(alpha = Alpha.moderate),
-            contentColor = accentColor.copy(alpha = Alpha.mostlyOpaque),
-            selectedContentColor = accentColor,
-            borderColor = accentColor.copy(alpha = Alpha.soft),
-            selectedBorderColor = accentColor.copy(alpha = Alpha.half)
-        )
-    }
+    val colorConfig =
+        when (variant) {
+            ChipVariant.Default ->
+                ChipColorConfig(
+                    backgroundColor = colorScheme.surfaceVariant,
+                    selectedBackgroundColor = accentColor.copy(alpha = Alpha.medium),
+                    contentColor = colorScheme.onSurfaceVariant,
+                    selectedContentColor = accentColor,
+                    borderColor = null,
+                    selectedBorderColor = accentColor.copy(alpha = Alpha.emphasis),
+                )
+            ChipVariant.Accent ->
+                ChipColorConfig(
+                    backgroundColor = accentColor.copy(alpha = Alpha.light),
+                    selectedBackgroundColor = accentColor.copy(alpha = Alpha.strong),
+                    contentColor = accentColor,
+                    selectedContentColor = accentColor,
+                    borderColor = accentColor.copy(alpha = Alpha.moderate),
+                    selectedBorderColor = accentColor,
+                )
+            ChipVariant.Muted ->
+                ChipColorConfig(
+                    backgroundColor = colorScheme.surface,
+                    selectedBackgroundColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface.copy(alpha = Alpha.prominent),
+                    selectedContentColor = colorScheme.onSurface,
+                    borderColor = colorScheme.outline.copy(alpha = Alpha.hint),
+                    selectedBorderColor = colorScheme.outline.copy(alpha = Alpha.moderate),
+                )
+            ChipVariant.Category ->
+                ChipColorConfig(
+                    backgroundColor = accentColor.copy(alpha = Alpha.subtle),
+                    selectedBackgroundColor = accentColor.copy(alpha = Alpha.moderate),
+                    contentColor = accentColor.copy(alpha = Alpha.mostlyOpaque),
+                    selectedContentColor = accentColor,
+                    borderColor = accentColor.copy(alpha = Alpha.soft),
+                    selectedBorderColor = accentColor.copy(alpha = Alpha.half),
+                )
+        }
 
     // Animate colors on selection change
     val animatedBackgroundColor by animateColorAsState(
         targetValue = if (isSelected) colorConfig.selectedBackgroundColor else colorConfig.backgroundColor,
         animationSpec = tween(AnimationDuration.fast),
-        label = "chip_bg"
+        label = "chip_bg",
     )
 
     val animatedContentColor by animateColorAsState(
         targetValue = if (isSelected) colorConfig.selectedContentColor else colorConfig.contentColor,
         animationSpec = tween(AnimationDuration.fast),
-        label = "chip_content"
+        label = "chip_content",
     )
 
     val animatedBorderColor by animateColorAsState(
-        targetValue = (if (isSelected) colorConfig.selectedBorderColor else colorConfig.borderColor)
-            ?: Color.Transparent,
+        targetValue =
+            (if (isSelected) colorConfig.selectedBorderColor else colorConfig.borderColor)
+                ?: Color.Transparent,
         animationSpec = tween(AnimationDuration.fast),
-        label = "chip_border"
+        label = "chip_border",
     )
 
     // Determine the shape based on variant
-    val chipShape = when (variant) {
-        ChipVariant.Default, ChipVariant.Accent -> shapes.pill
-        ChipVariant.Muted -> shapes.tag
-        ChipVariant.Category -> shapes.button
-    }
+    val chipShape =
+        when (variant) {
+            ChipVariant.Default, ChipVariant.Accent -> shapes.pill
+            ChipVariant.Muted -> shapes.tag
+            ChipVariant.Category -> shapes.button
+        }
 
     // Base modifier with background and border
-    val baseModifier = modifier
-        .height(sizeConfig.height)
-        .clip(chipShape)
-        .background(animatedBackgroundColor)
-        .then(
-            if (colorConfig.borderColor != null || colorConfig.selectedBorderColor != null) {
-                Modifier.border(
-                    width = 1.dp,
-                    color = animatedBorderColor,
-                    shape = chipShape
-                )
-            } else {
-                Modifier
-            }
-        )
+    val baseModifier =
+        modifier
+            .height(sizeConfig.height)
+            .clip(chipShape)
+            .background(animatedBackgroundColor)
+            .then(
+                if (colorConfig.borderColor != null || colorConfig.selectedBorderColor != null) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = animatedBorderColor,
+                        shape = chipShape,
+                    )
+                } else {
+                    Modifier
+                },
+            )
 
     // Add click behavior if onClick is provided
-    val clickableModifier = if (onClick != null) {
-        baseModifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(),
-            role = Role.Button,
-            onClick = onClick
-        )
-    } else {
-        baseModifier
-    }
+    val clickableModifier =
+        if (onClick != null) {
+            baseModifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(),
+                role = Role.Button,
+                onClick = onClick,
+            )
+        } else {
+            baseModifier
+        }
 
     Row(
-        modifier = clickableModifier
-            .padding(horizontal = sizeConfig.horizontalPadding),
+        modifier =
+            clickableModifier
+                .padding(horizontal = sizeConfig.horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.Center,
     ) {
         // Leading icon
         if (leadingIcon != null) {
@@ -259,7 +273,7 @@ fun SmartyChip(
                 imageVector = leadingIcon,
                 contentDescription = null,
                 modifier = Modifier.size(sizeConfig.iconSize),
-                tint = animatedContentColor
+                tint = animatedContentColor,
             )
             Spacer(modifier = Modifier.width(sizeConfig.iconSpacing))
         }
@@ -267,40 +281,41 @@ fun SmartyChip(
         // Label
         Text(
             text = label,
-            style = when (size) {
-                ChipSize.Small -> MaterialTheme.typography.labelSmall
-                ChipSize.Medium -> MaterialTheme.typography.labelMedium
-                ChipSize.Large -> MaterialTheme.typography.labelLarge
-            },
+            style =
+                when (size) {
+                    ChipSize.Small -> MaterialTheme.typography.labelSmall
+                    ChipSize.Medium -> MaterialTheme.typography.labelMedium
+                    ChipSize.Large -> MaterialTheme.typography.labelLarge
+                },
             color = animatedContentColor,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
 
         // Trailing icon
         if (trailingIcon != null) {
             Spacer(modifier = Modifier.width(sizeConfig.iconSpacing))
 
-            val trailingModifier = if (onTrailingClick != null) {
-                Modifier
-                    .size(sizeConfig.iconSize + 8.dp)
-                    .clip(shapes.avatar)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = ripple(radius = sizeConfig.iconSize),
-                        role = Role.Button,
-                        onClick = onTrailingClick
-                    )
-                    .padding(4.dp)
-            } else {
-                Modifier.size(sizeConfig.iconSize)
-            }
+            val trailingModifier =
+                if (onTrailingClick != null) {
+                    Modifier
+                        .size(sizeConfig.iconSize + 8.dp)
+                        .clip(shapes.avatar)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(radius = sizeConfig.iconSize),
+                            role = Role.Button,
+                            onClick = onTrailingClick,
+                        ).padding(4.dp)
+                } else {
+                    Modifier.size(sizeConfig.iconSize)
+                }
 
             Icon(
                 imageVector = trailingIcon,
                 contentDescription = null,
                 modifier = trailingModifier,
-                tint = animatedContentColor
+                tint = animatedContentColor,
             )
         }
     }
@@ -321,7 +336,7 @@ fun SmartyFilterChip(
     isSelected: Boolean,
     onToggle: (Boolean) -> Unit,
     leadingIcon: ImageVector? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     SmartyChip(
         label = label,
@@ -330,7 +345,7 @@ fun SmartyFilterChip(
         isSelected = isSelected,
         variant = ChipVariant.Category,
         size = ChipSize.Medium,
-        modifier = modifier
+        modifier = modifier,
     )
 }
 
@@ -347,7 +362,7 @@ fun SmartyTagChip(
     label: String,
     onRemove: (() -> Unit)? = null,
     removeIcon: ImageVector? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     SmartyChip(
         label = label,
@@ -355,6 +370,6 @@ fun SmartyTagChip(
         onTrailingClick = onRemove,
         variant = ChipVariant.Muted,
         size = ChipSize.Small,
-        modifier = modifier
+        modifier = modifier,
     )
 }

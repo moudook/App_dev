@@ -33,23 +33,26 @@ class TagNotesViewModel(
     tagName: String = "",
     tagColor: String = "#6200EE",
 ) : AndroidViewModel(application) {
-
     private val serverUrl = SecurePreferences.getInstance(application).getServerUrl()
 
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
+    private val client =
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(
+                    Json {
+                        ignoreUnknownKeys = true
+                        isLenient = true
+                    },
+                )
+            }
         }
-    }
 
-    private val remoteDataSource = RemoteDataSource(
-        client = client,
-        serverUrlProvider = { serverUrl },
-        deviceIdProvider = { "android-client" },
-    )
+    private val remoteDataSource =
+        RemoteDataSource(
+            client = client,
+            serverUrlProvider = { serverUrl },
+            deviceIdProvider = { "android-client" },
+        )
 
     private val repository = TagRepository(remoteDataSource)
 
@@ -96,8 +99,6 @@ class TagNotesViewModel(
         private val tagColor: String = "#6200EE",
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return TagNotesViewModel(application, tagId, tagName, tagColor) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = TagNotesViewModel(application, tagId, tagName, tagColor) as T
     }
 }

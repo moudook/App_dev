@@ -5,24 +5,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.components.ArchiveEmptyState
-import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.components.NoteCard
+import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.theme.ComponentSpacing
 
 /**
@@ -41,7 +36,7 @@ fun ArchiveContent(
     onUnarchiveNote: (String) -> Unit,
     contentPadding: PaddingValues,
     isLoading: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     val accentColor = LocalAccentColor.current
@@ -54,29 +49,30 @@ fun ArchiveContent(
         state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
     ) {
         if (isLoading) {
             item {
                 com.example.smarty.ui.components.NotesLoadingState(
                     count = 4,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
             }
         } else if (archivedNotes.isEmpty()) {
             // Empty state
             item {
                 ArchiveEmptyState(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 60.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 60.dp),
                 )
             }
         } else {
             // Archive items with full functionality
             items(
                 items = archivedNotes,
-                key = { it.id }
+                key = { it.id },
             ) { note ->
                 InlineArchiveNoteItem(
                     note = note,
@@ -84,7 +80,7 @@ fun ArchiveContent(
                         noteToDelete = note
                         showDeleteDialog = true
                     },
-                    onUnarchive = { onUnarchiveNote(note.id) }
+                    onUnarchive = { onUnarchiveNote(note.id) },
                 )
             }
         }
@@ -111,7 +107,7 @@ fun ArchiveContent(
             },
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
-            isDestructive = true
+            isDestructive = true,
         )
     }
 }
@@ -123,7 +119,7 @@ fun ArchiveContent(
 private fun InlineArchiveNoteItem(
     note: Note,
     onDelete: () -> Unit,
-    onUnarchive: () -> Unit
+    onUnarchive: () -> Unit,
 ) {
     var appeared by remember { mutableStateOf(false) }
 
@@ -133,17 +129,18 @@ private fun InlineArchiveNoteItem(
 
     val scale by animateFloatAsState(
         targetValue = if (appeared) 1f else 0.85f,
-        animationSpec = spring(
-            dampingRatio = 0.7f,
-            stiffness = 300f
-        ),
-        label = "itemScale"
+        animationSpec =
+            spring(
+                dampingRatio = 0.7f,
+                stiffness = 300f,
+            ),
+        label = "itemScale",
     )
 
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
-        label = "itemAlpha"
+        label = "itemAlpha",
     )
 
     NoteCard(
@@ -151,14 +148,15 @@ private fun InlineArchiveNoteItem(
         onClick = { /* No click action in archive - read-only view */ },
         onDelete = onDelete,
         onOpenTodo = { /* No todo in archive */ },
-        isArchiveView = true,  // Swipe right = delete, swipe left = unarchive
+        isArchiveView = true, // Swipe right = delete, swipe left = unarchive
         onUnarchive = onUnarchive,
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
-            }
+        modifier =
+            Modifier
+                .padding(horizontal = 16.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                },
     )
 }

@@ -38,10 +38,12 @@ allprojects {
             exclude("**/test/**")
             exclude("**/androidTest/**")
         }
-        additionalEditorconfig.set(mapOf(
-            "ktlint_standard_value-parameter-comment" to "disabled",
-            "ktlint_standard_value-argument-comment" to "disabled"
-        ))
+        additionalEditorconfig.set(
+            mapOf(
+                "ktlint_standard_value-parameter-comment" to "disabled",
+                "ktlint_standard_value-argument-comment" to "disabled",
+            ),
+        )
     }
 }
 

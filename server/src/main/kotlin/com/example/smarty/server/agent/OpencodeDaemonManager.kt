@@ -26,17 +26,19 @@ object OpencodeDaemonManager {
     val healthUrl get() = "http://127.0.0.1:$daemonPort/global/health"
 
     private const val HEALTH_CHECK_INTERVAL_MS = 15_000L // 15 seconds
-    private const val HEALTH_CHECK_TIMEOUT_MS = 5_000    // 5 seconds
-    private const val MAX_CONSECUTIVE_FAILURES = 3       // Mark unhealthy after 3 failures
+    private const val HEALTH_CHECK_TIMEOUT_MS = 5_000 // 5 seconds
+    private const val MAX_CONSECUTIVE_FAILURES = 3 // Mark unhealthy after 3 failures
     private const val MAX_RESTART_ATTEMPTS = 5
-    private const val BASE_RESTART_DELAY_MS = 5_000L     // 5s base for exponential backoff
-    private const val MAX_RESTART_DELAY_MS = 120_000L    // 2 min max backoff
+    private const val BASE_RESTART_DELAY_MS = 5_000L // 5s base for exponential backoff
+    private const val MAX_RESTART_DELAY_MS = 120_000L // 2 min max backoff
 
     // Health state
     @Volatile var isHealthy: Boolean = false
         private set
+
     @Volatile var lastHealthCheckMs: Long = 0L
         private set
+
     @Volatile var lastHealthyMs: Long = 0L
         private set
     private val consecutiveFailures = AtomicInteger(0)
@@ -50,16 +52,17 @@ object OpencodeDaemonManager {
         if (monitoring.getAndSet(true)) return // Already monitoring
 
         logger.info("Starting OpenCode daemon health monitoring (interval: ${HEALTH_CHECK_INTERVAL_MS}ms)")
-        monitorJob = CoroutineScope(Dispatchers.IO).launch {
-            while (monitoring.get()) {
-                try {
-                    checkHealth()
-                } catch (e: Exception) {
-                    logger.warn("Health check error: ${e.message}")
+        monitorJob =
+            CoroutineScope(Dispatchers.IO).launch {
+                while (monitoring.get()) {
+                    try {
+                        checkHealth()
+                    } catch (e: Exception) {
+                        logger.warn("Health check error: ${e.message}")
+                    }
+                    delay(HEALTH_CHECK_INTERVAL_MS)
                 }
-                delay(HEALTH_CHECK_INTERVAL_MS)
             }
-        }
     }
 
     fun stopMonitoring() {
@@ -159,27 +162,31 @@ object OpencodeDaemonManager {
         }
     }
 
-    private fun findDaemonPid(): Int? {
-        return try {
+    private fun findDaemonPid(): Int? =
+        try {
             val proc = ProcessBuilder("pgrep", "-f", "opencode serve").start()
-            val output = proc.inputStream.bufferedReader().readText().trim()
+            val output =
+                proc.inputStream
+                    .bufferedReader()
+                    .readText()
+                    .trim()
             proc.waitFor()
             if (output.isNotBlank()) output.lines().first().toIntOrNull() else null
         } catch (e: Exception) {
             null
         }
-    }
 
     /**
      * Get health status for inclusion in server health endpoints.
      */
-    fun getHealthStatus(): Map<String, Any?> = mapOf(
-        "daemon_healthy" to isHealthy,
-        "last_health_check_ms" to lastHealthCheckMs,
-        "last_healthy_ms" to lastHealthyMs,
-        "consecutive_failures" to consecutiveFailures.get(),
-        "restart_attempts" to restartAttempts.get(),
-        "monitoring_active" to monitoring.get(),
-        "daemon_port" to daemonPort,
-    )
+    fun getHealthStatus(): Map<String, Any?> =
+        mapOf(
+            "daemon_healthy" to isHealthy,
+            "last_health_check_ms" to lastHealthCheckMs,
+            "last_healthy_ms" to lastHealthyMs,
+            "consecutive_failures" to consecutiveFailures.get(),
+            "restart_attempts" to restartAttempts.get(),
+            "monitoring_active" to monitoring.get(),
+            "daemon_port" to daemonPort,
+        )
 }

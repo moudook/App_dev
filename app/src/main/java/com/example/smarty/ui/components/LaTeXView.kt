@@ -25,12 +25,12 @@ class JLatexMathPainter(
     private val latex: String,
     private val textSizePx: Float,
     private val textColorInt: Int,
-    private val backgroundColorInt: Int
+    private val backgroundColorInt: Int,
 ) : Painter() {
-    
     private val drawable by lazy {
         try {
-            JLatexMathDrawable.builder(latex)
+            JLatexMathDrawable
+                .builder(latex)
                 .textSize(textSizePx)
                 .color(textColorInt)
                 .background(backgroundColorInt)
@@ -42,9 +42,10 @@ class JLatexMathPainter(
     }
 
     override val intrinsicSize: Size
-        get() = drawable?.let {
-            Size(it.intrinsicWidth.toFloat(), it.intrinsicHeight.toFloat())
-        } ?: Size.Zero
+        get() =
+            drawable?.let {
+                Size(it.intrinsicWidth.toFloat(), it.intrinsicHeight.toFloat())
+            } ?: Size.Zero
 
     override fun DrawScope.onDraw() {
         drawable?.let { d ->
@@ -60,33 +61,34 @@ fun LaTeXView(
     isBlock: Boolean = true,
     modifier: Modifier = Modifier,
     textColor: Color = if (isSystemInDarkTheme()) Color.White else Color.Black,
-    backgroundColor: Color = Color.Transparent
+    backgroundColor: Color = Color.Transparent,
 ) {
     val density = LocalDensity.current
     val textSizePx = with(density) { 16.sp.toPx() }
     val textColorInt = textColor.toArgb()
     val bgColorInt = backgroundColor.toArgb()
-    
-    val painter = remember(latex, textSizePx, textColorInt, bgColorInt) {
-        JLatexMathPainter(latex, textSizePx, textColorInt, bgColorInt)
-    }
+
+    val painter =
+        remember(latex, textSizePx, textColorInt, bgColorInt) {
+            JLatexMathPainter(latex, textSizePx, textColorInt, bgColorInt)
+        }
 
     Box(
         modifier = modifier.then(if (isBlock) Modifier.fillMaxWidth().padding(vertical = 8.dp) else Modifier),
-        contentAlignment = if (isBlock) Alignment.Center else Alignment.CenterStart
+        contentAlignment = if (isBlock) Alignment.Center else Alignment.CenterStart,
     ) {
         if (painter.intrinsicSize == Size.Zero && latex.isNotEmpty()) {
             // Render error fallback
             Text(
                 text = "Math Error: $latex",
                 color = Color.Red,
-                fontSize = 12.sp
+                fontSize = 12.sp,
             )
         } else {
             Image(
                 painter = painter,
                 contentDescription = "LaTeX Formula",
-                modifier = Modifier
+                modifier = Modifier,
             )
         }
     }
@@ -96,12 +98,12 @@ fun LaTeXView(
 fun LaTeXViewInline(
     latex: String,
     modifier: Modifier = Modifier,
-    textColor: Color = if (isSystemInDarkTheme()) Color.White else Color.Black
+    textColor: Color = if (isSystemInDarkTheme()) Color.White else Color.Black,
 ) {
     LaTeXView(
         latex = latex,
         isBlock = false,
         modifier = modifier,
-        textColor = textColor
+        textColor = textColor,
     )
 }

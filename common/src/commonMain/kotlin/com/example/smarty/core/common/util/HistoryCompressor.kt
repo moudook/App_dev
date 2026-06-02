@@ -18,7 +18,9 @@ import com.example.smarty.core.domain.model.ChatRole
  *
  * Expected impact: 50-70% token reduction for long conversations
  */
-class HistoryCompressor(private val logger: Logger) {
+class HistoryCompressor(
+    private val logger: Logger,
+) {
     companion object {
         private const val DEFAULT_RECENT_EXCHANGES = 3 // Keep 3 most recent exchanges verbatim
         private const val MAX_SUMMARY_CHARS = 300 // Max chars for summary section (reduced for small models)
@@ -276,8 +278,7 @@ class HistoryCompressor(private val logger: Logger) {
                 // Prioritize executed actions if any
                 if (it.executedActions.isNotEmpty()) {
                     val actions =
-                        it.executedActions.joinToString(", ") {
-                                action ->
+                        it.executedActions.joinToString(", ") { action ->
                             "${action.action}:${if (action.success) "ok" else "fail"}"
                         }
                     summaryParts.add("Actions: $actions")
@@ -307,7 +308,8 @@ class HistoryCompressor(private val logger: Logger) {
 
         // Get first sentence
         val firstSentence =
-            text.split(Regex("[.!?]"))
+            text
+                .split(Regex("[.!?]"))
                 .firstOrNull()
                 ?.trim()
                 ?.take(MAX_MESSAGE_EXCERPT)
@@ -315,9 +317,11 @@ class HistoryCompressor(private val logger: Logger) {
 
         // Find entities in the full text
         val entities =
-            entityPatterns.flatMap { pattern ->
-                pattern.findAll(text).map { it.value }
-            }.distinct().take(3)
+            entityPatterns
+                .flatMap { pattern ->
+                    pattern.findAll(text).map { it.value }
+                }.distinct()
+                .take(3)
 
         // Combine: first sentence + any additional entities not in it
         val missingEntities = entities.filter { !firstSentence.contains(it, ignoreCase = true) }

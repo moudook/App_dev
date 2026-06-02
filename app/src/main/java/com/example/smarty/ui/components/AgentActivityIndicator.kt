@@ -17,12 +17,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -53,13 +51,13 @@ import com.example.smarty.ui.theme.LocalShapes
 @Composable
 fun AgentActivityIndicator(
     activity: AgentActivity?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = activity != null,
         enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        modifier = modifier
+        modifier = modifier,
     ) {
         activity?.let { currentActivity ->
             ActivityBadge(activity = currentActivity)
@@ -70,7 +68,7 @@ fun AgentActivityIndicator(
 @Composable
 private fun ActivityBadge(
     activity: AgentActivity,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "activity_pulse")
 
@@ -78,51 +76,55 @@ private fun ActivityBadge(
     val pulse by infiniteTransition.animateFloat(
         initialValue = 0.8f,
         targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(800, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "pulse",
     )
 
     // Alpha animation for the whole badge
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.7f,
         targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "alpha",
     )
 
     Surface(
-        modifier = modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .alpha(alpha),
+        modifier =
+            modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .alpha(alpha),
         shape = LocalShapes.current.pill,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-        tonalElevation = 2.dp
+        tonalElevation = 2.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
+            horizontalArrangement = Arrangement.Start,
         ) {
             // Animated icon
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .scale(pulse)
-                    .clip(CircleShape)
-                    .background(getActivityColor(activity.type).copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .scale(pulse)
+                        .clip(CircleShape)
+                        .background(getActivityColor(activity.type).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = getActivityIcon(activity.type, activity.toolName),
                     contentDescription = null,
                     tint = getActivityColor(activity.type),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
             }
 
@@ -132,7 +134,7 @@ private fun ActivityBadge(
             Text(
                 text = activity.displayText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             // Animated activity pulsing circle
@@ -148,51 +150,57 @@ private fun ActivityPulseCircle(color: Color) {
     val scale by transition.animateFloat(
         initialValue = 0.8f,
         targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "scale",
     )
     val alpha by transition.animateFloat(
         initialValue = 0.3f,
         targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "alpha",
     )
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
         // Outer glowing pulsing ring
         Box(
-            modifier = Modifier
-                .size(12.dp)
-                .scale(scale)
-                .clip(CircleShape)
-                .background(color.copy(alpha = alpha * 0.25f))
+            modifier =
+                Modifier
+                    .size(12.dp)
+                    .scale(scale)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = alpha * 0.25f)),
         )
         // Solid pulsing core
         Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = alpha))
+            modifier =
+                Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = alpha)),
         )
     }
 }
 
 @Composable
-private fun getActivityColor(type: AgentActivity.Type): Color {
-    return when (type) {
+private fun getActivityColor(type: AgentActivity.Type): Color =
+    when (type) {
         AgentActivity.Type.THINKING -> MaterialTheme.colorScheme.primary
         AgentActivity.Type.TOOL_RUNNING -> MaterialTheme.colorScheme.tertiary
         AgentActivity.Type.SEARCHING -> MaterialTheme.colorScheme.secondary
         AgentActivity.Type.ANALYZING -> MaterialTheme.colorScheme.primary
     }
-}
 
-private fun getActivityIcon(type: AgentActivity.Type, toolName: String?): ImageVector {
+private fun getActivityIcon(
+    type: AgentActivity.Type,
+    toolName: String?,
+): ImageVector {
     // Check for specific tool names first
     toolName?.let { name ->
         return when {
@@ -206,11 +214,10 @@ private fun getActivityIcon(type: AgentActivity.Type, toolName: String?): ImageV
     return getDefaultIconForType(type)
 }
 
-private fun getDefaultIconForType(type: AgentActivity.Type): ImageVector {
-    return when (type) {
+private fun getDefaultIconForType(type: AgentActivity.Type): ImageVector =
+    when (type) {
         AgentActivity.Type.THINKING -> Icons.Default.Psychology
         AgentActivity.Type.TOOL_RUNNING -> Icons.Default.Settings
         AgentActivity.Type.SEARCHING -> Icons.Default.Search
         AgentActivity.Type.ANALYZING -> Icons.Default.AutoAwesome
     }
-}

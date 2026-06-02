@@ -9,26 +9,23 @@ import com.example.smarty.data.backup.BackupMetadata
 import com.example.smarty.data.backup.BackupOperationState
 import com.example.smarty.data.backup.LocalBackupManager
 import com.example.smarty.data.backup.LocalBackupMetadata
-import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.DriveService
 import com.example.smarty.data.remote.GoogleAuthManager
-import com.example.smarty.data.worker.AutoBackupWorker
+import com.example.smarty.features.settings.domain.BackupFeatureManager
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-import com.example.smarty.features.settings.domain.BackupFeatureManager
 
 /**
  * ViewModel for managing backup operations (both Google Drive and local).
  * Delegated to BackupFeatureManager for centralized logic.
  */
-class BackupViewModel(application: Application) : AndroidViewModel(application) {
-
+class BackupViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val securePreferences: SecurePreferences by lazy {
         SecurePreferences.getInstance(application)
     }
@@ -62,7 +59,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             authManager = authManager,
             driveService = driveService,
             cloudBackupManager = cloudBackupManager,
-            localBackupManager = localBackupManager
+            localBackupManager = localBackupManager,
         )
     }
 
@@ -144,12 +141,18 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun resetBackupState() = backupFeatureManager.resetStates()
+
     fun resetRestoreState() = backupFeatureManager.resetStates()
+
     fun refreshLastBackupTime() { /* Handled reactively */ }
 
     fun createLocalBackup() = backupFeatureManager.createLocalBackup()
+
     fun loadLocalBackups() = backupFeatureManager.loadLocalBackups()
+
     fun deleteLocalBackup(metadata: LocalBackupMetadata) = backupFeatureManager.deleteLocalBackup(metadata)
+
     fun getLocalBackupShareIntent(metadata: LocalBackupMetadata) = backupFeatureManager.createLocalBackupShareIntent(metadata)
+
     fun resetLocalBackupState() = backupFeatureManager.resetStates()
 }

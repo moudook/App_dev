@@ -81,8 +81,12 @@ fun StaticPremiumBackground(modifier: Modifier = Modifier) {
                 brush =
                     androidx.compose.ui.graphics.Brush.linearGradient(
                         colors = listOf(bgColor, surfaceColor, bgColor),
-                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                        end = androidx.compose.ui.geometry.Offset(width, height),
+                        start =
+                            androidx.compose.ui.geometry
+                                .Offset(0f, 0f),
+                        end =
+                            androidx.compose.ui.geometry
+                                .Offset(width, height),
                     ),
             )
 
@@ -91,10 +95,14 @@ fun StaticPremiumBackground(modifier: Modifier = Modifier) {
                 brush =
                     androidx.compose.ui.graphics.Brush.radialGradient(
                         colors = listOf(accent1, Color.Transparent),
-                        center = androidx.compose.ui.geometry.Offset(width * 0.9f, -height * 0.1f),
+                        center =
+                            androidx.compose.ui.geometry
+                                .Offset(width * 0.9f, -height * 0.1f),
                         radius = width * 1.2f,
                     ),
-                center = androidx.compose.ui.geometry.Offset(width * 0.9f, -height * 0.1f),
+                center =
+                    androidx.compose.ui.geometry
+                        .Offset(width * 0.9f, -height * 0.1f),
                 radius = width * 1.2f,
             )
 
@@ -103,10 +111,14 @@ fun StaticPremiumBackground(modifier: Modifier = Modifier) {
                 brush =
                     androidx.compose.ui.graphics.Brush.radialGradient(
                         colors = listOf(accent2, Color.Transparent),
-                        center = androidx.compose.ui.geometry.Offset(-width * 0.2f, height * 1.1f),
+                        center =
+                            androidx.compose.ui.geometry
+                                .Offset(-width * 0.2f, height * 1.1f),
                         radius = width * 1.3f,
                     ),
-                center = androidx.compose.ui.geometry.Offset(-width * 0.2f, height * 1.1f),
+                center =
+                    androidx.compose.ui.geometry
+                        .Offset(-width * 0.2f, height * 1.1f),
                 radius = width * 1.3f,
             )
 
@@ -115,10 +127,14 @@ fun StaticPremiumBackground(modifier: Modifier = Modifier) {
                 brush =
                     androidx.compose.ui.graphics.Brush.radialGradient(
                         colors = listOf(accent3, Color.Transparent),
-                        center = androidx.compose.ui.geometry.Offset(width * 0.6f, height * 0.5f),
+                        center =
+                            androidx.compose.ui.geometry
+                                .Offset(width * 0.6f, height * 0.5f),
                         radius = width * 0.8f,
                     ),
-                center = androidx.compose.ui.geometry.Offset(width * 0.6f, height * 0.5f),
+                center =
+                    androidx.compose.ui.geometry
+                        .Offset(width * 0.6f, height * 0.5f),
                 radius = width * 0.8f,
             )
         }
@@ -218,10 +234,16 @@ fun LoginScreen(
                         androidx.compose.material3.Text(
                             text =
                                 androidx.compose.ui.text.buildAnnotatedString {
-                                    withStyle(androidx.compose.ui.text.SpanStyle(color = meetYourColor)) {
+                                    withStyle(
+                                        androidx.compose.ui.text
+                                            .SpanStyle(color = meetYourColor),
+                                    ) {
                                         append("Meet your ")
                                     }
-                                    withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                    withStyle(
+                                        androidx.compose.ui.text
+                                            .SpanStyle(color = PinkAccent),
+                                    ) {
                                         append("Friday")
                                     }
                                     append(".")
@@ -382,17 +404,29 @@ fun LoginScreen(
                     text =
                         androidx.compose.ui.text.buildAnnotatedString {
                             if (isLoginMode) {
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = textPrimary)) {
+                                withStyle(
+                                    androidx.compose.ui.text
+                                        .SpanStyle(color = textPrimary),
+                                ) {
                                     append("Welcome ")
                                 }
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                withStyle(
+                                    androidx.compose.ui.text
+                                        .SpanStyle(color = PinkAccent),
+                                ) {
                                     append("Back")
                                 }
                             } else {
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = textPrimary)) {
+                                withStyle(
+                                    androidx.compose.ui.text
+                                        .SpanStyle(color = textPrimary),
+                                ) {
                                     append("Create ")
                                 }
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = PinkAccent)) {
+                                withStyle(
+                                    androidx.compose.ui.text
+                                        .SpanStyle(color = PinkAccent),
+                                ) {
                                     append("Account")
                                 }
                             }
@@ -425,7 +459,7 @@ fun LoginScreen(
                     shape = RoundedCornerShape(26.dp),
                     color = cardColor,
                     border = BorderStroke(1.dp, cardBorder),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -559,7 +593,7 @@ fun LoginScreen(
                             val animatedStrengthColor by animateColorAsState(
                                 targetValue = strengthColor,
                                 animationSpec = tween(400),
-                                label = "strengthColorAnim"
+                                label = "strengthColorAnim",
                             )
 
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -725,8 +759,7 @@ fun LoginScreen(
                                         } else {
                                             viewModel.setError(context.getString(R.string.error_email_required_reset))
                                         }
-                                    }
-                                    .padding(vertical = 4.dp, horizontal = 2.dp),
+                                    }.padding(vertical = 4.dp, horizontal = 2.dp),
                         )
                     }
                 }
@@ -783,8 +816,7 @@ fun LoginScreen(
                                 ) {
                                     isLoginMode = !isLoginMode
                                     viewModel.clearError()
-                                }
-                                .padding(4.dp),
+                                }.padding(4.dp),
                     )
                 }
             }

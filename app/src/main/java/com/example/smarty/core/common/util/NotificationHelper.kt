@@ -70,7 +70,8 @@ object NotificationHelper {
             )
 
         val builder =
-            NotificationCompat.Builder(context, CHANNEL_ID_GENERAL)
+            NotificationCompat
+                .Builder(context, CHANNEL_ID_GENERAL)
                 .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this resource exists, fallback to standard if needed
                 .setContentTitle(title)
                 .setContentText(message)
@@ -119,7 +120,8 @@ object NotificationHelper {
             )
 
         val builder =
-            NotificationCompat.Builder(context, CHANNEL_ID_GENERAL)
+            NotificationCompat
+                .Builder(context, CHANNEL_ID_GENERAL)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(title)
                 .setContentText(body)

@@ -1,5 +1,6 @@
 package com.example.smarty.ui.animation
 
+import android.graphics.BlurMaskFilter
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -10,13 +11,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import android.graphics.BlurMaskFilter
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.dp
 
 /**
  * Applies a glow border effect when active.
@@ -29,64 +29,70 @@ import androidx.compose.ui.graphics.toArgb
 fun Modifier.shakeGlowEffect(
     isActive: Boolean,
     glowColor: Color,
-    onAnimationComplete: () -> Unit = {}
-): Modifier = composed {
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0f, // Full visible when active
-        animationSpec = tween(
-            durationMillis = if (isActive) 100 else 300, // Fast in, smooth out
-            easing = FastOutSlowInEasing
-        ),
-        finishedListener = {
-            if (!isActive) onAnimationComplete()
-        },
-        label = "glowAlpha"
-    )
+    onAnimationComplete: () -> Unit = {},
+): Modifier =
+    composed {
+        val glowAlpha by animateFloatAsState(
+            targetValue = if (isActive) 1f else 0f, // Full visible when active
+            animationSpec =
+                tween(
+                    durationMillis = if (isActive) 100 else 300, // Fast in, smooth out
+                    easing = FastOutSlowInEasing,
+                ),
+            finishedListener = {
+                if (!isActive) onAnimationComplete()
+            },
+            label = "glowAlpha",
+        )
 
-    // Animate the blur radius for a expanding cloud effect
-    val blurRadius by animateFloatAsState(
-        targetValue = if (isActive) 60f else 1f,
-        animationSpec = tween(durationMillis = 500),
-        label = "blurRadius"
-    )
+        // Animate the blur radius for a expanding cloud effect
+        val blurRadius by animateFloatAsState(
+            targetValue = if (isActive) 60f else 1f,
+            animationSpec = tween(durationMillis = 500),
+            label = "blurRadius",
+        )
 
-    if (glowAlpha > 0.01f) {
-        this.drawBehind {
-            drawIntoCanvas { canvas ->
-                val nativeCanvas = canvas.nativeCanvas
-                val frameworkPaint = android.graphics.Paint()
-                
-                frameworkPaint.color = glowColor.copy(alpha = glowAlpha).toArgb()
-                
-                // Use NORMAL blur on a Stroke to create a fuzzy "cloud" line
-                frameworkPaint.maskFilter = BlurMaskFilter(
-                    blurRadius * density, 
-                    BlurMaskFilter.Blur.NORMAL
-                )
-                
-                frameworkPaint.style = android.graphics.Paint.Style.STROKE
-                val strokeWidth = 50f * density // Thick stroke for the cloud body
-                frameworkPaint.strokeWidth = strokeWidth
-                
-                // Rounded corners
-                val cornerRadius = 32.dp.toPx() 
-                
-                // Inset by half stroke width so the "cloud" is centered on the edge
-                // but mostly visible. Since this is a "border", we want it on the perimeter.
-                val inset = strokeWidth / 2
-                
-                nativeCanvas.drawRoundRect(
-                    inset, inset,
-                    size.width - inset, size.height - inset,
-                    cornerRadius, cornerRadius,
-                    frameworkPaint
-                )
+        if (glowAlpha > 0.01f) {
+            this.drawBehind {
+                drawIntoCanvas { canvas ->
+                    val nativeCanvas = canvas.nativeCanvas
+                    val frameworkPaint = android.graphics.Paint()
+
+                    frameworkPaint.color = glowColor.copy(alpha = glowAlpha).toArgb()
+
+                    // Use NORMAL blur on a Stroke to create a fuzzy "cloud" line
+                    frameworkPaint.maskFilter =
+                        BlurMaskFilter(
+                            blurRadius * density,
+                            BlurMaskFilter.Blur.NORMAL,
+                        )
+
+                    frameworkPaint.style = android.graphics.Paint.Style.STROKE
+                    val strokeWidth = 50f * density // Thick stroke for the cloud body
+                    frameworkPaint.strokeWidth = strokeWidth
+
+                    // Rounded corners
+                    val cornerRadius = 32.dp.toPx()
+
+                    // Inset by half stroke width so the "cloud" is centered on the edge
+                    // but mostly visible. Since this is a "border", we want it on the perimeter.
+                    val inset = strokeWidth / 2
+
+                    nativeCanvas.drawRoundRect(
+                        inset,
+                        inset,
+                        size.width - inset,
+                        size.height - inset,
+                        cornerRadius,
+                        cornerRadius,
+                        frameworkPaint,
+                    )
+                }
             }
+        } else {
+            this
         }
-    } else {
-        this
     }
-}
 
 /**
  * State holder for shake glow animation.
@@ -122,8 +128,4 @@ class ShakeGlowState {
  * Remember a ShakeGlowState instance.
  */
 @Composable
-fun rememberShakeGlowState(): ShakeGlowState {
-    return remember { ShakeGlowState() }
-}
-
-
+fun rememberShakeGlowState(): ShakeGlowState = remember { ShakeGlowState() }

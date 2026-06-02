@@ -14,7 +14,6 @@ import kotlin.math.abs
  * - ~3-5x faster Gaussian calculations on mobile CPUs
  */
 object FisheyeAnimations {
-
     /**
      * OPTIMIZED: Calculate the scale factor for a letter in the fisheye effect.
      *
@@ -31,7 +30,7 @@ object FisheyeAnimations {
         letterIndex: Int,
         selectedIndex: Int,
         maxScale: Float = 2.8f,
-        sigma: Float = 2.0f
+        sigma: Float = 2.0f,
     ): Float {
         if (selectedIndex < 0) return 1f
 
@@ -58,7 +57,7 @@ object FisheyeAnimations {
         letterIndex: Int,
         selectedIndex: Int,
         maxOffset: Float = 28f,
-        sigma: Float = 2.0f
+        sigma: Float = 2.0f,
     ): Float {
         if (selectedIndex < 0) return 0f
 
@@ -85,7 +84,7 @@ object FisheyeAnimations {
         letterIndex: Int,
         selectedIndex: Int,
         minAlpha: Float = 0.4f,
-        sigma: Float = 3f
+        sigma: Float = 3f,
     ): Float {
         if (selectedIndex < 0) return 0.6f
 
@@ -109,7 +108,7 @@ object FisheyeAnimations {
     fun calculateFisheyeWeight(
         letterIndex: Int,
         selectedIndex: Int,
-        sigma: Float = 1.5f
+        sigma: Float = 1.5f,
     ): Float {
         if (selectedIndex < 0) return 0f
 

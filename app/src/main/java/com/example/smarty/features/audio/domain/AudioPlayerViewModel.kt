@@ -26,7 +26,9 @@ import kotlinx.coroutines.withContext
  * ViewModel for managing audio player state and UI
  * Observes AudioPlayerService state and provides UI-friendly state
  */
-class AudioPlayerViewModel(application: Application) : AndroidViewModel(application) {
+class AudioPlayerViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     companion object {
         private const val TAG = "AudioPlayerViewModel"
     }
@@ -82,8 +84,7 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
                 midAmplitude = mid,
                 trebleAmplitude = treble,
             )
-        }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5000),
@@ -112,11 +113,12 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
                         isPlaybackRequested = false
                         autoHideJob?.cancel()
                         withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(
-                                getApplication(),
-                                getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
+                            android.widget.Toast
+                                .makeText(
+                                    getApplication(),
+                                    getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
                         }
                     }
                     PlaybackState.ENDED -> {

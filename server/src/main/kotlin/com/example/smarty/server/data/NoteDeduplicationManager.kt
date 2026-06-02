@@ -173,9 +173,9 @@ class NoteDeduplicationManager(
      * Normalize content for deduplication — collapse whitespace, trim, normalize line endings.
      * Prevents duplicate notes from minor formatting differences.
      */
-    fun String.normalizeForDedup(): String {
-        return this.replace("\r\n", "\n")
+    fun String.normalizeForDedup(): String =
+        this
+            .replace("\r\n", "\n")
             .replace(Regex("\\s+"), " ")
             .trim()
-    }
 }

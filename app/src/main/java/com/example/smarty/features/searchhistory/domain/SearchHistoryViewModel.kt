@@ -23,21 +23,22 @@ import kotlinx.serialization.Serializable
  * Search History ViewModel
  * Manages search history state and operations
  */
-class SearchHistoryViewModel(application: Application) : AndroidViewModel(application) {
-    
+class SearchHistoryViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
-    
+
     private val _uiState = MutableStateFlow(SearchHistoryUiState())
     val uiState: StateFlow<SearchHistoryUiState> = _uiState.asStateFlow()
-    
+
     private val _searchHistory = MutableStateFlow<List<SearchHistoryItem>>(emptyList())
     val searchHistory: StateFlow<List<SearchHistoryItem>> = _searchHistory.asStateFlow()
-    
+
     init {
         loadSearchHistory()
     }
-    
+
     fun loadSearchHistory(limit: Int = 20) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -47,11 +48,12 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Not authenticated")
                     return@launch
                 }
-                
-                val response: HttpResponse = client.get("$serverUrl/api/search/history?limit=$limit") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.get("$serverUrl/api/search/history?limit=$limit") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     val result: SearchHistoryResponse = response.body()
                     _searchHistory.value = result.history.map { it.toItem() }
@@ -64,25 +66,30 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
             }
         }
     }
-    
-    fun addSearch(query: String, searchScope: String = "all", resultCount: Int = 0) {
+
+    fun addSearch(
+        query: String,
+        searchScope: String = "all",
+        resultCount: Int = 0,
+    ) {
         viewModelScope.launch {
             try {
                 val token = getFirebaseToken()
                 if (token == null) return@launch
-                
-                val request = AddSearchRequest(
-                    query = query,
-                    searchScope = searchScope,
-                    resultCount = resultCount
-                )
-                
+
+                val request =
+                    AddSearchRequest(
+                        query = query,
+                        searchScope = searchScope,
+                        resultCount = resultCount,
+                    )
+
                 client.post("$serverUrl/api/search/history") {
                     header("Authorization", "Bearer $token")
                     contentType(ContentType.Application.Json)
                     setBody(request)
                 }
-                
+
                 // Reload after adding
                 loadSearchHistory()
             } catch (e: Exception) {
@@ -90,7 +97,7 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
             }
         }
     }
-    
+
     fun clearHistory() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -100,11 +107,12 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Not authenticated")
                     return@launch
                 }
-                
-                val response: HttpResponse = client.delete("$serverUrl/api/search/history/clear") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.delete("$serverUrl/api/search/history/clear") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     _searchHistory.value = emptyList()
                     _uiState.value = _uiState.value.copy(isLoading = false)
@@ -116,17 +124,18 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
             }
         }
     }
-    
+
     fun deleteItem(itemId: String) {
         viewModelScope.launch {
             try {
                 val token = getFirebaseToken()
                 if (token == null) return@launch
-                
-                val response: HttpResponse = client.delete("$serverUrl/api/search/history/$itemId") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.delete("$serverUrl/api/search/history/$itemId") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     _searchHistory.value = _searchHistory.value.filter { it.id != itemId }
                 }
@@ -135,26 +144,25 @@ class SearchHistoryViewModel(application: Application) : AndroidViewModel(applic
             }
         }
     }
-    
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             user?.getIdToken(false)?.await()?.token
         } catch (e: Exception) {
             null
         }
-    }
 }
 
 data class SearchHistoryUiState(
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @Serializable
 data class SearchHistoryResponse(
     val success: Boolean,
-    val history: List<SearchHistoryData> = emptyList()
+    val history: List<SearchHistoryData> = emptyList(),
 )
 
 @Serializable
@@ -164,26 +172,29 @@ data class SearchHistoryData(
     val query: String,
     val searchScope: String,
     val resultCount: Int,
-    val createdAt: String
+    val createdAt: String,
 )
 
 @Serializable
 data class AddSearchRequest(
     val query: String,
     val searchScope: String? = "all",
-    val resultCount: Int? = 0
+    val resultCount: Int? = 0,
 )
 
-fun SearchHistoryData.toItem(): SearchHistoryItem {
-    return SearchHistoryItem(
+fun SearchHistoryData.toItem(): SearchHistoryItem =
+    SearchHistoryItem(
         id = id,
         query = query,
         scope = searchScope,
         resultCount = resultCount,
-        timestamp = try {
-            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault()).parse(createdAt)?.time ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
+        timestamp =
+            try {
+                java.text
+                    .SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                    .parse(createdAt)
+                    ?.time ?: 0L
+            } catch (e: Exception) {
+                0L
+            },
     )
-}

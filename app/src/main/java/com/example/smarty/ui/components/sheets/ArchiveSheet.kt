@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.features.notes.ui.ArchiveScreen
 
@@ -21,7 +20,7 @@ fun ArchiveSheet(
     sheetState: SheetState, // Keep for API compatibility, but not used
     onDismiss: () -> Unit,
     onDeleteNote: (String) -> Unit,
-    onUnarchiveNote: (String) -> Unit
+    onUnarchiveNote: (String) -> Unit,
 ) {
     // Handle back button
     BackHandler(enabled = true) {
@@ -30,11 +29,12 @@ fun ArchiveSheet(
 
     // Full-page overlay
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding(),
     ) {
         ArchiveScreen(
             archivedNotes = archivedNotes,
@@ -42,7 +42,7 @@ fun ArchiveSheet(
             onDeleteNote = onDeleteNote,
             onUnarchiveNote = onUnarchiveNote,
             isEmbedded = false, // Use full screen mode
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }

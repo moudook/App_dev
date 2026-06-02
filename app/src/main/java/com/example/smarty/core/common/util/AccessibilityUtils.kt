@@ -61,7 +61,9 @@ fun Modifier.accessibleClickable(
     contentDescription: String,
     enabled: Boolean = true,
     role: Role = Role.Button,
-    shape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+    shape: Shape =
+        androidx.compose.foundation.shape
+            .RoundedCornerShape(8.dp),
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -107,8 +109,8 @@ fun Modifier.iconButtonClickable(
     onClick: () -> Unit,
     contentDescription: String,
     enabled: Boolean = true,
-): Modifier {
-    return this
+): Modifier =
+    this
         .sizeIn(minWidth = MinTouchTargetSize, minHeight = MinTouchTargetSize)
         .accessibleClickable(
             onClick = onClick,
@@ -116,7 +118,6 @@ fun Modifier.iconButtonClickable(
             enabled = enabled,
             role = Role.Button,
         )
-}
 
 /**
  * Checks if a color has sufficient contrast against a background.
@@ -163,13 +164,12 @@ fun Color.hasSufficientContrast(
  * https://www.w3.org/WAI/GL/wiki/Relative_luminance
  */
 private fun Color.luminance(): Float {
-    fun Float.luminanceComponent(): Float {
-        return if (this <= 0.03928f) {
+    fun Float.luminanceComponent(): Float =
+        if (this <= 0.03928f) {
             this / 12.92f
         } else {
             Math.pow(((this + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
         }
-    }
 
     return 0.2126f * red.luminanceComponent() +
         0.7152f * green.luminanceComponent() +

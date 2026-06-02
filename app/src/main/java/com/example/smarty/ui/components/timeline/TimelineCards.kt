@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,11 +47,12 @@ fun ToolCallCard(
     var expanded by remember(node.id) { mutableStateOf(false) }
     val (displayLabel, icon) = toolMeta(node.toolName)
 
-    val statusColor = when (node.status) {
-        TimelineNode.ToolExecution.Status.COMPLETED -> Color(0xFF4CAF50)
-        TimelineNode.ToolExecution.Status.FAILED -> MaterialTheme.colorScheme.error
-        TimelineNode.ToolExecution.Status.RUNNING -> accentColor
-    }
+    val statusColor =
+        when (node.status) {
+            TimelineNode.ToolExecution.Status.COMPLETED -> Color(0xFF4CAF50)
+            TimelineNode.ToolExecution.Status.FAILED -> MaterialTheme.colorScheme.error
+            TimelineNode.ToolExecution.Status.RUNNING -> accentColor
+        }
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -63,13 +63,14 @@ fun ToolCallCard(
         Column {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { expanded = !expanded }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -81,7 +82,8 @@ fun ToolCallCard(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            icon, null,
+                            icon,
+                            null,
                             tint = statusColor,
                             modifier = Modifier.size(18.dp),
                         )
@@ -97,12 +99,13 @@ fun ToolCallCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = when {
-                            node.source == "mcp" -> "MCP · $displayLabel"
-                            node.toolName.lowercase().contains("search") -> "Looking that up"
-                            node.toolName.lowercase().contains("image") -> "Painting something"
-                            else -> displayLabel
-                        },
+                        text =
+                            when {
+                                node.source == "mcp" -> "MCP · $displayLabel"
+                                node.toolName.lowercase().contains("search") -> "Looking that up"
+                                node.toolName.lowercase().contains("image") -> "Painting something"
+                                else -> displayLabel
+                            },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                     )
@@ -135,9 +138,10 @@ fun ToolCallCard(
                 exit = shrinkVertically(tween(180)) + fadeOut(),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
@@ -181,12 +185,13 @@ fun ApprovalCard(
     val accentColor = LocalAccentColor.current
     var textInput by remember { mutableStateOf("") }
     val borderColor by animateColorAsState(
-        targetValue = when (node.status) {
-            TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF4CAF50)
-            TimelineNode.ApprovalGate.Status.DENIED -> MaterialTheme.colorScheme.error
-            TimelineNode.ApprovalGate.Status.PENDING -> accentColor
-        },
-        label = "approvalBorder"
+        targetValue =
+            when (node.status) {
+                TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF4CAF50)
+                TimelineNode.ApprovalGate.Status.DENIED -> MaterialTheme.colorScheme.error
+                TimelineNode.ApprovalGate.Status.PENDING -> accentColor
+            },
+        label = "approvalBorder",
     )
 
     Surface(
@@ -350,11 +355,12 @@ fun RecoveryCard(
     val accentColor = LocalAccentColor.current
     val succeeded = node.succeeded
 
-    val indicatorColor = when (succeeded) {
-        true -> Color(0xFF4CAF50)
-        false -> MaterialTheme.colorScheme.error
-        null -> accentColor
-    }
+    val indicatorColor =
+        when (succeeded) {
+            true -> Color(0xFF4CAF50)
+            false -> MaterialTheme.colorScheme.error
+            null -> accentColor
+        }
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -381,11 +387,12 @@ fun RecoveryCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = when (succeeded) {
-                        true -> "Recovered"
-                        false -> "Couldn't recover"
-                        null -> "Recovering…"
-                    },
+                    text =
+                        when (succeeded) {
+                            true -> "Recovered"
+                            false -> "Couldn't recover"
+                            null -> "Recovering…"
+                        },
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = indicatorColor,
                 )
@@ -419,11 +426,12 @@ fun SystemActivityCard(
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) { expanded = !expanded },
+        modifier =
+            modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = !expanded },
     ) {
         Column {
             // Collapsed chip row
@@ -439,11 +447,12 @@ fun SystemActivityCard(
                     modifier = Modifier.size(12.dp),
                 )
                 Text(
-                    text = buildString {
-                        append("${node.totalOps} background op${if (node.totalOps != 1) "s" else ""}")
-                        if (node.durationMs > 0L) append(" · ${node.durationMs}ms")
-                        if (node.isOngoing) append(" · syncing…")
-                    },
+                    text =
+                        buildString {
+                            append("${node.totalOps} background op${if (node.totalOps != 1) "s" else ""}")
+                            if (node.durationMs > 0L) append(" · ${node.durationMs}ms")
+                            if (node.isOngoing) append(" · syncing…")
+                        },
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 )
@@ -468,10 +477,46 @@ fun SystemActivityCard(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                     Spacer(Modifier.height(4.dp))
                     if (node.cacheHits > 0) SystemActivityRow("Cache hits", node.cacheHits, Icons.Default.FlashOn, Color(0xFF4CAF50))
-                    if (node.cacheMisses > 0) SystemActivityRow("Cache misses", node.cacheMisses, Icons.Default.FlashOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    if (node.dbReads > 0) SystemActivityRow("DB reads", node.dbReads, Icons.Default.Storage, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    if (node.dbWrites > 0) SystemActivityRow("DB writes", node.dbWrites, Icons.Default.Save, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    if (node.syncCount > 0) SystemActivityRow("Sync ops", node.syncCount, Icons.Default.Sync, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    if (node.cacheMisses >
+                        0
+                    ) {
+                        SystemActivityRow(
+                            "Cache misses",
+                            node.cacheMisses,
+                            Icons.Default.FlashOff,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                    if (node.dbReads >
+                        0
+                    ) {
+                        SystemActivityRow(
+                            "DB reads",
+                            node.dbReads,
+                            Icons.Default.Storage,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                    if (node.dbWrites >
+                        0
+                    ) {
+                        SystemActivityRow(
+                            "DB writes",
+                            node.dbWrites,
+                            Icons.Default.Save,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                    if (node.syncCount >
+                        0
+                    ) {
+                        SystemActivityRow(
+                            "Sync ops",
+                            node.syncCount,
+                            Icons.Default.Sync,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
                 }
             }
         }
@@ -479,7 +524,12 @@ fun SystemActivityCard(
 }
 
 @Composable
-private fun SystemActivityRow(label: String, count: Int, icon: ImageVector, tint: Color) {
+private fun SystemActivityRow(
+    label: String,
+    count: Int,
+    icon: ImageVector,
+    tint: Color,
+) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -498,7 +548,10 @@ private fun SystemActivityRow(label: String, count: Int, icon: ImageVector, tint
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ToolStatusIndicator(status: TimelineNode.ToolExecution.Status, accentColor: Color) {
+private fun ToolStatusIndicator(
+    status: TimelineNode.ToolExecution.Status,
+    accentColor: Color,
+) {
     when (status) {
         TimelineNode.ToolExecution.Status.COMPLETED ->
             Icon(Icons.Outlined.CheckCircle, "Done", tint = Color(0xFF4CAF50), modifier = Modifier.size(15.dp))
@@ -580,13 +633,14 @@ fun SubagentGroupCard(
         Column {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { expanded = !expanded }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -598,7 +652,8 @@ fun SubagentGroupCard(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.AccountTree, null,
+                            Icons.Default.AccountTree,
+                            null,
                             tint = accentColor,
                             modifier = Modifier.size(18.dp),
                         )
@@ -643,9 +698,10 @@ fun SubagentGroupCard(
                 exit = shrinkVertically(tween(180)) + fadeOut(),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))

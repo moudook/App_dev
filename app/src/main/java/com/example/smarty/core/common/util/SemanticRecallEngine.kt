@@ -332,10 +332,11 @@ object SemanticRecallEngine {
     fun cleanupCache() {
         val now = System.currentTimeMillis()
         val expiredKeys =
-            recallCache.filter {
-                val oldestResult = it.value.minByOrNull { r -> r.lastAccessed }
-                oldestResult != null && (now - oldestResult.lastAccessed) > 24 * 60 * 60 * 1000L // 24 hours
-            }.keys
+            recallCache
+                .filter {
+                    val oldestResult = it.value.minByOrNull { r -> r.lastAccessed }
+                    oldestResult != null && (now - oldestResult.lastAccessed) > 24 * 60 * 60 * 1000L // 24 hours
+                }.keys
 
         expiredKeys.forEach { recallCache.remove(it) }
     }
@@ -365,5 +366,7 @@ sealed class TimeContext {
 
     object Historical : TimeContext()
 
-    data class Specific(val timeRange: Pair<Long, Long>) : TimeContext() // start and end timestamps
+    data class Specific(
+        val timeRange: Pair<Long, Long>,
+    ) : TimeContext() // start and end timestamps
 }

@@ -2,13 +2,11 @@ package com.example.smarty.ui.components.sheets
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.features.notes.ui.StacksScreen
 
@@ -25,7 +23,7 @@ fun StacksSheet(
     onCategoryClick: (Category) -> Unit,
     onCreateCategory: (String) -> Unit,
     onRenameCategory: (Category, String) -> Unit = { _, _ -> },
-    onDeleteCategory: (Category) -> Unit = {}
+    onDeleteCategory: (Category) -> Unit = {},
 ) {
     // Handle back button
     BackHandler(enabled = true) {
@@ -34,11 +32,12 @@ fun StacksSheet(
 
     // Full-page overlay
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding(),
     ) {
         StacksScreen(
             categories = categories,
@@ -48,7 +47,7 @@ fun StacksSheet(
             onBackClick = onDismiss,
             onCreateCategory = onCreateCategory,
             onRenameCategory = onRenameCategory,
-            onDeleteCategory = onDeleteCategory
+            onDeleteCategory = onDeleteCategory,
         )
     }
 }

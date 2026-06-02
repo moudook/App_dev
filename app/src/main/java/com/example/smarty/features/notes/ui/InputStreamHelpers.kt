@@ -57,8 +57,11 @@ internal fun getMimeTypeFromExtension(fileName: String): String {
     }
 }
 
-internal fun getFileInfo(context: Context, uri: Uri): Attachment? {
-    return try {
+internal fun getFileInfo(
+    context: Context,
+    uri: Uri,
+): Attachment? =
+    try {
         var fileName: String? = null
         var fileSize: Long = 0
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -71,42 +74,45 @@ internal fun getFileInfo(context: Context, uri: Uri): Attachment? {
                 }
             }
         }
-        val safeName = fileName
-            ?: uri.lastPathSegment
-            ?: "Unknown_${System.currentTimeMillis()}"
+        val safeName =
+            fileName
+                ?: uri.lastPathSegment
+                ?: "Unknown_${System.currentTimeMillis()}"
         val contentResolverMime = context.contentResolver.getType(uri)
-        val mimeType = when {
-            contentResolverMime != null &&
-            contentResolverMime != "application/octet-stream" &&
-            contentResolverMime != "binary/octet-stream" -> contentResolverMime
-            else -> getMimeTypeFromExtension(safeName)
-        }
+        val mimeType =
+            when {
+                contentResolverMime != null &&
+                    contentResolverMime != "application/octet-stream" &&
+                    contentResolverMime != "binary/octet-stream" -> contentResolverMime
+                else -> getMimeTypeFromExtension(safeName)
+            }
         android.util.Log.d("AttachmentPicker", "File: $safeName, MIME: $mimeType (ContentResolver: $contentResolverMime)")
         Attachment(
-            id = java.util.UUID.randomUUID().toString(),
+            id =
+                java.util.UUID
+                    .randomUUID()
+                    .toString(),
             uri = uri.toString(),
             fileName = safeName,
             mimeType = mimeType,
-            fileSize = fileSize
+            fileSize = fileSize,
         )
     } catch (e: Exception) {
         android.util.Log.e("AttachmentPicker", "Failed to get file info: ${e.message}", e)
         null
     }
-}
 
-internal fun createImageFile(context: Context): Uri? {
-    return try {
+internal fun createImageFile(context: Context): Uri? =
+    try {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val imageFileName = "SMARTY_${timeStamp}"
+        val imageFileName = "SMARTY_$timeStamp"
         val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
         FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
-            imageFile
+            imageFile,
         )
     } catch (e: Exception) {
         null
     }
-}

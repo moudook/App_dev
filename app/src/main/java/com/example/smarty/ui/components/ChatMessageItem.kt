@@ -2,34 +2,13 @@ package com.example.smarty.ui.components
 
 import androidx.compose.ui.platform.LocalClipboardManager
 import android.util.Log
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,17 +16,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Launch
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -56,21 +31,14 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -89,41 +57,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateContentSize
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
-
 // Import extracted chat components for DRY principle
 import com.example.smarty.ui.components.chat.TextEffectPerWord
 import com.example.smarty.ui.components.chat.CitationCards
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withLink
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
-import androidx.compose.ui.zIndex
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
-import com.example.smarty.core.domain.model.Citation
 import com.example.smarty.core.domain.model.ClarificationRequest
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteReference
@@ -132,14 +81,9 @@ import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.smartyShapes
-import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.LaTeXView
 // Single source of truth for all markdown rendering (DRY)
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private const val TAG = "ChatMessageItem"
 
@@ -150,54 +94,59 @@ private const val TAG = "ChatMessageItem"
 private object MarkdownPatterns {
     // Escape character handling - must check for escaped characters first
     val escape = Regex("\\\\(.)")
-    
+
     // Priority ordered patterns - longer/more specific first
     // Block elements take priority
     val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]")
-    
+
     // Inline code - must be checked before bold/italic (backticks are literal)
     val inlineCode = Regex("`+([^`\n]+?)`+")
-    
+
     // Links - must be checked before bold/italic (brackets are literal in link context)
     val link = Regex("\\[([^\\]\\\\]*(?:\\\\.[^\\]\\\\]*)*)\\]\\(([^)\\s]*(?:\\s+[^)\\s]+)*)\\)")
-    
+
     // Autolinks
     val autolink = Regex("<([a-zA-Z][a-zA-Z0-9+.-]*://[^>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})>")
-    
+
     // Bold - **text** or __text__ - must check before italic
     val boldAsterisk = Regex("(?<![*])\\*\\*(.+?)\\*\\*(?![*])")
     val boldUnderscore = Regex("(?<![a-zA-Z])__(.+?)__(?![a-zA-Z])")
-    
+
     // Italic - *text* or _text_ (but not ** or __ which are bold)
     val italicAsterisk = Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")
     val italicUnderscore = Regex("(?<!_) _([^_]+) _(?!_)")
-    
+
     // Strikethrough: ~~text~~
     val strikethrough = Regex("~~([^~]+)~~")
-    
+
     // Task lists: - [ ] or - [x]
     val taskListItem = Regex("^(\\s*)[-*]\\s+\\[([ xX])\\]\\s+(.+)$", RegexOption.MULTILINE)
-    
+
     // LaTeX inline math
     val inlineMath = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
-    
+
     // Code block fence
     val codeFence = Regex("^```(\\w*)$", RegexOption.MULTILINE)
-    
+
     // --- PRECOMPILED patterns (previously created inline on every recomposition) ---
     // Task list line detection
     val taskListUnchecked = Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")
     val taskListChecked = Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")
     val taskListParse = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
     val taskListDetect = Regex("^\\s*[-*]\\s+\\[\\s*[xX]?\\s*\\]")
+
     // Numbered list detection (not task list)
     val numberedListNotTask = Regex("^\\s*\\d+\\.\\s+\\[.*")
+
     // Horizontal rule
     val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
+
     // Table separator
     val tableSeparator = Regex("[|\\-:\\s]")
+
     // Inline math detection (for StandardText)
     val inlineMathDetect = Regex("(?<!\\$)\\$(?!\\$)[^\\n]+\\$(?!\\$)")
+
     // formatActionName regex
     val actionNameSplit = Regex("([A-Z])")
 }
@@ -216,13 +165,13 @@ private val timestampDateFormat by lazy {
 private data class TextSegment(
     val content: String,
     val isLatex: Boolean = false,
-    val isBlock: Boolean = false
+    val isBlock: Boolean = false,
 )
 
 private fun parseTextWithInlineMath(text: String): List<TextSegment> {
     val segments = mutableListOf<TextSegment>()
-    val inlinePattern = MarkdownPatterns.inlineMath  // Reuse precompiled pattern
-    
+    val inlinePattern = MarkdownPatterns.inlineMath // Reuse precompiled pattern
+
     var lastEnd = 0
     inlinePattern.findAll(text).forEach { match ->
         // Add text before this math
@@ -237,7 +186,7 @@ private fun parseTextWithInlineMath(text: String): List<TextSegment> {
     if (lastEnd < text.length) {
         segments.add(TextSegment(text.substring(lastEnd)))
     }
-    
+
     return segments
 }
 
@@ -245,10 +194,10 @@ private fun parseTextWithInlineMath(text: String): List<TextSegment> {
  * Position of a message within a grouped burst of messages.
  */
 enum class MessageGroupPosition {
-    SINGLE,  // Isolated message
-    TOP,     // First in a group
-    MIDDLE,  // Middle of a group
-    BOTTOM   // Last in a group
+    SINGLE, // Isolated message
+    TOP, // First in a group
+    MIDDLE, // Middle of a group
+    BOTTOM, // Last in a group
 }
 
 /**
@@ -276,24 +225,25 @@ fun ChatMessageItem(
     onEditMessage: ((com.example.smarty.core.domain.model.ChatMessage) -> Unit)? = null,
     onRegenerateMessage: (String) -> Unit = {},
     onApproval: (String, Boolean, String?) -> Unit = { _, _, _ -> },
-    showActions: Boolean = true
+    showActions: Boolean = true,
 ) {
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
-    
+
     var showContextMenu by remember { mutableStateOf(false) }
-    
+
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = if (isUser) 16.dp else 0.dp, 
-                vertical = 4.dp
-            ),
-        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = if (isUser) 16.dp else 0.dp,
+                    vertical = 4.dp,
+                ),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
         MessageContent(
             message = message,
@@ -304,7 +254,7 @@ fun ChatMessageItem(
             onNoteClickById = onNoteClickById,
             onEventClickById = onEventClickById,
             onRegenerateMessage = onRegenerateMessage,
-            onApproval = onApproval
+            onApproval = onApproval,
         )
 
         // Apply Bubble or Container (isDark already computed above)
@@ -312,41 +262,44 @@ fun ChatMessageItem(
         // Inverted colors for user bubble
         // TODO: For Dark Theme - currently using off-white, consider reducing intensity or using a different shade later
         val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
-        val userBubbleTextColor = if (isDark) {
-            Color(0xFF1A1A1A)
-        } else {
-            Color.Black
-        }
-        
+        val userBubbleTextColor =
+            if (isDark) {
+                Color(0xFF1A1A1A)
+            } else {
+                Color.Black
+            }
+
         // Pill-shaped bubble for user messages
         val userBubbleShape = RoundedCornerShape(26.dp)
 
         if (isUser) {
             var isExpanded by remember { mutableStateOf(false) }
             var hasOverflow by remember { mutableStateOf(false) }
-            
+
             Box(
-                modifier = Modifier
-                    .padding(start = 48.dp)
-                    .widthIn(max = 640.dp)
+                modifier =
+                    Modifier
+                        .padding(start = 48.dp)
+                        .widthIn(max = 640.dp),
             ) {
                 Surface(
                     color = userBubbleBackground,
                     shape = userBubbleShape,
-                    modifier = Modifier.clickable(
-                        enabled = hasOverflow,
-                        onClick = { isExpanded = !isExpanded },
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null // No ripple effect, clean interaction
-                    )
+                    modifier =
+                        Modifier.clickable(
+                            enabled = hasOverflow,
+                            onClick = { isExpanded = !isExpanded },
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null, // No ripple effect, clean interaction
+                        ),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .padding(
-                                horizontal = 24.dp,
-                                vertical = 20.dp
-                            )
-                            .animateContentSize()
+                        modifier =
+                            Modifier
+                                .padding(
+                                    horizontal = 24.dp,
+                                    vertical = 20.dp,
+                                ).animateContentSize(),
                     ) {
                         val userTextColor = userBubbleTextColor
                         SelectionContainer {
@@ -359,40 +312,43 @@ fun ChatMessageItem(
                                     }
                                 },
                                 overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.SansSerif,
-                                    fontSize = 16.sp,
-                                    lineHeight = 22.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    letterSpacing = 0.sp
-                                ),
-                                color = userTextColor
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.SansSerif,
+                                        fontSize = 16.sp,
+                                        lineHeight = 22.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        letterSpacing = 0.sp,
+                                    ),
+                                color = userTextColor,
                             )
                         }
-                        
+
                         // Floating Expand Arrow when truncated
                         if (hasOverflow && !isExpanded) {
                             Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .background(
-                                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                userBubbleBackground,
-                                                userBubbleBackground
-                                            ),
-                                            startX = 0f,
-                                            endX = 40f
-                                        )
-                                    )
-                                    .padding(start = 16.dp, top = 2.dp)
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .background(
+                                            brush =
+                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors =
+                                                        listOf(
+                                                            Color.Transparent,
+                                                            userBubbleBackground,
+                                                            userBubbleBackground,
+                                                        ),
+                                                    startX = 0f,
+                                                    endX = 40f,
+                                                ),
+                                        ).padding(start = 16.dp, top = 2.dp),
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ExpandMore,
                                     contentDescription = "Expand",
                                     tint = userTextColor.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }
@@ -400,7 +356,7 @@ fun ChatMessageItem(
                 }
                 DropdownMenu(
                     expanded = showContextMenu,
-                    onDismissRequest = { showContextMenu = false }
+                    onDismissRequest = { showContextMenu = false },
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.copy)) },
@@ -410,7 +366,7 @@ fun ChatMessageItem(
                         },
                         leadingIcon = {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
+                        },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
@@ -420,7 +376,7 @@ fun ChatMessageItem(
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
+                        },
                     )
                     DropdownMenuItem(
                         text = { Text("Edit") },
@@ -430,7 +386,7 @@ fun ChatMessageItem(
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
+                        },
                     )
                 }
             }
@@ -438,7 +394,7 @@ fun ChatMessageItem(
             // Assistant message — SelectionContainer enables text selection
             DropdownMenu(
                 expanded = showContextMenu,
-                onDismissRequest = { showContextMenu = false }
+                onDismissRequest = { showContextMenu = false },
             ) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.copy)) },
@@ -448,7 +404,7 @@ fun ChatMessageItem(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
+                    },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.delete)) },
@@ -458,7 +414,7 @@ fun ChatMessageItem(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
+                    },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.regenerate)) },
@@ -468,7 +424,7 @@ fun ChatMessageItem(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
+                    },
                 )
             }
         }
@@ -476,27 +432,29 @@ fun ChatMessageItem(
         // Suggestions
         if (!isUser && message.hasSuggestions) {
             Row(
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .widthIn(max = ComponentSpacing.bubbleMaxWidth),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier =
+                    Modifier
+                        .padding(top = 10.dp)
+                        .widthIn(max = ComponentSpacing.bubbleMaxWidth),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 message.suggestions.take(2).forEach { suggestion ->
                     Surface(
                         onClick = { onSuggestionClick(suggestion) },
                         shape = RoundedCornerShape(14.dp),
                         color = accentColor.copy(alpha = Alpha.hint),
-                        border = BorderStroke(1.dp, accentColor.copy(alpha = Alpha.moderate))
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = Alpha.moderate)),
                     ) {
                         Text(
                             text = suggestion,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium
-                            ),
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                ),
                             color = accentColor,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -509,15 +467,16 @@ fun ChatMessageItem(
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = formatTimestamp(message.timestamp),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Medium
-                    ),
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Medium,
+                        ),
                     color = timestampBubbleColor,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
                 )
             }
         } else {
@@ -534,24 +493,29 @@ fun ChatMessageItem(
             }
 
             Row(
-                modifier = Modifier
-                    .padding(top = 6.dp, start = 12.dp, end = 4.dp)
-                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                    .fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .padding(top = 6.dp, start = 12.dp, end = 4.dp)
+                        .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                        .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Actions (Copy on Left)
                 Icon(
                     imageVector = if (showCopied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
                     contentDescription = stringResource(R.string.copy),
-                    modifier = Modifier
-                        .size(IconSize.small)
-                        .clickable {
-                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(if (isUser) message.content else cleanContent(message.content)))
-                            showCopied = true
-                        },
-                    tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
+                    modifier =
+                        Modifier
+                            .size(IconSize.small)
+                            .clickable {
+                                clipboardManager.setText(
+                                    androidx.compose.ui.text
+                                        .AnnotatedString(if (isUser) message.content else cleanContent(message.content)),
+                                )
+                                showCopied = true
+                            },
+                    tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
                 )
 
                 // Context (Time on Right)
@@ -559,47 +523,57 @@ fun ChatMessageItem(
                     if (message.hasCitations) {
                         val serverConfidence = message.confidence
                         val sourceCount = message.citations.size
-                        val confidenceColor = when (serverConfidence) {
-                            "verified" -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
-                            "moderate" -> androidx.compose.ui.graphics.Color(0xFFFFA726)
-                            else -> androidx.compose.ui.graphics.Color(0xFF9E9E9E)
-                        }
-                        val confidenceText = when (serverConfidence) {
-                            "verified" -> "Verified"
-                            "moderate" -> "Moderate"
-                            "model_knowledge" -> "AI Knowledge"
-                            else -> when {
-                                sourceCount >= 3 -> "Verified"
-                                sourceCount >= 2 -> "Moderate"
-                                else -> "Unverified"
+                        val confidenceColor =
+                            when (serverConfidence) {
+                                "verified" ->
+                                    androidx.compose.ui.graphics
+                                        .Color(0xFF4CAF50)
+                                "moderate" ->
+                                    androidx.compose.ui.graphics
+                                        .Color(0xFFFFA726)
+                                else ->
+                                    androidx.compose.ui.graphics
+                                        .Color(0xFF9E9E9E)
                             }
-                        }
+                        val confidenceText =
+                            when (serverConfidence) {
+                                "verified" -> "Verified"
+                                "moderate" -> "Moderate"
+                                "model_knowledge" -> "AI Knowledge"
+                                else ->
+                                    when {
+                                        sourceCount >= 3 -> "Verified"
+                                        sourceCount >= 2 -> "Moderate"
+                                        else -> "Unverified"
+                                    }
+                            }
 
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = confidenceColor.copy(alpha = 0.12f),
                             border = BorderStroke(1.dp, confidenceColor.copy(alpha = 0.25f)),
-                            modifier = Modifier.height(24.dp)
+                            modifier = Modifier.height(24.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             ) {
                                 Icon(
                                     imageVector = if (sourceCount >= 3) Icons.Default.CheckCircle else Icons.Default.Info,
                                     contentDescription = null,
                                     tint = confidenceColor,
-                                    modifier = Modifier.size(12.dp)
+                                    modifier = Modifier.size(12.dp),
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = confidenceText,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 10.sp
-                                    ),
-                                    color = confidenceColor
+                                    style =
+                                        MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 10.sp,
+                                        ),
+                                    color = confidenceColor,
                                 )
                             }
                         }
@@ -609,11 +583,12 @@ fun ChatMessageItem(
 
                     Text(
                         text = formatTimestamp(message.timestamp),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Medium
-                        ),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium,
+                            ),
                         color = textSubColor,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
                     )
                 }
             }
@@ -631,21 +606,22 @@ private fun MessageContent(
     onNoteClickById: (String) -> Unit,
     onEventClickById: (String) -> Unit,
     onRegenerateMessage: (String) -> Unit,
-    onApproval: (String, Boolean, String?) -> Unit
+    onApproval: (String, Boolean, String?) -> Unit,
 ) {
     Column(
-        modifier = Modifier.padding(
-            horizontal = if (isUser) 16.dp else 16.dp,
-            vertical = if (isUser) 16.dp else 16.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        modifier =
+            Modifier.padding(
+                horizontal = if (isUser) 16.dp else 16.dp,
+                vertical = if (isUser) 16.dp else 16.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         if (!isUser) {
             if (message.agentEvents.isNotEmpty()) {
                 AgentTimelineItem(
                     message = message,
                     onRegenerateMessage = onRegenerateMessage,
-                    onApproval = onApproval
+                    onApproval = onApproval,
                 )
             } else {
                 if (message.content.isNotEmpty()) {
@@ -653,58 +629,66 @@ private fun MessageContent(
 
                     TextEffectPerWord(
                         text = rawContent,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.SansSerif,
-                            fontSize = 16.sp,
-                            lineHeight = 22.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.sp
-                        ),
+                        textStyle =
+                            MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 16.sp,
+                                lineHeight = 22.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.sp,
+                            ),
                         normalColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         boldColor = MaterialTheme.colorScheme.onSurface,
                         linkColor = accentColor,
                         codeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
                         codeBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        isStreaming = message.isStreaming
+                        isStreaming = message.isStreaming,
                     )
 
                     val generateImageCall = message.toolCalls.find { it.toolName == "generate_image" }
                     if (generateImageCall != null) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        val state = when (generateImageCall.status) {
-                            "completed" -> com.example.smarty.ui.components.krea.ImageGenState.Completed
-                            "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
-                            else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
-                        }
+                        val state =
+                            when (generateImageCall.status) {
+                                "completed" -> com.example.smarty.ui.components.krea.ImageGenState.Completed
+                                "failed", "error" -> com.example.smarty.ui.components.krea.ImageGenState.Error
+                                else -> com.example.smarty.ui.components.krea.ImageGenState.Thinking
+                            }
 
-                        val imageUrl = generateImageCall.outputSummary?.let { summary ->
-                            android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
-                            when {
-                                summary.startsWith("http") -> summary
-                                summary.startsWith("{") && summary.contains("\"url\"") -> {
-                                    val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
-                                    android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
-                                    extracted
-                                }
-                                else -> {
-                                    android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
-                                    null
+                        val imageUrl =
+                            generateImageCall.outputSummary?.let { summary ->
+                                android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
+                                when {
+                                    summary.startsWith("http") -> summary
+                                    summary.startsWith("{") && summary.contains("\"url\"") -> {
+                                        val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
+                                        android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
+                                        extracted
+                                    }
+                                    else -> {
+                                        android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
+                                        null
+                                    }
                                 }
                             }
-                        }
                         android.util.Log.d("ChatMessageItem", "Final imageUrl: $imageUrl")
 
                         com.example.smarty.ui.components.krea.ImageGenerationCard(
                             state = state,
-                            mode = if (generateImageCall.displayName.contains("Direct", ignoreCase = true))
-                                com.example.smarty.ui.components.krea.ImageGenMode.Direct
-                            else
-                                com.example.smarty.ui.components.krea.ImageGenMode.Agent,
-                            prompt = generateImageCall.inputSummary ?: message.content.takeIf { it.isNotBlank() } ?: "Generating image...",
+                            mode =
+                                if (generateImageCall.displayName.contains("Direct", ignoreCase = true)) {
+                                    com.example.smarty.ui.components.krea.ImageGenMode.Direct
+                                } else {
+                                    com.example.smarty.ui.components.krea.ImageGenMode.Agent
+                                },
+                            prompt =
+                                generateImageCall.inputSummary ?: message.content.takeIf {
+                                    it.isNotBlank()
+                                } ?: "Generating image...",
                             imageUrl = imageUrl,
                             onRemix = { onRegenerateMessage(message.id) },
-                            onRetry = { onRegenerateMessage(message.id) }
+                            onRetry = { onRegenerateMessage(message.id) },
                         )
                     }
 
@@ -719,50 +703,59 @@ private fun MessageContent(
                                 fullScreenIndex = index
                                 showFullScreen = true
                             },
-                            modifier = Modifier
-                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                                .clip(RoundedCornerShape(16.dp))
+                            modifier =
+                                Modifier
+                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .clip(RoundedCornerShape(16.dp)),
                         )
 
                         if (showFullScreen && message.inlineImages.isNotEmpty()) {
-                            val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
-                                ?: message.inlineImages.first()
+                            val currentImage =
+                                message.inlineImages.getOrNull(fullScreenIndex)
+                                    ?: message.inlineImages.first()
                             FullScreenImageViewer(
                                 imageUri = currentImage.uri,
                                 onDismiss = { showFullScreen = false },
-                                contentDescription = currentImage.fileName
+                                contentDescription = currentImage.fileName,
                             )
                         }
                     }
 
                     if (message.referencedNoteIds.isNotEmpty()) {
                         val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
-                        val relevantNotes = message.referencedNoteIds
-                            .filter { it !in actionNoteIds }
-                            .mapNotNull { getNote(it) }
+                        val relevantNotes =
+                            message.referencedNoteIds
+                                .filter { it !in actionNoteIds }
+                                .mapNotNull { getNote(it) }
 
                         if (relevantNotes.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
                             InlineNotePreview(
                                 notes = relevantNotes,
                                 onNoteClick = { onNoteClick(it) },
-                                modifier = Modifier
-                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                                    .clip(RoundedCornerShape(16.dp))
+                                modifier =
+                                    Modifier
+                                        .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                        .clip(RoundedCornerShape(16.dp)),
                             )
                         }
                     }
 
-                    val imageAttachments = message.attachments.filter { it.getAttachmentType() == com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    val imageAttachments =
+                        message.attachments.filter {
+                            it.getAttachmentType() ==
+                                com.example.smarty.core.domain.model.AttachmentType.IMAGE
+                        }
                     if (isUser && imageAttachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        val inlineImages = imageAttachments.map {
-                            com.example.smarty.core.domain.model.InlineChatImage(
-                                uri = it.uri,
-                                fileName = it.fileName,
-                                noteTitle = ""
-                            )
-                        }
+                        val inlineImages =
+                            imageAttachments.map {
+                                com.example.smarty.core.domain.model.InlineChatImage(
+                                    uri = it.uri,
+                                    fileName = it.fileName,
+                                    noteTitle = "",
+                                )
+                            }
 
                         var showFullScreen by remember { mutableStateOf(false) }
                         var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -773,9 +766,10 @@ private fun MessageContent(
                                 fullScreenIndex = index
                                 showFullScreen = true
                             },
-                            modifier = Modifier
-                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                                .clip(RoundedCornerShape(16.dp))
+                            modifier =
+                                Modifier
+                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .clip(RoundedCornerShape(16.dp)),
                         )
 
                         if (showFullScreen) {
@@ -783,27 +777,39 @@ private fun MessageContent(
                             FullScreenImageViewer(
                                 imageUri = currentImage.uri,
                                 onDismiss = { showFullScreen = false },
-                                contentDescription = currentImage.fileName
+                                contentDescription = currentImage.fileName,
                             )
                         }
                     }
 
-                    val otherAttachments = message.attachments.filter { it.getAttachmentType() != com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    val otherAttachments =
+                        message.attachments.filter {
+                            it.getAttachmentType() !=
+                                com.example.smarty.core.domain.model.AttachmentType.IMAGE
+                        }
                     if (otherAttachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
                             color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
                         ) {
                             val count = otherAttachments.size
                             Text(
-                                text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    letterSpacing = 0.4.sp
-                                ),
+                                text =
+                                    if (count ==
+                                        1
+                                    ) {
+                                        stringResource(R.string.one_attachment)
+                                    } else {
+                                        stringResource(R.string.x_attachments, count)
+                                    },
+                                style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        letterSpacing = 0.4.sp,
+                                    ),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -815,7 +821,7 @@ private fun MessageContent(
                                 NoteBlockCard(
                                     noteReference = noteRef,
                                     onClick = { onNoteClickById(noteRef.noteId) },
-                                    accentColor = accentColor
+                                    accentColor = accentColor,
                                 )
                             }
                         }
@@ -828,7 +834,7 @@ private fun MessageContent(
                                 EventBlockCard(
                                     eventReference = eventRef,
                                     onClick = { onEventClickById(eventRef.eventId) },
-                                    accentColor = accentColor
+                                    accentColor = accentColor,
                                 )
                             }
                         }
@@ -841,7 +847,7 @@ private fun MessageContent(
                             accentColor = accentColor,
                             onCitationClick = { url ->
                                 // TODO: open URL in browser
-                            }
+                            },
                         )
                     }
                 }
@@ -856,7 +862,7 @@ fun CodeBlock(
     language: String,
     backgroundColor: Color,
     borderColor: Color,
-    headerBgColor: Color = Color(0xFF343541)
+    headerBgColor: Color = Color(0xFF343541),
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
@@ -873,35 +879,38 @@ fun CodeBlock(
     val separatorColor = if (isDark) Color(0xFF3A3A4A) else Color(0xFFD8D8DD)
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, separatorColor, RoundedCornerShape(10.dp))
-            .background(codeBg)
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, separatorColor, RoundedCornerShape(10.dp))
+                .background(codeBg),
     ) {
         // Header: language badge + copy button
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(headerBg)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(headerBg)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Language badge
             if (language.isNotBlank()) {
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = langLabelColor.copy(alpha = 0.12f)
+                    color = langLabelColor.copy(alpha = 0.12f),
                 ) {
                     Text(
                         text = language.lowercase(),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
                         color = langLabelColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
             } else {
@@ -910,30 +919,34 @@ fun CodeBlock(
 
             // Copy button
             Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable {
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(code))
-                        isCopied = true
-                    }
-                    .background(if (isCopied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else copyBtnBg)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            clipboardManager.setText(
+                                androidx.compose.ui.text
+                                    .AnnotatedString(code),
+                            )
+                            isCopied = true
+                        }.background(if (isCopied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else copyBtnBg)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Icon(
                     imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
                     contentDescription = "Copy code",
                     tint = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(12.dp),
                 )
                 Text(
                     text = if (isCopied) "Copied!" else "Copy",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                        color = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText
-                    )
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = if (isCopied) MaterialTheme.colorScheme.primary else copyBtnText,
+                        ),
                 )
                 if (isCopied) {
                     LaunchedEffect(Unit) {
@@ -948,13 +961,14 @@ fun CodeBlock(
         Box(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = code,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                ),
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                    ),
                 color = textColor,
-                modifier = Modifier.horizontalScroll(rememberScrollState())
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
             )
         }
     }
@@ -981,12 +995,11 @@ private fun formatTimestamp(timestamp: Long): String {
 // and com.example.smarty.ui.components.markdown.MarkdownParser
 // to eliminate code duplication. See those files for the canonical implementations.
 
-
 @Composable
 private fun ClarificationBubble(
     request: ClarificationRequest,
     onSubmit: (String) -> Unit,
-    accentColor: Color
+    accentColor: Color,
 ) {
     var customInput by remember { mutableStateOf("") }
     var isSubmitted by remember { mutableStateOf(false) }
@@ -995,7 +1008,7 @@ private fun ClarificationBubble(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1003,16 +1016,17 @@ private fun ClarificationBubble(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = accentColor,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.clarification_needed),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = accentColor
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                        ),
+                    color = accentColor,
                 )
             }
 
@@ -1020,19 +1034,20 @@ private fun ClarificationBubble(
 
             Text(
                 text = request.question,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    ),
+                color = MaterialTheme.colorScheme.onSurface,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth),
             ) {
                 request.options.forEach { option ->
                     Surface(
@@ -1046,18 +1061,19 @@ private fun ClarificationBubble(
                         color = if (isSubmitted) MaterialTheme.colorScheme.surfaceVariant else accentColor.copy(alpha = 0.1f),
                         border = BorderStroke(1.dp, if (isSubmitted) Color.Transparent else accentColor.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSubmitted
+                        enabled = !isSubmitted,
                     ) {
                         Text(
                             text = option,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 15.sp
-                            ),
+                            style =
+                                MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 15.sp,
+                                ),
                             color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
                             modifier = Modifier.padding(12.dp),
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -1082,16 +1098,16 @@ private fun ClarificationBubble(
                                     onClick = {
                                         isSubmitted = true
                                         onSubmit(customInput)
-                                    }
+                                    },
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.Send,
                                         contentDescription = stringResource(R.string.submit),
-                                        tint = accentColor
+                                        tint = accentColor,
                                     )
                                 }
                             }
-                        }
+                        },
                     )
                 }
             }
@@ -1103,28 +1119,29 @@ private fun ClarificationBubble(
 private fun NoteBlockCard(
     noteReference: NoteReference,
     onClick: () -> Unit,
-    accentColor: Color
+    accentColor: Color,
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
         color = accentColor.copy(alpha = 0.08f),
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = noteReference.title,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
+                    style =
+                        MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                        ),
                     color = accentColor,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -1132,7 +1149,7 @@ private fun NoteBlockCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -1140,7 +1157,7 @@ private fun NoteBlockCard(
                 imageVector = Icons.AutoMirrored.Filled.Launch,
                 contentDescription = stringResource(R.string.open_note),
                 tint = accentColor.copy(alpha = 0.6f),
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -1150,28 +1167,29 @@ private fun NoteBlockCard(
 private fun EventBlockCard(
     eventReference: com.example.smarty.core.domain.model.EventReference,
     onClick: () -> Unit,
-    accentColor: Color
+    accentColor: Color,
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
         color = accentColor.copy(alpha = 0.08f),
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = eventReference.title,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
+                    style =
+                        MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                        ),
                     color = accentColor,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -1179,7 +1197,7 @@ private fun EventBlockCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -1187,7 +1205,7 @@ private fun EventBlockCard(
                 imageVector = Icons.AutoMirrored.Filled.Launch,
                 contentDescription = stringResource(R.string.open_note),
                 tint = accentColor.copy(alpha = 0.6f),
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -1198,11 +1216,10 @@ private fun cleanContent(raw: String): String {
     text = text.replace(THINK_TAG_REGEX, "")
     text = text.replace(THINK_OPEN_REGEX, "")
     text = text.replace("<final>", "").replace("</final>", "")
-    
+
     // Clean up partial tags when streaming
     text = text.replace(PARTIAL_FINAL_REGEX, "")
     text = text.replace(PARTIAL_THINK_REGEX, "")
-    
+
     return text.trim()
 }
-

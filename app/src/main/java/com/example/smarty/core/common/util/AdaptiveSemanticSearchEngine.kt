@@ -123,9 +123,10 @@ class AdaptiveSemanticSearchEngine {
 
         // Calculate average content length
         val avgContentLength =
-            notes.map {
-                (it.title.length + it.content.length).toDouble()
-            }.average()
+            notes
+                .map {
+                    (it.title.length + it.content.length).toDouble()
+                }.average()
 
         // Calculate keyword density (ratio of unique words to total words)
         var totalWords = 0
@@ -389,32 +390,33 @@ class AdaptiveSemanticSearchEngine {
         val queryVector = createTfIdfVector(queryText, vocabulary, idfValues)
 
         val results =
-            items.mapIndexed { index, item ->
-                val text = allTexts[index]
-                val id = idExtractor(item)
-                val title = titleExtractor(item)
+            items
+                .mapIndexed { index, item ->
+                    val text = allTexts[index]
+                    val id = idExtractor(item)
+                    val title = titleExtractor(item)
 
-                // Create document vector
-                val docVector = createTfIdfVector(text, vocabulary, idfValues)
+                    // Create document vector
+                    val docVector = createTfIdfVector(text, vocabulary, idfValues)
 
-                // Calculate cosine similarity
-                val similarity = cosineSimilarity(queryVector, docVector)
+                    // Calculate cosine similarity
+                    val similarity = cosineSimilarity(queryVector, docVector)
 
-                if (similarity >= config.minRelevanceScore) {
-                    AdaptiveSearchResult(
-                        item = item,
-                        id = id,
-                        title = title,
-                        contentPreview = if (text.length > 100) text.substring(0, 100) + "..." else text,
-                        relevanceScore = similarity,
-                        matchType = "vector_similarity",
-                        dataType = dataType,
-                        contentCharacteristics = config.contentCharacteristics,
-                    )
-                } else {
-                    null
-                }
-            }.filterNotNull()
+                    if (similarity >= config.minRelevanceScore) {
+                        AdaptiveSearchResult(
+                            item = item,
+                            id = id,
+                            title = title,
+                            contentPreview = if (text.length > 100) text.substring(0, 100) + "..." else text,
+                            relevanceScore = similarity,
+                            matchType = "vector_similarity",
+                            dataType = dataType,
+                            contentCharacteristics = config.contentCharacteristics,
+                        )
+                    } else {
+                        null
+                    }
+                }.filterNotNull()
 
         return results.sortedByDescending { it.relevanceScore }
     }
@@ -492,7 +494,8 @@ class AdaptiveSemanticSearchEngine {
                 result.copy(relevanceScore = min(1.0, score))
             }
 
-        return finalResults.filter { it.relevanceScore >= config.minRelevanceScore }
+        return finalResults
+            .filter { it.relevanceScore >= config.minRelevanceScore }
             .sortedByDescending { it.relevanceScore }
     }
 

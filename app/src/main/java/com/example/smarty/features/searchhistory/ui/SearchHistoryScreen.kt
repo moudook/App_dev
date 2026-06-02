@@ -27,7 +27,7 @@ fun SearchHistoryScreen(
     onSearchItemClick: (String) -> Unit = {},
     onClearHistory: () -> Unit = {},
     onDeleteItem: (String) -> Unit = {},
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -37,12 +37,12 @@ fun SearchHistoryScreen(
                         Text(
                             text = "Search History",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "${searchHistory.size} searches",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
@@ -57,43 +57,45 @@ fun SearchHistoryScreen(
                             Icon(
                                 Icons.Default.DeleteSweep,
                                 "Clear All",
-                                tint = MaterialTheme.colorScheme.error
+                                tint = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
                 )
             } else if (searchHistory.isEmpty()) {
                 EmptyStatePlaceholder(
                     icon = Icons.Default.Search,
                     title = "No searches yet.",
                     subtitle = "Your searches will show up here.",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(searchHistory, key = { it.id }) { item ->
                         SearchHistoryItem(
                             item = item,
                             onClick = { onSearchItemClick(item.query) },
-                            onDeleteClick = { onDeleteItem(item.id) }
+                            onDeleteClick = { onDeleteItem(item.id) },
                         )
                     }
                 }
@@ -106,47 +108,49 @@ fun SearchHistoryScreen(
 private fun SearchHistoryItem(
     item: SearchHistoryItem,
     onClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        onClick = onClick
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+        onClick = onClick,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             ) {
                 Text(
                     text = item.query,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
                         text = item.scope,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text = "•",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text = "${item.resultCount} results",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -155,7 +159,7 @@ private fun SearchHistoryItem(
                     Icons.Default.Close,
                     "Remove",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -167,5 +171,5 @@ data class SearchHistoryItem(
     val query: String,
     val scope: String,
     val resultCount: Int,
-    val timestamp: Long
+    val timestamp: Long,
 )

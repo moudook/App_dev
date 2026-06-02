@@ -30,14 +30,13 @@ class CalendarSyncWorker(
                 PeriodicWorkRequestBuilder<CalendarSyncWorker>(
                     30,
                     TimeUnit.MINUTES,
-                )
-                    .setConstraints(
-                        Constraints.Builder()
-                            .setRequiredNetworkType(NetworkType.CONNECTED)
-                            .setRequiresBatteryNotLow(true)
-                            .build(),
-                    )
-                    .build()
+                ).setConstraints(
+                    Constraints
+                        .Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .setRequiresBatteryNotLow(true)
+                        .build(),
+                ).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,

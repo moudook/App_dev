@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components.markdown
 
+import android.util.LruCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -13,7 +14,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
-import android.util.LruCache
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
@@ -72,7 +72,7 @@ internal object MarkdownPatterns {
 internal data class TextSegment(
     val content: String,
     val isLatex: Boolean = false,
-    val isBlock: Boolean = false
+    val isBlock: Boolean = false,
 )
 
 /**
@@ -174,7 +174,11 @@ private fun fixQuotedDollars(text: String): String {
     return sb.toString()
 }
 
-private fun findClosing(text: String, start: Int, delimiter: String): Int {
+private fun findClosing(
+    text: String,
+    start: Int,
+    delimiter: String,
+): Int {
     var i = start
     while (i <= text.length - delimiter.length) {
         if (text.startsWith(delimiter, i)) return i
@@ -183,7 +187,10 @@ private fun findClosing(text: String, start: Int, delimiter: String): Int {
     return -1
 }
 
-private fun findClosingEscaped(text: String, start: Int): Int {
+private fun findClosingEscaped(
+    text: String,
+    start: Int,
+): Int {
     var i = start
     while (i <= text.length - 2) {
         if (text[i] == '\\' && text[i + 1] == '$') return i
@@ -192,11 +199,13 @@ private fun findClosingEscaped(text: String, start: Int): Int {
     return -1
 }
 
-private val annotatedStringCache = object : LruCache<String, AnnotatedString>(256) {
-    override fun sizeOf(key: String, value: AnnotatedString): Int {
-        return key.length / 512 + value.text.length / 512 + 1
+private val annotatedStringCache =
+    object : LruCache<String, AnnotatedString>(256) {
+        override fun sizeOf(
+            key: String,
+            value: AnnotatedString,
+        ): Int = key.length / 512 + value.text.length / 512 + 1
     }
-}
 
 private const val MAX_PARSE_DEPTH = 8
 
@@ -215,14 +224,15 @@ fun parseMarkdownToAnnotatedString(
     italicColor: Color,
     linkColor: Color,
     codeColor: Color,
-    isStreaming: Boolean = false
+    isStreaming: Boolean = false,
 ): AnnotatedString {
     val cacheKey = if (content.length <= 2048) content else content.substring(0, 2048)
     annotatedStringCache.get(cacheKey)?.let { return it }
 
-    val result = buildAnnotatedString {
-        parseMarkdownInternal(content, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, 0)
-    }
+    val result =
+        buildAnnotatedString {
+            parseMarkdownInternal(content, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, 0)
+        }
     annotatedStringCache.put(cacheKey, result)
     return result
 }
@@ -235,7 +245,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
     linkColor: Color,
     codeColor: Color,
     isStreaming: Boolean,
-    depth: Int
+    depth: Int,
 ) {
     if (depth >= MAX_PARSE_DEPTH || content.isEmpty()) {
         append(content)
@@ -267,7 +277,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         val url: String? = null,
         val isMath: Boolean = false,
         val isCode: Boolean = false,
-        val isStrike: Boolean = false
+        val isStrike: Boolean = false,
     )
 
     // ── Collect ALL candidate matches (no overlap checking) ─────────
@@ -277,7 +287,10 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         if (pos < 0 || pos >= text.length) return false
         var count = 0
         var i = pos - 1
-        while (i >= 0 && text[i] == '\\') { count++; i-- }
+        while (i >= 0 && text[i] == '\\') {
+            count++
+            i--
+        }
         return count % 2 == 1
     }
 
@@ -289,124 +302,193 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
 
     // Block math (priority 0)
     MarkdownPatterns.blockMath.findAll(text).forEach { m ->
-        val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = inner,
-            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f), fontSize = 14.sp),
-            priority = 0, isMath = true
-        ))
+        val inner =
+            m.groupValues
+                .drop(1)
+                .firstOrNull { it.isNotEmpty() }
+                ?.trim() ?: ""
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = inner,
+                style =
+                    SpanStyle(
+                        color = codeColor,
+                        fontFamily = FontFamily.Monospace,
+                        background = codeColor.copy(alpha = 0.15f),
+                        fontSize = 14.sp,
+                    ),
+                priority = 0,
+                isMath = true,
+            ),
+        )
     }
 
     // Inline math (priority 1)
     MarkdownPatterns.inlineMath.findAll(text).forEach { m ->
-        val inner = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = inner,
-            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, background = codeColor.copy(alpha = 0.1f)),
-            priority = 1, isMath = true
-        ))
+        val inner =
+            m.groupValues
+                .drop(1)
+                .firstOrNull { it.isNotEmpty() }
+                ?.trim() ?: ""
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = inner,
+                style =
+                    SpanStyle(
+                        color = codeColor,
+                        fontFamily = FontFamily.Monospace,
+                        fontStyle = FontStyle.Italic,
+                        background = codeColor.copy(alpha = 0.1f),
+                    ),
+                priority = 1,
+                isMath = true,
+            ),
+        )
     }
 
     // Inline code (priority 2)
     MarkdownPatterns.inlineCode.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
-            priority = 2, isCode = true
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = codeColor, fontFamily = FontFamily.Monospace, background = codeColor.copy(alpha = 0.15f)),
+                priority = 2,
+                isCode = true,
+            ),
+        )
     }
 
     // Markdown links [text](url) (priority 3)
     MarkdownPatterns.link.findAll(text).forEach { m ->
         val url = m.groupValues.getOrNull(2) ?: ""
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-            priority = 3, isLink = true, url = url
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                priority = 3,
+                isLink = true,
+                url = url,
+            ),
+        )
     }
 
     // Autolinks <url> (priority 4)
     MarkdownPatterns.autolink.findAll(text).forEach { m ->
         val url = m.groupValues[1]
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = url,
-            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-            priority = 4, isLink = true, url = url
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = url,
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                priority = 4,
+                isLink = true,
+                url = url,
+            ),
+        )
     }
 
     // Bare URLs (priority 4.5)
     MarkdownPatterns.bareUrl.findAll(text).forEach { m ->
         val url = m.groupValues[0]
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = url,
-            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-            priority = 4, isLink = true, url = url
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = url,
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                priority = 4,
+                isLink = true,
+                url = url,
+            ),
+        )
     }
 
     // Bold+Italic *** (priority 4.8)
     MarkdownPatterns.boldItalicAsterisk.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
-            priority = 48
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
+                priority = 48,
+            ),
+        )
     }
 
     // Bold+Italic ___ (priority 4.9)
     MarkdownPatterns.boldItalicUnderscore.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
-            priority = 49
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
+                priority = 49,
+            ),
+        )
     }
 
     // Bold ** (priority 5)
     MarkdownPatterns.boldAsterisk.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-            priority = 5
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+                priority = 5,
+            ),
+        )
     }
 
     // Bold __ (priority 6)
     MarkdownPatterns.boldUnderscore.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
-            priority = 6
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+                priority = 6,
+            ),
+        )
     }
 
     // Italic * (priority 7)
     MarkdownPatterns.italicAsterisk.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-            priority = 7
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+                priority = 7,
+            ),
+        )
     }
 
     // Italic _ (priority 8)
     MarkdownPatterns.italicUnderscore.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
-            priority = 8
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+                priority = 8,
+            ),
+        )
     }
 
     // Strikethrough (priority 9)
     MarkdownPatterns.strikethrough.findAll(text).forEach { m ->
-        addCandidate(MarkdownMatch(
-            range = m.range, displayText = m.groupValues[1],
-            style = SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough),
-            priority = 9, isStrike = true
-        ))
+        addCandidate(
+            MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = normalColor.copy(alpha = 0.6f), textDecoration = TextDecoration.LineThrough),
+                priority = 9,
+                isStrike = true,
+            ),
+        )
     }
 
     // ── Single-pass greedy scan (O(M log M) sort + O(M) scan) ──────
@@ -425,9 +507,10 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         }
 
         if (match.isLink && match.url != null) {
-            val linkStyle = TextLinkStyles(
-                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
-            )
+            val linkStyle =
+                TextLinkStyles(
+                    style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                )
             withLink(LinkAnnotation.Url(url = match.url, styles = linkStyle)) {
                 parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
             }
@@ -435,7 +518,16 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
             withStyle(match.style) {
                 val parseInner = !match.isMath && !match.isCode
                 if (parseInner) {
-                    parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
+                    parseMarkdownInternal(
+                        match.displayText,
+                        normalColor,
+                        boldColor,
+                        italicColor,
+                        linkColor,
+                        codeColor,
+                        isStreaming,
+                        depth + 1,
+                    )
                 } else {
                     append(match.displayText)
                 }

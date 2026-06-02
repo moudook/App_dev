@@ -3,7 +3,6 @@ package com.example.smarty.features.reasoning.domain
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.smarty.data.remote.RemoteAgentService
 import com.example.smarty.data.local.SecurePreferences
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
@@ -23,54 +22,62 @@ import kotlinx.serialization.Serializable
  * Reasoning ViewModel
  * Manages reasoning traces state and operations
  */
-class ReasoningViewModel(application: Application) : AndroidViewModel(application) {
-    
+class ReasoningViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
-    
+
     private val _uiState = MutableStateFlow(ReasoningUiState())
     val uiState: StateFlow<ReasoningUiState> = _uiState.asStateFlow()
-    
+
     private val _reasoningTraces = MutableStateFlow<List<ReasoningTraceItem>>(emptyList())
     val reasoningTraces: StateFlow<List<ReasoningTraceItem>> = _reasoningTraces.asStateFlow()
-    
+
     fun loadReasoningTraces(sessionId: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
                 val token = getFirebaseToken()
                 if (token == null) {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "Not authenticated"
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isLoading = false,
+                            error = "Not authenticated",
+                        )
                     return@launch
                 }
-                
-                val response: HttpResponse = client.get("$serverUrl/api/reasoning/session/$sessionId/traces") {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val response: HttpResponse =
+                    client.get("$serverUrl/api/reasoning/session/$sessionId/traces") {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     val result: ReasoningTracesResponse = response.body()
                     _reasoningTraces.value = result.traces.map { it.toItem() }
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 } else {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "Failed to load reasoning traces"
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isLoading = false,
+                            error = "Failed to load reasoning traces",
+                        )
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = e.message
-                )
+                _uiState.value =
+                    _uiState.value.copy(
+                        isLoading = false,
+                        error = e.message,
+                    )
             }
         }
     }
-    
-    fun loadReasoningSummary(sessionId: String, messageId: String? = null) {
+
+    fun loadReasoningSummary(
+        sessionId: String,
+        messageId: String? = null,
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
@@ -79,49 +86,52 @@ class ReasoningViewModel(application: Application) : AndroidViewModel(applicatio
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Not authenticated")
                     return@launch
                 }
-                
-                val url = if (messageId != null) {
-                    "$serverUrl/api/reasoning/session/$sessionId/summary?messageId=$messageId"
-                } else {
-                    "$serverUrl/api/reasoning/session/$sessionId/summary"
-                }
-                
-                val response: HttpResponse = client.get(url) {
-                    header("Authorization", "Bearer $token")
-                }
-                
+
+                val url =
+                    if (messageId != null) {
+                        "$serverUrl/api/reasoning/session/$sessionId/summary?messageId=$messageId"
+                    } else {
+                        "$serverUrl/api/reasoning/session/$sessionId/summary"
+                    }
+
+                val response: HttpResponse =
+                    client.get(url) {
+                        header("Authorization", "Bearer $token")
+                    }
+
                 if (response.status.isSuccess()) {
                     val summary: ReasoningSummaryItem = response.body()
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        summary = summary
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isLoading = false,
+                            summary = summary,
+                        )
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = e.message
-                )
+                _uiState.value =
+                    _uiState.value.copy(
+                        isLoading = false,
+                        error = e.message,
+                    )
             }
         }
     }
-    
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             user?.getIdToken(false)?.await()?.token
         } catch (e: Exception) {
             null
         }
-    }
 }
 
 data class ReasoningUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val summary: ReasoningSummaryItem? = null
+    val summary: ReasoningSummaryItem? = null,
 )
 
 @Serializable
@@ -129,7 +139,7 @@ data class ReasoningTracesResponse(
     val sessionId: String,
     val messageId: String?,
     val traces: List<ReasoningTraceResponse>,
-    val totalSteps: Int = 0
+    val totalSteps: Int = 0,
 )
 
 @Serializable
@@ -146,7 +156,7 @@ data class ReasoningTraceResponse(
     val isFinal: Boolean,
     val wasRevised: Boolean,
     val durationMs: Long,
-    val createdAt: String
+    val createdAt: String,
 )
 
 @Serializable
@@ -163,7 +173,7 @@ data class ReasoningSummaryItem(
     val confidenceScore: Double,
     val complexityScore: Double,
     val reasoningType: String,
-    val tags: List<String>
+    val tags: List<String>,
 )
 
 data class ReasoningTraceItem(
@@ -174,11 +184,11 @@ data class ReasoningTraceItem(
     val title: String,
     val content: String,
     val isFinal: Boolean,
-    val durationMs: Long
+    val durationMs: Long,
 )
 
-fun ReasoningTraceResponse.toItem(): ReasoningTraceItem {
-    return ReasoningTraceItem(
+fun ReasoningTraceResponse.toItem(): ReasoningTraceItem =
+    ReasoningTraceItem(
         traceId = traceId,
         sessionId = sessionId,
         stepIndex = stepIndex,
@@ -186,6 +196,5 @@ fun ReasoningTraceResponse.toItem(): ReasoningTraceItem {
         title = title,
         content = content,
         isFinal = isFinal,
-        durationMs = durationMs
+        durationMs = durationMs,
     )
-}

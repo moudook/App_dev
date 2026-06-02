@@ -27,17 +27,15 @@ object AIModels {
         )
     const val SERVER_DEFAULT = "opencode/deepseek-v4-flash-free"
 
-    fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> {
-        return when (connection) {
+    fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> =
+        when (connection) {
             AIConnection.LOCAL_PC -> SERVER_MODELS
         }
-    }
 
-    fun getDefaultModel(connection: AIConnection): String {
-        return when (connection) {
+    fun getDefaultModel(connection: AIConnection): String =
+        when (connection) {
             AIConnection.LOCAL_PC -> SERVER_DEFAULT
         }
-    }
 }
 
 /**
@@ -45,11 +43,14 @@ object AIModels {
  * Thin Client Version: Only manages local settings and server connection configuration.
  */
 @Suppress("DEPRECATION")
-class SecurePreferences(private val context: Context) {
+class SecurePreferences(
+    private val context: Context,
+) {
     fun getContext(): Context = context
 
     private val masterKey: MasterKey by lazy {
-        MasterKey.Builder(context)
+        MasterKey
+            .Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
     }
@@ -95,9 +96,7 @@ class SecurePreferences(private val context: Context) {
         _availableModels.asStateFlow()
     }
 
-    fun getConnectionPriority(): List<AIConnection> {
-        return listOf(AIConnection.LOCAL_PC)
-    }
+    fun getConnectionPriority(): List<AIConnection> = listOf(AIConnection.LOCAL_PC)
 
     companion object {
         private const val KEY_FIRST_LAUNCH = "first_launch"
@@ -136,13 +135,12 @@ class SecurePreferences(private val context: Context) {
         @Volatile
         private var INSTANCE: SecurePreferences? = null
 
-        fun getInstance(context: Context): SecurePreferences {
-            return INSTANCE ?: synchronized(this) {
+        fun getInstance(context: Context): SecurePreferences =
+            INSTANCE ?: synchronized(this) {
                 INSTANCE ?: SecurePreferences(context.applicationContext).also {
                     INSTANCE = it
                 }
             }
-        }
     }
 
     fun isFirstLaunch(): Boolean = !encryptedPrefs.contains(KEY_FIRST_LAUNCH)
@@ -159,12 +157,15 @@ class SecurePreferences(private val context: Context) {
 
     // User Profile
     fun getUserName(): String = encryptedPrefs.getString(KEY_USER_NAME, "") ?: ""
+
     fun setUserName(name: String) = encryptedPrefs.edit().putString(KEY_USER_NAME, name).apply()
 
     fun getUserGoals(): String = encryptedPrefs.getString(KEY_USER_GOALS, "") ?: ""
+
     fun setUserGoals(goals: String) = encryptedPrefs.edit().putString(KEY_USER_GOALS, goals).apply()
 
     fun getUserPreferences(): String = encryptedPrefs.getString(KEY_USER_PREFERENCES, "") ?: ""
+
     fun setUserPreferences(prefs: String) = encryptedPrefs.edit().putString(KEY_USER_PREFERENCES, prefs).apply()
 
     // Shake sensitivity
@@ -185,9 +186,7 @@ class SecurePreferences(private val context: Context) {
     fun setSoundEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
 
     // Connection Management
-    fun isConnectionEnabled(connection: AIConnection): Boolean {
-        return isServerEnabled()
-    }
+    fun isConnectionEnabled(connection: AIConnection): Boolean = isServerEnabled()
 
     fun getSelectedModel(connection: AIConnection): String {
         val saved = encryptedPrefs.getString(KEY_LOCAL_PC_MODEL, null)
@@ -205,9 +204,7 @@ class SecurePreferences(private val context: Context) {
         _selectedModel.value = model
     }
 
-    fun getSelectedVariant(): String? {
-        return encryptedPrefs.getString(KEY_LOCAL_PC_VARIANT, null)?.takeIf { it.isNotBlank() }
-    }
+    fun getSelectedVariant(): String? = encryptedPrefs.getString(KEY_LOCAL_PC_VARIANT, null)?.takeIf { it.isNotBlank() }
 
     fun setSelectedVariant(variant: String?) {
         encryptedPrefs.edit().putString(KEY_LOCAL_PC_VARIANT, variant?.takeIf { it.isNotBlank() } ?: "").apply()
@@ -304,9 +301,7 @@ class SecurePreferences(private val context: Context) {
         }
     }
 
-    fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
-        return getCachedModels()
-    }
+    fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> = getCachedModels()
 
     /**
      * Get or create a unique, persistent Device ID.
@@ -328,7 +323,8 @@ class SecurePreferences(private val context: Context) {
      * Note: Does not clear app-level settings like theme preference.
      */
     fun clearAll() {
-        encryptedPrefs.edit()
+        encryptedPrefs
+            .edit()
             .remove(KEY_GOOGLE_ACCOUNT_EMAIL)
             // Add other user-specific keys here if needed
             .apply()

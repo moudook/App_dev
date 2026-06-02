@@ -264,14 +264,13 @@ object NoteBatcher {
     fun getInstance(
         scope: CoroutineScope, // BUG FIX (TECH-001): Required lifecycle-aware scope
         noteLoader: suspend (List<String>) -> Map<String, Any?>,
-    ): RequestBatcher<String, Any?> {
-        return instance ?: RequestBatcher(
+    ): RequestBatcher<String, Any?> =
+        instance ?: RequestBatcher(
             batchWindowMs = 30,
             maxBatchSize = 20,
             batchLoader = noteLoader,
             scope = scope,
         ).also { instance = it }
-    }
 
     fun stop() {
         instance?.stop()

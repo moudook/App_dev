@@ -34,9 +34,15 @@ object LlmProviderFactory {
             cachedHttpClient ?: HttpClient(OkHttp) {
                 engine {
                     config {
+                        // LLM inference on HF Space can be very slow — the daemon may take
+                        // >5 min to start streaming the first SSE event. 30 min read/write
+                        // timeout matches HttpClientFactory.createLongTimeout() semantics
+                        // and is the only reason chat responses were failing with
+                        // "AI service took too long to respond" after exactly 5 min.
                         connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                        readTimeout(5, java.util.concurrent.TimeUnit.MINUTES)
-                        writeTimeout(5, java.util.concurrent.TimeUnit.MINUTES)
+                        readTimeout(30, java.util.concurrent.TimeUnit.MINUTES)
+                        writeTimeout(30, java.util.concurrent.TimeUnit.MINUTES)
+                        callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS) // disable total-call cap
                     }
                 }
                 install(ContentNegotiation) {
@@ -44,7 +50,7 @@ object LlmProviderFactory {
                 }
             }.also {
                 cachedHttpClient = it
-                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation with timeouts)")
+                logger.info("[LlmProviderFactory] HTTP client created (OkHttp engine + ContentNegotiation with 30-min read/write timeouts)")
             }
         }
 

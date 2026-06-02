@@ -29,10 +29,12 @@ class ChatMessageNotesDaoTest {
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
-            Room.inMemoryDatabaseBuilder(
-                context,
-                TestSmartyDatabase::class.java,
-            ).allowMainThreadQueries().build()
+            Room
+                .inMemoryDatabaseBuilder(
+                    context,
+                    TestSmartyDatabase::class.java,
+                ).allowMainThreadQueries()
+                .build()
 
         dao = database.chatMessageNotesDao()
     }

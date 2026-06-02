@@ -57,8 +57,7 @@ class CompatibleAIConnection(
                 ) { match ->
                     val keyName = match.groupValues.getOrNull(1) ?: "key"
                     """"$keyName": "****""""
-                }
-                .replace(Regex("""Bearer\s+[A-Za-z0-9\-_.]+""", RegexOption.IGNORE_CASE), "Bearer ****")
+                }.replace(Regex("""Bearer\s+[A-Za-z0-9\-_.]+""", RegexOption.IGNORE_CASE), "Bearer ****")
                 .replace(Regex("""sk-[A-Za-z0-9]{20,}"""), "sk-****")
                 .take(500)
         }
@@ -114,7 +113,8 @@ class CompatibleAIConnection(
         Log.d(TAG, "$name URL: $baseUrl")
 
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(baseUrl)
                 .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
                 .addHeader("Authorization", "Bearer $connectionToken")
@@ -175,7 +175,8 @@ class CompatibleAIConnection(
         val jsonBody = gson.toJson(requestBody)
 
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(baseUrl)
                 .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
                 .addHeader("Authorization", "Bearer $connectionToken")
@@ -231,7 +232,8 @@ class CompatibleAIConnection(
         Log.d(TAG, "$name chat URL: $baseUrl")
 
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(baseUrl)
                 .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
                 .addHeader("Authorization", "Bearer $connectionToken")

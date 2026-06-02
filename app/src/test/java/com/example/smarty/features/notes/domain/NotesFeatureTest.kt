@@ -495,7 +495,11 @@ class NotesFeatureTest {
                 }
 
             // Then
-            val wordCount = note.content.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
+            val wordCount =
+                note.content
+                    .split("\\s+".toRegex())
+                    .filter { it.isNotEmpty() }
+                    .size
             assertEquals(10, wordCount)
         }
 

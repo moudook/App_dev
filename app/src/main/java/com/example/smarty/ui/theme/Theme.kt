@@ -10,16 +10,13 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.example.smarty.ui.LocalAccentColor
 
@@ -28,106 +25,92 @@ import com.example.smarty.ui.LocalAccentColor
  * Background: #000000 (true black)
  * Primary: #FFFFFF (pure white)
  */
-private val DarkColorScheme = darkColorScheme(
-    // Primary - Monochrome White
-    primary = Color.White,
-    onPrimary = Color.Black,
-    primaryContainer = Color.White.copy(alpha = 0.15f),
-    onPrimaryContainer = Color.White,
-
-    // Secondary - Grayscale
-    secondary = DarkTextSecondary,
-    onSecondary = Color.White,
-    secondaryContainer = Color.White.copy(alpha = 0.1f),
-    onSecondaryContainer = Color.White,
-
-    // Tertiary - Grayscale
-    tertiary = Color.White.copy(alpha = 0.7f),
-    onTertiary = Color.White,
-    tertiaryContainer = Color.White.copy(alpha = 0.1f),
-    onTertiaryContainer = Color.White,
-
-    // Background - True black for OLED
-    background = Color.Black,
-    onBackground = Color.White,
-
-    // Surface - Near black card
-    surface = Color(0xFF0A0A0A),
-    onSurface = Color.White,
-    surfaceVariant = SmartyChipGrayDark,
-    onSurfaceVariant = DarkTextSecondary,
-
-    // Borders - Subtle dark
-    outline = SmartyChipSeparatorDark,
-    outlineVariant = DarkBorder.copy(alpha = 0.5f),
-
-    // Error - System Red (Calmer than Safety Orange)
-    error = SystemRed,
-    onError = Color.White,
-    errorContainer = SystemRed.copy(alpha = 0.15f),
-    onErrorContainer = SystemRed,
-
-    // Inverse
-    inverseSurface = Color.White,
-    inverseOnSurface = Color.Black,
-    inversePrimary = Color.Black,
-
-    // Scrim
-    scrim = Color.Black.copy(alpha = 0.5f)
-)
+private val DarkColorScheme =
+    darkColorScheme(
+        // Primary - Monochrome White
+        primary = Color.White,
+        onPrimary = Color.Black,
+        primaryContainer = Color.White.copy(alpha = 0.15f),
+        onPrimaryContainer = Color.White,
+        // Secondary - Grayscale
+        secondary = DarkTextSecondary,
+        onSecondary = Color.White,
+        secondaryContainer = Color.White.copy(alpha = 0.1f),
+        onSecondaryContainer = Color.White,
+        // Tertiary - Grayscale
+        tertiary = Color.White.copy(alpha = 0.7f),
+        onTertiary = Color.White,
+        tertiaryContainer = Color.White.copy(alpha = 0.1f),
+        onTertiaryContainer = Color.White,
+        // Background - True black for OLED
+        background = Color.Black,
+        onBackground = Color.White,
+        // Surface - Near black card
+        surface = Color(0xFF0A0A0A),
+        onSurface = Color.White,
+        surfaceVariant = SmartyChipGrayDark,
+        onSurfaceVariant = DarkTextSecondary,
+        // Borders - Subtle dark
+        outline = SmartyChipSeparatorDark,
+        outlineVariant = DarkBorder.copy(alpha = 0.5f),
+        // Error - System Red (Calmer than Safety Orange)
+        error = SystemRed,
+        onError = Color.White,
+        errorContainer = SystemRed.copy(alpha = 0.15f),
+        onErrorContainer = SystemRed,
+        // Inverse
+        inverseSurface = Color.White,
+        inverseOnSurface = Color.Black,
+        inversePrimary = Color.Black,
+        // Scrim
+        scrim = Color.Black.copy(alpha = 0.5f),
+    )
 
 /**
  * Light Color Scheme - Monochrome Aesthetic
  * Background: #F2F1EE (Warm Stone)
  * Primary: #000000 (Pure Black)
  */
-private val LightColorScheme = lightColorScheme(
-    // Primary - Pink Theme
-    primary = PinkAccent,
-    onPrimary = PinkText,  // Use non-pink text color for readability
-    primaryContainer = PinkLight,
-    onPrimaryContainer = PinkText,  // Use non-pink text color for readability
-
-    // Secondary - Grayscale
-    secondary = TextCoolGrey,
-    onSecondary = Color.White,
-    secondaryContainer = Color.Black.copy(alpha = 0.05f),
-    onSecondaryContainer = Color.Black,
-
-    // Tertiary - Grayscale
-    tertiary = Color.Black.copy(alpha = 0.7f),
-    onTertiary = Color.White,
-    tertiaryContainer = Color.Black.copy(alpha = 0.05f),
-    onTertiaryContainer = Color.Black,
-
-    // Background - Warm light grey canvas
-    background = SoftBackground,
-    onBackground = Color.Black,
-
-    // Surface - Pure white cards
-    surface = Color.White,
-    onSurface = Color.Black,
-    surfaceVariant = SmartyChipGrayLight,
-    onSurfaceVariant = TextCoolGrey,
-
-    // Borders - Very subtle
-    outline = SmartyChipSeparatorLight,
-    outlineVariant = SubtleBorder.copy(alpha = 0.5f),
-
-    // Error
-    error = SystemRed,
-    onError = Color.White,
-    errorContainer = SystemRed.copy(alpha = 0.1f),
-    onErrorContainer = SystemRed,
-
-    // Inverse
-    inverseSurface = Color(0xFF0A0A0A),
-    inverseOnSurface = Color.White,
-    inversePrimary = Color.White,
-
-    // Scrim
-    scrim = Color.Black.copy(alpha = 0.3f)
-)
+private val LightColorScheme =
+    lightColorScheme(
+        // Primary - Pink Theme
+        primary = PinkAccent,
+        onPrimary = PinkText, // Use non-pink text color for readability
+        primaryContainer = PinkLight,
+        onPrimaryContainer = PinkText, // Use non-pink text color for readability
+        // Secondary - Grayscale
+        secondary = TextCoolGrey,
+        onSecondary = Color.White,
+        secondaryContainer = Color.Black.copy(alpha = 0.05f),
+        onSecondaryContainer = Color.Black,
+        // Tertiary - Grayscale
+        tertiary = Color.Black.copy(alpha = 0.7f),
+        onTertiary = Color.White,
+        tertiaryContainer = Color.Black.copy(alpha = 0.05f),
+        onTertiaryContainer = Color.Black,
+        // Background - Warm light grey canvas
+        background = SoftBackground,
+        onBackground = Color.Black,
+        // Surface - Pure white cards
+        surface = Color.White,
+        onSurface = Color.Black,
+        surfaceVariant = SmartyChipGrayLight,
+        onSurfaceVariant = TextCoolGrey,
+        // Borders - Very subtle
+        outline = SmartyChipSeparatorLight,
+        outlineVariant = SubtleBorder.copy(alpha = 0.5f),
+        // Error
+        error = SystemRed,
+        onError = Color.White,
+        errorContainer = SystemRed.copy(alpha = 0.1f),
+        onErrorContainer = SystemRed,
+        // Inverse
+        inverseSurface = Color(0xFF0A0A0A),
+        inverseOnSurface = Color.White,
+        inversePrimary = Color.White,
+        // Scrim
+        scrim = Color.Black.copy(alpha = 0.3f),
+    )
 
 // Animation duration for smooth theme transition
 // Standard Material duration for large area transitions
@@ -140,11 +123,12 @@ private const val THEME_ANIMATION_DURATION = 350
 private fun animateColor(targetColor: Color): Color {
     val animatedColor by animateColorAsState(
         targetValue = targetColor,
-        animationSpec = tween(
-            durationMillis = THEME_ANIMATION_DURATION,
-            easing = androidx.compose.animation.core.FastOutSlowInEasing
-        ),
-        label = "themeColor"
+        animationSpec =
+            tween(
+                durationMillis = THEME_ANIMATION_DURATION,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            ),
+        label = "themeColor",
     )
     return animatedColor
 }
@@ -153,8 +137,8 @@ private fun animateColor(targetColor: Color): Color {
  * Create an animated color scheme for smooth theme transitions
  */
 @Composable
-private fun animateColorScheme(targetScheme: ColorScheme): ColorScheme {
-    return ColorScheme(
+private fun animateColorScheme(targetScheme: ColorScheme): ColorScheme =
+    ColorScheme(
         primary = animateColor(targetScheme.primary),
         onPrimary = animateColor(targetScheme.onPrimary),
         primaryContainer = animateColor(targetScheme.primaryContainer),
@@ -202,17 +186,16 @@ private fun animateColorScheme(targetScheme: ColorScheme): ColorScheme {
         tertiaryFixed = animateColor(targetScheme.tertiaryFixed),
         tertiaryFixedDim = animateColor(targetScheme.tertiaryFixedDim),
         onTertiaryFixed = animateColor(targetScheme.onTertiaryFixed),
-        onTertiaryFixedVariant = animateColor(targetScheme.onTertiaryFixedVariant)
+        onTertiaryFixedVariant = animateColor(targetScheme.onTertiaryFixedVariant),
     )
-}
 
 /**
  * Theme mode options
  */
 enum class ThemeMode {
-    SYSTEM,  // Follow system
-    LIGHT,   // Always light
-    DARK     // Always dark
+    SYSTEM, // Follow system
+    LIGHT, // Always light
+    DARK, // Always dark
 }
 
 /**
@@ -239,7 +222,7 @@ fun rememberMonochromeAccent(): Color {
 fun SmartyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     isTransparent: Boolean = false, // Set to true for transparent overlays (e.g., AssistActivity)
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val targetColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
@@ -256,9 +239,10 @@ fun SmartyTheme(
         // Optimize: Cache Window and Controller to avoid repetitive lookups
         val context = view.context
         val window = remember(context) { (context as? Activity)?.window }
-        val insetsController = remember(window, view) {
-            window?.let { WindowCompat.getInsetsController(it, view) }
-        }
+        val insetsController =
+            remember(window, view) {
+                window?.let { WindowCompat.getInsetsController(it, view) }
+            }
 
         SideEffect {
             window?.let { win ->
@@ -300,13 +284,12 @@ fun SmartyTheme(
     CompositionLocalProvider(
         LocalSpacing provides Spacing(),
         LocalShapes provides SmartyShapes(),
-        LocalAccentColor provides animatedColorScheme.primary
+        LocalAccentColor provides animatedColorScheme.primary,
     ) {
         MaterialTheme(
             colorScheme = animatedColorScheme,
             typography = SmartyTypography,
-            content = content
+            content = content,
         )
     }
 }
-

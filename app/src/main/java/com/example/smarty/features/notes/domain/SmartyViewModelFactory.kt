@@ -1,4 +1,5 @@
 @file:Suppress("DEPRECATION")
+
 package com.example.smarty.features.notes.domain
 
 import android.app.Application
@@ -20,14 +21,13 @@ import androidx.savedstate.SavedStateRegistryOwner
 @Suppress("DEPRECATION")
 class SmartyViewModelFactory(
     private val application: Application,
-    owner: SavedStateRegistryOwner
+    owner: SavedStateRegistryOwner,
 ) : AbstractSavedStateViewModelFactory(owner, null) {
-
     @Suppress("UNCHECKED_CAST")
     override fun <T : androidx.lifecycle.ViewModel> create(
         key: String,
         modelClass: Class<T>,
-        handle: SavedStateHandle
+        handle: SavedStateHandle,
     ): T {
         if (modelClass.isAssignableFrom(SmartyViewModel::class.java)) {
             return SmartyViewModel(application, handle) as T
@@ -35,5 +35,3 @@ class SmartyViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
-
-

@@ -2,6 +2,8 @@ package com.example.smarty.features.notes.ui
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,30 +16,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.animation.shimmerEffect
-import com.example.smarty.ui.animation.directionalShimmer
-import com.example.smarty.ui.animation.ShimmerDirection
-import com.example.smarty.ui.components.ArchiveEmptyState
-import com.example.smarty.ui.components.NotesLoadingState
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Note
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.animation.SmartyEasing
+import com.example.smarty.ui.animation.directionalShimmer
+import com.example.smarty.ui.components.ArchiveEmptyState
 import com.example.smarty.ui.components.NoteCard
+import com.example.smarty.ui.components.NotesLoadingState
 import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.LocalAccentColor
-import kotlinx.coroutines.launch
 
 /**
  * Archive screen showing all archived notes.
@@ -53,7 +49,7 @@ fun ArchiveScreen(
     onUnarchiveNote: (String) -> Unit,
     isEmbedded: Boolean = false,
     isLoading: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
 
@@ -71,27 +67,28 @@ fun ArchiveScreen(
                 if (isLoading) {
                     NotesLoadingState(
                         count = 8,
-                        modifier = Modifier.fillMaxSize().padding(16.dp)
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
                     )
                 } else if (archivedNotes.isEmpty()) {
                     ArchiveEmptyState(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            bottom = 100.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                        contentPadding =
+                            PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 16.dp,
+                                bottom = 100.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
                     ) {
                         items(
                             items = archivedNotes,
-                            key = { it.id }
+                            key = { it.id },
                         ) { note ->
                             ArchiveNoteItem(
                                 note = note,
@@ -99,7 +96,7 @@ fun ArchiveScreen(
                                     noteToDelete = note
                                     showDeleteDialog = true
                                 },
-                                onUnarchive = { onUnarchiveNote(note.id) }
+                                onUnarchive = { onUnarchiveNote(note.id) },
                             )
                         }
                     }
@@ -117,27 +114,30 @@ fun ArchiveScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = "Archive",
-                                        style = MaterialTheme.typography.headlineMedium.copy(
-                                            fontWeight = FontWeight.Light,
-                                            letterSpacing = (-1).sp
-                                        )
+                                        style =
+                                            MaterialTheme.typography.headlineMedium.copy(
+                                                fontWeight = FontWeight.Light,
+                                                letterSpacing = (-1).sp,
+                                            ),
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = "Vault",
-                                        style = MaterialTheme.typography.headlineMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = (-1).sp
-                                        )
+                                        style =
+                                            MaterialTheme.typography.headlineMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = (-1).sp,
+                                            ),
                                     )
                                 }
                                 Text(
                                     text = stringResource(R.string.preserved_items, archivedNotes.size),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp,
-                                        color = LocalAccentColor.current.copy(alpha = 0.6f)
-                                    )
+                                    style =
+                                        MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            color = LocalAccentColor.current.copy(alpha = 0.6f),
+                                        ),
                                 )
                             }
                         },
@@ -145,49 +145,54 @@ fun ArchiveScreen(
                             IconButton(onClick = onBackClick) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.back)
+                                    contentDescription = stringResource(R.string.back),
                                 )
                             }
                         },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
-                        )
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                            ),
                     )
                 },
-                containerColor = Color.Transparent
+                containerColor = Color.Transparent,
             ) { paddingValues ->
                 if (isLoading) {
                     NotesLoadingState(
                         count = 8,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(16.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                                .padding(16.dp),
                     )
                 } else if (archivedNotes.isEmpty()) {
                     // Empty state
                     ArchiveEmptyState(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues),
                     )
                 } else {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            bottom = 100.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues),
+                        contentPadding =
+                            PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 16.dp,
+                                bottom = 100.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
                     ) {
                         items(
                             items = archivedNotes,
-                            key = { it.id }
+                            key = { it.id },
                         ) { note ->
                             ArchiveNoteItem(
                                 note = note,
@@ -195,7 +200,7 @@ fun ArchiveScreen(
                                     noteToDelete = note
                                     showDeleteDialog = true
                                 },
-                                onUnarchive = { onUnarchiveNote(note.id) }
+                                onUnarchive = { onUnarchiveNote(note.id) },
                             )
                         }
                     }
@@ -220,12 +225,10 @@ fun ArchiveScreen(
             },
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
-            isDestructive = true
+            isDestructive = true,
         )
     }
 }
-
-
 
 /**
  * Note item for archive view with staggered animation
@@ -234,7 +237,7 @@ fun ArchiveScreen(
 private fun ArchiveNoteItem(
     note: Note,
     onDelete: () -> Unit,
-    onUnarchive: () -> Unit
+    onUnarchive: () -> Unit,
 ) {
     // Track if item has appeared
     var appeared by remember { mutableStateOf(false) }
@@ -246,40 +249,41 @@ private fun ArchiveNoteItem(
     // Scale animation with spring
     val scale by animateFloatAsState(
         targetValue = if (appeared) 1f else 0.85f,
-        animationSpec = spring(
-            dampingRatio = 0.7f,
-            stiffness = 300f
-        ),
-        label = "itemScale"
+        animationSpec =
+            spring(
+                dampingRatio = 0.7f,
+                stiffness = 300f,
+            ),
+        label = "itemScale",
     )
 
     // Alpha animation
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
-        label = "itemAlpha"
+        label = "itemAlpha",
     )
 
     NoteCard(
         note = note,
         onClick = { /* No click action in archive */ },
-        onDelete = onDelete,  // Permanent delete
+        onDelete = onDelete, // Permanent delete
         onOpenTodo = { /* No todo in archive */ },
-        isArchiveView = true,  // Archive view: swipe right = delete, swipe left = unarchive
+        isArchiveView = true, // Archive view: swipe right = delete, swipe left = unarchive
         onUnarchive = onUnarchive,
         onLongPress = { /* No selection in archive */ },
-        modifier = Modifier
-            .directionalShimmer(
-                isVisible = true,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                direction = ShimmerDirection.LEFT_TO_RIGHT,
-                speed = 0.5f
-            )
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha * 0.7f // Desaturated for "preserved" look
-            }
+        modifier =
+            Modifier
+                .directionalShimmer(
+                    isVisible = true,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                    direction = ShimmerDirection.LEFT_TO_RIGHT,
+                    speed = 0.5f,
+                ).graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha * 0.7f // Desaturated for "preserved" look
+                },
     )
 }
 
@@ -299,25 +303,25 @@ private fun ConcentricVaultBackground() {
             color = strokeColor,
             radius = maxRadius * 0.3f,
             center = center,
-            style = Stroke(width = 1.dp.toPx())
+            style = Stroke(width = 1.dp.toPx()),
         )
         drawCircle(
             color = strokeColor,
             radius = maxRadius * 0.5f,
             center = center,
-            style = Stroke(width = 1.dp.toPx())
+            style = Stroke(width = 1.dp.toPx()),
         )
         drawCircle(
             color = strokeColor,
             radius = maxRadius * 0.7f,
             center = center,
-            style = Stroke(width = 1.dp.toPx())
+            style = Stroke(width = 1.dp.toPx()),
         )
         drawCircle(
             color = strokeColor,
             radius = maxRadius * 0.9f,
             center = center,
-            style = Stroke(width = 1.dp.toPx())
+            style = Stroke(width = 1.dp.toPx()),
         )
     }
 }

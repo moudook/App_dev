@@ -15,9 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,13 +26,17 @@ import kotlinx.coroutines.delay
 /**
  * Breathing phases — 5-phase cycle.
  */
-enum class BreathPhase(val text: String, val scale: Float, val durationMs: Int) {
+enum class BreathPhase(
+    val text: String,
+    val scale: Float,
+    val durationMs: Int,
+) {
     IDLE("Guided Breathing", 1f, 1000),
     INHALE("Breathe in", 2.2f, 4000),
     HOLD_IN("Hold", 2.2f, 4000),
     EXHALE("Breathe out", 1f, 6000),
     HOLD_OUT("Hold", 1f, 2000),
-    COMPLETED("Peace.", 1f, 2000);
+    COMPLETED("Peace.", 1f, 2000),
 }
 
 /**
@@ -67,10 +69,11 @@ fun GuidedBreathingContent(
     // Orb scale animation
     val orbScale by animateFloatAsState(
         targetValue = phase.scale,
-        animationSpec = tween(
-            durationMillis = phase.durationMs,
-            easing = EaseInOut,
-        ),
+        animationSpec =
+            tween(
+                durationMillis = phase.durationMs,
+                easing = EaseInOut,
+            ),
         label = "orbScale",
     )
 
@@ -87,66 +90,72 @@ fun GuidedBreathingContent(
 
         delay(phase.durationMs.toLong())
 
-        phase = when (phase) {
-            BreathPhase.INHALE -> BreathPhase.HOLD_IN
-            BreathPhase.HOLD_IN -> BreathPhase.EXHALE
-            BreathPhase.EXHALE -> BreathPhase.HOLD_OUT
-            BreathPhase.HOLD_OUT -> {
-                if (cycle >= 3) {
-                    BreathPhase.COMPLETED
-                } else {
-                    cycle++
-                    BreathPhase.INHALE
+        phase =
+            when (phase) {
+                BreathPhase.INHALE -> BreathPhase.HOLD_IN
+                BreathPhase.HOLD_IN -> BreathPhase.EXHALE
+                BreathPhase.EXHALE -> BreathPhase.HOLD_OUT
+                BreathPhase.HOLD_OUT -> {
+                    if (cycle >= 3) {
+                        BreathPhase.COMPLETED
+                    } else {
+                        cycle++
+                        BreathPhase.INHALE
+                    }
                 }
+                else -> phase
             }
-            else -> phase
-        }
     }
 
     // Removed auto-dismissal to let user rest in the Peace phase
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 16.dp), // Reduced bottom padding since button is removed
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 16.dp),
+        // Reduced bottom padding since button is removed
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Breathing area
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = !isRunning
-                ) {
-                    cycle = 1
-                    phase = BreathPhase.INHALE
-                },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(320.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = !isRunning,
+                    ) {
+                        cycle = 1
+                        phase = BreathPhase.INHALE
+                    },
             contentAlignment = Alignment.Center,
         ) {
             // Outer guide ring
             Box(
-                modifier = Modifier
-                    .size(280.dp)
-                    .drawBehind {
-                        drawCircle(
-                            color = guideRingColor,
-                            radius = size.minDimension / 2,
-                            style = Stroke(width = 1.dp.toPx()),
-                        )
-                    },
+                modifier =
+                    Modifier
+                        .size(280.dp)
+                        .drawBehind {
+                            drawCircle(
+                                color = guideRingColor,
+                                radius = size.minDimension / 2,
+                                style = Stroke(width = 1.dp.toPx()),
+                            )
+                        },
             )
 
             // Breathing orb
             Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .scale(orbScale)
-                    .clip(CircleShape)
-                    .background(orbColor),
+                modifier =
+                    Modifier
+                        .size(120.dp)
+                        .scale(orbScale)
+                        .clip(CircleShape)
+                        .background(orbColor),
             )
 
             // Phase text — overlaid on center
@@ -154,16 +163,18 @@ fun GuidedBreathingContent(
                 targetState = phase,
                 transitionSpec = {
                     // Incoming text slides up from below while fading in
-                    val enter = slideInVertically(
-                        initialOffsetY = { height -> height },
-                        animationSpec = tween(1000, easing = FastOutSlowInEasing)
-                    ) + fadeIn(animationSpec = tween(1000))
-                    
+                    val enter =
+                        slideInVertically(
+                            initialOffsetY = { height -> height },
+                            animationSpec = tween(1000, easing = FastOutSlowInEasing),
+                        ) + fadeIn(animationSpec = tween(1000))
+
                     // Outgoing text slides up and out while fading out
-                    val exit = slideOutVertically(
-                        targetOffsetY = { height -> -height },
-                        animationSpec = tween(1000, easing = FastOutSlowInEasing)
-                    ) + fadeOut(animationSpec = tween(1000))
+                    val exit =
+                        slideOutVertically(
+                            targetOffsetY = { height -> -height },
+                            animationSpec = tween(1000, easing = FastOutSlowInEasing),
+                        ) + fadeOut(animationSpec = tween(1000))
 
                     enter togetherWith exit
                 },
@@ -172,13 +183,14 @@ fun GuidedBreathingContent(
             ) { currentPhase ->
                 Text(
                     text = currentPhase.text,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontFamily = CursiveFont,
-                        fontWeight = FontWeight.Normal,
-                        fontStyle = FontStyle.Italic,
-                        fontSize = 30.sp,
-                        letterSpacing = 0.5.sp,
-                    ),
+                    style =
+                        MaterialTheme.typography.headlineSmall.copy(
+                            fontFamily = CursiveFont,
+                            fontWeight = FontWeight.Normal,
+                            fontStyle = FontStyle.Italic,
+                            fontSize = 30.sp,
+                            letterSpacing = 0.5.sp,
+                        ),
                     color = textPrimary.copy(alpha = textAlpha),
                 )
             }
@@ -201,10 +213,11 @@ fun GuidedBreathingContent(
                 ) {
                     repeat(3) { index ->
                         Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(if (index < cycle) dotActive else dotInactive),
+                            modifier =
+                                Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (index < cycle) dotActive else dotInactive),
                         )
                     }
                 }

@@ -1,16 +1,16 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,13 +19,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.theme.LocalShapes
-import androidx.compose.foundation.shape.CornerBasedShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
 
 // Internal composition local to pass background color down to rows for seamless look
 private val LocalCardContainerColor = staticCompositionLocalOf { Color.Transparent }
@@ -88,19 +85,20 @@ object SmartySettingsDefaults {
 fun SmartySettingsCard(
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = SmartySettingsDefaults.CardPaddingHorizontal,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val containerBackground = SmartySettingsDefaults.ContainerColor
     val separatorColor = SmartySettingsDefaults.SeparatorColor
 
     CompositionLocalProvider(LocalCardContainerColor provides containerBackground) {
         Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = horizontalPadding)
-                .clip(SmartySettingsDefaults.CardShape)
-                .background(separatorColor),
-            verticalArrangement = Arrangement.spacedBy(SmartySettingsDefaults.SeparatorHeight)
+            modifier =
+                modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = horizontalPadding)
+                    .clip(SmartySettingsDefaults.CardShape)
+                    .background(separatorColor),
+            verticalArrangement = Arrangement.spacedBy(SmartySettingsDefaults.SeparatorHeight),
         ) {
             content()
         }
@@ -123,15 +121,16 @@ fun SmartySettingsRow(
     trailingContent: @Composable (RowScope.() -> Unit)? = null,
     showChevron: Boolean = true,
     enabled: Boolean = true,
-    textColor: Color = MaterialTheme.colorScheme.onSurface
+    textColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val itemBackground = LocalCardContainerColor.current
 
-    val minHeight = if (subtitle != null) {
-        SmartySettingsDefaults.RowMinHeight
-    } else {
-        SmartySettingsDefaults.RowCompactMinHeight
-    }
+    val minHeight =
+        if (subtitle != null) {
+            SmartySettingsDefaults.RowMinHeight
+        } else {
+            SmartySettingsDefaults.RowCompactMinHeight
+        }
 
     Surface(
         onClick = onClick,
@@ -141,63 +140,65 @@ fun SmartySettingsRow(
         color = itemBackground,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    horizontal = SmartySettingsDefaults.RowHorizontalPadding,
-                    vertical = SmartySettingsDefaults.RowVerticalPadding
-                ),
-            verticalAlignment = Alignment.CenterVertically
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        horizontal = SmartySettingsDefaults.RowHorizontalPadding,
+                        vertical = SmartySettingsDefaults.RowVerticalPadding,
+                    ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-        if (leadingContent != null) {
-            leadingContent()
-        } else if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (enabled) iconColor else iconColor.copy(alpha = 0.4f),
-                modifier = Modifier.size(SmartySettingsDefaults.IconSize)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-        }
+            if (leadingContent != null) {
+                leadingContent()
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) iconColor else iconColor.copy(alpha = 0.4f),
+                    modifier = Modifier.size(SmartySettingsDefaults.IconSize),
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+            }
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = SmartySettingsDefaults.LabelFontSize
-                ),
-                color = if (enabled) textColor else textColor.copy(alpha = 0.4f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (subtitle != null) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SmartySettingsDefaults.SubtitleColor,
+                    text = label,
+                    style =
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = SmartySettingsDefaults.LabelFontSize,
+                        ),
+                    color = if (enabled) textColor else textColor.copy(alpha = 0.4f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SmartySettingsDefaults.SubtitleColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            if (trailingContent != null) {
+                trailingContent()
+                if (showChevron) Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            if (showChevron) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = SmartySettingsDefaults.ChevronColor,
+                    modifier = Modifier.size(SmartySettingsDefaults.ChevronSize),
                 )
             }
         }
-
-        if (trailingContent != null) {
-            trailingContent()
-            if (showChevron) Spacer(modifier = Modifier.width(8.dp))
-        }
-
-        if (showChevron) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = SmartySettingsDefaults.ChevronColor,
-                modifier = Modifier.size(SmartySettingsDefaults.ChevronSize)
-            )
-        }
     }
-}
 }
 
 /**
@@ -212,7 +213,7 @@ fun SmartySettingsSwitchRow(
     icon: ImageVector? = null,
     subtitle: String? = null,
     iconColor: Color = MaterialTheme.colorScheme.onSurface,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ) {
     SmartySettingsRow(
         label = label,
@@ -228,8 +229,8 @@ fun SmartySettingsSwitchRow(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 enabled = enabled,
-                modifier = Modifier.scale(0.8f)
+                modifier = Modifier.scale(0.8f),
             )
-        }
+        },
     )
 }

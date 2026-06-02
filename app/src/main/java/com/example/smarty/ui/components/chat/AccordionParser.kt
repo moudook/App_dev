@@ -17,12 +17,12 @@ object AccordionParser {
 
     data class AccordionSection(
         val title: String,
-        val content: String
+        val content: String,
     )
 
     data class ParsedContent(
         val introText: String,
-        val accordions: List<AccordionSection>
+        val accordions: List<AccordionSection>,
     )
 
     fun parse(text: String): ParsedContent {
@@ -68,7 +68,8 @@ object AccordionParser {
         var result = s
         if ((result.startsWith("\"") && result.endsWith("\"")) ||
             (result.startsWith("'") && result.endsWith("'")) ||
-            (result.startsWith("`") && result.endsWith("`"))) {
+            (result.startsWith("`") && result.endsWith("`"))
+        ) {
             result = result.substring(1, result.length - 1)
         }
         return result.trim()

@@ -6,7 +6,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -66,7 +65,10 @@ class PermissionRepository(
     private val cache = ConcurrentHashMap<String, CacheEntry>()
     private val cacheMutex = Mutex()
 
-    private fun cacheKey(userId: String, toolName: String) = "$userId::$toolName"
+    private fun cacheKey(
+        userId: String,
+        toolName: String,
+    ) = "$userId::$toolName"
 
     /**
      * Returns the effective decision for (userId, toolName). The
@@ -84,29 +86,31 @@ class PermissionRepository(
     suspend fun resolveEffectiveDecision(
         userId: String,
         toolName: String,
-    ): EffectiveDecision = withContext(Dispatchers.IO) {
-        val key = cacheKey(userId, toolName)
-        val now = System.currentTimeMillis()
+    ): EffectiveDecision =
+        withContext(Dispatchers.IO) {
+            val key = cacheKey(userId, toolName)
+            val now = System.currentTimeMillis()
 
-        cacheMutex.withLock {
-            val cached = cache[key]
-            if (cached != null && (now - cached.cachedAt) < cacheTtlMs) {
-                return@withContext cached.decision
+            cacheMutex.withLock {
+                val cached = cache[key]
+                if (cached != null && (now - cached.cachedAt) < cacheTtlMs) {
+                    return@withContext cached.decision
+                }
             }
-        }
 
-        val fresh = loadFromDb(userId, toolName)
-        cacheMutex.withLock { cache[key] = CacheEntry(fresh, now) }
-        fresh
-    }
+            val fresh = loadFromDb(userId, toolName)
+            cacheMutex.withLock { cache[key] = CacheEntry(fresh, now) }
+            fresh
+        }
 
     private fun loadFromDb(
         userId: String,
         toolName: String,
     ): EffectiveDecision {
-        val staticDecision = com.example.smarty.agent.permissions.ToolPermissionPolicy
-            .SMARTY_DEFAULT
-            .decide(toolName)
+        val staticDecision =
+            com.example.smarty.agent.permissions.ToolPermissionPolicy
+                .SMARTY_DEFAULT
+                .decide(toolName)
 
         val ds = dataSource
         if (ds == null) {
@@ -160,21 +164,23 @@ class PermissionRepository(
             val now = Instant.now()
             val expired = override.d != null && override.d!! < now
             when {
-                override.a == "INHERIT" || expired -> EffectiveDecision(
-                    userId = userId,
-                    toolName = toolName,
-                    decision = staticDecision,
-                    isOverridden = override.a == "INHERIT",
-                    overrideSource = override.b,
-                    overrideUpdatedAt = override.c,
-                    overrideExpiresAt = override.d,
-                )
+                override.a == "INHERIT" || expired ->
+                    EffectiveDecision(
+                        userId = userId,
+                        toolName = toolName,
+                        decision = staticDecision,
+                        isOverridden = override.a == "INHERIT",
+                        overrideSource = override.b,
+                        overrideUpdatedAt = override.c,
+                        overrideExpiresAt = override.d,
+                    )
                 else -> {
-                    val decision = when (override.a) {
-                        "ALLOW" -> ToolPermissionDecision.ALLOW
-                        "DENY" -> ToolPermissionDecision.DENY
-                        else -> staticDecision
-                    }
+                    val decision =
+                        when (override.a) {
+                            "ALLOW" -> ToolPermissionDecision.ALLOW
+                            "DENY" -> ToolPermissionDecision.DENY
+                            else -> staticDecision
+                        }
                     EffectiveDecision(
                         userId = userId,
                         toolName = toolName,
@@ -203,42 +209,43 @@ class PermissionRepository(
         decision: String,
         source: String,
         reason: String? = null,
-    ): Boolean = withContext(Dispatchers.IO) {
-        val ds = dataSource ?: return@withContext false
-        val uuid = parseUuidOrNull(userId)
-        if (uuid == null) {
-            logger.warn("[PermissionRepository] setUserPermission: userId='$userId' is not a valid UUID — skipping")
-            return@withContext false
-        }
-        try {
-            ds.connection.use { conn ->
-                val sql =
-                    """
-                    INSERT INTO tool_permissions (user_id, tool_name, decision, source, reason, updated_at)
-                    VALUES (?, ?, ?, ?, ?, now())
-                    ON CONFLICT (user_id, tool_name) DO UPDATE SET
-                        decision = EXCLUDED.decision,
-                        source = EXCLUDED.source,
-                        reason = EXCLUDED.reason,
-                        updated_at = now()
-                    """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, uuid)
-                    stmt.setString(2, toolName)
-                    stmt.setString(3, decision)
-                    stmt.setString(4, source)
-                    stmt.setString(5, reason)
-                    stmt.executeUpdate()
-                }
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            val ds = dataSource ?: return@withContext false
+            val uuid = parseUuidOrNull(userId)
+            if (uuid == null) {
+                logger.warn("[PermissionRepository] setUserPermission: userId='$userId' is not a valid UUID — skipping")
+                return@withContext false
             }
-            // Invalidate cache for this (user, tool)
-            cacheMutex.withLock { cache.remove(cacheKey(userId, toolName)) }
-            true
-        } catch (e: Exception) {
-            logger.warn("[PermissionRepository] setUserPermission failed for user=$userId tool=$toolName: ${e.message}")
-            false
+            try {
+                ds.connection.use { conn ->
+                    val sql =
+                        """
+                        INSERT INTO tool_permissions (user_id, tool_name, decision, source, reason, updated_at)
+                        VALUES (?, ?, ?, ?, ?, now())
+                        ON CONFLICT (user_id, tool_name) DO UPDATE SET
+                            decision = EXCLUDED.decision,
+                            source = EXCLUDED.source,
+                            reason = EXCLUDED.reason,
+                            updated_at = now()
+                        """.trimIndent()
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setObject(1, uuid)
+                        stmt.setString(2, toolName)
+                        stmt.setString(3, decision)
+                        stmt.setString(4, source)
+                        stmt.setString(5, reason)
+                        stmt.executeUpdate()
+                    }
+                }
+                // Invalidate cache for this (user, tool)
+                cacheMutex.withLock { cache.remove(cacheKey(userId, toolName)) }
+                true
+            } catch (e: Exception) {
+                logger.warn("[PermissionRepository] setUserPermission failed for user=$userId tool=$toolName: ${e.message}")
+                false
+            }
         }
-    }
 
     /**
      * Fetch all `tool_permissions` rows for a user. Returns an
@@ -267,14 +274,17 @@ class PermissionRepository(
                                 val source = rs.getString("source")
                                 val updatedAt = rs.getTimestamp("updated_at")?.toInstant()
                                 val expiresAt = rs.getTimestamp("expires_at")?.toInstant()
-                                val staticDecision = com.example.smarty.agent.permissions
-                                    .ToolPermissionPolicy.SMARTY_DEFAULT.decide(toolName)
-                                val effective = when (decisionStr) {
-                                    "ALLOW" -> ToolPermissionDecision.ALLOW
-                                    "DENY" -> ToolPermissionDecision.DENY
-                                    "INHERIT" -> staticDecision
-                                    else -> staticDecision
-                                }
+                                val staticDecision =
+                                    com.example.smarty.agent.permissions
+                                        .ToolPermissionPolicy.SMARTY_DEFAULT
+                                        .decide(toolName)
+                                val effective =
+                                    when (decisionStr) {
+                                        "ALLOW" -> ToolPermissionDecision.ALLOW
+                                        "DENY" -> ToolPermissionDecision.DENY
+                                        "INHERIT" -> staticDecision
+                                        else -> staticDecision
+                                    }
                                 results.add(
                                     EffectiveDecision(
                                         userId = userId,
@@ -284,7 +294,7 @@ class PermissionRepository(
                                         overrideSource = source,
                                         overrideUpdatedAt = updatedAt,
                                         overrideExpiresAt = expiresAt,
-                                    )
+                                    ),
                                 )
                             }
                             results
@@ -319,72 +329,75 @@ class PermissionRepository(
         userFeedback: String? = null,
         argsPreview: String? = null,
         metadata: Map<String, String> = emptyMap(),
-    ): Boolean = withContext(Dispatchers.IO) {
-        val ds = dataSource ?: return@withContext false
-        try {
-            ds.connection.use { conn ->
-                val sql =
-                    """
-                    INSERT INTO permission_audit_log (
-                        user_id, session_id, tool_name, decision, actor,
-                        call_id, user_feedback, args_preview, metadata, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, now())
-                    """.trimIndent()
-                val uuid = userId?.let { parseUuidOrNull(it) }
-                // Build a single metadata JSON that may include user_id_raw
-                // if the userId wasn't a valid UUID.
-                val metaBuilder = StringBuilder("{")
-                if (uuid == null && userId != null) {
-                    metaBuilder.append("\"user_id_raw\":\"${escapeJson(userId)}\"")
-                }
-                for ((k, v) in metadata) {
-                    if (metaBuilder.length > 1) metaBuilder.append(",")
-                    metaBuilder.append("\"${escapeJson(k)}\":\"${escapeJson(v)}\"")
-                }
-                metaBuilder.append("}")
-                val metaJson = metaBuilder.toString()
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            val ds = dataSource ?: return@withContext false
+            try {
+                ds.connection.use { conn ->
+                    val sql =
+                        """
+                        INSERT INTO permission_audit_log (
+                            user_id, session_id, tool_name, decision, actor,
+                            call_id, user_feedback, args_preview, metadata, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, now())
+                        """.trimIndent()
+                    val uuid = userId?.let { parseUuidOrNull(it) }
+                    // Build a single metadata JSON that may include user_id_raw
+                    // if the userId wasn't a valid UUID.
+                    val metaBuilder = StringBuilder("{")
+                    if (uuid == null && userId != null) {
+                        metaBuilder.append("\"user_id_raw\":\"${escapeJson(userId)}\"")
+                    }
+                    for ((k, v) in metadata) {
+                        if (metaBuilder.length > 1) metaBuilder.append(",")
+                        metaBuilder.append("\"${escapeJson(k)}\":\"${escapeJson(v)}\"")
+                    }
+                    metaBuilder.append("}")
+                    val metaJson = metaBuilder.toString()
 
-                conn.prepareStatement(sql).use { stmt ->
-                    if (uuid == null) {
-                        stmt.setNull(1, java.sql.Types.OTHER)
-                    } else {
-                        stmt.setObject(1, uuid)
+                    conn.prepareStatement(sql).use { stmt ->
+                        if (uuid == null) {
+                            stmt.setNull(1, java.sql.Types.OTHER)
+                        } else {
+                            stmt.setObject(1, uuid)
+                        }
+                        stmt.setString(2, sessionId)
+                        stmt.setString(3, toolName)
+                        stmt.setString(4, decision)
+                        stmt.setString(5, actor)
+                        stmt.setString(6, callId)
+                        stmt.setString(7, userFeedback?.take(2000))
+                        if (argsPreview != null && argsPreview.length > 500) {
+                            stmt.setString(8, argsPreview.substring(0, 500))
+                        } else {
+                            stmt.setString(8, argsPreview)
+                        }
+                        stmt.setString(9, metaJson)
+                        stmt.executeUpdate()
                     }
-                    stmt.setString(2, sessionId)
-                    stmt.setString(3, toolName)
-                    stmt.setString(4, decision)
-                    stmt.setString(5, actor)
-                    stmt.setString(6, callId)
-                    stmt.setString(7, userFeedback?.take(2000))
-                    if (argsPreview != null && argsPreview.length > 500) {
-                        stmt.setString(8, argsPreview.substring(0, 500))
-                    } else {
-                        stmt.setString(8, argsPreview)
-                    }
-                    stmt.setString(9, metaJson)
-                    stmt.executeUpdate()
                 }
+                true
+            } catch (e: Exception) {
+                logger.warn(
+                    "[PermissionRepository] logDecision failed: user=$userId tool=$toolName decision=$decision: ${e.message}",
+                )
+                false
             }
-            true
-        } catch (e: Exception) {
-            logger.warn(
-                "[PermissionRepository] logDecision failed: user=$userId tool=$toolName decision=$decision: ${e.message}",
-            )
-            false
         }
-    }
 
     /** Invalidate the in-process cache. Used by tests and admin endpoints. */
     fun invalidateCache() {
         cacheMutex.tryLock()
-        try { cache.clear() } finally { if (cacheMutex.isLocked) cacheMutex.unlock() }
+        try {
+            cache.clear()
+        } finally {
+            if (cacheMutex.isLocked) cacheMutex.unlock()
+        }
     }
 
-    private fun parseUuidOrNull(s: String): UUID? =
-        runCatching { UUID.fromString(s) }.getOrNull()
+    private fun parseUuidOrNull(s: String): UUID? = runCatching { UUID.fromString(s) }.getOrNull()
 
-    private fun escapeJson(s: String): String =
-        s.replace("\\", "\\\\").replace("\"", "\\\"")
+    private fun escapeJson(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")
 }
 
 private data class Quad(

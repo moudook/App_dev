@@ -16,7 +16,9 @@ import java.security.MessageDigest
  * Manages app cache with LRU eviction policy
  * 100 MB limit with automatic cleanup
  */
-class CacheManager private constructor(private val context: Context) {
+class CacheManager private constructor(
+    private val context: Context,
+) {
     companion object {
         private const val TAG = "CacheManager"
         const val MAX_CACHE_SIZE_BYTES = 100L * 1024 * 1024 // 100 MB
@@ -31,13 +33,12 @@ class CacheManager private constructor(private val context: Context) {
         @Volatile
         private var INSTANCE: CacheManager? = null
 
-        fun getInstance(context: Context): CacheManager {
-            return INSTANCE ?: synchronized(this) {
+        fun getInstance(context: Context): CacheManager =
+            INSTANCE ?: synchronized(this) {
                 INSTANCE ?: CacheManager(context.applicationContext).also {
                     INSTANCE = it
                 }
             }
-        }
     }
 
     private val mutex = Mutex()
@@ -412,8 +413,8 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * Hash a key to create a safe filename
      */
-    private fun hashKey(key: String): String {
-        return try {
+    private fun hashKey(key: String): String =
+        try {
             val digest = MessageDigest.getInstance("MD5")
             val hash = digest.digest(key.toByteArray())
             hash.joinToString("") { "%02x".format(it) }
@@ -421,7 +422,6 @@ class CacheManager private constructor(private val context: Context) {
             // Fallback to sanitized key
             key.replace(Regex("[^a-zA-Z0-9]"), "_").take(64)
         }
-    }
 
     /**
      * Clear in-memory tracking data to reduce memory footprint when app is in background.

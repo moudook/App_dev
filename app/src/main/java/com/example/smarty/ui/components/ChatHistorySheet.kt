@@ -1,10 +1,8 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,14 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.rememberMonochromeAccent
 import java.text.SimpleDateFormat
 import java.util.*
@@ -50,12 +47,12 @@ fun ChatHistorySheet(
     onSelectSession: (String) -> Unit,
     onNewChat: () -> Unit,
     onDeleteSession: (String) -> Unit,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
 ) {
     // Store ID only and derive session from list to stay in sync
     var sessionToDeleteId by remember { mutableStateOf<String?>(null) }
     val sessionToDelete = sessionToDeleteId?.let { id -> sessions.find { it.id == id } }
-    
+
     // Monochrome Logic
     val monochromeColor = rememberMonochromeAccent()
 
@@ -68,38 +65,42 @@ fun ChatHistorySheet(
             Surface(
                 modifier = Modifier.padding(vertical = 12.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(2.dp)
+                shape = RoundedCornerShape(2.dp),
             ) {
                 Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
             }
-        }
+        },
     ) {
         CompositionLocalProvider(LocalAccentColor provides monochromeColor) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp),
             ) {
                 // Header
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 20.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = stringResource(R.string.history),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${stringResource(R.string.bullet_separator)}  ${stringResource(R.string.sessions_count, sessions.size)}",
+                            text = "${stringResource(
+                                R.string.bullet_separator,
+                            )}  ${stringResource(R.string.sessions_count, sessions.size)}",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                     }
 
@@ -111,22 +112,25 @@ fun ChatHistorySheet(
                 // Sessions list
                 if (isLoading) {
                     com.example.smarty.ui.components.ChatHistoryLoadingState(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 400.dp),
                     )
                 } else if (sessions.isEmpty()) {
                     com.example.smarty.ui.components.ChatHistoryEmptyState(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(280.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 500.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp) // Tighter list
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 500.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp), // Tighter list
                     ) {
                         items(sessions, key = { it.id }) { session ->
                             ChatSessionItem(
@@ -136,7 +140,7 @@ fun ChatHistorySheet(
                                     onSelectSession(session.id)
                                     onDismiss()
                                 },
-                                onDelete = { sessionToDeleteId = session.id }
+                                onDelete = { sessionToDeleteId = session.id },
                             )
                         }
                     }
@@ -157,7 +161,7 @@ fun ChatHistorySheet(
             onDismiss = { sessionToDeleteId = null },
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
-            isDestructive = true
+            isDestructive = true,
         )
     }
 }
@@ -167,7 +171,7 @@ private fun ChatSessionItem(
     session: ChatSession,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
     val accentColor = LocalAccentColor.current
 
@@ -178,48 +182,71 @@ private fun ChatSessionItem(
     val containerShape = RoundedCornerShape(28.dp)
     val iconShape = RoundedCornerShape(18.dp) // Softer squircle for the icon
 
-    val containerColor = if (isSelected)
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-    else
-        Color.Transparent
+    val containerColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        } else {
+            Color.Transparent
+        }
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(containerShape)
-            .background(containerColor)
-            .then(
-                if (isSelected) Modifier.border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    shape = containerShape
-                ) else Modifier
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(containerShape)
+                .background(containerColor)
+                .then(
+                    if (isSelected) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            shape = containerShape,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ).clickable { onClick() }
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val isNewChat = session.title.isBlank() || session.title.equals("new_chat", ignoreCase = true) || session.title.equals("new_conversation", ignoreCase = true)
+        val isNewChat =
+            session.title.isBlank() ||
+                session.title.equals("new_chat", ignoreCase = true) ||
+                session.title.equals("new_conversation", ignoreCase = true)
 
         // 1. Icon (Proper Squircle)
         Surface(
             modifier = Modifier.size(44.dp), // Slightly smaller, tighter
             shape = iconShape,
             color = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            contentColor = if (isSelected) (if (accentColor.luminance() < 0.5f) Color.White else Color.Black) else MaterialTheme.colorScheme.onSurfaceVariant // Contrast for monochrome
+            contentColor =
+                if (isSelected) {
+                    (
+                        if (accentColor.luminance() <
+                            0.5f
+                        ) {
+                            Color.White
+                        } else {
+                            Color.Black
+                        }
+                    )
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant // Contrast for monochrome
+                },
         ) {
             Box(contentAlignment = Alignment.Center) {
                 // Smart Icon Logic
-                val icon = when {
-                    isNewChat -> Icons.Default.AutoAwesome // Standard AI
-                    isSelected -> Icons.Default.AutoAwesome // Active AI
-                    else -> Icons.AutoMirrored.Filled.Chat // History
-                }
+                val icon =
+                    when {
+                        isNewChat -> Icons.Default.AutoAwesome // Standard AI
+                        isSelected -> Icons.Default.AutoAwesome // Active AI
+                        else -> Icons.AutoMirrored.Filled.Chat // History
+                    }
 
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -229,17 +256,27 @@ private fun ChatSessionItem(
         // 2. Center Text Column
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = if (isSelected && isNewChat) stringResource(R.string.current_chat) else session.title.ifBlank { stringResource(R.string.new_conversation) }.lowercase(),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Medium, // lighter than SemiBold for Apple look
-                    fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
-                ),
+                text =
+                    if (isSelected &&
+                        isNewChat
+                    ) {
+                        stringResource(R.string.current_chat)
+                    } else {
+                        session.title.ifBlank { stringResource(R.string.new_conversation) }.lowercase()
+                    },
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Medium, // lighter than SemiBold for Apple look
+                        fontSize =
+                            androidx.compose.ui.unit
+                                .TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    ),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -249,7 +286,7 @@ private fun ChatSessionItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
@@ -259,12 +296,12 @@ private fun ChatSessionItem(
         // Configured to be perfectly aligned vertically
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.End,
         ) {
             Text(
                 text = formatRelativeTime(session.updatedAt).lowercase(),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -272,18 +309,19 @@ private fun ChatSessionItem(
             // Delete Button (Small, subtle)
             // Using a Box to expand click area without affecting visuals
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)) // Subtle backing
-                    .clickable(onClick = onDelete),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)) // Subtle backing
+                        .clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center,
             ) {
-                 Icon(
+                Icon(
                     imageVector = Icons.Default.DeleteOutline,
                     contentDescription = stringResource(R.string.delete),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(14.dp),
                 )
             }
         }

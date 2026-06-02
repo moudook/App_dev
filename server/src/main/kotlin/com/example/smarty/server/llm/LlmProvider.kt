@@ -69,6 +69,7 @@ data class LlmChunk(
     val rawJson: String? = null, // The raw JSON string from the provider for debugging and full trace
     val sseEvent: String? = null, // The actual SSE event name (e.g., 'part-start', 'message')
     val question: PendingQuestion? = null, // ask_user question from daemon's internal agent loop
+    val finishReason: String? = null, // "error", "busy", "done", or null for normal streaming
 )
 
 @Serializable

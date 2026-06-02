@@ -60,7 +60,8 @@ object ApiMetrics {
     }
 
     private fun saveToPrefs() {
-        prefs.edit()
+        prefs
+            .edit()
             .putInt(KEY_TOTAL_CALLS, _totalCalls.get())
             .putInt(KEY_SUCCESSFUL_CALLS, _successfulCalls.get())
             .putInt(KEY_FAILED_CALLS, _failedCalls.get())

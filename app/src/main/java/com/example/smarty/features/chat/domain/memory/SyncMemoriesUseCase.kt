@@ -14,9 +14,7 @@ class SyncMemoriesUseCase(
     val syncResult: StateFlow<SyncResult?> = memorySyncManager.syncResult
     val unreadCount: StateFlow<Int> = memorySyncManager.unreadCount
 
-    suspend operator fun invoke(): SyncResult {
-        return memorySyncManager.syncMemoriesFromNotes()
-    }
+    suspend operator fun invoke(): SyncResult = memorySyncManager.syncMemoriesFromNotes()
 
     fun clearResult() {
         memorySyncManager.clearSyncResult()

@@ -6,15 +6,11 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -26,38 +22,37 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
-import com.example.smarty.core.domain.model.PlaybackState
-import com.example.smarty.features.auth.ui.RefinedLoginScreen
-import com.google.firebase.auth.FirebaseAuth
-import com.example.smarty.features.voice.rememberSpeechToText
-import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
-import com.example.smarty.ui.components.audio.FullAudioPlayer
-
-import com.example.smarty.ui.theme.SmartyTheme
-import com.example.smarty.data.worker.CacheCleanupWorker
-import com.example.smarty.service.AudioPlayerService
-import com.example.smarty.features.audio.domain.AudioPlayerViewModel
-import com.example.smarty.features.notes.domain.SmartyViewModel
-import com.example.smarty.features.notes.domain.SmartyViewModelFactory
-import com.example.smarty.features.auth.domain.AuthViewModel
-import com.example.smarty.features.auth.domain.AuthViewModelFactory
 import com.example.smarty.core.domain.model.SharedContent
 import com.example.smarty.core.domain.model.SharedFileInfo
+import com.example.smarty.data.worker.CacheCleanupWorker
+import com.example.smarty.features.audio.domain.AudioPlayerViewModel
+import com.example.smarty.features.auth.domain.AuthViewModel
+import com.example.smarty.features.auth.domain.AuthViewModelFactory
+import com.example.smarty.features.auth.ui.RefinedLoginScreen
+import com.example.smarty.features.notes.domain.SmartyViewModel
+import com.example.smarty.features.notes.domain.SmartyViewModelFactory
+import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.navigation.Screen
 import com.example.smarty.navigation.SmartyNavHost
+import com.example.smarty.service.AudioPlayerService
+import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
+import com.example.smarty.ui.components.audio.FullAudioPlayer
+import com.example.smarty.ui.theme.SmartyTheme
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
@@ -69,7 +64,6 @@ class MainActivity : ComponentActivity() {
     }
     private val audioPlayerViewModel: AudioPlayerViewModel by viewModels()
 
-
     // Track mic permission state for enrollment check
     private val _micPermissionGranted = mutableStateOf(false)
 
@@ -77,23 +71,24 @@ class MainActivity : ComponentActivity() {
     private val _calendarPermissionGranted = mutableStateOf(false)
 
     // Permission launcher for multiple permissions
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        // Log permission results for debugging
-        permissions.entries.forEach { entry ->
-            android.util.Log.d("Permissions", "${entry.key}: ${if (entry.value) "GRANTED" else "DENIED"}")
-        }
-        // Wake word detection removed - using Google Speech Recognizer instead
-        // Update state to complete splash - whether granted or denied
-        // This allows the splash to complete even if user denies permission
-        _micPermissionGranted.value = true
+    private val permissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { permissions ->
+            // Log permission results for debugging
+            permissions.entries.forEach { entry ->
+                android.util.Log.d("Permissions", "${entry.key}: ${if (entry.value) "GRANTED" else "DENIED"}")
+            }
+            // Wake word detection removed - using Google Speech Recognizer instead
+            // Update state to complete splash - whether granted or denied
+            // This allows the splash to complete even if user denies permission
+            _micPermissionGranted.value = true
 
-        // Check calendar permissions
-        val readCalendar = permissions[Manifest.permission.READ_CALENDAR] ?: false
-        val writeCalendar = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
-        _calendarPermissionGranted.value = readCalendar && writeCalendar
-    }
+            // Check calendar permissions
+            val readCalendar = permissions[Manifest.permission.READ_CALENDAR] ?: false
+            val writeCalendar = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
+            _calendarPermissionGranted.value = readCalendar && writeCalendar
+        }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -103,9 +98,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Hide status bar for immersive experience using modern APIs
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        androidx.core.view.WindowCompat
+            .setDecorFitsSystemWindows(window, false)
         androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply {
-            hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            hide(
+                androidx.core.view.WindowInsetsCompat.Type
+                    .systemBars(),
+            )
             systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
@@ -113,7 +112,8 @@ class MainActivity : ComponentActivity() {
 
         // Check if mic permission is already granted (for subsequent launches)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED) {
+            == PackageManager.PERMISSION_GRANTED
+        ) {
             _micPermissionGranted.value = true
         }
 
@@ -130,13 +130,15 @@ class MainActivity : ComponentActivity() {
         CacheCleanupWorker.schedule(this)
 
         // Detect if launched via share intent or widget - skip splash animation for instant access
-        val shouldSkipSplash = intent?.action in listOf(
-            Intent.ACTION_SEND,
-            Intent.ACTION_SEND_MULTIPLE,
-            "com.example.smarty.action.QUICK_NOTE",
-            "com.example.smarty.action.VOICE_NOTE",
-            "com.example.smarty.action.CAMERA_NOTE"
-        )
+        val shouldSkipSplash =
+            intent?.action in
+                listOf(
+                    Intent.ACTION_SEND,
+                    Intent.ACTION_SEND_MULTIPLE,
+                    "com.example.smarty.action.QUICK_NOTE",
+                    "com.example.smarty.action.VOICE_NOTE",
+                    "com.example.smarty.action.CAMERA_NOTE",
+                )
 
         // Handle share intent on launch
         handleIntent(intent)
@@ -274,15 +276,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // GLOBAL SPEECH STATE - Track voice input across all screens
-                val globalSpeechState = rememberSpeechToText(
-                    onResult = { text ->
-                        // Handle speech result globally via ViewModel
-                        viewModel.onSpeechResult(text)
-                    },
-                    onError = { error ->
-                        // Handle error globally if needed
-                    }
-                )
+                val globalSpeechState =
+                    rememberSpeechToText(
+                        onResult = { text ->
+                            // Handle speech result globally via ViewModel
+                            viewModel.onSpeechResult(text)
+                        },
+                        onError = { error ->
+                            // Handle error globally if needed
+                        },
+                    )
 
                 // CRITICAL: Stop speech recognition when app goes to background
                 // This prevents microphone access when app is minimized (privacy fix)
@@ -342,16 +345,17 @@ class MainActivity : ComponentActivity() {
                     // Screen state machine (SIMPLIFIED - no separate splash)
                     // State: LOADING_AUTH → LOGIN → VOICE_ENROLLMENT → MAIN_APP
                     // Note: Particle animation is now integrated into LoginScreen
-                    val screenState = when {
-                        !authStateLoaded -> "loading"
-                        !isLoggedIn -> "login"
-                        else -> "main_app"
-                    }
+                    val screenState =
+                        when {
+                            !authStateLoaded -> "loading"
+                            !isLoggedIn -> "login"
+                            else -> "main_app"
+                        }
 
                     Crossfade(
                         targetState = screenState,
                         animationSpec = tween(600),
-                        label = "ScreenTransition"
+                        label = "ScreenTransition",
                     ) { state ->
                         when (state) {
                             "loading" -> {
@@ -359,12 +363,14 @@ class MainActivity : ComponentActivity() {
                                 // Just show empty background - this is usually < 100ms
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     // Minimal loading indicator
                                     androidx.compose.material3.CircularProgressIndicator(
                                         color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                        modifier = androidx.compose.ui.Modifier.size(32.dp)
+                                        modifier =
+                                            androidx.compose.ui.Modifier
+                                                .size(32.dp),
                                     )
                                 }
                             }
@@ -380,11 +386,9 @@ class MainActivity : ComponentActivity() {
                                     shouldSkipSplash = shouldSkipSplash,
                                     onLoginSuccess = {
                                         // Login successful - state will recompose to voice_enrollment or main_app
-                                    }
+                                    },
                                 )
                             }
-
-
 
                             "main_app" -> {
                                 // Enable shake detection for main app (unless blocked by specific views)
@@ -399,331 +403,351 @@ class MainActivity : ComponentActivity() {
                                         // Auth Guard - user is definitely logged in at this point
                                         isLoggedIn = true,
                                         onSignOut = { authViewModel.signOut() },
-
-                                    notes = notes,
-                                    archivedNotes = archivedNotes,
-                                    categories = categories,
-                                    selectedNote = selectedNote,
-                                    selectedCategory = selectedCategory,
-                                    isProcessing = isProcessing,
-                                    // Notes management
-                                    onAddNote = { content, attachments ->
-                                        viewModel.addNoteWithAttachments(content, attachments)
-                                    },
-                                    onSelectNote = { note ->
-                                        viewModel.selectNote(note)
-                                    },
-                                    onSelectCategory = { category ->
-                                        viewModel.selectCategory(category)
-                                    },
-                                    onCreateCategory = { name ->
-                                        viewModel.createUserCategory(name)
-                                    },
-                                    onRenameCategory = { category, newName ->
-                                        viewModel.renameCategory(category, newName)
-                                    },
-                                    onDeleteCategory = { category ->
-                                        viewModel.deleteCategory(category)
-                                    },
-                                    onSyncCategoryCounts = {
-                                        viewModel.syncCategoryCounts()
-                                    },
-                                    onArchiveNote = { noteId ->
-                                        viewModel.archiveNote(noteId)
-                                    },
-                                    onUnarchiveNote = { noteId ->
-                                        viewModel.unarchiveNote(noteId)
-                                    },
-                                    onBulkArchive = { noteIds ->
-                                        viewModel.archiveNotes(noteIds)
-                                    },
-                                    onUndoArchive = {
-                                        viewModel.undoArchive()
-                                    },
-                                    onRefreshNotes = {
-                                        viewModel.syncCloudNow()
-                                    },
-                                    isRefreshing = viewModel.cloudSyncState.collectAsState().value is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Syncing,
-                                    isNotesLoading = isNotesLoading,
-                                    isStacksLoading = isStacksLoading,
-                                    isArchiveLoading = isArchiveLoading,
-                                    isChatHistoryLoading = isChatHistoryLoading,
-                                    isCalendarLoading = isCalendarLoading,
-                                    onDeleteNote = { note ->
-                                        viewModel.deleteNote(note)
-                                    },
-                                    onDeleteNoteById = { noteId ->
-                                        viewModel.deleteNoteById(noteId)
-                                    },
-                                    onUpdateNoteTodos = { noteId, todos, onComplete ->
-                                        viewModel.updateNoteTodos(noteId, todos, onComplete)
-                                    },
-                                    onEditNote = { noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments ->
-                                        viewModel.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
-                                    },
-                                    onMarkAsViewed = { noteId ->
-                                        viewModel.markNoteAsViewed(noteId)
-                                    },
-                                    // Version history
-                                    selectedNoteVersions = viewModel.selectedNoteVersions.collectAsState().value,
-                                    onLoadNoteVersions = { noteId ->
-                                        viewModel.loadNoteVersions(noteId)
-                                    },
-                                    onRestoreNoteVersion = { noteId, versionId ->
-                                        viewModel.restoreNoteVersion(noteId, versionId)
-                                    },
-                                    // Pin and Share management
-                                    onPinNote = { noteId ->
-                                        viewModel.pinNote(noteId)
-                                    },
-                                    onUnpinNote = { noteId ->
-                                        viewModel.unpinNote(noteId)
-                                    },
-                                    onShareNotes = { notesToShare ->
-                                        // Create share intent with full note titles and descriptions
-                                        val shareText = notesToShare.joinToString("\n\n") { note ->
-                                            val body = when {
-                                                !note.summary.isNullOrBlank() -> note.summary
-                                                note.content.isNotBlank() -> note.content  // Full content, no truncation
-                                                else -> ""
-                                            }
-                                            getString(R.string.share_note_format, note.title, body).trim()
-                                        }
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                            putExtra(android.content.Intent.EXTRA_SUBJECT, getString(R.string.shared_from_smarty))
-                                        }
-                                        startActivity(android.content.Intent.createChooser(intent, getString(R.string.share_notes)))
-                                    },
-                                    // Pending share management
-                                    pendingShare = pendingShare,
-                                    onConfirmShare = { category, instructions ->
-                                        viewModel.confirmShare(category, instructions)
-                                    },
-                                    onCancelShare = {
-                                        viewModel.cancelShare()
-                                    },
-                                    isShareFullPrivacy = isShareFullPrivacy,
-                                    // Chat mode management
-                                    isChatMode = isChatMode,
-                                    chatMessages = chatMessages,
-                                    isChatProcessing = isChatProcessing,
-                                    agentActivity = agentActivity,
-                                    onSendChatMessage = { content, attachments ->
-                                        viewModel.sendChatMessage(content, attachments)
-                                    },
-                                    onGenerateImageDirect = { prompt ->
-                                        viewModel.generateImageDirect(prompt)
-                                    },
-                                    onExitChatMode = {
-                                        viewModel.exitChatMode()
-                                    },
-                                    onEnterChatMode = {
-                                        viewModel.enterChatMode()
-                                    },
-                                    onEnterChatWithNoteReference = { noteTitle ->
-                                        viewModel.enterChatWithNoteReference(noteTitle)
-                                    },
-                                    pendingClarificationRequests = pendingClarificationRequests,
-                                    pendingApprovalToolId = pendingApprovalToolId,
-                                    onCallApproval = viewModel::callApproval,
-                                    // Chat history management
-                                    chatSessions = chatSessions,
-                                    currentSessionId = currentSessionId,
-                                    onSwitchChatSession = { sessionId ->
-                                        viewModel.switchToChatSession(sessionId)
-                                    },
-                                    onNewChatSession = {
-                                        viewModel.createNewChatSession()
-                                    },
-                                    onDeleteChatSession = { sessionId ->
-                                        viewModel.deleteChatSession(sessionId)
-                                    },
-                                    onDeleteChatMessage = { messageId ->
-                                        viewModel.deleteChatMessage(messageId)
-                                    },
-                                    // @Mention autocomplete
-                                    mentionState = mentionState,
-                                    onMentionSelected = { suggestion, currentText ->
-                                        viewModel.onMentionSelected(suggestion, currentText)
-                                    },
-                                    // Pending chat text (for "Ask AI" from note card)
-                                    pendingChatText = pendingChatText,
-                                    onClearPendingChatText = {
-                                        viewModel.clearPendingChatText()
-                                    },
-                                    // Mention state update (for autocomplete)
-                                    onUpdateMentionState = { text, cursorPosition ->
-                                        viewModel.updateMentionState(text, cursorPosition)
-                                    },
-                                    // AI exclusion state
-                                    isAiExcluded = isAiExcluded,
-                                    onInputTextChange = { text ->
-                                        viewModel.updateInputText(text)
-                                    },
-                                    currentInputAttachments = currentInputAttachments,
-                                    onInputAttachmentsChange = { attachments ->
-                                        viewModel.updateInputAttachments(attachments)
-                                    },
-                                    // Search and Filter Params
-                                    searchQuery = searchQuery,
-                                    onSearchQueryChange = { query ->
-                                        viewModel.onSearchQueryChange(query)
-                                    },
-                                    selectedFilters = selectedFilters,
-                                    onFilterToggle = { option ->
-                                        viewModel.onFilterToggle(option)
-                                    },
-                                    onClearFilters = {
-                                        viewModel.clearFilters()
-                                    },
-                                    // Search History (BATCH 5C)
-                                    recentSearches = recentSearches,
-                                    onRecordSearch = { query ->
-                                        viewModel.recordSearch(query)
-                                    },
-                                    onClearSearchHistory = {
-                                        viewModel.clearSearchHistory()
-                                    },
-                                    // Audio player
-                                    audioUiState = audioUiState,
-                                    onPlayAudio = { track ->
-                                        audioPlayerViewModel.playAudio(track)
-                                    },
-                                    onPauseAudio = {
-                                        audioPlayerViewModel.togglePlayPause()
-                                    },
-                                    onSeekAudio = { progress ->
-                                        audioPlayerViewModel.seekTo(progress)
-                                    },
-                                    // Theme management
-                                    isDarkTheme = isDarkTheme,
-                                    onToggleTheme = { isDark ->
-                                        viewModel.setDarkTheme(isDark)
-                                    },
-                                    // Cache management
-                                    cacheSizeBytes = cacheSizeBytes,
-                                    onClearCache = {
-                                        viewModel.clearCache()
-                                    },
-                                    isClearingCache = isClearingCache,
-                                    // Shake sensitivity
-                                    shakeSensitivity = shakeSensitivity,
-                                    onShakeSensitivityChange = { value ->
-                                        viewModel.setShakeSensitivity(value)
-                                    },
-                                    // Shake mode switch animation
-                                    wasShakeTriggered = wasShakeTriggered,
-                                    connectionStatus = connectionStatus,
-                                    cloudSyncState = viewModel.cloudSyncState.collectAsState().value,
-                                    onSyncCloud = { viewModel.syncCloudNow() },
-                                    onSyncCloudSilent = { viewModel.syncCloudNow(silent = true) },
-                                    syncSnackbarMessage = viewModel.syncSnackbarMessage,
-                                    // Camera trigger from widget
-                                    cameraTriggered = cameraTriggered,
-                                    onClearCameraTrigger = { viewModel.clearCameraTrigger() },
-                                    // Calendar management
-                                    calendarEvents = calendarEvents,
-                                    activeTimers = activeTimers,
-                                    onAddCalendarEvent = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
-                                        viewModel.addCalendarEvent(
-                                            title = title,
-                                            description = description,
-                                            startTime = startTime,
-                                            endTime = endTime,
-                                            isAllDay = isAllDay,
-                                            location = location,
-                                            color = color,
-                                            reminderMinutes = reminderMinutes,
-                                            isPrivate = isPrivate
-                                        )
-                                    },
-                                    onUpdateCalendarEvent = { event ->
-                                        viewModel.updateCalendarEvent(event)
-                                    },
-                                    onDeleteCalendarEvent = { eventId ->
-                                        viewModel.deleteCalendarEvent(eventId)
-                                    },
-
-                                    onNavigateToTasks = {
-                                        navController.navigate(Screen.Tasks.route)
-                                    },
-                                    onNavigateToNotifications = {
-                                        navController.navigate(Screen.Notifications.route)
-                                    },
-                                    onCancelTimer = { timer ->
-                                        viewModel.cancelTimer(timer)
-                                    },
-                                    bottomContentPadding = androidx.compose.animation.core.animateDpAsState(
-                                        targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
-                                        label = "PlayerPadding"
-                                    ).value,
-                                    externalSpeechState = globalSpeechState,
-                                    speechResults = viewModel.speechResults,
-
-                                    // Track screen changes for shake gesture (only works on main screen)
-                                    onScreenChange = { route ->
-                                        viewModel.setCurrentScreen(route)
-                                    },
-                                    onSetShakeBlocked = { blocked ->
-                                        viewModel.setShakeBlocked(blocked)
-                                    },
-                                    // Google Calendar Two-Way Sync
-                                    isCalendarSyncEnabled = viewModel.isCalendarSyncEnabled.collectAsState().value,
-                                    onSetCalendarSyncEnabled = { enabled ->
-                                        viewModel.setCalendarSyncEnabled(enabled)
-                                    },
-                                    deviceCalendars = viewModel.deviceCalendars.collectAsState().value,
-                                    targetCalendarId = viewModel.targetCalendarId.collectAsState().value,
-                                    onSetTargetCalendarId = { id ->
-                                        viewModel.setTargetCalendarId(id)
-                                    },
-                                    onLoadDeviceCalendars = {
-                                        viewModel.loadDeviceCalendars()
-                                    },
-                                    navigationRequest = navigationRequest,
-                                    onClearNavigationRequest = {
-                                        viewModel.clearNavigationRequest()
-                                    },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-
-
-
-                                // Mini Audio Player overlay at bottom (Hide when keyboard is open)
-                                val isKeyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-                                val currentScreen by viewModel.currentScreen.collectAsState()
-                                AnimatedMiniPlayer(
-                                    visible = isMiniPlayerVisible && !isFullPlayerVisible && !isKeyboardOpen,
-                                    state = audioUiState,
-                                    onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
-                                    onExpandClick = { audioPlayerViewModel.expandToFullPlayer() },
-                                    onCloseClick = { audioPlayerViewModel.stop() },
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .navigationBarsPadding()
-                                        .offset(y = if (currentScreen == "knowledge_card") (-84).dp else 0.dp) // Offset when on KnowledgeCard to avoid overlapping bottom buttons
-                                )
-
-                                // Full Audio Player modal
-                                if (isFullPlayerVisible) {
-                                    FullAudioPlayer(
-                                        state = audioUiState,
-                                        sheetState = fullPlayerSheetState,
-                                        onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
-                                        onSeek = { progress -> audioPlayerViewModel.seekTo(progress) },
-                                        onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
+                                        notes = notes,
+                                        archivedNotes = archivedNotes,
+                                        categories = categories,
+                                        selectedNote = selectedNote,
+                                        selectedCategory = selectedCategory,
+                                        isProcessing = isProcessing,
+                                        // Notes management
+                                        onAddNote = { content, attachments ->
+                                            viewModel.addNoteWithAttachments(content, attachments)
+                                        },
+                                        onSelectNote = { note ->
+                                            viewModel.selectNote(note)
+                                        },
+                                        onSelectCategory = { category ->
+                                            viewModel.selectCategory(category)
+                                        },
+                                        onCreateCategory = { name ->
+                                            viewModel.createUserCategory(name)
+                                        },
+                                        onRenameCategory = { category, newName ->
+                                            viewModel.renameCategory(category, newName)
+                                        },
+                                        onDeleteCategory = { category ->
+                                            viewModel.deleteCategory(category)
+                                        },
+                                        onSyncCategoryCounts = {
+                                            viewModel.syncCategoryCounts()
+                                        },
+                                        onArchiveNote = { noteId ->
+                                            viewModel.archiveNote(noteId)
+                                        },
+                                        onUnarchiveNote = { noteId ->
+                                            viewModel.unarchiveNote(noteId)
+                                        },
+                                        onBulkArchive = { noteIds ->
+                                            viewModel.archiveNotes(noteIds)
+                                        },
+                                        onUndoArchive = {
+                                            viewModel.undoArchive()
+                                        },
+                                        onRefreshNotes = {
+                                            viewModel.syncCloudNow()
+                                        },
+                                        isRefreshing = viewModel.cloudSyncState.collectAsState().value is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Syncing,
+                                        isNotesLoading = isNotesLoading,
+                                        isStacksLoading = isStacksLoading,
+                                        isArchiveLoading = isArchiveLoading,
+                                        isChatHistoryLoading = isChatHistoryLoading,
+                                        isCalendarLoading = isCalendarLoading,
+                                        onDeleteNote = { note ->
+                                            viewModel.deleteNote(note)
+                                        },
+                                        onDeleteNoteById = { noteId ->
+                                            viewModel.deleteNoteById(noteId)
+                                        },
+                                        onUpdateNoteTodos = { noteId, todos, onComplete ->
+                                            viewModel.updateNoteTodos(noteId, todos, onComplete)
+                                        },
+                                        onEditNote = { noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments ->
+                                            viewModel.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
+                                        },
+                                        onMarkAsViewed = { noteId ->
+                                            viewModel.markNoteAsViewed(noteId)
+                                        },
+                                        // Version history
+                                        selectedNoteVersions = viewModel.selectedNoteVersions.collectAsState().value,
+                                        onLoadNoteVersions = { noteId ->
+                                            viewModel.loadNoteVersions(noteId)
+                                        },
+                                        onRestoreNoteVersion = { noteId, versionId ->
+                                            viewModel.restoreNoteVersion(noteId, versionId)
+                                        },
+                                        // Pin and Share management
+                                        onPinNote = { noteId ->
+                                            viewModel.pinNote(noteId)
+                                        },
+                                        onUnpinNote = { noteId ->
+                                            viewModel.unpinNote(noteId)
+                                        },
+                                        onShareNotes = { notesToShare ->
+                                            // Create share intent with full note titles and descriptions
+                                            val shareText =
+                                                notesToShare.joinToString("\n\n") { note ->
+                                                    val body =
+                                                        when {
+                                                            !note.summary.isNullOrBlank() -> note.summary
+                                                            note.content.isNotBlank() -> note.content // Full content, no truncation
+                                                            else -> ""
+                                                        }
+                                                    getString(R.string.share_note_format, note.title, body).trim()
+                                                }
+                                            val intent =
+                                                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                                                    putExtra(android.content.Intent.EXTRA_SUBJECT, getString(R.string.shared_from_smarty))
+                                                }
+                                            startActivity(android.content.Intent.createChooser(intent, getString(R.string.share_notes)))
+                                        },
+                                        // Pending share management
+                                        pendingShare = pendingShare,
+                                        onConfirmShare = { category, instructions ->
+                                            viewModel.confirmShare(category, instructions)
+                                        },
+                                        onCancelShare = {
+                                            viewModel.cancelShare()
+                                        },
+                                        isShareFullPrivacy = isShareFullPrivacy,
+                                        // Chat mode management
+                                        isChatMode = isChatMode,
+                                        chatMessages = chatMessages,
+                                        isChatProcessing = isChatProcessing,
+                                        agentActivity = agentActivity,
+                                        onSendChatMessage = { content, attachments ->
+                                            viewModel.sendChatMessage(content, attachments)
+                                        },
+                                        onGenerateImageDirect = { prompt ->
+                                            viewModel.generateImageDirect(prompt)
+                                        },
+                                        onExitChatMode = {
+                                            viewModel.exitChatMode()
+                                        },
+                                        onEnterChatMode = {
+                                            viewModel.enterChatMode()
+                                        },
+                                        onEnterChatWithNoteReference = { noteTitle ->
+                                            viewModel.enterChatWithNoteReference(noteTitle)
+                                        },
+                                        pendingClarificationRequests = pendingClarificationRequests,
+                                        pendingApprovalToolId = pendingApprovalToolId,
+                                        onCallApproval = viewModel::callApproval,
+                                        // Chat history management
+                                        chatSessions = chatSessions,
+                                        currentSessionId = currentSessionId,
+                                        onSwitchChatSession = { sessionId ->
+                                            viewModel.switchToChatSession(sessionId)
+                                        },
+                                        onNewChatSession = {
+                                            viewModel.createNewChatSession()
+                                        },
+                                        onDeleteChatSession = { sessionId ->
+                                            viewModel.deleteChatSession(sessionId)
+                                        },
+                                        onDeleteChatMessage = { messageId ->
+                                            viewModel.deleteChatMessage(messageId)
+                                        },
+                                        // @Mention autocomplete
+                                        mentionState = mentionState,
+                                        onMentionSelected = { suggestion, currentText ->
+                                            viewModel.onMentionSelected(suggestion, currentText)
+                                        },
+                                        // Pending chat text (for "Ask AI" from note card)
+                                        pendingChatText = pendingChatText,
+                                        onClearPendingChatText = {
+                                            viewModel.clearPendingChatText()
+                                        },
+                                        // Mention state update (for autocomplete)
+                                        onUpdateMentionState = { text, cursorPosition ->
+                                            viewModel.updateMentionState(text, cursorPosition)
+                                        },
+                                        // AI exclusion state
+                                        isAiExcluded = isAiExcluded,
+                                        onInputTextChange = { text ->
+                                            viewModel.updateInputText(text)
+                                        },
+                                        currentInputAttachments = currentInputAttachments,
+                                        onInputAttachmentsChange = { attachments ->
+                                            viewModel.updateInputAttachments(attachments)
+                                        },
+                                        // Search and Filter Params
+                                        searchQuery = searchQuery,
+                                        onSearchQueryChange = { query ->
+                                            viewModel.onSearchQueryChange(query)
+                                        },
+                                        selectedFilters = selectedFilters,
+                                        onFilterToggle = { option ->
+                                            viewModel.onFilterToggle(option)
+                                        },
+                                        onClearFilters = {
+                                            viewModel.clearFilters()
+                                        },
+                                        // Search History (BATCH 5C)
+                                        recentSearches = recentSearches,
+                                        onRecordSearch = { query ->
+                                            viewModel.recordSearch(query)
+                                        },
+                                        onClearSearchHistory = {
+                                            viewModel.clearSearchHistory()
+                                        },
+                                        // Audio player
+                                        audioUiState = audioUiState,
+                                        onPlayAudio = { track ->
+                                            audioPlayerViewModel.playAudio(track)
+                                        },
+                                        onPauseAudio = {
+                                            audioPlayerViewModel.togglePlayPause()
+                                        },
+                                        onSeekAudio = { progress ->
+                                            audioPlayerViewModel.seekTo(progress)
+                                        },
+                                        // Theme management
+                                        isDarkTheme = isDarkTheme,
+                                        onToggleTheme = { isDark ->
+                                            viewModel.setDarkTheme(isDark)
+                                        },
+                                        // Cache management
+                                        cacheSizeBytes = cacheSizeBytes,
+                                        onClearCache = {
+                                            viewModel.clearCache()
+                                        },
+                                        isClearingCache = isClearingCache,
+                                        // Shake sensitivity
+                                        shakeSensitivity = shakeSensitivity,
+                                        onShakeSensitivityChange = { value ->
+                                            viewModel.setShakeSensitivity(value)
+                                        },
+                                        // Shake mode switch animation
+                                        wasShakeTriggered = wasShakeTriggered,
+                                        connectionStatus = connectionStatus,
+                                        cloudSyncState = viewModel.cloudSyncState.collectAsState().value,
+                                        onSyncCloud = { viewModel.syncCloudNow() },
+                                        onSyncCloudSilent = { viewModel.syncCloudNow(silent = true) },
+                                        syncSnackbarMessage = viewModel.syncSnackbarMessage,
+                                        // Camera trigger from widget
+                                        cameraTriggered = cameraTriggered,
+                                        onClearCameraTrigger = { viewModel.clearCameraTrigger() },
+                                        // Calendar management
+                                        calendarEvents = calendarEvents,
+                                        activeTimers = activeTimers,
+                                        onAddCalendarEvent = {
+                                            title,
+                                            description,
+                                            startTime,
+                                            endTime,
+                                            isAllDay,
+                                            location,
+                                            color,
+                                            reminderMinutes,
+                                            isPrivate,
+                                            ->
+                                            viewModel.addCalendarEvent(
+                                                title = title,
+                                                description = description,
+                                                startTime = startTime,
+                                                endTime = endTime,
+                                                isAllDay = isAllDay,
+                                                location = location,
+                                                color = color,
+                                                reminderMinutes = reminderMinutes,
+                                                isPrivate = isPrivate,
+                                            )
+                                        },
+                                        onUpdateCalendarEvent = { event ->
+                                            viewModel.updateCalendarEvent(event)
+                                        },
+                                        onDeleteCalendarEvent = { eventId ->
+                                            viewModel.deleteCalendarEvent(eventId)
+                                        },
+                                        onNavigateToTasks = {
+                                            navController.navigate(Screen.Tasks.route)
+                                        },
+                                        onNavigateToNotifications = {
+                                            navController.navigate(Screen.Notifications.route)
+                                        },
+                                        onCancelTimer = { timer ->
+                                            viewModel.cancelTimer(timer)
+                                        },
+                                        bottomContentPadding =
+                                            androidx.compose.animation.core
+                                                .animateDpAsState(
+                                                    targetValue =
+                                                        if (isMiniPlayerVisible &&
+                                                            !isFullPlayerVisible &&
+                                                            WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) ==
+                                                            0
+                                                        ) {
+                                                            84.dp
+                                                        } else {
+                                                            0.dp
+                                                        },
+                                                    label = "PlayerPadding",
+                                                ).value,
+                                        externalSpeechState = globalSpeechState,
+                                        speechResults = viewModel.speechResults,
+                                        // Track screen changes for shake gesture (only works on main screen)
+                                        onScreenChange = { route ->
+                                            viewModel.setCurrentScreen(route)
+                                        },
+                                        onSetShakeBlocked = { blocked ->
+                                            viewModel.setShakeBlocked(blocked)
+                                        },
+                                        // Google Calendar Two-Way Sync
+                                        isCalendarSyncEnabled = viewModel.isCalendarSyncEnabled.collectAsState().value,
+                                        onSetCalendarSyncEnabled = { enabled ->
+                                            viewModel.setCalendarSyncEnabled(enabled)
+                                        },
+                                        deviceCalendars = viewModel.deviceCalendars.collectAsState().value,
+                                        targetCalendarId = viewModel.targetCalendarId.collectAsState().value,
+                                        onSetTargetCalendarId = { id ->
+                                            viewModel.setTargetCalendarId(id)
+                                        },
+                                        onLoadDeviceCalendars = {
+                                            viewModel.loadDeviceCalendars()
+                                        },
+                                        navigationRequest = navigationRequest,
+                                        onClearNavigationRequest = {
+                                            viewModel.clearNavigationRequest()
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
                                     )
-                                }  // End if (isFullPlayerVisible)
-                            }  // End inner Box (SmartyNavHost container)
-                        }  // End main_app case
-                    }  // End when
-                }  // End Crossfade
-            }  // End outer Box
-        }  // End SmartyTheme
-    }  // End setContent
-}  // End onCreate
+
+                                    // Mini Audio Player overlay at bottom (Hide when keyboard is open)
+                                    val isKeyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+                                    val currentScreen by viewModel.currentScreen.collectAsState()
+                                    AnimatedMiniPlayer(
+                                        visible = isMiniPlayerVisible && !isFullPlayerVisible && !isKeyboardOpen,
+                                        state = audioUiState,
+                                        onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
+                                        onExpandClick = { audioPlayerViewModel.expandToFullPlayer() },
+                                        onCloseClick = { audioPlayerViewModel.stop() },
+                                        modifier =
+                                            Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .navigationBarsPadding()
+                                                .offset(y = if (currentScreen == "knowledge_card") (-84).dp else 0.dp), // Offset when on KnowledgeCard to avoid overlapping bottom buttons
+                                    )
+
+                                    // Full Audio Player modal
+                                    if (isFullPlayerVisible) {
+                                        FullAudioPlayer(
+                                            state = audioUiState,
+                                            sheetState = fullPlayerSheetState,
+                                            onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
+                                            onSeek = { progress -> audioPlayerViewModel.seekTo(progress) },
+                                            onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() },
+                                        )
+                                    } // End if (isFullPlayerVisible)
+                                } // End inner Box (SmartyNavHost container)
+                            } // End main_app case
+                        } // End when
+                    } // End Crossfade
+                } // End outer Box
+            } // End SmartyTheme
+        } // End setContent
+    } // End onCreate
 
     override fun onResume() {
         super.onResume()
@@ -736,7 +760,6 @@ class MainActivity : ComponentActivity() {
 
         // Notify audio service to use high-frequency updates (immediate, no delay needed)
         AudioPlayerService.enterForeground(this)
-
 
         lifecycleScope.launch {
             delay(300)
@@ -795,12 +818,13 @@ class MainActivity : ComponentActivity() {
                         }
                         // File-based shares (images, documents, audio, etc.)
                         else -> {
-                            val fileUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                            }
+                            val fileUri: Uri? =
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                                }
 
                             fileUri?.let { uri ->
                                 // Get file details
@@ -812,8 +836,8 @@ class MainActivity : ComponentActivity() {
                                         fileUri = uri.toString(),
                                         fileName = fileName,
                                         mimeType = mimeType,
-                                        fileSize = fileSize
-                                    )
+                                        fileSize = fileSize,
+                                    ),
                                 )
                             }
                         }
@@ -822,23 +846,25 @@ class MainActivity : ComponentActivity() {
                 // Handle multiple files shared at once
                 Intent.ACTION_SEND_MULTIPLE -> {
                     val mimeType = intent.type
-                    val uriList: ArrayList<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-                    }
+                    val uriList: ArrayList<Uri>? =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                        }
 
                     uriList?.let { uris ->
                         if (uris.isNotEmpty()) {
-                            val files = uris.map { uri ->
-                                SharedFileInfo(
-                                    fileUri = uri.toString(),
-                                    fileName = getFileName(uri),
-                                    mimeType = contentResolver.getType(uri) ?: mimeType,
-                                    fileSize = getFileSize(uri)
-                                )
-                            }
+                            val files =
+                                uris.map { uri ->
+                                    SharedFileInfo(
+                                        fileUri = uri.toString(),
+                                        fileName = getFileName(uri),
+                                        mimeType = contentResolver.getType(uri) ?: mimeType,
+                                        fileSize = getFileSize(uri),
+                                    )
+                                }
                             viewModel.interceptShareForPreview(SharedContent(files = files))
                         }
                     }
@@ -859,45 +885,47 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-     // Handle deep-link routes from notifications (e.g. daily briefing)
-    if (intent?.getStringExtra("route") == "briefing") {
-        val briefingContent = intent.getStringExtra("briefing_content")
-        if (!briefingContent.isNullOrBlank()) {
-            viewModel.enterChatMode()
-            viewModel.enterChatWithNoteReference("Show me my daily briefing")
-        }
-    }
+            // Handle deep-link routes from notifications (e.g. daily briefing)
+            if (intent?.getStringExtra("route") == "briefing") {
+                val briefingContent = intent.getStringExtra("briefing_content")
+                if (!briefingContent.isNullOrBlank()) {
+                    viewModel.enterChatMode()
+                    viewModel.enterChatWithNoteReference("Show me my daily briefing")
+                }
+            }
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "Error handling intent: ${e.message}", e)
             // Intent handling failed, but don't crash the app - user can still use it normally
         }
     }
 
-    private fun getFileName(uri: Uri): String? {
-        return try {
+    private fun getFileName(uri: Uri): String? =
+        try {
             contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                     if (nameIndex >= 0) cursor.getString(nameIndex) else null
-                } else null
+                } else {
+                    null
+                }
             } ?: uri.lastPathSegment
         } catch (e: Exception) {
             uri.lastPathSegment
         }
-    }
 
-    private fun getFileSize(uri: Uri): Long? {
-        return try {
+    private fun getFileSize(uri: Uri): Long? =
+        try {
             contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
                     if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             null
         }
-    }
 
     /**
      * Request all required permissions based on Android version.
@@ -912,7 +940,8 @@ class MainActivity : ComponentActivity() {
         // FIX: Check version before calling checkSelfPermission to avoid crash on API < 23
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
             }
         }
@@ -920,11 +949,13 @@ class MainActivity : ComponentActivity() {
         // Calendar permissions - Required for Google Calendar sync
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.READ_CALENDAR)
             }
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.WRITE_CALENDAR)
             }
         }
@@ -932,26 +963,31 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // Android 13+ - Need granular media permissions
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
             }
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
             }
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
             }
             // Notification permission for Android 13+
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             // Android 6-12 - Need READ_EXTERNAL_STORAGE
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
         }

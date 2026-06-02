@@ -43,7 +43,8 @@ object NetworkMonitorUtil {
                 }
 
             val request =
-                NetworkRequest.Builder()
+                NetworkRequest
+                    .Builder()
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     .build()
 
@@ -108,23 +109,17 @@ object MemoryMonitor {
     /**
      * Get max available memory in MB
      */
-    fun getMaxMemory(): Long {
-        return Runtime.getRuntime().maxMemory() / (1024 * 1024)
-    }
+    fun getMaxMemory(): Long = Runtime.getRuntime().maxMemory() / (1024 * 1024)
 
     /**
      * Get memory usage percentage
      */
-    fun getMemoryUsagePercent(): Float {
-        return getCurrentMemoryUsage().toFloat() / getMaxMemory() * 100
-    }
+    fun getMemoryUsagePercent(): Float = getCurrentMemoryUsage().toFloat() / getMaxMemory() * 100
 
     /**
      * Check if memory usage is critical (>80%)
      */
-    fun isMemoryCritical(): Boolean {
-        return getMemoryUsagePercent() > 80f
-    }
+    fun isMemoryCritical(): Boolean = getMemoryUsagePercent() > 80f
 
     /**
      * Suggest garbage collection if memory is high
@@ -183,9 +178,7 @@ object StorageMonitor {
     /**
      * Check if storage is critically low (<100MB)
      */
-    fun isStorageCritical(context: Context): Boolean {
-        return getAvailableStorage(context) < 100
-    }
+    fun isStorageCritical(context: Context): Boolean = getAvailableStorage(context) < 100
 }
 
 /**
@@ -196,31 +189,27 @@ object AppVersionUtil {
     /**
      * Get app version name
      */
-    fun getVersionName(context: Context): String {
-        return try {
+    fun getVersionName(context: Context): String =
+        try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             packageInfo.versionName ?: "unknown"
         } catch (e: Exception) {
             "unknown"
         }
-    }
 
     /**
      * Get app version code
      */
-    fun getVersionCode(context: Context): Long {
-        return try {
+    fun getVersionCode(context: Context): Long =
+        try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             packageInfo.longVersionCode
         } catch (e: Exception) {
             0
         }
-    }
 
     /**
      * Get formatted version string
      */
-    fun getFormattedVersion(context: Context): String {
-        return "v${getVersionName(context)} (${getVersionCode(context)})"
-    }
+    fun getFormattedVersion(context: Context): String = "v${getVersionName(context)} (${getVersionCode(context)})"
 }

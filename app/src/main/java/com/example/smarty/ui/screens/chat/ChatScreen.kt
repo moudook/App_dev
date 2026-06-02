@@ -12,8 +12,6 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.features.chat.domain.ChatViewModel
 import com.example.smarty.features.chat.domain.event.ChatEvent
-import com.example.smarty.features.chat.domain.state.ChatState
-import com.example.smarty.features.chat.domain.state.ChatUiState
 import com.example.smarty.ui.components.ChatMessageItem
 import com.example.smarty.ui.components.MessageGroupPosition
 import com.example.smarty.ui.components.SmartyInputField
@@ -22,13 +20,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Main Chat Screen - Demonstrates complete SDE architecture.
- * 
+ *
  * Principles applied:
  * - **Global State**: Observes ChatState and ChatUiState flows
  * - **Event-Driven**: All user interactions go through ChatEvent
  * - **Single Responsibility**: UI only handles presentation
  * - **DRY**: Uses extracted components (ChatMessageItem, SmartyInputField)
- * 
+ *
  * @param viewModel The ChatViewModel providing state and handling events
  * @param onNoteClick Callback when a referenced note is clicked
  * @param onAttachmentClick Callback when an attachment is clicked
@@ -40,7 +38,7 @@ fun ChatScreen(
     onAttachmentClick: (String) -> Unit = {},
     onNoteClickById: (String) -> Unit = {},
     onEventClickById: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     // Collect global state - single source of truth
     val chatState by viewModel.chatState.collectAsState()
@@ -48,15 +46,15 @@ fun ChatScreen(
     val pendingApproval by viewModel.pendingApprovalState.collectAsState()
     val messages = chatState.messages
     val isProcessing = chatState.isProcessing
-    
+
     // List state for scroll management
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    
+
     // Input text state - initialized once from ViewModel, then local-first
     val initialText = remember { uiState.inputText }
     var inputText by remember { mutableStateOf(initialText) }
-    
+
     // Auto-scroll to bottom when new messages arrive or streaming updates
     val streamingMessage = chatState.streamingMessage
     val hasStreaming = streamingMessage != null
@@ -82,7 +80,7 @@ fun ChatScreen(
             viewModel.loadMoreMessages()
         }
     }
-    
+
     // Pre-compute group positions once per list change — avoids O(n²) per recomposition
     val groupPositions by remember {
         derivedStateOf {
@@ -91,37 +89,40 @@ fun ChatScreen(
                 val isUser = msg.role == ChatRole.USER
                 val prevSameRole = index > 0 && messages[index - 1].role == msg.role
                 val nextSameRole = index < messages.size - 1 && messages[index + 1].role == msg.role
-                map[msg.id] = when {
-                    !prevSameRole && !nextSameRole -> MessageGroupPosition.SINGLE
-                    !prevSameRole && nextSameRole -> MessageGroupPosition.TOP
-                    prevSameRole && !nextSameRole -> MessageGroupPosition.BOTTOM
-                    else -> MessageGroupPosition.MIDDLE
-                }
+                map[msg.id] =
+                    when {
+                        !prevSameRole && !nextSameRole -> MessageGroupPosition.SINGLE
+                        !prevSameRole && nextSameRole -> MessageGroupPosition.TOP
+                        prevSameRole && !nextSameRole -> MessageGroupPosition.BOTTOM
+                        else -> MessageGroupPosition.MIDDLE
+                    }
             }
             map
         }
     }
-    
+
     // Memoize clarification message lookup — avoids full list scan on every recomposition
-    val msgWithClarification = remember(messages) {
-        messages.find { it.clarificationRequest != null }
-    }
-    
+    val msgWithClarification =
+        remember(messages) {
+            messages.find { it.clarificationRequest != null }
+        }
+
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding()
+        modifier =
+            modifier
+                .fillMaxSize()
+                .imePadding(),
     ) {
         // Messages list
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            contentPadding = PaddingValues(vertical = 16.dp),
         ) {
             if (messages.isEmpty()) {
                 item {
                     ChatEmptyState(
-                        modifier = Modifier.fillParentMaxSize()
+                        modifier = Modifier.fillParentMaxSize(),
                     )
                 }
             } else {
@@ -130,11 +131,11 @@ fun ChatScreen(
                     item(key = "loading_top") {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.Center,
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
+                                strokeWidth = 2.dp,
                             )
                         }
                     }
@@ -142,7 +143,7 @@ fun ChatScreen(
                 items(
                     items = messages,
                     key = { message -> message.id },
-                    contentType = { message -> message.role.name }
+                    contentType = { message -> message.role.name },
                 ) { message ->
                     ChatMessageItem(
                         message = message,
@@ -165,12 +166,12 @@ fun ChatScreen(
                                 viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                             }
                         },
-                        onRegenerateMessage = {
-                            // Handle regeneration
+                        onRegenerateMessage = { messageId ->
+                            viewModel.onEvent(ChatEvent.MessageRegenerated(messageId))
                         },
                         onSuggestionClick = { suggestion ->
                             viewModel.onEvent(ChatEvent.SuggestionClicked(suggestion))
-                        }
+                        },
                         // modifier = Modifier.animateItemPlacement() // Removed experimental API
                     )
                 }
@@ -191,19 +192,20 @@ fun ChatScreen(
                         onEditMessage = {},
                         onClarificationSubmit = {},
                         onRegenerateMessage = {},
-                        onSuggestionClick = {}
+                        onSuggestionClick = {},
                     )
                 }
             }
         }
-        
+
         // Scroll to bottom button (shown when not at latest)
         if (!uiState.isAtLatestMessage && messages.isNotEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 FilledTonalIconButton(
                     onClick = {
@@ -211,43 +213,51 @@ fun ChatScreen(
                             listState.animateScrollToItem(messages.size - 1)
                         }
                     },
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
                 ) {
                     Text("↓")
                 }
             }
         }
-        
+
         // Calculate pending questions for the input field
         val clarificationMsg = msgWithClarification
         val pendingQuestions = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
         var activeApprovalId: String? = null
 
-        if (pendingApproval != null && (pendingApproval!!.toolName.contains("ask_user") || pendingApproval!!.toolName.contains("askuser") || pendingApproval!!.toolName.contains("ask-user"))) {
+        if (pendingApproval != null &&
+            (
+                pendingApproval!!.toolName.contains("ask_user") ||
+                    pendingApproval!!.toolName.contains("askuser") ||
+                    pendingApproval!!.toolName.contains("ask-user")
+            )
+        ) {
             activeApprovalId = pendingApproval!!.toolId
             try {
                 val json = org.json.JSONObject(pendingApproval!!.toolArgs)
                 val questionsArray = json.optJSONArray("questions")
-                
+
                 if (questionsArray != null && questionsArray.length() > 0) {
                     for (i in 0 until questionsArray.length()) {
                         val qObj = questionsArray.getJSONObject(i)
                         val qText = qObj.optString("question", "Quick question:")
                         val qAllowCustom = qObj.optBoolean("allow_custom", true)
                         val qOptions = mutableListOf<String>()
-                        
+
                         val optArr = qObj.optJSONArray("options")
                         if (optArr != null) {
                             for (j in 0 until optArr.length()) {
                                 qOptions.add(optArr.getString(j))
                             }
                         }
-                        
-                        pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
-                            question = qText,
-                            options = qOptions,
-                            allowCustomInput = qAllowCustom
-                        ))
+
+                        pendingQuestions.add(
+                            com.example.smarty.core.domain.model.ClarificationRequest(
+                                question = qText,
+                                options = qOptions,
+                                allowCustomInput = qAllowCustom,
+                            ),
+                        )
                     }
                 } else {
                     // Fallback for single object instead of array
@@ -260,41 +270,47 @@ fun ChatScreen(
                             qOptions.add(optArr.getString(j))
                         }
                     }
-                    pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
-                        question = qText,
-                        options = qOptions,
-                        allowCustomInput = qAllowCustom
-                    ))
+                    pendingQuestions.add(
+                        com.example.smarty.core.domain.model.ClarificationRequest(
+                            question = qText,
+                            options = qOptions,
+                            allowCustomInput = qAllowCustom,
+                        ),
+                    )
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ChatScreen", "Error parsing ask_user args: ${pendingApproval!!.toolArgs}", e)
                 if (pendingQuestions.isEmpty()) {
-                    pendingQuestions.add(com.example.smarty.core.domain.model.ClarificationRequest(
-                        question = "Quick question:",
-                        options = emptyList(),
-                        allowCustomInput = true
-                    ))
+                    pendingQuestions.add(
+                        com.example.smarty.core.domain.model.ClarificationRequest(
+                            question = "Quick question:",
+                            options = emptyList(),
+                            allowCustomInput = true,
+                        ),
+                    )
                 }
             }
         } else if (clarificationMsg?.clarificationRequest != null) {
             pendingQuestions.add(clarificationMsg.clarificationRequest!!)
         }
-        
+
         android.util.Log.d("ChatScreen", "pendingApproval: ${pendingApproval?.toolName}, pendingQuestions size: ${pendingQuestions.size}")
         // Standard Input field
         SmartyInputField(
-                value = inputText,
-                onValueChange = { 
-                    inputText = it
-                    viewModel.onEvent(ChatEvent.InputTextChanged(it))
-                },
-                onSubmit = {
-                    if (inputText.text.isNotBlank()) {
-                        viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
-                        inputText = androidx.compose.ui.text.input.TextFieldValue("")
-                    }
-                },
-                pendingQuestions = pendingQuestions,
+            value = inputText,
+            onValueChange = {
+                inputText = it
+                viewModel.onEvent(ChatEvent.InputTextChanged(it))
+            },
+            onSubmit = {
+                if (inputText.text.isNotBlank()) {
+                    viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
+                    inputText =
+                        androidx.compose.ui.text.input
+                            .TextFieldValue("")
+                }
+            },
+            pendingQuestions = pendingQuestions,
             onQuestionAnswered = { response ->
                 if (clarificationMsg?.clarificationRequest != null) {
                     viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
@@ -303,23 +319,23 @@ fun ChatScreen(
                 }
             },
             isChatMode = true,
-                isProcessing = isProcessing,
-                isAgentWorking = isProcessing,
-                onStopGeneration = { viewModel.onEvent(ChatEvent.GenerationStopped) },
-                onStartVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStarted) },
-                onStopVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStopped) },
-                chatPlaceholder = "Ask anything...",
-                showHistoryOption = true,
-                onOpenChatHistory = { viewModel.onEvent(ChatEvent.ChatHistoryRequested) },
-                onNewChat = { viewModel.onEvent(ChatEvent.NewChatRequested) },
-                selectedModel = uiState.selectedModel,
-                availableModels = uiState.availableModels,
-                onModelSelected = { viewModel.onEvent(ChatEvent.ModelSelected(it)) },
-                modelVariantMap = uiState.modelVariantMap,
-                selectedVariant = uiState.selectedVariant,
-                onVariantSelected = { viewModel.onEvent(ChatEvent.VariantSelected(it)) },
-                onRefreshModels = { viewModel.refreshModelsNow() },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            isProcessing = isProcessing,
+            isAgentWorking = isProcessing,
+            onStopGeneration = { viewModel.onEvent(ChatEvent.GenerationStopped) },
+            onStartVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStarted) },
+            onStopVoiceInput = { viewModel.onEvent(ChatEvent.VoiceInputStopped) },
+            chatPlaceholder = "Ask anything...",
+            showHistoryOption = true,
+            onOpenChatHistory = { viewModel.onEvent(ChatEvent.ChatHistoryRequested) },
+            onNewChat = { viewModel.onEvent(ChatEvent.NewChatRequested) },
+            selectedModel = uiState.selectedModel,
+            availableModels = uiState.availableModels,
+            onModelSelected = { viewModel.onEvent(ChatEvent.ModelSelected(it)) },
+            modelVariantMap = uiState.modelVariantMap,
+            selectedVariant = uiState.selectedVariant,
+            onVariantSelected = { viewModel.onEvent(ChatEvent.VariantSelected(it)) },
+            onRefreshModels = { viewModel.refreshModelsNow() },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
     }
 }

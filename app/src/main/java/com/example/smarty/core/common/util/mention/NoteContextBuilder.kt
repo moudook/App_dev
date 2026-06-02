@@ -327,8 +327,8 @@ class NoteContextBuilder(
         content: String,
         chunkNum: Int,
         totalChunks: Int,
-    ): String {
-        return buildString {
+    ): String =
+        buildString {
             append("### ${note.title}")
             if (totalChunks > 1) {
                 append(" (Part $chunkNum of $totalChunks)")
@@ -337,7 +337,6 @@ class NoteContextBuilder(
             append("Type: ${note.type.name}\n\n")
             append(content.trim())
         }
-    }
 
     /**
      * Find a good break point (sentence/word boundary) near target position.
@@ -403,9 +402,13 @@ class NoteContextBuilder(
             }
 
             // Include source URL for web content
-            if (!note.sourceUrl.isNullOrBlank() && note.type in
+            if (!note.sourceUrl.isNullOrBlank() &&
+                note.type in
                 listOf(
-                    NoteType.WEBSITE, NoteType.YOUTUBE, NoteType.TWITTER, NoteType.INSTAGRAM,
+                    NoteType.WEBSITE,
+                    NoteType.YOUTUBE,
+                    NoteType.TWITTER,
+                    NoteType.INSTAGRAM,
                 )
             ) {
                 if (isNotEmpty()) append("\n")

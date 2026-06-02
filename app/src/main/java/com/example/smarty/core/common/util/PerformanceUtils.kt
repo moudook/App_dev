@@ -21,15 +21,11 @@ class ImageCache private constructor() {
                 override fun sizeOf(
                     key: String,
                     bitmap: Bitmap,
-                ): Int {
-                    return bitmap.byteCount / 1024
-                }
+                ): Int = bitmap.byteCount / 1024
             }
     }
 
-    fun get(url: String): Bitmap? {
-        return memoryCache.get(url)
-    }
+    fun get(url: String): Bitmap? = memoryCache.get(url)
 
     fun put(
         url: String,
@@ -51,11 +47,10 @@ class ImageCache private constructor() {
     companion object {
         @Volatile private var instance: ImageCache? = null
 
-        fun getInstance(): ImageCache {
-            return instance ?: synchronized(this) {
+        fun getInstance(): ImageCache =
+            instance ?: synchronized(this) {
                 instance ?: ImageCache().also { instance = it }
             }
-        }
     }
 }
 
@@ -241,9 +236,7 @@ class BatchProcessor<T, R>(
 class PerformanceMonitor {
     private val timings = mutableMapOf<String, MutableList<Long>>()
 
-    fun startTimer(key: String): Long {
-        return System.currentTimeMillis()
-    }
+    fun startTimer(key: String): Long = System.currentTimeMillis()
 
     fun endTimer(
         key: String,
@@ -258,11 +251,10 @@ class PerformanceMonitor {
         return if (times.isEmpty()) 0 else times.average().toLong()
     }
 
-    fun getStats(): Map<String, Long> {
-        return timings.mapValues { (_, times) ->
+    fun getStats(): Map<String, Long> =
+        timings.mapValues { (_, times) ->
             if (times.isEmpty()) 0 else times.average().toLong()
         }
-    }
 
     fun clear() {
         timings.clear()
@@ -271,10 +263,9 @@ class PerformanceMonitor {
     companion object {
         @Volatile private var instance: PerformanceMonitor? = null
 
-        fun getInstance(): PerformanceMonitor {
-            return instance ?: synchronized(this) {
+        fun getInstance(): PerformanceMonitor =
+            instance ?: synchronized(this) {
                 instance ?: PerformanceMonitor().also { instance = it }
             }
-        }
     }
 }

@@ -1,16 +1,9 @@
 package com.example.smarty.ui.components.timeline
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,16 +15,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.components.markdown.MarkdownRenderer
 
 // ═══════════════════════════════════════════════════════════════════════
 // APPROVAL GATE CARD
@@ -137,9 +125,13 @@ fun ApprovalGateCard(
                             },
                         contentDescription = null,
                         tint =
-                            if (node.status == TimelineNode.ApprovalGate.Status.GRANTED) Color(0xFF66BB6A) else Color(
-                                0xFFEF5350
-                            ),
+                            if (node.status == TimelineNode.ApprovalGate.Status.GRANTED) {
+                                Color(0xFF66BB6A)
+                            } else {
+                                Color(
+                                    0xFFEF5350,
+                                )
+                            },
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -186,10 +178,10 @@ private fun ApproveDenyButtons(
         Button(
             onClick = onApprove,
             colors =
-            ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF66BB6A),
-                contentColor = Color.White,
-            ),
+                ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF66BB6A),
+                    contentColor = Color.White,
+                ),
             shape = RoundedCornerShape(10.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             modifier = Modifier.weight(1f),
@@ -217,7 +209,7 @@ private fun ApproveDenyButtons(
 @Composable
 private fun ApprovedSummary() {
     Text(
-        text =             "You approved it. Let\'s keep going.",
+        text = "You approved it. Let\'s keep going.",
         style = MaterialTheme.typography.bodySmall,
         color = Color(0xFF66BB6A),
         modifier = Modifier.padding(top = 4.dp),
@@ -227,7 +219,7 @@ private fun ApprovedSummary() {
 @Composable
 private fun DeniedSummary() {
     Text(
-        text =             "Declined. I\'ll try something else.",
+        text = "Declined. I\'ll try something else.",
         style = MaterialTheme.typography.bodySmall,
         color = Color(0xFFEF5350),
         modifier = Modifier.padding(top = 4.dp),

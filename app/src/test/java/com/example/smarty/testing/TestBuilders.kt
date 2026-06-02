@@ -56,9 +56,7 @@ object TestBuilders {
     fun noteList(
         count: Int,
         block: NoteBuilder.() -> Unit = {},
-    ): List<Note> {
-        return (1..count).map { note(block) }
-    }
+    ): List<Note> = (1..count).map { note(block) }
 
     class NoteBuilder {
         var id: String = UUID.randomUUID().toString()
@@ -75,8 +73,8 @@ object TestBuilders {
         var updatedAt: Long = System.currentTimeMillis()
         var attachments: List<Attachment> = emptyList()
 
-        fun build(): Note {
-            return Note(
+        fun build(): Note =
+            Note(
                 id = id,
                 title = title,
                 content = content,
@@ -91,7 +89,6 @@ object TestBuilders {
                 updatedAt = updatedAt,
                 attachments = attachments,
             )
-        }
 
         // Pre-configured templates for common scenarios
         fun archived(): NoteBuilder =
@@ -143,9 +140,7 @@ object TestBuilders {
     fun categoryList(
         count: Int,
         block: CategoryBuilder.() -> Unit = {},
-    ): List<Category> {
-        return (1..count).map { category(block) }
-    }
+    ): List<Category> = (1..count).map { category(block) }
 
     class CategoryBuilder {
         var id: String = UUID.randomUUID().toString()
@@ -153,14 +148,13 @@ object TestBuilders {
         var color: String = "#2196F3" // Default blue
         var noteCount: Int = 0
 
-        fun build(): Category {
-            return Category(
+        fun build(): Category =
+            Category(
                 id = id,
                 name = name,
                 color = color,
                 noteCount = noteCount,
             )
-        }
 
         // Pre-configured templates
         fun red(): CategoryBuilder = apply { color = "#F44336" }
@@ -193,8 +187,8 @@ object TestBuilders {
         var createdAt: Long = System.currentTimeMillis()
         var updatedAt: Long = System.currentTimeMillis()
 
-        fun build(): CalendarEvent {
-            return CalendarEvent(
+        fun build(): CalendarEvent =
+            CalendarEvent(
                 id = id,
                 title = title,
                 description = description,
@@ -207,7 +201,6 @@ object TestBuilders {
                 createdAt = createdAt,
                 updatedAt = updatedAt,
             )
-        }
     }
 
     // ==================== Attachment Builders ====================
@@ -226,8 +219,8 @@ object TestBuilders {
         var fileSize: Long = 1024
         var mimeType: String = "application/octet-stream"
 
-        fun build(): Attachment {
-            return Attachment(
+        fun build(): Attachment =
+            Attachment(
                 id = id,
                 type = type,
                 url = url,
@@ -235,7 +228,6 @@ object TestBuilders {
                 fileSize = fileSize,
                 mimeType = mimeType,
             )
-        }
 
         // Pre-configured templates
         fun image(): AttachmentBuilder =
@@ -298,9 +290,7 @@ object TestBuilders {
         const val INVALID_TOKEN = "invalid_token"
         const val EXPIRED_TOKEN = "expired_token_old123"
 
-        fun validTokenWithTimestamp(): Pair<String, Long> {
-            return VALID_TOKEN to System.currentTimeMillis()
-        }
+        fun validTokenWithTimestamp(): Pair<String, Long> = VALID_TOKEN to System.currentTimeMillis()
     }
 
     // ==================== PDF Testing ====================
@@ -313,13 +303,12 @@ object TestBuilders {
         fun generateChunkedText(
             chunkSize: Int = 1000,
             chunks: Int = 10,
-        ): String {
-            return buildString {
+        ): String =
+            buildString {
                 repeat(chunks) { i ->
                     if (i > 0) append(" ") // Word boundary
                     append("Chunk ${i + 1}: ".padEnd(chunkSize, 'X'))
                 }
             }
-        }
     }
 }

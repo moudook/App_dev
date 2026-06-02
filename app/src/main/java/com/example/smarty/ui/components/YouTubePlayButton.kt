@@ -32,9 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.ui.theme.YoutubeRed
 
@@ -47,7 +47,7 @@ fun YouTubePlayButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    isCompact: Boolean = false
+    isCompact: Boolean = false,
 ) {
     val haptic = LocalHapticFeedback.current
     var isPressed by remember { mutableStateOf(false) }
@@ -55,59 +55,61 @@ fun YouTubePlayButton(
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.9f else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-        label = "scale"
+        label = "scale",
     )
 
     val backgroundColor by animateColorAsState(
         targetValue = if (isPressed) YoutubeRed.copy(alpha = 0.9f) else YoutubeRed,
         animationSpec = tween(100),
-        label = "bgColor"
+        label = "bgColor",
     )
 
     Surface(
-        modifier = modifier
-            .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        if (!isLoading) {
-                            isPressed = true
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            tryAwaitRelease()
-                            isPressed = false
-                        }
-                    },
-                    onTap = {
-                        if (!isLoading) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onClick()
-                        }
-                    }
-                )
-            },
+        modifier =
+            modifier
+                .scale(scale)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            if (!isLoading) {
+                                isPressed = true
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                tryAwaitRelease()
+                                isPressed = false
+                            }
+                        },
+                        onTap = {
+                            if (!isLoading) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onClick()
+                            }
+                        },
+                    )
+                },
         shape = RoundedCornerShape(if (isCompact) 8.dp else 12.dp),
         color = backgroundColor,
-        shadowElevation = if (isPressed) 2.dp else 4.dp
+        shadowElevation = if (isPressed) 2.dp else 4.dp,
     ) {
         Row(
-            modifier = Modifier.padding(
-                horizontal = if (isCompact) 8.dp else 12.dp,
-                vertical = if (isCompact) 6.dp else 8.dp
-            ),
-            verticalAlignment = Alignment.CenterVertically
+            modifier =
+                Modifier.padding(
+                    horizontal = if (isCompact) 8.dp else 12.dp,
+                    vertical = if (isCompact) 6.dp else 8.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
                     color = Color.White,
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = stringResource(R.string.watch_video),
                     tint = Color.White,
-                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
+                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
                 )
             }
 
@@ -115,10 +117,11 @@ fun YouTubePlayButton(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = if (isLoading) "" else stringResource(R.string.watch),
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = Color.White
+                    style =
+                        MaterialTheme.typography.labelMedium.copy(
+                            letterSpacing = 0.5.sp,
+                        ),
+                    color = Color.White,
                 )
             }
         }
@@ -133,7 +136,7 @@ fun YouTubePlayButtonCircle(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    size: Int = 36
+    size: Int = 36,
 ) {
     val haptic = LocalHapticFeedback.current
     var isPressed by remember { mutableStateOf(false) }
@@ -141,49 +144,49 @@ fun YouTubePlayButtonCircle(
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.85f else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-        label = "scale"
+        label = "scale",
     )
 
     Box(
-        modifier = modifier
-            .size(size.dp)
-            .scale(scale)
-            .background(
-                color = YoutubeRed,
-                shape = RoundedCornerShape(50)
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        if (!isLoading) {
-                            isPressed = true
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            tryAwaitRelease()
-                            isPressed = false
-                        }
-                    },
-                    onTap = {
-                        if (!isLoading) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onClick()
-                        }
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(size.dp)
+                .scale(scale)
+                .background(
+                    color = YoutubeRed,
+                    shape = RoundedCornerShape(50),
+                ).pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            if (!isLoading) {
+                                isPressed = true
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                tryAwaitRelease()
+                                isPressed = false
+                            }
+                        },
+                        onTap = {
+                            if (!isLoading) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onClick()
+                            }
+                        },
+                    )
+                },
+        contentAlignment = Alignment.Center,
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size((size * 0.6f).dp),
                 color = Color.White,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         } else {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
                 contentDescription = stringResource(R.string.play_audio),
                 tint = Color.White,
-                modifier = Modifier.size((size * 0.6f).dp)
+                modifier = Modifier.size((size * 0.6f).dp),
             )
         }
     }

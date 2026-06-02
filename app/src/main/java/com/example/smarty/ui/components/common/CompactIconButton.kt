@@ -5,8 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.ripple
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -64,7 +64,7 @@ enum class IconButtonSize {
     Large,
 
     /** 48dp container, 24dp icon - primary actions */
-    XL
+    XL,
 }
 
 /**
@@ -72,7 +72,7 @@ enum class IconButtonSize {
  */
 private data class IconButtonSizeConfig(
     val containerSize: Dp,
-    val iconSize: Dp
+    val iconSize: Dp,
 )
 
 /**
@@ -96,71 +96,77 @@ fun CompactIconButton(
     tint: Color = LocalAccentColor.current,
     backgroundColor: Color? = null,
     contentDescription: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ) {
     val shapes = LocalShapes.current
 
     // Get size configuration
-    val sizeConfig = remember(size) {
-        when (size) {
-            IconButtonSize.Small -> IconButtonSizeConfig(
-                containerSize = 24.dp,
-                iconSize = IconSize.small
-            )
-            IconButtonSize.Medium -> IconButtonSizeConfig(
-                containerSize = 32.dp,
-                iconSize = IconSize.medium
-            )
-            IconButtonSize.Large -> IconButtonSizeConfig(
-                containerSize = 44.dp,
-                iconSize = IconSize.large
-            )
-            IconButtonSize.XL -> IconButtonSizeConfig(
-                containerSize = IconSize.container,
-                iconSize = IconSize.xl
-            )
+    val sizeConfig =
+        remember(size) {
+            when (size) {
+                IconButtonSize.Small ->
+                    IconButtonSizeConfig(
+                        containerSize = 24.dp,
+                        iconSize = IconSize.small,
+                    )
+                IconButtonSize.Medium ->
+                    IconButtonSizeConfig(
+                        containerSize = 32.dp,
+                        iconSize = IconSize.medium,
+                    )
+                IconButtonSize.Large ->
+                    IconButtonSizeConfig(
+                        containerSize = 44.dp,
+                        iconSize = IconSize.large,
+                    )
+                IconButtonSize.XL ->
+                    IconButtonSizeConfig(
+                        containerSize = IconSize.container,
+                        iconSize = IconSize.xl,
+                    )
+            }
         }
-    }
 
     // Calculate effective tint based on enabled state
     val effectiveTint = if (enabled) tint else tint.copy(alpha = 0.38f)
-    val effectiveBackgroundColor = backgroundColor?.let {
-        if (enabled) it else it.copy(alpha = 0.38f)
-    }
+    val effectiveBackgroundColor =
+        backgroundColor?.let {
+            if (enabled) it else it.copy(alpha = 0.38f)
+        }
 
     Box(
-        modifier = modifier
-            .size(sizeConfig.containerSize)
-            .clip(shapes.iconButton)
-            .then(
-                if (effectiveBackgroundColor != null) {
-                    Modifier.background(effectiveBackgroundColor)
-                } else {
-                    Modifier
-                }
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(
-                    radius = sizeConfig.containerSize / 2
-                ),
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick
-            )
-            .semantics {
-                role = Role.Button
-                if (contentDescription != null) {
-                    this.contentDescription = contentDescription
-                }
-            },
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(sizeConfig.containerSize)
+                .clip(shapes.iconButton)
+                .then(
+                    if (effectiveBackgroundColor != null) {
+                        Modifier.background(effectiveBackgroundColor)
+                    } else {
+                        Modifier
+                    },
+                ).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication =
+                        ripple(
+                            radius = sizeConfig.containerSize / 2,
+                        ),
+                    enabled = enabled,
+                    role = Role.Button,
+                    onClick = onClick,
+                ).semantics {
+                    role = Role.Button
+                    if (contentDescription != null) {
+                        this.contentDescription = contentDescription
+                    }
+                },
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(sizeConfig.iconSize),
-            tint = effectiveTint
+            tint = effectiveTint,
         )
     }
 }
@@ -187,63 +193,69 @@ fun CircularIconButton(
     iconTint: Color = Color.White,
     backgroundColor: Color = LocalAccentColor.current,
     contentDescription: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ) {
     val shapes = LocalShapes.current
 
     // Get size configuration
-    val sizeConfig = remember(size) {
-        when (size) {
-            IconButtonSize.Small -> IconButtonSizeConfig(
-                containerSize = 24.dp,
-                iconSize = IconSize.small
-            )
-            IconButtonSize.Medium -> IconButtonSizeConfig(
-                containerSize = 32.dp,
-                iconSize = IconSize.medium
-            )
-            IconButtonSize.Large -> IconButtonSizeConfig(
-                containerSize = 44.dp,
-                iconSize = IconSize.large
-            )
-            IconButtonSize.XL -> IconButtonSizeConfig(
-                containerSize = IconSize.container,
-                iconSize = IconSize.xl
-            )
+    val sizeConfig =
+        remember(size) {
+            when (size) {
+                IconButtonSize.Small ->
+                    IconButtonSizeConfig(
+                        containerSize = 24.dp,
+                        iconSize = IconSize.small,
+                    )
+                IconButtonSize.Medium ->
+                    IconButtonSizeConfig(
+                        containerSize = 32.dp,
+                        iconSize = IconSize.medium,
+                    )
+                IconButtonSize.Large ->
+                    IconButtonSizeConfig(
+                        containerSize = 44.dp,
+                        iconSize = IconSize.large,
+                    )
+                IconButtonSize.XL ->
+                    IconButtonSizeConfig(
+                        containerSize = IconSize.container,
+                        iconSize = IconSize.xl,
+                    )
+            }
         }
-    }
 
     // Calculate effective colors based on enabled state
     val effectiveIconTint = if (enabled) iconTint else iconTint.copy(alpha = 0.38f)
     val effectiveBackgroundColor = if (enabled) backgroundColor else backgroundColor.copy(alpha = 0.38f)
 
     Box(
-        modifier = modifier
-            .size(sizeConfig.containerSize)
-            .clip(shapes.avatar) // Circular shape
-            .background(effectiveBackgroundColor)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(
-                    radius = sizeConfig.containerSize / 2
-                ),
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick
-            )
-            .semantics {
-                role = Role.Button
-                if (contentDescription != null) {
-                    this.contentDescription = contentDescription
-                }
-            },
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(sizeConfig.containerSize)
+                .clip(shapes.avatar) // Circular shape
+                .background(effectiveBackgroundColor)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication =
+                        ripple(
+                            radius = sizeConfig.containerSize / 2,
+                        ),
+                    enabled = enabled,
+                    role = Role.Button,
+                    onClick = onClick,
+                ).semantics {
+                    role = Role.Button
+                    if (contentDescription != null) {
+                        this.contentDescription = contentDescription
+                    }
+                },
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(sizeConfig.iconSize),
-            tint = effectiveIconTint
+            tint = effectiveIconTint,
         )
     }
 }
@@ -273,7 +285,7 @@ fun ToggleIconButton(
     unselectedTint: Color = LocalAccentColor.current.copy(alpha = 0.6f),
     selectedBackground: Color = LocalAccentColor.current.copy(alpha = 0.12f),
     contentDescription: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ) {
     CompactIconButton(
         icon = icon,
@@ -283,6 +295,6 @@ fun ToggleIconButton(
         tint = if (isSelected) selectedTint else unselectedTint,
         backgroundColor = if (isSelected) selectedBackground else null,
         contentDescription = contentDescription,
-        enabled = enabled
+        enabled = enabled,
     )
 }

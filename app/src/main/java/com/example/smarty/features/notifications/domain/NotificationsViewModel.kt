@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarty.core.domain.model.Notification
-import com.example.smarty.core.domain.model.NotificationResponse
 import com.example.smarty.core.domain.model.NotificationsResponse
 import com.example.smarty.data.local.SecurePreferences
 import com.google.firebase.auth.FirebaseAuth
@@ -26,8 +25,9 @@ data class NotificationsUiState(
     val unreadCount: Int = 0,
 )
 
-class NotificationsViewModel(application: Application) : AndroidViewModel(application) {
-
+class NotificationsViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val client = HttpClient(OkHttp)
     private val serverUrl = SecurePreferences(application).getServerUrl()
 
@@ -41,14 +41,13 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
         loadNotifications()
     }
 
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             user?.getIdToken(false)?.await()?.token
         } catch (e: Exception) {
             null
         }
-    }
 
     fun loadNotifications() {
         viewModelScope.launch {
@@ -60,17 +59,19 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
                     return@launch
                 }
 
-                val response: HttpResponse = client.get("$serverUrl/api/notifications") {
-                    header("Authorization", "Bearer $token")
-                }
+                val response: HttpResponse =
+                    client.get("$serverUrl/api/notifications") {
+                        header("Authorization", "Bearer $token")
+                    }
 
                 if (response.status.isSuccess()) {
                     val result: NotificationsResponse = response.body()
                     _notifications.value = result.notifications
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        unreadCount = result.notifications.count { !it.isRead }
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isLoading = false,
+                            unreadCount = result.notifications.count { !it.isRead },
+                        )
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load notifications")
                 }
@@ -86,16 +87,18 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
                 val token = getFirebaseToken()
                 if (token == null) return@launch
 
-                val response: HttpResponse = client.get("$serverUrl/api/notifications/unread") {
-                    header("Authorization", "Bearer $token")
-                }
+                val response: HttpResponse =
+                    client.get("$serverUrl/api/notifications/unread") {
+                        header("Authorization", "Bearer $token")
+                    }
 
                 if (response.status.isSuccess()) {
                     val result: NotificationsResponse = response.body()
                     _notifications.value = result.notifications
-                    _uiState.value = _uiState.value.copy(
-                        unreadCount = result.notifications.count { !it.isRead }
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            unreadCount = result.notifications.count { !it.isRead },
+                        )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message)
@@ -109,17 +112,20 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
                 val token = getFirebaseToken()
                 if (token == null) return@launch
 
-                val response: HttpResponse = client.post("$serverUrl/api/notifications/$notificationId/read") {
-                    header("Authorization", "Bearer $token")
-                }
+                val response: HttpResponse =
+                    client.post("$serverUrl/api/notifications/$notificationId/read") {
+                        header("Authorization", "Bearer $token")
+                    }
 
                 if (response.status.isSuccess()) {
-                    _notifications.value = _notifications.value.map {
-                        if (it.id == notificationId) it.copy(isRead = true) else it
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        unreadCount = _notifications.value.count { n -> !n.isRead }
-                    )
+                    _notifications.value =
+                        _notifications.value.map {
+                            if (it.id == notificationId) it.copy(isRead = true) else it
+                        }
+                    _uiState.value =
+                        _uiState.value.copy(
+                            unreadCount = _notifications.value.count { n -> !n.isRead },
+                        )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message)
@@ -133,9 +139,10 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
                 val token = getFirebaseToken()
                 if (token == null) return@launch
 
-                val response: HttpResponse = client.post("$serverUrl/api/notifications/read-all") {
-                    header("Authorization", "Bearer $token")
-                }
+                val response: HttpResponse =
+                    client.post("$serverUrl/api/notifications/read-all") {
+                        header("Authorization", "Bearer $token")
+                    }
 
                 if (response.status.isSuccess()) {
                     _notifications.value = _notifications.value.map { it.copy(isRead = true) }
@@ -153,15 +160,17 @@ class NotificationsViewModel(application: Application) : AndroidViewModel(applic
                 val token = getFirebaseToken()
                 if (token == null) return@launch
 
-                val response: HttpResponse = client.delete("$serverUrl/api/notifications/$notificationId") {
-                    header("Authorization", "Bearer $token")
-                }
+                val response: HttpResponse =
+                    client.delete("$serverUrl/api/notifications/$notificationId") {
+                        header("Authorization", "Bearer $token")
+                    }
 
                 if (response.status.isSuccess()) {
                     _notifications.value = _notifications.value.filter { it.id != notificationId }
-                    _uiState.value = _uiState.value.copy(
-                        unreadCount = _notifications.value.count { n -> !n.isRead }
-                    )
+                    _uiState.value =
+                        _uiState.value.copy(
+                            unreadCount = _notifications.value.count { n -> !n.isRead },
+                        )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message)

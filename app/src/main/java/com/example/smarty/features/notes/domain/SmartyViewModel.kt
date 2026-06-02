@@ -1,66 +1,58 @@
 @file:Suppress("DEPRECATION")
+
 package com.example.smarty.features.notes.domain
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
 import android.util.Log
-import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.savedstate.SavedStateRegistryOwner
-import com.example.smarty.data.local.SearchHistoryManager
-import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.data.local.AIConnection
+import com.example.smarty.R
+import com.example.smarty.core.common.util.CompletionSoundManager
+import com.example.smarty.core.common.util.ContentTypeDetector
+import com.example.smarty.core.common.util.FileStorageHelper
+import com.example.smarty.core.common.util.NetworkMonitor
+import com.example.smarty.core.common.util.ShakeDetector
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatSession
+import com.example.smarty.core.domain.model.MentionState
+import com.example.smarty.core.domain.model.MentionSuggestion
 import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteAttachment
 import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.SharedContent
 import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.core.domain.model.TodoItem
+import com.example.smarty.data.cache.AIResponseCache
+import com.example.smarty.data.local.AIConnection
+import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.SmartyRepository
-import com.example.smarty.service.AlarmScheduler
-import com.example.smarty.ui.components.ConnectionStatus
-import com.example.smarty.ui.components.PendingShareData
-import com.example.smarty.core.common.util.CompletionSoundManager
-import com.example.smarty.core.common.util.NetworkMonitor
-import com.example.smarty.core.common.util.ShakeDetector
-import com.example.smarty.core.domain.model.MentionState
-import com.example.smarty.ui.components.AttachmentOption
-import android.content.Context
-import android.net.Uri
-import com.example.smarty.core.domain.model.PlaybackState
-import com.example.smarty.data.cache.AIResponseCache
-import com.example.smarty.core.domain.model.TodoItem
-import com.example.smarty.core.domain.model.MentionSuggestion
-import com.example.smarty.service.AudioPlayerService
-import com.example.smarty.core.common.util.FileStorageHelper
-import com.example.smarty.R
-import com.example.smarty.features.notes.domain.ShareFlowManager
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withContext
-import com.example.smarty.core.domain.model.NoteAttachment
-import com.example.smarty.core.common.util.ContentTypeDetector
-import com.example.smarty.features.calendar.domain.CalendarFeatureManager
 import com.example.smarty.features.chat.domain.ChatFeatureManager
-import com.example.smarty.features.notes.domain.NoteProcessingQueueManager
-import com.example.smarty.features.settings.domain.SettingsFeatureManager
-import com.example.smarty.features.system.domain.SystemFeatureManager
-import com.example.smarty.features.audio.domain.AudioFeatureManager
-import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.chat.domain.StyleFeatureManager
 import com.example.smarty.features.chat.domain.WorkflowManager
-
-import com.google.gson.Gson
+import com.example.smarty.features.notes.domain.NoteProcessingQueueManager
+import com.example.smarty.features.notes.domain.ShareFlowManager
+import com.example.smarty.features.search.domain.SearchFeatureManager
+import com.example.smarty.features.settings.domain.SettingsFeatureManager
+import com.example.smarty.features.system.domain.SystemFeatureManager
+import com.example.smarty.service.AlarmScheduler
+import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.ui.components.PendingShareData
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -73,25 +65,18 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
-
-import com.example.smarty.core.domain.model.SharedContent
-import com.example.smarty.core.domain.model.SharedFileInfo
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class SmartyViewModel(
     application: Application,
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
 ) : AndroidViewModel(application) {
-
     // SavedStateHandle keys for state preservation across process death (BUG-053)
     companion object {
         private const val TAG = "SmartyViewModel"
@@ -116,71 +101,85 @@ class SmartyViewModel(
     // These are initialized on first access, not during ViewModel construction
     // ServiceLocator ensures singletons are used where appropriate
     private val aiService: AIService by lazy {
-        com.example.smarty.di.ServiceLocator.provideAIService(application)
+        com.example.smarty.di.ServiceLocator
+            .provideAIService(application)
     }
 
     // Repository needs to be initialized before agent - lazy to avoid blocking
     private val repository: SmartyRepository by lazy {
-        com.example.smarty.di.ServiceLocator.provideRepository(application)
+        com.example.smarty.di.ServiceLocator
+            .provideRepository(application)
     }
 
     private val chatRepository: ChatRepository by lazy {
-        com.example.smarty.di.ServiceLocator.provideChatRepository(application)
+        com.example.smarty.di.ServiceLocator
+            .provideChatRepository(application)
     }
 
     // Alarm scheduler for timer/alarm tools - lazy to avoid blocking
     private val alarmScheduler: AlarmScheduler by lazy {
-        com.example.smarty.di.ServiceLocator.provideAlarmScheduler(application)
+        com.example.smarty.di.ServiceLocator
+            .provideAlarmScheduler(application)
     }
 
     // Device audio repository for MediaStore access - lazy to avoid blocking
     private val deviceAudioRepository: DeviceAudioRepository by lazy {
-        com.example.smarty.di.ServiceLocator.provideDeviceAudioRepository(application)
+        com.example.smarty.di.ServiceLocator
+            .provideDeviceAudioRepository(application)
     }
 
     // Completion sound manager for AI agent and notecard processing
     private val completionSoundManager: CompletionSoundManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideCompletionSoundManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideCompletionSoundManager(application)
     }
 
     // Cache manager for memory management
     private val cacheManager: com.example.smarty.data.cache.CacheManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideCacheManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideCacheManager(application)
     }
 
     // Calendar Feature Manager - handles calendar logic and sync
     private val calendarFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideCalendarFeatureManager(getApplication())
+        com.example.smarty.di.ServiceLocator
+            .provideCalendarFeatureManager(getApplication())
     }
 
     // Settings Feature Manager - Centralized preferences and keys
     private val settingsFeatureManager: SettingsFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideSettingsFeatureManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideSettingsFeatureManager(application)
     }
 
     // System Feature Manager - Hybridized action layer for UI, Local Commands, and AI
     private val systemFeatureManager: SystemFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideSystemFeatureManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideSystemFeatureManager(application)
     }
 
     // Search Feature Manager - Centralized retrieval for UI and AI
     private val searchFeatureManager: com.example.smarty.features.search.domain.SearchFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideSearchFeatureManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideSearchFeatureManager(application)
     }
 
     // Style Feature Manager - Analyzes user writing patterns
     private val styleFeatureManager: com.example.smarty.features.chat.domain.StyleFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideStyleFeatureManager()
+        com.example.smarty.di.ServiceLocator
+            .provideStyleFeatureManager()
     }
 
     // Workflow Manager - Handles multi-step agentic tasks
     private val workflowManager: com.example.smarty.features.chat.domain.WorkflowManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideWorkflowManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideWorkflowManager(application)
     }
 
     // AI Response Cache
     private val aiResponseCache: AIResponseCache by lazy {
-        com.example.smarty.di.ServiceLocator.provideAIResponseCache(application)
+        com.example.smarty.di.ServiceLocator
+            .provideAIResponseCache(application)
     }
 
     private val securePreferences: SecurePreferences by lazy {
@@ -188,7 +187,8 @@ class SmartyViewModel(
     }
 
     private val remoteAgentService by lazy {
-        com.example.smarty.di.ServiceLocator.provideRemoteAgentService(getApplication())
+        com.example.smarty.di.ServiceLocator
+            .provideRemoteAgentService(getApplication())
     }
 
     // Model Selection State (dynamic, real-time synchronized across Chat / Assist Overlay / Notes Mode)
@@ -217,8 +217,8 @@ class SmartyViewModel(
         _selectedVariant.value = variant
     }
 
-    suspend fun refreshModels(): List<Pair<String, String>> {
-        return try {
+    suspend fun refreshModels(): List<Pair<String, String>> =
+        try {
             val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
             if (refreshed.isNotEmpty()) {
                 val pairs = refreshed.map { it.id to it.label }
@@ -233,7 +233,6 @@ class SmartyViewModel(
             Log.e(TAG, "Failed to refresh models in Notes Mode: ${e.message}")
             securePreferences.getCachedModels()
         }
-    }
 
     // AI Provider Strategy and AI Personality removed — these features
     // are no longer exposed in the app settings. The StateFlows
@@ -245,14 +244,13 @@ class SmartyViewModel(
      * Delegated to NoteOperationsManager for centralized data flow.
      */
     private val _allNotesForAgent: StateFlow<List<Note>> by lazy {
-        noteOperationsManager.getAllNotes()
+        noteOperationsManager
+            .getAllNotes()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
-
-
 
     // Voice input trigger (for widget voice input button - NOT Vosk wake word)
     // This is triggered by the widget to launch Google Speech Recognizer
@@ -266,28 +264,20 @@ class SmartyViewModel(
     // Mutex for thread-safe note operations (BUG-016 fix)
     private val noteOperationMutex = Mutex()
 
-
-
-
-
-
-
-
-
-
     // ==================== Delegated Managers ====================
 
     // Shared App State - Global state holder for cross-component synchronization
     private val sharedAppState by lazy {
-        com.example.smarty.di.ServiceLocator.provideSharedAppState()
+        com.example.smarty.di.ServiceLocator
+            .provideSharedAppState()
     }
 
     // Current screen route - delegated to SharedAppState
     val currentScreen: StateFlow<String> = sharedAppState.currentScreen
 
-    // 
+    //
     // SCREEN CONTEXT - Track active item being viewed (e.g., a specific note)
-    // 
+    //
 
     val activeNoteId: StateFlow<String?> = sharedAppState.activeNoteId
     val selectedTab: StateFlow<com.example.smarty.core.domain.model.NavigationTab> = sharedAppState.selectedTab
@@ -302,33 +292,36 @@ class SmartyViewModel(
 
     // Network monitoring (Phase 7)
     private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
-    val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
+    val connectionStatus: StateFlow<ConnectionStatus> =
+        networkMonitor.connectionStatus
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
 
     // Chat Feature Manager - handles chat logic, sessions, and AI interaction
     private val chatFeatureManager: ChatFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideChatFeatureManager(getApplication(), viewModelScope)
+        com.example.smarty.di.ServiceLocator
+            .provideChatFeatureManager(getApplication(), viewModelScope)
     }
 
     // Share Flow Manager - handles share interception and processing
-    private val shareFlowManager = com.example.smarty.features.notes.domain.ShareFlowManager(
-        repository = repository,
-        context = application,
-        scope = viewModelScope,
-        getNotesSnapshot = { notes.value }
-    )
-
-
+    private val shareFlowManager =
+        com.example.smarty.features.notes.domain.ShareFlowManager(
+            repository = repository,
+            context = application,
+            scope = viewModelScope,
+            getNotesSnapshot = { notes.value },
+        )
 
     // Note Operations Manager - handles note CRUD operations
     private val noteOperationsManager: com.example.smarty.features.notes.domain.NoteOperationsManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideNoteOperationsManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideNoteOperationsManager(application)
     }
 
     // Note Processing Queue Manager - handles background processing with timeout and recovery
     private val noteProcessingQueueManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideNoteProcessingQueueManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideNoteProcessingQueueManager(application)
     }
 
     // Queue state exposed for UI (optional - shows pending count)
@@ -336,14 +329,15 @@ class SmartyViewModel(
 
     // Audio Playback Manager - handles audio playback coordination with AudioPlayerService
     private val audioPlaybackManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideAudioPlaybackManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideAudioPlaybackManager(application)
     }
 
     // Audio Feature Manager - hybridized audio control for UI and AI agent
     private val audioFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideAudioFeatureManager(application)
+        com.example.smarty.di.ServiceLocator
+            .provideAudioFeatureManager(application)
     }
-
 
     // ==================== Chat State (delegated to ChatFeatureManager) ====================
     val isChatMode: StateFlow<Boolean> get() = chatFeatureManager.isChatMode
@@ -357,9 +351,22 @@ class SmartyViewModel(
     val navigationRequest: StateFlow<String?> get() = sharedAppState.navigationRequest
     val proactiveSuggestion: StateFlow<String?> get() = chatFeatureManager.proactiveSuggestion
     val pendingClarificationRequests: StateFlow<List<com.example.smarty.core.domain.model.ClarificationRequest>> get() = chatFeatureManager.pendingClarificationRequests
-    val pendingApprovalToolId: StateFlow<String?> get() = chatFeatureManager.pendingApprovalState.map { it?.toolId }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), null)
+    val pendingApprovalToolId: StateFlow<String?> get() =
+        chatFeatureManager.pendingApprovalState
+            .map {
+                it?.toolId
+            }.stateIn(
+                viewModelScope,
+                kotlinx.coroutines.flow.SharingStarted
+                    .WhileSubscribed(5000),
+                null,
+            )
 
-    fun callApproval(toolId: String, approved: Boolean, feedback: String? = null) = chatFeatureManager.callApproval(toolId, approved, feedback)
+    fun callApproval(
+        toolId: String,
+        approved: Boolean,
+        feedback: String? = null,
+    ) = chatFeatureManager.callApproval(toolId, approved, feedback)
 
     // ==================== Share Flow State (delegated to ShareFlowManager) ====================
     val pendingShare: StateFlow<PendingShareData?> = shareFlowManager.pendingShare
@@ -396,9 +403,10 @@ class SmartyViewModel(
     // Shared flow for speech results to be consumed by screens
     // BUG FIX (RX-04): Added extraBufferCapacity to prevent dropped events
     // when collector is suspended (e.g., during screen transition)
-    private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>(
-        extraBufferCapacity = 8  // Buffer up to 8 speech results to prevent drops
-    )
+    private val _speechResults =
+        kotlinx.coroutines.flow.MutableSharedFlow<String>(
+            extraBufferCapacity = 8, // Buffer up to 8 speech results to prevent drops
+        )
     val speechResults = _speechResults.asSharedFlow()
 
     // Pull-to-refresh state (local DB refresh)
@@ -418,9 +426,18 @@ class SmartyViewModel(
     // Cloud sync state and operations
     sealed class CloudSyncState {
         object Idle : CloudSyncState()
+
         object Syncing : CloudSyncState()
-        data class Success(val notesUpdated: Int, val sessionsUpdated: Int, val eventsUpdated: Int) : CloudSyncState()
-        data class Error(val message: String) : CloudSyncState()
+
+        data class Success(
+            val notesUpdated: Int,
+            val sessionsUpdated: Int,
+            val eventsUpdated: Int,
+        ) : CloudSyncState()
+
+        data class Error(
+            val message: String,
+        ) : CloudSyncState()
     }
 
     private val _cloudSyncState = MutableStateFlow<CloudSyncState>(CloudSyncState.Idle)
@@ -435,7 +452,9 @@ class SmartyViewModel(
             if (!silent) _cloudSyncState.value = CloudSyncState.Syncing
             try {
                 val app = getApplication<Application>()
-                val syncCoordinator = com.example.smarty.di.ServiceLocator.provideSyncCoordinator(app)
+                val syncCoordinator =
+                    com.example.smarty.di.ServiceLocator
+                        .provideSyncCoordinator(app)
 
                 // Unified debounced sync (push then pull)
                 val (pushResult, pullResult) = syncCoordinator.syncAll()
@@ -444,13 +463,16 @@ class SmartyViewModel(
                     when {
                         pullResult is com.example.smarty.data.sync.PullResult.Success -> {
                             val total = pullResult.notes + pullResult.sessions + pullResult.events
-                            _cloudSyncState.value = CloudSyncState.Success(
-                                notesUpdated = pullResult.notes,
-                                sessionsUpdated = pullResult.sessions,
-                                eventsUpdated = pullResult.events
-                            )
+                            _cloudSyncState.value =
+                                CloudSyncState.Success(
+                                    notesUpdated = pullResult.notes,
+                                    sessionsUpdated = pullResult.sessions,
+                                    eventsUpdated = pullResult.events,
+                                )
                             if (total > 0) {
-                                _syncSnackbarMessage.emit("Synced: ${pullResult.notes} notes, ${pullResult.sessions} chats, ${pullResult.events} events")
+                                _syncSnackbarMessage.emit(
+                                    "Synced: ${pullResult.notes} notes, ${pullResult.sessions} chats, ${pullResult.events} events",
+                                )
                             }
                             kotlinx.coroutines.delay(3000)
                             _cloudSyncState.value = CloudSyncState.Idle
@@ -485,6 +507,7 @@ class SmartyViewModel(
     fun resetCloudSyncState() {
         _cloudSyncState.value = CloudSyncState.Idle
     }
+
     fun clearInput() {
         _currentInputText.value = ""
         _currentInputAttachments.value = emptyList()
@@ -496,13 +519,15 @@ class SmartyViewModel(
         }
     }
 
-
-
     // --- Remote Server Configuration ---
     val serverUrl: StateFlow<String> = settingsFeatureManager.serverUrl
+
     fun setServerUrl(url: String) = settingsFeatureManager.setServerUrl(url)
 
-    fun testServerConnection(url: String, callback: (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) {
+    fun testServerConnection(
+        url: String,
+        callback: (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit,
+    ) {
         viewModelScope.launch {
             val result = settingsFeatureManager.testServerConnection(url)
             withContext(Dispatchers.Main) {
@@ -514,15 +539,17 @@ class SmartyViewModel(
     // --- Server Settings (Remote Only) ---
     // Declared above at line 431
 
-
     // --- Calendar & Timer State ---
     val isCalendarSyncEnabled: StateFlow<Boolean> = calendarFeatureManager.isCalendarSyncEnabled
     val deviceCalendars: StateFlow<List<com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar>> = calendarFeatureManager.deviceCalendars
     val targetCalendarId: StateFlow<Long> = calendarFeatureManager.targetCalendarId
 
     fun setCalendarSyncEnabled(enabled: Boolean) = calendarFeatureManager.setCalendarSyncEnabled(enabled)
+
     fun setTargetCalendarId(id: Long) = calendarFeatureManager.setTargetCalendarId(id)
+
     fun loadDeviceCalendars() = calendarFeatureManager.loadDeviceCalendars()
+
     fun cancelTimer(timer: SmartyTimer) = calendarFeatureManager.cancelTimer(timer.id)
 
     // Cache management
@@ -578,7 +605,6 @@ class SmartyViewModel(
     /** Check if audio is currently playing */
     fun isAudioPlaying(): Boolean = audioFeatureManager.isPlaying()
 
-
     /** Toggle play/pause state */
     fun toggleAudioPlayPause() = audioPlaybackManager.togglePlayPause()
 
@@ -591,8 +617,6 @@ class SmartyViewModel(
 
     /** Notify audio service of background state */
     fun onAudioAppEnterBackground() = audioPlaybackManager.onAppEnterBackground()
-
-
 
     // Selected category (must be declared before notes flow that uses it)
     private val _selectedCategory = MutableStateFlow<Category?>(null)
@@ -632,9 +656,7 @@ class SmartyViewModel(
     /**
      * GET SEARCH SUGGESTIONS - Delegated to SearchFeatureManager.
      */
-    fun getSearchSuggestions(query: String): List<String> {
-        return searchFeatureManager.getHistorySuggestions(query)
-    }
+    fun getSearchSuggestions(query: String): List<String> = searchFeatureManager.getHistorySuggestions(query)
 
     fun onFilterToggle(option: AttachmentOption) {
         val current = _selectedFilters.value
@@ -656,48 +678,57 @@ class SmartyViewModel(
      * Note: StateFlow is already distinct, so distinctUntilChanged not needed on filters/category
      */
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-    val notes: StateFlow<List<Note>> = combine(
-        _searchQuery.debounce(300),  // PERF: 90% fewer DB queries (StateFlow already distinct)
-        _selectedFilters,
-        _selectedCategory
-    ) { query, filters, category ->
-        Triple(query, filters, category)
-    }.flatMapLatest { (query, filters, category) ->
-        val effectiveQuery = query.trim()
-        
-        // Step 1: Fetch candidates from DB via SearchFeatureManager
-        val candidatesFlow = if (effectiveQuery.isEmpty()) {
-            if (category != null) searchFeatureManager.getNotesByCategory(category.id)
-            else searchFeatureManager.getAllNotesFlow()
-        } else {
-            searchFeatureManager.searchNotesFlow(effectiveQuery)
-        }
-        
-        // Step 2: Apply Intersection Filter (AND Logic) in Memory
-        // BUG FIX (L-002): Apply defensive limit to prevent OOM on large collections
-        candidatesFlow.map { notesList ->
-            val limitedList = if (notesList.size > MAX_NOTES_IN_MEMORY) {
-                Log.w(TAG, "Large note collection detected (${notesList.size}), limiting to $MAX_NOTES_IN_MEMORY for memory safety")
-                notesList.take(MAX_NOTES_IN_MEMORY)
-            } else {
-                notesList
-            }
+    val notes: StateFlow<List<Note>> =
+        combine(
+            _searchQuery.debounce(300), // PERF: 90% fewer DB queries (StateFlow already distinct)
+            _selectedFilters,
+            _selectedCategory,
+        ) { query, filters, category ->
+            Triple(query, filters, category)
+        }.flatMapLatest { (query, filters, category) ->
+            val effectiveQuery = query.trim()
 
-            if (filters.isEmpty()) {
-                limitedList
-            } else {
-                limitedList.filter { note ->
-                    // Note must satisfy ALL selected filters
-                    // Delegate to SearchFeatureManager for logic parity with AI Agent
-                    filters.all { filter -> searchFeatureManager.noteMatchesFilter(note, filter) }
+            // Step 1: Fetch candidates from DB via SearchFeatureManager
+            val candidatesFlow =
+                if (effectiveQuery.isEmpty()) {
+                    if (category != null) {
+                        searchFeatureManager.getNotesByCategory(category.id)
+                    } else {
+                        searchFeatureManager.getAllNotesFlow()
+                    }
+                } else {
+                    searchFeatureManager.searchNotesFlow(effectiveQuery)
+                }
+
+            // Step 2: Apply Intersection Filter (AND Logic) in Memory
+            // BUG FIX (L-002): Apply defensive limit to prevent OOM on large collections
+            candidatesFlow.map { notesList ->
+                val limitedList =
+                    if (notesList.size > MAX_NOTES_IN_MEMORY) {
+                        Log.w(TAG, "Large note collection detected (${notesList.size}), limiting to $MAX_NOTES_IN_MEMORY for memory safety")
+                        notesList.take(MAX_NOTES_IN_MEMORY)
+                    } else {
+                        notesList
+                    }
+
+                if (filters.isEmpty()) {
+                    limitedList
+                } else {
+                    limitedList.filter { note ->
+                        // Note must satisfy ALL selected filters
+                        // Delegate to SearchFeatureManager for logic parity with AI Agent
+                        filters.all { filter -> searchFeatureManager.noteMatchesFilter(note, filter) }
+                    }
                 }
             }
-        }
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val categories: StateFlow<List<Category>> = noteOperationsManager.getAllCategories()
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val categories: StateFlow<List<Category>> =
+        noteOperationsManager
+            .getAllCategories()
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Calendar events (delegated to CalendarFeatureManager)
     val calendarEvents: StateFlow<List<CalendarEvent>>
@@ -716,15 +747,15 @@ class SmartyViewModel(
     private val _selectedNoteId = MutableStateFlow<String?>(null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val selectedNote: StateFlow<Note?> = _selectedNoteId
-        .flatMapLatest { noteId ->
-            if (noteId != null) {
-                noteOperationsManager.getNoteByIdFlow(noteId)
-            } else {
-                flowOf(null)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val selectedNote: StateFlow<Note?> =
+        _selectedNoteId
+            .flatMapLatest { noteId ->
+                if (noteId != null) {
+                    noteOperationsManager.getNoteByIdFlow(noteId)
+                } else {
+                    flowOf(null)
+                }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
@@ -791,8 +822,8 @@ class SmartyViewModel(
                 kotlinx.coroutines.delay(50)
                 _isArchiveLoading.value = false
             } catch (e: Exception) {
-                 Log.e(TAG, "Failed to initialize archived notes", e)
-                 _isArchiveLoading.value = false
+                Log.e(TAG, "Failed to initialize archived notes", e)
+                _isArchiveLoading.value = false
             }
         }
 
@@ -811,16 +842,22 @@ class SmartyViewModel(
         // DEFERRED: Chat manager initialization moved to when chat mode is entered
 
         // Set up NoteOperationsManager callback for AI processing
-        noteOperationsManager.setAiProcessingCallback(object : com.example.smarty.features.notes.domain.NoteOperationsManager.AiProcessingCallback {
-            override suspend fun onProcessingComplete(note: Note) {
-                // SECURITY: Don't log note titles to prevent data leakage via logcat
-                Log.d(TAG, "Note processing complete: id=${note.id.take(8)}...")
-            }
-            override suspend fun onProcessingError(note: Note, error: String) {
-                // SECURITY: Don't log note titles to prevent data leakage via logcat
-                Log.e(TAG, "Note processing error for id=${note.id.take(8)}...: $error")
-            }
-        })
+        noteOperationsManager.setAiProcessingCallback(
+            object : com.example.smarty.features.notes.domain.NoteOperationsManager.AiProcessingCallback {
+                override suspend fun onProcessingComplete(note: Note) {
+                    // SECURITY: Don't log note titles to prevent data leakage via logcat
+                    Log.d(TAG, "Note processing complete: id=${note.id.take(8)}...")
+                }
+
+                override suspend fun onProcessingError(
+                    note: Note,
+                    error: String,
+                ) {
+                    // SECURITY: Don't log note titles to prevent data leakage via logcat
+                    Log.e(TAG, "Note processing error for id=${note.id.take(8)}...: $error")
+                }
+            },
+        )
 
         // Initialize Note Processing Queue Manager
         // Recovers stuck notes and starts background queue processor
@@ -841,7 +878,7 @@ class SmartyViewModel(
                         // Play completion sound when notecard processing finishes
                         completionSoundManager.playNotecardCompletionSound(
                             isAppInForeground = _isAppInForeground.value,
-                            noteTitle = event.noteTitle
+                            noteTitle = event.noteTitle,
                         )
                         // Note: selectedNote is reactive and auto-updates from database
                     }
@@ -984,9 +1021,15 @@ class SmartyViewModel(
             }
 
             savedStateHandle.get<List<String>>(KEY_SELECTED_FILTERS)?.let { filterNames ->
-                val filters = filterNames.mapNotNull { name ->
-                    try { AttachmentOption.valueOf(name) } catch (e: Exception) { null }
-                }.toSet()
+                val filters =
+                    filterNames
+                        .mapNotNull { name ->
+                            try {
+                                AttachmentOption.valueOf(name)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }.toSet()
                 _selectedFilters.value = filters
                 Log.d(TAG, "Restored selectedFilters: $filters")
             }
@@ -1007,7 +1050,7 @@ class SmartyViewModel(
         itemName: String,
         maxRetries: Int = 3,
         initialDelayMs: Long = 100,
-        block: suspend () -> Boolean
+        block: suspend () -> Boolean,
     ): Boolean {
         var delayMs = initialDelayMs
         repeat(maxRetries) { attempt ->
@@ -1042,7 +1085,7 @@ class SmartyViewModel(
         _selectedNoteId.value = note?.id
         // Persist to SavedStateHandle for process death recovery (BUG-053)
         savedStateHandle[KEY_SELECTED_NOTE_ID] = note?.id
-        
+
         // Mark note as viewed to clear the unread indicator dot
         note?.id?.let { noteId ->
             noteOperationsManager.markNoteAsViewed(noteId)
@@ -1075,7 +1118,7 @@ class SmartyViewModel(
         content: String,
         type: NoteType = NoteType.BRAIN_DUMP,
         sourceUrl: String? = null,
-        excludeFromAiChat: Boolean = false
+        excludeFromAiChat: Boolean = false,
     ) {
         Log.d(TAG, "addNote: Generating new note. type=$type, excludeAI=$excludeFromAiChat, contentLen=${content.length}")
         noteOperationsManager.addNote(content, type, sourceUrl, excludeFromAiChat)
@@ -1083,13 +1126,14 @@ class SmartyViewModel(
 
     fun addNoteFromShare(sharedContent: SharedContent) {
         // Convert to manager's SharedContent format
-        val managerContent = com.example.smarty.core.domain.model.SharedContent(
-            text = sharedContent.text,
-            fileUri = sharedContent.fileUri,
-            fileName = sharedContent.fileName,
-            mimeType = sharedContent.mimeType,
-            fileSize = sharedContent.fileSize
-        )
+        val managerContent =
+            com.example.smarty.core.domain.model.SharedContent(
+                text = sharedContent.text,
+                fileUri = sharedContent.fileUri,
+                fileName = sharedContent.fileName,
+                mimeType = sharedContent.mimeType,
+                fileSize = sharedContent.fileSize,
+            )
         noteOperationsManager.addNoteFromShare(managerContent)
     }
 
@@ -1099,7 +1143,7 @@ class SmartyViewModel(
     fun addNoteWithAttachments(
         content: String,
         attachments: List<Attachment>,
-        excludeFromAiChat: Boolean = _pendingNoteAiExcluded.value
+        excludeFromAiChat: Boolean = _pendingNoteAiExcluded.value,
     ) {
         noteOperationsManager.addNoteWithAttachments(content, attachments, excludeFromAiChat)
         resetPendingNoteState()
@@ -1108,8 +1152,8 @@ class SmartyViewModel(
     /**
      * Get plural name for a note type (for titles like "3 Images")
      */
-    private fun getTypePluralName(type: NoteType): String {
-        return when (type) {
+    private fun getTypePluralName(type: NoteType): String =
+        when (type) {
             NoteType.IMAGE -> getApplication<Application>().getString(R.string.note_type_images)
             NoteType.VIDEO -> getApplication<Application>().getString(R.string.note_type_videos)
             NoteType.AUDIO -> getApplication<Application>().getString(R.string.note_type_audio_files)
@@ -1121,7 +1165,6 @@ class SmartyViewModel(
             NoteType.APK -> getApplication<Application>().getString(R.string.note_type_apk_files)
             else -> getApplication<Application>().getString(R.string.note_type_files)
         }
-    }
 
     /**
      * Submit user response to a clarification request.
@@ -1136,25 +1179,32 @@ class SmartyViewModel(
      * Uses optimal compression based on file type.
      * Returns the original attachment if compression fails.
      */
-    private suspend fun copyAttachmentToStorage(attachment: Attachment): Attachment {
-        return try {
-            val compressed = FileStorageHelper.compressAndStore(
-                context = getApplication(),
-                sourceUri = android.net.Uri.parse(attachment.uri),
-                mimeType = attachment.mimeType,
-                originalFileName = attachment.fileName
-            )
+    private suspend fun copyAttachmentToStorage(attachment: Attachment): Attachment =
+        try {
+            val compressed =
+                FileStorageHelper.compressAndStore(
+                    context = getApplication(),
+                    sourceUri = android.net.Uri.parse(attachment.uri),
+                    mimeType = attachment.mimeType,
+                    originalFileName = attachment.fileName,
+                )
             if (compressed != null) {
                 // Log compression savings
                 if (compressed.isCompressed) {
-                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${ContentTypeDetector.formatFileSize(getApplication(), compressed.savedBytes)} " +
-                            "(${String.format("%.1f", compressed.compressionRatio)}% reduction)")
+                    Log.i(
+                        TAG,
+                        "Attachment compressed: ${attachment.fileName} saved ${ContentTypeDetector.formatFileSize(
+                            getApplication(),
+                            compressed.savedBytes,
+                        )} " +
+                            "(${String.format("%.1f", compressed.compressionRatio)}% reduction)",
+                    )
                 }
                 attachment.copy(
                     uri = compressed.uri,
                     fileName = compressed.fileName,
                     fileSize = compressed.compressedSize,
-                    mimeType = compressed.mimeType
+                    mimeType = compressed.mimeType,
                 )
             } else {
                 Log.w(TAG, "File compression returned null, using original URI: ${attachment.uri}")
@@ -1164,7 +1214,6 @@ class SmartyViewModel(
             Log.e(TAG, "Failed to compress attachment: ${e.message}")
             attachment // Return original on failure
         }
-    }
 
     /**
      * Build description for an attachment
@@ -1176,7 +1225,12 @@ class SmartyViewModel(
         sb.append(getApplication<Application>().getString(R.string.type_label, attachment.mimeType))
         if (attachment.fileSize > 0) {
             sb.append('\n')
-            sb.append(getApplication<Application>().getString(R.string.size_label, ContentTypeDetector.formatFileSize(getApplication(), attachment.fileSize)))
+            sb.append(
+                getApplication<Application>().getString(
+                    R.string.size_label,
+                    ContentTypeDetector.formatFileSize(getApplication(), attachment.fileSize),
+                ),
+            )
         }
         return sb.toString()
     }
@@ -1209,7 +1263,8 @@ class SmartyViewModel(
 
     // Archived notes for archive screen - lazy to ensure noteOperationsManager is initialized
     val archivedNotes: StateFlow<List<Note>> by lazy {
-        noteOperationsManager.getArchivedNotes()
+        noteOperationsManager
+            .getArchivedNotes()
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
@@ -1237,12 +1292,20 @@ class SmartyViewModel(
     /**
      * Update todos for a note.
      */
-    fun updateNoteTodos(noteId: String, todos: List<TodoItem>, onComplete: (() -> Unit)? = null) {
+    fun updateNoteTodos(
+        noteId: String,
+        todos: List<TodoItem>,
+        onComplete: (() -> Unit)? = null,
+    ) {
         noteOperationsManager.updateNoteTodos(noteId, todos, notes.value, archivedNotes.value)
         onComplete?.invoke()
     }
 
-    fun updateNoteCategory(noteId: String, categoryId: String, categoryName: String) {
+    fun updateNoteCategory(
+        noteId: String,
+        categoryId: String,
+        categoryName: String,
+    ) {
         noteOperationsManager.updateNoteCategory(noteId, categoryId, categoryName)
     }
 
@@ -1270,7 +1333,11 @@ class SmartyViewModel(
     // REMINDER OPERATIONS
     // =========================================================================
 
-    fun setNoteReminder(noteId: String, reminderText: String, durationMs: Long? = null) {
+    fun setNoteReminder(
+        noteId: String,
+        reminderText: String,
+        durationMs: Long? = null,
+    ) {
         noteOperationsManager.setNoteReminder(noteId, reminderText, durationMs)
     }
 
@@ -1311,7 +1378,11 @@ class SmartyViewModel(
     /**
      * Restore a note to a previous version
      */
-    fun restoreNoteVersion(noteId: String, versionId: String, onComplete: ((Boolean) -> Unit)? = null) {
+    fun restoreNoteVersion(
+        noteId: String,
+        versionId: String,
+        onComplete: ((Boolean) -> Unit)? = null,
+    ) {
         viewModelScope.launch {
             val success = noteOperationsManager.restoreNoteVersion(noteId, versionId)
             if (success) {
@@ -1324,7 +1395,14 @@ class SmartyViewModel(
     /**
      * Edit a note's title, content, and optionally attachments.
      */
-    fun editNote(noteId: String, newTitle: String, newContent: String, newSummary: String?, newWhySaved: String?, newAttachments: List<NoteAttachment>? = null) {
+    fun editNote(
+        noteId: String,
+        newTitle: String,
+        newContent: String,
+        newSummary: String?,
+        newWhySaved: String?,
+        newAttachments: List<NoteAttachment>? = null,
+    ) {
         Log.d(TAG, "editNote: Updating note. Note ID: $noteId")
         noteOperationsManager.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
     }
@@ -1334,16 +1412,20 @@ class SmartyViewModel(
         shareFlowManager.interceptShareForPreview(sharedContent)
     }
 
-    fun confirmShare(selectedCategory: String?, aiInstructions: String) {
+    fun confirmShare(
+        selectedCategory: String?,
+        aiInstructions: String,
+    ) {
         viewModelScope.launch {
             shareFlowManager.confirmShare(
                 selectedCategory = selectedCategory,
                 aiInstructions = aiInstructions,
-                callback = object : ShareFlowManager.ShareConfirmCallback {
-                    override suspend fun processNoteWithAi(note: Note) {
-                        noteOperationsManager.processNoteWithAi(note)
-                    }
-                }
+                callback =
+                    object : ShareFlowManager.ShareConfirmCallback {
+                        override suspend fun processNoteWithAi(note: Note) {
+                            noteOperationsManager.processNoteWithAi(note)
+                        }
+                    },
             )
         }
     }
@@ -1374,7 +1456,10 @@ class SmartyViewModel(
     }
 
     // Rename Category
-    fun renameCategory(category: Category, newName: String) {
+    fun renameCategory(
+        category: Category,
+        newName: String,
+    ) {
         noteOperationsManager.renameCategory(category, newName)
     }
 
@@ -1384,10 +1469,7 @@ class SmartyViewModel(
         noteOperationsManager.deleteCategory(category)
     }
 
-
-    fun isFirstLaunch(): Boolean {
-        return settingsFeatureManager.isFirstLaunch()
-    }
+    fun isFirstLaunch(): Boolean = settingsFeatureManager.isFirstLaunch()
 
     fun setFirstLaunchComplete() {
         settingsFeatureManager.setFirstLaunchComplete()
@@ -1446,21 +1528,14 @@ class SmartyViewModel(
      * - If input is empty → toggle chat mode
      */
     fun initShakeDetector(context: Context) {
-        shakeDetector = ShakeDetector(
-            context = context,
-            onShakeDetected = { handleShake() },
-            getThreshold = { settingsFeatureManager.getShakeThreshold() }
-        )
+        shakeDetector =
+            ShakeDetector(
+                context = context,
+                onShakeDetected = { handleShake() },
+                getThreshold = { settingsFeatureManager.getShakeThreshold() },
+            )
         Log.d(TAG, "Shake detector initialized with contextual handler")
     }
-
-
-
-
-
-
-
-
 
     /**
      * Manually trigger text input focus (e.g. from widget)
@@ -1493,7 +1568,6 @@ class SmartyViewModel(
         _cameraTriggered.value = false
     }
 
-
     /**
      * Clear the voice input trigger flag.
      * Call this after Google Speech Recognizer is launched from widget.
@@ -1507,7 +1581,6 @@ class SmartyViewModel(
      * Call this after voice fingerprint is deleted or retrained.
      * Forces the wake word detector to reload the embedding from disk.
      */
-
 
     // Shake blocking state for inline views and critical sections
     private val _isShakeBlocked = MutableStateFlow(false)
@@ -1529,7 +1602,7 @@ class SmartyViewModel(
     /**
      * Update the current screen route - call when navigation changes
      * Shake gesture only works on the main inputStream screen
-     * 
+     *
      * OPTIMIZATION: Automatically starts/stops shake detection based on screen.
      * This saves significant battery by not running the accelerometer sensor
      * when user is on Settings, Calendar, Stacks, or other screens.
@@ -1721,9 +1794,9 @@ class SmartyViewModel(
         chatFeatureManager.clearChatHistory()
     }
 
-    // 
+    //
     // @MENTION HANDLING - Real-time autocomplete for note references
-    // 
+    //
 
     /**
      * Update mention state when chat input text changes.
@@ -1732,7 +1805,10 @@ class SmartyViewModel(
      * @param text Current text field content
      * @param cursorPosition Current cursor position in text
      */
-    fun updateMentionState(text: String, cursorPosition: Int) {
+    fun updateMentionState(
+        text: String,
+        cursorPosition: Int,
+    ) {
         chatFeatureManager.updateMentionState(text, cursorPosition)
     }
 
@@ -1744,9 +1820,10 @@ class SmartyViewModel(
      * @param currentText Current text field content
      * @return Updated text with mention inserted
      */
-    fun onMentionSelected(suggestion: MentionSuggestion, currentText: String): String {
-        return chatFeatureManager.onMentionSelected(suggestion, currentText)
-    }
+    fun onMentionSelected(
+        suggestion: MentionSuggestion,
+        currentText: String,
+    ): String = chatFeatureManager.onMentionSelected(suggestion, currentText)
 
     /**
      * Dismiss mention dropdown without selection.
@@ -1760,28 +1837,40 @@ class SmartyViewModel(
      * The primary entry point for all user intent.
      * Hybridizes fast-path rule execution with deep-path agentic reasoning.
      */
-    fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
+    fun dispatchQuery(
+        content: String,
+        attachments: List<Attachment> = emptyList(),
+    ) {
         chatFeatureManager.dispatchQuery(content, attachments)
     }
 
     /**
      * Send a message in chat mode using the Koog-based AI agent.
      */
-    fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
+    fun sendChatMessage(
+        content: String,
+        attachments: List<Attachment> = emptyList(),
+    ) {
         chatFeatureManager.sendChatMessage(content, attachments)
     }
 
     /**
      * Submit user's answer to an interactive question.
      */
-    fun submitClarification(messageId: String, response: String) {
+    fun submitClarification(
+        messageId: String,
+        response: String,
+    ) {
         chatFeatureManager.submitClarification(messageId, response)
     }
 
     /**
      * Direct image generation via Krea API (delegated to ChatFeatureManager).
      */
-    fun generateImageDirect(prompt: String, aspectRatio: String = "1:1") {
+    fun generateImageDirect(
+        prompt: String,
+        aspectRatio: String = "1:1",
+    ) {
         chatFeatureManager.generateImageDirect(prompt, aspectRatio)
     }
 
@@ -1799,7 +1888,7 @@ class SmartyViewModel(
         location: String? = null,
         color: Int? = null,
         reminderMinutes: Int? = null,
-        isPrivate: Boolean = false
+        isPrivate: Boolean = false,
     ) {
         calendarFeatureManager.addCalendarEvent(
             title = title,
@@ -1810,7 +1899,7 @@ class SmartyViewModel(
             location = location,
             color = color,
             reminderMinutes = reminderMinutes,
-            isPrivate = isPrivate
+            isPrivate = isPrivate,
         )
     }
 
@@ -1831,20 +1920,17 @@ class SmartyViewModel(
     /**
      * Get events for a specific day
      */
-    suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> =
-        calendarFeatureManager.getEventsForDay(dayMillis)
+    suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> = calendarFeatureManager.getEventsForDay(dayMillis)
 
     /**
      * Get today's events
      */
-    suspend fun getTodayEvents(): List<CalendarEvent> =
-        calendarFeatureManager.getTodayEvents()
+    suspend fun getTodayEvents(): List<CalendarEvent> = calendarFeatureManager.getTodayEvents()
 
     /**
      * Get AI-visible upcoming events (for agent context)
      */
-    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
-        calendarFeatureManager.getAiVisibleUpcomingEvents(limit)
+    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> = calendarFeatureManager.getAiVisibleUpcomingEvents(limit)
 
     // ==================== Resource Optimization ====================
 
@@ -1947,8 +2033,6 @@ class SmartyViewModel(
 
         // Clean up completion sound manager
         completionSoundManager.shutdown()
-
-
     }
 }
 

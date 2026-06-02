@@ -37,8 +37,8 @@ object FileUtils {
     fun getFileName(
         context: Context,
         uri: Uri,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -50,7 +50,6 @@ object FileUtils {
         } catch (e: Exception) {
             uri.lastPathSegment
         }
-    }
 
     // File Size
 
@@ -61,8 +60,8 @@ object FileUtils {
     fun getFileSize(
         context: Context,
         uri: Uri,
-    ): Long? {
-        return try {
+    ): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -74,7 +73,6 @@ object FileUtils {
         } catch (e: Exception) {
             null
         }
-    }
 
     // MIME Type Detection
 
@@ -178,8 +176,8 @@ object FileUtils {
     fun createImageFile(
         context: Context,
         authority: String = "${context.packageName}.fileprovider",
-    ): Uri? {
-        return try {
+    ): Uri? =
+        try {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val imageFileName = "SMARTY_$timeStamp"
             val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
@@ -189,5 +187,4 @@ object FileUtils {
             Log.e(TAG, "Failed to create image file", e)
             null
         }
-    }
 }

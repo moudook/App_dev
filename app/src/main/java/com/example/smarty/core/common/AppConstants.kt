@@ -57,14 +57,13 @@ object AppConfig {
             /**
              * Get optimal config for model's context window
              */
-            fun forContextWindow(contextSize: Int): PdfConfig {
-                return when {
+            fun forContextWindow(contextSize: Int): PdfConfig =
+                when {
                     contextSize < 32_000 -> SmallModel
                     contextSize < 128_000 -> MediumModel
                     contextSize < 256_000 -> LargeModel
                     else -> XLargeModel
                 }
-            }
         }
     }
 
@@ -148,9 +147,7 @@ object AppConfig {
         fun getFullUrl(
             endpoint: String,
             baseUrl: String,
-        ): String {
-            return "${baseUrl.removeSuffix("/")}$endpoint"
-        }
+        ): String = "${baseUrl.removeSuffix("/")}$endpoint"
     }
 
     // ==================== Quality of Life ====================

@@ -64,9 +64,7 @@ class CRDTManager {
     /**
      * Get current vector clock for an entity
      */
-    fun getVectorClock(entityId: String): VectorClock {
-        return vectorClocks.getOrPut(entityId) { VectorClock() }
-    }
+    fun getVectorClock(entityId: String): VectorClock = vectorClocks.getOrPut(entityId) { VectorClock() }
 
     /**
      * Vector clock for tracking causality
@@ -94,20 +92,24 @@ class CRDTManager {
                 }
         }
 
-        fun concurrentWith(other: VectorClock): Boolean {
-            return !happensBefore(other) && !other.happensBefore(this)
-        }
+        fun concurrentWith(other: VectorClock): Boolean = !happensBefore(other) && !other.happensBefore(this)
     }
 
     /**
      * Conflict resolution result
      */
     sealed class ConflictResolution<T> {
-        data class LocalWins<T>(val data: T) : ConflictResolution<T>()
+        data class LocalWins<T>(
+            val data: T,
+        ) : ConflictResolution<T>()
 
-        data class RemoteWins<T>(val data: T) : ConflictResolution<T>()
+        data class RemoteWins<T>(
+            val data: T,
+        ) : ConflictResolution<T>()
 
-        data class Merged<T>(val data: T) : ConflictResolution<T>()
+        data class Merged<T>(
+            val data: T,
+        ) : ConflictResolution<T>()
     }
 
     /**
@@ -147,8 +149,8 @@ class CRDTManager {
             remote: Note,
             localTs: Long,
             remoteTs: Long,
-        ): Note {
-            return Note(
+        ): Note =
+            Note(
                 id = local.id,
                 title = if (localTs > remoteTs) local.title else remote.title,
                 content = if (localTs > remoteTs) local.content else remote.content,
@@ -184,7 +186,6 @@ class CRDTManager {
                 reminderExpiresAt = local.reminderExpiresAt ?: remote.reminderExpiresAt,
                 chunkAnalysesJson = mergeChunkAnalyses(local.chunkAnalysesJson, remote.chunkAnalysesJson),
             )
-        }
 
         private fun mergeTagsJson(
             local: String?,

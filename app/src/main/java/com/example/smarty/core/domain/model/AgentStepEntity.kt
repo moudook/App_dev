@@ -70,7 +70,10 @@ data class AgentStepEntity(
         fun fromAgentStepEntry(
             entry: AgentStepEntry,
             messageId: String,
-            stepId: String = java.util.UUID.randomUUID().toString(),
+            stepId: String =
+                java.util.UUID
+                    .randomUUID()
+                    .toString(),
         ): AgentStepEntity =
             AgentStepEntity(
                 stepId = stepId,

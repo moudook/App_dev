@@ -39,24 +39,27 @@ import androidx.compose.ui.unit.sp
 fun ActionResultChip(
     actionName: String,
     success: Boolean,
-    summary: String
+    summary: String,
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
     // Cache color computation — stable across recompositions for same inputs
-    val (backgroundColor, contentColor) = remember(success, isDark) {
-        val bg = if (success) {
-            if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5)
-        } else {
-            if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2)
+    val (backgroundColor, contentColor) =
+        remember(success, isDark) {
+            val bg =
+                if (success) {
+                    if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5)
+                } else {
+                    if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2)
+                }
+            val fg =
+                if (success) {
+                    if (isDark) Color(0xFF34D399) else Color(0xFF059669)
+                } else {
+                    if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
+                }
+            bg to fg
         }
-        val fg = if (success) {
-            if (isDark) Color(0xFF34D399) else Color(0xFF059669)
-        } else {
-            if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
-        }
-        bg to fg
-    }
 
     val borderColor = contentColor.copy(alpha = 0.3f)
 
@@ -67,46 +70,49 @@ fun ActionResultChip(
         shape = RoundedCornerShape(percent = 50),
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
-        modifier = Modifier.padding(vertical = 2.dp)
+        modifier = Modifier.padding(vertical = 2.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
             Icon(
                 imageVector = if (success) Icons.Default.Check else Icons.Default.Close,
                 contentDescription = null,
                 modifier = Modifier.size(12.dp),
-                tint = contentColor
+                tint = contentColor,
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = formattedName,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.sp
-                ),
-                color = contentColor
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.sp,
+                    ),
+                color = contentColor,
             )
             if (summary.isNotBlank()) {
                 Spacer(modifier = Modifier.width(6.dp))
                 // Separator dot
                 Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .background(contentColor.copy(alpha = 0.5f), CircleShape)
+                    modifier =
+                        Modifier
+                            .size(3.dp)
+                            .background(contentColor.copy(alpha = 0.5f), CircleShape),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = summary,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal
-                    ),
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Normal,
+                        ),
                     color = contentColor.copy(alpha = 0.9f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -117,9 +123,8 @@ fun ActionResultChip(
  * Converts a PascalCase action class name into a human-readable label.
  * e.g. "SearchWebAction" → "Search Web"
  */
-internal fun formatActionName(actionName: String): String {
-    return actionName
+internal fun formatActionName(actionName: String): String =
+    actionName
         .replace("Action", "")
         .replace(Regex("([A-Z])"), " $1")
         .trim()
-}

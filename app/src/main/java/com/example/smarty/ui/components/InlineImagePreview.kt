@@ -1,9 +1,10 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.foundation.border
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,22 +43,20 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
-import androidx.compose.ui.res.stringResource
+import coil3.request.crossfade
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.InlineChatImage
-import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.animation.skeletonShimmer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import android.util.Log
-import coil3.request.crossfade
 
 /**
  * Inline image preview component for displaying images in chat messages.
@@ -74,7 +72,7 @@ import coil3.request.crossfade
 fun InlineImagePreview(
     images: List<InlineChatImage>,
     onExpandImage: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (images.isEmpty()) return
 
@@ -112,116 +110,120 @@ fun InlineImagePreview(
     }
 
     // Spring animation spec for smooth transitions
-    val snapBackSpec = spring<Float>(
-        dampingRatio = 0.7f,
-        stiffness = 400f
-    )
+    val snapBackSpec =
+        spring<Float>(
+            dampingRatio = 0.7f,
+            stiffness = 400f,
+        )
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1.2f)
-            .clip(RoundedCornerShape(24.dp)) // Increased to 24dp for Soft Tech
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f), // Subtle border
-                RoundedCornerShape(24.dp)
-            )
-            .clickable { onExpandImage(currentIndex) }
-            .pointerInput(images.size) {
-                if (images.size <= 1) return@pointerInput // No swipe for single image
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .aspectRatio(1.2f)
+                .clip(RoundedCornerShape(24.dp)) // Increased to 24dp for Soft Tech
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f), // Subtle border
+                    RoundedCornerShape(24.dp),
+                ).clickable { onExpandImage(currentIndex) }
+                .pointerInput(images.size) {
+                    if (images.size <= 1) return@pointerInput // No swipe for single image
 
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        accumulatedDrag = 0f
-                        swipeActivated = false
-                    },
-                    onDragEnd = {
-                        coroutineScope.launch {
-                            if (swipeActivated && abs(swipeOffset.value) > swipeThreshold) {
-                                // Determine direction and change index
-                                if (swipeOffset.value < 0 && currentIndex < images.lastIndex) {
-                                    // Swipe left -> next image
-                                    currentIndex++
-                                    isLoading = true
-                                    hasError = false
-                                } else if (swipeOffset.value > 0 && currentIndex > 0) {
-                                    // Swipe right -> previous image
-                                    currentIndex--
-                                    isLoading = true
-                                    hasError = false
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            accumulatedDrag = 0f
+                            swipeActivated = false
+                        },
+                        onDragEnd = {
+                            coroutineScope.launch {
+                                if (swipeActivated && abs(swipeOffset.value) > swipeThreshold) {
+                                    // Determine direction and change index
+                                    if (swipeOffset.value < 0 && currentIndex < images.lastIndex) {
+                                        // Swipe left -> next image
+                                        currentIndex++
+                                        isLoading = true
+                                        hasError = false
+                                    } else if (swipeOffset.value > 0 && currentIndex > 0) {
+                                        // Swipe right -> previous image
+                                        currentIndex--
+                                        isLoading = true
+                                        hasError = false
+                                    }
                                 }
+                                // Animate back to center
+                                swipeOffset.animateTo(0f, snapBackSpec)
+                                swipeActivated = false
+                                accumulatedDrag = 0f
                             }
-                            // Animate back to center
-                            swipeOffset.animateTo(0f, snapBackSpec)
+                        },
+                        onDragCancel = {
+                            coroutineScope.launch {
+                                swipeOffset.animateTo(0f, snapBackSpec)
+                            }
                             swipeActivated = false
                             accumulatedDrag = 0f
-                        }
-                    },
-                    onDragCancel = {
-                        coroutineScope.launch {
-                            swipeOffset.animateTo(0f, snapBackSpec)
-                        }
-                        swipeActivated = false
-                        accumulatedDrag = 0f
-                    },
-                    onHorizontalDrag = { _, dragAmount ->
-                        accumulatedDrag += dragAmount
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            accumulatedDrag += dragAmount
 
-                        // Activate swipe after threshold
-                        if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
-                            swipeActivated = true
-                        }
-
-                        // Update offset while swiping
-                        if (swipeActivated) {
-                            coroutineScope.launch {
-                                // Limit the drag at edges
-                                val limitedDrag = when {
-                                    currentIndex == 0 && accumulatedDrag > 0 ->
-                                        accumulatedDrag * 0.3f // Resistance at start
-                                    currentIndex == images.lastIndex && accumulatedDrag < 0 ->
-                                        accumulatedDrag * 0.3f // Resistance at end
-                                    else -> accumulatedDrag
-                                }
-                                swipeOffset.snapTo(limitedDrag)
+                            // Activate swipe after threshold
+                            if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
+                                swipeActivated = true
                             }
-                        }
-                    }
-                )
-            }
+
+                            // Update offset while swiping
+                            if (swipeActivated) {
+                                coroutineScope.launch {
+                                    // Limit the drag at edges
+                                    val limitedDrag =
+                                        when {
+                                            currentIndex == 0 && accumulatedDrag > 0 ->
+                                                accumulatedDrag * 0.3f // Resistance at start
+                                            currentIndex == images.lastIndex && accumulatedDrag < 0 ->
+                                                accumulatedDrag * 0.3f // Resistance at end
+                                            else -> accumulatedDrag
+                                        }
+                                    swipeOffset.snapTo(limitedDrag)
+                                }
+                            }
+                        },
+                    )
+                },
     ) {
         val currentImage = images.getOrNull(currentIndex) ?: images.first()
 
         // Shimmer loading placeholder
         if (isLoading && !hasError) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .skeletonShimmer()
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .skeletonShimmer(),
             )
         }
 
         // Error state
         if (hasError) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.errorContainer),
+                contentAlignment = Alignment.Center,
             ) {
                 IconButton(
                     onClick = {
                         hasError = false
                         isLoading = true
-                    }
+                    },
                 ) {
                     Icon(
                         imageVector = Icons.Default.BrokenImage,
                         contentDescription = stringResource(R.string.image_load_failed),
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(48.dp),
                     )
                 }
             }
@@ -230,15 +232,17 @@ fun InlineImagePreview(
         // Image with swipe offset
         // FIX: Improved cache key uniqueness and error handling
         AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(currentImage.uri)
-                .crossfade(200)
-                // FIX: Added retry key to force reload on retry
-                .memoryCacheKey("preview_${currentImage.uri}_r$retryCount")
-                .diskCacheKey("disk_preview_${currentImage.uri}")
-                // Enable disk caching for persistence across sessions
-                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .build(),
+            model =
+                ImageRequest
+                    .Builder(context)
+                    .data(currentImage.uri)
+                    .crossfade(200)
+                    // FIX: Added retry key to force reload on retry
+                    .memoryCacheKey("preview_${currentImage.uri}_r$retryCount")
+                    .diskCacheKey("disk_preview_${currentImage.uri}")
+                    // Enable disk caching for persistence across sessions
+                    .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
+                    .build(),
             contentDescription = currentImage.fileName,
             contentScale = ContentScale.Crop,
             onState = { state ->
@@ -250,7 +254,7 @@ fun InlineImagePreview(
                     is AsyncImagePainter.State.Success -> {
                         isLoading = false
                         hasError = false
-                        retryCount = 0  // Reset retry count on success
+                        retryCount = 0 // Reset retry count on success
                         Log.d("InlineImagePreview", "Image loaded successfully: ${currentImage.uri.take(50)}")
                     }
                     is AsyncImagePainter.State.Error -> {
@@ -261,32 +265,35 @@ fun InlineImagePreview(
                     else -> {}
                 }
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationX = swipeOffset.value
-                    // Fade slightly when swiping
-                    alpha = 1f - (abs(swipeOffset.value) / size.width * 0.3f).coerceIn(0f, 0.3f)
-                }
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = swipeOffset.value
+                        // Fade slightly when swiping
+                        alpha = 1f - (abs(swipeOffset.value) / size.width * 0.3f).coerceIn(0f, 0.3f)
+                    },
         )
 
         // Image count badge (top-right)
         if (images.size > 1) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
                 shape = RoundedCornerShape(12.dp),
-                color = Color.Black.copy(alpha = 0.6f)
+                color = Color.Black.copy(alpha = 0.6f),
             ) {
                 Text(
                     text = stringResource(R.string.pagination_format, currentIndex + 1, images.size),
                     color = Color.White,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp
-                    ),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                        ),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
         }
@@ -294,11 +301,12 @@ fun InlineImagePreview(
         // Note title badge (bottom-left)
         if (currentImage.noteTitle.isNotBlank()) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp),
                 shape = RoundedCornerShape(12.dp),
-                color = Color.Black.copy(alpha = 0.6f)
+                color = Color.Black.copy(alpha = 0.6f),
             ) {
                 Text(
                     text = currentImage.noteTitle,
@@ -306,7 +314,7 @@ fun InlineImagePreview(
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
         }
@@ -314,25 +322,29 @@ fun InlineImagePreview(
         // Swipe indicators (dots at bottom center)
         if (images.size > 1) {
             Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 images.forEachIndexed { index, _ ->
                     val isActive = index == currentIndex
                     Box(
-                        modifier = Modifier
-                            .size(if (isActive) 8.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isActive) Color.White
-                                else Color.White.copy(alpha = 0.5f)
-                            )
+                        modifier =
+                            Modifier
+                                .size(if (isActive) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isActive) {
+                                        Color.White
+                                    } else {
+                                        Color.White.copy(alpha = 0.5f)
+                                    },
+                                ),
                     )
                 }
             }
         }
     }
 }
-

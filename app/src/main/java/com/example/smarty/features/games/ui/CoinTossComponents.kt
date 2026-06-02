@@ -1,10 +1,10 @@
 package com.example.smarty.features.games.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_FALLBACK_COLOR
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_SIZE
 import com.example.smarty.features.games.ui.CoinTossConstants.COIN_SPOT_SHADOW
@@ -55,7 +56,6 @@ import com.example.smarty.features.games.ui.CoinTossConstants.FLOOR_SHADOW_WIDTH
 import com.example.smarty.features.games.ui.CoinTossConstants.HEADS_IMAGE_URL
 import com.example.smarty.features.games.ui.CoinTossConstants.TAILS_IMAGE_URL
 import kotlin.math.abs
-import coil3.request.crossfade
 
 // ═══════════════════════════════════════════════════════════════════
 //  Reusable, public composables for the Coin Toss feature.
@@ -69,7 +69,7 @@ import coil3.request.crossfade
 @Composable
 fun Coin3D(
     state: CoinAnimationState,
-    isTossing: Boolean
+    isTossing: Boolean,
 ) {
     val isBackVisible by remember {
         derivedStateOf { (abs(state.rotationX.value) % 360) in 90f..270f }
@@ -87,7 +87,7 @@ fun Coin3D(
                 imageUrl = HEADS_IMAGE_URL,
                 description = "Heads",
                 isTossing = isTossing,
-                translationYOffset = (EDGE_SLICE_COUNT / 2f + 0.5f)
+                translationYOffset = (EDGE_SLICE_COUNT / 2f + 0.5f),
             )
         } else {
             CoinFace(
@@ -96,7 +96,7 @@ fun Coin3D(
                 description = "Tails",
                 isTossing = isTossing,
                 translationYOffset = -(EDGE_SLICE_COUNT / 2f + 0.5f),
-                mirrorContent = true
+                mirrorContent = true,
             )
         }
     }
@@ -108,32 +108,31 @@ fun Coin3D(
 @Composable
 fun CoinEdge(
     state: CoinAnimationState,
-    edgeGradient: Brush
+    edgeGradient: Brush,
 ) {
     Box(
-        modifier = Modifier
-            .size(COIN_SIZE)
-            .graphicsLayer {
-                rotationX = state.rotationX.value
-                rotationY = state.rotationY.value
-                translationY = state.translationY.value
-                translationX = 0f
-                scaleX = state.zoomScale.value
-                scaleY = state.zoomScale.value
-                cameraDistance = state.cameraDist.value * density
-            }
-            .drawWithContent {
-                val sliceHeight = size.height / EDGE_SLICE_COUNT
-                for (i in 0 until EDGE_SLICE_COUNT) {
-                    val depthOffset = (i - EDGE_SLICE_COUNT / 2f) * 1.5f * density
-                    drawOval(
-                        brush = edgeGradient,
-                        topLeft = Offset(0f, i * sliceHeight + depthOffset),
-                        size = Size(size.width, sliceHeight)
-                    )
-                }
-            }
-            .clip(CircleShape)
+        modifier =
+            Modifier
+                .size(COIN_SIZE)
+                .graphicsLayer {
+                    rotationX = state.rotationX.value
+                    rotationY = state.rotationY.value
+                    translationY = state.translationY.value
+                    translationX = 0f
+                    scaleX = state.zoomScale.value
+                    scaleY = state.zoomScale.value
+                    cameraDistance = state.cameraDist.value * density
+                }.drawWithContent {
+                    val sliceHeight = size.height / EDGE_SLICE_COUNT
+                    for (i in 0 until EDGE_SLICE_COUNT) {
+                        val depthOffset = (i - EDGE_SLICE_COUNT / 2f) * 1.5f * density
+                        drawOval(
+                            brush = edgeGradient,
+                            topLeft = Offset(0f, i * sliceHeight + depthOffset),
+                            size = Size(size.width, sliceHeight),
+                        )
+                    }
+                }.clip(CircleShape),
     )
 }
 
@@ -150,38 +149,39 @@ private fun CoinFace(
     description: String,
     isTossing: Boolean,
     translationYOffset: Float,
-    mirrorContent: Boolean = false
+    mirrorContent: Boolean = false,
 ) {
     Box(
-        modifier = Modifier
-            .size(COIN_SIZE)
-            .graphicsLayer {
-                rotationX = state.rotationX.value
-                rotationY = state.rotationY.value
-                translationY = state.translationY.value + translationYOffset * density
-                translationX = 0f
-                scaleX = state.zoomScale.value
-                scaleY = state.zoomScale.value
-                cameraDistance = state.cameraDist.value * density
-            }
-            .shadow(
-                elevation = if (isTossing) 16.dp else 8.dp,
-                shape = CircleShape,
-                spotColor = COIN_SPOT_SHADOW.copy(alpha = 0.8f)
-            )
-            .clip(CircleShape)
-            .background(COIN_FALLBACK_COLOR),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .size(COIN_SIZE)
+                .graphicsLayer {
+                    rotationX = state.rotationX.value
+                    rotationY = state.rotationY.value
+                    translationY = state.translationY.value + translationYOffset * density
+                    translationX = 0f
+                    scaleX = state.zoomScale.value
+                    scaleY = state.zoomScale.value
+                    cameraDistance = state.cameraDist.value * density
+                }.shadow(
+                    elevation = if (isTossing) 16.dp else 8.dp,
+                    shape = CircleShape,
+                    spotColor = COIN_SPOT_SHADOW.copy(alpha = 0.8f),
+                ).clip(CircleShape)
+                .background(COIN_FALLBACK_COLOR),
+        contentAlignment = Alignment.Center,
     ) {
-        val imageModifier = Modifier
-            .fillMaxSize()
-            .clip(CircleShape)
+        val imageModifier =
+            Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
 
         if (mirrorContent) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { rotationX = 180f }
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { rotationX = 180f },
             ) {
                 CoinImage(url = imageUrl, description = description, modifier = imageModifier)
             }
@@ -198,20 +198,22 @@ private fun CoinFace(
 fun CoinImage(
     url: String,
     description: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val request = remember(url) {
-        ImageRequest.Builder(context)
-            .data(url)
-            .crossfade(true)
-            .build()
-    }
+    val request =
+        remember(url) {
+            ImageRequest
+                .Builder(context)
+                .data(url)
+                .crossfade(true)
+                .build()
+        }
     AsyncImage(
         model = request,
         contentDescription = description,
         contentScale = ContentScale.Crop,
-        modifier = modifier
+        modifier = modifier,
     )
 }
 
@@ -221,21 +223,23 @@ fun CoinImage(
 @Composable
 fun CoinFloorShadow(shadowScale: Float) {
     Box(
-        modifier = Modifier
-            .offset(y = FLOOR_SHADOW_OFFSET_Y)
-            .size(
-                width = FLOOR_SHADOW_WIDTH * shadowScale,
-                height = FLOOR_SHADOW_HEIGHT * shadowScale
-            )
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = 0.3f * shadowScale),
-                        Color.Transparent
-                    )
+        modifier =
+            Modifier
+                .offset(y = FLOOR_SHADOW_OFFSET_Y)
+                .size(
+                    width = FLOOR_SHADOW_WIDTH * shadowScale,
+                    height = FLOOR_SHADOW_HEIGHT * shadowScale,
+                ).background(
+                    brush =
+                        Brush.radialGradient(
+                            colors =
+                                listOf(
+                                    Color.Black.copy(alpha = 0.3f * shadowScale),
+                                    Color.Transparent,
+                                ),
+                        ),
+                    shape = CircleShape,
                 ),
-                shape = CircleShape
-            )
     )
 }
 
@@ -246,41 +250,43 @@ fun CoinFloorShadow(shadowScale: Float) {
 fun TossQuoteOverlay(
     isTossing: Boolean,
     showResult: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AnimatedVisibility(
             visible = isTossing,
             enter = fadeIn(tween(800)),
-            exit = fadeOut(tween(800))
+            exit = fadeOut(tween(800)),
         ) {
             Text(
                 text = "\"Choose what you wish,\nnot the outcome.\"",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Serif,
-                    fontStyle = FontStyle.Italic,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 40.sp,
-                    letterSpacing = 1.5.sp,
-                    shadow = Shadow(
-                        color = Color.Black.copy(alpha = 0.5f),
-                        offset = Offset(2f, 2f),
-                        blurRadius = 4f
-                    )
-                ),
+                style =
+                    MaterialTheme.typography.headlineMedium.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 40.sp,
+                        letterSpacing = 1.5.sp,
+                        shadow =
+                            Shadow(
+                                color = Color.Black.copy(alpha = 0.5f),
+                                offset = Offset(2f, 2f),
+                                blurRadius = 4f,
+                            ),
+                    ),
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
         }
 
         if (!isTossing && !showResult) {
             Text(
-                text =                     "Tap anywhere to flip",
+                text = "Tap anywhere to flip",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
         }
     }
@@ -293,22 +299,23 @@ fun TossQuoteOverlay(
 fun ResultDisplay(
     visible: Boolean,
     resultText: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn() + expandVertically(),
         exit = fadeOut(),
-        modifier = modifier
+        modifier = modifier,
     ) {
         Text(
             text = resultText,
-            style = MaterialTheme.typography.displayMedium.copy(
-                fontWeight = FontWeight.Light,
-                letterSpacing = 4.sp,
-                fontFamily = FontFamily.Serif
-            ),
-            color = MaterialTheme.colorScheme.onBackground
+            style =
+                MaterialTheme.typography.displayMedium.copy(
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    fontFamily = FontFamily.Serif,
+                ),
+            color = MaterialTheme.colorScheme.onBackground,
         )
     }
 }
@@ -319,22 +326,22 @@ fun ResultDisplay(
 @Composable
 fun CoinTossCloseButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier
-            .size(56.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                CircleShape
-            )
+        modifier =
+            modifier
+                .size(56.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    CircleShape,
+                ),
     ) {
         Icon(
             imageVector = Icons.Default.Close,
             contentDescription = "Close",
-            tint = MaterialTheme.colorScheme.onSurface
+            tint = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
-

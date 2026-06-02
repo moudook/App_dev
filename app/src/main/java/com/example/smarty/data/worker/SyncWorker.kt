@@ -13,7 +13,6 @@ import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.data.sync.MigrationManager
 import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.ui.components.ConnectionStatus
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
@@ -40,11 +39,15 @@ class SyncWorker(
             }
 
             val database = SmartyDatabase.getDatabase(applicationContext)
-            val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(applicationContext)
+            val securePrefs =
+                com.example.smarty.data.local.SecurePreferences
+                    .getInstance(applicationContext)
 
             val remoteDataSource =
                 RemoteDataSource(
-                    client = com.example.smarty.di.ServiceLocator.provideHttpClient(),
+                    client =
+                        com.example.smarty.di.ServiceLocator
+                            .provideHttpClient(),
                     serverUrlProvider = { securePrefs.getSmartyServerUrl() },
                     deviceIdProvider = { securePrefs.getDeviceId() },
                 )
@@ -140,20 +143,17 @@ class SyncWorker(
         private const val TAG = "SyncWorker"
         private const val WORK_NAME = "sync_worker"
 
-
-
         fun schedule(context: Context) {
             val workRequest =
                 PeriodicWorkRequestBuilder<SyncWorker>(
                     15,
                     TimeUnit.MINUTES,
-                )
-                    .setConstraints(
-                        androidx.work.Constraints.Builder()
-                            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
-                            .build(),
-                    )
-                    .build()
+                ).setConstraints(
+                    androidx.work.Constraints
+                        .Builder()
+                        .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                        .build(),
+                ).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
@@ -172,11 +172,15 @@ class SyncWorker(
                 }
 
                 val database = SmartyDatabase.getDatabase(context)
-                val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(context)
+                val securePrefs =
+                    com.example.smarty.data.local.SecurePreferences
+                        .getInstance(context)
 
                 val remoteDataSource =
                     RemoteDataSource(
-                        client = com.example.smarty.di.ServiceLocator.provideHttpClient(),
+                        client =
+                            com.example.smarty.di.ServiceLocator
+                                .provideHttpClient(),
                         serverUrlProvider = { securePrefs.getSmartyServerUrl() },
                         deviceIdProvider = { securePrefs.getDeviceId() },
                     )

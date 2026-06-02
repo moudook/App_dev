@@ -68,9 +68,10 @@ fun Application.configureModelRoutes() {
              * GET /api/v1/models/{modelId}/variants - Get variants for a specific model
              */
             get("/{modelId}/variants") {
-                val modelId = call.parameters["modelId"] ?: return@get call.respond(
-                    mapOf("error" to "modelId is required"),
-                )
+                val modelId =
+                    call.parameters["modelId"] ?: return@get call.respond(
+                        mapOf("error" to "modelId is required"),
+                    )
                 val fullId = if (modelId.startsWith("opencode/")) modelId else "opencode/$modelId"
 
                 val model = OpencodeModelRegistry.discoveredFreeModels().find { it.id == fullId }

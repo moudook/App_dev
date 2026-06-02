@@ -49,24 +49,26 @@ class DriveService(
      */
     private fun getDriveService(account: GoogleSignInAccount): Drive {
         val credential =
-            GoogleAccountCredential.usingOAuth2(
-                context,
-                listOf(DriveScopes.DRIVE_FILE, DriveScopes.DRIVE_APPDATA),
-            ).apply {
-                selectedAccount = account.account
-            }
+            GoogleAccountCredential
+                .usingOAuth2(
+                    context,
+                    listOf(DriveScopes.DRIVE_FILE, DriveScopes.DRIVE_APPDATA),
+                ).apply {
+                    selectedAccount = account.account
+                }
 
         // Set timeouts for the transport to prevent hanging during network loss
         val transport =
-            NetHttpTransport.Builder()
+            NetHttpTransport
+                .Builder()
                 .build()
 
-        return Drive.Builder(
-            transport,
-            GsonFactory.getDefaultInstance(),
-            credential,
-        )
-            .setApplicationName("Smarty")
+        return Drive
+            .Builder(
+                transport,
+                GsonFactory.getDefaultInstance(),
+                credential,
+            ).setApplicationName("Smarty")
             .build()
     }
 
@@ -87,7 +89,9 @@ class DriveService(
                 // Search for existing folder
                 val query = "name = '$APP_FOLDER_NAME' and mimeType = '$FOLDER_MIME_TYPE' and trashed = false"
                 val result =
-                    driveService.files().list()
+                    driveService
+                        .files()
+                        .list()
                         .setQ(query)
                         .setSpaces("drive")
                         .setFields("files(id, name)")
@@ -105,7 +109,9 @@ class DriveService(
                     }
 
                 val folder =
-                    driveService.files().create(folderMetadata)
+                    driveService
+                        .files()
+                        .create(folderMetadata)
                         .setFields("id")
                         .execute()
 
@@ -153,7 +159,9 @@ class DriveService(
                 progressCallback(0.2f)
 
                 val uploadedFile =
-                    driveService.files().create(fileMetadata, mediaContent)
+                    driveService
+                        .files()
+                        .create(fileMetadata, mediaContent)
                         .setFields("id, name, size, createdTime")
                         .execute()
 
@@ -186,7 +194,9 @@ class DriveService(
 
                 val query = "'$folderId' in parents and mimeType = '$BACKUP_MIME_TYPE' and trashed = false"
                 val result =
-                    driveService.files().list()
+                    driveService
+                        .files()
+                        .list()
                         .setQ(query)
                         .setSpaces("drive")
                         .setFields("files(id, name, size, createdTime, properties)")
@@ -251,7 +261,9 @@ class DriveService(
 
                 // Get file metadata first for size
                 val fileMeta =
-                    driveService.files().get(fileId)
+                    driveService
+                        .files()
+                        .get(fileId)
                         .setFields("size")
                         .execute()
 
@@ -260,7 +272,9 @@ class DriveService(
 
                 // Download the file
                 FileOutputStream(destinationFile).use { outputStream ->
-                    driveService.files().get(fileId)
+                    driveService
+                        .files()
+                        .get(fileId)
                         .executeMediaAndDownloadTo(outputStream)
                 }
 
@@ -375,7 +389,9 @@ class DriveService(
                 progressCallback(0.2f)
 
                 val uploadedFile =
-                    driveService.files().create(fileMetadata, mediaContent)
+                    driveService
+                        .files()
+                        .create(fileMetadata, mediaContent)
                         .setFields("id, name, size, createdTime, properties")
                         .execute()
 
@@ -390,14 +406,10 @@ class DriveService(
     /**
      * Check if the user has any backups in Drive.
      */
-    suspend fun hasBackups(): Boolean {
-        return listBackups().getOrNull()?.isNotEmpty() == true
-    }
+    suspend fun hasBackups(): Boolean = listBackups().getOrNull()?.isNotEmpty() == true
 
     /**
      * Get the most recent backup metadata.
      */
-    suspend fun getLatestBackup(): BackupMetadata? {
-        return listBackups().getOrNull()?.firstOrNull()
-    }
+    suspend fun getLatestBackup(): BackupMetadata? = listBackups().getOrNull()?.firstOrNull()
 }

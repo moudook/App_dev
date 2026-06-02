@@ -34,11 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ClarificationRequest
-import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * Interactive bubble that displays AI clarification questions with
@@ -51,7 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 fun ClarificationBubble(
     request: ClarificationRequest,
     onSubmit: (String) -> Unit,
-    accentColor: Color
+    accentColor: Color,
 ) {
     var customInput by remember { mutableStateOf("") }
     var selectedOption by remember { mutableStateOf<String?>(null) }
@@ -61,7 +61,7 @@ fun ClarificationBubble(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -69,16 +69,17 @@ fun ClarificationBubble(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = accentColor,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.clarification_needed),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = accentColor
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                        ),
+                    color = accentColor,
                 )
             }
 
@@ -86,18 +87,21 @@ fun ClarificationBubble(
 
             Text(
                 text = request.question,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    ),
+                color = MaterialTheme.colorScheme.onSurface,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.widthIn(max = 320.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.widthIn(max = 320.dp),
+            ) {
                 request.options.forEach { option ->
                     val isSelected = selectedOption == option
                     val showCheck = isSelected && !isSubmitted
@@ -110,54 +114,59 @@ fun ClarificationBubble(
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
-                        color = when {
-                            showSubmittedCheck -> accentColor.copy(alpha = 0.2f)
-                            showCheck -> accentColor.copy(alpha = 0.15f)
-                            isSubmitted -> MaterialTheme.colorScheme.surfaceVariant
-                            else -> accentColor.copy(alpha = 0.08f)
-                        },
-                        border = BorderStroke(
-                            1.dp,
+                        color =
                             when {
-                                showSubmittedCheck -> accentColor
-                                showCheck -> accentColor
-                                isSubmitted -> Color.Transparent
-                                else -> accentColor.copy(alpha = 0.3f)
-                            }
-                        ),
+                                showSubmittedCheck -> accentColor.copy(alpha = 0.2f)
+                                showCheck -> accentColor.copy(alpha = 0.15f)
+                                isSubmitted -> MaterialTheme.colorScheme.surfaceVariant
+                                else -> accentColor.copy(alpha = 0.08f)
+                            },
+                        border =
+                            BorderStroke(
+                                1.dp,
+                                when {
+                                    showSubmittedCheck -> accentColor
+                                    showCheck -> accentColor
+                                    isSubmitted -> Color.Transparent
+                                    else -> accentColor.copy(alpha = 0.3f)
+                                },
+                            ),
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSubmitted
+                        enabled = !isSubmitted,
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
                             horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             if (showCheck || showSubmittedCheck) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
                                     tint = accentColor,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(16.dp),
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(
                                 text = option,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 15.sp
-                                ),
-                                color = when {
-                                    showSubmittedCheck -> accentColor
-                                    showCheck -> accentColor
-                                    isSubmitted -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                },
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 15.sp,
+                                    ),
+                                color =
+                                    when {
+                                        showSubmittedCheck -> accentColor
+                                        showCheck -> accentColor
+                                        isSubmitted -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    },
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -172,7 +181,7 @@ fun ClarificationBubble(
                         onSubmit(selectedOption!!)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(text = stringResource(R.string.submit))
                 }
@@ -197,16 +206,16 @@ fun ClarificationBubble(
                                     onClick = {
                                         isSubmitted = true
                                         onSubmit(customInput)
-                                    }
+                                    },
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.Send,
                                         contentDescription = stringResource(R.string.submit),
-                                        tint = accentColor
+                                        tint = accentColor,
                                     )
                                 }
                             }
-                        }
+                        },
                     )
                 }
             }

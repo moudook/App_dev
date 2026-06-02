@@ -1,28 +1,47 @@
 package com.example.smarty.service
 
 import android.content.Context
-import android.util.Log
+import com.example.smarty.R
 import com.example.smarty.core.domain.model.AudioTrack
 import com.example.smarty.core.domain.model.Note
-import com.example.smarty.features.system.domain.SystemFeatureManager
 import com.example.smarty.features.audio.domain.AudioFeatureManager.AudioSearchResult
-import com.example.smarty.R
+import com.example.smarty.features.system.domain.SystemFeatureManager
 import java.util.Locale
 
 /**
  * Result of local command processing.
  */
 sealed class CommandResult {
-    data class Handled(val response: String, val action: CommandAction? = null) : CommandResult()
+    data class Handled(
+        val response: String,
+        val action: CommandAction? = null,
+    ) : CommandResult()
+
     data object PassToLLM : CommandResult()
-    data class HandledAndPassToLLM(val response: String, val action: CommandAction? = null) : CommandResult()
-    data class NavigateTo(val route: String) : CommandResult()
-    data class SavePageRequest(val titleHint: String? = null) : CommandResult()
+
+    data class HandledAndPassToLLM(
+        val response: String,
+        val action: CommandAction? = null,
+    ) : CommandResult()
+
+    data class NavigateTo(
+        val route: String,
+    ) : CommandResult()
+
+    data class SavePageRequest(
+        val titleHint: String? = null,
+    ) : CommandResult()
 }
 
 sealed class CommandAction {
-    data class LaunchApp(val packageName: String, val appName: String) : CommandAction()
-    data class PlayAudio(val track: AudioTrack) : CommandAction()
+    data class LaunchApp(
+        val packageName: String,
+        val appName: String,
+    ) : CommandAction()
+
+    data class PlayAudio(
+        val track: AudioTrack,
+    ) : CommandAction()
 }
 
 /**
@@ -34,49 +53,143 @@ class LocalCommandProcessor(
     private val getNotes: () -> List<Note>,
     private val getActiveNoteId: () -> String?,
     private val systemFeatureManager: SystemFeatureManager,
-    private val getDeviceAudio: suspend () -> List<AudioTrack> = { emptyList() }
+    private val getDeviceAudio: suspend () -> List<AudioTrack> = { emptyList() },
 ) {
     companion object {
         private const val TAG = "LocalCommandProcessor"
 
-        private val OPEN_PREFIXES = listOf(
-            "open up the ", "open up my ", "open up ", "open the ", "open my ", "open ",
-            "launch the ", "launch my ", "launch ", "start the ", "start my ", "start ",
-            "run the ", "run my ", "run ", "go to ", "switch to "
-        )
+        private val OPEN_PREFIXES =
+            listOf(
+                "open up the ",
+                "open up my ",
+                "open up ",
+                "open the ",
+                "open my ",
+                "open ",
+                "launch the ",
+                "launch my ",
+                "launch ",
+                "start the ",
+                "start my ",
+                "start ",
+                "run the ",
+                "run my ",
+                "run ",
+                "go to ",
+                "switch to ",
+            )
 
-        private val PLAY_PREFIXES = listOf(
-            "play me some ", "play me the ", "play me a ", "play me ", "play some ", "play the ", "play a ", "play ",
-            "put on some ", "put on the ", "put on ", "start playing ", "begin playing ",
-            "listen to some ", "listen to the ", "listen to ", "hear some ", "hear the ", "hear ",
-            "i want to hear ", "i want to listen to ", "let me hear ", "can you play ", "please play ",
-            "music ", "audio ", "song ", "track ", "gaana ", "bajao "
-        )
+        private val PLAY_PREFIXES =
+            listOf(
+                "play me some ",
+                "play me the ",
+                "play me a ",
+                "play me ",
+                "play some ",
+                "play the ",
+                "play a ",
+                "play ",
+                "put on some ",
+                "put on the ",
+                "put on ",
+                "start playing ",
+                "begin playing ",
+                "listen to some ",
+                "listen to the ",
+                "listen to ",
+                "hear some ",
+                "hear the ",
+                "hear ",
+                "i want to hear ",
+                "i want to listen to ",
+                "let me hear ",
+                "can you play ",
+                "please play ",
+                "music ",
+                "audio ",
+                "song ",
+                "track ",
+                "gaana ",
+                "bajao ",
+            )
 
-        private val STOP_PREFIXES = listOf(
-            "stop ", "pause ", "stop playing", "pause music", "halt ", "end ", "band karo", "roko"
-        )
+        private val STOP_PREFIXES =
+            listOf(
+                "stop ",
+                "pause ",
+                "stop playing",
+                "pause music",
+                "halt ",
+                "end ",
+                "band karo",
+                "roko",
+            )
 
-        private val RESUME_PREFIXES = listOf(
-            "resume", "unpause", "continue playing", "continue", "resume music"
-        )
+        private val RESUME_PREFIXES =
+            listOf(
+                "resume",
+                "unpause",
+                "continue playing",
+                "continue",
+                "resume music",
+            )
 
-        private val NEXT_PREFIXES = listOf(
-            "next", "skip", "next song", "next track", "skip this", "skip track", "skip song"
-        )
+        private val NEXT_PREFIXES =
+            listOf(
+                "next",
+                "skip",
+                "next song",
+                "next track",
+                "skip this",
+                "skip track",
+                "skip song",
+            )
 
-        private val PREV_PREFIXES = listOf(
-            "previous", "prev", "back", "previous song", "previous track", "go back", "last track", "last song"
-        )
+        private val PREV_PREFIXES =
+            listOf(
+                "previous",
+                "prev",
+                "back",
+                "previous song",
+                "previous track",
+                "go back",
+                "last track",
+                "last song",
+            )
 
-        private val THEME_KEYWORDS = listOf(
-            "dark mode", "dark theme", "light mode", "light theme", "night mode", "day mode"
-        )
+        private val THEME_KEYWORDS =
+            listOf(
+                "dark mode",
+                "dark theme",
+                "light mode",
+                "light theme",
+                "night mode",
+                "day mode",
+            )
 
-        private val TASK_WORDS = listOf(
-            "create", "make", "write", "build", "add", "save", "update", "set", "schedule", "remind",
-            "send", "share", "search", "find", "calculate", "summarize", "analyze", "then", "also", "and"
-        )
+        private val TASK_WORDS =
+            listOf(
+                "create",
+                "make",
+                "write",
+                "build",
+                "add",
+                "save",
+                "update",
+                "set",
+                "schedule",
+                "remind",
+                "send",
+                "share",
+                "search",
+                "find",
+                "calculate",
+                "summarize",
+                "analyze",
+                "then",
+                "also",
+                "and",
+            )
 
         private val GAME_COIN_KEYWORDS = listOf("flip a coin", "toss a coin", "heads or tails", "coin toss", "coin flip")
 
@@ -84,57 +197,137 @@ class LocalCommandProcessor(
 
         private val FILLER_WORDS = listOf("app", "application", "the", "a", "an", "my", "please", "for me", "now")
 
-        private val SAVE_PAGE_KEYWORDS = listOf(
-            "save this page", "save this screen", "save the page", "save the screen",
-            "save screen", "save page", "capture this", "capture screen", "screenshot"
-        )
+        private val SAVE_PAGE_KEYWORDS =
+            listOf(
+                "save this page",
+                "save this screen",
+                "save the page",
+                "save the screen",
+                "save screen",
+                "save page",
+                "capture this",
+                "capture screen",
+                "screenshot",
+            )
 
-        private val SHARE_PREFIXES = listOf(
-            "share this", "share the note", "share my note", "share note", "share my context", "send this"
-        )
+        private val SHARE_PREFIXES =
+            listOf(
+                "share this",
+                "share the note",
+                "share my note",
+                "share note",
+                "share my context",
+                "send this",
+            )
 
-        private val TIMER_PREFIXES = listOf(
-            "set a timer for ", "set timer for ", "start a timer for ", "start timer for ",
-            "timer for ", "remind me in ", "remind me after "
-        )
+        private val TIMER_PREFIXES =
+            listOf(
+                "set a timer for ",
+                "set timer for ",
+                "start a timer for ",
+                "start timer for ",
+                "timer for ",
+                "remind me in ",
+                "remind me after ",
+            )
 
-        private val ALARM_PREFIXES = listOf(
-            "set an alarm for ", "set alarm for ", "alarm for ", "wake me up at "
-        )
+        private val ALARM_PREFIXES =
+            listOf(
+                "set an alarm for ",
+                "set alarm for ",
+                "alarm for ",
+                "wake me up at ",
+            )
 
-        private val CANCEL_TIMER_KEYWORDS = listOf(
-            "stop the timer", "stop timer", "cancel the timer", "cancel timer",
-            "stop the alarm", "stop alarm", "cancel the alarm", "cancel alarm",
-            "turn off the alarm", "turn off alarm", "stop all timers", "cancel all timers"
-        )
+        private val CANCEL_TIMER_KEYWORDS =
+            listOf(
+                "stop the timer",
+                "stop timer",
+                "cancel the timer",
+                "cancel timer",
+                "stop the alarm",
+                "stop alarm",
+                "cancel the alarm",
+                "cancel alarm",
+                "turn off the alarm",
+                "turn off alarm",
+                "stop all timers",
+                "cancel all timers",
+            )
 
-        private val WAKE_WORDS = listOf(
-            "hey smarty ", "hey smarty, ", "smarty ", "smarty, ", "hey ", "ok smarty ", "ok smarty, "
-        )
+        private val WAKE_WORDS =
+            listOf(
+                "hey smarty ",
+                "hey smarty, ",
+                "smarty ",
+                "smarty, ",
+                "hey ",
+                "ok smarty ",
+                "ok smarty, ",
+            )
 
-        private val TIME_KEYWORDS = listOf(
-            "what time is it", "what's the time", "current time", "tell me the time", "time please"
-        )
+        private val TIME_KEYWORDS =
+            listOf(
+                "what time is it",
+                "what's the time",
+                "current time",
+                "tell me the time",
+                "time please",
+            )
 
-        private val DATE_KEYWORDS = listOf(
-            "what's the date", "what is the date", "today's date", "tell me the date", "current date", "what day is it"
-        )
+        private val DATE_KEYWORDS =
+            listOf(
+                "what's the date",
+                "what is the date",
+                "today's date",
+                "tell me the date",
+                "current date",
+                "what day is it",
+            )
 
-        private val BATTERY_KEYWORDS = listOf(
-            "battery level", "battery status", "battery percentage", "how much battery", "check battery"
-        )
+        private val BATTERY_KEYWORDS =
+            listOf(
+                "battery level",
+                "battery status",
+                "battery percentage",
+                "how much battery",
+                "check battery",
+            )
 
-        private val FLASHLIGHT_KEYWORDS = listOf(
-            "flashlight on", "turn on flashlight", "torch on", "turn on torch", "enable flashlight",
-            "flashlight off", "turn off flashlight", "torch off", "turn off torch", "disable flashlight",
-            "flashlight", "torch"
-        )
+        private val FLASHLIGHT_KEYWORDS =
+            listOf(
+                "flashlight on",
+                "turn on flashlight",
+                "torch on",
+                "turn on torch",
+                "enable flashlight",
+                "flashlight off",
+                "turn off flashlight",
+                "torch off",
+                "turn off torch",
+                "disable flashlight",
+                "flashlight",
+                "torch",
+            )
 
-        private val VOLUME_KEYWORDS = listOf(
-            "volume up", "increase volume", "louder", "make it louder", "turn it up",
-            "volume down", "decrease volume", "softer", "quieter", "make it quieter", "turn it down",
-            "mute", "unmute", "silent", "silence"
-        )
+        private val VOLUME_KEYWORDS =
+            listOf(
+                "volume up",
+                "increase volume",
+                "louder",
+                "make it louder",
+                "turn it up",
+                "volume down",
+                "decrease volume",
+                "softer",
+                "quieter",
+                "make it quieter",
+                "turn it down",
+                "mute",
+                "unmute",
+                "silent",
+                "silence",
+            )
     }
 
     suspend fun process(input: String): CommandResult {
@@ -344,15 +537,18 @@ class LocalCommandProcessor(
         val packageName = systemFeatureManager.findPackageName(cleanedQuery)
 
         return if (packageName != null) {
-            val appName = try {
-                val pm = context.packageManager
-                pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-            } catch (e: Exception) { appQuery }
+            val appName =
+                try {
+                    val pm = context.packageManager
+                    pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+                } catch (e: Exception) {
+                    appQuery
+                }
 
             systemFeatureManager.launchApp(packageName)
             CommandResult.Handled(
                 response = context.getString(R.string.opening_app, appName),
-                action = CommandAction.LaunchApp(packageName, appName)
+                action = CommandAction.LaunchApp(packageName, appName),
             )
         } else {
             CommandResult.Handled(response = context.getString(R.string.error_app_not_found_query, appQuery))
@@ -364,7 +560,12 @@ class LocalCommandProcessor(
             // STRICT RULE: Input MUST start with the play command
             if (normalizedInput.startsWith(pattern)) {
                 val afterPlay = normalizedInput.substring(pattern.length).trim()
-                val audioQuery = afterPlay.split(Regex("\\s+")).take(3).joinToString(" ").trim()
+                val audioQuery =
+                    afterPlay
+                        .split(Regex("\\s+"))
+                        .take(3)
+                        .joinToString(" ")
+                        .trim()
                 if (audioQuery.isEmpty()) continue
 
                 val deviceAudio = getDeviceAudio()
@@ -378,7 +579,10 @@ class LocalCommandProcessor(
                         val hasTaskWords = TASK_WORDS.any { normalizedInput.contains(Regex("\\b${Regex.escape(it)}\\b")) }
 
                         return if (hasTaskWords) {
-                            CommandResult.HandledAndPassToLLM(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
+                            CommandResult.HandledAndPassToLLM(
+                                context.getString(R.string.playing_track, track.title),
+                                CommandAction.PlayAudio(track),
+                            )
                         } else {
                             CommandResult.Handled(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
                         }
@@ -390,13 +594,13 @@ class LocalCommandProcessor(
                             systemFeatureManager.playAudio(track)
                             return CommandResult.Handled(
                                 context.getString(R.string.playing_track, track.title),
-                                CommandAction.PlayAudio(track)
+                                CommandAction.PlayAudio(track),
                             )
                         } else {
                             // Lower confidence - pass to LLM to confirm
                             return CommandResult.HandledAndPassToLLM(
                                 "Found a possible match: '${result.track.title}'. Should I play it?",
-                                null
+                                null,
                             )
                         }
                     }
@@ -405,14 +609,14 @@ class LocalCommandProcessor(
                         val trackList = result.tracks.take(3).joinToString(", ") { it.title }
                         return CommandResult.HandledAndPassToLLM(
                             "I found several options: $trackList. Which one would you like to play?",
-                            null
+                            null,
                         )
                     }
                     is AudioSearchResult.NoMatch -> {
                         // No match - do NOT play random music
                         return CommandResult.HandledAndPassToLLM(
                             "I couldn't find any audio matching '$audioQuery' on your device.",
-                            null
+                            null,
                         )
                     }
                 }
@@ -421,24 +625,22 @@ class LocalCommandProcessor(
         return null
     }
 
-    private fun handleStopCommand(): CommandResult {
-        return try {
+    private fun handleStopCommand(): CommandResult =
+        try {
             AudioPlayerService.pause(context)
             CommandResult.Handled(response = context.getString(R.string.playback_paused_success))
         } catch (e: Exception) {
             CommandResult.Handled(response = context.getString(R.string.error_playback_pause_failed))
         }
-    }
 
-    private fun handleConversationalQuery(input: String): String? {
-        return when {
+    private fun handleConversationalQuery(input: String): String? =
+        when {
             input in listOf("hi", "hello", "hey") -> context.getString(R.string.greeting_response)
             input.contains("what can you do") || input == "help" -> context.getString(R.string.help_response)
             input in listOf("thank you", "thanks") -> context.getString(R.string.thanks_response)
             input in listOf("bye", "goodbye") -> context.getString(R.string.goodbye_response)
             else -> null
         }
-    }
 
     private fun matchInternalScreen(query: String): String? {
         val normalized = query.lowercase().trim()
@@ -454,9 +656,7 @@ class LocalCommandProcessor(
 
     private fun isSavePageCommand(input: String): Boolean = SAVE_PAGE_KEYWORDS.any { input.contains(it) }
 
-    private fun hasChainingIntent(input: String): Boolean {
-        return TASK_WORDS.any { input.contains(Regex("\\b${Regex.escape(it)}\\b")) }
-    }
+    private fun hasChainingIntent(input: String): Boolean = TASK_WORDS.any { input.contains(Regex("\\b${Regex.escape(it)}\\b")) }
 
     private fun extractSavePageHint(input: String): String? {
         val normalized = input.lowercase()

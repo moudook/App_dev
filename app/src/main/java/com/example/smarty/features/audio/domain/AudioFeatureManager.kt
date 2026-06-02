@@ -111,37 +111,27 @@ class AudioFeatureManager(
     /**
      * Get the current track being played.
      */
-    fun getCurrentTrack(): AudioTrack? {
-        return audioPlaybackManager.currentTrack
-    }
+    fun getCurrentTrack(): AudioTrack? = audioPlaybackManager.currentTrack
 
     /**
      * Check if audio is currently playing.
      */
-    fun isPlaying(): Boolean {
-        return audioPlaybackManager.isPlaying
-    }
+    fun isPlaying(): Boolean = audioPlaybackManager.isPlaying
 
     /**
      * Get the current playback position in milliseconds.
      */
-    fun getCurrentPosition(): Long {
-        return audioPlaybackManager.currentPosition
-    }
+    fun getCurrentPosition(): Long = audioPlaybackManager.currentPosition
 
     /**
      * Get the total duration of the current track in milliseconds.
      */
-    fun getDuration(): Long {
-        return audioPlaybackManager.duration
-    }
+    fun getDuration(): Long = audioPlaybackManager.duration
 
     /**
      * Get the current playback progress (0-1).
      */
-    fun getProgress(): Float {
-        return audioPlaybackManager.progress
-    }
+    fun getProgress(): Float = audioPlaybackManager.progress
 
     // ==================== Audio Discovery ====================
 
@@ -150,16 +140,26 @@ class AudioFeatureManager(
      */
     sealed class AudioSearchResult {
         /** Exact or partial match found - safe to auto-play */
-        data class ExactMatch(val track: AudioTrack) : AudioSearchResult()
+        data class ExactMatch(
+            val track: AudioTrack,
+        ) : AudioSearchResult()
 
         /** Fuzzy match with confidence score - auto-play if score is high */
-        data class FuzzyMatch(val track: AudioTrack, val confidence: Double) : AudioSearchResult()
+        data class FuzzyMatch(
+            val track: AudioTrack,
+            val confidence: Double,
+        ) : AudioSearchResult()
 
         /** Multiple possible matches - show suggestions to user */
-        data class Suggestions(val tracks: List<AudioTrack>, val message: String) : AudioSearchResult()
+        data class Suggestions(
+            val tracks: List<AudioTrack>,
+            val message: String,
+        ) : AudioSearchResult()
 
         /** No match found - do NOT play random music */
-        data class NoMatch(val reason: String) : AudioSearchResult()
+        data class NoMatch(
+            val reason: String,
+        ) : AudioSearchResult()
     }
 
     /**
@@ -167,9 +167,7 @@ class AudioFeatureManager(
      *
      * @return List of AudioTrack
      */
-    suspend fun getAllAudioTracks(): List<AudioTrack> {
-        return deviceAudioRepository.getAllAudio()
-    }
+    suspend fun getAllAudioTracks(): List<AudioTrack> = deviceAudioRepository.getAllAudio()
 
     /**
      * Find an audio track matching a query string.
@@ -225,39 +223,46 @@ class AudioFeatureManager(
 
         // Score each track based on word overlap and similarity
         val scoredTracks =
-            tracks.mapNotNull { track ->
-                val trackWords =
-                    buildList {
-                        addAll(track.title.lowercase().split(" "))
-                        track.artist?.lowercase()?.split(" ")?.let { addAll(it) }
-                        track.album?.lowercase()?.split(" ")?.let { addAll(it) }
-                    }.filter { it.length > 2 }
+            tracks
+                .mapNotNull { track ->
+                    val trackWords =
+                        buildList {
+                            addAll(track.title.lowercase().split(" "))
+                            track.artist
+                                ?.lowercase()
+                                ?.split(" ")
+                                ?.let { addAll(it) }
+                            track.album
+                                ?.lowercase()
+                                ?.split(" ")
+                                ?.let { addAll(it) }
+                        }.filter { it.length > 2 }
 
-                // Calculate similarity score
-                var score = 0.0
+                    // Calculate similarity score
+                    var score = 0.0
 
-                for (queryWord in queryWords) {
-                    // Check for word contains
-                    val containsBonus = trackWords.count { it.contains(queryWord) || queryWord.contains(it) }
-                    score += containsBonus * 2.0
+                    for (queryWord in queryWords) {
+                        // Check for word contains
+                        val containsBonus = trackWords.count { it.contains(queryWord) || queryWord.contains(it) }
+                        score += containsBonus * 2.0
 
-                    // Check for similar words (Levenshtein-like)
-                    val bestWordMatch =
-                        trackWords.maxOfOrNull { trackWord ->
-                            calculateSimilarity(queryWord, trackWord)
-                        } ?: 0.0
-                    score += bestWordMatch
-                }
+                        // Check for similar words (Levenshtein-like)
+                        val bestWordMatch =
+                            trackWords.maxOfOrNull { trackWord ->
+                                calculateSimilarity(queryWord, trackWord)
+                            } ?: 0.0
+                        score += bestWordMatch
+                    }
 
-                // Normalize by query length
-                val normalizedScore = score / queryWords.size.coerceAtLeast(1)
+                    // Normalize by query length
+                    val normalizedScore = score / queryWords.size.coerceAtLeast(1)
 
-                if (normalizedScore > 0.5) {
-                    Pair(track, normalizedScore)
-                } else {
-                    null
-                }
-            }.sortedByDescending { it.second }
+                    if (normalizedScore > 0.5) {
+                        Pair(track, normalizedScore)
+                    } else {
+                        null
+                    }
+                }.sortedByDescending { it.second }
 
         return when {
             scoredTracks.isNotEmpty() && scoredTracks.first().second >= 1.5 -> {

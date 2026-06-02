@@ -1,15 +1,15 @@
 package com.example.smarty.features.games.ui
 
-import android.view.HapticFeedbackConstants
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,10 +33,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.ui.theme.SmartyBrushes
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sin
-import com.example.smarty.ui.theme.SmartyBrushes
 import kotlin.random.Random
 
 /**
@@ -49,9 +49,7 @@ fun CoinTossScreen(onClose: () -> Unit) {
 }
 
 @Composable
-fun CoinTossGameContent(
-    onClose: () -> Unit
-) {
+fun CoinTossGameContent(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current // For Haptics
 
@@ -76,11 +74,12 @@ fun CoinTossGameContent(
 
     // Liquid Highlight removed (now physics-driven in drawWithCache)
 
-
     // Effect: Auto-start first toss
     LaunchedEffect(Unit) {
         tossCoin(
-            rotationYAnim, translationYAnim, shadowScaleAnim,
+            rotationYAnim,
+            translationYAnim,
+            shadowScaleAnim,
             onResultCalculated = { heads -> resultIsHeads = heads },
             onApex = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
             onLand = {
@@ -88,117 +87,132 @@ fun CoinTossGameContent(
                 resultText = if (resultIsHeads) "HEADS" else "TAILS"
                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             },
-            onStart = { isTossing = true; showResult = false },
-            onEnd = { isTossing = false }
+            onStart = {
+                isTossing = true
+                showResult = false
+            },
+            onEnd = { isTossing = false },
         )
     }
 
     // ── Bounded column: fixed height so it sits properly in the bottom sheet ──
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(380.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                if (!isTossing) {
-                    scope.launch {
-                        tossCoin(
-                            rotationYAnim, translationYAnim, shadowScaleAnim,
-                            onResultCalculated = { heads -> resultIsHeads = heads },
-                            onApex = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
-                            onLand = {
-                                showResult = true
-                                resultText = if (resultIsHeads) "HEADS" else "TAILS"
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            },
-                            onStart = { isTossing = true; showResult = false },
-                            onEnd = { isTossing = false }
-                        )
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(380.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
+                    if (!isTossing) {
+                        scope.launch {
+                            tossCoin(
+                                rotationYAnim,
+                                translationYAnim,
+                                shadowScaleAnim,
+                                onResultCalculated = { heads -> resultIsHeads = heads },
+                                onApex = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
+                                onLand = {
+                                    showResult = true
+                                    resultText = if (resultIsHeads) "HEADS" else "TAILS"
+                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                },
+                                onStart = {
+                                    isTossing = true
+                                    showResult = false
+                                },
+                                onEnd = { isTossing = false },
+                            )
+                        }
                     }
-                }
-            },
+                },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
         // ── Top hint ──
         Box(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isTossing && !showResult,
-                enter = fadeIn(), exit = fadeOut()
+                enter = fadeIn(),
+                exit = fadeOut(),
             ) {
                 Text(
-                    text =                     "Tap to flip again",
+                    text = "Tap to flip again",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                 )
             }
         }
 
         // ── Coin + shadow ──
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center,
         ) {
             // Shadow
             Box(
-                modifier = Modifier
-                    .offset(y = (coinSize / 2) + 8.dp)
-                    .size(80.dp, 12.dp)
-                    .graphicsLayer {
-                        scaleX = shadowScaleAnim.value
-                        scaleY = shadowScaleAnim.value
-                        translationX = gyroTilt.roll * -1.2f 
-                        translationY = gyroTilt.pitch * -0.8f
-                    }
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.25f),
-                                Color.Transparent
-                            )
+                modifier =
+                    Modifier
+                        .offset(y = (coinSize / 2) + 8.dp)
+                        .size(80.dp, 12.dp)
+                        .graphicsLayer {
+                            scaleX = shadowScaleAnim.value
+                            scaleY = shadowScaleAnim.value
+                            translationX = gyroTilt.roll * -1.2f
+                            translationY = gyroTilt.pitch * -0.8f
+                        }.background(
+                            brush =
+                                Brush.radialGradient(
+                                    colors =
+                                        listOf(
+                                            Color.Black.copy(alpha = 0.25f),
+                                            Color.Transparent,
+                                        ),
+                                ),
+                            shape = CircleShape,
                         ),
-                        shape = CircleShape
-                    )
             )
 
             // The Coin
             Box(
-                modifier = Modifier
-                    .size(coinSize)
-                    .graphicsLayer {
-                        this.rotationY = rotationYAnim.value + gyroTilt.roll
-                        this.translationY = translationYAnim.value + (gyroTilt.pitch * 0.5f)
-                        val baseRotationX = if (isTossing) sin(rotationYAnim.value * 0.05f) * 15f else 0f
-                        this.rotationX = baseRotationX - gyroTilt.pitch 
-                        cameraDistance = 16f * density
-                    }
-                    .shadow(elevation = if (isTossing) 12.dp else 6.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(metallicGradient),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(coinSize)
+                        .graphicsLayer {
+                            this.rotationY = rotationYAnim.value + gyroTilt.roll
+                            this.translationY = translationYAnim.value + (gyroTilt.pitch * 0.5f)
+                            val baseRotationX = if (isTossing) sin(rotationYAnim.value * 0.05f) * 15f else 0f
+                            this.rotationX = baseRotationX - gyroTilt.pitch
+                            cameraDistance = 16f * density
+                        }.shadow(elevation = if (isTossing) 12.dp else 6.dp, shape = CircleShape)
+                        .clip(CircleShape)
+                        .background(metallicGradient),
+                contentAlignment = Alignment.Center,
             ) {
                 // Liquid shine — read rotationYAnim at draw time, not composition
                 Box(
-                    modifier = Modifier.fillMaxSize().drawWithCache {
-                        val sweep = (abs(rotationYAnim.value) % 180f) / 180f
-                        onDrawWithContent {
-                            drawContent()
-                            val gradient = Brush.linearGradient(
-                                colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.6f), Color.Transparent),
-                                start = Offset((sweep * 2f - 0.5f) * size.width, 0f),
-                                end = Offset((sweep * 2f + 0.5f) * size.width, size.height)
-                            )
-                            drawRect(brush = gradient)
-                        }
-                    }
+                    modifier =
+                        Modifier.fillMaxSize().drawWithCache {
+                            val sweep = (abs(rotationYAnim.value) % 180f) / 180f
+                            onDrawWithContent {
+                                drawContent()
+                                val gradient =
+                                    Brush.linearGradient(
+                                        colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.6f), Color.Transparent),
+                                        start = Offset((sweep * 2f - 0.5f) * size.width, 0f),
+                                        end = Offset((sweep * 2f + 0.5f) * size.width, size.height),
+                                    )
+                                drawRect(brush = gradient)
+                            }
+                        },
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(4.dp).border(2.dp, Color.White.copy(0.1f), CircleShape))
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp).border(1.dp, Color.Gray.copy(0.2f), CircleShape))
@@ -209,18 +223,30 @@ fun CoinTossGameContent(
                 if (!isBackVisible) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         GeometricPattern()
-                        Text("HEADS", style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray.copy(0.7f), letterSpacing = 2.sp
-                        ))
+                        Text(
+                            "HEADS",
+                            style =
+                                MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.DarkGray.copy(0.7f),
+                                    letterSpacing = 2.sp,
+                                ),
+                        )
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxSize().graphicsLayer { this.rotationY = 180f }, contentAlignment = Alignment.Center) {
                         GeometricPattern()
-                        Text("TAILS", style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray.copy(0.7f), letterSpacing = 2.sp
-                        ))
+                        Text(
+                            "TAILS",
+                            style =
+                                MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.DarkGray.copy(0.7f),
+                                    letterSpacing = 2.sp,
+                                ),
+                        )
                     }
                 }
             }
@@ -229,20 +255,22 @@ fun CoinTossGameContent(
         // ── Result text ──
         Box(
             modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = showResult,
-                enter = fadeIn() + expandVertically(), exit = fadeOut()
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut(),
             ) {
                 Text(
                     text = resultText,
-                    style = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Light,
-                        letterSpacing = 8.sp,
-                        fontFamily = FontFamily.Serif
-                    ),
-                    color = accentColor.copy(alpha = 0.9f)
+                    style =
+                        MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Light,
+                            letterSpacing = 8.sp,
+                            fontFamily = FontFamily.Serif,
+                        ),
+                    color = accentColor.copy(alpha = 0.9f),
                 )
             }
         }
@@ -260,20 +288,20 @@ private fun GeometricPattern() {
             drawCircle(
                 color = color,
                 radius = (i * 11).dp.toPx(),
-                style = Stroke(width = stroke)
+                style = Stroke(width = stroke),
             )
         }
 
         // Star pattern
         val radius = size.minDimension / 2
         for (i in 0 until 8) {
-             // Just simple radial lines for a classic coin look
+            // Just simple radial lines for a classic coin look
             rotate(degrees = i * 45f) {
                 drawLine(
                     color = color,
                     start = Offset(center.x, center.y - radius * 0.3f),
                     end = Offset(center.x, center.y - radius * 0.8f),
-                    strokeWidth = stroke
+                    strokeWidth = stroke,
                 )
             }
         }
@@ -289,7 +317,7 @@ private suspend fun tossCoin(
     onApex: () -> Unit,
     onLand: () -> Unit,
     onStart: () -> Unit,
-    onEnd: () -> Unit
+    onEnd: () -> Unit,
 ) {
     kotlinx.coroutines.coroutineScope {
         onStart()
@@ -309,7 +337,7 @@ private suspend fun tossCoin(
         var diff = targetMod - currentMod
         // Normalize diff to be positive [0, 360) for forward rotation
         if (diff <= 0f) {
-             diff += 360f
+            diff += 360f
         }
 
         // Minimum spins to feel satisfying
@@ -325,7 +353,7 @@ private suspend fun tossCoin(
         launch {
             rotationY.animateTo(
                 targetValue = targetRotation,
-                animationSpec = tween(tossDuration, easing = FastOutSlowInEasing)
+                animationSpec = tween(tossDuration, easing = FastOutSlowInEasing),
             )
         }
 
@@ -339,12 +367,12 @@ private suspend fun tossCoin(
             // Shrink shadow at peak
             shadowScale.animateTo(
                 targetValue = 0.4f,
-                animationSpec = tween(tossDuration / 2, easing = FastOutSlowInEasing)
+                animationSpec = tween(tossDuration / 2, easing = FastOutSlowInEasing),
             )
             // Grow shadow at splashdown
             shadowScale.animateTo(
                 targetValue = 1.0f,
-                animationSpec = tween(tossDuration / 2, easing = LinearEasing) // Linear/Accelerate for drop
+                animationSpec = tween(tossDuration / 2, easing = LinearEasing), // Linear/Accelerate for drop
             )
         }
 
@@ -353,13 +381,13 @@ private suspend fun tossCoin(
         // UP
         translationY.animateTo(
             targetValue = -300f, // Compact toss for bottom sheet
-            animationSpec = tween(tossDuration / 2, easing = FastOutSlowInEasing) // Decelerate up
+            animationSpec = tween(tossDuration / 2, easing = FastOutSlowInEasing), // Decelerate up
         )
 
         // DOWN
         translationY.animateTo(
             targetValue = 0f,
-            animationSpec = tween(tossDuration / 2, easing = BounceInterpolator)
+            animationSpec = tween(tossDuration / 2, easing = BounceInterpolator),
         )
 
         // Landed!
@@ -367,12 +395,12 @@ private suspend fun tossCoin(
 
         // Subtle bounce/settle
         translationY.animateTo(
-             targetValue = -20f,
-             animationSpec = tween(150, easing = FastOutSlowInEasing)
+            targetValue = -20f,
+            animationSpec = tween(150, easing = FastOutSlowInEasing),
         )
         translationY.animateTo(
-             targetValue = 0f,
-             animationSpec = tween(150, easing = LinearOutSlowInEasing)
+            targetValue = 0f,
+            animationSpec = tween(150, easing = LinearOutSlowInEasing),
         )
 
         onEnd()
@@ -380,13 +408,17 @@ private suspend fun tossCoin(
 }
 
 // Custom gravity-like easing if needed, or just use built-ins
-val BounceInterpolator: Easing = Easing { fraction ->
-    // Simple acceleration for falling: y = x^2
-    fraction * fraction
-}
+val BounceInterpolator: Easing =
+    Easing { fraction ->
+        // Simple acceleration for falling: y = x^2
+        fraction * fraction
+    }
 
 // Holds the tilt values safely
-data class TiltState(val pitch: Float = 0f, val roll: Float = 0f)
+data class TiltState(
+    val pitch: Float = 0f,
+    val roll: Float = 0f,
+)
 
 @Composable
 fun rememberGyroscopeTilt(): State<TiltState> {
@@ -398,29 +430,35 @@ fun rememberGyroscopeTilt(): State<TiltState> {
         // GAME_ROTATION_VECTOR is perfect for UI as it doesn't rely on the magnetic compass
         val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
 
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent) {
-                if (event.sensor.type == Sensor.TYPE_GAME_ROTATION_VECTOR) {
-                    val rotationMatrix = FloatArray(9)
-                    val orientationAngles = FloatArray(3)
-                    
-                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                    SensorManager.getOrientation(rotationMatrix, orientationAngles)
+        val listener =
+            object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    if (event.sensor.type == Sensor.TYPE_GAME_ROTATION_VECTOR) {
+                        val rotationMatrix = FloatArray(9)
+                        val orientationAngles = FloatArray(3)
 
-                    // Convert radians to degrees and apply a dampening factor (e.g., max 25 degrees tilt)
-                    val pitch = Math.toDegrees(orientationAngles[1].toDouble()).toFloat() * 0.4f
-                    val roll = Math.toDegrees(orientationAngles[2].toDouble()).toFloat() * 0.4f
+                        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
 
-                    // Update state. Because we only read this inside graphicsLayer, 
-                    // it will NOT trigger CPU recomposition!
-                    tiltState.value = TiltState(
-                        pitch = pitch.coerceIn(-25f, 25f),
-                        roll = roll.coerceIn(-25f, 25f)
-                    )
+                        // Convert radians to degrees and apply a dampening factor (e.g., max 25 degrees tilt)
+                        val pitch = Math.toDegrees(orientationAngles[1].toDouble()).toFloat() * 0.4f
+                        val roll = Math.toDegrees(orientationAngles[2].toDouble()).toFloat() * 0.4f
+
+                        // Update state. Because we only read this inside graphicsLayer,
+                        // it will NOT trigger CPU recomposition!
+                        tiltState.value =
+                            TiltState(
+                                pitch = pitch.coerceIn(-25f, 25f),
+                                roll = roll.coerceIn(-25f, 25f),
+                            )
+                    }
                 }
+
+                override fun onAccuracyChanged(
+                    sensor: Sensor?,
+                    accuracy: Int,
+                ) {}
             }
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
 
         if (sensor != null) {
             sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)

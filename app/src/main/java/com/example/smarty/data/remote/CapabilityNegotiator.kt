@@ -49,32 +49,30 @@ class CapabilityNegotiator(
     /**
      * Build a handshake request with current device capabilities.
      */
-    fun buildHandshakeRequest(): HandshakeRequest {
-        return HandshakeRequest(
+    fun buildHandshakeRequest(): HandshakeRequest =
+        HandshakeRequest(
             protocolVersion = PROTOCOL_VERSION,
             deviceId = securePreferences.getDeviceId(),
             capabilities = buildDeviceCapabilities(),
             context = buildDeviceContext(),
         )
-    }
 
     /**
      * Build device capabilities structure.
      */
-    private fun buildDeviceCapabilities(): DeviceCapabilities {
-        return DeviceCapabilities(
+    private fun buildDeviceCapabilities(): DeviceCapabilities =
+        DeviceCapabilities(
             hardware = buildHardwareCapabilities(),
             localProcessing = buildLocalProcessingCapabilities(),
             media = buildMediaCapabilities(),
             system = buildSystemCapabilities(),
         )
-    }
 
     /**
      * Build hardware capabilities.
      */
-    private fun buildHardwareCapabilities(): HardwareCapabilities {
-        return HardwareCapabilities(
+    private fun buildHardwareCapabilities(): HardwareCapabilities =
+        HardwareCapabilities(
             flashlight = hasFlashlight(),
             camera = hasCamera(),
             microphone = hasMicrophone(),
@@ -82,13 +80,12 @@ class CapabilityNegotiator(
             screenCapture = false, // Requires MediaProjection, not available by default
             biometric = hasBiometric(),
         )
-    }
 
     /**
      * Build local processing capabilities.
      */
-    private fun buildLocalProcessingCapabilities(): LocalProcessingCapabilities {
-        return LocalProcessingCapabilities(
+    private fun buildLocalProcessingCapabilities(): LocalProcessingCapabilities =
+        LocalProcessingCapabilities(
             stt = false, // Vosk removed, using server-side Whisper
             contentTypeDetection = true, // ContentTypeDetector is always available
             fts5Search = true, // FTS5 is always available
@@ -101,18 +98,16 @@ class CapabilityNegotiator(
                     "volume",
                 ),
         )
-    }
 
     /**
      * Build media capabilities.
      */
-    private fun buildMediaCapabilities(): MediaCapabilities {
-        return MediaCapabilities(
+    private fun buildMediaCapabilities(): MediaCapabilities =
+        MediaCapabilities(
             audioPlayback = true, // Media3 ExoPlayer available
             localMusicLibrary = hasExternalStoragePermission(),
             visualizer = true, // Audio visualizer available
         )
-    }
 
     /**
      * Build system capabilities.
@@ -148,34 +143,27 @@ class CapabilityNegotiator(
     // HARDWARE CHECKS
     // =============================================================================
 
-    private fun hasFlashlight(): Boolean {
-        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)
-    }
+    private fun hasFlashlight(): Boolean = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)
 
-    private fun hasCamera(): Boolean {
-        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
-    }
+    private fun hasCamera(): Boolean = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
 
-    private fun hasMicrophone(): Boolean {
-        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
-    }
+    private fun hasMicrophone(): Boolean = context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
 
     private fun hasHaptics(): Boolean {
         // Most modern Android devices have vibration support
         return true
     }
 
-    private fun hasBiometric(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+    private fun hasBiometric(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT) ||
                 context.packageManager.hasSystemFeature("android.hardware.biometrics.face")
         } else {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
         }
-    }
 
-    private fun hasExternalStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    private fun hasExternalStoragePermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.READ_MEDIA_AUDIO,
@@ -186,7 +174,6 @@ class CapabilityNegotiator(
                 Manifest.permission.READ_EXTERNAL_STORAGE,
             ) == PackageManager.PERMISSION_GRANTED
         }
-    }
 
     // =============================================================================
     // SYSTEM INFO
@@ -278,8 +265,8 @@ class CapabilityNegotiator(
      * Perform handshake with server.
      * Returns HandshakeResponse on success, null on failure.
      */
-    suspend fun performHandshake(client: io.ktor.client.HttpClient): HandshakeResponse? {
-        return try {
+    suspend fun performHandshake(client: io.ktor.client.HttpClient): HandshakeResponse? =
+        try {
             val request = buildHandshakeRequest()
             Log.d(TAG, "Performing handshake: deviceId=${request.deviceId}, protocol=${request.protocolVersion}")
 
@@ -300,10 +287,18 @@ class CapabilityNegotiator(
                     ExecutionPolicy(
                         serverSide =
                             listOf(
-                                "CREATE_NOTE", "UPDATE_NOTE", "DELETE_NOTE", "SEARCH_NOTES",
-                                "SUMMARIZE_NOTE", "WEB_SEARCH", "BATCH_ACTIONS",
-                                "SCHEDULE_EVENT", "DEEP_RESEARCH", "MEMORY_STORE",
-                                "GENERATE_BRIEFING", "ANALYZE_DOCUMENT",
+                                "CREATE_NOTE",
+                                "UPDATE_NOTE",
+                                "DELETE_NOTE",
+                                "SEARCH_NOTES",
+                                "SUMMARIZE_NOTE",
+                                "WEB_SEARCH",
+                                "BATCH_ACTIONS",
+                                "SCHEDULE_EVENT",
+                                "DEEP_RESEARCH",
+                                "MEMORY_STORE",
+                                "GENERATE_BRIEFING",
+                                "ANALYZE_DOCUMENT",
                             ),
                         deviceSide =
                             listOf(
@@ -327,7 +322,10 @@ class CapabilityNegotiator(
                     ),
                 syncState =
                     RemoteSyncState(
-                        lastServerTimestamp = java.time.Instant.now().toString(),
+                        lastServerTimestamp =
+                            java.time.Instant
+                                .now()
+                                .toString(),
                         pendingSyncCount = 0,
                     ),
             )
@@ -335,5 +333,4 @@ class CapabilityNegotiator(
             Log.e(TAG, "Handshake failed: ${e.message}", e)
             null
         }
-    }
 }

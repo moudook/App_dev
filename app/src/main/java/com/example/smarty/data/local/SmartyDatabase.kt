@@ -149,8 +149,8 @@ abstract class SmartyDatabase : RoomDatabase() {
                     }
                 }
 
-                private fun tryCreateFts5Table(db: SupportSQLiteDatabase): Boolean {
-                    return try {
+                private fun tryCreateFts5Table(db: SupportSQLiteDatabase): Boolean =
+                    try {
                         dropFtsTableAndTriggers(db)
                         db.execSQL(
                             """
@@ -200,10 +200,9 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Log.w(TAG, "FTS5 not available: ${e.message}")
                         false
                     }
-                }
 
-                private fun tryCreateFts4Table(db: SupportSQLiteDatabase): Boolean {
-                    return try {
+                private fun tryCreateFts4Table(db: SupportSQLiteDatabase): Boolean =
+                    try {
                         dropFtsTableAndTriggers(db)
                         db.execSQL(
                             """
@@ -250,7 +249,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Log.e(TAG, "FTS4 also not available: ${e.message}")
                         false
                     }
-                }
 
                 private fun dropFtsTableAndTriggers(db: SupportSQLiteDatabase) {
                     try {
@@ -264,15 +262,15 @@ abstract class SmartyDatabase : RoomDatabase() {
                 }
             }
 
-        fun getDatabase(context: Context): SmartyDatabase {
-            return INSTANCE ?: synchronized(this) {
+        fun getDatabase(context: Context): SmartyDatabase =
+            INSTANCE ?: synchronized(this) {
                 val instance =
-                    Room.databaseBuilder(
-                        context.applicationContext,
-                        SmartyDatabase::class.java,
-                        "Smarty_database",
-                    )
-                        .addCallback(databaseCallback)
+                    Room
+                        .databaseBuilder(
+                            context.applicationContext,
+                            SmartyDatabase::class.java,
+                            "Smarty_database",
+                        ).addCallback(databaseCallback)
                         .addMigrations(
                             // Legacy migrations
                             Migrations.MIGRATION_1_2,
@@ -319,12 +317,10 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_41_42,
                             Migrations.MIGRATION_42_43,
                             Migrations.MIGRATION_43_44,
-                        )
-                        .fallbackToDestructiveMigration(dropAllTables = true)
+                        ).fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance
                 instance
             }
-        }
     }
 }

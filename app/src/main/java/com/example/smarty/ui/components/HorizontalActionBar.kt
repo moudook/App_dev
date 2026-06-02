@@ -3,7 +3,6 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -27,9 +25,13 @@ import com.example.smarty.R
 import com.example.smarty.core.domain.model.NavigationTab
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.SmartyIcons
+import kotlinx.coroutines.delay
 
 @Composable
-private fun resolveIconPainter(tab: NavigationTab, isHistoryMode: Boolean): androidx.compose.ui.graphics.painter.Painter {
+private fun resolveIconPainter(
+    tab: NavigationTab,
+    isHistoryMode: Boolean,
+): androidx.compose.ui.graphics.painter.Painter {
     if (tab == NavigationTab.CHAT && isHistoryMode) return painterResource(R.drawable.ic_nav_chat)
     return when (tab) {
         NavigationTab.CHAT -> painterResource(R.drawable.ic_nav_chat)
@@ -38,7 +40,9 @@ private fun resolveIconPainter(tab: NavigationTab, isHistoryMode: Boolean): andr
         NavigationTab.STACKS -> painterResource(R.drawable.ic_nav_stacks)
         NavigationTab.ARCHIVE -> painterResource(R.drawable.ic_nav_archive)
         NavigationTab.SETTINGS -> painterResource(R.drawable.ic_nav_settings)
-        NavigationTab.GAMES -> androidx.compose.ui.graphics.vector.rememberVectorPainter(image = SmartyIcons.Games)
+        NavigationTab.GAMES ->
+            androidx.compose.ui.graphics.vector
+                .rememberVectorPainter(image = SmartyIcons.Games)
     }
 }
 
@@ -61,7 +65,7 @@ fun HorizontalActionBar(
     isStacksMode: Boolean = false,
     isArchiveMode: Boolean = false,
     archiveCount: Int = 0,
-    isScrolling: Boolean = false
+    isScrolling: Boolean = false,
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
@@ -81,40 +85,56 @@ fun HorizontalActionBar(
     }
 
     // Soft iOS blur aesthetic
-    val barBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
-                else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-    
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.10f)
-                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+    val barBg =
+        if (isDark) {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        }
+
+    val borderColor =
+        if (isDark) {
+            Color.White.copy(alpha = 0.10f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+        }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            // Protect from camera cutouts (fixes overlap issue)
-            .windowInsetsPadding(WindowInsets.displayCutout)
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        contentAlignment = Alignment.TopStart
+        modifier =
+            modifier
+                .fillMaxWidth()
+                // Protect from camera cutouts (fixes overlap issue)
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+        contentAlignment = Alignment.TopStart,
     ) {
         Surface(
             shape = RoundedCornerShape(32.dp),
             color = barBg,
             border = BorderStroke(0.5.dp, borderColor),
-
-            modifier = Modifier
-                // 1. S-TIER FIX: Let the container fluidly hug the expanding/shrinking contents
-                .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f))
-                .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
-                .then(if (!isExpanded) Modifier.clickable { 
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    isExpanded = true 
-                } else Modifier)
+            modifier =
+                Modifier
+                    // 1. S-TIER FIX: Let the container fluidly hug the expanding/shrinking contents
+                    .animateContentSize(animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f))
+                    .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
+                    .then(
+                        if (!isExpanded) {
+                            Modifier.clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                isExpanded = true
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
         ) {
             Row(
-                modifier = Modifier
-                    .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                modifier =
+                    Modifier
+                        .let { if (isExpanded) it.fillMaxWidth() else it.wrapContentWidth() }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                 horizontalArrangement = if (isExpanded) Arrangement.SpaceBetween else Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 NavigationTab.entries.forEach { tab ->
                     val isSelected = tab == selectedTab
@@ -123,37 +143,39 @@ fun HorizontalActionBar(
                     // Lightweight per-tab animation — replaces 7 AnimatedVisibility instances
                     val tabAlpha by animateFloatAsState(
                         targetValue = if (isVisible) 1f else 0f,
-                        animationSpec = if (isVisible) {
-                            tween(300, easing = LinearOutSlowInEasing)
-                        } else {
-                            tween(150, easing = FastOutLinearInEasing)
-                        },
-                        label = "tabAlpha_${tab.name}"
+                        animationSpec =
+                            if (isVisible) {
+                                tween(300, easing = LinearOutSlowInEasing)
+                            } else {
+                                tween(150, easing = FastOutLinearInEasing)
+                            },
+                        label = "tabAlpha_${tab.name}",
                     )
 
                     val tabScale by animateFloatAsState(
                         targetValue = if (isVisible) 1f else 0.5f,
                         animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-                        label = "tabScale_${tab.name}"
+                        label = "tabScale_${tab.name}",
                     )
 
                     val tabWidth by animateDpAsState(
                         targetValue = if (isVisible) 46.dp else 0.dp,
                         animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
-                        label = "tabWidth_${tab.name}"
+                        label = "tabWidth_${tab.name}",
                     )
 
                     // Skip composition entirely for hidden tabs
                     if (tabAlpha > 0.01f) {
                         Box(
-                            modifier = Modifier
-                                .width(tabWidth)
-                                .graphicsLayer {
-                                    scaleX = tabScale
-                                    scaleY = tabScale
-                                    alpha = tabAlpha
-                                },
-                            contentAlignment = Alignment.Center
+                            modifier =
+                                Modifier
+                                    .width(tabWidth)
+                                    .graphicsLayer {
+                                        scaleX = tabScale
+                                        scaleY = tabScale
+                                        alpha = tabAlpha
+                                    },
+                            contentAlignment = Alignment.Center,
                         ) {
                             TabItem(
                                 tab = tab,
@@ -167,7 +189,7 @@ fun HorizontalActionBar(
                                         onTabSelected(tab)
                                     }
                                     isExpanded = true
-                                }
+                                },
                             )
                         }
                     }
@@ -184,46 +206,46 @@ private fun TabItem(
     accentColor: Color,
     isDark: Boolean,
     isHistoryMode: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     // 1. S-Tier Master Transition
     val transition = updateTransition(targetState = isSelected, label = "TabState")
 
     val scale by transition.animateFloat(
         transitionSpec = { spring(dampingRatio = 0.6f, stiffness = 500f) },
-        label = "scale"
+        label = "scale",
     ) { selected -> if (selected) 1.15f else 1.0f }
 
     val bgAlpha by transition.animateFloat(
         transitionSpec = { tween(150) },
-        label = "bgAlpha"
+        label = "bgAlpha",
     ) { selected -> if (selected) (if (isDark) 0.15f else 0.12f) else 0f }
 
     val iconTint by transition.animateColor(
         transitionSpec = { tween(150) },
-        label = "iconTint"
+        label = "iconTint",
     ) { selected -> if (selected) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f) }
 
     val iconPainter = resolveIconPainter(tab, isHistoryMode)
 
     Box(
-        modifier = Modifier
-            .size(46.dp)
-            .squishClick { onClick() } // Universal Physics Engine applied!
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .padding(6.dp) // Shrinks the background circle radius while keeping touch target 46dp
-            .clip(CircleShape)
-            .background(accentColor.copy(alpha = bgAlpha)),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .size(46.dp)
+                .squishClick { onClick() } // Universal Physics Engine applied!
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }.padding(6.dp) // Shrinks the background circle radius while keeping touch target 46dp
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = bgAlpha)),
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = iconPainter,
             contentDescription = tab.label,
             tint = iconTint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(24.dp),
         )
     }
 }

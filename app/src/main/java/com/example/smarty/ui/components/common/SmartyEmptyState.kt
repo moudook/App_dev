@@ -2,27 +2,14 @@ package com.example.smarty.ui.components.common
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.ui.theme.AnimationDuration
 import com.example.smarty.ui.utils.*
 
 /**
@@ -62,7 +49,9 @@ sealed class EmptyStateAnimation {
     object GridPulse : EmptyStateAnimation()
 
     /** Hovering folder icon - used for Category empty state */
-    data class FolderHover(val categoryName: String) : EmptyStateAnimation()
+    data class FolderHover(
+        val categoryName: String,
+    ) : EmptyStateAnimation()
 }
 
 /**
@@ -80,13 +69,13 @@ fun SmartyEmptyState(
     subtitle: String = "",
     hint: String? = null,
     animationType: EmptyStateAnimation = EmptyStateAnimation.CloudBreath,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     EmptyStateContainer(
         title = title,
         subtitle = subtitle,
         hint = hint,
-        modifier = modifier
+        modifier = modifier,
     ) {
         when (animationType) {
             is EmptyStateAnimation.CloudBreath -> CloudBreathAnimation()
@@ -110,11 +99,11 @@ private fun EmptyStateContainer(
     subtitle: String,
     hint: String? = null,
     modifier: Modifier = Modifier,
-    graphic: @Composable BoxScope.() -> Unit
+    graphic: @Composable BoxScope.() -> Unit,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         // Graphic Layer
         graphic()
@@ -134,19 +123,20 @@ private data class CloudBreathWaveState(
     val cloudAlpha: Float,
     val coreScale: Float,
     val coreAlpha: Float,
-    val floatY: Float
+    val floatY: Float,
 ) {
     companion object {
         /** Default static state when animation is paused */
-        val DEFAULT = CloudBreathWaveState(
-            auraScale = 2.2f,
-            auraAlpha = Alpha.moderate,
-            cloudScale = 1.5f,
-            cloudAlpha = 0.4f,
-            coreScale = 0.8f,
-            coreAlpha = Alpha.mostlyOpaque,
-            floatY = 0f
-        )
+        val DEFAULT =
+            CloudBreathWaveState(
+                auraScale = 2.2f,
+                auraAlpha = Alpha.moderate,
+                cloudScale = 1.5f,
+                cloudAlpha = 0.4f,
+                coreScale = 0.8f,
+                coreAlpha = Alpha.mostlyOpaque,
+                floatY = 0f,
+            )
     }
 }
 
@@ -167,7 +157,7 @@ private data class LayeredCardsConfig(
     val cardSize: Size,
     val strokeWidth: Float,
     val borderColor: Color,
-    val layers: List<CardLayer>
+    val layers: List<CardLayer>,
 )
 
 private data class CardLayer(
@@ -176,7 +166,7 @@ private data class CardLayer(
     val scale: Float,
     val color: Color,
     val stackOffset: Float,
-    val isTopLayer: Boolean
+    val isTopLayer: Boolean,
 )
 
 @Composable
@@ -194,7 +184,7 @@ private data class GridPulseConfig(
     val boxSizeObj: Size,
     val gap: Float,
     val totalSize: Float,
-    val cornerRadius: CornerRadius
+    val cornerRadius: CornerRadius,
 )
 
 @Composable
@@ -218,7 +208,7 @@ private data class FolderHoverConfig(
     val lineWidth: Float,
     val bodyColor: Color,
     val tabColor: Color,
-    val lineColor: Color
+    val lineColor: Color,
 )
 
 @Composable

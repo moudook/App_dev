@@ -78,8 +78,8 @@ sealed class AttachmentOption {
     data object Research : AttachmentOption()
 
     companion object {
-        fun fromAttachmentType(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentOption {
-            return when (type.name) {
+        fun fromAttachmentType(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentOption =
+            when (type.name) {
                 "IMAGE" -> Image
                 "VIDEO" -> Video
                 "DOCUMENT" -> Document
@@ -88,6 +88,5 @@ sealed class AttachmentOption {
                 "RESEARCH" -> Research
                 else -> Document // Default fallback for any other type
             }
-        }
     }
 }

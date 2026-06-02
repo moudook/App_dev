@@ -174,9 +174,7 @@ object ResourceManager : ComponentCallbacks2 {
     /**
      * Get optimal NIO buffer size for large file operations
      */
-    fun getOptimalNioBufferSize(): Int {
-        return getOptimalBufferSize() * 2
-    }
+    fun getOptimalNioBufferSize(): Int = getOptimalBufferSize() * 2
 
     /**
      * Get maximum cache size in bytes
@@ -226,55 +224,49 @@ object ResourceManager : ComponentCallbacks2 {
     /**
      * Get maximum image dimension for subsampling
      */
-    fun getMaxImageDimension(): Int {
-        return when (deviceClass) {
+    fun getMaxImageDimension(): Int =
+        when (deviceClass) {
             DeviceClass.EDGE -> 1024
             DeviceClass.LOW -> 1536
             DeviceClass.MEDIUM -> 2048
             DeviceClass.HIGH -> 3072
             DeviceClass.FLAGSHIP -> 4096
         }
-    }
 
     /**
      * Get file size threshold for using NIO
      */
-    fun getLargeFileThreshold(): Long {
-        return when (deviceClass) {
+    fun getLargeFileThreshold(): Long =
+        when (deviceClass) {
             DeviceClass.EDGE -> 1 * 1024 * 1024L // 1MB
             DeviceClass.LOW -> 2 * 1024 * 1024L // 2MB
             DeviceClass.MEDIUM -> 5 * 1024 * 1024L // 5MB
             DeviceClass.HIGH -> 10 * 1024 * 1024L // 10MB
             DeviceClass.FLAGSHIP -> 20 * 1024 * 1024L // 20MB
         }
-    }
 
     /**
      * Check if operations should be throttled
      */
-    fun shouldThrottle(): Boolean {
-        return _memoryPressure.value == MemoryPressure.CRITICAL ||
+    fun shouldThrottle(): Boolean =
+        _memoryPressure.value == MemoryPressure.CRITICAL ||
             deviceClass == DeviceClass.EDGE
-    }
 
     /**
      * Get throttle delay in milliseconds
      */
-    fun getThrottleDelay(): Long {
-        return when {
+    fun getThrottleDelay(): Long =
+        when {
             _memoryPressure.value == MemoryPressure.CRITICAL -> 200L
             deviceClass == DeviceClass.EDGE -> 100L
             _memoryPressure.value == MemoryPressure.MODERATE -> 50L
             else -> 0L
         }
-    }
 
     /**
      * Check if device is an edge/low-end device
      */
-    fun isEdgeDevice(): Boolean {
-        return deviceClass == DeviceClass.EDGE || deviceClass == DeviceClass.LOW
-    }
+    fun isEdgeDevice(): Boolean = deviceClass == DeviceClass.EDGE || deviceClass == DeviceClass.LOW
 
     /**
      * Get current device class
@@ -418,8 +410,8 @@ object ResourceManager : ComponentCallbacks2 {
     /**
      * Get debug info as string
      */
-    fun getDebugInfo(): String {
-        return buildString {
+    fun getDebugInfo(): String =
+        buildString {
             appendLine("=== ResourceManager Debug Info ===")
             appendLine("Device Class: $deviceClass")
             appendLine("Total RAM: ${totalRamMB}MB")
@@ -433,5 +425,4 @@ object ResourceManager : ComponentCallbacks2 {
             appendLine("Max Image Dim: ${getMaxImageDimension()}px")
             appendLine("Should Throttle: ${shouldThrottle()}")
         }
-    }
 }

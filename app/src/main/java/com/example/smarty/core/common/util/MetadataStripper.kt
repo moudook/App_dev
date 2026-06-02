@@ -374,7 +374,9 @@ object MetadataStripper {
                     }
                 val bitmap =
                     BitmapFactory.decodeStream(
-                        BufferedInputStream(input, BUFFER_SIZE), null, options,
+                        BufferedInputStream(input, BUFFER_SIZE),
+                        null,
+                        options,
                     ) ?: throw IOException("Failed to decode PNG")
 
                 try {
@@ -475,7 +477,9 @@ object MetadataStripper {
 
                 val bitmap =
                     BitmapFactory.decodeStream(
-                        BufferedInputStream(input2, BUFFER_SIZE), null, decodeOptions,
+                        BufferedInputStream(input2, BUFFER_SIZE),
+                        null,
+                        decodeOptions,
                     ) ?: throw IOException("Failed to decode image")
 
                 try {
@@ -605,8 +609,8 @@ object MetadataStripper {
     private fun extractAudioTitle(
         context: Context,
         sourceUri: Uri,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             val retriever = MediaMetadataRetriever()
             try {
                 context.contentResolver.openFileDescriptor(sourceUri, "r")?.use { pfd ->
@@ -620,7 +624,6 @@ object MetadataStripper {
             Log.w(TAG, "Failed to extract audio title: ${e.message}")
             null
         }
-    }
 
     /**
      * Copy file without any processing (for non-media files)
@@ -731,8 +734,8 @@ object MetadataStripper {
     private fun getFileSize(
         context: Context,
         uri: Uri,
-    ): Long? {
-        return try {
+    ): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
@@ -744,10 +747,9 @@ object MetadataStripper {
         } catch (e: Exception) {
             null
         }
-    }
 
-    private fun getImageExtension(mimeType: String): String {
-        return when (mimeType) {
+    private fun getImageExtension(mimeType: String): String =
+        when (mimeType) {
             "image/jpeg", "image/jpg" -> ".jpg"
             "image/png" -> ".png"
             "image/webp" -> ".webp"
@@ -755,20 +757,18 @@ object MetadataStripper {
             "image/heic", "image/heif" -> ".heic"
             else -> ".jpg"
         }
-    }
 
-    private fun getVideoExtension(mimeType: String): String {
-        return when (mimeType) {
+    private fun getVideoExtension(mimeType: String): String =
+        when (mimeType) {
             "video/mp4" -> ".mp4"
             "video/3gpp" -> ".3gp"
             "video/webm" -> ".webm"
             "video/x-matroska" -> ".mkv"
             else -> ".mp4"
         }
-    }
 
-    private fun getAudioExtension(mimeType: String): String {
-        return when (mimeType) {
+    private fun getAudioExtension(mimeType: String): String =
+        when (mimeType) {
             "audio/mpeg" -> ".mp3"
             "audio/mp4", "audio/aac" -> ".m4a"
             "audio/ogg" -> ".ogg"
@@ -776,5 +776,4 @@ object MetadataStripper {
             "audio/flac" -> ".flac"
             else -> ".mp3"
         }
-    }
 }

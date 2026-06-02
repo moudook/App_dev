@@ -1,5 +1,6 @@
 package com.example.smarty.features.tags.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,12 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.Tag
 import com.example.smarty.features.tags.domain.TagTypeFilter
@@ -36,7 +35,7 @@ import com.example.smarty.ui.components.common.EmptyStatePlaceholder
 fun TagsScreen(
     onNavigateBack: () -> Unit = {},
     onTagClick: (String) -> Unit = {},
-    viewModel: TagsViewModel = viewModel()
+    viewModel: TagsViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val tags by viewModel.tags.collectAsState()
@@ -56,12 +55,12 @@ fun TagsScreen(
                         Text(
                             text = "Tags",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "${tags.size} tags",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
@@ -69,44 +68,49 @@ fun TagsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Default.Add, "Add Tag")
             }
-        }
+        },
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             // Search field
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("Search tags...") },
                 leadingIcon = { Icon(Icons.Default.Search, "Search") },
                 singleLine = true,
-                shape = MaterialTheme.shapes.medium
+                shape = MaterialTheme.shapes.medium,
             )
 
             // Type filter chips
             LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(TagTypeFilter.entries) { filter ->
                     FilterChip(
                         selected = uiState.selectedTagType == filter,
                         onClick = { viewModel.setTagTypeFilter(filter) },
                         label = { Text(filter.name) },
-                        leadingIcon = if (uiState.selectedTagType == filter) {
-                            { Icon(Icons.Default.Check, null, Modifier.size(18.dp)) }
-                        } else null
+                        leadingIcon =
+                            if (uiState.selectedTagType == filter) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(18.dp)) }
+                            } else {
+                                null
+                            },
                     )
                 }
             }
@@ -119,7 +123,7 @@ fun TagsScreen(
                         TextButton(onClick = { viewModel.clearError() }) {
                             Text("Dismiss")
                         }
-                    }
+                    },
                 ) {
                     Text(error)
                 }
@@ -133,20 +137,20 @@ fun TagsScreen(
                     EmptyStatePlaceholder(
                         icon = Icons.Outlined.Tag,
                         title = if (uiState.searchQuery.isNotEmpty()) "No matching tags" else "No Tags",
-                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try a different search" else "Tap + to create your first tag"
+                        subtitle = if (uiState.searchQuery.isNotEmpty()) "Try a different search" else "Tap + to create your first tag",
                     )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(filteredTags, key = { it.id }) { tag ->
                             TagItem(
                                 tag = tag,
                                 onClick = { onTagClick(tag.id) },
                                 onEdit = { tagToEdit = tag },
-                                onDelete = { tagToDelete = tag }
+                                onDelete = { tagToDelete = tag },
                             )
                         }
                     }
@@ -163,7 +167,7 @@ fun TagsScreen(
             onSave = { name, color ->
                 viewModel.createTag(name, color)
                 showCreateDialog = false
-            }
+            },
         )
     }
 
@@ -177,7 +181,7 @@ fun TagsScreen(
             onSave = { name, color ->
                 viewModel.updateTag(tag.copy(name = name, color = color))
                 tagToEdit = null
-            }
+            },
         )
     }
 
@@ -193,7 +197,7 @@ fun TagsScreen(
                     onClick = {
                         viewModel.deleteTag(tag.id)
                         tagToDelete = null
-                    }
+                    },
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
@@ -202,7 +206,7 @@ fun TagsScreen(
                 TextButton(onClick = { tagToDelete = null }) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 }
@@ -212,57 +216,62 @@ fun TagItem(
     tag: Tag,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Color indicator
             Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(
-                        color = runCatching { Color(android.graphics.Color.parseColor(tag.color)) }.getOrDefault(Color.Gray),
-                        shape = CircleShape
-                    )
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .background(
+                            color = runCatching { Color(android.graphics.Color.parseColor(tag.color)) }.getOrDefault(Color.Gray),
+                            shape = CircleShape,
+                        ),
             )
 
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp),
             ) {
                 Text(
                     text = tag.displayName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = 2.dp),
                 ) {
                     Text(
                         text = tag.typeLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text = "${tag.usageCount} uses",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -285,7 +294,7 @@ fun TagDialog(
     initialName: String = "",
     initialColor: String = "#6200EE",
     onDismiss: () -> Unit,
-    onSave: (name: String, color: String) -> Unit
+    onSave: (name: String, color: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedColor by remember { mutableStateOf(initialColor) }
@@ -302,37 +311,46 @@ fun TagDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onDone = { if (name.isNotBlank()) onSave(name, selectedColor) }
-                    )
+                    keyboardActions =
+                        KeyboardActions(
+                            onDone = { if (name.isNotBlank()) onSave(name, selectedColor) },
+                        ),
                 )
 
                 Text("Color", style = MaterialTheme.typography.labelMedium)
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(Tag.defaultColors) { colorHex ->
                         val color = runCatching { Color(android.graphics.Color.parseColor(colorHex)) }.getOrDefault(Color.Gray)
                         val isSelected = colorHex == selectedColor
                         Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(color, CircleShape)
-                                .clickable { selectedColor = colorHex }
-                                .then(
-                                    if (isSelected) {
-                                        Modifier.padding(2.dp).background(MaterialTheme.colorScheme.onSurface, CircleShape).padding(2.dp)
-                                    } else Modifier
-                                )
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .background(color, CircleShape)
+                                    .clickable { selectedColor = colorHex }
+                                    .then(
+                                        if (isSelected) {
+                                            Modifier
+                                                .padding(
+                                                    2.dp,
+                                                ).background(MaterialTheme.colorScheme.onSurface, CircleShape)
+                                                .padding(2.dp)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                         ) {
                             if (isSelected) {
                                 Icon(
                                     Icons.Default.Check,
                                     null,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(18.dp),
-                                    tint = if (color.luminance() > 0.5f) Color.Black else Color.White
+                                    modifier =
+                                        Modifier
+                                            .align(Alignment.Center)
+                                            .size(18.dp),
+                                    tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
                                 )
                             }
                         }
@@ -343,7 +361,7 @@ fun TagDialog(
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onSave(name, selectedColor) },
-                enabled = name.isNotBlank()
+                enabled = name.isNotBlank(),
             ) {
                 Text(if (initialName.isNotEmpty()) "Update" else "Create")
             }
@@ -352,6 +370,6 @@ fun TagDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
-        }
+        },
     )
 }

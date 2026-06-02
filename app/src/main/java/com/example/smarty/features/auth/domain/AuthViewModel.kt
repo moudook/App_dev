@@ -79,7 +79,9 @@ class AuthViewModel(
     }
 }
 
-class AuthViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+class AuthViewModelFactory(
+    private val application: Application,
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
@@ -88,7 +90,8 @@ class AuthViewModelFactory(private val application: Application) : ViewModelProv
                 return AuthViewModel(application, repository) as T
             } catch (e: Exception) {
                 Log.e("AuthViewModelFactory", "Failed to create AuthRepository", e)
-                com.example.smarty.core.common.util.CrashLogger.log(application, "AuthRepository init failed: ${e.message}")
+                com.example.smarty.core.common.util.CrashLogger
+                    .log(application, "AuthRepository init failed: ${e.message}")
                 // Rethrowing might crash, but at least we logged it.
                 // Creating a dummy repo or returning a safe state is hard without changing the constructor.
                 throw RuntimeException("Failed to initialize Auth Repository", e)

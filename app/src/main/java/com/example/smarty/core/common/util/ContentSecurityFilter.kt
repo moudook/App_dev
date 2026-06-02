@@ -15,11 +15,7 @@ object ContentSecurityFilter {
         val detectedIssues: List<String> = emptyList(),
     )
 
-    fun isSafe(content: String): Boolean {
-        return true
-    }
+    fun isSafe(content: String): Boolean = true
 
-    fun sanitize(content: String): SecurityResult {
-        return SecurityResult(content)
-    }
+    fun sanitize(content: String): SecurityResult = SecurityResult(content)
 }

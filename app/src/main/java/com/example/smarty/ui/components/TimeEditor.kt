@@ -39,7 +39,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun TimeEditor(
     modifier: Modifier = Modifier,
-    onSave: (hours: Int, minutes: Int, title: String) -> Unit = { _, _, _ -> }
+    onSave: (hours: Int, minutes: Int, title: String) -> Unit = { _, _, _ -> },
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var hours by remember { mutableStateOf(TextFieldValue("2")) }
@@ -59,7 +59,7 @@ fun TimeEditor(
     fun handleToggle() {
         if (isEditing) {
             if (hours.text.isEmpty()) hours = hours.copy(text = "0")
-            
+
             var newMins = minutes.text
             if (newMins.isEmpty()) {
                 newMins = "00"
@@ -67,15 +67,15 @@ fun TimeEditor(
                 newMins = "0$newMins"
             }
             minutes = minutes.copy(text = newMins)
-            
+
             if (title.text.trim().isEmpty()) {
                 title = title.copy(text = "Event Title")
             }
-            
+
             onSave(
                 hours.text.toIntOrNull() ?: 0,
                 minutes.text.toIntOrNull() ?: 0,
-                title.text
+                title.text,
             )
         }
         isEditing = !isEditing
@@ -90,54 +90,56 @@ fun TimeEditor(
     val containerColor by animateColorAsState(
         targetValue = if (isEditing) Color.Transparent else surfaceVariant.copy(alpha = 0.4f),
         animationSpec = tween(300),
-        label = "containerColor"
+        label = "containerColor",
     )
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp, horizontal = 16.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Top Row: Time & Button
         Row(
-            modifier = Modifier
-                .clip(if (isEditing) RoundedCornerShape(0.dp) else CircleShape)
-                .background(containerColor)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = !isEditing,
-                    onClick = { handleToggle() }
-                )
-                .padding(if (isEditing) PaddingValues(0.dp) else PaddingValues(horizontal = 20.dp, vertical = 10.dp)),
+            modifier =
+                Modifier
+                    .clip(if (isEditing) RoundedCornerShape(0.dp) else CircleShape)
+                    .background(containerColor)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = !isEditing,
+                        onClick = { handleToggle() },
+                    ).padding(if (isEditing) PaddingValues(0.dp) else PaddingValues(horizontal = 20.dp, vertical = 10.dp)),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Center,
         ) {
             // Hours Section
             TimeSection(
                 value = hours,
-                onValueChange = { 
+                onValueChange = {
                     val filtered = it.text.filter { char -> char.isDigit() }.take(2)
                     hours = it.copy(text = filtered, selection = it.selection)
                 },
                 label = "Hr.",
                 isEditing = isEditing,
-                focusRequester = hoursFocusRequester
+                focusRequester = hoursFocusRequester,
             )
 
             // Separator
             AnimatedVisibility(visible = !isEditing) {
                 Box(
-                    modifier = Modifier
-                        .padding(horizontal = 6.dp)
-                        .height(18.dp)
-                        .width(1.dp)
-                        .background(onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
+                    modifier =
+                        Modifier
+                            .padding(horizontal = 6.dp)
+                            .height(18.dp)
+                            .width(1.dp)
+                            .background(onSurfaceVariant.copy(alpha = 0.3f), CircleShape),
                 )
             }
-            
+
             if (isEditing) {
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -154,19 +156,20 @@ fun TimeEditor(
                     }
                 },
                 label = "Min.",
-                isEditing = isEditing
+                isEditing = isEditing,
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             // Action Button
             Box(
-                modifier = Modifier
-                    .size(if (isEditing) 44.dp else 28.dp)
-                    .clip(CircleShape)
-                    .background(if (isEditing) primary else Color.Transparent)
-                    .clickable { handleToggle() },
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(if (isEditing) 44.dp else 28.dp)
+                        .clip(CircleShape)
+                        .background(if (isEditing) primary else Color.Transparent)
+                        .clickable { handleToggle() },
+                contentAlignment = Alignment.Center,
             ) {
                 AnimatedContent(targetState = isEditing, label = "IconTransition") { editing ->
                     if (editing) {
@@ -174,14 +177,14 @@ fun TimeEditor(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Save",
                             tint = onPrimary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit",
                             tint = onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }
@@ -193,19 +196,21 @@ fun TimeEditor(
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
-                textStyle = TextStyle(
-                    color = onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center
-                ),
+                textStyle =
+                    TextStyle(
+                        color = onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    ),
                 singleLine = true,
                 cursorBrush = SolidColor(primary),
-                modifier = Modifier
-                    .widthIn(min = 220.dp)
-                    .height(48.dp)
-                    .background(surfaceVariant.copy(alpha = 0.3f), CircleShape)
-                    .padding(horizontal = 20.dp),
+                modifier =
+                    Modifier
+                        .widthIn(min = 220.dp)
+                        .height(48.dp)
+                        .background(surfaceVariant.copy(alpha = 0.3f), CircleShape)
+                        .padding(horizontal = 20.dp),
                 decorationBox = { innerTextField ->
                     Box(contentAlignment = Alignment.Center) {
                         if (title.text.isEmpty()) {
@@ -213,12 +218,12 @@ fun TimeEditor(
                                 text = "Event Title",
                                 color = onSurfaceVariant.copy(alpha = 0.5f),
                                 fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
                             )
                         }
                         innerTextField()
                     }
-                }
+                },
             )
         }
     }
@@ -230,7 +235,7 @@ private fun TimeSection(
     onValueChange: (TextFieldValue) -> Unit,
     label: String,
     isEditing: Boolean,
-    focusRequester: FocusRequester? = null
+    focusRequester: FocusRequester? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -241,17 +246,20 @@ private fun TimeSection(
     val surface = MaterialTheme.colorScheme.surface
 
     val bgColor by animateColorAsState(
-        targetValue = if (isEditing) {
-            if (isFocused) surface else surfaceVariant.copy(alpha = 0.5f)
-        } else Color.Transparent,
+        targetValue =
+            if (isEditing) {
+                if (isFocused) surface else surfaceVariant.copy(alpha = 0.5f)
+            } else {
+                Color.Transparent
+            },
         animationSpec = tween(300),
-        label = "bgColor"
+        label = "bgColor",
     )
 
     val borderColor by animateColorAsState(
         targetValue = if (isEditing && isFocused) primary else Color.Transparent,
         animationSpec = tween(300),
-        label = "borderColor"
+        label = "borderColor",
     )
 
     val fontSize by animateFloatAsState(targetValue = if (isEditing) 24f else 20f, label = "fontSize")
@@ -260,42 +268,48 @@ private fun TimeSection(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .then(if (isEditing) Modifier.height(48.dp).widthIn(min = 80.dp) else Modifier)
-            .clip(CircleShape)
-            .background(bgColor)
-            .border(if (isEditing && isFocused) 2.dp else 0.dp, borderColor, CircleShape)
-            .padding(if (isEditing) PaddingValues(horizontal = 16.dp) else PaddingValues(0.dp))
+        modifier =
+            Modifier
+                .then(if (isEditing) Modifier.height(48.dp).widthIn(min = 80.dp) else Modifier)
+                .clip(CircleShape)
+                .background(bgColor)
+                .border(if (isEditing && isFocused) 2.dp else 0.dp, borderColor, CircleShape)
+                .padding(if (isEditing) PaddingValues(horizontal = 16.dp) else PaddingValues(0.dp)),
     ) {
-        val modifier = if (focusRequester != null) {
-            Modifier.focusRequester(focusRequester)
-        } else Modifier
+        val modifier =
+            if (focusRequester != null) {
+                Modifier.focusRequester(focusRequester)
+            } else {
+                Modifier
+            }
 
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             enabled = isEditing,
-            textStyle = TextStyle(
-                color = onSurface,
-                fontSize = fontSize.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = if (isEditing) TextAlign.Center else TextAlign.End
-            ),
+            textStyle =
+                TextStyle(
+                    color = onSurface,
+                    fontSize = fontSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = if (isEditing) TextAlign.Center else TextAlign.End,
+                ),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             cursorBrush = SolidColor(primary),
-            modifier = modifier
-                .onFocusChanged { isFocused = it.isFocused }
-                .then(if (isEditing) Modifier.width(36.dp) else Modifier.width(28.dp))
+            modifier =
+                modifier
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .then(if (isEditing) Modifier.width(36.dp) else Modifier.width(28.dp)),
         )
-        
+
         Spacer(modifier = Modifier.width(4.dp))
-        
+
         Text(
             text = if (isEditing) label.uppercase() else label,
             fontSize = labelSize.sp,
             fontWeight = FontWeight.SemiBold,
-            color = onSurfaceVariant.copy(alpha = 0.8f)
+            color = onSurfaceVariant.copy(alpha = 0.8f),
         )
     }
 }

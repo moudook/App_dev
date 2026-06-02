@@ -122,8 +122,8 @@ object ConversationSummarizer {
      * Build conversation text for summarization.
      * Limits message count and length for efficiency.
      */
-    private fun buildConversationText(messages: List<ChatMessage>): String {
-        return messages
+    private fun buildConversationText(messages: List<ChatMessage>): String =
+        messages
             .takeLast(MAX_MESSAGES_FOR_SUMMARY)
             .joinToString("\n") { message ->
                 val role =
@@ -136,7 +136,6 @@ object ConversationSummarizer {
                 val truncated = if (message.content.length > MAX_MESSAGE_LENGTH) "..." else ""
                 "$role: $content$truncated"
             }
-    }
 
     /**
      * Clean up the generated summary.

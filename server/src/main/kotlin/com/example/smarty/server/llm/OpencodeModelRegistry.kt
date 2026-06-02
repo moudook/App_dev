@@ -1,11 +1,9 @@
 package com.example.smarty.server.llm
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -391,24 +389,30 @@ object OpencodeModelRegistry {
                         continue
                     }
 
-                    val jsonMeta = try {
-                        kotlinx.serialization.json.Json.parseToJsonElement(jsonText).jsonObject
-                    } catch (e: Exception) {
-                        logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
-                        continue
-                    }
+                    val jsonMeta =
+                        try {
+                            kotlinx.serialization.json.Json
+                                .parseToJsonElement(jsonText)
+                                .jsonObject
+                        } catch (e: Exception) {
+                            logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
+                            continue
+                        }
 
-                    val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
-                        ?: generateLabel(id)
+                    val label =
+                        jsonMeta["label"]?.jsonPrimitive?.contentOrNull
+                            ?: generateLabel(id)
 
                     val rawVariants = jsonMeta["variants"]?.jsonObject
                     val variants = rawVariants ?: emptyMap()
 
-                    allModels.add(OpencodeModelInfo(
-                        id = id,
-                        label = label,
-                        variants = variants,
-                    ))
+                    allModels.add(
+                        OpencodeModelInfo(
+                            id = id,
+                            label = label,
+                            variants = variants,
+                        ),
+                    )
                 }
                 continue
             }
@@ -441,24 +445,30 @@ object OpencodeModelRegistry {
                         continue
                     }
 
-                    val jsonMeta = try {
-                        kotlinx.serialization.json.Json.parseToJsonElement(line).jsonObject
-                    } catch (e: Exception) {
-                        logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
-                        continue
-                    }
+                    val jsonMeta =
+                        try {
+                            kotlinx.serialization.json.Json
+                                .parseToJsonElement(line)
+                                .jsonObject
+                        } catch (e: Exception) {
+                            logger.warn("[OpencodeModelRegistry] Failed to parse JSON for model {}: {}", id, e.message)
+                            continue
+                        }
 
-                    val label = jsonMeta["label"]?.jsonPrimitive?.contentOrNull
-                        ?: generateLabel(id)
+                    val label =
+                        jsonMeta["label"]?.jsonPrimitive?.contentOrNull
+                            ?: generateLabel(id)
 
                     val rawVariants = jsonMeta["variants"]?.jsonObject
                     val variants = rawVariants ?: emptyMap()
 
-                    allModels.add(OpencodeModelInfo(
-                        id = id,
-                        label = label,
-                        variants = variants,
-                    ))
+                    allModels.add(
+                        OpencodeModelInfo(
+                            id = id,
+                            label = label,
+                            variants = variants,
+                        ),
+                    )
                 } else {
                     // Multi-line JSON — start accumulating
                     jsonBuffer = StringBuilder()
@@ -478,8 +488,8 @@ object OpencodeModelRegistry {
         return top3
     }
 
-    private fun generateLabel(modelId: String): String {
-        return modelId
+    private fun generateLabel(modelId: String): String =
+        modelId
             .removePrefix("opencode/")
             .replace(Regex("(?i)-free\\b"), "")
             .replace(Regex("(?i)\\bfree\\b"), "")
@@ -487,5 +497,4 @@ object OpencodeModelRegistry {
             .split(" ")
             .filter { it.isNotEmpty() }
             .joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
-    }
 }

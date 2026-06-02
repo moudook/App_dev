@@ -11,15 +11,22 @@ import com.example.smarty.features.chat.ui.AssistActivity
  * When the user triggers Smarty (e.g., long press home),
  * this session is created and launches the AssistActivity.
  */
-class AssistInteractionSession(context: Context) : VoiceInteractionSession(context) {
-
-    override fun onPrepareShow(args: Bundle?, showFlags: Int) {
+class AssistInteractionSession(
+    context: Context,
+) : VoiceInteractionSession(context) {
+    override fun onPrepareShow(
+        args: Bundle?,
+        showFlags: Int,
+    ) {
         super.onPrepareShow(args, showFlags)
         // Disable default session UI since we launch our own Activity
         setUiEnabled(false)
     }
 
-    override fun onShow(args: Bundle?, showFlags: Int) {
+    override fun onShow(
+        args: Bundle?,
+        showFlags: Int,
+    ) {
         super.onShow(args, showFlags)
 
         // Launch our transparent AssistActivity

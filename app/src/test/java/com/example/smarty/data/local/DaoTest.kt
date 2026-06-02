@@ -38,7 +38,8 @@ class DaoTest {
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         database =
-            Room.inMemoryDatabaseBuilder(context, TestSmartyDatabase::class.java)
+            Room
+                .inMemoryDatabaseBuilder(context, TestSmartyDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
         chatDao = database.chatDao()

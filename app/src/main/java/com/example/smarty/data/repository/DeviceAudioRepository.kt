@@ -126,72 +126,73 @@ class DeviceAudioRepository(
         // Sort by title for consistent ordering
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
-        context.contentResolver.query(
-            collection,
-            projection.toTypedArray(),
-            selection,
-            selectionArgs,
-            sortOrder,
-        )?.use { cursor ->
-            // Cache column indices for performance
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+        context.contentResolver
+            .query(
+                collection,
+                projection.toTypedArray(),
+                selection,
+                selectionArgs,
+                sortOrder,
+            )?.use { cursor ->
+                // Cache column indices for performance
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
 
-            // Path column for folder-based searching
-            val pathColumn =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
-                } else {
-                    @Suppress("DEPRECATION")
-                    cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
-                }
+                // Path column for folder-based searching
+                val pathColumn =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                    }
 
-            Log.d(TAG, "Found ${cursor.count} audio files across entire device storage")
+                Log.d(TAG, "Found ${cursor.count} audio files across entire device storage")
 
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val title = cursor.getString(titleColumn) ?: "Unknown"
-                val artist = cursor.getString(artistColumn)
-                val album = cursor.getString(albumColumn)
-                val displayName = cursor.getString(displayNameColumn)
-                val duration = cursor.getLong(durationColumn)
-                val mimeType = cursor.getString(mimeTypeColumn)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val title = cursor.getString(titleColumn) ?: "Unknown"
+                    val artist = cursor.getString(artistColumn)
+                    val album = cursor.getString(albumColumn)
+                    val displayName = cursor.getString(displayNameColumn)
+                    val duration = cursor.getLong(durationColumn)
+                    val mimeType = cursor.getString(mimeTypeColumn)
 
-                // Get file path for folder-based searching
-                val filePath = if (pathColumn >= 0) cursor.getString(pathColumn) else null
+                    // Get file path for folder-based searching
+                    val filePath = if (pathColumn >= 0) cursor.getString(pathColumn) else null
 
-                // Construct zero-copy content:// URI
-                val contentUri = ContentUris.withAppendedId(collection, id)
+                    // Construct zero-copy content:// URI
+                    val contentUri = ContentUris.withAppendedId(collection, id)
 
-                audioList.add(
-                    AudioTrack(
-                        id = "device_$id", // Prefix to avoid ID conflicts with note audio
-                        uri = contentUri.toString(),
-                        title = title,
-                        fileName = displayName,
-                        duration = duration,
-                        mimeType = mimeType,
-                        source = AudioSource.DEVICE_STORAGE,
-                        artist = artist,
-                        album = album,
-                        sourceNoteId = null,
-                        sourceAttachmentId = null,
-                        // Store path in album field if album is empty (for folder search)
-                        // This is a pragmatic approach without changing AudioTrack model
-                    ),
-                )
+                    audioList.add(
+                        AudioTrack(
+                            id = "device_$id", // Prefix to avoid ID conflicts with note audio
+                            uri = contentUri.toString(),
+                            title = title,
+                            fileName = displayName,
+                            duration = duration,
+                            mimeType = mimeType,
+                            source = AudioSource.DEVICE_STORAGE,
+                            artist = artist,
+                            album = album,
+                            sourceNoteId = null,
+                            sourceAttachmentId = null,
+                            // Store path in album field if album is empty (for folder search)
+                            // This is a pragmatic approach without changing AudioTrack model
+                        ),
+                    )
 
-                // Log sample paths for debugging (first 5 only)
-                if (audioList.size <= 5) {
-                    Log.d(TAG, "  Audio: '$title' at path: $filePath")
+                    // Log sample paths for debugging (first 5 only)
+                    if (audioList.size <= 5) {
+                        Log.d(TAG, "  Audio: '$title' at path: $filePath")
+                    }
                 }
             }
-        }
 
         Log.i(TAG, "Loaded ${audioList.size} audio tracks from entire device storage (all folders)")
         return audioList

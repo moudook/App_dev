@@ -328,9 +328,16 @@ class NoteBuilder {
 
     fun build() =
         com.example.smarty.core.domain.model.Note(
-            id = id, title = title, content = content, categoryName = categoryName,
-            isArchived = isArchived, isPinned = isPinned, isFavorite = isFavorite,
-            isPrivate = isPrivate, createdAt = createdAt, attachments = attachments,
+            id = id,
+            title = title,
+            content = content,
+            categoryName = categoryName,
+            isArchived = isArchived,
+            isPinned = isPinned,
+            isFavorite = isFavorite,
+            isPrivate = isPrivate,
+            createdAt = createdAt,
+            attachments = attachments,
         )
 }
 
@@ -349,10 +356,17 @@ class CalendarEventBuilder {
 
     fun build() =
         com.example.smarty.core.domain.model.CalendarEvent(
-            id = id, title = title, description = description, startTime = startTime,
-            endTime = endTime, location = location, isRecurring = isRecurring,
-            reminderMinutes = reminderMinutes, googleEventId = googleEventId,
-            isEventPrivate = isEventPrivate, isAllDay = isAllDay,
+            id = id,
+            title = title,
+            description = description,
+            startTime = startTime,
+            endTime = endTime,
+            location = location,
+            isRecurring = isRecurring,
+            reminderMinutes = reminderMinutes,
+            googleEventId = googleEventId,
+            isEventPrivate = isEventPrivate,
+            isAllDay = isAllDay,
         )
 }
 
@@ -434,7 +448,9 @@ class ChatUseCases {
 }
 
 // ViewModels
-class NotesViewModel(private val useCases: NoteUseCases) {
+class NotesViewModel(
+    private val useCases: NoteUseCases,
+) {
     val state = MutableStateFlow(NotesState())
 
     suspend fun loadNotes() {
@@ -463,7 +479,9 @@ class NotesViewModel(private val useCases: NoteUseCases) {
     }
 }
 
-class CalendarViewModel(private val useCases: CalendarUseCases) {
+class CalendarViewModel(
+    private val useCases: CalendarUseCases,
+) {
     val state = MutableStateFlow(CalendarState())
 
     suspend fun loadEvents() {
@@ -489,7 +507,9 @@ class CalendarViewModel(private val useCases: CalendarUseCases) {
     }
 }
 
-class ChatViewModel(private val useCases: ChatUseCases) {
+class ChatViewModel(
+    private val useCases: ChatUseCases,
+) {
     val state = MutableStateFlow(ChatState())
 
     suspend fun loadMessages(sessionId: String) {
@@ -510,8 +530,17 @@ class ChatViewModel(private val useCases: ChatUseCases) {
 }
 
 // State classes
-data class NotesState(val isLoading: Boolean = false, val notes: List<com.example.smarty.core.domain.model.Note> = emptyList())
+data class NotesState(
+    val isLoading: Boolean = false,
+    val notes: List<com.example.smarty.core.domain.model.Note> = emptyList(),
+)
 
-data class CalendarState(val isLoading: Boolean = false, val events: List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList())
+data class CalendarState(
+    val isLoading: Boolean = false,
+    val events: List<com.example.smarty.core.domain.model.CalendarEvent> = emptyList(),
+)
 
-data class ChatState(val isLoading: Boolean = false, val messages: List<com.example.smarty.core.domain.model.ChatMessage> = emptyList())
+data class ChatState(
+    val isLoading: Boolean = false,
+    val messages: List<com.example.smarty.core.domain.model.ChatMessage> = emptyList(),
+)

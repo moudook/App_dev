@@ -3,7 +3,6 @@ package com.example.smarty.core.domain.model
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.example.smarty.protocol.AgentEvent
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -261,7 +260,13 @@ data class ChatMessageEntity(
                         '}' -> {
                             depth--
                             if (depth == 0) {
-                                items.add(trimmed.substring(start, i + 1).trim().removePrefix(",").trim())
+                                items.add(
+                                    trimmed
+                                        .substring(start, i + 1)
+                                        .trim()
+                                        .removePrefix(",")
+                                        .trim(),
+                                )
                                 start = i + 1
                             }
                         }
@@ -331,7 +336,13 @@ data class ChatMessageEntity(
                         '}' -> {
                             depth--
                             if (depth == 0) {
-                                items.add(trimmed.substring(start, i + 1).trim().removePrefix(",").trim())
+                                items.add(
+                                    trimmed
+                                        .substring(start, i + 1)
+                                        .trim()
+                                        .removePrefix(",")
+                                        .trim(),
+                                )
                                 start = i + 1
                             }
                         }
@@ -496,14 +507,17 @@ data class ChatMessageEntity(
         // ─── tiny JSON utilities ───────────────────────────────────────────────
 
         private fun String.esc() =
-            replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+            replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
 
         private fun buildDisplayName(
             toolName: String,
             inputSummary: String?,
-        ): String {
-            return when {
+        ): String =
+            when {
                 toolName.contains("search", ignoreCase = true) ||
                     toolName.contains("web", ignoreCase = true) ->
                     if (inputSummary != null) "Searched: $inputSummary" else "Web Search"
@@ -517,7 +531,6 @@ data class ChatMessageEntity(
                     if (inputSummary != null) "Reminder: $inputSummary" else "Reminder Set"
                 else -> toolName.replace("_", " ").replaceFirstChar { it.uppercase() }
             }.take(80)
-        }
 
         /** Split a JSON array body into individual object strings. */
         private fun splitJsonObjects(body: String): List<String> {

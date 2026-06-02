@@ -215,15 +215,14 @@ object ContentTypeDetector {
     /**
      * Detects the content type from text content.
      */
-    fun detectContentType(text: String): NoteType {
-        return when {
+    fun detectContentType(text: String): NoteType =
+        when {
             YOUTUBE_PATTERN.containsMatchIn(text) -> NoteType.YOUTUBE
             TWITTER_PATTERN.containsMatchIn(text) -> NoteType.TWITTER
             INSTAGRAM_PATTERN.containsMatchIn(text) -> NoteType.INSTAGRAM
             PROTOCOL_PATTERN.containsMatchIn(text) -> NoteType.WEBSITE
             else -> NoteType.BRAIN_DUMP
         }
-    }
 
     /**
      * Detects the content type from a MIME type string.
@@ -252,9 +251,7 @@ object ContentTypeDetector {
     /**
      * Extracts the YouTube video ID from a URL or text containing a URL.
      */
-    fun extractYouTubeId(text: String): String? {
-        return YOUTUBE_ID_PATTERN.find(text)?.groupValues?.get(1)
-    }
+    fun extractYouTubeId(text: String): String? = YOUTUBE_ID_PATTERN.find(text)?.groupValues?.get(1)
 
     /**
      * Generates a title for a note based on its content and type.
@@ -323,13 +320,12 @@ object ContentTypeDetector {
     fun formatSize(
         context: android.content.Context,
         bytes: Long,
-    ): String {
-        return when {
+    ): String =
+        when {
             bytes < 1024 -> "$bytes ${context.getString(R.string.size_unit_b)}"
             bytes < 1024 * 1024 -> "${bytes / 1024} ${context.getString(R.string.size_unit_kb)}"
             else -> String.format("%.1f ${context.getString(R.string.size_unit_mb)}", bytes / (1024.0 * 1024.0))
         }
-    }
 
     /**
      * Checks if content contains a URL.

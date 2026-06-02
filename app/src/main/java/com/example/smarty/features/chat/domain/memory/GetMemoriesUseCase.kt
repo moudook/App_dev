@@ -15,7 +15,5 @@ class GetMemoriesUseCase(
     suspend fun retrieve(
         query: String?,
         limit: Int = 10,
-    ): List<AIMemory> {
-        return memoryFeatureManager.retrieveMemories(query, limit)
-    }
+    ): List<AIMemory> = memoryFeatureManager.retrieveMemories(query, limit)
 }

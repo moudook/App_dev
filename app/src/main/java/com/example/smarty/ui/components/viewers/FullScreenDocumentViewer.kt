@@ -10,7 +10,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -32,12 +31,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,24 +51,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import kotlin.math.abs
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.smarty.R
+import com.example.smarty.core.common.util.ResourceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import androidx.compose.ui.res.stringResource
-import com.example.smarty.R
-import com.example.smarty.core.common.util.ResourceManager
 
 /**
  * Full-screen document viewer supporting PDFs and text files.
@@ -92,36 +87,37 @@ fun FullScreenDocumentViewer(
     documentUri: String,
     mimeType: String?,
     fileName: String?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        )
+        properties =
+            DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+            ),
     ) {
         when {
             mimeType?.contains("pdf") == true -> {
                 PdfViewerContent(
                     documentUri = documentUri,
                     fileName = fileName,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
                 )
             }
             mimeType?.startsWith("text/") == true -> {
                 TextViewerContent(
                     documentUri = documentUri,
                     fileName = fileName,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
                 )
             }
             else -> {
                 UnsupportedDocumentContent(
                     fileName = fileName,
                     mimeType = mimeType,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
                 )
             }
         }
@@ -132,7 +128,7 @@ fun FullScreenDocumentViewer(
 private fun PdfViewerContent(
     documentUri: String,
     fileName: String?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -208,80 +204,86 @@ private fun PdfViewerContent(
 
                         // BUG-047: Synchronized page access - PdfRenderer only allows one page open at a time
                         // Use synchronized block to prevent concurrent page operations
-                        val newBitmap = synchronized(renderer) {
-                            // Double-check we still want this page (may have changed during debounce)
-                            if (currentPage >= renderer.pageCount) return@synchronized null
+                        val newBitmap =
+                            synchronized(renderer) {
+                                // Double-check we still want this page (may have changed during debounce)
+                                if (currentPage >= renderer.pageCount) return@synchronized null
 
-                            val page = try {
-                                renderer.openPage(currentPage)
-                            } catch (e: IllegalStateException) {
-                                // Page already open or renderer closed - skip this render
-                                Log.w(TAG, "Could not open page $currentPage: ${e.message}")
-                                return@synchronized null
+                                val page =
+                                    try {
+                                        renderer.openPage(currentPage)
+                                    } catch (e: IllegalStateException) {
+                                        // Page already open or renderer closed - skip this render
+                                        Log.w(TAG, "Could not open page $currentPage: ${e.message}")
+                                        return@synchronized null
+                                    }
+
+                                // Calculate adaptive scale based on device capabilities (BUG-046)
+                                val maxDimension =
+                                    try {
+                                        ResourceManager.getMaxImageDimension()
+                                    } catch (e: Exception) {
+                                        2048 // Fallback
+                                    }
+
+                                // Calculate scale to fit within max dimension while maintaining aspect ratio
+                                val pageWidth = page.width
+                                val pageHeight = page.height
+                                val scaleFactor =
+                                    minOf(
+                                        maxDimension.toFloat() / pageWidth,
+                                        maxDimension.toFloat() / pageHeight,
+                                        3f, // Cap at 3x to prevent excessive memory usage
+                                    ).coerceAtLeast(1f) // At least 1x scale
+
+                                val renderWidth = (pageWidth * scaleFactor).toInt()
+                                val renderHeight = (pageHeight * scaleFactor).toInt()
+
+                                // Check memory before allocating (BUG-046)
+                                val requiredMB = (renderWidth.toLong() * renderHeight * 4) / (1024 * 1024)
+                                val hasMemory =
+                                    try {
+                                        ResourceManager.hasEnoughMemory(requiredMB)
+                                    } catch (e: Exception) {
+                                        true // Proceed if ResourceManager not initialized
+                                    }
+
+                                // If not enough memory, reduce scale
+                                val finalWidth: Int
+                                val finalHeight: Int
+                                if (!hasMemory) {
+                                    // Reduce to 1x if memory constrained
+                                    finalWidth = pageWidth
+                                    finalHeight = pageHeight
+                                    Log.w(TAG, "Reduced PDF scale due to memory pressure")
+                                } else {
+                                    finalWidth = renderWidth
+                                    finalHeight = renderHeight
+                                }
+
+                                val bitmap =
+                                    try {
+                                        Bitmap.createBitmap(
+                                            finalWidth,
+                                            finalHeight,
+                                            Bitmap.Config.ARGB_8888,
+                                        )
+                                    } catch (e: OutOfMemoryError) {
+                                        Log.e(TAG, "OOM creating bitmap, trying smaller size")
+                                        page.close()
+                                        // Try with original size as fallback
+                                        Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                                    }
+
+                                try {
+                                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                } finally {
+                                    page.close() // Always close the page
+                                }
+
+                                Log.d(TAG, "PDF page rendered: ${pageWidth}x$pageHeight -> ${finalWidth}x$finalHeight (${requiredMB}MB)")
+                                bitmap
                             }
-
-                            // Calculate adaptive scale based on device capabilities (BUG-046)
-                            val maxDimension = try {
-                                ResourceManager.getMaxImageDimension()
-                            } catch (e: Exception) {
-                                2048 // Fallback
-                            }
-
-                            // Calculate scale to fit within max dimension while maintaining aspect ratio
-                            val pageWidth = page.width
-                            val pageHeight = page.height
-                            val scaleFactor = minOf(
-                                maxDimension.toFloat() / pageWidth,
-                                maxDimension.toFloat() / pageHeight,
-                                3f // Cap at 3x to prevent excessive memory usage
-                            ).coerceAtLeast(1f) // At least 1x scale
-
-                            val renderWidth = (pageWidth * scaleFactor).toInt()
-                            val renderHeight = (pageHeight * scaleFactor).toInt()
-
-                            // Check memory before allocating (BUG-046)
-                            val requiredMB = (renderWidth.toLong() * renderHeight * 4) / (1024 * 1024)
-                            val hasMemory = try {
-                                ResourceManager.hasEnoughMemory(requiredMB)
-                            } catch (e: Exception) {
-                                true // Proceed if ResourceManager not initialized
-                            }
-
-                            // If not enough memory, reduce scale
-                            val finalWidth: Int
-                            val finalHeight: Int
-                            if (!hasMemory) {
-                                // Reduce to 1x if memory constrained
-                                finalWidth = pageWidth
-                                finalHeight = pageHeight
-                                Log.w(TAG, "Reduced PDF scale due to memory pressure")
-                            } else {
-                                finalWidth = renderWidth
-                                finalHeight = renderHeight
-                            }
-
-                            val bitmap = try {
-                                Bitmap.createBitmap(
-                                    finalWidth,
-                                    finalHeight,
-                                    Bitmap.Config.ARGB_8888
-                                )
-                            } catch (e: OutOfMemoryError) {
-                                Log.e(TAG, "OOM creating bitmap, trying smaller size")
-                                page.close()
-                                // Try with original size as fallback
-                                Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-                            }
-
-                            try {
-                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            } finally {
-                                page.close() // Always close the page
-                            }
-
-                            Log.d(TAG, "PDF page rendered: ${pageWidth}x${pageHeight} -> ${finalWidth}x${finalHeight} (${requiredMB}MB)")
-                            bitmap
-                        }
 
                         // Only update bitmap if render succeeded
                         if (newBitmap != null) {
@@ -343,36 +345,38 @@ private fun PdfViewerContent(
     val contentColor = MaterialTheme.colorScheme.onSurface
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(backgroundColor),
     ) {
         when {
             isLoading -> {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
                 )
             }
             errorMessage != null -> {
                 Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier =
+                        Modifier
+                            .align(Alignment.Center)
+                            .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Description,
                         contentDescription = null, // Decorative icon - document placeholder
                         tint = contentColor.copy(alpha = 0.6f),
-                        modifier = Modifier.size(64.dp)
+                        modifier = Modifier.size(64.dp),
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = errorMessage ?: stringResource(R.string.unknown_error),
                         color = contentColor,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -381,105 +385,107 @@ private fun PdfViewerContent(
 
                 // Zoomable and pannable PDF content with swipe navigation
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 56.dp, bottom = if (totalPages > 1) 64.dp else 0.dp)
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                // Wait for first finger down
-                                awaitFirstDown(requireUnconsumed = false)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(top = 56.dp, bottom = if (totalPages > 1) 64.dp else 0.dp)
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    // Wait for first finger down
+                                    awaitFirstDown(requireUnconsumed = false)
 
-                                var zoom = 1f
-                                var pan = Offset.Zero
-                                var totalPanX = 0f
-                                var isPinching = false
+                                    var zoom = 1f
+                                    var pan = Offset.Zero
+                                    var totalPanX = 0f
+                                    var isPinching = false
 
-                                do {
-                                    val event = awaitPointerEvent()
-                                    val pointerCount = event.changes.size
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val pointerCount = event.changes.size
 
-                                    // Detect if this is a pinch gesture (2+ fingers)
-                                    if (pointerCount >= 2) {
-                                        isPinching = true
-                                        zoom = event.calculateZoom()
-                                        pan = event.calculatePan()
+                                        // Detect if this is a pinch gesture (2+ fingers)
+                                        if (pointerCount >= 2) {
+                                            isPinching = true
+                                            zoom = event.calculateZoom()
+                                            pan = event.calculatePan()
 
-                                        // Apply zoom
-                                        val newScale = (scale * zoom).coerceIn(minScale, maxScale)
-                                        scale = newScale
+                                            // Apply zoom
+                                            val newScale = (scale * zoom).coerceIn(minScale, maxScale)
+                                            scale = newScale
 
-                                        // Apply pan when zoomed
-                                        if (scale > 1f) {
-                                            val maxOffsetX = (size.width * (scale - 1)) / 2
-                                            val maxOffsetY = (size.height * (scale - 1)) / 2
-                                            offset = Offset(
-                                                x = (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
-                                                y = (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
-                                            )
-                                        }
-                                    } else if (pointerCount == 1 && !isPinching) {
-                                        // Single finger drag
-                                        val change = event.changes.first()
-                                        if (change.positionChanged()) {
-                                            val dragAmount = change.position - change.previousPosition
-
-                                            if (scale > 1.1f) {
-                                                // When zoomed, pan the image
+                                            // Apply pan when zoomed
+                                            if (scale > 1f) {
                                                 val maxOffsetX = (size.width * (scale - 1)) / 2
                                                 val maxOffsetY = (size.height * (scale - 1)) / 2
-                                                offset = Offset(
-                                                    x = (offset.x + dragAmount.x).coerceIn(-maxOffsetX, maxOffsetX),
-                                                    y = (offset.y + dragAmount.y).coerceIn(-maxOffsetY, maxOffsetY)
-                                                )
-                                            } else {
-                                                // When not zoomed, track for page swipe
-                                                totalPanX += dragAmount.x
+                                                offset =
+                                                    Offset(
+                                                        x = (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                                        y = (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY),
+                                                    )
+                                            }
+                                        } else if (pointerCount == 1 && !isPinching) {
+                                            // Single finger drag
+                                            val change = event.changes.first()
+                                            if (change.positionChanged()) {
+                                                val dragAmount = change.position - change.previousPosition
+
+                                                if (scale > 1.1f) {
+                                                    // When zoomed, pan the image
+                                                    val maxOffsetX = (size.width * (scale - 1)) / 2
+                                                    val maxOffsetY = (size.height * (scale - 1)) / 2
+                                                    offset =
+                                                        Offset(
+                                                            x = (offset.x + dragAmount.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                                            y = (offset.y + dragAmount.y).coerceIn(-maxOffsetY, maxOffsetY),
+                                                        )
+                                                } else {
+                                                    // When not zoomed, track for page swipe
+                                                    totalPanX += dragAmount.x
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // Consume all changes
-                                    event.changes.forEach { it.consume() }
+                                        // Consume all changes
+                                        event.changes.forEach { it.consume() }
+                                    } while (event.changes.any { it.pressed })
 
-                                } while (event.changes.any { it.pressed })
-
-                                // Gesture ended - check for page swipe (only when not zoomed and wasn't pinching)
-                                if (!isPinching && scale <= 1.1f) {
-                                    if (totalPanX < -swipeThreshold && currentPage < totalPages - 1) {
-                                        currentPage++ // Swipe left = next page
-                                    } else if (totalPanX > swipeThreshold && currentPage > 0) {
-                                        currentPage-- // Swipe right = previous page
-                                    }
-                                }
-                            }
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = {
-                                    // Toggle zoom on double tap
-                                    if (scale > 1.5f) {
-                                        scale = 1f
-                                        offset = Offset.Zero
-                                    } else {
-                                        scale = 2.5f
+                                    // Gesture ended - check for page swipe (only when not zoomed and wasn't pinching)
+                                    if (!isPinching && scale <= 1.1f) {
+                                        if (totalPanX < -swipeThreshold && currentPage < totalPages - 1) {
+                                            currentPage++ // Swipe left = next page
+                                        } else if (totalPanX > swipeThreshold && currentPage > 0) {
+                                            currentPage-- // Swipe right = previous page
+                                        }
                                     }
                                 }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
+                            }.pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = {
+                                        // Toggle zoom on double tap
+                                        if (scale > 1.5f) {
+                                            scale = 1f
+                                            offset = Offset.Zero
+                                        } else {
+                                            scale = 2.5f
+                                        }
+                                    },
+                                )
+                            },
+                    contentAlignment = Alignment.Center,
                 ) {
                     Image(
                         bitmap = pageBitmap!!.asImageBitmap(),
                         contentDescription = stringResource(R.string.pdf_page_description, currentPage + 1),
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y
-                            )
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = offset.x,
+                                    translationY = offset.y,
+                                ),
                     )
                 }
             }
@@ -487,24 +493,26 @@ private fun PdfViewerContent(
 
         // Header with improved styling
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter),
             color = headerColor,
-            shadowElevation = 4.dp
+            shadowElevation = 4.dp,
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.close),
-                        tint = contentColor
+                        tint = contentColor,
                     )
                 }
 
@@ -514,7 +522,7 @@ private fun PdfViewerContent(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1
+                    maxLines = 1,
                 )
 
                 // Zoom indicator
@@ -523,7 +531,7 @@ private fun PdfViewerContent(
                         text = stringResource(R.string.zoom_percentage, (scale * 100).toInt()),
                         color = contentColor.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(end = 12.dp)
+                        modifier = Modifier.padding(end = 12.dp),
                     )
                 } else {
                     Spacer(modifier = Modifier.width(48.dp))
@@ -534,27 +542,28 @@ private fun PdfViewerContent(
         // Page navigation - compact pill style at bottom
         if (totalPages > 1) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp),
                 shape = RoundedCornerShape(24.dp),
                 color = headerColor,
-                shadowElevation = 6.dp
+                shadowElevation = 6.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
                         onClick = { if (currentPage > 0) currentPage-- },
                         enabled = currentPage > 0,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
                             contentDescription = stringResource(R.string.previous_page),
-                            tint = if (currentPage > 0) contentColor else contentColor.copy(alpha = 0.3f)
+                            tint = if (currentPage > 0) contentColor else contentColor.copy(alpha = 0.3f),
                         )
                     }
 
@@ -562,18 +571,18 @@ private fun PdfViewerContent(
                         text = stringResource(R.string.page_indicator, currentPage + 1, totalPages),
                         color = contentColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 12.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
 
                     IconButton(
                         onClick = { if (currentPage < totalPages - 1) currentPage++ },
                         enabled = currentPage < totalPages - 1,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateNext,
                             contentDescription = stringResource(R.string.next_page),
-                            tint = if (currentPage < totalPages - 1) contentColor else contentColor.copy(alpha = 0.3f)
+                            tint = if (currentPage < totalPages - 1) contentColor else contentColor.copy(alpha = 0.3f),
                         )
                     }
                 }
@@ -586,7 +595,7 @@ private fun PdfViewerContent(
 private fun TextViewerContent(
     documentUri: String,
     fileName: String?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     var textContent by remember { mutableStateOf<String?>(null) }
@@ -598,11 +607,12 @@ private fun TextViewerContent(
         withContext(Dispatchers.IO) {
             try {
                 val uri = Uri.parse(documentUri)
-                textContent = context.contentResolver.openInputStream(uri)?.use { stream ->
-                    stream.bufferedReader().use { reader ->
-                        reader.readText()
+                textContent =
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader().use { reader ->
+                            reader.readText()
+                        }
                     }
-                }
                 isLoading = false
             } catch (e: Exception) {
                 errorMessage = context.getString(R.string.error_reading_file, e.message ?: "")
@@ -619,29 +629,32 @@ private fun TextViewerContent(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
     ) {
         // Header
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter),
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 4.dp
+            shadowElevation = 4.dp,
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.close)
+                        contentDescription = stringResource(R.string.close),
                     )
                 }
 
@@ -649,7 +662,7 @@ private fun TextViewerContent(
                     text = fileName ?: stringResource(R.string.text_document),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
                 )
 
                 Spacer(modifier = Modifier.width(48.dp))
@@ -661,29 +674,31 @@ private fun TextViewerContent(
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
                 )
             }
             errorMessage != null -> {
                 Text(
                     text = errorMessage ?: stringResource(R.string.unknown_error),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(32.dp),
-                    textAlign = TextAlign.Center
+                    modifier =
+                        Modifier
+                            .align(Alignment.Center)
+                            .padding(32.dp),
+                    textAlign = TextAlign.Center,
                 )
             }
             textContent != null -> {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 64.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(top = 64.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
                 ) {
                     Text(
                         text = textContent ?: "",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
@@ -695,40 +710,43 @@ private fun TextViewerContent(
 private fun UnsupportedDocumentContent(
     fileName: String?,
     mimeType: String?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
     ) {
         // Close button
         Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
             IconButton(onClick = onDismiss) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.close)
+                    contentDescription = stringResource(R.string.close),
                 )
             }
         }
 
         Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.Description,
                 contentDescription = null, // Decorative icon - document placeholder
                 modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -736,7 +754,7 @@ private fun UnsupportedDocumentContent(
             Text(
                 text = fileName ?: stringResource(R.string.document),
                 style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -745,7 +763,7 @@ private fun UnsupportedDocumentContent(
                 text = stringResource(R.string.unsupported_preview),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
 
             if (mimeType != null) {
@@ -753,7 +771,7 @@ private fun UnsupportedDocumentContent(
                 Text(
                     text = stringResource(R.string.file_type_label, mimeType),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
             }
         }
@@ -766,7 +784,10 @@ private const val TAG = "DocViewer"
  * Gets a ParcelFileDescriptor for the given URI.
  * Includes proper error logging, file existence checks, and URI decoding.
  */
-private fun getFileDescriptor(context: Context, uriString: String): ParcelFileDescriptor? {
+private fun getFileDescriptor(
+    context: Context,
+    uriString: String,
+): ParcelFileDescriptor? {
     Log.d(TAG, "Opening file: $uriString")
     return try {
         val uri = Uri.parse(uriString)
@@ -779,10 +800,11 @@ private fun getFileDescriptor(context: Context, uriString: String): ParcelFileDe
                 fd
             }
             "file" -> {
-                val path = uri.path ?: run {
-                    Log.e(TAG, "URI path is null: $uriString")
-                    return null
-                }
+                val path =
+                    uri.path ?: run {
+                        Log.e(TAG, "URI path is null: $uriString")
+                        return null
+                    }
                 val decodedPath = java.net.URLDecoder.decode(path, "UTF-8")
                 val file = File(decodedPath)
                 if (!file.exists()) {

@@ -151,7 +151,8 @@ class SmartyRepository(
         // 2. OPTIMIZATION: Batch update category counts
         // Group notes by category and count in a single pass
         val categoryCounts =
-            notes.mapNotNull { it.categoryId }
+            notes
+                .mapNotNull { it.categoryId }
                 .groupingBy { it }
                 .eachCount()
 
@@ -168,9 +169,7 @@ class SmartyRepository(
      * Get application context.
      * Required for some AI fallback logic and resource resolution.
      */
-    fun getApplicationContext(): android.content.Context {
-        return context ?: com.example.smarty.SmartyApplication.appInstance.applicationContext
-    }
+    fun getApplicationContext(): android.content.Context = context ?: com.example.smarty.SmartyApplication.appInstance.applicationContext
 
     // =========================================================================
     // NOTES - FLOW OPERATIONS
@@ -368,7 +367,8 @@ class SmartyRepository(
         noteDao.insertNotes(notes)
 
         // OPTIMIZATION: Batch category count updates
-        notes.mapNotNull { it.categoryId }
+        notes
+            .mapNotNull { it.categoryId }
             .groupingBy { it }
             .eachCount()
             .forEach { (categoryId, count) ->
@@ -575,7 +575,10 @@ class SmartyRepository(
                 val latestVersion = noteVersionDao.getLatestVersionNumber(note.id) ?: 0
                 val newVersion =
                     NoteVersionEntity(
-                        id = java.util.UUID.randomUUID().toString(),
+                        id =
+                            java.util.UUID
+                                .randomUUID()
+                                .toString(),
                         noteId = note.id,
                         title = currentNote.title,
                         content = currentNote.content,
@@ -616,7 +619,10 @@ class SmartyRepository(
         val latestVersion = noteVersionDao.getLatestVersionNumber(noteId) ?: 0
         val saveVersion =
             NoteVersionEntity(
-                id = java.util.UUID.randomUUID().toString(),
+                id =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 noteId = noteId,
                 title = currentNote.title,
                 content = currentNote.content,
@@ -690,7 +696,10 @@ class SmartyRepository(
         // Create new category
         val newCategory =
             Category(
-                id = java.util.UUID.randomUUID().toString(),
+                id =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 name = categoryName,
                 createdAt = System.currentTimeMillis(),
             )
@@ -829,8 +838,8 @@ class SmartyRepository(
     }
 }
 
-private fun NoteVersionEntity.toDomain(): NoteVersion {
-    return NoteVersion(
+private fun NoteVersionEntity.toDomain(): NoteVersion =
+    NoteVersion(
         id = id,
         noteId = noteId,
         title = title,
@@ -840,4 +849,3 @@ private fun NoteVersionEntity.toDomain(): NoteVersion {
         createdAt = createdAt,
         changeDescription = changeDescription,
     )
-}

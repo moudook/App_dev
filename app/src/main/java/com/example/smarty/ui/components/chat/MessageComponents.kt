@@ -1,8 +1,6 @@
 package com.example.smarty.ui.components.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +23,7 @@ import kotlinx.coroutines.delay
 
 /**
  * MessageBubble - User message bubble component.
- * 
+ *
  * Single Responsibility: Only displays user message bubble.
  * DRY: Centralized bubble styling.
  */
@@ -34,76 +32,80 @@ fun UserMessageBubble(
     content: String,
     timestamp: String,
     modifier: Modifier = Modifier,
-    onCopy: () -> Unit = {}
+    onCopy: () -> Unit = {},
 ) {
     // Inverted colors for user bubble: opposite of theme
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val accentColor = LocalAccentColor.current
     val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
-    val userBubbleTextColor = if (isDark) {
-        Color(0xFF1A1A1A)
-    } else {
-        Color.Black
-    }
-    
+    val userBubbleTextColor =
+        if (isDark) {
+            Color(0xFF1A1A1A)
+        } else {
+            Color.Black
+        }
+
     var showCopied by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(showCopied) {
         if (showCopied) {
             delay(1500)
             showCopied = false
         }
     }
-    
+
     Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.End
+        horizontalAlignment = Alignment.End,
     ) {
         Surface(
             color = userBubbleBackground,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
         ) {
             Box(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(
                     text = content,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp,
-                        lineHeight = 22.sp
-                    ),
-                    color = userBubbleTextColor
+                    style =
+                        MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp,
+                        ),
+                    color = userBubbleTextColor,
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(6.dp))
-        
+
         // Copy icon and timestamp
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = timestamp,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp
-                ),
-                color = userBubbleTextColor.copy(alpha = 0.6f)
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                    ),
+                color = userBubbleTextColor.copy(alpha = 0.6f),
             )
-            
+
             Icon(
                 imageVector = if (showCopied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
                 contentDescription = "Copy",
-                modifier = Modifier
-                    .size(16.dp)
-                    .clickable { 
-                        onCopy()
-                        showCopied = true
-                    },
-                tint = if (showCopied) LocalAccentColor.current else userBubbleTextColor.copy(alpha = 0.6f)
+                modifier =
+                    Modifier
+                        .size(16.dp)
+                        .clickable {
+                            onCopy()
+                            showCopied = true
+                        },
+                tint = if (showCopied) LocalAccentColor.current else userBubbleTextColor.copy(alpha = 0.6f),
             )
         }
     }
@@ -111,18 +113,19 @@ fun UserMessageBubble(
 
 /**
  * AssistantMessageContainer - Container for assistant messages.
- * 
+ *
  * Single Responsibility: Only provides message container layout.
  */
 @Composable
 fun AssistantMessageContainer(
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .widthIn(max = 640.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .widthIn(max = 640.dp),
     ) {
         content()
     }
@@ -130,33 +133,36 @@ fun AssistantMessageContainer(
 
 /**
  * MessageTimestamp - Reusable timestamp component.
- * 
+ *
  * Single Responsibility: Only displays formatted timestamp.
  */
 @Composable
 fun MessageTimestamp(
     timestamp: Long,
     modifier: Modifier = Modifier,
-    isUser: Boolean = false
+    isUser: Boolean = false,
 ) {
-    val textColor = if (isUser) {
-        MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.6f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    
-    val formattedTimestamp = remember(timestamp) {
-        formatTimestamp(timestamp)
-    }
-    
+    val textColor =
+        if (isUser) {
+            MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.6f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+    val formattedTimestamp =
+        remember(timestamp) {
+            formatTimestamp(timestamp)
+        }
+
     Text(
         text = formattedTimestamp,
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp
-        ),
+        style =
+            MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+            ),
         color = textColor,
-        modifier = modifier
+        modifier = modifier,
     )
 }
 
@@ -170,7 +176,7 @@ private fun formatTimestamp(timestamp: Long): String {
 
 /**
  * MessageActions - Copy, delete, regenerate actions.
- * 
+ *
  * Single Responsibility: Only handles message action buttons.
  */
 @Composable
@@ -180,39 +186,39 @@ fun MessageActions(
     onRegenerate: () -> Unit = {},
     modifier: Modifier = Modifier,
     showDelete: Boolean = true,
-    showRegenerate: Boolean = true
+    showRegenerate: Boolean = true,
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         IconButton(onClick = onCopy, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = Icons.Default.ContentCopy,
                 contentDescription = "Copy",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
         }
-        
+
         if (showDelete) {
             IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = androidx.compose.material.icons.Icons.Default.Delete,
                     contentDescription = "Delete",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
-        
+
         if (showRegenerate) {
             IconButton(onClick = onRegenerate, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = androidx.compose.material.icons.Icons.Default.Refresh,
                     contentDescription = "Regenerate",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }

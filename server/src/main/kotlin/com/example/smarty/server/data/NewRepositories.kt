@@ -157,7 +157,10 @@ class TaskRepository(
             }
         }
 
-    suspend fun getTasksForSession(sessionId: String, limit: Int = 100): List<Task> =
+    suspend fun getTasksForSession(
+        sessionId: String,
+        limit: Int = 100,
+    ): List<Task> =
         withContext(Dispatchers.IO) {
             val tasks = mutableListOf<Task>()
             dataSource.connection.use { conn ->
@@ -239,7 +242,10 @@ class TagRepository(
             }
         }
 
-    suspend fun getTagsForUser(userId: String, limit: Int = 100): List<Tag> =
+    suspend fun getTagsForUser(
+        userId: String,
+        limit: Int = 100,
+    ): List<Tag> =
         withContext(Dispatchers.IO) {
             val tags = mutableListOf<Tag>()
             dataSource.connection.use { conn ->
@@ -287,7 +293,10 @@ class TagRepository(
             }
         }
 
-    suspend fun getNotesForTag(tagId: String, limit: Int = 100): List<NoteForTag> =
+    suspend fun getNotesForTag(
+        tagId: String,
+        limit: Int = 100,
+    ): List<NoteForTag> =
         withContext(Dispatchers.IO) {
             val notes = mutableListOf<NoteForTag>()
             dataSource.connection.use { conn ->
@@ -593,7 +602,10 @@ class ChatFolderRepository(
             folder.id
         }
 
-    suspend fun getFoldersForUser(userId: String, limit: Int = 50): List<ChatFolder> =
+    suspend fun getFoldersForUser(
+        userId: String,
+        limit: Int = 50,
+    ): List<ChatFolder> =
         withContext(Dispatchers.IO) {
             val folders = mutableListOf<ChatFolder>()
             dataSource.connection.use { conn ->
@@ -782,7 +794,10 @@ class UserDeviceRepository(
             device.id
         }
 
-    suspend fun getDevicesForUser(userId: String, limit: Int = 20): List<UserDevice> =
+    suspend fun getDevicesForUser(
+        userId: String,
+        limit: Int = 20,
+    ): List<UserDevice> =
         withContext(Dispatchers.IO) {
             val devices = mutableListOf<UserDevice>()
             dataSource.connection.use { conn ->
@@ -1017,7 +1032,10 @@ class SharedItemRepository(
             item.id
         }
 
-    suspend fun getSharedItemsForUser(userId: String, limit: Int = 50): List<SharedItem> =
+    suspend fun getSharedItemsForUser(
+        userId: String,
+        limit: Int = 50,
+    ): List<SharedItem> =
         withContext(Dispatchers.IO) {
             val items = mutableListOf<SharedItem>()
             dataSource.connection.use { conn ->

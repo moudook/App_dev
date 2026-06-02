@@ -11,7 +11,6 @@ import androidx.compose.ui.unit.dp
  * so the UI and animation files stay clean and easily tweakable.
  */
 object CoinTossConstants {
-
     // ── Coin Dimensions ──────────────────────────────────────────
     val COIN_SIZE = 220.dp
     const val EDGE_SLICE_COUNT = 12
@@ -26,25 +25,28 @@ object CoinTossConstants {
     val COIN_FALLBACK_COLOR = Color(0xFFB8860B)
     val COIN_SPOT_SHADOW = Color(0xFF8B6508)
 
-    val EDGE_GRADIENT_COLORS = listOf(
-        Color(0xFF8B6508),
-        Color(0xFFDAA520),
-        Color(0xFF5A4005),
-        Color(0xFFDAA520),
-        Color(0xFF8B6508)
-    )
+    val EDGE_GRADIENT_COLORS =
+        listOf(
+            Color(0xFF8B6508),
+            Color(0xFFDAA520),
+            Color(0xFF5A4005),
+            Color(0xFFDAA520),
+            Color(0xFF8B6508),
+        )
 
-    val ROYAL_GOLD_GRADIENT = Brush.linearGradient(
-        colors = listOf(
-            Color(0xFFFFF0A8), // Bright highlight
-            Color(0xFFFFD700), // Gold
-            Color(0xFFB8860B), // Dark Gold
-            Color(0xFFDAA520), // Mid Gold
-            Color(0xFFFFF0A8)  // Highlight edge
-        ),
-        start = Offset(0f, 0f),
-        end = Offset(200f, 1000f)
-    )
+    val ROYAL_GOLD_GRADIENT =
+        Brush.linearGradient(
+            colors =
+                listOf(
+                    Color(0xFFFFF0A8), // Bright highlight
+                    Color(0xFFFFD700), // Gold
+                    Color(0xFFB8860B), // Dark Gold
+                    Color(0xFFDAA520), // Mid Gold
+                    Color(0xFFFFF0A8), // Highlight edge
+                ),
+            start = Offset(0f, 0f),
+            end = Offset(200f, 1000f),
+        )
 
     // ── Shadow Defaults ──────────────────────────────────────────
     val FLOOR_SHADOW_WIDTH = 160.dp
@@ -53,7 +55,7 @@ object CoinTossConstants {
 
     // ── Animation Timing (ms) ────────────────────────────────────
     const val LAUNCH_TIME = 600
-    const val PEAK_TIME = 3800    // Slow-mo "wish" period
+    const val PEAK_TIME = 3800 // Slow-mo "wish" period
     const val FALL_TIME = 600
     const val MIN_SPINS = 12
 

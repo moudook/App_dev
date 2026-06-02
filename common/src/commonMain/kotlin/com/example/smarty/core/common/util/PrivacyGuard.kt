@@ -28,7 +28,10 @@ import com.example.smarty.core.domain.model.Note
  * ============================================================================
  */
 
-class PrivacyGuard(private val logger: Logger, private val messageProvider: SecurityMessageProvider) {
+class PrivacyGuard(
+    private val logger: Logger,
+    private val messageProvider: SecurityMessageProvider,
+) {
     companion object {
         private const val TAG = "PrivacyGuard"
 
@@ -98,9 +101,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Check if a note is private (blocked from AI)
      * A note is private if EITHER flag is set
      */
-    fun isPrivate(note: Note): Boolean {
-        return note.isFullPrivacy || note.excludeFromAiChat
-    }
+    fun isPrivate(note: Note): Boolean = note.isFullPrivacy || note.excludeFromAiChat
 
     /**
      * Check if a note is accessible to AI
@@ -136,25 +137,19 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Filter notes for AI context (chat, search, suggestions)
      * Private notes are COMPLETELY INVISIBLE
      */
-    fun filterForAiContext(notes: List<Note>): List<Note> {
-        return getAiVisibleNotes(notes)
-    }
+    fun filterForAiContext(notes: List<Note>): List<Note> = getAiVisibleNotes(notes)
 
     /**
      * Filter notes for AI search operations
      * Private notes are COMPLETELY INVISIBLE
      */
-    fun filterForAiSearch(notes: List<Note>): List<Note> {
-        return getAiVisibleNotes(notes)
-    }
+    fun filterForAiSearch(notes: List<Note>): List<Note> = getAiVisibleNotes(notes)
 
     /**
      * Filter notes for AI modifications (delete, archive, update)
      * Private notes CANNOT be modified by AI
      */
-    fun filterForAiModification(notes: List<Note>): List<Note> {
-        return getAiVisibleNotes(notes)
-    }
+    fun filterForAiModification(notes: List<Note>): List<Note> = getAiVisibleNotes(notes)
 
     /**
      * Find a note by ID - returns null if note is private
@@ -218,16 +213,12 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
     /**
      * Get count of AI-accessible notes (private notes not counted)
      */
-    fun getAiAccessibleCount(notes: List<Note>): Int {
-        return notes.count { isAiAccessible(it) }
-    }
+    fun getAiAccessibleCount(notes: List<Note>): Int = notes.count { isAiAccessible(it) }
 
     /**
      * Check if any notes in list are private (for validation)
      */
-    fun containsPrivateNotes(notes: List<Note>): Boolean {
-        return notes.any { isPrivate(it) }
-    }
+    fun containsPrivateNotes(notes: List<Note>): Boolean = notes.any { isPrivate(it) }
 
     /**
      * Sanitize a list to ensure no private notes leak to AI
@@ -252,12 +243,11 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
     fun filterNoteIds(
         noteIds: List<String>,
         allNotes: List<Note>,
-    ): List<String> {
-        return noteIds.filter { noteId ->
+    ): List<String> =
+        noteIds.filter { noteId ->
             val note = allNotes.find { it.id == noteId }
             note != null && isAiAccessible(note)
         }
-    }
 
     /**
      * Check if a note ID refers to a private note
@@ -283,9 +273,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * - Recommendation: Users should delete chat history if they make notes private
      * - Future enhancement: Implement chat history scrubbing when privacy status changes
      */
-    fun getSecurityNotice(): String {
-        return "Chat history from before a note was marked private may contain references to that note."
-    }
+    fun getSecurityNotice(): String = "Chat history from before a note was marked private may contain references to that note."
 
     // =========================================================================
     // GENERIC PRIVACY-AWARE FILTERING
@@ -329,9 +317,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
      * Check if AI can process a PrivacyAware entity.
      * Returns false for private entities.
      */
-    fun <T : PrivacyAware> canAiProcessGeneric(item: T): Boolean {
-        return !item.isPrivate
-    }
+    fun <T : PrivacyAware> canAiProcessGeneric(item: T): Boolean = !item.isPrivate
 
     // =========================================================================
     // CHAT MESSAGE SANITIZATION
@@ -383,9 +369,7 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
     fun sanitizeForChatPersistence(
         referencedNoteIds: List<String>,
         allNotes: List<Note>,
-    ): List<String> {
-        return sanitizeReferencedNoteIds(referencedNoteIds, allNotes)
-    }
+    ): List<String> = sanitizeReferencedNoteIds(referencedNoteIds, allNotes)
 
     /**
      * Check if any note in a list of IDs refers to a private note.
@@ -394,12 +378,11 @@ class PrivacyGuard(private val logger: Logger, private val messageProvider: Secu
     fun containsPrivateNoteIds(
         noteIds: List<String>,
         allNotes: List<Note>,
-    ): Boolean {
-        return noteIds.any { noteId ->
+    ): Boolean =
+        noteIds.any { noteId ->
             val note = allNotes.find { it.id == noteId }
             note != null && isPrivate(note)
         }
-    }
 
     /**
      * Assert that no private note IDs are present.

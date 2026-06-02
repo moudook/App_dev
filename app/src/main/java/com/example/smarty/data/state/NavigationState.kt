@@ -143,13 +143,12 @@ class NavigationState {
     fun buildRoute(
         baseRoute: String,
         vararg args: String,
-    ): String {
-        return if (args.isEmpty()) {
+    ): String =
+        if (args.isEmpty()) {
             baseRoute
         } else {
             "$baseRoute/${args.joinToString("/")}"
         }
-    }
 
     /**
      * Parse route arguments.

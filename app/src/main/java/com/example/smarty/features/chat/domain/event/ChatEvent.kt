@@ -15,9 +15,14 @@ import com.example.smarty.features.chat.domain.state.AttachmentOption
  */
 sealed class ChatEvent {
     // User input events
-    data class MessageSent(val content: String, val attachments: List<Attachment> = emptyList()) : ChatEvent()
+    data class MessageSent(
+        val content: String,
+        val attachments: List<Attachment> = emptyList(),
+    ) : ChatEvent()
 
-    data class InputTextChanged(val newText: TextFieldValue) : ChatEvent()
+    data class InputTextChanged(
+        val newText: TextFieldValue,
+    ) : ChatEvent()
 
     data object InputSubmitted : ChatEvent()
 
@@ -32,47 +37,85 @@ sealed class ChatEvent {
     data object RecordingStopped : ChatEvent()
 
     // Message interaction events
-    data class MessageCopied(val messageId: String, val content: String) : ChatEvent()
+    data class MessageCopied(
+        val messageId: String,
+        val content: String,
+    ) : ChatEvent()
 
-    data class MessageDeleted(val messageId: String) : ChatEvent()
+    data class MessageDeleted(
+        val messageId: String,
+    ) : ChatEvent()
 
-    data class MessageRegenerated(val messageId: String) : ChatEvent()
+    data class MessageRegenerated(
+        val messageId: String,
+    ) : ChatEvent()
 
-    data class MessageEdited(val message: ChatMessage) : ChatEvent()
+    data class MessageEdited(
+        val message: ChatMessage,
+    ) : ChatEvent()
 
-    data class SuggestionClicked(val suggestion: String) : ChatEvent()
+    data class SuggestionClicked(
+        val suggestion: String,
+    ) : ChatEvent()
 
-    data class ClarificationSubmitted(val messageId: String, val response: String) : ChatEvent()
+    data class ClarificationSubmitted(
+        val messageId: String,
+        val response: String,
+    ) : ChatEvent()
 
-    data class NoteClicked(val noteId: String) : ChatEvent()
+    data class NoteClicked(
+        val noteId: String,
+    ) : ChatEvent()
 
-    data class CitationClicked(val citation: com.example.smarty.core.domain.model.Citation) : ChatEvent()
+    data class CitationClicked(
+        val citation: com.example.smarty.core.domain.model.Citation,
+    ) : ChatEvent()
 
-    data class ImageExpanded(val messageId: String, val imageIndex: Int) : ChatEvent()
+    data class ImageExpanded(
+        val messageId: String,
+        val imageIndex: Int,
+    ) : ChatEvent()
 
     // UI state events
-    data class InputFocusChanged(val isFocused: Boolean) : ChatEvent()
+    data class InputFocusChanged(
+        val isFocused: Boolean,
+    ) : ChatEvent()
 
-    data class AttachmentPanelToggled(val isVisible: Boolean) : ChatEvent()
+    data class AttachmentPanelToggled(
+        val isVisible: Boolean,
+    ) : ChatEvent()
 
-    data class HistorySheetToggled(val isVisible: Boolean) : ChatEvent()
+    data class HistorySheetToggled(
+        val isVisible: Boolean,
+    ) : ChatEvent()
 
-    data class ContextMenuOpened(val messageId: String) : ChatEvent()
+    data class ContextMenuOpened(
+        val messageId: String,
+    ) : ChatEvent()
 
     data object ContextMenuClosed : ChatEvent()
 
-    data class ScrollPositionChanged(val position: Int, val isAtLatest: Boolean) : ChatEvent()
+    data class ScrollPositionChanged(
+        val position: Int,
+        val isAtLatest: Boolean,
+    ) : ChatEvent()
 
     data object ScrollToBottomRequested : ChatEvent()
 
     data object ScrollToTopRequested : ChatEvent()
 
     // Attachment events
-    data class AttachmentAdded(val attachment: Attachment) : ChatEvent()
+    data class AttachmentAdded(
+        val attachment: Attachment,
+    ) : ChatEvent()
 
-    data class AttachmentRemoved(val attachmentId: String) : ChatEvent()
+    data class AttachmentRemoved(
+        val attachmentId: String,
+    ) : ChatEvent()
 
-    data class AttachmentPickRequested(val type: AttachmentType) : ChatEvent()
+    data class AttachmentPickRequested(
+        val type: AttachmentType,
+    ) : ChatEvent()
 
     data object CameraRequested : ChatEvent()
 
@@ -81,30 +124,45 @@ sealed class ChatEvent {
 
     data object ChatHistoryRequested : ChatEvent()
 
-    data class ChatSessionLoaded(val sessionId: String) : ChatEvent()
+    data class ChatSessionLoaded(
+        val sessionId: String,
+    ) : ChatEvent()
 
     data object GenerationStopped : ChatEvent()
 
     // Search and filter events
     data object SearchModeToggled : ChatEvent()
 
-    data class FilterToggled(val filter: AttachmentOption) : ChatEvent()
+    data class FilterToggled(
+        val filter: AttachmentOption,
+    ) : ChatEvent()
 
     data object FiltersCleared : ChatEvent()
 
     // Mention events
-    data class MentionSelected(val mention: MentionSuggestion) : ChatEvent()
+    data class MentionSelected(
+        val mention: MentionSuggestion,
+    ) : ChatEvent()
 
-    data class MentionQueryChanged(val query: String) : ChatEvent()
+    data class MentionQueryChanged(
+        val query: String,
+    ) : ChatEvent()
 
     // Error handling
-    data class ErrorOccurred(val message: String, val error: Throwable? = null) : ChatEvent()
+    data class ErrorOccurred(
+        val message: String,
+        val error: Throwable? = null,
+    ) : ChatEvent()
 
     data object ErrorDismissed : ChatEvent()
 
-    data class ModelSelected(val modelId: String) : ChatEvent()
+    data class ModelSelected(
+        val modelId: String,
+    ) : ChatEvent()
 
-    data class VariantSelected(val variant: String?) : ChatEvent()
+    data class VariantSelected(
+        val variant: String?,
+    ) : ChatEvent()
 
     data object ModelsRefreshRequested : ChatEvent()
 }
@@ -130,8 +188,8 @@ sealed class AttachmentType {
     data object Research : AttachmentType()
 
     companion object {
-        fun fromDomain(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentType {
-            return when (type.name) {
+        fun fromDomain(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentType =
+            when (type.name) {
                 "IMAGE" -> Image
                 "VIDEO" -> Video
                 "DOCUMENT" -> Document
@@ -140,6 +198,5 @@ sealed class AttachmentType {
                 "RESEARCH" -> Research
                 else -> Document // Default fallback for any other type
             }
-        }
     }
 }

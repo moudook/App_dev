@@ -153,7 +153,10 @@ private fun buildLogEntry(
     message: String,
     additionalFields: Map<String, String> = emptyMap(),
 ): String {
-    val timestamp = java.time.Instant.now().toString()
+    val timestamp =
+        java.time.Instant
+            .now()
+            .toString()
 
     return buildString {
         append("{")
@@ -180,17 +183,14 @@ private fun buildLogEntry(
     }
 }
 
-private fun ApplicationCall.getUserId(): String? {
-    return try {
+private fun ApplicationCall.getUserId(): String? =
+    try {
         principal<FirebaseUserPrincipal>()?.userId
     } catch (e: Exception) {
         null
     }
-}
 
-private fun ApplicationCall.getDeviceId(): String? {
-    return request.headers["X-Smarty-Device-Id"]
-}
+private fun ApplicationCall.getDeviceId(): String? = request.headers["X-Smarty-Device-Id"]
 
 suspend fun PipelineContext<*, ApplicationCall>.logEvent(
     level: String = "INFO",
@@ -233,7 +233,10 @@ suspend fun PipelineContext<*, ApplicationCall>.logError(
     val correlationId = call.attributes.getOrNull(StructuredLogging.CorrelationIdKey) ?: "unknown"
     val requestId = call.attributes.getOrNull(StructuredLogging.RequestIdKey) ?: "unknown"
     val logger = LoggerFactory.getLogger("ErrorLogging")
-    val timestamp = java.time.Instant.now().toString()
+    val timestamp =
+        java.time.Instant
+            .now()
+            .toString()
 
     val logEntry =
         buildString {

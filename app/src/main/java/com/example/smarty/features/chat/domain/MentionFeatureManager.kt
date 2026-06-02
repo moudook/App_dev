@@ -223,8 +223,8 @@ class MentionFeatureManager(
         return suggestions.take(MAX_SUGGESTIONS)
     }
 
-    private fun getMatchingCommands(query: String): List<MentionSuggestion.CommandSuggestion> {
-        return MentionParser.getMatchingCommands(query).map { cmdInfo ->
+    private fun getMatchingCommands(query: String): List<MentionSuggestion.CommandSuggestion> =
+        MentionParser.getMatchingCommands(query).map { cmdInfo ->
             MentionSuggestion.CommandSuggestion(
                 commandName = cmdInfo.name,
                 displayName = cmdInfo.getDisplayName(repository.getApplicationContext()),
@@ -232,7 +232,6 @@ class MentionFeatureManager(
                 icon = cmdInfo.icon,
             )
         }
-    }
 
     private suspend fun getMatchingTypeFilters(query: String): List<MentionSuggestion.TypeFilter> {
         refreshCacheIfNeeded()
@@ -254,8 +253,7 @@ class MentionFeatureManager(
                 } else {
                     null
                 }
-            }
-            .sortedByDescending { it.count }
+            }.sortedByDescending { it.count }
     }
 
     private suspend fun getMatchingSpecialFilters(query: String): List<MentionSuggestion.SpecialFilter> {
@@ -269,7 +267,9 @@ class MentionFeatureManager(
                 val (displayName, count) =
                     when (filterName) {
                         "recent" -> context.getString(com.example.smarty.R.string.recent) to minOf(aiVisibleNotes.size, RECENT_NOTES_LIMIT)
-                        "pinned", "starred", "favorites" -> context.getString(com.example.smarty.R.string.pin) to aiVisibleNotes.count { it.isPinned }
+                        "pinned", "starred", "favorites" ->
+                            context.getString(com.example.smarty.R.string.pin) to
+                                aiVisibleNotes.count { it.isPinned }
                         "all" -> context.getString(com.example.smarty.R.string.notes) to aiVisibleNotes.size
                         else -> filterName.replaceFirstChar { it.uppercase() } to 0
                     }
@@ -279,15 +279,15 @@ class MentionFeatureManager(
                     description = MentionParser.getSpecialFilterDescription(context, filterName),
                     count = count,
                 )
-            }
-            .filter { it.count > 0 }
+            }.filter { it.count > 0 }
     }
 
     private suspend fun searchCategories(query: String): List<MentionSuggestion.CategorySuggestion> {
         // We'll need to add searchCategories to SmartyRepository if it doesn't exist
         // For now, using the cached approach or direct repo access if we update it
         val categories = repository.getAllCategories().first()
-        return categories.filter { it.name.contains(query, ignoreCase = true) }
+        return categories
+            .filter { it.name.contains(query, ignoreCase = true) }
             .map { category ->
                 MentionSuggestion.CategorySuggestion(
                     category = category,
@@ -318,8 +318,7 @@ class MentionFeatureManager(
                     val titleScore = MentionParser.calculateSimilarity(query, note.title)
                     val summaryScore = note.summary?.let { MentionParser.calculateSimilarity(query, it.take(100)) } ?: 0.0
                     Pair(note, maxOf(titleScore, summaryScore * 0.7))
-                }
-                .filter { it.second >= MIN_SEARCH_SCORE }
+                }.filter { it.second >= MIN_SEARCH_SCORE }
 
         val mergedResults = mutableMapOf<String, Pair<Note, Double>>()
         semanticResults.forEach { mergedResults[it.item.id] = Pair(it.item, it.score) }
@@ -369,11 +368,10 @@ class MentionFeatureManager(
         }
     }
 
-    private fun getAiVisibleNotes(): List<Note> {
-        return cachedNotes.filter { note ->
+    private fun getAiVisibleNotes(): List<Note> =
+        cachedNotes.filter { note ->
             !note.isArchived && !note.excludeFromAiChat && !note.isFullPrivacy
         }
-    }
 
     fun invalidateCache() {
         cachedNotes = emptyList()
@@ -383,8 +381,8 @@ class MentionFeatureManager(
     /**
      * Check if a note type has text content sendable to AI.
      */
-    fun hasReadableContent(type: NoteType): Boolean {
-        return when (type) {
+    fun hasReadableContent(type: NoteType): Boolean =
+        when (type) {
             NoteType.BRAIN_DUMP,
             NoteType.YOUTUBE,
             NoteType.WEBSITE,
@@ -405,5 +403,4 @@ class MentionFeatureManager(
             NoteType.FILE,
             -> false
         }
-    }
 }

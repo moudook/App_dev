@@ -40,7 +40,11 @@ class NoteEngagementManager(
             val yesterday = getYesterdayDateKey()
             val currentStreak = prefs.getInt(KEY_STREAK_COUNT, 0)
             val newStreak = if (lastDate == yesterday) currentStreak + 1 else 1
-            prefs.edit().putInt(KEY_STREAK_COUNT, newStreak).putString(KEY_LAST_NOTE_DATE, today).apply()
+            prefs
+                .edit()
+                .putInt(KEY_STREAK_COUNT, newStreak)
+                .putString(KEY_LAST_NOTE_DATE, today)
+                .apply()
             _streakCount.value = newStreak
             Log.d(TAG, "Note streak updated: $newStreak days")
         }
@@ -51,7 +55,11 @@ class NoteEngagementManager(
         if (prefs.getString(KEY_NOTE_OF_THE_DAY_DATE, null) == today) return _noteOfTheDay.value
         val suggestedNote = findResurfacedNote()
         if (suggestedNote != null) {
-            prefs.edit().putString(KEY_NOTE_OF_THE_DAY_DATE, today).putString(KEY_NOTE_OF_THE_DAY_ID, suggestedNote.id).apply()
+            prefs
+                .edit()
+                .putString(KEY_NOTE_OF_THE_DAY_DATE, today)
+                .putString(KEY_NOTE_OF_THE_DAY_ID, suggestedNote.id)
+                .apply()
             _noteOfTheDay.value = suggestedNote
             Log.d(TAG, "Note of the Day: ${suggestedNote.title}")
         }
@@ -62,32 +70,40 @@ class NoteEngagementManager(
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         val contextTypes = getTimeContextTypes(hour)
         val allNotes = repository.getAllNotes().first()
-        val recentNotes = allNotes
-            .filter { note ->
-                val age = System.currentTimeMillis() - note.updatedAt
-                age in (24 * 60 * 60 * 1000L)..(30 * 24 * 60 * 60 * 1000L)
-            }
-            .filter { note ->
-                contextTypes.any { type ->
-                    note.type == type ||
-                        note.content.lowercase().contains(type.name.lowercase()) ||
-                        note.title.lowercase().contains(type.name.lowercase())
-                }
-            }
-            .sortedByDescending { it.updatedAt }
-            .take(3)
+        val recentNotes =
+            allNotes
+                .filter { note ->
+                    val age = System.currentTimeMillis() - note.updatedAt
+                    age in (24 * 60 * 60 * 1000L)..(30 * 24 * 60 * 60 * 1000L)
+                }.filter { note ->
+                    contextTypes.any { type ->
+                        note.type == type ||
+                            note.content.lowercase().contains(type.name.lowercase()) ||
+                            note.title.lowercase().contains(type.name.lowercase())
+                    }
+                }.sortedByDescending { it.updatedAt }
+                .take(3)
         _smartSuggestions.value = recentNotes
         return recentNotes
     }
 
     fun getSuggestedCategory(content: String): String? {
-        val keywords = mapOf(
-            "meeting" to "Meetings", "deadline" to "Deadlines", "idea" to "Ideas",
-            "thought" to "Reflections", "recipe" to "Recipes", "book" to "Reading",
-            "movie" to "Entertainment", "workout" to "Health", "exercise" to "Health",
-            "budget" to "Finance", "expense" to "Finance", "password" to "Private",
-            "secret" to "Private",
-        )
+        val keywords =
+            mapOf(
+                "meeting" to "Meetings",
+                "deadline" to "Deadlines",
+                "idea" to "Ideas",
+                "thought" to "Reflections",
+                "recipe" to "Recipes",
+                "book" to "Reading",
+                "movie" to "Entertainment",
+                "workout" to "Health",
+                "exercise" to "Health",
+                "budget" to "Finance",
+                "expense" to "Finance",
+                "password" to "Private",
+                "secret" to "Private",
+            )
         val lowerContent = content.lowercase()
         for ((keyword, category) in keywords) {
             if (lowerContent.contains(keyword)) return category
@@ -96,7 +112,11 @@ class NoteEngagementManager(
     }
 
     fun resetStreak() {
-        prefs.edit().putInt(KEY_STREAK_COUNT, 0).putString(KEY_LAST_NOTE_DATE, null).apply()
+        prefs
+            .edit()
+            .putInt(KEY_STREAK_COUNT, 0)
+            .putString(KEY_LAST_NOTE_DATE, null)
+            .apply()
         _streakCount.value = 0
     }
 
@@ -113,14 +133,13 @@ class NoteEngagementManager(
         return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH)}-${cal.get(Calendar.DAY_OF_MONTH)}"
     }
 
-    private fun getTimeContextTypes(hour: Int): List<NoteType> {
-        return when (hour) {
+    private fun getTimeContextTypes(hour: Int): List<NoteType> =
+        when (hour) {
             in 6..11 -> listOf(NoteType.BRAIN_DUMP, NoteType.DOCUMENT)
             in 12..17 -> listOf(NoteType.DOCUMENT, NoteType.WEBSITE, NoteType.CODE)
             in 18..21 -> listOf(NoteType.BRAIN_DUMP, NoteType.IMAGE, NoteType.WEB_CLIPPING)
             else -> listOf(NoteType.BRAIN_DUMP)
         }
-    }
 
     private suspend fun findResurfacedNote(): Note? {
         val allNotes = repository.getAllNotes().first()

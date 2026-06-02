@@ -137,8 +137,8 @@ class ServerSyncRepository(
      * OPTIMIZATION: Extracted note sync logic into separate function.
      * Uses idempotent upsert pattern.
      */
-    private suspend fun performNoteSync(note: Note): Boolean {
-        return if (note.isArchived) {
+    private suspend fun performNoteSync(note: Note): Boolean =
+        if (note.isArchived) {
             remoteDataSource.deleteNote(note.id)
         } else {
             val existingId = remoteDataSource.createNote(note)
@@ -148,10 +148,9 @@ class ServerSyncRepository(
                 true
             }
         }
-    }
 
-    override suspend fun deleteNote(noteId: String): Result<Unit> {
-        return try {
+    override suspend fun deleteNote(noteId: String): Result<Unit> =
+        try {
             val success = remoteDataSource.deleteNote(noteId)
             if (success) {
                 logIfDebug { "Deleted note $noteId from server" }
@@ -165,7 +164,6 @@ class ServerSyncRepository(
             offlineQueue.enqueueNoteDelete(noteId)
             Result.success(Unit)
         }
-    }
 
     override suspend fun syncCategory(category: Category): Result<Unit> {
         // Categories are derived from note categories on the server
@@ -241,8 +239,8 @@ class ServerSyncRepository(
      * OPTIMIZATION: Extension function on NoteInfo for mapping to Note.
      * Maps all fields from the v10.0.0 protocol to the domain model.
      */
-    private fun NoteInfo.mapToNote(): Note {
-        return Note(
+    private fun NoteInfo.mapToNote(): Note =
+        Note(
             id = this.id,
             title = this.title,
             content = this.content,
@@ -290,7 +288,6 @@ class ServerSyncRepository(
             createdAt = this.createdAt,
             updatedAt = this.updatedAt,
         )
-    }
 
     /**
      * OPTIMIZATION: Conditional logging helper to reduce overhead in production.
@@ -307,24 +304,30 @@ class ServerSyncRepository(
  * Provides type-safe result handling with proper error information.
  */
 sealed class SyncResult<out T> {
-    data class Success<out T>(val data: T) : SyncResult<T>()
+    data class Success<out T>(
+        val data: T,
+    ) : SyncResult<T>()
 
-    data class Error(val message: String, val exception: Throwable? = null) : SyncResult<Nothing>()
+    data class Error(
+        val message: String,
+        val exception: Throwable? = null,
+    ) : SyncResult<Nothing>()
 
     object Offline : SyncResult<Nothing>()
 
-    data class Skipped(val reason: String) : SyncResult<Nothing>()
+    data class Skipped(
+        val reason: String,
+    ) : SyncResult<Nothing>()
 }
 
 /**
  * OPTIMIZATION: Extension function for converting Result<T> to SyncResult<T>.
  */
-fun <T> Result<T>.toSyncResult(): SyncResult<T> {
-    return fold(
+fun <T> Result<T>.toSyncResult(): SyncResult<T> =
+    fold(
         onSuccess = { SyncResult.Success(it) },
         onFailure = { SyncResult.Error(it.message ?: "Unknown error", it) },
     )
-}
 
 /**
  * OPTIMIZATION: Extension function for queuing note operations.

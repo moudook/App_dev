@@ -107,8 +107,8 @@ interface AIConnectionContract {
         context: android.content.Context,
         connectionToken: String,
         model: String,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             val result =
                 analyzeContent(
                     context = context,
@@ -121,7 +121,6 @@ interface AIConnectionContract {
         } catch (e: Exception) {
             false
         }
-    }
 }
 
 /**

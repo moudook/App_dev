@@ -90,13 +90,15 @@ class LocalBackupManager(
     suspend fun createLocalBackup(): Result<LocalBackupMetadata> =
         withContext(Dispatchers.IO) {
             try {
-                _localBackupState.value = BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.backup_preparing))
+                _localBackupState.value =
+                    BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.backup_preparing))
 
                 // Get all notes and categories
                 val notes = database.noteDao().getAllNotesOnce()
                 val categories = database.categoryDao().getAllCategoriesOnce()
 
-                _localBackupState.value = BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
+                _localBackupState.value =
+                    BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
 
                 // Create temp directory for backup
                 val tempDir = File(context.cacheDir, "local_backup_temp_${System.currentTimeMillis()}")
@@ -109,7 +111,8 @@ class LocalBackupManager(
                     imagesDir.mkdirs()
                     filesDir.mkdirs()
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
 
                     // Copy attachments and build backup notes with relative paths
                     var attachmentCount = 0
@@ -158,7 +161,8 @@ class LocalBackupManager(
                             NoteBackup.fromNote(note, backupImagePath, backupFilePath)
                         }
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_export))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_export))
 
                     // Create database backup
                     val categoryBackups = categories.map { CategoryBackup.fromCategory(it) }
@@ -166,14 +170,16 @@ class LocalBackupManager(
                     val databaseJson = gson.toJson(databaseBackup)
                     File(tempDir, DatabaseBackup.DATABASE_FILENAME).writeText(databaseJson)
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
 
                     // Create preferences backup
                     val preferencesBackup = createPreferencesBackup()
                     val preferencesJson = gson.toJson(preferencesBackup)
                     File(tempDir, PREFERENCES_FILENAME).writeText(preferencesJson)
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.7f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.7f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
 
                     // Create manifest
                     val manifest =
@@ -198,7 +204,8 @@ class LocalBackupManager(
                     val manifestJson = gson.toJson(manifest)
                     File(tempDir, BackupManifest.MANIFEST_FILENAME).writeText(manifestJson)
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_creating_archive))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_creating_archive))
 
                     // Create ZIP file in local backups directory
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -207,7 +214,8 @@ class LocalBackupManager(
 
                     createZipFile(tempDir, zipFile)
 
-                    _localBackupState.value = BackupOperationState.InProgress(0.9f, context.getString(com.example.smarty.R.string.backup_finalizing))
+                    _localBackupState.value =
+                        BackupOperationState.InProgress(0.9f, context.getString(com.example.smarty.R.string.backup_finalizing))
 
                     // Create metadata
                     val metadata =
@@ -345,7 +353,9 @@ class LocalBackupManager(
      */
     suspend fun getTotalLocalBackupSize(): Long =
         withContext(Dispatchers.IO) {
-            localBackupsDir.listFiles()?.filter { it.extension == "zip" }
+            localBackupsDir
+                .listFiles()
+                ?.filter { it.extension == "zip" }
                 ?.sumOf { it.length() } ?: 0L
         }
 
@@ -469,8 +479,8 @@ class LocalBackupManager(
     /**
      * Calculate total size of orphaned temp directories.
      */
-    private fun calculateOrphanedTempSize(): Long {
-        return try {
+    private fun calculateOrphanedTempSize(): Long =
+        try {
             val cacheDir = context.cacheDir
             val tempDirs =
                 cacheDir.listFiles { file ->
@@ -481,25 +491,21 @@ class LocalBackupManager(
         } catch (e: Exception) {
             0L
         }
-    }
 
     /**
      * Calculate total size of a directory recursively.
      */
-    private fun calculateDirSize(dir: File): Long {
-        return dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-    }
+    private fun calculateDirSize(dir: File): Long = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     /**
      * Format file size for logging.
      */
-    private fun formatSize(bytes: Long): String {
-        return when {
+    private fun formatSize(bytes: Long): String =
+        when {
             bytes >= 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
             bytes >= 1024 -> "${bytes / 1024} KB"
             else -> "$bytes B"
         }
-    }
 
     // Helper functions
 
@@ -546,8 +552,8 @@ class LocalBackupManager(
         )
     }
 
-    private fun createPreferencesBackup(): PreferencesBackup {
-        return PreferencesBackup(
+    private fun createPreferencesBackup(): PreferencesBackup =
+        PreferencesBackup(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
@@ -557,7 +563,6 @@ class LocalBackupManager(
             shakeSensitivity = securePreferences.getShakeSensitivity(),
             soundEnabled = securePreferences.isSoundEnabled(),
         )
-    }
 
     /**
      * High-performance file copy from URI.
@@ -634,8 +639,8 @@ class LocalBackupManager(
     /**
      * Gets file size from URI for optimization decisions.
      */
-    private fun getFileSizeFromUri(uri: Uri): Long? {
-        return try {
+    private fun getFileSizeFromUri(uri: Uri): Long? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -647,10 +652,9 @@ class LocalBackupManager(
         } catch (e: Exception) {
             null
         }
-    }
 
-    private fun getFileNameFromUri(uri: Uri): String? {
-        return try {
+    private fun getFileNameFromUri(uri: Uri): String? =
+        try {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -662,7 +666,6 @@ class LocalBackupManager(
         } catch (e: Exception) {
             uri.lastPathSegment
         }
-    }
 
     /**
      * High-performance ZIP file creation.

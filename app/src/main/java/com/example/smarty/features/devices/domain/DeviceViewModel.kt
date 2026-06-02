@@ -22,8 +22,12 @@ import kotlinx.serialization.Serializable
  * Device Management ViewModel
  * Manages registered devices state and operations
  */
-class DeviceViewModel(application: Application) : AndroidViewModel(application) {
-    private val client = com.example.smarty.di.ServiceLocator.provideHttpClient()
+class DeviceViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+    private val client =
+        com.example.smarty.di.ServiceLocator
+            .provideHttpClient()
     private val serverUrl = SecurePreferences(application).getServerUrl()
 
     private val _uiState = MutableStateFlow(DeviceUiState())
@@ -122,14 +126,13 @@ class DeviceViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun getFirebaseToken(): String? {
-        return try {
+    private suspend fun getFirebaseToken(): String? =
+        try {
             val user = FirebaseAuth.getInstance().currentUser
             user?.getIdToken(false)?.await()?.token
         } catch (e: Exception) {
             null
         }
-    }
 }
 
 data class DeviceUiState(
@@ -164,11 +167,10 @@ data class RegisterDeviceRequest(
 fun DeviceItem.toItem(): DeviceItem = this
 
 // Conversion to UI model
-fun DeviceItem.toUiModel(): com.example.smarty.features.devices.ui.DeviceItem {
-    return com.example.smarty.features.devices.ui.DeviceItem(
+fun DeviceItem.toUiModel(): com.example.smarty.features.devices.ui.DeviceItem =
+    com.example.smarty.features.devices.ui.DeviceItem(
         id = id,
         name = deviceName ?: "Unknown Device",
         type = deviceType ?: "unknown",
         lastActive = lastActiveAt ?: "Unknown",
     )
-}

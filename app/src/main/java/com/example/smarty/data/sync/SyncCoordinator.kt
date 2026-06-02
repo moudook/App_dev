@@ -311,12 +311,16 @@ class SyncCoordinator(
                                             val agentEventsJson = msgData.agentEventsJson
                                             if (!agentEventsJson.isNullOrBlank() && agentEventsJson != "[]") {
                                                 Json.decodeFromString<List<AgentEvent>>(agentEventsJson)
-                                            } else emptyList()
+                                            } else {
+                                                emptyList()
+                                            }
                                         } catch (e: Exception) {
                                             emptyList()
                                         },
                                 )
-                            val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
+                            val entity =
+                                com.example.smarty.core.domain.model.ChatMessageEntity
+                                    .fromChatMessage(message, sessionData.id)
                             chatDao.insertMessage(entity)
                         }
                         sessionsUpdated++
@@ -532,8 +536,8 @@ class SyncCoordinator(
 
     fun getLastPushTime(): Long = prefs.getLong(KEY_LAST_PUSH, 0)
 
-    private fun mapToNote(info: NoteInfo): Note {
-        return Note(
+    private fun mapToNote(info: NoteInfo): Note =
+        Note(
             id = info.id,
             title = info.title,
             content = info.content,
@@ -581,7 +585,6 @@ class SyncCoordinator(
             reminderText = info.reminderText,
             reminderExpiresAt = info.reminderExpiresAt,
         )
-    }
 
     companion object {
         private const val TAG = "SyncCoordinator"
@@ -594,27 +597,38 @@ class SyncCoordinator(
          * Normalize content for deduplication comparison.
          * Normalizes whitespace for comparison.
          */
-        fun normalizeContentForDedup(content: String): String {
-            return content
+        fun normalizeContentForDedup(content: String): String =
+            content
                 .replace("\\r\\n", "\\n") // Normalize line endings
                 .replace(Regex("\\s+"), " ") // Collapse multiple whitespace to single space
                 .trim()
-        }
     }
 }
 
 sealed class PullResult {
-    data class Success(val notes: Int, val sessions: Int, val events: Int) : PullResult()
+    data class Success(
+        val notes: Int,
+        val sessions: Int,
+        val events: Int,
+    ) : PullResult()
 
     object Offline : PullResult()
 
-    data class Error(val message: String) : PullResult()
+    data class Error(
+        val message: String,
+    ) : PullResult()
 }
 
 sealed class PushResult {
-    data class Success(val notes: Int, val sessions: Int, val events: Int) : PushResult()
+    data class Success(
+        val notes: Int,
+        val sessions: Int,
+        val events: Int,
+    ) : PushResult()
 
     object Offline : PushResult()
 
-    data class Error(val message: String) : PushResult()
+    data class Error(
+        val message: String,
+    ) : PushResult()
 }

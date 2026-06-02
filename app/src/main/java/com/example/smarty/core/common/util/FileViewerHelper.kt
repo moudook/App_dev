@@ -25,8 +25,8 @@ object FileViewerHelper {
         context: Context,
         uriString: String,
         mimeType: String?,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             val intent = createViewIntent(context, uriString, mimeType)
             context.startActivity(intent)
             true
@@ -43,7 +43,6 @@ object FileViewerHelper {
             Toast.makeText(context, context.getString(com.example.smarty.R.string.unable_to_open_file), Toast.LENGTH_SHORT).show()
             false
         }
-    }
 
     /**
      * Creates an Intent to view a file.
@@ -70,8 +69,8 @@ object FileViewerHelper {
     fun getContentUri(
         context: Context,
         uriString: String,
-    ): Uri {
-        return when {
+    ): Uri =
+        when {
             uriString.startsWith("content://") -> {
                 Uri.parse(uriString)
             }
@@ -94,7 +93,6 @@ object FileViewerHelper {
                 }
             }
         }
-    }
 
     /**
      * Gets a content:// URI from FileProvider for a file.
@@ -102,8 +100,8 @@ object FileViewerHelper {
     private fun getFileProviderUri(
         context: Context,
         file: File,
-    ): Uri {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+    ): Uri =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 FileProvider.getUriForFile(
                     context,
@@ -117,7 +115,6 @@ object FileViewerHelper {
         } else {
             Uri.fromFile(file)
         }
-    }
 
     /**
      * Tries to determine the MIME type from a URI.
@@ -125,13 +122,12 @@ object FileViewerHelper {
     private fun getMimeTypeFromUri(
         context: Context,
         uri: Uri,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             context.contentResolver.getType(uri)
         } catch (e: Exception) {
             null
         }
-    }
 
     /**
      * Opens an image file with proper error handling.
@@ -140,9 +136,7 @@ object FileViewerHelper {
         context: Context,
         uriString: String,
         mimeType: String? = null,
-    ): Boolean {
-        return openFile(context, uriString, mimeType ?: "image/*")
-    }
+    ): Boolean = openFile(context, uriString, mimeType ?: "image/*")
 
     /**
      * Opens a video file with proper error handling.
@@ -151,9 +145,7 @@ object FileViewerHelper {
         context: Context,
         uriString: String,
         mimeType: String? = null,
-    ): Boolean {
-        return openFile(context, uriString, mimeType ?: "video/*")
-    }
+    ): Boolean = openFile(context, uriString, mimeType ?: "video/*")
 
     /**
      * Opens an audio file with proper error handling.
@@ -162,9 +154,7 @@ object FileViewerHelper {
         context: Context,
         uriString: String,
         mimeType: String? = null,
-    ): Boolean {
-        return openFile(context, uriString, mimeType ?: "audio/*")
-    }
+    ): Boolean = openFile(context, uriString, mimeType ?: "audio/*")
 
     /**
      * Opens a document/file with proper error handling.
@@ -173,7 +163,5 @@ object FileViewerHelper {
         context: Context,
         uriString: String,
         mimeType: String? = null,
-    ): Boolean {
-        return openFile(context, uriString, mimeType ?: "*/*")
-    }
+    ): Boolean = openFile(context, uriString, mimeType ?: "*/*")
 }

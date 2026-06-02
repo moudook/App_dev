@@ -39,7 +39,6 @@ import kotlinx.coroutines.sync.withLock
  * Handles audio focus, notification controls, and background playback
  */
 class AudioPlayerService : MediaSessionService() {
-
     companion object {
         private const val TAG = "AudioPlayerService"
         private const val NOTIFICATION_CHANNEL_ID = "Smarty_audio_player"
@@ -67,7 +66,7 @@ class AudioPlayerService : MediaSessionService() {
         private var isAppInForeground = true
 
         // Position update intervals
-        private const val UPDATE_INTERVAL_FOREGROUND = 100L  // 100ms for smooth UI
+        private const val UPDATE_INTERVAL_FOREGROUND = 100L // 100ms for smooth UI
         private const val UPDATE_INTERVAL_BACKGROUND = 1000L // 1000ms when in background
 
         // Singleton state flow accessible from ViewModel
@@ -99,23 +98,31 @@ class AudioPlayerService : MediaSessionService() {
         /**
          * Start playing an audio track
          */
-        fun play(context: Context, track: AudioTrack) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_PLAY
-                putExtra(EXTRA_TRACK, track)
-            }
+        fun play(
+            context: Context,
+            track: AudioTrack,
+        ) {
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_PLAY
+                    putExtra(EXTRA_TRACK, track)
+                }
             context.startForegroundService(intent)
         }
 
         /**
          * Play a list of tracks (queues them after the first one)
          */
-        fun playList(context: Context, tracks: List<AudioTrack>) {
+        fun playList(
+            context: Context,
+            tracks: List<AudioTrack>,
+        ) {
             if (tracks.isEmpty()) return
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_PLAY_LIST
-                putParcelableArrayListExtra(EXTRA_TRACKS, ArrayList(tracks))
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_PLAY_LIST
+                    putParcelableArrayListExtra(EXTRA_TRACKS, ArrayList(tracks))
+                }
             context.startForegroundService(intent)
         }
 
@@ -123,9 +130,10 @@ class AudioPlayerService : MediaSessionService() {
          * Pause playback
          */
         fun pause(context: Context) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_PAUSE
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_PAUSE
+                }
             context.startService(intent)
         }
 
@@ -133,9 +141,10 @@ class AudioPlayerService : MediaSessionService() {
          * Resume playback
          */
         fun resume(context: Context) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_RESUME
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_RESUME
+                }
             context.startService(intent)
         }
 
@@ -143,9 +152,10 @@ class AudioPlayerService : MediaSessionService() {
          * Skip to next track
          */
         fun next(context: Context) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_NEXT
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_NEXT
+                }
             context.startService(intent)
         }
 
@@ -153,9 +163,10 @@ class AudioPlayerService : MediaSessionService() {
          * Skip to previous track
          */
         fun previous(context: Context) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_PREV
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_PREV
+                }
             context.startService(intent)
         }
 
@@ -163,9 +174,10 @@ class AudioPlayerService : MediaSessionService() {
          * Stop playback
          */
         fun stop(context: Context) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_STOP
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_STOP
+                }
             context.startService(intent)
         }
 
@@ -174,9 +186,10 @@ class AudioPlayerService : MediaSessionService() {
          */
         fun enterForeground(context: Context) {
             isAppInForeground = true
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_ENTER_FOREGROUND
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_ENTER_FOREGROUND
+                }
             context.startService(intent)
         }
 
@@ -185,20 +198,25 @@ class AudioPlayerService : MediaSessionService() {
          */
         fun enterBackground(context: Context) {
             isAppInForeground = false
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_ENTER_BACKGROUND
-            }
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_ENTER_BACKGROUND
+                }
             context.startService(intent)
         }
 
         /**
          * Seek to position
          */
-        fun seekTo(context: Context, position: Long) {
-            val intent = Intent(context, AudioPlayerService::class.java).apply {
-                action = ACTION_SEEK
-                putExtra(EXTRA_POSITION, position)
-            }
+        fun seekTo(
+            context: Context,
+            position: Long,
+        ) {
+            val intent =
+                Intent(context, AudioPlayerService::class.java).apply {
+                    action = ACTION_SEEK
+                    putExtra(EXTRA_POSITION, position)
+                }
             context.startService(intent)
         }
     }
@@ -218,14 +236,15 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL_ID,
-            getString(R.string.channel_audio_playback_name),
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = getString(R.string.channel_audio_playback_desc)
-            setShowBadge(false)
-        }
+        val channel =
+            NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                getString(R.string.channel_audio_playback_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = getString(R.string.channel_audio_playback_desc)
+                setShowBadge(false)
+            }
 
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(channel)
@@ -233,107 +252,116 @@ class AudioPlayerService : MediaSessionService() {
 
     private fun initializePlayer() {
         // Audio attributes for music playback
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .build()
+        val audioAttributes =
+            AudioAttributes
+                .Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build()
 
         // Use applicationContext to prevent service from being cached in static fields
-        val exoPlayer = ExoPlayer.Builder(applicationContext)
-            .setAudioAttributes(audioAttributes, true)  // Handle audio focus automatically
-            .setHandleAudioBecomingNoisy(true)  // Pause when headphones disconnected
-            .build()
-            .apply {
-                playWhenReady = true // Auto-play when ready
-                addListener(playerListener)
-            }
+        val exoPlayer =
+            ExoPlayer
+                .Builder(applicationContext)
+                .setAudioAttributes(audioAttributes, true) // Handle audio focus automatically
+                .setHandleAudioBecomingNoisy(true) // Pause when headphones disconnected
+                .build()
+                .apply {
+                    playWhenReady = true // Auto-play when ready
+                    addListener(playerListener)
+                }
 
         player = exoPlayer
 
         // Use applicationContext to prevent service from being cached
-        mediaSession = MediaSession.Builder(applicationContext, exoPlayer)
-            .build()
+        mediaSession =
+            MediaSession
+                .Builder(applicationContext, exoPlayer)
+                .build()
 
         Log.d(TAG, "Player initialized")
     }
 
-    private val playerListener = object : Player.Listener {
-        override fun onPlaybackStateChanged(state: Int) {
-            val playbackState = when (state) {
-                Player.STATE_IDLE -> PlaybackState.IDLE
-                Player.STATE_BUFFERING -> PlaybackState.BUFFERING
-                Player.STATE_READY -> if (player?.isPlaying == true) PlaybackState.PLAYING else PlaybackState.READY
-                Player.STATE_ENDED -> PlaybackState.ENDED
-                else -> PlaybackState.IDLE
+    private val playerListener =
+        object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                val playbackState =
+                    when (state) {
+                        Player.STATE_IDLE -> PlaybackState.IDLE
+                        Player.STATE_BUFFERING -> PlaybackState.BUFFERING
+                        Player.STATE_READY -> if (player?.isPlaying == true) PlaybackState.PLAYING else PlaybackState.READY
+                        Player.STATE_ENDED -> PlaybackState.ENDED
+                        else -> PlaybackState.IDLE
+                    }
+
+                serviceScope.launch {
+                    updateState { copy(playbackState = playbackState) }
+
+                    if (state == Player.STATE_ENDED) {
+                        // Reset position when track ends
+                        updateState { copy(currentPosition = 0L, isPlaying = false) }
+                        stopPositionUpdates()
+                    }
+                }
+
+                Log.d(TAG, "Playback state changed: $playbackState")
             }
 
-            serviceScope.launch {
-                updateState { copy(playbackState = playbackState) }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                serviceScope.launch {
+                    updateState {
+                        copy(
+                            isPlaying = isPlaying,
+                            playbackState = if (isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED,
+                        )
+                    }
 
-                if (state == Player.STATE_ENDED) {
-                    // Reset position when track ends
-                    updateState { copy(currentPosition = 0L, isPlaying = false) }
+                    if (isPlaying) {
+                        startPositionUpdates()
+                        // Setup visualizer AFTER playback actually starts to avoid audio pops
+                        // Small delay ensures audio session is fully initialized
+                        delay(150) // Wait for audio to stabilize
+                        setupVisualizer()
+                    } else {
+                        stopPositionUpdates()
+                    }
+                }
+
+                Log.d(TAG, "isPlaying changed: $isPlaying")
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e(TAG, "Player error: ${error.message}", error)
+                serviceScope.launch {
+                    updateState {
+                        copy(
+                            isPlaying = false,
+                            playbackState = PlaybackState.ERROR,
+                        )
+                    }
                     stopPositionUpdates()
                 }
             }
-
-            Log.d(TAG, "Playback state changed: $playbackState")
         }
-
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            serviceScope.launch {
-                updateState {
-                    copy(
-                        isPlaying = isPlaying,
-                        playbackState = if (isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
-                    )
-                }
-
-                if (isPlaying) {
-                    startPositionUpdates()
-                    // Setup visualizer AFTER playback actually starts to avoid audio pops
-                    // Small delay ensures audio session is fully initialized
-                    delay(150) // Wait for audio to stabilize
-                    setupVisualizer()
-                } else {
-                    stopPositionUpdates()
-                }
-            }
-
-            Log.d(TAG, "isPlaying changed: $isPlaying")
-        }
-
-        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            Log.e(TAG, "Player error: ${error.message}", error)
-            serviceScope.launch {
-                updateState {
-                    copy(
-                        isPlaying = false,
-                        playbackState = PlaybackState.ERROR
-                    )
-                }
-                stopPositionUpdates()
-            }
-        }
-    }
 
     private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
-        positionUpdateJob = serviceScope.launch {
-            while (isActive) {
-                player?.let { player ->
-                    updateState {
-                        copy(
-                            currentPosition = player.currentPosition,
-                            duration = player.duration.coerceAtLeast(0L)
-                        )
+        positionUpdateJob =
+            serviceScope.launch {
+                while (isActive) {
+                    player?.let { player ->
+                        updateState {
+                            copy(
+                                currentPosition = player.currentPosition,
+                                duration = player.duration.coerceAtLeast(0L),
+                            )
+                        }
                     }
+                    // Use faster updates in foreground for smooth UI, slower in background to save resources
+                    val interval = if (isAppInForeground) UPDATE_INTERVAL_FOREGROUND else UPDATE_INTERVAL_BACKGROUND
+                    delay(interval)
                 }
-                // Use faster updates in foreground for smooth UI, slower in background to save resources
-                val interval = if (isAppInForeground) UPDATE_INTERVAL_FOREGROUND else UPDATE_INTERVAL_BACKGROUND
-                delay(interval)
             }
-        }
     }
 
     private fun stopPositionUpdates() {
@@ -398,7 +426,7 @@ class AudioPlayerService : MediaSessionService() {
                         override fun onWaveFormDataCapture(
                             visualizer: Visualizer?,
                             waveform: ByteArray?,
-                            samplingRate: Int
+                            samplingRate: Int,
                         ) {
                             waveform?.let { data ->
                                 // Calculate RMS amplitude from waveform
@@ -422,7 +450,7 @@ class AudioPlayerService : MediaSessionService() {
                         override fun onFftDataCapture(
                             visualizer: Visualizer?,
                             fft: ByteArray?,
-                            samplingRate: Int
+                            samplingRate: Int,
                         ) {
                             fft?.let { data ->
                                 // FFT data format: [DC, bin1_real, bin1_imag, bin2_real, bin2_imag, ...]
@@ -499,8 +527,8 @@ class AudioPlayerService : MediaSessionService() {
                         }
                     },
                     Visualizer.getMaxCaptureRate() / 2, // Lower rate to prevent audio artifacts
-                    true,  // Waveform (for overall amplitude)
-                    true   // FFT (for frequency bands)
+                    true, // Waveform (for overall amplitude)
+                    true, // FFT (for frequency bands)
                 )
                 // Small delay before enabling to ensure audio is stable
                 enabled = true
@@ -539,35 +567,40 @@ class AudioPlayerService : MediaSessionService() {
         }
     }
 
-    private suspend inline fun updateState(update: AudioPlayerState.() -> AudioPlayerState) = stateMutex.withLock {
-        _playerState.value = _playerState.value.update()
-    }
+    private suspend inline fun updateState(update: AudioPlayerState.() -> AudioPlayerState) =
+        stateMutex.withLock {
+            _playerState.value = _playerState.value.update()
+        }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
-    }
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         super.onStartCommand(intent, flags, startId)
 
         intent?.let { intentVal ->
             when (intentVal.action) {
                 ACTION_PLAY -> {
-                    val track = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intentVal.getParcelableExtra(EXTRA_TRACK, AudioTrack::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intentVal.getParcelableExtra(EXTRA_TRACK)
-                    }
+                    val track =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intentVal.getParcelableExtra(EXTRA_TRACK, AudioTrack::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intentVal.getParcelableExtra(EXTRA_TRACK)
+                        }
                     track?.let { playTrack(it) }
                 }
                 ACTION_PLAY_LIST -> {
-                    val tracks = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intentVal.getParcelableArrayListExtra(EXTRA_TRACKS, AudioTrack::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intentVal.getParcelableArrayListExtra(EXTRA_TRACKS)
-                    }
+                    val tracks =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intentVal.getParcelableArrayListExtra(EXTRA_TRACKS, AudioTrack::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intentVal.getParcelableArrayListExtra(EXTRA_TRACKS)
+                        }
                     tracks?.let { playTracks(it) }
                 }
                 ACTION_PAUSE -> pause()
@@ -604,8 +637,10 @@ class AudioPlayerService : MediaSessionService() {
 
         // CRITICAL: Stop any currently playing audio first to prevent conflicts
         player?.let { exoPlayer ->
-            if (exoPlayer.isPlaying || exoPlayer.playbackState == Player.STATE_READY ||
-                exoPlayer.playbackState == Player.STATE_BUFFERING) {
+            if (exoPlayer.isPlaying ||
+                exoPlayer.playbackState == Player.STATE_READY ||
+                exoPlayer.playbackState == Player.STATE_BUFFERING
+            ) {
                 Log.d(TAG, "Stopping current playback before playing new tracks")
                 releaseVisualizer()
                 exoPlayer.stop()
@@ -620,19 +655,21 @@ class AudioPlayerService : MediaSessionService() {
         }
 
         player?.apply {
-            val mediaItems = tracks.map { track ->
-                val uri = if (track.uri.startsWith("http")) {
-                    android.net.Uri.parse(track.uri)
-                } else {
-                    track.uri.toUri()
+            val mediaItems =
+                tracks.map { track ->
+                    val uri =
+                        if (track.uri.startsWith("http")) {
+                            android.net.Uri.parse(track.uri)
+                        } else {
+                            track.uri.toUri()
+                        }
+                    MediaItem
+                        .Builder()
+                        .setUri(uri)
+                        .apply {
+                            track.mimeType?.let { setMimeType(it) }
+                        }.build()
                 }
-                MediaItem.Builder()
-                    .setUri(uri)
-                    .apply {
-                        track.mimeType?.let { setMimeType(it) }
-                    }
-                    .build()
-            }
 
             setMediaItems(mediaItems)
             prepare()
@@ -645,7 +682,7 @@ class AudioPlayerService : MediaSessionService() {
                     currentTrack = firstTrack,
                     currentPosition = 0L,
                     isPlaying = true,
-                    playbackState = PlaybackState.BUFFERING
+                    playbackState = PlaybackState.BUFFERING,
                 )
             }
         }
@@ -718,12 +755,14 @@ class AudioPlayerService : MediaSessionService() {
         val track = currentTrack
 
         // Use filename for audio files
-        val subtitle = when {
-            track?.fileName != null -> track.fileName
-            else -> getString(R.string.playing)
-        }
+        val subtitle =
+            when {
+                track?.fileName != null -> track.fileName
+                else -> getString(R.string.playing)
+            }
 
-        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+        return NotificationCompat
+            .Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(track?.title ?: getString(R.string.audio_label))
             .setContentText(subtitle)
             .setSmallIcon(android.R.drawable.ic_media_play) // Safer system icon

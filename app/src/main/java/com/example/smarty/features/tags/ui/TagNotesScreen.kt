@@ -1,6 +1,7 @@
 package com.example.smarty.features.tags.ui
 
 import android.app.Application
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.core.domain.model.NoteForTag
 import com.example.smarty.features.tags.domain.TagNotesViewModel
@@ -34,14 +34,16 @@ fun TagNotesScreen(
     onNavigateBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val viewModel: TagNotesViewModel = viewModel(
-        factory = TagNotesViewModel.Factory(
-            application = context.applicationContext as Application,
-            tagId = tagId,
-            tagName = tagName,
-            tagColor = tagColor,
+    val viewModel: TagNotesViewModel =
+        viewModel(
+            factory =
+                TagNotesViewModel.Factory(
+                    application = context.applicationContext as Application,
+                    tagId = tagId,
+                    tagName = tagName,
+                    tagColor = tagColor,
+                ),
         )
-    )
 
     val uiState by viewModel.uiState.collectAsState()
     val notes by viewModel.notes.collectAsState()
@@ -54,18 +56,24 @@ fun TagNotesScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .background(
-                                    color = runCatching { Color(android.graphics.Color.parseColor(uiState.tagColor)) }.getOrDefault(Color.Gray),
-                                    shape = CircleShape
-                                )
+                            modifier =
+                                Modifier
+                                    .size(16.dp)
+                                    .background(
+                                        color =
+                                            runCatching {
+                                                Color(
+                                                    android.graphics.Color.parseColor(uiState.tagColor),
+                                                )
+                                            }.getOrDefault(Color.Gray),
+                                        shape = CircleShape,
+                                    ),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = uiState.tagName.ifBlank { "Tag Notes" },
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 },
@@ -73,9 +81,9 @@ fun TagNotesScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             if (uiState.isLoading) {
@@ -84,13 +92,13 @@ fun TagNotesScreen(
                 EmptyStatePlaceholder(
                     icon = Icons.AutoMirrored.Outlined.Note,
                     title = "Nothing here.",
-                    subtitle = "No notes tagged with \"${uiState.tagName}\" yet."
+                    subtitle = "No notes tagged with \"${uiState.tagName}\" yet.",
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(notes, key = { it.id }) { note ->
                         NoteForTagItem(note = note)
@@ -105,14 +113,16 @@ fun TagNotesScreen(
 fun NoteForTagItem(note: NoteForTag) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (note.pinned) {
@@ -120,7 +130,7 @@ fun NoteForTagItem(note: NoteForTag) {
                         Icons.Default.PushPin,
                         "Pinned",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                 }
@@ -130,7 +140,7 @@ fun NoteForTagItem(note: NoteForTag) {
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
             }
 
@@ -141,7 +151,7 @@ fun NoteForTagItem(note: NoteForTag) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
 
@@ -150,7 +160,7 @@ fun NoteForTagItem(note: NoteForTag) {
                     text = date.take(10),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }

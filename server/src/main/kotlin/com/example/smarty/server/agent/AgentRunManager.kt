@@ -39,7 +39,10 @@ object AgentRunManager {
     fun getEventFlow(sessionId: String): SharedFlow<AgentEvent> =
         sessionEventFlows
             .getOrPut(sessionId) {
-                MutableSharedFlow(extraBufferCapacity = 200)
+                MutableSharedFlow(
+                    replay = 50,
+                    extraBufferCapacity = 500,
+                )
             }.asSharedFlow()
 
     suspend fun emitEvent(
@@ -75,13 +78,17 @@ object AgentRunManager {
     ) {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
-            logger.warn("Agent run already active for session: $sessionId. Ignoring new request.")
-            return
+            logger.warn("Agent run already active for session: $sessionId. Cancelling existing and starting new.")
+            existingJob.cancel()
+            activeRuns.remove(sessionId)
         }
 
         val flow =
             sessionEventFlows.getOrPut(sessionId) {
-                MutableSharedFlow(extraBufferCapacity = 200)
+                MutableSharedFlow(
+                    replay = 50,
+                    extraBufferCapacity = 500,
+                )
             }
 
         val job =
@@ -104,8 +111,6 @@ object AgentRunManager {
                             collectedCitations.addAll(cmd.citations)
                         }
                     }
-
-
                 }
 
                 val agent =

@@ -1,6 +1,5 @@
 package com.example.smarty.util
 
-import com.example.smarty.core.common.AppConfig
 import com.example.smarty.data.model.DocumentChunk
 import kotlin.math.max
 import kotlin.math.min
@@ -14,46 +13,45 @@ import kotlin.math.min
  */
 data class ChunkerConfig(
     val chunkSize: Int,
-    val overlap: Int
+    val overlap: Int,
 ) {
     companion object {
         val SMALL = ChunkerConfig(8_000, 300)
         val MEDIUM = ChunkerConfig(32_000, 500)
         val LARGE = ChunkerConfig(64_000, 800)
         val XLARGE = ChunkerConfig(128_000, 1_000)
-        
-        fun forContextWindow(contextSize: Int): ChunkerConfig {
-            return when {
+
+        fun forContextWindow(contextSize: Int): ChunkerConfig =
+            when {
                 contextSize < 32_000 -> SMALL
                 contextSize < 128_000 -> MEDIUM
                 contextSize < 256_000 -> LARGE
                 else -> XLARGE
             }
-        }
     }
 }
 
 /**
  * High-performance PDF text chunker with intelligent boundary detection.
- * 
+ *
  * Architecture:
  * - Strategy pattern for different model configurations
  * - Lazy evaluation for memory efficiency (O(1) space)
  * - Single-pass algorithm (O(n) time)
  * - Word-boundary-aware splitting
  * - Comprehensive error handling
- * 
+ *
  * Usage:
  * ```kotlin
  * val chunker = PdfChunker()  // Uses default MEDIUM config
  * val chunks = chunker.chunkWithMetadata(largeText)
- * 
+ *
  * // Or use specific config
  * val chunker = PdfChunker(ChunkerConfig.LARGE)
  * ```
  */
 class PdfChunker(
-    private val config: ChunkerConfig = ChunkerConfig.MEDIUM
+    private val config: ChunkerConfig = ChunkerConfig.MEDIUM,
 ) {
     // Validate configuration at construction time
     init {
@@ -83,24 +81,25 @@ class PdfChunker(
      * @param text Full text to chunk
      * @return Sequence of text chunks (evaluated on-demand)
      */
-    fun chunkLazy(text: String): Sequence<String> = sequence {
-        if (text.isEmpty()) return@sequence
-        
-        var startIndex = 0
-        val textLength = text.length
-        
-        while (startIndex < textLength) {
-            val endIndex = calculateChunkEnd(text, startIndex, textLength)
-            if (endIndex <= startIndex) break
-            
-            val chunk = text.substring(startIndex, endIndex).trim()
-            if (chunk.isNotEmpty()) {
-                yield(chunk)
+    fun chunkLazy(text: String): Sequence<String> =
+        sequence {
+            if (text.isEmpty()) return@sequence
+
+            var startIndex = 0
+            val textLength = text.length
+
+            while (startIndex < textLength) {
+                val endIndex = calculateChunkEnd(text, startIndex, textLength)
+                if (endIndex <= startIndex) break
+
+                val chunk = text.substring(startIndex, endIndex).trim()
+                if (chunk.isNotEmpty()) {
+                    yield(chunk)
+                }
+
+                startIndex = calculateNextStart(startIndex, endIndex, textLength)
             }
-            
-            startIndex = calculateNextStart(startIndex, endIndex, textLength)
         }
-    }
 
     /**
      * Chunk text eagerly into a List.
@@ -126,11 +125,11 @@ class PdfChunker(
      */
     fun chunkWithMetadata(text: String): List<DocumentChunk> {
         if (text.isEmpty()) return emptyList()
-        
+
         // Pre-calculate all boundaries in single pass (optimization)
         val boundaries = calculateChunkBoundaries(text)
         val totalChunks = boundaries.size
-        
+
         // Transform boundaries to DocumentChunks with correct metadata
         return boundaries.mapIndexed { index, boundary ->
             val chunkText = text.substring(boundary.start, boundary.end).trim()
@@ -140,7 +139,7 @@ class PdfChunker(
                 content = chunkText,
                 charCount = chunkText.length,
                 startPosition = boundary.start,
-                endPosition = boundary.end
+                endPosition = boundary.end,
             )
         }
     }
@@ -182,14 +181,14 @@ class PdfChunker(
     private fun calculateChunkEnd(
         text: String,
         startIndex: Int,
-        textLength: Int
+        textLength: Int,
     ): Int {
         // Calculate rough end position
         val roughEnd = min(startIndex + config.chunkSize, textLength)
-        
+
         // If at end of text, no need to find word boundary
         if (roughEnd >= textLength) return textLength
-        
+
         // Find last word boundary within search range (optimization)
         val searchStart = max(startIndex, roughEnd - WORD_BOUNDARY_SEARCH_RANGE)
         return findLastWordBoundary(text, searchStart, roughEnd)
@@ -204,7 +203,7 @@ class PdfChunker(
     private fun findLastWordBoundary(
         text: String,
         searchStart: Int,
-        roughEnd: Int
+        roughEnd: Int,
     ): Int {
         // Iterate backwards from roughEnd to find whitespace
         for (i in roughEnd - 1 downTo searchStart) {
@@ -223,16 +222,15 @@ class PdfChunker(
     private fun calculateNextStart(
         currentStart: Int,
         currentEnd: Int,
-        textLength: Int
-    ): Int {
-        return if (currentEnd < textLength) {
+        textLength: Int,
+    ): Int =
+        if (currentEnd < textLength) {
             // Move back by overlap amount for context continuity
             max(currentStart + 1, currentEnd - config.overlap)
         } else {
             // Signal to stop
             textLength
         }
-    }
 }
 
 /**
@@ -244,7 +242,7 @@ class PdfChunker(
  */
 private data class ChunkBoundary(
     val start: Int,
-    val end: Int
+    val end: Int,
 )
 
 /**
@@ -253,9 +251,7 @@ private data class ChunkBoundary(
  * @param config Chunker configuration (default: MEDIUM)
  * @return Sequence of chunks (lazy evaluation)
  */
-fun String.chunkWithOverlap(
-    config: ChunkerConfig = ChunkerConfig.MEDIUM
-): Sequence<String> {
+fun String.chunkWithOverlap(config: ChunkerConfig = ChunkerConfig.MEDIUM): Sequence<String> {
     val chunker = PdfChunker(config)
     return chunker.chunkLazy(this)
 }
@@ -266,9 +262,7 @@ fun String.chunkWithOverlap(
  * @param config Chunker configuration (default: MEDIUM)
  * @return List of DocumentChunk with metadata
  */
-fun String.chunkIntoDocumentChunks(
-    config: ChunkerConfig = ChunkerConfig.MEDIUM
-): List<DocumentChunk> {
+fun String.chunkIntoDocumentChunks(config: ChunkerConfig = ChunkerConfig.MEDIUM): List<DocumentChunk> {
     val chunker = PdfChunker(config)
     return chunker.chunkWithMetadata(this)
 }

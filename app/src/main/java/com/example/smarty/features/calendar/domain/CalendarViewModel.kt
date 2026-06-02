@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.di.ServiceLocator
 
-class CalendarViewModel(application: Application) : AndroidViewModel(application) {
+class CalendarViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val calendarFeatureManager = ServiceLocator.provideCalendarFeatureManager(application)
 
     // State
@@ -39,7 +41,15 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         isPrivate: Boolean = false,
     ) {
         calendarFeatureManager.addCalendarEvent(
-            title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate,
+            title,
+            description,
+            startTime,
+            endTime,
+            isAllDay,
+            location,
+            color,
+            reminderMinutes,
+            isPrivate,
         )
     }
 

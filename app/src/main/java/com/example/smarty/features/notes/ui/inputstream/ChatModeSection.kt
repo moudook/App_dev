@@ -1,13 +1,13 @@
 package com.example.smarty.features.notes.ui.inputstream
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,7 +49,7 @@ fun ChatModeSection(
     onSendChatMessage: (String, List<Attachment>) -> Unit,
     onDeleteChatMessage: (String) -> Unit,
     onSetChatHistory: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AnimatedContent(
         targetState = showChatHistoryInline,
@@ -58,25 +57,25 @@ fun ChatModeSection(
             if (targetState) {
                 scaleIn(
                     initialScale = 1.1f,
-                    animationSpec = tween(350, easing = LinearOutSlowInEasing)
+                    animationSpec = tween(350, easing = LinearOutSlowInEasing),
                 ) + fadeIn(tween(200)) togetherWith
-                scaleOut(
-                    targetScale = 0.95f,
-                    animationSpec = tween(350)
-                ) + fadeOut(tween(200))
+                    scaleOut(
+                        targetScale = 0.95f,
+                        animationSpec = tween(350),
+                    ) + fadeOut(tween(200))
             } else {
                 scaleIn(
                     initialScale = 0.95f,
-                    animationSpec = tween(350)
+                    animationSpec = tween(350),
                 ) + fadeIn(tween(200)) togetherWith
-                scaleOut(
-                    targetScale = 1.1f,
-                    animationSpec = tween(350)
-                ) + fadeOut(tween(200))
+                    scaleOut(
+                        targetScale = 1.1f,
+                        animationSpec = tween(350),
+                    ) + fadeOut(tween(200))
             }
         },
         label = "chatHistoryTransition",
-        modifier = modifier
+        modifier = modifier,
     ) { showHistory ->
         if (showHistory) {
             ChatHistoryContent(
@@ -88,45 +87,46 @@ fun ChatModeSection(
                 onDeleteSession = onDeleteChatSession,
                 onBackToChat = { onSetChatHistory(false) },
                 contentPadding = contentPaddingWithTop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             var cumulativeScale by remember { mutableFloatStateOf(1f) }
             var pointerCount by remember { mutableIntStateOf(0) }
 
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
 
-                            do {
-                                val event = awaitPointerEvent()
+                                do {
+                                    val event = awaitPointerEvent()
 
-                                pointerCount = event.changes.count { it.pressed }
+                                    pointerCount = event.changes.count { it.pressed }
 
-                                if (pointerCount >= 2) {
-                                    val zoom = event.calculateZoom()
+                                    if (pointerCount >= 2) {
+                                        val zoom = event.calculateZoom()
 
-                                    cumulativeScale *= zoom
+                                        cumulativeScale *= zoom
 
-                                    if (cumulativeScale < 0.70f) {
-                                        onSetChatHistory(true)
-                                        cumulativeScale = 1f
+                                        if (cumulativeScale < 0.70f) {
+                                            onSetChatHistory(true)
+                                            cumulativeScale = 1f
+                                        }
+
+                                        if (zoom > 1f && cumulativeScale > 1f) {
+                                            cumulativeScale = 1f
+                                        }
+
+                                        event.changes.forEach { it.consume() }
                                     }
+                                } while (event.changes.any { it.pressed })
 
-                                    if (zoom > 1f && cumulativeScale > 1f) {
-                                        cumulativeScale = 1f
-                                    }
-
-                                    event.changes.forEach { it.consume() }
-                                }
-                            } while (event.changes.any { it.pressed })
-
-                            cumulativeScale = 1f
-                        }
-                    }
+                                cumulativeScale = 1f
+                            }
+                        },
             ) {
                 ChatModeContent(
                     chatMessages = chatMessages,
@@ -140,7 +140,7 @@ fun ChatModeSection(
                     contentPadding = contentPaddingWithTop,
                     isChatProcessing = isChatProcessing,
                     agentActivity = agentActivity,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }

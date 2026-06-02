@@ -1,15 +1,10 @@
 package com.example.smarty.features.voice
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.delay
-
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,16 +14,14 @@ fun rememberVoiceNoteRecorder(
     context: android.content.Context,
     coroutineScope: kotlinx.coroutines.CoroutineScope,
     onResult: (String) -> Unit = {},
-    onError: (String) -> Unit = {}
-): VoiceNoteRecorder {
-    return remember { VoiceNoteRecorder(context, coroutineScope, onResult, onError) }
-}
+    onError: (String) -> Unit = {},
+): VoiceNoteRecorder = remember { VoiceNoteRecorder(context, coroutineScope, onResult, onError) }
 
 class VoiceNoteRecorder(
     private val context: android.content.Context,
     private val coroutineScope: kotlinx.coroutines.CoroutineScope,
     private val onResult: (String) -> Unit = {},
-    private val onError: (String) -> Unit = {}
+    private val onError: (String) -> Unit = {},
 ) {
     private val _state = MutableStateFlow<RecordingState>(RecordingState.Idle)
     val state: StateFlow<RecordingState> = _state.asStateFlow()
@@ -40,7 +33,7 @@ class VoiceNoteRecorder(
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
     var speechInitiatedInChatMode by mutableStateOf(false)
-    
+
     fun startRecording(isChatMode: Boolean = false) {
         speechInitiatedInChatMode = isChatMode
         _state.value = RecordingState.Recording
@@ -48,7 +41,7 @@ class VoiceNoteRecorder(
         _amplitude.value = 0f
         // In a real implementation, this would start actual audio recording
     }
-    
+
     fun stopRecording(): String? {
         val currentPath = "placeholder_path_${System.currentTimeMillis()}.mp4"
         val duration = _durationMs.value
@@ -56,27 +49,25 @@ class VoiceNoteRecorder(
         // In a real implementation, this would stop actual audio recording and return the path
         return currentPath
     }
-    
+
     fun cancelRecording() {
         _state.value = RecordingState.Idle
         _durationMs.value = 0L
         _amplitude.value = 0f
     }
-    
+
     fun reset() {
         _state.value = RecordingState.Idle
         _durationMs.value = 0L
         _amplitude.value = 0f
         speechInitiatedInChatMode = false
     }
-    
-    fun hasRecordingPermission(): Boolean {
-        return true
-    }
 
-    fun formatDuration(durationMs: Long): String {
-        return com.example.smarty.features.voice.formatDuration(durationMs)
-    }
+    fun hasRecordingPermission(): Boolean = true
+
+    fun formatDuration(durationMs: Long): String =
+        com.example.smarty.features.voice
+            .formatDuration(durationMs)
 }
 
 fun formatDuration(durationMs: Long): String {

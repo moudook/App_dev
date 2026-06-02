@@ -140,12 +140,11 @@ object TitleCompressor {
     /**
      * Clean up title by removing quotes, extra punctuation, etc.
      */
-    private fun cleanTitle(title: String): String {
-        return title
+    private fun cleanTitle(title: String): String =
+        title
             .replace(QUOTES_PATTERN, "") // Remove quotes at start/end
             .replace(WHITESPACE_PATTERN, " ") // Normalize whitespace
             .trim()
-    }
 
     /**
      * Fallback compression when AI is unavailable.
@@ -191,9 +190,10 @@ object TitleCompressor {
             } else {
                 // Parallel for capable devices using coroutineScope
                 coroutineScope {
-                    titles.map { title ->
-                        async { compressTitle(aiService, title) }
-                    }.awaitAll()
+                    titles
+                        .map { title ->
+                            async { compressTitle(aiService, title) }
+                        }.awaitAll()
                 }
             }
         }

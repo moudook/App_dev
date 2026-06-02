@@ -280,9 +280,11 @@ fun FolderDialog(
                                     .clickable { selectedColor = colorHex }
                                     .then(
                                         if (isSelected) {
-                                            Modifier.padding(
-                                                2.dp,
-                                            ).background(MaterialTheme.colorScheme.onSurface, CircleShape).padding(2.dp)
+                                            Modifier
+                                                .padding(
+                                                    2.dp,
+                                                ).background(MaterialTheme.colorScheme.onSurface, CircleShape)
+                                                .padding(2.dp)
                                         } else {
                                             Modifier
                                         },

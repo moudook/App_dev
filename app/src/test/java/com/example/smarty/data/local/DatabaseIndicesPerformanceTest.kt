@@ -38,7 +38,8 @@ class DatabaseIndicesPerformanceTest {
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
-            Room.inMemoryDatabaseBuilder(context, SmartyDatabase::class.java)
+            Room
+                .inMemoryDatabaseBuilder(context, SmartyDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
         chatDao = database.chatDao()

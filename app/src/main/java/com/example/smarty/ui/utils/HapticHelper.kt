@@ -1,21 +1,20 @@
 package com.example.smarty.ui.utils
 
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.runtime.*
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 /**
  * Haptic Feedback Helper.
- * 
+ *
  * Single Responsibility: Only handles haptic feedback.
  * DRY: Centralizes haptic patterns used across the app.
- * 
+ *
  * Usage:
  * ```
  * // Get helper
  * val haptic = LocalHapticFeedback.current
- * 
+ *
  * // Or use helper methods
  * HapticHelper.click()
  * HapticHelper.longPress()
@@ -23,7 +22,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
  * ```
  */
 object HapticHelper {
-    
     /**
      * Perform click haptic feedback.
      */
@@ -32,7 +30,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
-    
+
     /**
      * Perform long press haptic feedback.
      */
@@ -41,7 +39,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
-    
+
     /**
      * Perform text handle move haptic feedback.
      */
@@ -50,7 +48,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
-    
+
     /**
      * Perform keyboard tap haptic feedback.
      */
@@ -59,7 +57,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
-    
+
     /**
      * Perform virtual key haptic feedback.
      */
@@ -68,7 +66,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
-    
+
     /**
      * Perform gesture end haptic feedback.
      */
@@ -77,7 +75,7 @@ object HapticHelper {
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
-    
+
     /**
      * Perform haptic feedback with confirmation.
      * Checks if haptic feedback is enabled on the device.
@@ -85,10 +83,10 @@ object HapticHelper {
     @Composable
     fun performWithConfirmation(
         type: HapticFeedbackType,
-        enabled: Boolean = true
+        enabled: Boolean = true,
     ) {
         if (!enabled) return
-        
+
         val haptic = LocalHapticFeedback.current
         haptic.performHapticFeedback(type)
     }
@@ -106,14 +104,14 @@ enum class HapticInteraction {
     DROP,
     SUCCESS,
     ERROR,
-    WARNING
+    WARNING,
 }
 
 /**
  * Get haptic feedback type for interaction.
  */
-fun HapticInteraction.toFeedbackType(): HapticFeedbackType {
-    return when (this) {
+fun HapticInteraction.toFeedbackType(): HapticFeedbackType =
+    when (this) {
         HapticInteraction.CLICK -> HapticFeedbackType.TextHandleMove
         HapticInteraction.LONG_PRESS -> HapticFeedbackType.LongPress
         HapticInteraction.SCROLL -> HapticFeedbackType.TextHandleMove
@@ -124,4 +122,3 @@ fun HapticInteraction.toFeedbackType(): HapticFeedbackType {
         HapticInteraction.ERROR -> HapticFeedbackType.LongPress
         HapticInteraction.WARNING -> HapticFeedbackType.LongPress
     }
-}

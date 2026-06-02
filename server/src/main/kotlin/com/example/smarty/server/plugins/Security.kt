@@ -50,8 +50,8 @@ object FirebaseStatus {
  */
 fun isProductionEnvironment(): Boolean {
     return System.getenv("ENVIRONMENT")?.lowercase() == "production" ||
-        System.getenv("K_SERVICE") != null || // Cloud Run
-        System.getenv("CF_PAGES") == "1" || // Cloudflare Pages
+        System.getenv("K_SERVICE") != null ||
+        // Cloud Run
         System.getenv("HUGGINGFACE_SPACES") == "1" // Hugging Face Spaces
 }
 
@@ -100,7 +100,8 @@ fun initializeFirebase() {
         if (!credentialsJson.isNullOrBlank()) {
             logger.info("Initializing Firebase with raw JSON from FIREBASE_CREDENTIALS")
             try {
-                FirebaseOptions.builder()
+                FirebaseOptions
+                    .builder()
                     .setCredentials(GoogleCredentials.fromStream(credentialsJson.byteInputStream()))
                     .build()
             } catch (e: Exception) {
@@ -114,7 +115,8 @@ fun initializeFirebase() {
         } else if (!credentialsPath.isNullOrBlank()) {
             logger.info("Initializing Firebase with service account from: $credentialsPath")
             try {
-                FirebaseOptions.builder()
+                FirebaseOptions
+                    .builder()
                     .setCredentials(GoogleCredentials.fromStream(FileInputStream(credentialsPath)))
                     .build()
             } catch (e: Exception) {
@@ -214,15 +216,14 @@ fun verifyFirebaseToken(
  * Ensures a user exists in the database. Creates the user record if it doesn't exist.
  * Returns the user's UUID user_id.
  */
+
 /**
  * Admin-only whitelist: only this email can access the server.
  * All other authenticated Firebase users will receive 401/403.
  */
 const val ADMIN_EMAIL = "forpblcusz@gmail.com"
 
-fun isAdminEmail(email: String?): Boolean {
-    return email == ADMIN_EMAIL
-}
+fun isAdminEmail(email: String?): Boolean = email == ADMIN_EMAIL
 
 private fun ensureUserExistsInDatabase(
     firebaseUid: String,
@@ -350,9 +351,7 @@ fun Application.configureSecurity() {
 /**
  * Extension to get the authenticated user from the application call.
  */
-fun ApplicationCall.firebaseUser(): FirebaseUserPrincipal? {
-    return principal<FirebaseUserPrincipal>()
-}
+fun ApplicationCall.firebaseUser(): FirebaseUserPrincipal? = principal<FirebaseUserPrincipal>()
 
 /**
  * Extension to require authenticated user, responding with 401 if not authenticated.

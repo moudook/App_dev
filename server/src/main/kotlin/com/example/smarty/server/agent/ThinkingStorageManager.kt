@@ -5,7 +5,6 @@ package com.example.smarty.server.agent
  * REVISION V5: Gutted — thinking traces are no longer saved or transmitted.
  */
 class ThinkingStorageManager {
-
     suspend fun addReasoning(
         sessionId: String,
         reasoning: String,

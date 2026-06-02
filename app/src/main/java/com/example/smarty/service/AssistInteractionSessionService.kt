@@ -9,7 +9,5 @@ import android.service.voice.VoiceInteractionSessionService
  * This is the entry point for the Android Assistant API.
  */
 class AssistInteractionSessionService : VoiceInteractionSessionService() {
-    override fun onNewSession(args: Bundle?): VoiceInteractionSession {
-        return AssistInteractionSession(this)
-    }
+    override fun onNewSession(args: Bundle?): VoiceInteractionSession = AssistInteractionSession(this)
 }

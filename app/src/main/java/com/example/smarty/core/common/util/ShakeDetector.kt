@@ -52,9 +52,7 @@ class ShakeDetector(
      * Get the current shake threshold.
      * Uses dynamic threshold from settings if available, otherwise default.
      */
-    private fun getCurrentThreshold(): Int {
-        return getThreshold?.invoke() ?: DEFAULT_SHAKE_THRESHOLD
-    }
+    private fun getCurrentThreshold(): Int = getThreshold?.invoke() ?: DEFAULT_SHAKE_THRESHOLD
 
     /**
      * Start listening for shake gestures

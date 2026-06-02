@@ -29,7 +29,8 @@ class CacheCleanupWorker(
          */
         fun schedule(context: Context) {
             val constraints =
-                Constraints.Builder()
+                Constraints
+                    .Builder()
                     .setRequiresBatteryNotLow(true)
                     .build()
 
@@ -37,8 +38,7 @@ class CacheCleanupWorker(
                 PeriodicWorkRequestBuilder<CacheCleanupWorker>(
                     1,
                     TimeUnit.DAYS,
-                )
-                    .setConstraints(constraints)
+                ).setConstraints(constraints)
                     .setInitialDelay(1, TimeUnit.HOURS) // Don't run immediately on app start
                     .build()
 

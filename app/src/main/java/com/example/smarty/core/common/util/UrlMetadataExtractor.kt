@@ -65,9 +65,7 @@ object UrlMetadataExtractor {
     /**
      * Check if text contains a URL
      */
-    fun containsUrl(text: String): Boolean {
-        return urlPattern.matcher(text).find()
-    }
+    fun containsUrl(text: String): Boolean = urlPattern.matcher(text).find()
 
     /**
      * Fetch metadata from a URL
@@ -77,7 +75,8 @@ object UrlMetadataExtractor {
             try {
                 withTimeoutOrNull(TIMEOUT_MS) {
                     val request =
-                        Request.Builder()
+                        Request
+                            .Builder()
                             .url(url)
                             .header("User-Agent", "Mozilla/5.0 (compatible; SmartyApp/1.0)")
                             .header("Accept", "text/html")
@@ -172,14 +171,13 @@ object UrlMetadataExtractor {
         return if (matcher.find()) matcher.group(1)?.trim() else null
     }
 
-    private fun extractDomain(url: String): String? {
-        return try {
+    private fun extractDomain(url: String): String? =
+        try {
             val uri = java.net.URI(url)
             uri.host?.removePrefix("www.")
         } catch (e: Exception) {
             null
         }
-    }
 
     /**
      * READER MODE: Extract clean article text from HTML.
@@ -266,7 +264,8 @@ object UrlMetadataExtractor {
 
             // Step 4: Clean up and limit size
             var result =
-                textBuilder.toString()
+                textBuilder
+                    .toString()
                     .replace(Regex("\n{3,}"), "\n\n") // Max 2 newlines
                     .replace(Regex("[ \t]+"), " ") // Normalize spaces
                     .trim()

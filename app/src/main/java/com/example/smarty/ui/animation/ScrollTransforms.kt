@@ -29,7 +29,7 @@ import kotlin.math.sqrt
 @Composable
 fun Modifier.wheelScrollTransform(
     index: Int,
-    lazyListState: LazyListState
+    lazyListState: LazyListState,
 ): Modifier {
     val density = LocalDensity.current
 

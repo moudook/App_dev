@@ -41,7 +41,8 @@ class AutoBackupWorker(
             intervalDays: Int = AutoBackupConfig.DEFAULT_BACKUP_INTERVAL_DAYS,
         ) {
             val constraints =
-                Constraints.Builder()
+                Constraints
+                    .Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .setRequiresBatteryNotLow(true)
                     .build()
@@ -50,14 +51,12 @@ class AutoBackupWorker(
                 PeriodicWorkRequestBuilder<AutoBackupWorker>(
                     intervalDays.toLong(),
                     TimeUnit.DAYS,
-                )
-                    .setConstraints(constraints)
+                ).setConstraints(constraints)
                     .setBackoffCriteria(
                         BackoffPolicy.EXPONENTIAL,
                         WorkRequest.MIN_BACKOFF_MILLIS,
                         TimeUnit.MILLISECONDS,
-                    )
-                    .addTag(TAG)
+                    ).addTag(TAG)
                     .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -79,7 +78,8 @@ class AutoBackupWorker(
          */
         fun runNow(context: Context) {
             val constraints =
-                Constraints.Builder()
+                Constraints
+                    .Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build()
 
@@ -98,7 +98,8 @@ class AutoBackupWorker(
         suspend fun isScheduled(context: Context): Boolean =
             withContext(Dispatchers.IO) {
                 val workInfos =
-                    WorkManager.getInstance(context)
+                    WorkManager
+                        .getInstance(context)
                         .getWorkInfosForUniqueWork(WORK_NAME)
                         .get()
 

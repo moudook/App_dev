@@ -215,8 +215,8 @@ class ReasoningViewModel(
     /**
      * Get step type icon/color based on type
      */
-    fun getStepTypeDisplay(stepType: String): StepTypeDisplay {
-        return when (stepType.uppercase()) {
+    fun getStepTypeDisplay(stepType: String): StepTypeDisplay =
+        when (stepType.uppercase()) {
             "ANALYSIS" -> StepTypeDisplay.Analysis
             "PLANNING" -> StepTypeDisplay.Planning
             "HYPOTHESIS" -> StepTypeDisplay.Hypothesis
@@ -227,7 +227,6 @@ class ReasoningViewModel(
             "CORRECTION" -> StepTypeDisplay.Correction
             else -> StepTypeDisplay.Unknown(stepType)
         }
-    }
 
     /**
      * Step type display information
@@ -249,7 +248,9 @@ class ReasoningViewModel(
 
         object Correction : StepTypeDisplay()
 
-        data class Unknown(val type: String) : StepTypeDisplay()
+        data class Unknown(
+            val type: String,
+        ) : StepTypeDisplay()
 
         val icon: String
             get() =

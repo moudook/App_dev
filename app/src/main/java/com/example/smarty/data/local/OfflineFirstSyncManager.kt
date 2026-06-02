@@ -261,9 +261,7 @@ class OfflineFirstSyncManager(
     /**
      * Check if error is a conflict
      */
-    private fun isConflict(e: Exception): Boolean {
-        return e.message?.contains("conflict", ignoreCase = true) == true
-    }
+    private fun isConflict(e: Exception): Boolean = e.message?.contains("conflict", ignoreCase = true) == true
 
     /**
      * Handle conflict
@@ -288,14 +286,13 @@ class OfflineFirstSyncManager(
     /**
      * Perform immediate sync
      */
-    suspend fun syncNow(): Boolean {
-        return try {
+    suspend fun syncNow(): Boolean =
+        try {
             performSync()
             true
         } catch (e: Exception) {
             false
         }
-    }
 
     /**
      * Start periodic sync
@@ -320,11 +317,22 @@ class OfflineFirstSyncManager(
      * Sync operation types
      */
     sealed class SyncOperation {
-        data class Create(val entityType: String, val entityId: String, val data: Any) : SyncOperation()
+        data class Create(
+            val entityType: String,
+            val entityId: String,
+            val data: Any,
+        ) : SyncOperation()
 
-        data class Update(val entityType: String, val entityId: String, val data: Any) : SyncOperation()
+        data class Update(
+            val entityType: String,
+            val entityId: String,
+            val data: Any,
+        ) : SyncOperation()
 
-        data class Delete(val entityType: String, val entityId: String) : SyncOperation()
+        data class Delete(
+            val entityType: String,
+            val entityId: String,
+        ) : SyncOperation()
     }
 
     /**

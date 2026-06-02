@@ -2,7 +2,6 @@ package com.example.smarty.ui.components.common
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,10 +14,10 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Loading/Empty/Data State Component.
- * 
+ *
  * Single Responsibility: Only handles state-based content display.
  * DRY: Replaces repeated loading/empty patterns in 8+ screens.
- * 
+ *
  * Usage:
  * ```
  * LoadingEmptyContent(
@@ -43,7 +42,7 @@ fun <T> LoadingEmptyContent(
     emptyIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     loadingCount: Int = 5,
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     when {
         isLoading -> {
@@ -54,7 +53,7 @@ fun <T> LoadingEmptyContent(
                 title = emptyTitle,
                 subtitle = emptySubtitle,
                 icon = emptyIcon,
-                modifier = modifier
+                modifier = modifier,
             )
         }
         else -> {
@@ -69,26 +68,29 @@ fun <T> LoadingEmptyContent(
 @Composable
 fun LoadingState(
     count: Int = 5,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         repeat(count) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .shimmerEffect()
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .shimmerEffect(),
                 )
             }
         }
@@ -104,51 +106,52 @@ fun EmptyState(
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     modifier: Modifier = Modifier,
-    action: @Composable () -> Unit = {}
+    action: @Composable () -> Unit = {},
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         if (icon != null) {
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(80.dp)
+                modifier = Modifier.size(80.dp),
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(40.dp),
                     )
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
-        
+
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = subtitle,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        
+
         if (action != {}) {
             Spacer(modifier = Modifier.height(24.dp))
             action()
@@ -160,19 +163,20 @@ fun EmptyState(
  * Shimmer effect for loading states.
  */
 @Composable
-private fun Modifier.shimmerEffect(): Modifier {
-    return this
+private fun Modifier.shimmerEffect(): Modifier =
+    this
         .drawWithContent {
             drawContent()
             drawRect(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color.White.copy(alpha = 0.1f),
-                        Color.Transparent
-                    )
-                ),
-                alpha = 0.3f
+                brush =
+                    Brush.linearGradient(
+                        colors =
+                            listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.1f),
+                                Color.Transparent,
+                            ),
+                    ),
+                alpha = 0.3f,
             )
         }
-}
