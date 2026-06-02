@@ -367,14 +367,30 @@ private fun translatePluginEvent(
 ): List<AgentEvent> {
     val out = mutableListOf<AgentEvent>()
 
-    // One-time debug log: dump the first 800 chars of major event kinds so we
-    // can confirm payload structure. Without this we'd be guessing at field names.
-    if (debugLoggedKinds.add("$sessionId:$kind") &&
-        (kind.startsWith("message.") || kind.startsWith("tool.") ||
-         kind.startsWith("permission.") || kind.startsWith("mcp."))
-    ) {
-        val preview = event.toString().take(800)
-        logger.info("[STREAM-MAP-DEBUG] first $kind: $preview")
+    // One-time debug log: dump the structure of major event kinds so we can
+    // confirm payload shape. For `message.updated` we log the FULL payload
+    // (up to 16KB) plus a structural outline because the previous 800-char
+    // truncation hid the actual text/parts fields.
+    if (debugLoggedKinds.add("$sessionId:$kind")) {
+        if (kind == "message.updated" || kind == "message.part.updated") {
+            val messageObj = event["info"]?.jsonObject
+                ?: event["message"]?.jsonObject
+                ?: event
+            val role = messageObj["role"]?.jsonPrimitive?.content ?: "?"
+            val topKeys = event.keys.sorted().joinToString(",")
+            val innerKeys = messageObj.keys.sorted().joinToString(",")
+            val fullPreview = event.toString().take(16384)
+            logger.info(
+                "[STREAM-MAP-DEBUG] $kind role=$role topKeys=[$topKeys] innerKeys=[$innerKeys] payload(${event.toString().length}B)=$fullPreview",
+            )
+        } else if (kind.startsWith("message.") || kind.startsWith("tool.") ||
+                   kind.startsWith("permission.") || kind.startsWith("mcp.") ||
+                   kind.startsWith("session.")
+        ) {
+            val topKeys = event.keys.sorted().joinToString(",")
+            val preview = event.toString().take(2000)
+            logger.info("[STREAM-MAP-DEBUG] first $kind topKeys=[$topKeys] preview=$preview")
+        }
     }
 
     when (kind) {
@@ -421,6 +437,44 @@ private fun translatePluginEvent(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = ts,
                 reason = reason,
+            )
+        }
+
+        // ── Session sub-events observed in v1.15.13 (e.g. session.next.*, session.status) ──
+        "session.next.agent.switched" -> {
+            val info = event["info"]?.jsonObject ?: event
+            val newAgent = info["agent"]?.jsonPrimitive?.content ?: "?"
+            out += AgentEvent.ModelResolved(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                requested = newAgent,
+                resolved = newAgent,
+                fallback = false,
+            )
+        }
+        "session.next.model.switched" -> {
+            val info = event["info"]?.jsonObject ?: event
+            val modelObj = info["model"]?.jsonObject
+            val newModel = modelObj?.get("modelID")?.jsonPrimitive?.content
+                ?: info["modelID"]?.jsonPrimitive?.content
+                ?: "?"
+            val provider = modelObj?.get("providerID")?.jsonPrimitive?.content
+                ?: info["providerID"]?.jsonPrimitive?.content
+            val resolved = if (provider != null) "$provider/$newModel" else newModel
+            out += AgentEvent.ModelResolved(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                requested = resolved,
+                resolved = resolved,
+                fallback = false,
+            )
+        }
+        "session.status" -> {
+            out += AgentEvent.StateSync(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                syncType = "session_status",
+                data = event.toString().take(4096),
             )
         }
 
@@ -711,8 +765,33 @@ private fun translatePluginEvent(
 }
 
 /**
- * Extract text/reasoning from a `message.updated` snapshot's parts array.
- * Handles JsonArray parts, JsonObject indexed parts, and flat structure.
+ * Extract text/reasoning from a `message.updated` snapshot.
+ *
+ * OpenCode v1.15.13 wire format (confirmed via server.log):
+ *   {
+ *     "kind": "message.updated",
+ *     "sessionID": "ses_xxx",
+ *     "info": {
+ *       "id": "msg_xxx",
+ *       "role": "user" | "assistant",  <-- filter to assistant only
+ *       "sessionID": "ses_xxx",
+ *       "time": {"created": 12345},
+ *       "agent": "smarty-headless-agent",
+ *       "model": {"providerID": "opencode", "modelID": "...", "variant": "low"},
+ *       "system": "...",   <-- the system prompt (only on user messages)
+ *       "text": "..."      <-- the actual content (TBD exact field)
+ *     }
+ *   }
+ *
+ * The first `message.updated` is the user's prompt echo (role="user")
+ * — we MUST skip it. Subsequent ones are the assistant's response.
+ *
+ * Tries, in order:
+ *   1. event.info.parts[]  (text/reasoning entries)
+ *   2. event.info.text     (flat text)
+ *   3. event.info.content  (flat content)
+ *   4. event.message.parts[] (older daemon wire format)
+ *   5. event.text / event.content (flat at top level)
  */
 private fun extractFromMessageParts(
     event: JsonObject,
@@ -720,10 +799,20 @@ private fun extractFromMessageParts(
     sessionId: String,
     out: MutableList<AgentEvent>,
 ) {
-    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-    val messageObj = event["message"]?.jsonObject ?: event
-    val parts = messageObj["parts"]
+    val messageObj = event["info"]?.jsonObject
+        ?: event["message"]?.jsonObject
+        ?: event
 
+    val role = messageObj["role"]?.jsonPrimitive?.content
+    if (role != null && role != "assistant") {
+        // Skip user-message echoes. They're noise for the chat UI.
+        return
+    }
+
+    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+
+    // Path 1: parts array on messageObj
+    val parts = messageObj["parts"]
     val partList: List<JsonObject> = when (parts) {
         is JsonArray -> parts.mapNotNull { runCatching { it.jsonObject }.getOrNull() }
         is JsonObject -> parts.values.mapNotNull { runCatching { it.jsonObject }.getOrNull() }
@@ -733,62 +822,70 @@ private fun extractFromMessageParts(
     for (part in partList) {
         val partType = part["type"]?.jsonPrimitive?.content
         when (partType) {
-            "text" -> {
-                val fullText = part["text"]?.jsonPrimitive?.content ?: ""
-                if (fullText.length > state.text.length) {
-                    val delta = fullText.substring(state.text.length)
-                    state.text = fullText
-                    if (delta.isNotEmpty()) {
-                        out += AgentEvent.FinalAnswerDelta(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            text = delta,
-                        )
-                    }
-                }
-            }
-            "reasoning" -> {
-                val fullReasoning = part["reasoning"]?.jsonPrimitive?.content ?: ""
-                if (fullReasoning.length > state.reasoning.length) {
-                    val delta = fullReasoning.substring(state.reasoning.length)
-                    state.reasoning = fullReasoning
-                    if (delta.isNotEmpty()) {
-                        out += AgentEvent.ReasoningDelta(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = ts,
-                            text = delta,
-                        )
-                    }
-                }
-            }
+            "text" -> emitTextDelta(part["text"]?.jsonPrimitive?.content ?: "", state, ts, out)
+            "reasoning" -> emitReasoningDelta(part["reasoning"]?.jsonPrimitive?.content ?: "", state, ts, out)
         }
     }
 
-    // Fallback: flat structure (event has direct "text" or "reasoning" fields)
+    // Path 2 & 3: flat `text` / `content` on the message object
+    if (out.isEmpty()) {
+        val fullText = messageObj["text"]?.jsonPrimitive?.content
+            ?: messageObj["content"]?.jsonPrimitive?.content
+        if (!fullText.isNullOrEmpty()) {
+            emitTextDelta(fullText, state, ts, out)
+        }
+    }
+    if (out.isEmpty()) {
+        val fullReasoning = messageObj["reasoning"]?.jsonPrimitive?.content
+        if (!fullReasoning.isNullOrEmpty()) {
+            emitReasoningDelta(fullReasoning, state, ts, out)
+        }
+    }
+
+    // Path 4 & 5: legacy flat at event top-level
     if (out.isEmpty()) {
         val fullText = event["text"]?.jsonPrimitive?.content
-        if (fullText != null && fullText.length > state.text.length) {
-            val delta = fullText.substring(state.text.length)
-            state.text = fullText
-            if (delta.isNotEmpty()) {
-                out += AgentEvent.FinalAnswerDelta(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = ts,
-                    text = delta,
-                )
-            }
+            ?: event["content"]?.jsonPrimitive?.content
+        if (!fullText.isNullOrEmpty()) {
+            emitTextDelta(fullText, state, ts, out)
         }
-        val fullReasoning = event["reasoning"]?.jsonPrimitive?.content
-        if (fullReasoning != null && fullReasoning.length > state.reasoning.length) {
-            val delta = fullReasoning.substring(state.reasoning.length)
-            state.reasoning = fullReasoning
-            if (delta.isNotEmpty()) {
-                out += AgentEvent.ReasoningDelta(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = ts,
-                    text = delta,
-                )
-            }
+    }
+}
+
+private fun emitTextDelta(
+    fullText: String,
+    state: SessionContentState,
+    ts: Long,
+    out: MutableList<AgentEvent>,
+) {
+    if (fullText.length > state.text.length) {
+        val delta = fullText.substring(state.text.length)
+        state.text = fullText
+        if (delta.isNotEmpty()) {
+            out += AgentEvent.FinalAnswerDelta(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                text = delta,
+            )
+        }
+    }
+}
+
+private fun emitReasoningDelta(
+    fullReasoning: String,
+    state: SessionContentState,
+    ts: Long,
+    out: MutableList<AgentEvent>,
+) {
+    if (fullReasoning.length > state.reasoning.length) {
+        val delta = fullReasoning.substring(state.reasoning.length)
+        state.reasoning = fullReasoning
+        if (delta.isNotEmpty()) {
+            out += AgentEvent.ReasoningDelta(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = ts,
+                text = delta,
+            )
         }
     }
 }
@@ -796,6 +893,8 @@ private fun extractFromMessageParts(
 /**
  * Extract from a `message.part.updated` (or legacy `part.updated`) event.
  * Handles text, reasoning, step-start, step-finish, subtask part types.
+ * Looks for content in `event.info.*` first, then `event.*` for legacy
+ * daemon wire formats.
  */
 private fun extractFromPartUpdated(
     event: JsonObject,
@@ -804,36 +903,17 @@ private fun extractFromPartUpdated(
     out: MutableList<AgentEvent>,
 ) {
     val partType = event["partType"]?.jsonPrimitive?.content ?: return
+    val info = event["info"]?.jsonObject
+    val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
+
     when (partType) {
         "text" -> {
-            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-            val fullText = event["text"]?.jsonPrimitive?.content ?: ""
-            if (fullText.length > state.text.length) {
-                val delta = fullText.substring(state.text.length)
-                state.text = fullText
-                if (delta.isNotEmpty()) {
-                    out += AgentEvent.FinalAnswerDelta(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = ts,
-                        text = delta,
-                    )
-                }
-            }
+            val fullText = (info?.get("text") ?: event["text"])?.jsonPrimitive?.content ?: ""
+            emitTextDelta(fullText, state, ts, out)
         }
         "reasoning" -> {
-            val state = sessionContentStates.getOrPut(sessionId) { SessionContentState() }
-            val fullReasoning = event["reasoning"]?.jsonPrimitive?.content ?: ""
-            if (fullReasoning.length > state.reasoning.length) {
-                val delta = fullReasoning.substring(state.reasoning.length)
-                state.reasoning = fullReasoning
-                if (delta.isNotEmpty()) {
-                    out += AgentEvent.ReasoningDelta(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = ts,
-                        text = delta,
-                    )
-                }
-            }
+            val fullReasoning = (info?.get("reasoning") ?: event["reasoning"])?.jsonPrimitive?.content ?: ""
+            emitReasoningDelta(fullReasoning, state, ts, out)
         }
         "step-start" -> {
             val step = event["step"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
