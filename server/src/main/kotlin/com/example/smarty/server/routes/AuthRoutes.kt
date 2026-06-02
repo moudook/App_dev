@@ -1,6 +1,7 @@
 package com.example.smarty.server.routes
 
 import com.example.smarty.server.plugins.verifyFirebaseToken
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -12,8 +13,9 @@ import io.ktor.server.routing.routing
 fun Application.configureAuthRoutes() {
     routing {
         post("/auth/verify") {
-            // Get the Bearer token from the X-Firebase-Auth header (set by Cloudflare proxy)
-            val token = call.request.header("X-Firebase-Auth")?.removePrefix("Bearer ")?.trim()
+            // Get the Bearer token from the Authorization header
+            val authHeader = call.request.header(HttpHeaders.Authorization)
+            val token = authHeader?.removePrefix("Bearer ")?.trim()
             if (token.isNullOrBlank()) {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid token"))
                 return@post

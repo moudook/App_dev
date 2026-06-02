@@ -307,14 +307,6 @@ fun Application.configureSecurity() {
 
         bearer("firebase") {
             realm = "Smarty API"
-            authHeader { call ->
-                call.request.header("X-Firebase-Auth")
-                    ?.removePrefix("Bearer ")
-                    ?.trim()
-                    ?.let { token ->
-                        HttpAuthHeader.Single("Bearer", token)
-                    }
-            }
             authenticate { credential ->
                 try {
                     val deviceId = this.request.header("X-Smarty-Device-Id")
