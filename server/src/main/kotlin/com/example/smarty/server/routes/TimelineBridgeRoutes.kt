@@ -175,7 +175,15 @@ fun Application.configureTimelineBridgeRoutes() {
                         logger.debug(
                             "[STREAM-TRANSLATE] kind=$kind -> ${streamEvents.size} event(s) for user=$userId chat=$chatSessionId",
                         )
+                    } else if (kind.startsWith("message.") || kind.startsWith("tool.") || kind.startsWith("part.")) {
+                        logger.warn(
+                            "[STREAM-TRANSLATE-EMPTY] kind=$kind session=$sessionID — translatePluginEvent returned no events for user=$userId chat=$chatSessionId",
+                        )
                     }
+                } else if (kind.startsWith("message.") || kind.startsWith("tool.") || kind.startsWith("part.")) {
+                    logger.warn(
+                        "[STREAM-RESOLVE-NULL] kind=$kind session=$sessionID — no mapping in ActiveSessionManager, events dropped",
+                    )
                 }
 
                 // Broadcast the raw event to all connected WebSocket clients

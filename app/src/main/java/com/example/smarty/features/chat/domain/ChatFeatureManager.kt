@@ -1858,7 +1858,7 @@ class ChatFeatureManager(
                                 chatManager.updateMessageWithThinking(
                                     streamingMessageId,
                                     responseBuilder.toString(),
-                                    null,
+                                    event.thinking,
                                     agentEvents = agentEventsBuilder.toList(),
                                 )
                             }

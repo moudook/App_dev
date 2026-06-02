@@ -105,38 +105,20 @@ object AgentRunManager {
                 var hasActivePluginBridge = false
 
                 val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
-                    val isContentEvent =
-                        event is AgentEvent.Processing ||
-                            event is AgentEvent.Result ||
-                            event is AgentEvent.ToolCall ||
-                            event is AgentEvent.AgentStep
-
-                    if (hasActivePluginBridge && isContentEvent) {
-                        // Plugin bridge is authoritative for content — suppress ServerAgent
-                        // duplicates. Still preserve standalone thinking and metadata.
-                        when (event) {
-                            is AgentEvent.Processing -> {
-                                if (!event.thinking.isNullOrBlank()) {
-                                    flow.emit(event.copy(content = ""))
-                                }
-                            }
-                            is AgentEvent.Result -> {
-                                flow.emit(event.copy(content = ""))
-                            }
-                            else -> { /* ToolCall, AgentStep — skip entirely */ }
-                        }
-                        collectedAgentEvents.add(event)
-                    } else {
-                        flow.emit(event)
-                        collectedAgentEvents.add(event)
-                        if (event is AgentEvent.AgentStep) {
-                            collectedAgentSteps[event.stepIndex] = event
-                        }
-                        if (event is AgentEvent.Command) {
-                            val cmd = event.command
-                            if (cmd is AgentCommand.NotifyCitations) {
-                                collectedCitations.addAll(cmd.citations)
-                            }
+                    // Always emit ALL ServerAgent events — the daemon typically has no
+                    // --bridge-url configured, so plugin-bridge events never arrive at
+                    // /opencode/events.  Suppressing here would leave Android with zero
+                    // content.  The Android-side hasReceivedPluginEvents guard handles
+                    // deduplication when/if plugin events *do* arrive later.
+                    flow.emit(event)
+                    collectedAgentEvents.add(event)
+                    if (event is AgentEvent.AgentStep) {
+                        collectedAgentSteps[event.stepIndex] = event
+                    }
+                    if (event is AgentEvent.Command) {
+                        val cmd = event.command
+                        if (cmd is AgentCommand.NotifyCitations) {
+                            collectedCitations.addAll(cmd.citations)
                         }
                     }
                 }
