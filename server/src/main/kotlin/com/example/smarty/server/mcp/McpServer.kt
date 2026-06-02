@@ -2,7 +2,6 @@ package com.example.smarty.server.mcp
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.HttpClientSingleton
-import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.AgentRunManager
 import com.example.smarty.server.agent.AgentToolDefinitions
@@ -76,6 +75,7 @@ class McpServer(
     private data class McpSession(
         val channel: Channel<ServerSentEvent>,
         val createdAt: Long = System.currentTimeMillis(),
+        @Volatile var userId: String? = null,
     )
 
     private val sessions = ConcurrentHashMap<String, McpSession>()
@@ -138,15 +138,38 @@ class McpServer(
                     return@post
                 }
 
-                val userId = principal?.userId
-                    ?: com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()
-                    ?: getFallbackUserId()
+                // Bind the userId to this MCP session on first use so subsequent
+                // calls from the same session are routed to the same user, even
+                // if another user connects in between.
+                val session = sessions[mcpSessionId]
+                if (session == null) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Session not found"))
+                    return@post
+                }
+                // For remote (non-localhost) connections, require Firebase auth.
+                // For localhost (MCP CLI on the same container), bind the userId
+                // on first use via getFallbackUserId() — the DB's first user is
+                // deterministic for single-user containers, avoiding the race
+                // condition in ActiveUserRegistry.getMostRecentActiveUser().
+                val userId =
+                    principal?.userId
+                        ?: session.userId
+                        ?: if (isLocalhost) getFallbackUserId() else null
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                    return@post
+                }
+                session.userId = userId
 
                 val userSessions = ActiveSessionManager.getAllSessions().filter { it.userId == userId }
 
                 val body = call.receiveText()
                 val request = runCatching { json.decodeFromString<JsonRpcRequest>(body) }.getOrNull()
-                logger.info("[McpServer] POST /messages: sessionId=$mcpSessionId, userId=$userId, principal=${principal?.userId}, activeUser=${com.example.smarty.server.agent.ActiveUserRegistry.getMostRecentActiveUser()}, body=${body.take(500)}")
+                logger.info(
+                    "[McpServer] POST /messages: sessionId=$mcpSessionId, userId=$userId, principal=${principal?.userId}, body=${body.take(
+                        500,
+                    )}",
+                )
 
                 if (request == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid JSON-RPC payload")
@@ -295,17 +318,32 @@ class McpServer(
                 """Example: {"questions": [{"question": "What type of notes?", "options": ["Meeting notes", "Journal entry", "Research notes"]}]}"""
         }
         for ((i, element) in questionsArray.withIndex()) {
-            val qObj = try { element.jsonObject } catch (_: Exception) { null }
+            val qObj =
+                try {
+                    element.jsonObject
+                } catch (_: Exception) {
+                    null
+                }
             if (qObj == null) {
                 return "ERROR: Question at index $i is not a valid object. Each question must be a JSON object with 'question' (string) and 'options' (array of strings)."
             }
-            val questionText = try { qObj["question"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+            val questionText =
+                try {
+                    qObj["question"]?.jsonPrimitive?.content
+                } catch (_: Exception) {
+                    null
+                }
             if (questionText.isNullOrBlank()) {
                 return "ERROR: Question at index $i is missing a valid 'question' field or it is not a string. " +
                     "Every question needs a non-empty 'question' string. " +
                     """Example: {"question": "What would you like to do?", "options": ["Option A", "Option B"]}"""
             }
-            val optionsArray = try { qObj["options"]?.jsonArray } catch (_: Exception) { null }
+            val optionsArray =
+                try {
+                    qObj["options"]?.jsonArray
+                } catch (_: Exception) {
+                    null
+                }
             if (optionsArray == null || optionsArray.isEmpty()) {
                 return """ERROR: Question "$questionText" (index $i) has no options. """ +
                     "The 'ask_user' tool requires at least 1 option per question so the user can tap to answer. " +
@@ -313,7 +351,12 @@ class McpServer(
                     """Example: {"question": "$questionText", "options": ["Option 1", "Option 2"], "allow_custom": true}"""
             }
             for ((j, opt) in optionsArray.withIndex()) {
-                val optText = try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+                val optText =
+                    try {
+                        opt.jsonPrimitive.content
+                    } catch (_: Exception) {
+                        null
+                    }
                 if (optText.isNullOrBlank()) {
                     return """ERROR: Question "$questionText" (index $i) has an empty option at index $j. """ +
                         "Every option must be a non-empty string so the user can read and tap it."
@@ -341,7 +384,11 @@ class McpServer(
 
         val primarySessionId = userSessions.firstOrNull()?.sessionId ?: "global"
 
-        logger.info("[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, sessions=${userSessions.size}, args=${args.toString().take(200)}")
+        logger.info(
+            "[MCP] Tool call: name=$name -> resolved=$resolvedName, toolCallId=$toolCallId, user=$userId, sessions=${userSessions.size}, args=${args.toString().take(
+                200,
+            )}",
+        )
 
         thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "started", args.toString())
 
@@ -379,7 +426,9 @@ class McpServer(
         // PRIVILEGED MODE: Only ask_user requires user interaction (clarification question card).
         // All other tools (bash, device, memory, etc.) run autonomously — no approval gate.
         if (resolvedName == "ask_user" || resolvedName == "askuser") {
-            logger.info("[MCP] ask_user: toolCallId=$toolCallId, userId=$userId, sessions=${userSessions.size}, args=${args.toString().take(300)}")
+            logger.info(
+                "[MCP] ask_user: toolCallId=$toolCallId, userId=$userId, sessions=${userSessions.size}, args=${args.toString().take(300)}",
+            )
 
             // Validate arguments BEFORE emitting ApprovalRequested — return clear error to AI if malformed
             val validationError = validateAskUserArgs(args)
@@ -388,7 +437,17 @@ class McpServer(
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), validationError)
                 return buildJsonObject {
                     put("isError", JsonPrimitive(true))
-                    put("content", buildJsonArray { add(buildJsonObject { put("type", JsonPrimitive("text")); put("text", JsonPrimitive(validationError)) }) })
+                    put(
+                        "content",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("type", JsonPrimitive("text"))
+                                    put("text", JsonPrimitive(validationError))
+                                },
+                            )
+                        },
+                    )
                 }
             }
 
@@ -402,8 +461,10 @@ class McpServer(
                     toolArgs = args.toString(),
                     isInteractive = true,
                 )
-            eventEmitter?.invoke(approvalEvent)
-            emitToAllSessions(approvalEvent)
+            // Emit via eventEmitter (preferred — routes to both ActiveEventBridge
+            // and AgentRunManager). Fall back to emitToAllSessions if the emitter
+            // is not wired (e.g. test setup without Application.kt).
+            eventEmitter?.invoke(approvalEvent) ?: emitToAllSessions(approvalEvent)
             logger.info("[MCP] ask_user: emitted ApprovalRequested for toolCallId=$toolCallId, now waiting for approval...")
 
             val result =
@@ -412,15 +473,24 @@ class McpServer(
                     withTimeoutOrNull(161_000L) {
                         ApprovalRegistry.createPendingApproval(toolCallId, primarySessionId, userId, resolvedName).await()
                     }
-                }.getOrNull() ?: com.example.smarty.server.agent.ApprovalResult(false, "Approval timed out")
-            logger.info("[MCP] ask_user: approval resolved for toolCallId=$toolCallId, approved=${result.approved}, feedback=${result.feedback?.take(100)}")
+                }.getOrNull() ?: kotlin.run {
+                    // Clean up the stale pending approval entry on timeout
+                    // so orphaned deferreds don't accumulate in the registry
+                    ApprovalRegistry.clearApproval(toolCallId)
+                    com.example.smarty.server.agent
+                        .ApprovalResult(false, "Approval timed out")
+                }
+            logger.info(
+                "[MCP] ask_user: approval resolved for toolCallId=$toolCallId, approved=${result.approved}, feedback=${result.feedback?.take(
+                    100,
+                )}",
+            )
 
             if (!result.approved) {
                 val denial = result.feedback ?: "User denied"
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
                 val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
-                eventEmitter?.invoke(deniedEvent)
-                emitToAllSessions(deniedEvent)
+                eventEmitter?.invoke(deniedEvent) ?: emitToAllSessions(deniedEvent)
                 return buildJsonObject {
                     put(
                         "content",

@@ -81,7 +81,9 @@ object ApprovalRegistry {
     ): CompletableDeferred<ApprovalResult> {
         val deferred = CompletableDeferred<ApprovalResult>()
         pendingApprovals[toolCallId] = ApprovalEntry(deferred, sessionId, userId, toolName)
-        logger.info("[ApprovalRegistry] Created pending approval for toolCallId=$toolCallId tool=$toolName in session=$sessionId user=$userId")
+        logger.info(
+            "[ApprovalRegistry] Created pending approval for toolCallId=$toolCallId tool=$toolName in session=$sessionId user=$userId",
+        )
         return deferred
     }
 
@@ -100,7 +102,11 @@ object ApprovalRegistry {
         // Note: Cross-user check removed — the MCP daemon creates approvals with a
         // fallback userId that doesn't match the Android app's Firebase UID.
         // The toolCallId is already a unique, unguessable identifier.
-        logger.info("[ApprovalRegistry] Resolving approval: toolCallId=$toolCallId approved=$approved feedback=${feedback?.take(100)} caller=$callerUserId")
+        logger.info(
+            "[ApprovalRegistry] Resolving approval: toolCallId=$toolCallId approved=$approved feedback=${feedback?.take(
+                100,
+            )} caller=$callerUserId",
+        )
         deferred.complete(ApprovalResult(approved, feedback))
 
         // ── Audit log: best-effort, fire-and-forget ──
@@ -120,19 +126,21 @@ object ApprovalRegistry {
             val toolName = entry.toolName
             val decision = if (approved) "USER_APPROVED" else "USER_DENIED"
             auditScope.launch {
-                val ok = repo.logDecision(
-                    userId = userId.ifBlank { null },
-                    sessionId = sessionId,
-                    toolName = toolName,
-                    decision = decision,
-                    actor = "user",
-                    callId = toolCallId,
-                    userFeedback = feedback,
-                    metadata = mapOf(
-                        "source" to "android_app",
-                        "caller_user_id" to (callerUserId ?: ""),
-                    ),
-                )
+                val ok =
+                    repo.logDecision(
+                        userId = userId.ifBlank { null },
+                        sessionId = sessionId,
+                        toolName = toolName,
+                        decision = decision,
+                        actor = "user",
+                        callId = toolCallId,
+                        userFeedback = feedback,
+                        metadata =
+                            mapOf(
+                                "source" to "android_app",
+                                "caller_user_id" to (callerUserId ?: ""),
+                            ),
+                    )
                 if (!ok) {
                     logger.warn("[ApprovalRegistry] audit log write failed for toolCallId=$toolCallId")
                 }
@@ -156,6 +164,16 @@ object ApprovalRegistry {
             toolName = e.toolName,
             createdAt = e.createdAt,
         )
+    }
+
+    /** Remove a specific pending approval (e.g. after timeout) without resolving it. */
+    fun clearApproval(toolCallId: String): Boolean {
+        val entry = pendingApprovals.remove(toolCallId)
+        if (entry != null) {
+            logger.info("[ApprovalRegistry] Cleared stale pending approval for toolCallId=$toolCallId")
+            return true
+        }
+        return false
     }
 
     fun cancelApprovalsForSession(sessionId: String) {
