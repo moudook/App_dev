@@ -214,6 +214,16 @@ fun verifyFirebaseToken(
  * Ensures a user exists in the database. Creates the user record if it doesn't exist.
  * Returns the user's UUID user_id.
  */
+/**
+ * Admin-only whitelist: only this email can access the server.
+ * All other authenticated Firebase users will receive 401/403.
+ */
+const val ADMIN_EMAIL = "forpblcusz@gmail.com"
+
+fun isAdminEmail(email: String?): Boolean {
+    return email == ADMIN_EMAIL
+}
+
 private fun ensureUserExistsInDatabase(
     firebaseUid: String,
     email: String?,
@@ -310,7 +320,12 @@ fun Application.configureSecurity() {
             authenticate { credential ->
                 try {
                     val deviceId = this.request.header("X-Smarty-Device-Id")
-                    verifyFirebaseToken(credential.token, deviceId)
+                    val user = verifyFirebaseToken(credential.token, deviceId)
+                    // Admin whitelist: only forpblcusz@gmail.com can use this server
+                    if (user != null && !isAdminEmail(user.email)) {
+                        return@authenticate null
+                    }
+                    user
                 } catch (e: Exception) {
                     null // Let Ktor return 401 for standard authenticated routes
                 }

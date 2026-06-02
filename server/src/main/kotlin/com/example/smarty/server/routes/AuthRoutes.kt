@@ -1,5 +1,6 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.server.plugins.isAdminEmail
 import com.example.smarty.server.plugins.verifyFirebaseToken
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -26,6 +27,14 @@ fun Application.configureAuthRoutes() {
                 // Verify the token and get the user
                 val user = verifyFirebaseToken(token, deviceId)
                 if (user != null) {
+                    // Admin whitelist: only forpblcusz@gmail.com can use this server
+                    if (!isAdminEmail(user.email)) {
+                        call.respond(
+                            HttpStatusCode.Forbidden,
+                            mapOf("error" to "Access denied. This server is restricted to the owner's account."),
+                        )
+                        return@post
+                    }
                     call.respond(
                         HttpStatusCode.OK,
                         mapOf(
