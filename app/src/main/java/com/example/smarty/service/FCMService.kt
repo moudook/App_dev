@@ -194,7 +194,7 @@ class FCMService : FirebaseMessagingService() {
             return@withContext false
         }
 
-        if (serverUrl.isBlank() || serverUrl == "https://your-space-name.hf.space") {
+        if (serverUrl.isBlank()) {
             Log.w(TAG, "Server URL not configured - skipping token registration")
             return@withContext false
         }

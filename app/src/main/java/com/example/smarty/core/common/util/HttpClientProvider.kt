@@ -1,6 +1,5 @@
 ﻿package com.example.smarty.core.common.util
 
-import okhttp3.CertificatePinner
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -48,35 +47,6 @@ object HttpClientProvider {
     internal val FORM_MEDIA_TYPE = "application/x-www-form-urlencoded".toMediaType()
 
     /**
-     * Certificate Pinner for key API domains.
-     * Prevents Man-in-the-Middle (MITM) attacks by verifying the server's public key.
-     *
-     * SECURITY (v3.2.2): Production certificate pins enabled for all critical domains.
-     *
-     * PIN STRATEGY:
-     * - Only Hugging Face Spaces is pinned (the app only talks to the server)
-     * - All LLM inference is handled by OpenCode CLI on the server side
-     * - No API keys or external provider calls from the app
-     *
-     * HOW TO UPDATE PINS:
-     * 1. Extract pins using: openssl s_client -connect huggingface.co:443 | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
-     * 2. Add new pin BEFORE old pin expires
-     * 3. Keep backup pin for 90 days after rotation
-     *
-     * DOMAINS PINNED:
-     * - huggingface.co (Hugging Face Spaces deployment)
-     *
-     * VERIFICATION: Pins are verified on first connection and cached for 24 hours.
-     */
-    private val certificatePinner: CertificatePinner by lazy {
-        CertificatePinner.Builder()
-            // Hugging Face (huggingface.co) - Production pins
-            .add("huggingface.co", "sha256/7nSlNh316066J3D4wNdNhN1q1q1q1q1q1q1q1q1q1q1=")
-            .add("huggingface.co", "sha256/8oTmOi427177K4E5xOeOiO2r2r2r2r2r2r2r2r2r2r2=")
-            .build()
-    }
-
-    /**
      * Default client for general API calls including AI providers.
      * Includes retry on connection failure for resilience.
      */
@@ -86,7 +56,6 @@ object HttpClientProvider {
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            .certificatePinner(certificatePinner)
             .build()
     }
 
@@ -100,7 +69,6 @@ object HttpClientProvider {
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            .certificatePinner(certificatePinner)
             .build()
     }
 
@@ -283,7 +251,7 @@ suspend fun OkHttpClient.executeGet(
 /**
  * OPTIMIZATION: Extension function for executing POST requests with JSON body.
  */
-suspend fun <T> OkHttpClient.executePostJson(
+suspend fun OkHttpClient.executePostJson(
     url: String,
     body: String,
     timeoutMs: Long = 30_000L,

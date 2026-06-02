@@ -42,6 +42,7 @@ import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
 import com.example.smarty.server.routes.configureTimelineBridgeRoutes
 import com.example.smarty.server.routes.configureUtilityRoutes
+import com.example.smarty.server.routes.configureProxyRoutes
 import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.FcmNotificationService
@@ -353,6 +354,9 @@ fun Application.module() {
         configureTimelineBridgeRoutes()
         configurePermissionRoutes()
         log.info("PermissionRoutes configured")
+
+        configureProxyRoutes()
+        log.info("ProxyRoutes configured")
 
         val mcpServer =
             com.example.smarty.server.mcp.McpServer(
