@@ -26,13 +26,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import org.json.JSONObject
-import java.util.UUID
 
 data class RuntimeUiState(
     val timelineNodes: List<TimelineNode> = emptyList(),
@@ -164,54 +163,32 @@ class AgentRuntimeViewModel(
                         text: String,
                     ) {
                         try {
-                            val json = JSONObject(text)
-                            val kind = json.optString("kind")
-                            val sessionID = json.optString("sessionID")
-                            val event = translateToAgentEvent(kind, json)
-                            if (event != null) {
-                                // Defensive policy short-circuit: if a non-interactive
-                                // `permission.asked` event slipped through for a tool
-                                // the policy already allows/denies, auto-respond and
-                                // DON'T feed it to the aggregator (so no spurious
-                                // `ApprovalGate` node appears in the timeline). The
-                                // CLI normally handles allow/deny before emitting,
-                                // so this is a safety net.
-                                if (event is AgentEvent.ApprovalRequested && !event.isInteractive) {
-                                    val decision = toolPermissionPolicy.decide(event.toolName)
-                                    when (decision) {
-                                        ToolPermissionDecision.ALLOW -> {
-                                            Log.i(
-                                                TAG,
-                                                ">>> POLICY_AUTO_APPROVE: tool=${event.toolName} (defensive short-circuit; CLI normally handles this)",
-                                            )
-                                            sendPluginAskResponse(
-                                                sessionId = sessionID.ifBlank { null },
-                                                callId = event.toolId,
-                                                response = "auto-approved by policy",
-                                            )
-                                            return // don't render in timeline
-                                        }
-                                        ToolPermissionDecision.DENY -> {
-                                            Log.i(
-                                                TAG,
-                                                ">>> POLICY_AUTO_DENY: tool=${event.toolName} (defensive short-circuit; CLI normally blocks this)",
-                                            )
-                                            sendPluginAskResponse(
-                                                sessionId = sessionID.ifBlank { null },
-                                                callId = event.toolId,
-                                                response = "denied by policy",
-                                            )
-                                            return // don't render in timeline
-                                        }
-                                        ToolPermissionDecision.DEFAULT -> {
-                                            // No policy rule — fall through to the
-                                            // normal aggregator path which renders
-                                            // the approval card.
-                                        }
+                            val event = Json.decodeFromString<AgentEvent>(text)
+                            if (event is AgentEvent.ApprovalRequested && !event.interactive) {
+                                val decision = toolPermissionPolicy.decide(event.toolName)
+                                when (decision) {
+                                    ToolPermissionDecision.ALLOW -> {
+                                        Log.i(TAG, ">>> POLICY_AUTO_APPROVE: tool=${event.toolName}")
+                                        sendPluginAskResponse(
+                                            sessionId = null,
+                                            callId = event.toolId,
+                                            response = "auto-approved by policy",
+                                        )
+                                        return
                                     }
+                                    ToolPermissionDecision.DENY -> {
+                                        Log.i(TAG, ">>> POLICY_AUTO_DENY: tool=${event.toolName}")
+                                        sendPluginAskResponse(
+                                            sessionId = null,
+                                            callId = event.toolId,
+                                            response = "denied by policy",
+                                        )
+                                        return
+                                    }
+                                    ToolPermissionDecision.DEFAULT -> { }
                                 }
-                                handleIncomingEvent(event)
                             }
+                            handleIncomingEvent(event)
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to parse WS message: ${e.message}")
                         }
@@ -300,193 +277,8 @@ class AgentRuntimeViewModel(
             }
     }
 
-    /**
-     * Translate a raw plugin event (JSON) into the canonical [AgentEvent] type
-     * the existing [TimelineNodeAggregator] understands. This is the bridge
-     * between the plugin's bespoke schema and the Android app's existing
-     * timeline model.
-     */
-    private fun translateToAgentEvent(
-        kind: String,
-        json: JSONObject,
-    ): AgentEvent? {
-        val ts = System.currentTimeMillis()
-        val eventId = UUID.randomUUID().toString()
-        val sessionID = json.optString("sessionID")
-        return when (kind) {
-            "session.created" -> AgentEvent.SessionStarted(eventId, ts, sessionID)
-            "session.idle" -> AgentEvent.SessionCompleted(eventId, ts)
-            "session.error" -> {
-                val msg = json.optString("error", "Unknown error")
-                AgentEvent.SessionError(eventId, ts, msg)
-            }
-            "session.compacted" -> AgentEvent.RecoveryStarted(eventId, ts, "Compaction completed")
-            "compaction.start" -> AgentEvent.RecoveryStarted(eventId, ts, "Context compressing")
-
-            "permission.asked", "user.input.required" -> {
-                // Normalize the tool name so the TimelineNodeAggregator detects
-                // requiresText=true. The aggregator's heuristic matches "ask_user"
-                // or "askuser" (case-insensitive). We map all interactive tool
-                // names to "ask_user" so the UI shows a text input.
-                val rawTool = json.optString("tool", "ask_user").lowercase()
-                val isInteractive =
-                    rawTool in
-                        setOf(
-                            "ask_user",
-                            "askuser",
-                            "ask",
-                            "input",
-                            "confirm",
-                            "question",
-                            "clarify",
-                        )
-                val tool = if (isInteractive) "ask_user" else rawTool
-                val callId = json.optString("callID", eventId)
-                val question = json.optString("question", "")
-                val toolArgs =
-                    if (question.isNotEmpty()) {
-                        JSONObject().apply { put("question", question) }.toString()
-                    } else {
-                        json.optJSONObject("args")?.toString() ?: "{}"
-                    }
-                AgentEvent.ApprovalRequested(
-                    eventId = eventId,
-                    timestamp = ts,
-                    toolId = callId,
-                    toolName = tool,
-                    toolTitle = tool.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    toolArgs = toolArgs,
-                    isInteractive = isInteractive,
-                )
-            }
-
-            "permission.replied" -> {
-                val granted = json.optBoolean("granted", false)
-                val callId = json.optString("toolId", json.optString("callID", eventId))
-                if (granted) {
-                    AgentEvent.ApprovalGranted(eventId, ts, callId)
-                } else {
-                    AgentEvent.ApprovalDenied(eventId, ts, callId)
-                }
-            }
-
-            "part.updated" -> {
-                val partType = json.optString("partType")
-                val partID = json.optString("partID", eventId)
-                val messageID = json.optString("messageID", sessionID)
-                when (partType) {
-                    "reasoning" -> {
-                        val text = json.optString("reasoning", "")
-                        AgentEvent.ReasoningDelta(eventId, ts, text)
-                    }
-                    "text" -> {
-                        // Plain text deltas are folded into the FinalAnswer stream.
-                        // We forward as a Processing event so the main chat surface
-                        // can render incrementally if it chooses.
-                        val text = json.optString("text", "")
-                        if (text.isNotEmpty()) {
-                            AgentEvent.Processing(eventId, ts, text)
-                        } else {
-                            null
-                        }
-                    }
-                    "tool" -> {
-                        val tool = json.optString("tool", "tool")
-                        val state = json.optString("state", "running")
-                        val toolCallID = json.optString("toolCallID", partID)
-                        val input = json.optJSONObject("input")?.toString()
-                        val output = json.optJSONObject("output")?.toString()
-                        when (state) {
-                            "running", "pending" ->
-                                AgentEvent.ToolCallStarted(
-                                    eventId = eventId,
-                                    timestamp = ts,
-                                    toolId = toolCallID,
-                                    name = tool,
-                                    source = "opencode",
-                                )
-                            "complete", "completed" ->
-                                AgentEvent.ToolCallFinished(
-                                    eventId = eventId,
-                                    timestamp = ts,
-                                    toolId = toolCallID,
-                                    durationMs = 0L,
-                                )
-                            "error" ->
-                                AgentEvent.ToolBlocked(
-                                    eventId = eventId,
-                                    timestamp = ts,
-                                    toolName = tool,
-                                    reason = json.optString("error", "Tool failed"),
-                                )
-                            else -> null
-                        }
-                    }
-                    "step-start" -> AgentEvent.StepStarted(eventId, ts, title = "Step ${json.optInt("step")}")
-                    "step-finish" -> AgentEvent.StepFinished(eventId, ts, success = true)
-                    "subtask" -> {
-                        val subagentId = json.optString("agent", json.optString("partID", eventId))
-                        AgentEvent.AgentStep(
-                            eventId = eventId,
-                            timestamp = ts,
-                            stepIndex = ts.toInt(),
-                            stepType = "tool_call",
-                            stepTitle = "Sub-agent: ${json.optString("agent")}",
-                            stepContent = json.optString("description", ""),
-                            stepStatus = json.optString("state", "running"),
-                            toolName = "subtask",
-                            subagentId = subagentId,
-                        )
-                    }
-                    else -> null
-                }
-            }
-
-            "tool.before" -> {
-                val tool = json.optString("tool", "tool")
-                val callId = json.optString("callID", eventId)
-                AgentEvent.ToolCallStarted(
-                    eventId = eventId,
-                    timestamp = ts,
-                    toolId = callId,
-                    name = tool,
-                    source = "opencode",
-                )
-            }
-
-            "tool.after" -> {
-                val tool = json.optString("tool", "tool")
-                val callId = json.optString("callID", eventId)
-                AgentEvent.ToolCallCompleted(
-                    eventId = eventId,
-                    timestamp = ts,
-                    toolId = callId,
-                    result = json.optJSONObject("result")?.toString() ?: "",
-                    durationMs = 0L,
-                )
-            }
-
-            "message.part.delta" -> {
-                val partID = json.optString("partID")
-                val field = json.optString("field", "text")
-                val delta = json.optString("delta", "")
-                // Without a per-part type cache we forward as Processing deltas;
-                // the aggregator can refine later.
-                if (delta.isNotEmpty()) {
-                    AgentEvent.Processing(eventId, ts, delta)
-                } else {
-                    null
-                }
-            }
-
-            else -> {
-                // Unknown kind — ignore silently. The plugin may add new event
-                // types in the future; the bridge should never crash on them.
-                Log.d(TAG, "Ignoring unknown event kind: $kind")
-                null
-            }
-        }
-    }
+    // translateToAgentEvent removed — client now receives canonical AgentEvent
+    // JSON directly from the server (11-type protocol).
 
     fun disconnectLiveStream() {
         reconnectJob?.cancel()

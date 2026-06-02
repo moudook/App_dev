@@ -166,25 +166,6 @@ class ServerAgent(
 
         // Check cache
         stateManager.checkCache(messagesForAgent, tools, query, modelOverride, variantOverride)?.let { cached ->
-            val streamProcessor = AgentStreamProcessor(sessionId, eventEmitter)
-
-            emit(
-                AgentEvent.Processing(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    content = cached,
-                    thinking = null,
-                ),
-            )
-            emit(
-                AgentEvent.Result(
-                    eventId = UUID.randomUUID().toString(),
-                    timestamp = System.currentTimeMillis(),
-                    content = cached,
-                    isFinal = true,
-                ),
-            )
-
             tracer.trace(
                 AgentTraceEvent(
                     sessionId = sessionId,
@@ -197,7 +178,7 @@ class ServerAgent(
             return cached
         }
 
-        val streamProcessor = AgentStreamProcessor(sessionId, eventEmitter)
+        val streamProcessor = AgentStreamProcessor(sessionId)
         val toolCallHistory = mutableListOf<Pair<String, String>>()
         var lastFailedToolName: String? = null
         var consecutiveToolFailures = 0
@@ -269,15 +250,6 @@ class ServerAgent(
                         logger.warn(
                             "TOOL BLOCKED: Tool $toolName called ${sameCallCount + 1} times with same query",
                         )
-                        emit(
-                            AgentEvent.ToolBlocked(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                toolName = toolName,
-                                reason = "Same query repeated ${sameCallCount + 1} times. Try a different approach.",
-                                code = "TOOL_BLOCKED_SAME_QUERY",
-                            ),
-                        )
                         return "I can't search for the same thing again. Let me try a different approach."
                     }
 
@@ -286,43 +258,15 @@ class ServerAgent(
 
                     if (toolCallCount > MAX_TOOL_CALLS) {
                         logger.warn("Tool call limit exceeded ($MAX_TOOL_CALLS) for user: $userId")
-                        emit(
-                            AgentEvent.Error(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                message = "I've made too many actions in this session. Let me summarize what I've done.",
-                                code = "TOOL_LIMIT_EXCEEDED",
-                            ),
-                        )
                         goalMemoryManager.markFailed("Tool limit exceeded: $toolCallCount calls")
                         return streamProcessor.currentContent.ifEmpty { "Execution limit reached." }
                     }
 
                     // Finalize and clear current thinking so the next iteration's thought starts fresh in the UI
                     val finalThinkingForStep = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
-                    if (finalThinkingForStep.isNotEmpty()) {
-                        emit(
-                            AgentEvent.Processing(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                content = "",
-                                thinking = finalThinkingForStep,
-                            ),
-                        )
-                    }
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
 
-                    // Emit ToolCall SSE event so the client shows "Executing tool..."
-                    emit(
-                        AgentEvent.ToolCall(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            toolName = toolName,
-                            displayName = "Executing $toolName...",
-                            status = "started",
-                        ),
-                    )
-                    streamProcessor.emitCustomToolStep(toolName, "started", inputSummary = toolArgs)
+                    // ToolCall tracking — plugin bridge handles events
 
                     try {
                         tracer.trace(
@@ -410,14 +354,12 @@ class ServerAgent(
                         val stepDescription = "Executed $toolName"
                         if (isToolError) {
                             goalMemoryManager.addError("Tool $toolName failed: ${toolResult.take(200)}")
-                            streamProcessor.emitCustomToolStep(toolName, "failed", outputSummary = toolResult)
                         } else {
                             goalMemoryManager.markStepCompleted(
                                 description = stepDescription,
                                 toolUsed = toolName,
                                 result = toolResult.take(500),
                             )
-                            streamProcessor.emitCustomToolStep(toolName, "completed", outputSummary = toolResult)
                         }
 
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, toolName)
@@ -461,8 +403,6 @@ class ServerAgent(
                             else -> "model_knowledge"
                         }
 
-                    streamProcessor.emitFinalResponse(streamProcessor.currentContent, confidence, sourceType)
-
                     tracer.trace(
                         AgentTraceEvent(
                             sessionId = sessionId,
@@ -479,14 +419,6 @@ class ServerAgent(
                     val reason = streamProcessor.finishReason
                     if (reason == "error") {
                         logger.warn("LLM stream ended with error for user: $userId")
-                        emit(
-                            AgentEvent.Error(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                message = "The AI service encountered an error. Please try again.",
-                                code = "LLM_STREAM_ERROR",
-                            ),
-                        )
                         return ""
                     }
                     logger.warn("LLM stream completed with no content for user: $userId")
@@ -495,14 +427,6 @@ class ServerAgent(
                             sessionId = sessionId,
                             stepType = AgentStepType.ERROR,
                             content = "Empty response from LLM",
-                        ),
-                    )
-                    emit(
-                        AgentEvent.Error(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            message = "I didn't receive a response from the AI service. Please try again.",
-                            code = "EMPTY_RESPONSE",
                         ),
                     )
                     return ""
@@ -545,15 +469,6 @@ class ServerAgent(
                             "Conversation is too long. Starting a fresh session."
                         else -> "I encountered an unexpected issue while processing your request. Please try again."
                     }
-                emit(
-                    AgentEvent.Error(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = System.currentTimeMillis(),
-                        message = userMsg,
-                        code = "LLM_ERROR",
-                    ),
-                )
-
                 goalMemoryManager.markFailed(errorMsg)
                 return ""
             }
@@ -564,7 +479,4 @@ class ServerAgent(
         return "I completed several actions but reached my iteration limit."
     }
 
-    private suspend fun emit(event: AgentEvent) {
-        eventEmitter(event)
-    }
 }

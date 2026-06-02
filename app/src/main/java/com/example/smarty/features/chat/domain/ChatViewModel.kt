@@ -276,212 +276,6 @@ class ChatViewModel(
                 // Keep using correct fallback models - don't fall back to potentially stale cache
             }
 
-            // ── Live timeline stream (OpenCode CLI plugin → Ktor → Android) ──
-            // Collects plugin events arriving over `/ws/timeline` and lifts
-            // `user.input.required` into `_pendingApprovalState` with
-            // `source = ApprovalSource.Plugin` so the same approval UI that
-            // handles Ktor MCP approvals can also handle plugin-driven MCP
-            // `ask` tool calls. Auto-reconnects every 2 s on disconnect; the
-            // job lives for the lifetime of the ViewModel.
-            //
-            // The `ToolPermissionPolicy` short-circuit is purely defensive:
-            // OpenCode CLI's `opencode.json` ALLOW list auto-runs tools
-            // internally and never emits `permission.asked` for them, and
-            // the DENY list blocks tools before any event is emitted. But
-            // if an event somehow leaks through (e.g. CLI misconfiguration
-            // or plugin drift), the app still honors the policy. Interactive
-            // tools (`ask_user`, etc.) ALWAYS show a prompt regardless of
-            // policy because their whole purpose is to gather user input.
-            val policy = ToolPermissionPolicy.SMARTY_DEFAULT
-            viewModelScope.launch {
-                remoteAgentService.observeTimelineEvents().collect { event ->
-                    when (event) {
-                        is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
-                            Log.i(
-                                TAG,
-                                ">>> TIMELINE_APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, sessionId=${event.sessionId}, interactive=${event.isInteractive}, args=${event.toolArgs.take(
-                                    200,
-                                )}",
-                            )
-
-                            // Interactive tools always show a prompt — bypass
-                            // the policy check entirely. The plugin's
-                            // `INTERACTIVE_TOOLS` set (`ask`, `ask_user`,
-                            // `confirm`, `question`, …) all map to
-                            // `toolName == "ask_user"` via the translator.
-                            //
-                            // IMPORTANT: Interactive tools are ALSO emitted via
-                            // the SSE path (Ktor MCP proxy → `/chat/ws`). The
-                            // KtorMcp path is the execution authority — its
-                            // `_pendingApprovalState` has the correct `toolId`
-                            // for calling `POST /api/v1/chat/events/approval`
-                            // which resolves the MCP proxy's `ApprovalRegistry`
-                            // entry. Don't overwrite if KtorMcp is already
-                            // pending for the same tool within 5 seconds.
-                            if (event.isInteractive) {
-                                val pending = _pendingApprovalState.value
-                                if (pending != null && pending.source == ApprovalSource.KtorMcp) {
-                                    val sameTool = event.toolName.equals(pending.toolName, ignoreCase = true)
-                                    if (sameTool && (System.currentTimeMillis() - pending.requestedAt) < 5000L) {
-                                        Log.i(
-                                            TAG,
-                                            ">>> TIMELINE_APPROVAL_SKIPPED: KtorMcp already pending for ${event.toolName} — deferring to SSE path",
-                                        )
-                                        return@collect
-                                    }
-                                }
-                                liftPluginApprovalIntoState(event)
-                            } else {
-                                // Defensive policy check for non-interactive
-                                // permission gates. Normally the CLI handles
-                                // allow/deny before emitting, so this is a
-                                // belt-and-suspenders safety net.
-                                val decision = policy.decide(event.toolName)
-                                when (decision) {
-                                    ToolPermissionDecision.ALLOW -> {
-                                        Log.i(
-                                            TAG,
-                                            ">>> TIMELINE_POLICY_AUTO_APPROVE: tool=${event.toolName} (CLI normally handles this, but we got an event — short-circuiting as allow)",
-                                        )
-                                        respondToPluginApproval(event, approved = true, feedback = "auto-approved by policy")
-                                    }
-                                    ToolPermissionDecision.DENY -> {
-                                        Log.i(
-                                            TAG,
-                                            ">>> TIMELINE_POLICY_AUTO_DENY: tool=${event.toolName} (CLI normally blocks this, but we got an event — short-circuiting as deny)",
-                                        )
-                                        respondToPluginApproval(event, approved = false, feedback = "denied by policy")
-                                    }
-                                    ToolPermissionDecision.DEFAULT -> {
-                                        // No policy rule — show the approval card.
-                                        liftPluginApprovalIntoState(event)
-                                    }
-                                }
-                            }
-                        }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
-                            // Only clear if the granted ID matches the pending one —
-                            // a stale `granted` from an earlier ask shouldn't wipe
-                            // a newer pending ask.
-                            val pending = _pendingApprovalState.value
-                            if (pending != null &&
-                                pending.source == ApprovalSource.Plugin &&
-                                pending.toolId == event.toolId
-                            ) {
-                                Log.i(TAG, ">>> TIMELINE_APPROVAL_GRANTED: toolId=${event.toolId}")
-                                _pendingApprovalState.update { null }
-                            }
-                        }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
-                            val pending = _pendingApprovalState.value
-                            if (pending != null &&
-                                pending.source == ApprovalSource.Plugin &&
-                                pending.toolId == event.toolId
-                            ) {
-                                Log.i(TAG, ">>> TIMELINE_APPROVAL_DENIED: toolId=${event.toolId}")
-                                _pendingApprovalState.update { null }
-                            }
-                        }
-                        else -> {
-                            // Other timeline events (reasoning, sub-agents, web
-                            // search, tool started/finished) are consumed by the
-                            // secondary `AgentRuntimeScreen` ViewModel and by
-                            // ChatFeatureManager — not handled here.
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Set `_pendingApprovalState` to the plugin-originated approval so the
-     * `AssistOverlayScreen` shows the appropriate prompt/card. This is
-     * the interactive / default path — used when the policy check is
-     * bypassed (interactive tools) or returns [ToolPermissionDecision.DEFAULT]
-     * (no explicit allow/deny rule).
-     */
-    private fun liftPluginApprovalIntoState(event: com.example.smarty.protocol.AgentEvent.ApprovalRequested) {
-        val resolvedSessionId =
-            event.sessionId
-                ?: _chatState.value.currentSessionId
-        // Interactive tools MUST respond through the Ktor MCP proxy
-        // (`POST /api/v1/chat/events/approval`) because that's what
-        // resolves the ApprovalRegistry deferred and unblocks the
-        // awaiting MCP coroutine. The plugin's file-based ask-response
-        // endpoint is a secondary channel for non-interactive permission
-        // gates. Forcing source to KtorMcp here ensures the response
-        // always reaches the right unblock mechanism regardless of
-        // which event path delivered the signal first.
-        val effectiveSource = if (event.isInteractive) ApprovalSource.KtorMcp else ApprovalSource.Plugin
-        _pendingApprovalState.update {
-            PendingApproval(
-                messageId = "timeline-${event.eventId}",
-                sessionId = resolvedSessionId,
-                eventId = event.eventId,
-                toolId = event.toolId,
-                toolName = event.toolName,
-                toolTitle = event.toolTitle,
-                toolArgs = event.toolArgs,
-                source = effectiveSource,
-            )
-        }
-        Log.i(
-            TAG,
-            ">>> TIMELINE_APPROVAL_STATE_UPDATED: source=Plugin sessionId=$resolvedSessionId tool=${event.toolName}",
-        )
-        _chatState.update { state ->
-            state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
-        }
-    }
-
-    /**
-     * Auto-respond to a plugin-originated `permission.asked` event whose
-     * tool the policy has explicitly allowed/denied. Normally the CLI
-     * handles allow/deny internally and never emits such events, so this
-     * is a defensive short-circuit.
-     *
-     * Routes the response through the same `sendPluginAskResponse` path
-     * used by user-tapped approvals, just without ever surfacing the
-     * approval card to the user.
-     */
-    private fun respondToPluginApproval(
-        event: com.example.smarty.protocol.AgentEvent.ApprovalRequested,
-        approved: Boolean,
-        feedback: String? = null,
-    ) {
-        val sessionId =
-            event.sessionId
-                ?: _chatState.value.currentSessionId
-        if (sessionId == null) {
-            Log.w(
-                TAG,
-                ">>> TIMELINE_POLICY_RESPONSE_DROPPED: tool=${event.toolName} approved=$approved — no sessionId",
-            )
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val ok =
-                    remoteAgentService.sendPluginAskResponse(
-                        sessionId = sessionId,
-                        callId = event.toolId,
-                        response = feedback ?: if (approved) "allow" else "deny",
-                    )
-                if (ok) {
-                    Log.i(
-                        TAG,
-                        ">>> TIMELINE_POLICY_RESPONSE_SENT: tool=${event.toolName} approved=$approved",
-                    )
-                } else {
-                    Log.w(
-                        TAG,
-                        ">>> TIMELINE_POLICY_RESPONSE_FAILED: tool=${event.toolName} approved=$approved",
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, ">>> TIMELINE_POLICY_RESPONSE_ERROR: tool=${event.toolName}", e)
-            }
         }
     }
 
@@ -605,8 +399,7 @@ class ChatViewModel(
                 ).collect { event ->
                     Log.d(TAG, "<<< EVENT: ${event::class.simpleName} (sessionId=$sessionId)")
                     when (event) {
-                        // ── Content streaming (per-chunk deltas) ──
-                        is com.example.smarty.protocol.AgentEvent.FinalAnswerDelta -> {
+                        is com.example.smarty.protocol.AgentEvent.TextDelta -> {
                             responseBuilder.append(event.text)
                             currentStreamingMessage =
                                 currentStreamingMessage.copy(
@@ -615,54 +408,15 @@ class ChatViewModel(
                             _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
                         }
 
-                        // ── Reasoning/thinking streaming (per-chunk deltas) ──
                         is com.example.smarty.protocol.AgentEvent.ReasoningDelta -> {
                             // Thinking removed
                         }
 
-                        is com.example.smarty.protocol.AgentEvent.ReasoningStarted -> {
-                            // Thinking removed
-                        }
-
-                        is com.example.smarty.protocol.AgentEvent.ReasoningFinished -> {
-                            // Nothing to do
-                        }
-
-                        // ── Legacy Processing events — Server sends FULL accumulated content here.
-                        //     Use for content sync + thinking extraction, not for primary accumulation.
-                        is com.example.smarty.protocol.AgentEvent.Processing -> {
-                            if (event.content.isNotEmpty()) {
-                                responseBuilder.clear()
-                                responseBuilder.append(event.content)
-                            }
-                            currentStreamingMessage =
-                                currentStreamingMessage.copy(
-                                    content = responseBuilder.toString(),
-                                    thinking = null,
-                                )
-                            _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
-                        }
-
-                        // ── Final answer lifecycle ──
-                        is com.example.smarty.protocol.AgentEvent.FinalAnswerStarted -> {
-                            // Nothing to do
-                        }
-
-                        is com.example.smarty.protocol.AgentEvent.FinalAnswerFinished -> {
-                            // Nothing to do
-                        }
-
-                        // ── Final result (stream complete) ──
-                        is com.example.smarty.protocol.AgentEvent.Result -> {
-                            // CRITICAL: Update responseBuilder with final content from Result event
-                            val finalContent = if (event.content.isNotEmpty()) event.content else responseBuilder.toString()
-                            responseBuilder.clear()
-                            responseBuilder.append(finalContent)
+                        is com.example.smarty.protocol.AgentEvent.Done -> {
                             currentStreamingMessage =
                                 currentStreamingMessage.copy(
                                     isStreaming = false,
                                     content = responseBuilder.toString(),
-                                    thinking = null,
                                 )
                             _chatState.update { state ->
                                 state.copy(
@@ -672,7 +426,6 @@ class ChatViewModel(
                                 )
                             }
 
-                            // Trigger a background sync so notes created by the agent show up live
                             try {
                                 com.example.smarty.di.ServiceLocator
                                     .provideEventSink()
@@ -682,54 +435,22 @@ class ChatViewModel(
                             }
                         }
 
-                        // ── Agent step timeline ──
-                        is com.example.smarty.protocol.AgentEvent.AgentStep -> {
-                            // Ignored
-                        }
-
-                        // ── Tool Call (legacy) ──
-                        is com.example.smarty.protocol.AgentEvent.ToolCall -> {
-                            Log.d(TAG, "ToolCall: ${event.toolName} (${event.status})")
-                        }
-
-                        // ── Question flow ──
-                        is com.example.smarty.protocol.AgentEvent.Question -> {
-                            val clarificationRequest =
-                                com.example.smarty.core.domain.model.ClarificationRequest(
-                                    question = event.question,
-                                    options = event.options,
-                                    allowCustomInput = event.allowCustom,
-                                )
-                            currentStreamingMessage =
-                                currentStreamingMessage.copy(
-                                    clarificationRequest = clarificationRequest,
-                                )
-                            _chatState.update { it.copy(streamingMessage = currentStreamingMessage) }
-                        }
-
-                        // ── Errors ──
                         is com.example.smarty.protocol.AgentEvent.Error -> {
                             Log.e(TAG, "Agent error: ${event.message}")
                             responseBuilder.append("\n[Error: ${event.message}]")
                         }
 
-                        // ── Approval flow (Ktor MCP origin) ──
                         is com.example.smarty.protocol.AgentEvent.ApprovalRequested -> {
-                            Log.i(
-                                TAG,
-                                ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, toolArgs=${event.toolArgs.take(
-                                    200,
-                                )}",
-                            )
+                            Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}, question=${event.question.take(200)}")
                             _pendingApprovalState.update {
                                 PendingApproval(
                                     messageId = streamingMessageId,
-                                    sessionId = event.sessionId ?: sessionId,
+                                    sessionId = sessionId,
                                     eventId = event.eventId,
                                     toolId = event.toolId,
                                     toolName = event.toolName,
-                                    toolTitle = event.toolTitle,
-                                    toolArgs = event.toolArgs,
+                                    toolTitle = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                                    toolArgs = event.question,
                                     source = ApprovalSource.KtorMcp,
                                 )
                             }
@@ -738,17 +459,20 @@ class ChatViewModel(
                                 state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
                             }
                         }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
-                            Log.i(TAG, ">>> APPROVAL_GRANTED: toolId=${event.toolId}")
-                            _pendingApprovalState.update { null }
-                            _chatState.update { state ->
-                                state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
+
+                        is com.example.smarty.protocol.AgentEvent.ApprovalResult -> {
+                            if (event.granted) {
+                                Log.i(TAG, ">>> APPROVAL_GRANTED: toolId=${event.toolId}")
+                                _pendingApprovalState.update { null }
+                                _chatState.update { state ->
+                                    state.copy(isProcessing = true, lastUpdated = System.currentTimeMillis())
+                                }
+                            } else {
+                                Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
+                                _pendingApprovalState.update { null }
                             }
                         }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
-                            Log.i(TAG, ">>> APPROVAL_DENIED: toolId=${event.toolId}")
-                            _pendingApprovalState.update { null }
-                        }
+
                         else -> {
                             Log.d(TAG, "Unhandled event: ${event::class.simpleName}")
                         }

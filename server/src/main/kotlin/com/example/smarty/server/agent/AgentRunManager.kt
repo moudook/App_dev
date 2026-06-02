@@ -1,6 +1,5 @@
 package com.example.smarty.server.agent
 
-import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatRepository
@@ -40,7 +39,7 @@ object AgentRunManager {
         sessionEventFlows
             .getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 50,
+                    replay = 0,
                     extraBufferCapacity = 500,
                 )
             }.asSharedFlow()
@@ -91,37 +90,14 @@ object AgentRunManager {
         val flow =
             sessionEventFlows.getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 50,
+                    replay = 0,
                     extraBufferCapacity = 500,
                 )
             }
 
         val job =
             agentScope.launch {
-                val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
-                val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
-                val collectedAgentEvents = mutableListOf<AgentEvent>()
-
-                var hasActivePluginBridge = false
-
-                val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
-                    // Always emit ALL ServerAgent events — the daemon typically has no
-                    // --bridge-url configured, so plugin-bridge events never arrive at
-                    // /opencode/events.  Suppressing here would leave Android with zero
-                    // content.  The Android-side hasReceivedPluginEvents guard handles
-                    // deduplication when/if plugin events *do* arrive later.
-                    flow.emit(event)
-                    collectedAgentEvents.add(event)
-                    if (event is AgentEvent.AgentStep) {
-                        collectedAgentSteps[event.stepIndex] = event
-                    }
-                    if (event is AgentEvent.Command) {
-                        val cmd = event.command
-                        if (cmd is AgentCommand.NotifyCitations) {
-                            collectedCitations.addAll(cmd.citations)
-                        }
-                    }
-                }
+                val eventEmitter: suspend (AgentEvent) -> Unit = { _ -> }
 
                 val agent =
                     ServerAgent(
@@ -138,16 +114,6 @@ object AgentRunManager {
                     )
 
                 try {
-                    // Pre-emit processing
-                    eventEmitter(
-                        AgentEvent.Processing(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            content = "",
-                            thinking = "Initializing task...",
-                        ),
-                    )
-
                     // Match ServerAgent's hard limit — the agent itself manages timeouts per-iteration.
                     // The previous 2-minute limit killed legitimate deep research tasks.
                     val assistantResponse =
@@ -162,7 +128,6 @@ object AgentRunManager {
                                 personality = personality,
                                 opencodeSessionId = opencodeSessionId,
                                 onOpencodeSessionCreated = { newOpencodeSessionId ->
-                                    hasActivePluginBridge = true
                                     if (chatRepository != null) {
                                         try {
                                             chatRepository.updateOpencodeSessionId(userId, sessionId, newOpencodeSessionId)
@@ -175,111 +140,14 @@ object AgentRunManager {
                             )
                         }
 
-                    // The repository saving happens in the AgentRunManager now (moved from ChatRoutes)
-                    if (chatRepository != null && assistantResponse.isNotEmpty()) {
-                        val thinkingTrace: String? = null
-
-                        val citationsJson =
-                            if (collectedCitations.isNotEmpty()) {
-                                kotlinx.serialization.json.Json.encodeToString(
-                                    collectedCitations,
-                                )
-                            } else {
-                                "[]"
-                            }
-                        val agentStepsJson =
-                            if (collectedAgentSteps.isNotEmpty()) {
-                                val entries =
-                                    collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                        com.example.smarty.core.domain.model.AgentStepEntry(
-                                            stepType = step.stepType,
-                                            stepTitle = step.stepTitle,
-                                            stepContent = step.stepContent,
-                                            stepStatus = step.stepStatus,
-                                            stepIndex = step.stepIndex,
-                                            toolName = step.toolName,
-                                            durationMs = step.durationMs,
-                                        )
-                                    }
-                                kotlinx.serialization.json.Json
-                                    .encodeToString(entries)
-                            } else {
-                                null
-                            }
-
-                        val finalAgentEventsJson =
-                            if (collectedAgentEvents.isNotEmpty()) {
-                                val filteredEvents =
-                                    collectedAgentEvents.filter {
-                                        it !is AgentEvent.Processing &&
-                                            it !is AgentEvent.OpencodeRawEvent
-                                    }
-                                if (filteredEvents.isNotEmpty()) {
-                                    kotlinx.serialization.json.Json
-                                        .encodeToString(filteredEvents)
-                                } else {
-                                    null
-                                }
-                            } else {
-                                null
-                            }
-
-                        if (messageId != null) {
-                            chatRepository.saveMessageWithId(
-                                userId = userId,
-                                sessionId = sessionId,
-                                messageId = messageId,
-                                role = LlmMessage.Role.ASSISTANT.name,
-                                content = assistantResponse,
-                                thinking = null,
-                                toolCalls = citationsJson,
-                                agentStepsJson = agentStepsJson,
-                                agentEventsJson = finalAgentEventsJson,
-                            )
-                        } else {
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId,
-                                role = LlmMessage.Role.ASSISTANT.name,
-                                content = assistantResponse,
-                                thinking = null,
-                                toolCalls = citationsJson,
-                                agentStepsJson = agentStepsJson,
-                                agentEventsJson = finalAgentEventsJson,
-                            )
-                        }
-                    }
+                    logger.info("Agent run completed for session: $sessionId, response length: ${assistantResponse.length}")
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     logger.error(
                         "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId",
                         e,
                     )
-                    try {
-                        eventEmitter(
-                            AgentEvent.Error(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                message = "Agent execution timed out. The task took too long to complete.",
-                                code = "AGENT_TIMEOUT",
-                            ),
-                        )
-                    } catch (emitError: Exception) {
-                        logger.warn("Failed to emit timeout error event: ${emitError.message}")
-                    }
                 } catch (e: Exception) {
                     logger.error("Agent execution failed in background job for session: $sessionId", e)
-                    try {
-                        eventEmitter(
-                            AgentEvent.Error(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                message = "An error occurred during processing: ${e.message ?: "Unknown error"}",
-                                code = "AGENT_BACKGROUND_ERROR",
-                            ),
-                        )
-                    } catch (emitError: Exception) {
-                        logger.warn("Failed to emit error event: ${emitError.message}")
-                    }
                 } finally {
                     ActiveEventBridge.clear(userId)
                     ApprovalRegistry.cancelApprovalsForSession(sessionId)

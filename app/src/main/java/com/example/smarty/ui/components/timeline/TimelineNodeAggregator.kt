@@ -2,69 +2,16 @@ package com.example.smarty.ui.components.timeline
 
 import com.example.smarty.protocol.AgentEvent
 
-/**
- * Converts a raw, append-only list of [AgentEvent]s into a stable, ordered
- * list of [TimelineNode]s suitable for direct Compose rendering.
- *
- * Design invariants:
- *  - Nodes are appended; existing nodes are mutated in-place (via index) not
- *    replaced, so Compose [LazyColumn] stable keys remain valid.
- *  - Tier-2 system activity is collapsed into a single [TimelineNode.SystemActivity]
- *    node that is updated incrementally.
- *  - Tool events are grouped by toolId so concurrent tools form independent nodes.
- *
- * Usage:
- * ```kotlin
- * val nodes = remember { mutableStateListOf<TimelineNode>() }
- * val aggregator = remember { TimelineNodeAggregator(nodes) }
- * LaunchedEffect(events) { aggregator.processAll(events) }
- * ```
- */
 class TimelineNodeAggregator {
-    // Ordered list of nodes — mutated incrementally
     private val _nodes = mutableListOf<TimelineNode>()
     val nodes: List<TimelineNode> get() = _nodes
 
-    // Index maps for O(1) lookup
     private val toolNodeIndexByToolId = mutableMapOf<String, Int>()
     private val approvalNodeIndexByToolId = mutableMapOf<String, Int>()
-    private var systemActivityIndex: Int = -1
-    private var recoveryNodeIndex: Int = -1
 
-    // Subagent tracking
-    private val subagentAggregators = mutableMapOf<String, TimelineNodeAggregator>()
-    private val subagentGroupIndexById = mutableMapOf<String, Int>()
-
-    // Tracking state for system activity
-    private var sysActivityId: String = "sys_activity"
-    private var sysActivityStart: Long = 0L
-
-    // Tracks how many events have been processed — enables idempotent
-    // processAll() calls without duplicates
     private var lastProcessedIndex: Int = 0
+    private var lastApprovalTimestamp: Long = 0L
 
-    // Flags to prefer granular events over legacy events
-    private var hasGranularReasoning: Boolean = false
-    private var hasGranularTools: Boolean = false
-
-    // Dedup window for ApprovalRequested events. The same MCP tool call
-    // produces events on two parallel paths (SSE from Ktor proxy, WebSocket
-    // from the daemon plugin) with different toolIds. We dedup by
-    // (toolName, isInteractive) within a 5-second window so only the first
-    // creates a visible ApprovalGate node.
-    private data class ApprovalDedupKey(
-        val toolName: String,
-        val isInteractive: Boolean,
-    )
-
-    private val approvalDedupTimestamps = mutableMapOf<ApprovalDedupKey, Long>()
-    private val approvalDedupWindowMs: Long = 5000L
-
-    /**
-     * Process a new batch of events (append-only). Internally tracks
-     * [lastProcessedIndex] so repeated calls with the same events are
-     * idempotent — only new events are processed, preventing duplicate nodes.
-     */
     fun processAll(events: List<AgentEvent>): List<TimelineNode> {
         val start = lastProcessedIndex
         lastProcessedIndex = events.size
@@ -74,405 +21,118 @@ class TimelineNodeAggregator {
         return _nodes.toList()
     }
 
-    /**
-     * Process a single [AgentEvent] and mutate the node list accordingly.
-     */
     fun process(event: AgentEvent) {
-        val subId = event.subagentId
-        if (subId != null) {
-            val subAggregator =
-                subagentAggregators.getOrPut(subId) {
-                    TimelineNodeAggregator()
-                }
-            subAggregator.process(event)
-
-            val groupIndex = subagentGroupIndexById[subId]
-            if (groupIndex == null) {
-                val group =
-                    TimelineNode.SubagentGroup(
-                        id = "subagent_$subId",
-                        timestamp = event.timestamp,
-                        subagentId = subId,
-                        name = "Parallel Subagent",
-                        nodes = subAggregator.nodes.toList(),
-                        isOngoing = true,
-                    )
-                subagentGroupIndexById[subId] = _nodes.size
-                _nodes.add(group)
-            } else {
-                _nodes[groupIndex] =
-                    (_nodes[groupIndex] as TimelineNode.SubagentGroup).copy(
-                        nodes = subAggregator.nodes.toList(),
-                    )
-            }
-            return
-        }
-
         when (event) {
-            // ── Reasoning (no-op — thinking traces removed) ──────────────────
-            is AgentEvent.ReasoningStarted -> {
-                hasGranularReasoning = true
-            }
-            is AgentEvent.ReasoningDelta -> {
-                hasGranularReasoning = true
-            }
-            is AgentEvent.ReasoningFinished -> { /* no-op */ }
-            is AgentEvent.Processing -> { /* no-op — thinking traces removed */ }
-
-            // ── Tool Lifecycle ────────────────────────────────────────────────
-            is AgentEvent.ToolCallStarted -> {
-                hasGranularTools = true
-                val node =
-                    TimelineNode.ToolExecution(
-                        id = event.toolId,
-                        timestamp = event.timestamp,
-                        toolName = event.name,
-                        displayName = formatToolDisplayName(event.name),
-                        source = event.source,
-                        status = TimelineNode.ToolExecution.Status.RUNNING,
-                        inputSummary = null,
-                        outputSummary = null,
-                        durationMs = null,
-                    )
+            is AgentEvent.ToolStart -> {
+                val node = TimelineNode.ToolExecution(
+                    id = event.toolId,
+                    timestamp = event.timestamp,
+                    toolName = event.name,
+                    displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    source = "mcp",
+                    status = TimelineNode.ToolExecution.Status.RUNNING,
+                    inputSummary = event.args ?: "",
+                    outputSummary = null,
+                    durationMs = null,
+                )
                 toolNodeIndexByToolId[event.toolId] = _nodes.size
                 _nodes.add(node)
             }
 
-            is AgentEvent.ToolCallInput -> {
-                hasGranularTools = true
-                updateToolNode(event.toolId) { existing ->
-                    val appended =
-                        if (existing.inputSummary.isNullOrBlank()) {
-                            event.inputDelta
-                        } else {
-                            existing.inputSummary + event.inputDelta
-                        }
-                    existing.copy(inputSummary = appended.take(800))
-                }
-            }
-
-            is AgentEvent.ToolCallOutput -> {
-                hasGranularTools = true
-                updateToolNode(event.toolId) { existing ->
-                    val appended =
-                        if (existing.outputSummary.isNullOrBlank()) {
-                            event.output
-                        } else {
-                            existing.outputSummary + "\n" + event.output
-                        }
-                    existing.copy(outputSummary = appended.take(1200))
-                }
-            }
-
-            is AgentEvent.ToolCallFinished -> {
-                hasGranularTools = true
-                updateToolNode(event.toolId) { existing ->
-                    existing.copy(
-                        status = TimelineNode.ToolExecution.Status.COMPLETED,
-                        durationMs = event.durationMs,
-                    )
-                }
-            }
-
-            // Legacy ToolCall SSE event
-            is AgentEvent.ToolCall -> {
-                val toolId = "${event.toolName}_${event.timestamp}"
-                when (event.status) {
-                    "started" -> {
-                        if (!toolNodeIndexByToolId.containsKey(toolId)) {
-                            val node =
-                                TimelineNode.ToolExecution(
-                                    id = toolId,
-                                    timestamp = event.timestamp,
-                                    toolName = event.toolName,
-                                    displayName = event.displayName,
-                                    source = "opencode",
-                                    status = TimelineNode.ToolExecution.Status.RUNNING,
-                                    inputSummary = event.inputSummary,
-                                    outputSummary = null,
-                                    durationMs = null,
-                                )
-                            toolNodeIndexByToolId[toolId] = _nodes.size
-                            _nodes.add(node)
-                        }
-                    }
-                    "completed" -> {
-                        updateToolNode(
-                            toolId,
-                        ) { it.copy(status = TimelineNode.ToolExecution.Status.COMPLETED, outputSummary = event.outputSummary) }
-                    }
-                    "failed" -> {
-                        updateToolNode(toolId) { it.copy(status = TimelineNode.ToolExecution.Status.FAILED) }
+            is AgentEvent.ToolEnd -> {
+                val idx = toolNodeIndexByToolId[event.toolId]
+                if (idx != null && idx < _nodes.size) {
+                    val old = _nodes[idx] as? TimelineNode.ToolExecution
+                    if (old != null) {
+                        _nodes[idx] = old.copy(
+                            status = if (event.error != null) TimelineNode.ToolExecution.Status.FAILED
+                                     else TimelineNode.ToolExecution.Status.COMPLETED,
+                            outputSummary = event.result?.take(400) ?: event.error?.take(200) ?: "",
+                        )
                     }
                 }
             }
 
-            // Legacy AgentStep events
-            is AgentEvent.AgentStep -> {
-                val stepId = "step_${event.stepIndex}"
-                when (event.stepType) {
-                    "thinking" -> { /* no-op — thinking traces removed */ }
-                    "tool_call", "opencode_tool", "tool_result" -> {
-                        if (hasGranularTools) return
-                        val existing = toolNodeIndexByToolId[stepId]
-                        if (existing == null) {
-                            val node =
-                                TimelineNode.ToolExecution(
-                                    id = stepId,
-                                    timestamp = event.timestamp,
-                                    toolName = event.toolName ?: event.stepTitle,
-                                    displayName = event.stepTitle,
-                                    source = if (event.stepType == "opencode_tool") "opencode" else "mcp",
-                                    status =
-                                        when (event.stepStatus) {
-                                            "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
-                                            "failed" -> TimelineNode.ToolExecution.Status.FAILED
-                                            else -> TimelineNode.ToolExecution.Status.RUNNING
-                                        },
-                                    inputSummary = if (event.stepType != "tool_result") event.stepContent.take(400) else null,
-                                    outputSummary = if (event.stepType == "tool_result") event.stepContent.take(800) else null,
-                                    durationMs = event.durationMs,
-                                )
-                            toolNodeIndexByToolId[stepId] = _nodes.size
-                            _nodes.add(node)
-                        } else {
-                            _nodes[existing] = (_nodes[existing] as? TimelineNode.ToolExecution)?.copy(
-                                status =
-                                    when (event.stepStatus) {
-                                        "completed" -> TimelineNode.ToolExecution.Status.COMPLETED
-                                        "failed" -> TimelineNode.ToolExecution.Status.FAILED
-                                        else -> TimelineNode.ToolExecution.Status.RUNNING
-                                    },
-                                outputSummary = if (event.stepType == "tool_result") event.stepContent.take(800) else null,
-                                durationMs = event.durationMs,
-                            ) ?: _nodes[existing]
-                        }
-                    }
-                }
-            }
-
-            // ── Approvals ─────────────────────────────────────────────────────
             is AgentEvent.ApprovalRequested -> {
-                // Deduplicate by (toolName, isInteractive) within a 5-second window.
-                // The same tool call produces events from two independent paths
-                // (SSE via Ktor MCP proxy, WS via daemon plugin) with different
-                // toolIds — so we can't deduplicate by toolId alone.
-                val dedupKey = ApprovalDedupKey(event.toolName.lowercase(), event.isInteractive)
-                val lastTs = approvalDedupTimestamps[dedupKey]
-                val now = event.timestamp
-                if (lastTs != null && (now - lastTs) < approvalDedupWindowMs) {
-                    return
-                }
-                approvalDedupTimestamps[dedupKey] = now
-
-                val requiresText =
-                    event.toolName.equals("ask_user", ignoreCase = true) || event.toolName.equals("askuser", ignoreCase = true)
-                val node =
-                    TimelineNode.ApprovalGate(
+                val now = System.currentTimeMillis()
+                if (now - lastApprovalTimestamp > 5000 ||
+                    _nodes.none { it is TimelineNode.ApprovalGate }
+                ) {
+                    val node = TimelineNode.ApprovalGate(
                         id = "approval_${event.toolId}",
                         timestamp = event.timestamp,
                         toolId = event.toolId,
                         toolName = event.toolName,
-                        toolTitle = event.toolTitle,
-                        toolArgs = event.toolArgs,
+                        toolTitle = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        toolArgs = event.question,
                         status = TimelineNode.ApprovalGate.Status.PENDING,
-                        requiresText = requiresText,
+                        requiresText = event.interactive || event.toolName.equals("ask_user", ignoreCase = true),
                     )
-                approvalNodeIndexByToolId[event.toolId] = _nodes.size
-                _nodes.add(node)
+                    approvalNodeIndexByToolId[event.toolId] = _nodes.size
+                    _nodes.add(node)
+                    lastApprovalTimestamp = now
+                }
             }
 
-            is AgentEvent.ApprovalGranted -> {
-                updateApprovalNode(event.toolId) { it.copy(status = TimelineNode.ApprovalGate.Status.GRANTED) }
-            }
-
-            is AgentEvent.ApprovalDenied -> {
-                updateApprovalNode(event.toolId) { it.copy(status = TimelineNode.ApprovalGate.Status.DENIED) }
-            }
-
-            // ── Errors ─────────────────────────────────────────────────────────
-            is AgentEvent.SessionError -> {
-                _nodes.add(
-                    TimelineNode.ErrorNode(
-                        id = "error_${event.eventId}",
-                        timestamp = event.timestamp,
-                        message = event.message,
-                    ),
-                )
-            }
-
-            is AgentEvent.SessionAborted -> {
-                _nodes.add(
-                    TimelineNode.ErrorNode(
-                        id = "aborted_${event.eventId}",
-                        timestamp = event.timestamp,
-                        message = event.reason,
-                        isAborted = true,
-                    ),
-                )
-            }
-
-            // Legacy Error event
-            is AgentEvent.Error -> {
-                _nodes.add(
-                    TimelineNode.ErrorNode(
-                        id = "error_${event.eventId}",
-                        timestamp = event.timestamp,
-                        message = event.message,
-                    ),
-                )
-            }
-
-            // ── Recovery ──────────────────────────────────────────────────────
-            is AgentEvent.RecoveryStarted -> {
-                val node =
-                    TimelineNode.RecoveryNode(
-                        id = "recovery_${event.eventId}",
-                        timestamp = event.timestamp,
-                        reason = event.reason,
-                        succeeded = null,
-                    )
-                recoveryNodeIndex = _nodes.size
-                _nodes.add(node)
-            }
-
-            is AgentEvent.RecoveryFinished -> {
-                if (recoveryNodeIndex >= 0 && recoveryNodeIndex < _nodes.size) {
-                    val existing = _nodes[recoveryNodeIndex] as? TimelineNode.RecoveryNode
-                    if (existing != null) {
-                        _nodes[recoveryNodeIndex] = existing.copy(succeeded = event.success)
+            is AgentEvent.ApprovalResult -> {
+                val idx = approvalNodeIndexByToolId[event.toolId]
+                if (idx != null && idx < _nodes.size) {
+                    val old = _nodes[idx] as? TimelineNode.ApprovalGate
+                    if (old != null) {
+                        _nodes[idx] = old.copy(
+                            status = if (event.granted) TimelineNode.ApprovalGate.Status.GRANTED
+                                     else TimelineNode.ApprovalGate.Status.DENIED,
+                        )
                     }
                 }
-                recoveryNodeIndex = -1
             }
 
-            // ── Tier-2 System Activity ─────────────────────────────────────────
-            is AgentEvent.CacheHit -> incrementSystemActivity(cacheHits = 1, ts = event.timestamp)
-            is AgentEvent.CacheMiss -> incrementSystemActivity(cacheMisses = 1, ts = event.timestamp)
-            is AgentEvent.DbRead -> incrementSystemActivity(dbReads = 1, ts = event.timestamp)
-            is AgentEvent.DbWrite -> incrementSystemActivity(dbWrites = 1, ts = event.timestamp)
-            is AgentEvent.SyncStarted -> {
-                if (sysActivityStart == 0L) sysActivityStart = event.timestamp
-                incrementSystemActivity(syncCount = 1, ts = event.timestamp, isOngoing = true)
-            }
-            is AgentEvent.SyncFinished -> {
-                val duration = if (sysActivityStart > 0L) event.timestamp - sysActivityStart else 0L
-                updateSystemActivity { it.copy(durationMs = it.durationMs + duration, isOngoing = false) }
-                sysActivityStart = 0L
+            is AgentEvent.Error -> {
+                _nodes.add(TimelineNode.ErrorNode(
+                    id = "error_${event.eventId}",
+                    timestamp = event.timestamp,
+                    message = event.message,
+                ))
             }
 
-            // Ignored events (no UI representation needed at this level)
-            is AgentEvent.SessionStarted,
-            is AgentEvent.SessionCompleted,
-            is AgentEvent.ModelResolved,
-            is AgentEvent.StepStarted,
-            is AgentEvent.StepFinished,
-            is AgentEvent.FinalAnswerStarted,
-            is AgentEvent.FinalAnswerDelta,
-            is AgentEvent.FinalAnswerFinished,
-            is AgentEvent.Result,
-            is AgentEvent.Command,
-            is AgentEvent.StateSync,
-            is AgentEvent.ToolBlocked,
-            is AgentEvent.Question,
-            is AgentEvent.NoteBlock,
-            -> { /* No direct UI node */ }
-
-            else -> { /* Unknown event types — safe to ignore */ }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────
-
-    private fun updateToolNode(
-        toolId: String,
-        update: (TimelineNode.ToolExecution) -> TimelineNode.ToolExecution,
-    ) {
-        val idx = toolNodeIndexByToolId[toolId] ?: return
-        (_nodes[idx] as? TimelineNode.ToolExecution)?.let {
-            _nodes[idx] = update(it)
-        }
-    }
-
-    private fun updateApprovalNode(
-        toolId: String,
-        update: (TimelineNode.ApprovalGate) -> TimelineNode.ApprovalGate,
-    ) {
-        val idx = approvalNodeIndexByToolId[toolId] ?: return
-        (_nodes[idx] as? TimelineNode.ApprovalGate)?.let {
-            _nodes[idx] = update(it)
-        }
-    }
-
-    private fun incrementSystemActivity(
-        cacheHits: Int = 0,
-        cacheMisses: Int = 0,
-        dbReads: Int = 0,
-        dbWrites: Int = 0,
-        syncCount: Int = 0,
-        ts: Long,
-        isOngoing: Boolean = false,
-    ) {
-        if (systemActivityIndex < 0 || systemActivityIndex >= _nodes.size) {
-            val node =
-                TimelineNode.SystemActivity(
-                    id = sysActivityId,
-                    timestamp = ts,
-                    cacheHits = cacheHits,
-                    cacheMisses = cacheMisses,
-                    dbReads = dbReads,
-                    dbWrites = dbWrites,
-                    syncCount = syncCount,
-                    isOngoing = isOngoing,
+            is AgentEvent.StepStart -> {
+                val node = TimelineNode.ToolExecution(
+                    id = event.eventId,
+                    timestamp = event.timestamp,
+                    toolName = "step",
+                    displayName = event.title,
+                    source = "mcp",
+                    status = TimelineNode.ToolExecution.Status.RUNNING,
+                    inputSummary = null,
+                    outputSummary = null,
+                    durationMs = null,
                 )
-            systemActivityIndex = _nodes.size
-            _nodes.add(node)
-        } else {
-            updateSystemActivity { existing ->
-                existing.copy(
-                    cacheHits = existing.cacheHits + cacheHits,
-                    cacheMisses = existing.cacheMisses + cacheMisses,
-                    dbReads = existing.dbReads + dbReads,
-                    dbWrites = existing.dbWrites + dbWrites,
-                    syncCount = existing.syncCount + syncCount,
-                    isOngoing = isOngoing,
-                )
+                toolNodeIndexByToolId[event.eventId] = _nodes.size
+                _nodes.add(node)
             }
+
+            is AgentEvent.StepEnd -> {
+                val idx = toolNodeIndexByToolId[event.eventId]
+                if (idx != null && idx < _nodes.size) {
+                    val old = _nodes[idx] as? TimelineNode.ToolExecution
+                    if (old != null) {
+                        _nodes[idx] = old.copy(
+                            status = if (event.success) TimelineNode.ToolExecution.Status.COMPLETED
+                                     else TimelineNode.ToolExecution.Status.FAILED,
+                        )
+                    }
+                }
+            }
+
+            else -> { /* TextDelta, ReasoningDelta, Done, StateSync — no timeline node */ }
         }
     }
 
-    private fun updateSystemActivity(update: (TimelineNode.SystemActivity) -> TimelineNode.SystemActivity) {
-        val idx = systemActivityIndex
-        if (idx >= 0 && idx < _nodes.size) {
-            (_nodes[idx] as? TimelineNode.SystemActivity)?.let {
-                _nodes[idx] = update(it)
-            }
-        }
-    }
-
-    /** Reset the aggregator for a new conversation turn. */
     fun reset() {
         _nodes.clear()
         toolNodeIndexByToolId.clear()
         approvalNodeIndexByToolId.clear()
-        systemActivityIndex = -1
-        recoveryNodeIndex = -1
-        sysActivityStart = 0L
         lastProcessedIndex = 0
-        hasGranularReasoning = false
-        hasGranularTools = false
-        approvalDedupTimestamps.clear()
-    }
-
-    companion object {
-        /** Converts a snake_case tool name into a friendly display name. */
-        fun formatToolDisplayName(name: String): String =
-            name
-                .replace("_", " ")
-                .split(" ")
-                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                .take(40)
+        lastApprovalTimestamp = 0L
     }
 }

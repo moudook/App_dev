@@ -1,11 +1,9 @@
 package com.example.smarty.server.services
 
-import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.tools.KreaImageTool
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import java.util.UUID
 
 /**
  * Orchestrator Service ("The Brain").
@@ -37,7 +35,6 @@ class OrchestratorService(
     suspend fun processRequest(
         query: String,
         attachments: List<ByteArray> = emptyList(),
-        eventEmitter: suspend (AgentEvent) -> Unit,
     ): String {
         logger.info("Orchestrator processing request: $query (Attachments: ${attachments.size})")
 
@@ -50,7 +47,6 @@ class OrchestratorService(
                 if (attachments.isEmpty()) {
                     "I need an image to analyze. Please upload one."
                 } else {
-                    emitProcessing(eventEmitter, "Analyzing image...")
                     val base64Image =
                         java.util.Base64
                             .getEncoder()
@@ -60,7 +56,6 @@ class OrchestratorService(
                 }
             }
             ActionType.GENERATE_IMAGE -> {
-                emitProcessing(eventEmitter, "Generating image...")
                 try {
                     val aspectRatio = extractAspectRatio(query)
                     val jobId =
@@ -107,19 +102,6 @@ class OrchestratorService(
         }
 
         return Decision(ActionType.REPLY, "Standard text chat.")
-    }
-
-    private suspend fun emitProcessing(
-        emitter: suspend (AgentEvent) -> Unit,
-        message: String,
-    ) {
-        emitter(
-            AgentEvent.Processing(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                content = message,
-            ),
-        )
     }
 
     /**

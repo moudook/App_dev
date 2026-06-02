@@ -1,6 +1,5 @@
 package com.example.smarty.server.agent
 
-import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.data.NoteRepository
@@ -142,23 +141,7 @@ class ToolExecutor(
         if (!skipApprovalGate) {
             when (requiresApproval(toolName)) {
                 ToolApprovalStatus.RequiresApproval -> {
-                    val approvalEvent =
-                        com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                            eventId =
-                                java.util.UUID
-                                    .randomUUID()
-                                    .toString(),
-                            timestamp = System.currentTimeMillis(),
-                            toolId =
-                                java.util.UUID
-                                    .randomUUID()
-                                    .toString(),
-                            toolName = toolName,
-                            toolTitle = permissionTitleFor(toolName),
-                            toolArgs = argsJson.take(200),
-                        )
-                    emit(approvalEvent)
-                    logger.info("[ToolExecutor] Approval required for $toolName (resolved from $name), emitted ApprovalRequested")
+                    logger.info("[ToolExecutor] Approval required for $toolName (resolved from $name)")
                     return "__WAITING_FOR_USER_RESPONSE__"
                 }
                 ToolApprovalStatus.NoLongerSupported -> {
@@ -206,7 +189,7 @@ class ToolExecutor(
         return try {
             val kreaTool = KreaImageTool()
 
-            emitProcessing("", "Generating image with prompt: ${imageArgs.prompt.take(100)}...")
+            logger.info("Generating image with prompt: ${imageArgs.prompt.take(100)}...")
 
             val jobId = kreaTool.generateImage(imageArgs.prompt, imageArgs.aspectRatio ?: "1:1")
 
@@ -217,8 +200,6 @@ class ToolExecutor(
                 kreaJobId = jobId,
             )
 
-            emitProcessing("Image generation in progress...", "Polling Krea API for job $jobId")
-
             val result = kreaTool.waitForCompletion(jobId)
 
             val kreaImageUrl = result.result?.urls?.firstOrNull()
@@ -226,12 +207,8 @@ class ToolExecutor(
                 throw IllegalStateException("Image generation completed but no image URL was returned")
             }
 
-            emitProcessing("Image generated successfully from Krea!", "Krea Image URL: $kreaImageUrl")
-
             var supabaseUrl: String? = null
             try {
-                emitProcessing("Uploading image to permanent storage...", "Uploading to Supabase Storage")
-
                 supabaseUrl =
                     kreaTool.uploadToSupabase(
                         imageUrl = kreaImageUrl,
@@ -241,7 +218,6 @@ class ToolExecutor(
                                 .getImageBucketName(),
                     )
 
-                emitProcessing("Image uploaded to permanent storage!", "Supabase URL: $supabaseUrl")
             } catch (e: Exception) {
                 logger.warn("Supabase upload failed, will use Krea URL: ${e.message}")
             }
@@ -259,8 +235,6 @@ class ToolExecutor(
 
             val finalImageUrl = supabaseUrl ?: kreaImageUrl
             val imageSource = if (supabaseUrl != null) "supabase" else "krea"
-
-            emitProcessing("Image generation completed!", "Final URL ($imageSource): $finalImageUrl")
 
             """{"type": "image", "url": "$finalImageUrl", "source": "$imageSource", "prompt": "${imageArgs.prompt.replace(
                 "\"",
@@ -335,13 +309,7 @@ class ToolExecutor(
             emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
             "Saved: '${args.title}' (ID: $noteId)"
         } else {
-            emitDeviceCommand(
-                AgentCommand.AddNote(
-                    commandId = UUID.randomUUID().toString(),
-                    content = "${args.title}\n\n${args.content}",
-                    category = args.category,
-                ),
-            )
+            logger.info("Device note save requested: ${args.title}")
             "Saved to device: ${args.title}"
         }
 
@@ -369,13 +337,7 @@ class ToolExecutor(
                 results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.content.take(80)}" }
             }
         } else {
-            emitDeviceCommand(
-                AgentCommand.SearchNotes(
-                    commandId = UUID.randomUUID().toString(),
-                    query = args.query ?: "",
-                    category = args.category,
-                ),
-            )
+            logger.info("Device note search requested: ${args.query}")
             "Searching device for: ${args.query}"
         }
 
@@ -392,14 +354,7 @@ class ToolExecutor(
             emitStateSync("note_updated", """{"id":"${args.id}"}""")
             if (success) "Updated note ${args.id}" else "Failed to update note ${args.id}"
         } else {
-            emitDeviceCommand(
-                AgentCommand.UpdateNote(
-                    commandId = UUID.randomUUID().toString(),
-                    noteId = args.id ?: "",
-                    title = args.title,
-                    content = args.content,
-                ),
-            )
+            logger.info("Device note update requested: ${args.id}")
             "Update sent to device."
         }
     }
@@ -410,12 +365,7 @@ class ToolExecutor(
             emitStateSync("note_deleted", """{"id":"${args.id}"}""")
             "Deleted note ${args.id}"
         } else {
-            emitDeviceCommand(
-                AgentCommand.DeleteNote(
-                    commandId = UUID.randomUUID().toString(),
-                    noteId = args.id ?: "",
-                ),
-            )
+            logger.info("Device note delete requested: ${args.id}")
             "Delete sent to device."
         }
 
@@ -466,16 +416,7 @@ class ToolExecutor(
                     emitStateSync("event_scheduled", """{"id":"$eventId","title":"${args.title}"}""")
                     "Event added: '${args.title}'"
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.ScheduleEvent(
-                            commandId = UUID.randomUUID().toString(),
-                            title = args.title ?: "",
-                            startTime = startTime,
-                            endTime = endTime,
-                            description = args.description,
-                            reminderMinutes = 15,
-                        ),
-                    )
+                    logger.info("Device event scheduled: ${args.title}")
                     "Event sent to device: ${args.title}"
                 }
             }
@@ -489,12 +430,7 @@ class ToolExecutor(
                         events.joinToString("\n") { "- [${it.id}] ${it.title}" }
                     }
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.ListEvents(
-                            commandId = UUID.randomUUID().toString(),
-                            date = startMs,
-                        ),
-                    )
+                    logger.info("Device event list requested")
                     "Requesting events from device."
                 }
             }
@@ -504,12 +440,7 @@ class ToolExecutor(
                     emitStateSync("event_deleted", """{"id":"${args.id}"}""")
                     "Event removed."
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.DeleteEvent(
-                            commandId = UUID.randomUUID().toString(),
-                            eventId = args.id ?: "",
-                        ),
-                    )
+                    logger.info("Device event delete requested: ${args.id}")
                     "Remove request sent to device."
                 }
             }
@@ -547,16 +478,7 @@ class ToolExecutor(
                     emitStateSync("timer_set", """{"id":"$timerId"}""")
                     "${if (isAlarm) "Reminder" else "Timer"} set: '${args.what}'"
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.SetTimer(
-                            commandId = UUID.randomUUID().toString(),
-                            name = args.what ?: "",
-                            timeStr = args.`when` ?: "",
-                            isAlarm = isAlarm,
-                            repeat = args.repeat,
-                            triggerTime = triggerTime,
-                        ),
-                    )
+                    logger.info("Device timer set: ${args.what}")
                     "Reminder sent to device: ${args.what}"
                 }
             }
@@ -569,11 +491,7 @@ class ToolExecutor(
                         timers.joinToString("\n") { "- [${it.id}] ${it.name} at ${java.time.Instant.ofEpochMilli(it.triggerAt)}" }
                     }
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.ListTimers(
-                            commandId = UUID.randomUUID().toString(),
-                        ),
-                    )
+                    logger.info("Device timer list requested")
                     "Listing reminders from device."
                 }
             }
@@ -583,12 +501,7 @@ class ToolExecutor(
                     emitStateSync("timer_cancelled", """{"id":"${args.id}"}""")
                     "Reminder cancelled."
                 } else {
-                    emitDeviceCommand(
-                        AgentCommand.CancelTimer(
-                            commandId = UUID.randomUUID().toString(),
-                            id = args.id ?: "",
-                        ),
-                    )
+                    logger.info("Device timer cancel requested: ${args.id}")
                     "Cancel request sent to device."
                 }
             }
@@ -602,34 +515,18 @@ class ToolExecutor(
     ): String {
         return when (args.action) {
             "open" -> {
-                emitDeviceCommand(
-                    AgentCommand.LaunchApp(
-                        commandId = UUID.randomUUID().toString(),
-                        packageName = args.app ?: "",
-                    ),
-                )
+                logger.info("Device open app requested: ${args.app}")
                 "Opening: ${args.app}"
             }
             "media" -> {
-                emitDeviceCommand(
-                    AgentCommand.ControlAudio(
-                        commandId = UUID.randomUUID().toString(),
-                        action = args.actionType ?: "play",
-                    ),
-                )
+                logger.info("Device media control requested: ${args.actionType}")
                 "Media: ${args.actionType}"
             }
             "toggle" -> {
                 if (args.setting == "flashlight" && capabilities?.hardware?.flashlight == false) {
                     return "Device does not have a flashlight."
                 }
-                emitDeviceCommand(
-                    AgentCommand.ToggleSetting(
-                        commandId = UUID.randomUUID().toString(),
-                        setting = args.setting ?: "",
-                        enable = args.on ?: false,
-                    ),
-                )
+                logger.info("Device toggle requested: ${args.setting} = ${args.on}")
                 val statusStr =
                     when (args.on) {
                         true -> "on"
@@ -639,37 +536,14 @@ class ToolExecutor(
                 "${args.setting} $statusStr"
             }
             "status" -> {
-                val commandId =
-                    java.util.UUID
-                        .randomUUID()
-                        .toString()
-                emitDeviceCommand(
-                    AgentCommand.GetDeviceInfo(
-                        commandId = commandId,
-                        infoType = args.info ?: "all",
-                    ),
-                )
-                // Wait for client to respond with device status
-                val deferred = DeviceResponseRegistry.createPendingRequest(commandId, sessionId)
-                val result =
-                    runCatching {
-                        kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() }
-                    }.getOrNull()
-                if (result != null && result.status.isNotEmpty()) {
-                    result.status.entries.joinToString(", ") { "${it.key}: ${it.value}" }
-                } else {
-                    "Device status unavailable"
-                }
+                logger.info("Device status requested: ${args.info}")
+                "Device status requested"
             }
             "capture" -> {
                 if (capabilities?.hardware?.screenCapture == false) {
                     return "Device does not support screen capture."
                 }
-                emitDeviceCommand(
-                    AgentCommand.TakeScreenshot(
-                        commandId = UUID.randomUUID().toString(),
-                    ),
-                )
+                logger.info("Device screenshot requested")
                 "Capturing screenshot."
             }
             else -> "Unknown device action: ${args.action}"
@@ -677,11 +551,7 @@ class ToolExecutor(
     }
 
     private suspend fun executeGuidedBreathing(): String {
-        emitDeviceCommand(
-            AgentCommand.ShowBreathing(
-                commandId = UUID.randomUUID().toString(),
-            ),
-        )
+        logger.info("Device breathing session requested")
         return "Starting guided breathing session."
     }
 
@@ -706,20 +576,7 @@ class ToolExecutor(
         // Build toolArgs JSON that the app expects (questions array format)
         val toolArgsJson = buildToolArgsJson(args)
 
-        // Emit ApprovalRequested event (same as McpServer does)
-        emit(
-            com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                eventId =
-                    java.util.UUID
-                        .randomUUID()
-                        .toString(),
-                timestamp = System.currentTimeMillis(),
-                toolId = toolCallId,
-                toolName = "ask_user",
-                toolTitle = "Clarification Needed",
-                toolArgs = toolArgsJson,
-            ),
-        )
+        logger.info("[ToolExecutor] ask_user: awaiting approval for toolCallId=$toolCallId")
 
         // Create pending approval and suspend until user responds (or timeout)
         // 161s timeout — golden ratio (φ ≈ 1.618) × 100 ≈ 161s
@@ -729,20 +586,6 @@ class ToolExecutor(
                     ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId, "ask_user").await()
                 }
             }.getOrNull() ?: ApprovalResult(false, "Approval timed out")
-
-        // If the approval timed out without user interaction, tell the client to dismiss
-        if (result.feedback == "Approval timed out") {
-            emit(
-                com.example.smarty.protocol.AgentEvent.ApprovalDenied(
-                    eventId =
-                        java.util.UUID
-                            .randomUUID()
-                            .toString(),
-                    timestamp = System.currentTimeMillis(),
-                    toolId = toolCallId,
-                ),
-            )
-        }
 
         return if (result.approved) {
             result.feedback ?: "Proceed with your best judgment"
@@ -857,16 +700,6 @@ class ToolExecutor(
                 if (isPrivate) {
                     "Note not found: ${args.noteId}"
                 } else {
-                    emit(
-                        com.example.smarty.protocol.AgentEvent.NoteBlock(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            noteId = note.id,
-                            title = note.title,
-                            snippet = args.snippet ?: note.content.take(100),
-                            category = note.categoryId,
-                        ),
-                    )
                     "Note: ${note.title}"
                 }
             } else {
@@ -879,22 +712,11 @@ class ToolExecutor(
     private suspend fun executeNavigateTool(args: UnifiedToolArgs): String =
         when (args.action) {
             "go" -> {
-                emitDeviceCommand(
-                    AgentCommand.Navigate(
-                        commandId = UUID.randomUUID().toString(),
-                        screen = args.screen ?: "home",
-                    ),
-                )
+                logger.info("Device navigate requested: ${args.screen}")
                 "Going to ${args.screen}."
             }
             "share" -> {
-                emitDeviceCommand(
-                    AgentCommand.Share(
-                        commandId = UUID.randomUUID().toString(),
-                        content = args.content ?: "",
-                        title = args.title,
-                    ),
-                )
+                logger.info("Device share requested")
                 "Sharing content."
             }
             else -> "Unknown navigate action: ${args.action}"
@@ -942,30 +764,6 @@ class ToolExecutor(
                 timestamp = System.currentTimeMillis(),
                 syncType = syncType,
                 data = data,
-            ),
-        )
-    }
-
-    private suspend fun emitDeviceCommand(command: AgentCommand) {
-        emit(
-            com.example.smarty.protocol.AgentEvent.Command(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                command = command,
-            ),
-        )
-    }
-
-    private suspend fun emitProcessing(
-        content: String,
-        thinking: String,
-    ) {
-        emit(
-            com.example.smarty.protocol.AgentEvent.Processing(
-                eventId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                content = content,
-                thinking = thinking,
             ),
         )
     }

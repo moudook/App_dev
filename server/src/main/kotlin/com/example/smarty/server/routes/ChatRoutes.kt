@@ -1,9 +1,7 @@
 package com.example.smarty.server.routes
 
-import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
-import com.example.smarty.server.agent.ActiveEventBridge
 import com.example.smarty.server.agent.ServerAgent
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
@@ -36,9 +34,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
-import io.ktor.server.sse.sse
 import io.ktor.server.websocket.webSocket
-import io.ktor.sse.ServerSentEvent
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
@@ -286,387 +282,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     call.application.log.error("Failed to process client event", e)
                     call.respond(HttpStatusCode.InternalServerError, "An internal error occurred while processing the event.")
                 }
-            }
-
-            /**
-             * SSE endpoint for agent event streaming.
-             *
-             * Executes the ServerAgent strategy and streams real-time events.
-             *
-             * Usage:
-             * ```
-             * curl -N -H "Accept: text/event-stream" -H "Authorization: Bearer <token>" "http://localhost:7860/chat/stream?query=hello&sessionId=UUID"
-             * ```
-             */
-            sse("/chat/stream") {
-                val user = call.firebaseUser()
-                if (user == null) {
-                    send(
-                        ServerSentEvent(
-                            data =
-                                json.encodeToString(
-                                    AgentEvent.Error(
-                                        eventId = UUID.randomUUID().toString(),
-                                        timestamp = System.currentTimeMillis(),
-                                        message = "Authentication required",
-                                        code = "UNAUTHORIZED",
-                                    ),
-                                ),
-                            event = "error",
-                        ),
-                    )
-                    return@sse
-                }
-
-                val userId = user.userId
-                val query = call.request.queryParameters["query"] ?: "default query"
-                var sessionId = call.request.queryParameters["sessionId"]
-                val modelParam =
-                    call.request.queryParameters["model"]
-                        ?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
-
-                // CRITICAL FIX: If client specifically requests an OpenCode free model,
-                // force the provider to OPENCODE, overriding whatever the default/fallback is.
-                val providerParam = normalizeProviderSelection(call.request.queryParameters["provider"])
-                if (modelParam != null && modelParam.startsWith("opencode/")) {
-                    call.application.log.info("Client requested OpenCode model ($modelParam). Using OPENCODE provider.")
-                }
-
-                val providerUrlParam = call.request.queryParameters["providerUrl"]
-                val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
-                val timezoneParam = call.request.queryParameters["timezone"]
-                val clientTimeParam = call.request.queryParameters["clientTime"]?.toLongOrNull()
-                val personalityParam = call.request.queryParameters["personality"]
-                val messageIdParam = call.request.queryParameters["messageId"]
-                val variantParam = call.request.queryParameters["variant"]
-
-                // Input validation
-                try {
-                    com.example.smarty.server.utils.InputValidation
-                        .validateQuery(query)
-                    sessionId?.let {
-                        com.example.smarty.server.utils.InputValidation
-                            .validateSessionId(it)
-                    }
-                    providerUrlParam?.let {
-                        if (it.length > 500) throw IllegalArgumentException("Provider URL too long")
-                    }
-                    modelParam?.let {
-                        if (it.length > 120) throw IllegalArgumentException("Model name too long")
-                    }
-                    timezoneParam?.let {
-                        if (it.length > 50) throw IllegalArgumentException("Timezone too long")
-                    }
-                } catch (e: IllegalArgumentException) {
-                    send(
-                        ServerSentEvent(
-                            data =
-                                json.encodeToString(
-                                    AgentEvent.Error(
-                                        eventId = UUID.randomUUID().toString(),
-                                        timestamp = System.currentTimeMillis(),
-                                        message = "Invalid input",
-                                        code = "INVALID_INPUT",
-                                    ),
-                                ),
-                            event = "error",
-                        ),
-                    )
-                    return@sse
-                }
-
-                // Log the incoming request
-                call.application.log.info(
-                    "SSE stream started for query: $query (Session: $sessionId, User: $userId, Provider: $providerParam, Model: $modelParam, URL: $providerUrlParam)",
-                )
-
-                // Create provider and summarizer for this specific request
-                val streamProvider = LlmProviderFactory.create(httpClient)
-
-                val streamSummarizer = ConversationSummarizer(streamProvider)
-
-                // Handle Session Persistence (non-fatal: DB errors won't kill chat)
-                val history =
-                    if (chatRepository != null) {
-                        try {
-                            if (sessionId.isNullOrBlank()) {
-                                // No session ID provided - create new session
-                                sessionId = chatRepository.createSession(userId, "New Chat")
-                                call.application.log.info("Created new session: $sessionId for user: $userId")
-                            } else {
-                                // Session ID provided - verify it exists and belongs to user
-                                val existingSession = chatRepository.getSession(userId, sessionId)
-                                if (existingSession == null) {
-                                    // Session doesn't exist for this user - create it with the provided ID
-                                    val created = chatRepository.createSessionWithId(userId, sessionId, "Continued Chat")
-                                    if (created) {
-                                        call.application.log.info("Created session with client ID: $sessionId for user: $userId")
-                                    } else {
-                                        // Session exists but belongs to another user - create new session
-                                        sessionId = chatRepository.createSession(userId, "New Chat")
-                                        call.application.log.warn("Session ID conflict - created new session: $sessionId for user: $userId")
-                                    }
-                                }
-                            }
-
-                            // Save User Message (only if not a continuation query)
-                            if (query.isNotBlank()) {
-                                chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, query)
-                            }
-
-                            // Load History
-                            chatRepository.getHistory(userId, sessionId!!)
-                        } catch (e: Exception) {
-                            call.application.log.error("DB persistence failed (non-fatal), continuing without history", e)
-                            emptyList()
-                        }
-                    } else {
-                        emptyList()
-                    }
-
-                // Get opencodeSessionId if session exists
-                val opencodeSessionId =
-                    if (chatRepository != null && sessionId != null) {
-                        try {
-                            chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
-                        } catch (e: Exception) {
-                            null
-                        }
-                    } else {
-                        null
-                    }
-
-                // Register active session BEFORE creating agent (needed for progressive thinking save)
-                val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-                com.example.smarty.server.agent.ActiveSessionManager
-                    .startSession(userId, activeSessionId, "chat")
-                com.example.smarty.server.agent.ActiveUserRegistry
-                    .setActive(userId)
-
-                // Collect citations and agent steps during stream
-                val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
-                val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
-                val collectedAgentEvents = mutableListOf<AgentEvent>()
-
-                val eventEmitter: suspend (AgentEvent) -> Unit = { event ->
-                    try {
-                        collectedAgentEvents.add(event)
-
-                        // Collect citations from NotifyCitations command
-                        if (event is AgentEvent.Command) {
-                            val command = event.command
-                            if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
-                                collectedCitations.addAll(command.citations)
-                            }
-                        }
-
-                        // Collect Agent Steps
-                        if (event is AgentEvent.AgentStep) {
-                            collectedAgentSteps[event.stepIndex] = event
-                        }
-
-                        val eventType =
-                            when (event) {
-                                is AgentEvent.Processing -> "processing"
-                                is AgentEvent.ToolCall -> "tool_call"
-                                is AgentEvent.Command -> "command"
-                                is AgentEvent.Result -> "result"
-                                is AgentEvent.Error -> "error"
-                                is AgentEvent.StateSync -> "state_sync"
-                                is AgentEvent.ToolBlocked -> "tool_blocked"
-                                is AgentEvent.Question -> "question"
-                                is AgentEvent.NoteBlock -> "note_block"
-                                is AgentEvent.AgentStep -> "agent_step"
-                                is AgentEvent.OpencodeRawEvent -> "opencode_raw"
-                                else -> event::class.simpleName?.replace(Regex("([a-z])([A-Z]+)"), "$1_$2")?.lowercase() ?: "unknown"
-                            }
-                        call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
-                        send(
-                            ServerSentEvent(
-                                data = json.encodeToString(event),
-                                event = eventType,
-                            ),
-                        )
-                    } catch (e: Exception) {
-                        // Downgrade to DEBUG to avoid log spamming for expected client-side closures
-                        call.application.log.debug("SSE client disconnected during stream: ${e.message}")
-                    }
-                }
-
-                // Register the event emitter with the ActiveEventBridge (keyed by userId)
-                // so McpServer approval events also reach this SSE stream
-                ActiveEventBridge.register(userId, eventEmitter)
-
-                // Create agent instance for this request with userId for multi-tenant isolation
-                val agent =
-                    ServerAgent(
-                        llmProvider = streamProvider,
-                        vectorStore = vectorStore,
-                        summarizer = streamSummarizer,
-                        noteRepository = noteRepository,
-                        timerRepository = timerRepository,
-                        calendarRepository = calendarRepository,
-                        eventEmitter = eventEmitter,
-                        userId = userId,
-                        noteService = noteService,
-                        capabilities =
-                            com.example.smarty.server.agent.DeviceRegistry
-                                .getCapabilities(userId),
-                    )
-
-                try {
-                    if (opencodeSessionId != null && streamProvider is com.example.smarty.server.llm.OpencodeLlmProvider) {
-                        try {
-                            val historyArray = streamProvider.getSessionHistory(opencodeSessionId)
-                            if (historyArray != null) {
-                                send(
-                                    ServerSentEvent(
-                                        data =
-                                            json.encodeToString(
-                                                AgentEvent.OpencodeRawEvent(
-                                                    eventId = UUID.randomUUID().toString(),
-                                                    timestamp = System.currentTimeMillis(),
-                                                    data = historyArray.toString(),
-                                                    eventName = "session.history",
-                                                ),
-                                            ),
-                                        event = "opencode_raw",
-                                    ),
-                                )
-                            }
-                        } catch (e: Exception) {
-                            call.application.log.error("Failed to fetch session history for reconnect", e)
-                        }
-                    }
-
-                    // Send immediate "thinking" event so client knows the request is being processed
-                    // This prevents timeout issues when LLM providers take 1-3 minutes to start responding
-                    send(
-                        ServerSentEvent(
-                            data =
-                                json.encodeToString(
-                                    AgentEvent.Processing(
-                                        eventId = UUID.randomUUID().toString(),
-                                        timestamp = System.currentTimeMillis(),
-                                        content = "",
-                                        thinking = "Activating OpenCode CLI...",
-                                    ),
-                                ),
-                            event = "processing",
-                        ),
-                    )
-
-                    // Run the agent strategy with history, model override, and time context
-                    // CRITICAL: Pass sessionId to preserve chat history continuity
-                    val assistantResponse =
-                        agent.run(
-                            query = query,
-                            sessionId = activeSessionId,
-                            history = history,
-                            modelOverride = modelParam,
-                            clientTimezone = timezoneParam,
-                            clientTimeMillis = clientTimeParam,
-                            personality = personalityParam,
-                            opencodeSessionId = opencodeSessionId,
-                            onOpencodeSessionCreated = { newOpencodeSessionId ->
-                                if (chatRepository != null && sessionId != null) {
-                                    try {
-                                        chatRepository.updateOpencodeSessionId(userId, sessionId!!, newOpencodeSessionId)
-                                    } catch (e: Exception) {
-                                        call.application.log.error("Failed to update opencodeSessionId", e)
-                                    }
-                                }
-                            },
-                            variantOverride = variantParam,
-                        )
-
-                    // Save Smarty Response if persistence is enabled
-                    if (chatRepository == null) {
-                        call.application.log.error("CRITICAL: chatRepository is NULL! Database not configured. Messages will NOT be saved!")
-                    } else if (assistantResponse.isNotEmpty()) {
-                        try {
-                            // Retrieve the rich SMARTY_TRACE_V2 thinking trace that was built during
-                            // streaming. This is the correct source for the thinking field — the old
-                            // <think>-tag extraction no longer works with the new trace format.
-                            val thinkingTrace: String? = null
-
-                            // Convert citations to JSON
-                            val citationsJson =
-                                if (collectedCitations.isNotEmpty()) {
-                                    json.encodeToString(collectedCitations)
-                                } else {
-                                    "[]"
-                                }
-
-                            val agentStepsJson: String? = null
-                            val finalAgentEventsJson: String? = null
-
-                            if (messageIdParam != null) {
-                                chatRepository.saveMessageWithId(
-                                    userId = userId,
-                                    sessionId = sessionId!!,
-                                    messageId = messageIdParam,
-                                    role = LlmMessage.Role.ASSISTANT.name,
-                                    content = assistantResponse,
-                                    thinking = null,
-                                    toolCalls = citationsJson,
-                                    agentStepsJson = agentStepsJson,
-                                    agentEventsJson = finalAgentEventsJson,
-                                )
-                            } else {
-                                chatRepository.saveMessage(
-                                    userId = userId,
-                                    sessionId = sessionId!!,
-                                    role = LlmMessage.Role.ASSISTANT.name,
-                                    content = assistantResponse,
-                                    thinking = null,
-                                    toolCalls = citationsJson,
-                                    agentStepsJson = agentStepsJson,
-                                    agentEventsJson = finalAgentEventsJson,
-                                )
-                            }
-
-                            call.application.log.info(
-                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}, steps=${collectedAgentSteps.size}",
-                            )
-                        } catch (e: Exception) {
-                            call.application.log.error("Failed to save assistant response: ${e.message}", e)
-                        }
-                    }
-                } catch (e: Exception) {
-                    call.application.log.error("OpenCode agent execution failed", e)
-                    try {
-                        send(
-                            ServerSentEvent(
-                                data =
-                                    json.encodeToString(
-                                        AgentEvent.Error(
-                                            eventId = UUID.randomUUID().toString(),
-                                            timestamp = System.currentTimeMillis(),
-                                            message = "An internal error occurred.",
-                                            code = "OPENCODE_CLI_ERROR",
-                                        ),
-                                    ),
-                                event = "error",
-                            ),
-                        )
-                    } catch (sendError: Exception) {
-                        call.application.log.debug("Failed to send error SSE (client already disconnected): ${sendError.message}")
-                    }
-                } finally {
-                    // Clear the bridge so stale emitters never fire
-                    ActiveEventBridge.clear(userId)
-                    com.example.smarty.server.agent.ActiveUserRegistry
-                        .clearActive(userId)
-                    // Reject pending approvals to prevent hanging coroutines (C2 fix)
-                    com.example.smarty.server.agent.ApprovalRegistry
-                        .cancelApprovalsForSession(activeSessionId)
-                    // Always end the active session
-                    com.example.smarty.server.agent.ActiveSessionManager
-                        .endSession(userId, activeSessionId)
-                }
-
-                call.application.log.info("SSE stream completed for query: $query (Session: $sessionId, User: $userId)")
             }
 
             /**
@@ -921,11 +536,6 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             emptyList()
                         }
 
-// Collect events for response and citations
-                    val events = mutableListOf<AgentEvent>()
-                    val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
-                    val collectedAgentSteps = mutableMapOf<Int, com.example.smarty.protocol.AgentEvent.AgentStep>()
-
                     val agent =
                         ServerAgent(
                             llmProvider = streamProvider,
@@ -934,19 +544,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             noteRepository = noteRepository,
                             timerRepository = timerRepository,
                             calendarRepository = calendarRepository,
-                            eventEmitter = { event ->
-                                events.add(event)
-                                // Collect citations
-                                if (event is AgentEvent.Command) {
-                                    val command = event.command
-                                    if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
-                                        collectedCitations.addAll(command.citations)
-                                    }
-                                }
-                                if (event is AgentEvent.AgentStep) {
-                                    collectedAgentSteps[event.stepIndex] = event
-                                }
-                            },
+                            eventEmitter = { /* no-op */ },
                             userId = userId,
                             noteService = noteService,
                             capabilities =
@@ -982,73 +580,23 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 variantOverride = request.variant,
                             )
 
-                        // Save response with citations
+                        // Save response
                         if (chatRepository != null && assistantResponse.isNotEmpty()) {
-                            // Retrieve the rich SMARTY_TRACE_V2 thinking trace persisted during
-                            // streaming instead of regex-parsing deprecated <think> tags.
-                            val thinkingTrace: String? = null
-
-                            // Convert citations to JSON
-                            val citationsJson =
-                                if (collectedCitations.isNotEmpty()) {
-                                    json.encodeToString(collectedCitations)
-                                } else {
-                                    "[]"
-                                }
-
-                            // Convert agent steps to JSON
-                            val agentStepsJson =
-                                if (collectedAgentSteps.isNotEmpty()) {
-                                    val entries =
-                                        collectedAgentSteps.values.sortedBy { it.stepIndex }.map { step ->
-                                            com.example.smarty.core.domain.model.AgentStepEntry(
-                                                stepType = step.stepType,
-                                                stepTitle = step.stepTitle,
-                                                stepContent = step.stepContent,
-                                                stepStatus = step.stepStatus,
-                                                stepIndex = step.stepIndex,
-                                                toolName = step.toolName,
-                                                durationMs = step.durationMs,
-                                            )
-                                        }
-                                    json.encodeToString(entries)
-                                } else {
-                                    null
-                                }
-
-                            val finalAgentEventsJson =
-                                if (events.isNotEmpty()) {
-                                    val filteredEvents =
-                                        events.filter {
-                                            it !is AgentEvent.Processing && it !is AgentEvent.OpencodeRawEvent
-                                        }
-                                    if (filteredEvents.isNotEmpty()) json.encodeToString(filteredEvents) else null
-                                } else {
-                                    null
-                                }
-
                             chatRepository.saveMessage(
                                 userId = userId,
                                 sessionId = sessionId!!,
                                 role = LlmMessage.Role.ASSISTANT.name,
                                 content = assistantResponse,
-                                thinking = null,
-                                toolCalls = citationsJson,
-                                agentStepsJson = agentStepsJson,
-                                agentEventsJson = finalAgentEventsJson,
                             )
-                            call.application.log.info(
-                                "Saved assistant response: thinking=${thinkingTrace?.length ?: 0} chars, citations=${collectedCitations.size}, steps=${collectedAgentSteps.size}",
-                            )
+                            call.application.log.info("Saved assistant response: ${assistantResponse.length} chars")
                         }
 
-                        // Return all events
+                        // Return response
                         call.respond(
                             HttpStatusCode.OK,
                             mapOf(
                                 "sessionId" to sessionId,
                                 "response" to assistantResponse,
-                                "events" to events.map { json.encodeToString(it) },
                             ),
                         )
                     } catch (e: Exception) {
@@ -1108,26 +656,20 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         get("/chat/events/test") {
             val testEvents =
                 listOf(
-                    AgentEvent.Processing(
+                    AgentEvent.TextDelta(
                         eventId = "evt_123",
                         timestamp = System.currentTimeMillis(),
-                        content = "",
+                        text = "Hello",
                     ),
-                    AgentEvent.Command(
-                        eventId = "test-command",
+                    AgentEvent.ToolStart(
+                        eventId = "evt_124",
                         timestamp = System.currentTimeMillis(),
-                        command =
-                            AgentCommand.AddNote(
-                                commandId = "cmd-123",
-                                content = "Test Note Content",
-                                category = "Test",
-                            ),
+                        toolId = "tool-1",
+                        name = "search_web",
                     ),
-                    AgentEvent.Result(
-                        eventId = "test-result",
+                    AgentEvent.Done(
+                        eventId = "evt_125",
                         timestamp = System.currentTimeMillis(),
-                        content = "Test result content",
-                        isFinal = true,
                     ),
                 )
 
@@ -1546,27 +1088,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     // TEST ENDPOINT to trigger ask_user manually
     routing {
         post("/chat/test-ask-user") {
-            val userId = call.request.queryParameters["userId"] ?: "test-user"
-
-            val testEvent =
-                com.example.smarty.protocol.AgentEvent.ApprovalRequested(
-                    eventId =
-                        java.util.UUID
-                            .randomUUID()
-                            .toString(),
-                    timestamp = System.currentTimeMillis(),
-                    toolId =
-                        java.util.UUID
-                            .randomUUID()
-                            .toString(),
-                    toolName = "ask_user",
-                    toolTitle = "Ask User",
-                    toolArgs = """{"questions": [{"question": "Did the manual test trigger?", "options": ["Yes", "No"], "allow_custom": true}]}""",
-                )
-
-            com.example.smarty.server.agent.ActiveEventBridge
-                .emit(userId, testEvent)
-            call.respond(mapOf("status" to "emitted", "userId" to userId))
+            call.respond(mapOf("status" to "noop", "message" to "ActiveEventBridge removed; use WebSocket /chat/ws for approval flows"))
         }
     }
 }

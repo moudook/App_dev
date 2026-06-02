@@ -37,6 +37,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -451,15 +452,23 @@ class McpServer(
                 }
             }
 
+            val questionText = args["question"]?.jsonPrimitive?.content
+                ?: args["prompt"]?.jsonPrimitive?.content
+                ?: args["text"]?.jsonPrimitive?.content
+                ?: resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            val optionsArray = args["options"] as? JsonArray
+            val questionOptions = optionsArray?.mapNotNull {
+                (it as? JsonPrimitive)?.content
+            } ?: emptyList()
             val approvalEvent =
                 AgentEvent.ApprovalRequested(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
                     toolId = toolCallId,
                     toolName = resolvedName,
-                    toolTitle = resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    toolArgs = args.toString(),
-                    isInteractive = true,
+                    question = questionText,
+                    options = questionOptions,
+                    interactive = true,
                 )
             // Emit via eventEmitter (preferred — routes to both ActiveEventBridge
             // and AgentRunManager). Fall back to emitToAllSessions if the emitter
@@ -489,7 +498,7 @@ class McpServer(
             if (!result.approved) {
                 val denial = result.feedback ?: "User denied"
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
-                val deniedEvent = AgentEvent.ApprovalDenied(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
+                val deniedEvent = AgentEvent.ApprovalResult(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = false)
                 eventEmitter?.invoke(deniedEvent) ?: emitToAllSessions(deniedEvent)
                 return buildJsonObject {
                     put(
@@ -508,7 +517,7 @@ class McpServer(
 
             val userResponse = result.feedback ?: "Proceed with your best judgment"
             thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
-            val grantedEvent = AgentEvent.ApprovalGranted(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId)
+            val grantedEvent = AgentEvent.ApprovalResult(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = true)
             eventEmitter?.invoke(grantedEvent)
             emitToAllSessions(grantedEvent)
             return buildJsonObject {

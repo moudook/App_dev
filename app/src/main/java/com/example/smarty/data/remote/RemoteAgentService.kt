@@ -13,7 +13,6 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
-import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
@@ -23,30 +22,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
+
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-
-/**
- * Safe `content` accessors on [JsonPrimitive] — return null on null primitives
- * or non-string values instead of throwing, so the timeline translator can
- * tolerate missing/optional plugin event fields without crashing the flow.
- */
-private val JsonPrimitive.contentOrNullSafe: String?
-    get() = runCatching { content }.getOrNull()
-private val JsonPrimitive.booleanOrNullSafe: Boolean?
-    get() = runCatching { content.toBooleanStrictOrNull() }.getOrNull()
-private val JsonPrimitive.longOrNullSafe: Long?
-    get() = runCatching { content.toLongOrNull() }.getOrNull()
-private val JsonPrimitive.intOrNullSafe: Int?
-    get() = runCatching { content.toIntOrNull() }.getOrNull()
 
 /**
  * Client-side service that connects to the Cloud Agent's SSE stream.
@@ -88,60 +70,22 @@ class RemoteAgentService(
     }
 
     /**
-     * Decode an SSE event into the correct AgentEvent subclass.
-     * The server sends the type in the SSE `event:` field, NOT in the JSON data.
-     *
-     * Self-healing: If decoding fails for any reason (malformed JSON, oversized payload,
-     * unknown type), we return a synthetic Error event instead of crashing the stream.
+     * Decode an SSE event into an AgentEvent using the JSON class discriminator.
+     * Injects the type discriminator if missing so all 11 event types resolve via
+     * a single [kotlinx.serialization.modules.PolymorphicModule].
      */
     private fun decodeAgentEvent(
         eventType: String,
         data: String,
-    ): AgentEvent =
-        try {
-            when (eventType) {
-                "processing" -> json.decodeFromString<AgentEvent.Processing>(data)
-                "tool_call" -> json.decodeFromString<AgentEvent.ToolCall>(data)
-                "result" -> json.decodeFromString<AgentEvent.Result>(data)
-                "error" -> json.decodeFromString<AgentEvent.Error>(data)
-                "command" -> json.decodeFromString<AgentEvent.Command>(data)
-                "state_sync" -> json.decodeFromString<AgentEvent.StateSync>(data)
-                "tool_blocked" -> json.decodeFromString<AgentEvent.ToolBlocked>(data)
-                "question" -> json.decodeFromString<AgentEvent.Question>(data)
-                "note_block" -> json.decodeFromString<AgentEvent.NoteBlock>(data)
-                "agent_step" -> json.decodeFromString<AgentEvent.AgentStep>(data)
-                "opencode_raw" -> json.decodeFromString<AgentEvent.OpencodeRawEvent>(data)
-                "approval_requested" -> json.decodeFromString<AgentEvent.ApprovalRequested>(data)
-                "approval_granted" -> json.decodeFromString<AgentEvent.ApprovalGranted>(data)
-                "approval_denied" -> json.decodeFromString<AgentEvent.ApprovalDenied>(data)
-                else -> {
-                    // Inject type discriminator if missing for the new canonical events
-                    val jsonStr =
-                        if (!data.contains("\"type\"")) {
-                            data.trim().removeSuffix("}") + ",\"type\":\"$eventType\"}"
-                        } else {
-                            data
-                        }
-                    try {
-                        json.decodeFromString<AgentEvent>(jsonStr)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Unknown SSE event type: '$eventType', falling back to Processing")
-                        json.decodeFromString<AgentEvent.Processing>(data)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode '$eventType' event (data length: ${data.length}): ${e.message}")
-            AgentEvent.Error(
-                eventId =
-                    java.util.UUID
-                        .randomUUID()
-                        .toString(),
-                timestamp = System.currentTimeMillis(),
-                message = "[Decode Error: $eventType] ${e.message?.take(200)}",
-                code = "DECODE_ERROR",
-            )
-        }
+    ): AgentEvent? = try {
+        val jsonStr = if (!data.contains("\"type\"")) {
+            data.trim().removeSuffix("}") + ",\"type\":\"$eventType\"}"
+        } else data
+        json.decodeFromString<AgentEvent>(jsonStr)
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to decode '$eventType' event: ${e.message}")
+        null
+    }
 
     private val _connectionState = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
@@ -185,7 +129,7 @@ class RemoteAgentService(
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
      *
      * Auto-reconnects on unexpected WebSocket disconnects with exponential backoff.
-     * Terminal events (Result.isFinal, Error) and PENDING_APPROVAL stop retrying.
+     * Terminal events (Done, Error) and PENDING_APPROVAL stop retrying.
      */
     fun sendQuery(
         query: String,
@@ -242,8 +186,6 @@ class RemoteAgentService(
                         Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully (attempt ${retryCount + 1})")
 
                         // Send the query request frame to start the run.
-                        // On retries, this cancels the old agent run (if no pending approval)
-                        // and starts a fresh run with the latest state.
                         val requestObj =
                             ChatQueryRequest(
                                 query = query,
@@ -262,11 +204,6 @@ class RemoteAgentService(
                         send(Frame.Text(requestJson))
                         Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
 
-                        // Defensive dedup — the server can in theory emit the same
-                        // event twice if a routing layer fires during a reconnect.
-                        // FinalAnswerDelta and Result are the most harmful duplicates
-                        // because they corrupt the streamed text. Cap at 5,000 entries
-                        // to avoid unbounded growth on long-running streams.
                         val seenEventIds = mutableSetOf<String>()
 
                         try {
@@ -299,7 +236,7 @@ class RemoteAgentService(
                                         if (eventType == "ping") continue
 
                                         Log.d(TAG, ">>> WS_DECODE: eventType=$eventType")
-                                        val agentEvent = decodeAgentEvent(eventType, data)
+                                        val agentEvent = decodeAgentEvent(eventType, data) ?: continue
                                         Log.d(TAG, ">>> WS_DECODED: ${agentEvent::class.simpleName}")
 
                                         // PENDING_APPROVAL means the server refused the query
@@ -336,8 +273,7 @@ class RemoteAgentService(
                         }
                         break // Exit retry loop — agent finished or refused
                     }
-                    // Clean disconnect without terminal event (shouldn't reach here in practice
-                    // if agent emits Result/Error, but handle gracefully)
+                    // Clean disconnect without terminal event
                     if (_connectionState.value != ConnectionStatus.OFFLINE) {
                         _connectionState.value = ConnectionStatus.DISCONNECTED
                         Log.i(TAG, ">>> WS_DISCONNECTED: WebSocket closed normally (no terminal event)")
@@ -394,349 +330,6 @@ class RemoteAgentService(
             Log.d(TAG, "Event sent successfully: ${response.status}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send client event", e)
-        }
-    }
-
-    /**
-     * Open the live timeline WebSocket to Ktor's `/ws/timeline` endpoint.
-     * The Ktor server is forwarding every event the OpenCode plugin emits
-     * (tool calls, reasoning deltas, sub-agents, MCP `ask_user` gates, etc.).
-     *
-     * The raw plugin JSON is translated into canonical [AgentEvent] types and
-     * emitted into a [Flow] that callers can collect. The same translation
-     * logic is shared with [AgentRuntimeViewModel] — but here the events flow
-     * into the MAIN chat surface, so reasoning, sub-agents, web search results,
-     * and approval gates appear inline in the conversation.
-     *
-     * Auto-reconnects with a 2-second backoff on disconnect. Callers should
-     * cancel the collecting [Job] to stop the stream.
-     *
-     * End-to-end wire model:
-     *   OpenCode CLI → plugin → Ktor /opencode/events → Ktor /ws/timeline → this Flow
-     */
-    fun observeTimelineEvents(): Flow<AgentEvent> =
-        flow {
-            val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
-
-            // Translation function — converts a raw plugin JSON frame to an
-            // AgentEvent. Lives inside the flow so the json instance is captured
-            // by closure without leaking `this`.
-            val translate = translateTimelineEvent
-            var retryDelay = 1_000L
-            val maxRetryDelay = 30_000L
-            var retryCount = 0
-            val maxRetries = 10
-
-            while (retryCount < maxRetries) {
-                val token = getFirebaseToken()
-                val url = "$baseUrl/ws/timeline"
-
-                Log.i(TAG, ">>> TIMELINE_WS: connecting to $url (authorized via header)")
-                _connectionState.value = ConnectionStatus.CONNECTING
-
-                try {
-                    client.webSocket(urlString = url, request = {
-                        if (token != null) {
-                            header(io.ktor.http.HttpHeaders.Authorization, "Bearer $token")
-                        }
-                    }) {
-                        retryDelay = 1_000L // Reset backoff on successful connect
-                        _connectionState.value = ConnectionStatus.CONNECTED
-                        Log.i(TAG, ">>> TIMELINE_WS: connected")
-
-                        // Heartbeat — Ktor's WS expects a periodic ping or it
-                        // tears the connection after ~30s idle.
-                        val heartbeatJob =
-                            launch {
-                                while (isActive) {
-                                    kotlinx.coroutines.delay(15_000L)
-                                    try {
-                                        send(Frame.Text("""{"type":"ping"}"""))
-                                    } catch (e: Exception) {
-                                        break
-                                    }
-                                }
-                            }
-
-                        try {
-                            for (frame in incoming) {
-                                if (frame !is Frame.Text) continue
-                                val text = frame.readText()
-                                if (text.isBlank()) continue
-                                try {
-                                    val event = translate(text)
-                                    if (event != null) {
-                                        emit(event)
-                                    }
-                                } catch (e: kotlinx.serialization.SerializationException) {
-                                    Log.w(TAG, "Timeline event decode failed: ${e.message}")
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "Timeline event parse failed: ${e.message}")
-                                }
-                            }
-                        } finally {
-                            heartbeatJob.cancel()
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Timeline WS failed: ${e.message}, reconnecting in ${retryDelay}ms", e)
-                    _connectionState.value = ConnectionStatus.OFFLINE
-                }
-
-                // Backoff before reconnect
-                retryCount++
-                kotlinx.coroutines.delay(retryDelay)
-                retryDelay = (retryDelay * 2).coerceAtMost(maxRetryDelay)
-            }
-        }
-
-    /**
-     * Translate a raw plugin JSON frame (as sent over the Ktor `/ws/timeline`
-     * WebSocket) into a canonical [AgentEvent] that the rest of the app
-     * understands.
-     *
-     * Plugin event format (from timeline-bridge.ts):
-     *   { "kind": "user.input.required", "sessionID": "...", "tool": "ask_user",
-     *     "callID": "...", "question": "...", "ts": 12345 }
-     *   { "kind": "part.updated", "partType": "tool", "tool": "websearch",
-     *     "state": "complete", "toolCallID": "...", "input": {...}, "output": [...] }
-     *   { "kind": "part.updated", "partType": "reasoning", "reasoning": "..." }
-     *   { "kind": "part.updated", "partType": "text", "text": "..." }
-     *   { "kind": "part.updated", "partType": "subtask", "agent": "researcher",
-     *     "description": "...", "state": "running" }
-     *   { "kind": "tool.before", "tool": "bash", "callID": "...", "args": {...} }
-     *   { "kind": "tool.after",  "tool": "bash", "callID": "...", "result": ... }
-     *   { "kind": "permission.asked", "tool": "bash", "args": {...} }
-     *   { "kind": "permission.replied", "tool": "bash", "granted": true }
-     *   { "kind": "session.created" | "session.idle" | "session.error" | "session.compacted" }
-     *   { "kind": "compaction.start" }
-     */
-    private val translateTimelineEvent: (String) -> AgentEvent? = translate@{ text ->
-        try {
-            val obj = json.parseToJsonElement(text).jsonObject
-            val kind = obj["kind"]?.jsonPrimitive?.contentOrNullSafe ?: return@translate null
-            val sessionID = obj["sessionID"]?.jsonPrimitive?.contentOrNullSafe
-            val ts = obj["ts"]?.jsonPrimitive?.longOrNullSafe ?: System.currentTimeMillis()
-            val eventId =
-                java.util.UUID
-                    .randomUUID()
-                    .toString()
-
-            when (kind) {
-                "session.created" -> AgentEvent.SessionStarted(eventId, ts, sessionID ?: "unknown")
-                "session.idle" -> AgentEvent.SessionCompleted(eventId, ts)
-                "session.error" ->
-                    AgentEvent.SessionError(
-                        eventId = eventId,
-                        timestamp = ts,
-                        message = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Unknown error",
-                    )
-                "session.compacted", "compaction.start" ->
-                    AgentEvent.RecoveryStarted(
-                        eventId = eventId,
-                        timestamp = ts,
-                        reason = "Context compressed",
-                    )
-
-                "permission.asked", "user.input.required" -> {
-                    val rawTool = (obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "ask_user").lowercase()
-                    val tool =
-                        when (rawTool) {
-                            "ask_user", "askuser", "ask", "input", "confirm", "question", "clarify" -> "ask_user"
-                            else -> rawTool
-                        }
-                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
-                    val question = obj["question"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
-                    val optionsArr = obj["options"] as? kotlinx.serialization.json.JsonArray
-                    val optionsStrings =
-                        optionsArr
-                            ?.mapNotNull { el ->
-                                (el as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe
-                            }.orEmpty()
-                    val isInteractive = tool == "ask_user"
-                    val toolArgs =
-                        when {
-                            isInteractive && question.isNotEmpty() -> {
-                                // Emit a `questions` array (matching the Ktor MCP
-                                // ask_user schema) so `AssistOverlayScreen` can
-                                // parse it into `ClarificationRequest` with
-                                // option chips. Falls back to a single
-                                // `question` field if `questions` parsing fails.
-                                buildString {
-                                    append("{\"questions\":[{")
-                                    append("\"question\":")
-                                    append(json.encodeToString(JsonPrimitive(question)))
-                                    append(",\"allow_custom\":true")
-                                    if (optionsStrings.isNotEmpty()) {
-                                        append(",\"options\":")
-                                        append(
-                                            json.encodeToString(
-                                                ListSerializer(String.serializer()),
-                                                optionsStrings,
-                                            ),
-                                        )
-                                    }
-                                    append("}]}")
-                                }
-                            }
-                            isInteractive -> obj["args"]?.toString() ?: "{}"
-                            else -> obj["args"]?.toString() ?: "{}"
-                        }
-                    AgentEvent.ApprovalRequested(
-                        eventId = eventId,
-                        timestamp = ts,
-                        toolId = callId,
-                        toolName = tool,
-                        toolTitle = tool.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                        toolArgs = toolArgs,
-                        sessionId = sessionID,
-                        isInteractive = isInteractive,
-                    )
-                }
-
-                "permission.replied" -> {
-                    val granted = obj["granted"]?.jsonPrimitive?.booleanOrNullSafe ?: false
-                    val callId =
-                        obj["toolId"]?.jsonPrimitive?.contentOrNullSafe
-                            ?: obj["callID"]?.jsonPrimitive?.contentOrNullSafe
-                            ?: eventId
-                    if (granted) {
-                        AgentEvent.ApprovalGranted(eventId, ts, callId)
-                    } else {
-                        AgentEvent.ApprovalDenied(eventId, ts, callId)
-                    }
-                }
-
-                "part.updated" -> {
-                    val partType = obj["partType"]?.jsonPrimitive?.contentOrNullSafe
-                    val partID = obj["partID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
-                    val messageID = obj["messageID"]?.jsonPrimitive?.contentOrNullSafe ?: sessionID ?: eventId
-                    when (partType) {
-                        "reasoning" -> {
-                            val text = obj["reasoning"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
-                            if (text.isNotEmpty()) {
-                                AgentEvent.ReasoningDelta(eventId, ts, text)
-                            } else {
-                                AgentEvent.ReasoningStarted(eventId, ts)
-                            }
-                        }
-                        "text" -> {
-                            val text = obj["text"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
-                            if (text.isNotEmpty()) AgentEvent.Processing(eventId, ts, text) else null
-                        }
-                        "tool" -> {
-                            val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
-                            val state = obj["state"]?.jsonPrimitive?.contentOrNullSafe ?: "running"
-                            val toolCallID = obj["toolCallID"]?.jsonPrimitive?.contentOrNullSafe ?: partID
-                            val inputJson = obj["input"]?.toString()
-                            val outputJson = obj["output"]?.toString()
-                            when (state) {
-                                "running", "pending" ->
-                                    AgentEvent.ToolCallStarted(
-                                        eventId = eventId,
-                                        timestamp = ts,
-                                        toolId = toolCallID,
-                                        name = tool,
-                                        source = "opencode",
-                                    )
-                                "complete", "completed" -> {
-                                    // Also fire ToolCallOutput if we have result data
-                                    val result =
-                                        if (outputJson != null) {
-                                            AgentEvent.ToolCallOutput(eventId, ts, toolCallID, outputJson)
-                                        } else {
-                                            null
-                                        }
-                                    val finished =
-                                        AgentEvent.ToolCallFinished(
-                                            eventId = eventId,
-                                            timestamp = ts,
-                                            toolId = toolCallID,
-                                            durationMs = 0L,
-                                        )
-                                    // Return the first event; ChatFeatureManager will
-                                    // accumulate both via the rawEvents list.
-                                    result ?: finished
-                                }
-                                "error" ->
-                                    AgentEvent.ToolBlocked(
-                                        eventId = eventId,
-                                        timestamp = ts,
-                                        toolName = tool,
-                                        reason = obj["error"]?.jsonPrimitive?.contentOrNullSafe ?: "Tool failed",
-                                    )
-                                else -> null
-                            }
-                        }
-                        "step-start" ->
-                            AgentEvent.StepStarted(
-                                eventId = eventId,
-                                timestamp = ts,
-                                title = "Step ${obj["step"]?.jsonPrimitive?.intOrNullSafe ?: ""}",
-                            )
-                        "step-finish" -> AgentEvent.StepFinished(eventId, ts, success = true)
-                        "subtask" -> {
-                            val agent = obj["agent"]?.jsonPrimitive?.contentOrNullSafe ?: "subagent"
-                            val desc = obj["description"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
-                            val stt = obj["state"]?.jsonPrimitive?.contentOrNullSafe ?: "running"
-                            AgentEvent.AgentStep(
-                                eventId = eventId,
-                                timestamp = ts,
-                                stepIndex = ts.toInt(),
-                                stepType = "tool_call",
-                                stepTitle = "Sub-agent: $agent",
-                                stepContent = desc,
-                                stepStatus = stt,
-                                toolName = "subtask",
-                                subagentId = agent,
-                            )
-                        }
-                        "compaction" -> AgentEvent.RecoveryStarted(eventId, ts, "Context compressed")
-                        "file" -> null // Files are visible in the chat as attachments; no timeline node
-                        else -> null
-                    }
-                }
-
-                "tool.before" -> {
-                    val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
-                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
-                    val args = obj["args"]?.toString().orEmpty()
-                    AgentEvent.ToolCallStarted(
-                        eventId = eventId,
-                        timestamp = ts,
-                        toolId = callId,
-                        name = tool,
-                        source = "opencode",
-                    )
-                }
-
-                "tool.after" -> {
-                    val tool = obj["tool"]?.jsonPrimitive?.contentOrNullSafe ?: "tool"
-                    val callId = obj["callID"]?.jsonPrimitive?.contentOrNullSafe ?: eventId
-                    val result = obj["result"]?.toString().orEmpty()
-                    AgentEvent.ToolCallCompleted(
-                        eventId = eventId,
-                        timestamp = ts,
-                        toolId = callId,
-                        result = result,
-                        durationMs = 0L,
-                    )
-                }
-
-                "message.part.delta" -> {
-                    val delta = obj["delta"]?.jsonPrimitive?.contentOrNullSafe.orEmpty()
-                    if (delta.isNotEmpty()) {
-                        AgentEvent.Processing(eventId, ts, delta)
-                    } else {
-                        null
-                    }
-                }
-
-                else -> null
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "translateTimelineEvent failed: ${e.message}")
-            null
         }
     }
 
@@ -1430,144 +1023,25 @@ class RemoteAgentService(
         )
     }
 
-    /**
-     * Handles events streaming from the SSE endpoint and emits raw string chunks
-     */
     private suspend fun handleStringEvent(
         event: AgentEvent,
         flowCollector: kotlinx.coroutines.flow.FlowCollector<String>,
-    ): Boolean =
-        when (event) {
-            is AgentEvent.Processing -> {
-                if (!event.content.isNullOrEmpty()) {
-                    flowCollector.emit(event.content)
-                }
-                false
-            }
-            is AgentEvent.ToolCall -> {
-                eventSink.onToolExecutionStarted(event.toolName, event.displayName)
-                if (event.status == "completed") {
-                    eventSink.onToolExecutionCompleted(event.toolName)
-                }
-                false
-            }
-            is AgentEvent.Command -> {
-                Log.d(TAG, "Received remote command: ${event.command}")
-                eventSink.emit(event.command)
-                false
-            }
-            is AgentEvent.Result -> {
-                if (event.content.isNotEmpty()) {
-                    flowCollector.emit(event.content)
-                }
-                event.isFinal
-            }
-            is AgentEvent.Error -> {
-                Log.e(TAG, "Remote Agent Error: ${event.message}")
-                flowCollector.emit("\n[Error: ${event.message}]")
-                true // Stop stream on error
-            }
-            is AgentEvent.StateSync -> {
-                Log.d(TAG, "Received state sync: ${event.syncType}")
-                eventSink.onStateSync(event.syncType, event.data)
-                false
-            }
-            is AgentEvent.ToolBlocked -> {
-                Log.w(TAG, "Tool blocked: ${event.toolName} - ${event.reason}")
-                // Don't stop stream, just log and continue
-                false
-            }
-            is AgentEvent.Question -> {
-                Log.d(TAG, "Received question: ${event.question}")
-                // Question events from POST endpoint - notify via eventSink if possible
-                // Note: Full Question handling requires architectural changes to pass structured events
-                false
-            }
-            is AgentEvent.NoteBlock -> {
-                Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
-                // NoteBlock events from POST endpoint - notify via eventSink if possible
-                // Note: Full NoteBlock handling requires architectural changes to pass structured events
-                false
-            }
-            is AgentEvent.AgentStep -> {
-                Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
-                false
-            }
-            else -> false // Handle all other canonical events seamlessly
+    ): Boolean = when (event) {
+        is AgentEvent.Error -> {
+            Log.e(TAG, "Remote Agent Error: ${event.message}")
+            flowCollector.emit("\n[Error: ${event.message}]")
+            true
         }
+        else -> false
+    }
 
-    /**
-     * Handles events streaming from the SSE endpoint and emits whole AgentEvents
-     */
     private suspend fun handleEvent(
         event: AgentEvent,
         flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>,
     ): Boolean {
         Log.d(TAG, ">>> HANDLE_EVENT: ${event::class.simpleName}")
-        return when (event) {
-            is AgentEvent.Processing -> {
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.ToolCall -> {
-                eventSink.onToolExecutionStarted(event.toolName, event.displayName)
-                if (event.status == "completed") {
-                    eventSink.onToolExecutionCompleted(event.toolName)
-                }
-                // Emit the ToolCall event into the flow so AssistViewModel.processRemoteQuery()
-                // can accumulate it in pendingToolCalls and display the result (including image URLs).
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.Command -> {
-                Log.d(TAG, "Received remote command: ${event.command}")
-                eventSink.emit(event.command)
-                false
-            }
-            is AgentEvent.Result -> {
-                flowCollector.emit(event)
-                event.isFinal
-            }
-            is AgentEvent.Error -> {
-                Log.e(TAG, "Remote Agent Error: ${event.message}")
-                flowCollector.emit(event)
-                true // Stop stream on error
-            }
-            is AgentEvent.StateSync -> {
-                Log.d(TAG, "Received state sync: ${event.syncType}")
-                eventSink.onStateSync(event.syncType, event.data)
-                false
-            }
-            is AgentEvent.ToolBlocked -> {
-                Log.w(TAG, "Tool blocked: ${event.toolName} - ${event.reason}")
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.Question -> {
-                Log.d(TAG, "Received question: ${event.question}")
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.NoteBlock -> {
-                Log.d(TAG, "Received note block: ${event.noteId} - ${event.title}")
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.AgentStep -> {
-                Log.d(TAG, "Agent step: ${event.stepType} - ${event.stepTitle} (${event.stepStatus})")
-                flowCollector.emit(event)
-                false
-            }
-            is AgentEvent.ApprovalRequested -> {
-                Log.d(TAG, "Received approval_requested for tool: ${event.toolName}")
-                flowCollector.emit(event)
-                false
-            }
-            else -> {
-                flowCollector.emit(event)
-                false
-            }
-        }
+        flowCollector.emit(event)
+        return event is AgentEvent.Done || event is AgentEvent.Error
     }
 
     /**
@@ -1726,6 +1200,9 @@ class RemoteAgentService(
         private const val TAG = "RemoteAgentService"
     }
 }
+
+private fun String.encodeURLParameter(): String =
+    java.net.URLEncoder.encode(this, "UTF-8")
 
 @Serializable
 data class ToolPermissionDto(

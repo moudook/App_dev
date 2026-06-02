@@ -814,8 +814,8 @@ class AssistViewModel(
                     agentEventsBuilder.add(event)
 
                     when (event) {
-                        is com.example.smarty.protocol.AgentEvent.Processing -> {
-                            event.content.let { responseBuilder.append(it) }
+                        is com.example.smarty.protocol.AgentEvent.TextDelta -> {
+                            responseBuilder.append(event.text)
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
                                 responseBuilder.toString(),
@@ -823,39 +823,7 @@ class AssistViewModel(
                                 agentEvents = agentEventsBuilder.toList(),
                             )
                         }
-                        is com.example.smarty.protocol.AgentEvent.Result -> {
-                            // Server sends empty content in Result to avoid duplication.
-                            // The accumulated content from Processing events is the final answer.
-                            chatManager.updateMessageWithThinking(
-                                streamingMessageId,
-                                responseBuilder.toString(),
-                                null,
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
-                            if (event.citations.isNotEmpty()) pendingCitations.addAll(event.citations)
-                        }
-                        is com.example.smarty.protocol.AgentEvent.ToolCall -> {
-                            val toolRoute =
-                                when (event.toolName.lowercase()) {
-                                    "tic_tac_toe", "tictactoe" -> "tic_tac_toe"
-                                    "coin_toss", "cointoss" -> "coin_toss"
-                                    "guided_breathing", "breathing" -> "guided_breathing"
-                                    else -> null
-                                }
-                            if (toolRoute != null) {
-                                systemFeatureManager.navigateTo(toolRoute)
-                            }
-
-                            pendingToolCalls.add(
-                                AgentToolCallEntry(
-                                    toolName = event.toolName,
-                                    status = event.status,
-                                    displayName = event.displayName,
-                                    inputSummary = event.inputSummary,
-                                    outputSummary = event.outputSummary,
-                                    timestamp = event.timestamp,
-                                ),
-                            )
+                        is com.example.smarty.protocol.AgentEvent.Done -> {
                             chatManager.updateMessageWithThinking(
                                 streamingMessageId,
                                 responseBuilder.toString(),
@@ -872,18 +840,19 @@ class AssistViewModel(
                                     eventId = event.eventId,
                                     toolId = event.toolId,
                                     toolName = event.toolName,
-                                    toolTitle = event.toolTitle,
-                                    toolArgs = event.toolArgs,
+                                    toolTitle = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                                    toolArgs = event.question,
                                 )
                             }
                             _isProcessing.value = true
                         }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalGranted -> {
-                            _pendingApprovalState.update { null }
-                            _isProcessing.value = true
-                        }
-                        is com.example.smarty.protocol.AgentEvent.ApprovalDenied -> {
-                            _pendingApprovalState.update { null }
+                        is com.example.smarty.protocol.AgentEvent.ApprovalResult -> {
+                            if (event.granted) {
+                                _pendingApprovalState.update { null }
+                                _isProcessing.value = true
+                            } else {
+                                _pendingApprovalState.update { null }
+                            }
                         }
                         else -> {
                             chatManager.updateMessageWithThinking(
