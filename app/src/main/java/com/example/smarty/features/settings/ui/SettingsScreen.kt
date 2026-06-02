@@ -397,6 +397,12 @@ fun SettingsScreen(
                                     modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
                                 SmartySettingsCard {
+                                    SmartySettingsSwitchRow(
+                                        label = stringResource(R.string.dark_mode),
+                                        icon = SmartyIcons.DarkMode,
+                                        checked = isDarkTheme,
+                                        onCheckedChange = onToggleTheme
+                                    )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.shake_sensitivity),
                                         icon = SmartyIcons.Vibration,
