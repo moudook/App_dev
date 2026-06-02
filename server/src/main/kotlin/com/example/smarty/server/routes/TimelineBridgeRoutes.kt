@@ -3,7 +3,7 @@ package com.example.smarty.server.routes
 import com.example.smarty.agent.permissions.ToolPermissionDecision
 import com.example.smarty.server.agent.permissionRepository
 import com.example.smarty.server.agent.toolPermissionEnforcer
-import com.example.smarty.server.agent.ToolPermissionEnforcer
+import com.example.smarty.server.plugins.verifyFirebaseToken
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -12,7 +12,9 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -54,7 +56,6 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   (or write to /tmp/opencode-asks/<session>/<callID>.json and poll for the response file).
  */
 fun Application.configureTimelineBridgeRoutes() {
-
     val bridge = TimelineBridgeService
     // Defensive: short-circuit `permission.asked` events for tools the
     // policy explicitly allows/denies. The OpenCode CLI normally
@@ -104,7 +105,9 @@ fun Application.configureTimelineBridgeRoutes() {
                                 val synthetic = enforcer.syntheticResponse(rawTool)
                                 val dir = Paths.get("/tmp/opencode-asks", sessionID)
                                 Files.createDirectories(dir)
-                                dir.resolve("$callId.response.txt").toFile()
+                                dir
+                                    .resolve("$callId.response.txt")
+                                    .toFile()
                                     .writeText(synthetic, Charsets.UTF_8)
                                 logger.info(
                                     "[KTOR-POLICY] auto-${decision.name.lowercase()} tool=$rawTool session=$sessionID call=$callId — synthetic response written, broadcast DROPPED",
@@ -121,14 +124,19 @@ fun Application.configureTimelineBridgeRoutes() {
                                     // sessionId column carries the real value
                                     sessionId = sessionID,
                                     toolName = rawTool,
-                                    decision = if (decision == ToolPermissionDecision.ALLOW)
-                                        "AUTO_APPROVED" else "AUTO_DENIED",
+                                    decision =
+                                        if (decision == ToolPermissionDecision.ALLOW) {
+                                            "AUTO_APPROVED"
+                                        } else {
+                                            "AUTO_DENIED"
+                                        },
                                     actor = "ktor_enforcer",
                                     callId = callId,
-                                    metadata = mapOf(
-                                        "source" to "static_policy",
-                                        "session_id" to sessionID,
-                                    ),
+                                    metadata =
+                                        mapOf(
+                                            "source" to "static_policy",
+                                            "session_id" to sessionID,
+                                        ),
                                 )
                                 bridge.ingest(kind, sessionID, event, ts)
                                 call.respond(
@@ -147,17 +155,18 @@ fun Application.configureTimelineBridgeRoutes() {
                 bridge.ingest(kind, sessionID, event, ts)
 
                 // Broadcast the raw event to all connected WebSocket clients
-                val wrapped = buildJsonObject {
-                    put("kind", JsonPrimitive(kind))
-                    put("sessionID", JsonPrimitive(sessionID))
-                    put("ts", JsonPrimitive(ts))
-                    // Forward every other field
-                    for ((k, v) in event) {
-                        if (k != "kind" && k != "sessionID" && k != "ts") {
-                            put(k, v)
+                val wrapped =
+                    buildJsonObject {
+                        put("kind", JsonPrimitive(kind))
+                        put("sessionID", JsonPrimitive(sessionID))
+                        put("ts", JsonPrimitive(ts))
+                        // Forward every other field
+                        for ((k, v) in event) {
+                            if (k != "kind" && k != "sessionID" && k != "ts") {
+                                put(k, v)
+                            }
                         }
                     }
-                }
                 bridge.broadcast(wrapped)
 
                 call.respond(HttpStatusCode.OK, mapOf("ok" to true))
@@ -171,11 +180,18 @@ fun Application.configureTimelineBridgeRoutes() {
         // WebSocket: Android clients subscribe to live timeline events.
         // Sends events as raw JSON frames; Android feeds them into handleEvent().
         webSocket("/ws/timeline") {
-            logger.info("[WS-TIMELINE] Client connected")
+            val token = call.request.headers[io.ktor.http.HttpHeaders.Authorization]?.removePrefix("Bearer ")
+            val user = verifyFirebaseToken(token ?: "", null)
+            if (user == null) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication required"))
+                return@webSocket
+            }
+            val userId = user.userId
+            logger.info("[WS-TIMELINE] Client connected: user=$userId")
             val sender: suspend (String) -> Unit = { payload ->
                 send(Frame.Text(payload))
             }
-            bridge.addClient(sender)
+            bridge.addClient(userId, sender)
             try {
                 // Keep the connection alive — incoming frames are ignored.
                 // We could implement commands from client (e.g., abort session) here later.
@@ -194,7 +210,16 @@ fun Application.configureTimelineBridgeRoutes() {
         // The Android app posts the user response here. We write the response to
         //   /tmp/opencode-asks/<sessionID>/<callID>.response.txt
         // so the MCP `ask` tool (which polls this file) can return the response.
+        // SECURITY: Requires valid Firebase token. The response file path uses
+        // a subdirectory derived from the user's identity to prevent cross-user writes.
         post("/opencode/ask-response/{sessionId}/{callId}") {
+            val authHeader = call.request.headers[io.ktor.http.HttpHeaders.Authorization]
+            val token = authHeader?.removePrefix("Bearer ")
+            val user = verifyFirebaseToken(token ?: "", null)
+            if (user == null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                return@post
+            }
             val sessionId = call.parameters["sessionId"]?.takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) }
             val callId = call.parameters["callId"]?.takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) }
             if (sessionId == null || callId == null) {
@@ -202,11 +227,16 @@ fun Application.configureTimelineBridgeRoutes() {
                 return@post
             }
             val body = call.receiveText()
-            val response = try {
-                Json.parseToJsonElement(body).jsonObject["response"]?.jsonPrimitive?.content ?: ""
-            } catch (e: Exception) {
-                ""
-            }
+            val response =
+                try {
+                    Json
+                        .parseToJsonElement(body)
+                        .jsonObject["response"]
+                        ?.jsonPrimitive
+                        ?.content ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
             if (response.isEmpty()) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing response field"))
                 return@post
@@ -237,7 +267,6 @@ private val logger = LoggerFactory.getLogger("TimelineBridgeRoutes")
  * Phase 2 (broadcast): SharedFlow that pushes events to all WS subscribers.
  */
 object TimelineBridgeService {
-
     data class EventSnapshot(
         val kind: String,
         val sessionID: String,
@@ -246,16 +275,20 @@ object TimelineBridgeService {
     )
 
     private val timelines = ConcurrentHashMap<String, CopyOnWriteArrayList<EventSnapshot>>()
+    private const val MAX_EVENTS_PER_SESSION = 10_000
+    private const val EVICTION_BATCH = 1_000
 
-    // Broadcast channel — unlimited buffer, no replay (clients fetch history via REST)
-    private val _events = MutableSharedFlow<JsonObject>(
-        replay = 0,
-        extraBufferCapacity = 1024,
-    )
+    // Broadcast channel — drop oldest if consumer is slow to prevent blocking all clients
+    private val _events =
+        MutableSharedFlow<JsonObject>(
+            replay = 0,
+            extraBufferCapacity = 1024,
+            onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+        )
     val events: SharedFlow<JsonObject> = _events.asSharedFlow()
 
-    // Connected WebSocket clients — typed as Frame.Text sender lambda
-    private val senders = CopyOnWriteArrayList<suspend (String) -> Unit>()
+    // Connected WebSocket clients — (userId, sender) pairs for per-user broadcast
+    private val senders = CopyOnWriteArrayList<Pair<String, suspend (String) -> Unit>>()
 
     val totalEvents: Long
         get() = timelines.values.sumOf { it.size.toLong() }
@@ -263,10 +296,20 @@ object TimelineBridgeService {
     val totalSessions: Int
         get() = timelines.size
 
-    fun ingest(kind: String, sessionID: String, event: JsonObject, ts: Long) {
+    fun ingest(
+        kind: String,
+        sessionID: String,
+        event: JsonObject,
+        ts: Long,
+    ) {
         if (sessionID == "no-session") return
 
         val list = timelines.getOrPut(sessionID) { CopyOnWriteArrayList() }
+        if (list.size >= MAX_EVENTS_PER_SESSION) {
+            // Evict oldest events to prevent unbounded memory growth
+            val toRemove = list.subList(0, minOf(EVICTION_BATCH, list.size))
+            toRemove.clear()
+        }
         list.add(EventSnapshot(kind, sessionID, ts, event))
 
         // Log important events with extra detail
@@ -275,19 +318,19 @@ object TimelineBridgeService {
             "session.idle" -> logger.info("[TIMELINE] Session done: $sessionID | events=${list.size}")
             "user.input.required" -> {
                 val tool = event["tool"]?.jsonPrimitive?.content ?: "?"
-                val question = (event["question"]?.jsonPrimitive?.content ?: "").take(150)
-                logger.info("[TIMELINE] User input required: tool=$tool question=$question")
+                val question = (event["question"]?.jsonPrimitive?.content ?: "").take(80)
+                logger.info("[TIMELINE] User input required: tool=$tool (question truncated)")
             }
             "part.updated" -> {
                 val partType = event["partType"]?.jsonPrimitive?.content ?: "unknown"
                 when (partType) {
                     "reasoning" -> {
-                        val reasoning = (event["reasoning"]?.jsonPrimitive?.content ?: "").take(150)
-                        logger.info("[TIMELINE] Reasoning: $reasoning")
+                        val reasoning = (event["reasoning"]?.jsonPrimitive?.content ?: "").take(80)
+                        logger.info("[TIMELINE] Reasoning: ${reasoning.take(80)}")
                     }
                     "text" -> {
-                        val text = (event["text"]?.jsonPrimitive?.content ?: "").take(150)
-                        logger.info("[TIMELINE] Text: $text")
+                        val text = (event["text"]?.jsonPrimitive?.content ?: "").take(80)
+                        logger.info("[TIMELINE] Text: ${text.take(80)}")
                     }
                     "tool" -> {
                         val tool = event["tool"]?.jsonPrimitive?.content ?: "?"
@@ -316,17 +359,21 @@ object TimelineBridgeService {
         }
     }
 
-    /** Push an event to all WebSocket subscribers. */
-    suspend fun broadcast(event: JsonObject) {
+    /** Push an event to all WebSocket subscribers for the given userId. */
+    suspend fun broadcast(
+        event: JsonObject,
+        userId: String? = null,
+    ) {
         val payload = Json.encodeToString(JsonObject.serializer(), event)
-        val dead = mutableListOf<suspend (String) -> Unit>()
-        for (sender in senders) {
+        val dead = mutableListOf<Pair<String, suspend (String) -> Unit>>()
+        for ((uid, sender) in senders) {
+            if (userId != null && uid != userId) continue
             try {
                 sender(payload)
             } catch (e: ClosedSendChannelException) {
-                dead.add(sender)
+                dead.add(uid to sender)
             } catch (e: Exception) {
-                dead.add(sender)
+                dead.add(uid to sender)
             }
         }
         for (d in dead) {
@@ -334,20 +381,22 @@ object TimelineBridgeService {
         }
     }
 
-    /** Add a WebSocket client (called from the route handler). */
-    fun addClient(sender: suspend (String) -> Unit) {
-        senders.add(sender)
-        logger.info("[TIMELINE] Client added. Total clients: ${senders.size}")
+    /** Add a WebSocket client scoped to a userId. */
+    fun addClient(
+        userId: String,
+        sender: suspend (String) -> Unit,
+    ) {
+        senders.add(userId to sender)
+        logger.info("[TIMELINE] Client added for user=$userId. Total clients: ${senders.size}")
     }
 
     /** Remove a WebSocket client. */
     fun removeClient(sender: suspend (String) -> Unit) {
-        senders.remove(sender)
+        senders.removeAll { (_, s) -> s == sender }
         logger.info("[TIMELINE] Client removed. Total clients: ${senders.size}")
     }
 
-    fun getTimeline(sessionID: String): List<EventSnapshot> =
-        timelines[sessionID]?.toList() ?: emptyList()
+    fun getTimeline(sessionID: String): List<EventSnapshot> = timelines[sessionID]?.toList() ?: emptyList()
 
     fun getAllSessionIDs(): Set<String> = timelines.keys
 }
