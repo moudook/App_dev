@@ -38,6 +38,7 @@ dependencies {
     implementation(libs.ktor.server.sse)
     implementation(libs.ktor.server.call.id)
     implementation(libs.ktor.server.rate.limit)
+    implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.auth)

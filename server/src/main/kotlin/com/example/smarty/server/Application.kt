@@ -73,6 +73,9 @@ import io.ktor.server.plugins.compression.deflate
 import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
@@ -204,6 +207,41 @@ fun Application.module() {
     install(Compression) {
         gzip { }
         deflate { }
+    }
+
+    // Global exception handler — turns unhandled exceptions into clean JSON
+    // 500s so HF Spaces' gateway never substitutes its HTML error page.
+    install(StatusPages) {
+        val statusLog = org.slf4j.LoggerFactory.getLogger("StatusPages")
+        exception<Throwable> { call, cause ->
+            statusLog.error("Unhandled exception in ${call.request.path()}: ${cause.message}", cause)
+            call.respondText(
+                text = """{"error":"Internal server error","message":"${cause.message?.replace("\"", "'") ?: "Unknown"}"}""",
+                contentType = ContentType.Application.Json,
+                status = HttpStatusCode.InternalServerError,
+            )
+        }
+        status(HttpStatusCode.NotFound) { call, status ->
+            call.respondText(
+                text = """{"error":"Not found","path":"${call.request.path()}"}""",
+                contentType = ContentType.Application.Json,
+                status = status,
+            )
+        }
+        status(HttpStatusCode.MethodNotAllowed) { call, status ->
+            call.respondText(
+                text = """{"error":"Method not allowed","method":"${call.request.httpMethod.value}","path":"${call.request.path()}"}""",
+                contentType = ContentType.Application.Json,
+                status = status,
+            )
+        }
+        status(HttpStatusCode.Unauthorized) { call, status ->
+            call.respondText(
+                text = """{"error":"Authentication required"}""",
+                contentType = ContentType.Application.Json,
+                status = status,
+            )
+        }
     }
 
     // Configure SSE plugin for streaming
