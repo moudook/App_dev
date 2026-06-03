@@ -116,13 +116,19 @@ private fun translatePluginEvent(
             if (phase == "streaming" && (partType == "text" || partType == "reasoning")) {
                 val rawText: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: (event["delta"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                        ?: (event["delta"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["text"]?.jsonPrimitive?.contentOrNull
+                        ?: event["content"]?.jsonPrimitive?.contentOrNull
+                        ?: event["message"]?.jsonPrimitive?.contentOrNull
                     fromDelta ?: fromEvent ?: ""
                 }
                 val rawReasoning: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: (event["delta"] as? JsonObject)?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["reasoning"]?.jsonPrimitive?.contentOrNull
-                    val fromTextFallback = if (partType == "reasoning") event["text"]?.jsonPrimitive?.contentOrNull else null
+                        ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                    val fromTextFallback = if (partType == "reasoning") rawText else null
                     fromDelta ?: fromEvent ?: fromTextFallback ?: ""
                 }
                 
@@ -137,7 +143,8 @@ private fun translatePluginEvent(
                     out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                 }
 
-                if (rawText.isNotEmpty()) {
+                // If this was purely a reasoning update, we might not have 'rawText' content for splitThinkTags
+                if (rawText.isNotEmpty() && rawText != rawReasoning) {
                     val partKey = "$pluginSessionId:$partId"
                     val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
                     val partDelta = if (rawText.length > lastPartLen) rawText.substring(lastPartLen) else ""
@@ -228,33 +235,63 @@ private fun translatePluginEvent(
         }
 
         "message.updated" -> {
-            // Robust parts extraction: handle both v1 and v1.15.13 nested structures
+            // Robust parts extraction: handle multiple possible nested structures in OpenCode payloads
             val parts = run {
                 val p = event["parts"]
+                val mParts = (event["message"] as? JsonObject)?.get("parts")
+                val iParts = (event["info"] as? JsonObject)?.get("parts")
+                
                 when {
                     p is JsonArray -> p
-                    p is JsonObject -> p["parts"] as? JsonArray
+                    p is JsonObject && p["parts"] is JsonArray -> p["parts"] as JsonArray
+                    mParts is JsonArray -> mParts
+                    iParts is JsonArray -> iParts
                     else -> null
                 }
-            } ?: return out
+            }
+            
+            if (parts == null) {
+                logger.warn("[TIMELINE] message.updated: No parts found in payload keys (parts, message.parts, info.parts)")
+                return out
+            }
 
             var combinedText = ""
             val separateReasoning = StringBuilder()
+            var textPartsFound = 0
+            var reasoningPartsFound = 0
 
             for (part in parts) {
                 val partObj = part as? JsonObject ?: continue
-                val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: continue
-                when (partType) {
-                    "reasoning" -> {
-                        val r = partObj["reasoning"]?.jsonPrimitive?.contentOrNull ?: partObj["text"]?.jsonPrimitive?.contentOrNull ?: ""
-                        if (r.isNotBlank()) separateReasoning.append(r).append("\n")
+                val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
+                
+                // Be aggressive: check all common content fields
+                val textContent = partObj["content"]?.jsonPrimitive?.contentOrNull
+                    ?: partObj["text"]?.jsonPrimitive?.contentOrNull
+                    ?: partObj["message"]?.jsonPrimitive?.contentOrNull
+                    ?: ""
+                    
+                val reasoningContent = partObj["reasoning"]?.jsonPrimitive?.contentOrNull
+                    ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                    ?: ""
+
+                when {
+                    partType == "reasoning" || reasoningContent.isNotEmpty() -> {
+                        val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
+                        if (r.isNotBlank()) {
+                            separateReasoning.append(r).append("\n")
+                            reasoningPartsFound++
+                        }
                     }
-                    "text" -> {
-                        val t = partObj["content"]?.jsonPrimitive?.contentOrNull ?: partObj["text"]?.jsonPrimitive?.contentOrNull ?: ""
-                        if (t.isNotBlank()) combinedText += t
+                    else -> {
+                        if (textContent.isNotBlank()) {
+                            combinedText += textContent
+                            textPartsFound++
+                        }
                     }
                 }
             }
+
+            logger.debug("[TIMELINE] message.updated: Processed $textPartsFound text parts and $reasoningPartsFound reasoning parts")
 
             val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
             val finalReasoning = (separateReasoning.toString() + thinkingFromText).trim()
@@ -266,11 +303,18 @@ private fun translatePluginEvent(
                     partId = "snapshot-reasoning", content = finalReasoning
                 )
             }
-            out += AgentEvent.ResponseBlock(
-                eventId = eid(), timestamp = ts,
-                sessionId = pluginSessionId, messageId = currentMsgId,
-                content = if (cleanResponse.isNotBlank()) cleanResponse else " "
-            )
+            
+            // Only emit ResponseBlock if we actually have text or at least reasoning concluded
+            if (cleanResponse.isNotBlank() || finalReasoning.isNotBlank()) {
+                out += AgentEvent.ResponseBlock(
+                    eventId = eid(), timestamp = ts,
+                    sessionId = pluginSessionId, messageId = currentMsgId,
+                    content = if (cleanResponse.isNotBlank()) cleanResponse else " "
+                )
+            }
+            
+            // NOTE: Do NOT emit Done here. The ServerAgent / AgentRunManager is the single
+            // source of truth for completion. Emitting Done here causes a race condition.
             cleanupContentState(pluginSessionId, currentMsgId)
         }
 

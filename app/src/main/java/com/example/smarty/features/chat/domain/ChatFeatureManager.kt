@@ -2132,18 +2132,24 @@ class ChatFeatureManager(
             // If clean blocks arrived, use them. Otherwise parse think tags from fallback text.
             val rawFallback = fallbackTextBuilder.toString()
             val hasCleanBlocks = finalResponseText.isNotEmpty()
-            val finalContent = if (hasCleanBlocks) {
-                finalResponseText
-            } else if (ThinkingParser.hasThinking(rawFallback)) {
-                ThinkingParser.extractAnswer(rawFallback)
-            } else {
-                rawFallback.ifEmpty { "[No response received. Please try again.]" }
-            }
             val finalThinking = if (finalReasoningText.isNotEmpty()) {
                 finalReasoningText
             } else {
                 fallbackThinkingBuilder.toString().ifEmpty {
                     if (ThinkingParser.hasThinking(rawFallback)) ThinkingParser.extractThinking(rawFallback) else null
+                }
+            }
+
+            val finalContent = when {
+                hasCleanBlocks -> finalResponseText
+                ThinkingParser.hasThinking(rawFallback) -> ThinkingParser.extractAnswer(rawFallback)
+                else -> rawFallback
+            }.let { text ->
+                if (text.isEmpty() && !finalThinking.isNullOrBlank()) {
+                    // We have thinking but no answer yet - don't show error
+                    ""
+                } else {
+                    text.ifEmpty { "[No response received. Please try again.]" }
                 }
             }
 

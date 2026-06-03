@@ -241,6 +241,17 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
       }
     },
 
+    "message.part.delta": async ({ part, delta }: { part: any, delta: any }) => {
+        emit({
+            kind: "message.part.delta",
+            sessionID: part.sessionID,
+            messageID: part.messageID,
+            field: delta.field,
+            delta: delta.content ?? delta.text ?? delta.reasoning ?? "",
+            ts: Date.now(),
+        })
+    },
+
     "tool.execute.before": async (input: any, output: any) => {
       const toolName: string = (input as any).tool ?? ""
       const isMcp = MCP_TOOLS.has(toolName.toLowerCase())

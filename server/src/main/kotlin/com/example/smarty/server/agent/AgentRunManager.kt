@@ -161,13 +161,14 @@ object AgentRunManager {
 
                     logger.info("Agent run completed for session: $sessionId, response length: ${assistantResponse.length}")
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                    logger.error(
-                        "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId",
-                        e,
-                    )
+                    val msg = "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId"
+                    logger.error(msg, e)
+                    emitEvent(sessionId, AgentEvent.Error(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis(), message = msg, code = "TIMEOUT"))
                 } catch (e: Exception) {
-                    logger.error("Agent execution failed in background job for session: $sessionId", e)
-                finally {
+                    val msg = "Agent execution failed for session: $sessionId: ${e.message}"
+                    logger.error(msg, e)
+                    emitEvent(sessionId, AgentEvent.Error(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis(), message = msg, code = "INTERNAL_ERROR"))
+                } finally {
                     // Critical Fix: Small delay before terminal Done to allow late-arriving
                     // bridge snapshots (ResponseBlock) to reach the SharedFlow.
                     kotlinx.coroutines.delay(1500)
