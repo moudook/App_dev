@@ -236,18 +236,12 @@ class OpencodeLlmProvider(
                                     currentEvent = line.substringAfter("event:").trim()
                                 } else if (line.startsWith("data:")) {
                                     val data = line.substringAfter("data:").trim()
-                                    if (data.startsWith("{") && data.endsWith("}")) {
-                                        if (!flowCollector.processSseEvent(currentEvent ?: "message", data, context)) {
-                                            return@execute
-                                        }
-                                    } else {
-                                        if (currentData.isNotEmpty()) currentData.append("\n")
-                                        if (currentData.length + data.length > MAX_SSE_LINE_LENGTH * 2) {
-                                            logger.warn("[OpenCode.SSE][inference=$inferenceId] Multi-line data exceeds max, truncating")
-                                            continue
-                                        }
-                                        currentData.append(data)
+                                    if (currentData.isNotEmpty()) currentData.append("\n")
+                                    if (currentData.length + data.length > MAX_SSE_LINE_LENGTH * 2) {
+                                        logger.warn("[OpenCode.SSE][inference=$inferenceId] Multi-line data exceeds max, truncating")
+                                        continue
                                     }
+                                    currentData.append(data)
                                 } else if (line.startsWith("{")) {
                                     if (!flowCollector.processSseEvent("message", line, context)) {
                                         return@execute

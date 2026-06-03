@@ -95,7 +95,10 @@ private fun translatePluginEvent(
     val out = mutableListOf<AgentEvent>()
     val eid = { UUID.randomUUID().toString() }
     
-    val currentMsgId: String = event["messageID"]?.jsonPrimitive?.contentOrNull ?: ""
+    val currentMsgId: String = event["messageID"]?.jsonPrimitive?.contentOrNull
+        ?: runCatching { event["info"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
+        ?: runCatching { event["message"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
+        ?: ""
 
     when (kind) {
         "session.error" -> {
@@ -246,7 +249,14 @@ private fun translatePluginEvent(
                 }
             }
 
-            val isFinalMessage = event["info"]?.jsonObject?.get("finish")?.jsonPrimitive?.contentOrNull == "stop"
+            val isFinalMessage = run {
+                // OpenCode v1.15.x puts finish in different places depending on version
+                val topLevel = event["finish"]?.jsonPrimitive?.contentOrNull
+                val inInfo = (event["info"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
+                val inMessage = (event["message"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
+                val inInfoTime = (event["info"] as? JsonObject)?.get("time")?.jsonObject?.get("completed")?.jsonPrimitive?.longOrNull != null
+                topLevel == "stop" || inInfo == "stop" || inMessage == "stop" || inInfoTime
+            }
 
             var combinedText = ""
             val separateReasoning = StringBuilder()
@@ -268,10 +278,15 @@ private fun translatePluginEvent(
                     val partObj = part as? JsonObject ?: continue
                     val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
                     val deltaObj = partObj["delta"] as? JsonObject
-                    val textContent = deltaObj?.get("text")?.jsonPrimitive?.contentOrNull
-                        ?: partObj["content"]?.jsonPrimitive?.contentOrNull
-                        ?: partObj["text"]?.jsonPrimitive?.contentOrNull
-                        ?: partObj["message"]?.jsonPrimitive?.contentOrNull
+                    fun extractStr(elem: JsonElement?): String? = when(elem) {
+                        is kotlinx.serialization.json.JsonPrimitive -> elem.contentOrNull
+                        is JsonObject -> elem["text"]?.jsonPrimitive?.contentOrNull ?: elem["content"]?.jsonPrimitive?.contentOrNull ?: elem.toString()
+                        else -> null
+                    }
+                    val textContent = extractStr(deltaObj?.get("text"))
+                        ?: extractStr(partObj["content"])
+                        ?: extractStr(partObj["text"])
+                        ?: extractStr(partObj["message"])
                         ?: ""
                     val reasoningContent = deltaObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
                         ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
@@ -440,19 +455,28 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
     val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
     val state = partObj["state"]?.jsonPrimitive?.contentOrNull ?: ""
 
-    out += AgentEvent.ToolStart(
-        eventId = eid(), timestamp = ts,
-        toolId = callId, name = toolName,
-        args = partObj["input"]?.toString(),
-        isMcpTool = isMcp, isInteractive = isInteractive,
-        inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
-    )
+    val toolKey = "tool_start_$callId"
+    val hasStarted = partTextLengths.getOrDefault(toolKey, 0) == 1
+    
+    if (!hasStarted) {
+        out += AgentEvent.ToolStart(
+            eventId = eid(), timestamp = ts,
+            toolId = callId, name = toolName,
+            args = partObj["input"]?.toString(),
+            isMcpTool = isMcp, isInteractive = isInteractive,
+            inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
+        )
+        partTextLengths[toolKey] = 1
+    }
     
     val outputStr = partObj["output"]?.toString()
     val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
     
     val isDone = state == "complete" || state == "completed" || state == "error" || outputStr != null || errorStr != null
-    if (isDone) {
+    val toolEndKey = "tool_end_$callId"
+    val hasEnded = partTextLengths.getOrDefault(toolEndKey, 0) == 1
+    
+    if (isDone && !hasEnded) {
         out += AgentEvent.ToolEnd(
             eventId = eid(), timestamp = ts,
             toolId = callId, result = outputStr, error = errorStr,
@@ -460,6 +484,7 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
             success = errorStr == null, 
             outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
         )
+        partTextLengths[toolEndKey] = 1
     }
 }
 

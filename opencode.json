@@ -18,7 +18,7 @@
   "default_agent": "smarty-headless-agent",
   "mcp": {
     "smarty": {
-      "type": "remote",
+      "type": "sse",
       "url": "http://localhost:7860/mcp/sse",
       "enabled": true,
       "timeout": 120000

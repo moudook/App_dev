@@ -43,7 +43,7 @@ object AgentRunManager {
         sessionEventFlows
             .getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 0,
+                    replay = 50,
                     extraBufferCapacity = 500,
                 )
             }.asSharedFlow()
@@ -109,7 +109,7 @@ object AgentRunManager {
         val flow =
             sessionEventFlows.getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 0,
+                    replay = 50,
                     extraBufferCapacity = 500,
                 )
             }
@@ -151,6 +151,10 @@ object AgentRunManager {
                                 personality = personality,
                                 opencodeSessionId = opencodeSessionId,
                                 onOpencodeSessionCreated = { newOpencodeSessionId ->
+                                    // CRITICAL: Register the NEW opencode session ID immediately so that
+                                    // plugin bridge events (arriving at /opencode/events) can be routed
+                                    // to the correct SharedFlow. Without this, ALL plugin events are dropped.
+                                    ActiveSessionManager.registerOpencodeSessionId(newOpencodeSessionId, userId, sessionId)
                                     if (chatRepository != null) {
                                         try {
                                             chatRepository.updateOpencodeSessionId(userId, sessionId, newOpencodeSessionId)
