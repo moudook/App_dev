@@ -91,11 +91,6 @@ private fun cleanupContentState(sessionId: String, msgId: String) {
     partTextLengths.keys.removeAll { it.startsWith(prefix) }
 }
 
-private val deltaAccumulator = ConcurrentHashMap<String, StringBuilder>()
-private val reasoningAccumulator = ConcurrentHashMap<String, StringBuilder>()
-
-private fun accumulatorKey(sessionId: String, messageId: String) = "$sessionId:$messageId"
-
 private val INTERACTIVE_TOOLS = setOf(
     "ask_user", "ask", "askuser", "confirm", "question", "clarify", "input"
 )
@@ -126,6 +121,8 @@ private fun translatePluginEvent(
 ): List<AgentEvent> {
     val out = mutableListOf<AgentEvent>()
     val eid = { UUID.randomUUID().toString() }
+
+    logger.debug("[TRANSLATE-IN] kind=$kind")
 
     when (kind) {
 
@@ -447,11 +444,11 @@ private fun translatePluginEvent(
                 content = finalResponse,
             )
             
-            // Clean up session content states since this message is now finalized
+            // Clean up session content states since this message is now finalized.
+            // NOTE: Do NOT emit Done here — message.completed fires immediately after
+            // message.updated (plugin v2 behavior) and will emit Done. Double-Done
+            // causes double replaceMessage() on Android → DB duplication.
             cleanupContentState(sessionId, msgId)
-            
-            // Explicitly emit Done because the plugin does not emit message.completed natively
-            out += AgentEvent.Done(eventId = eid(), timestamp = ts)
         }
 
         // ── PERMISSION GATES ───────────────────────────────────────────────
