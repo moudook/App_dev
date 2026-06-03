@@ -35,6 +35,10 @@ object AgentRunManager {
     // Store SharedFlow per session to broadcast events
     private val sessionEventFlows = ConcurrentHashMap<String, MutableSharedFlow<AgentEvent>>()
 
+    // Map chatSessionId -> Android-provided messageId so timeline bridge events
+    // can carry the correct ID that Android filters on.
+    private val messageIdMap = ConcurrentHashMap<String, String>()
+
     fun getEventFlow(sessionId: String): SharedFlow<AgentEvent> =
         sessionEventFlows
             .getOrPut(sessionId) {
@@ -43,6 +47,17 @@ object AgentRunManager {
                     extraBufferCapacity = 500,
                 )
             }.asSharedFlow()
+
+    fun setMessageId(sessionId: String, messageId: String) {
+        if (messageId.isBlank()) return
+        messageIdMap[sessionId] = messageId
+    }
+
+    fun getMessageId(sessionId: String): String? = messageIdMap[sessionId]
+
+    fun clearMessageId(sessionId: String) {
+        messageIdMap.remove(sessionId)
+    }
 
     suspend fun emitEvent(
         sessionId: String,
@@ -85,6 +100,10 @@ object AgentRunManager {
             logger.warn("Agent run already active for session: $sessionId. Cancelling existing and starting new.")
             existingJob.cancel()
             activeRuns.remove(sessionId)
+        }
+
+        if (!messageId.isNullOrBlank()) {
+            messageIdMap[sessionId] = messageId
         }
 
         val flow =
@@ -148,13 +167,18 @@ object AgentRunManager {
                     )
                 } catch (e: Exception) {
                     logger.error("Agent execution failed in background job for session: $sessionId", e)
-                } finally {
+                finally {
+                    // Critical Fix: Small delay before terminal Done to allow late-arriving
+                    // bridge snapshots (ResponseBlock) to reach the SharedFlow.
+                    kotlinx.coroutines.delay(1500)
                     emitEvent(sessionId, AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
                     ActiveEventBridge.clear(userId)
+
                     ApprovalRegistry.cancelApprovalsForSession(sessionId)
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
                     ActiveSessionManager.endSession(userId, sessionId)
                     activeRuns.remove(sessionId)
+                    messageIdMap.remove(sessionId)
                     // Clean up the SharedFlow to prevent memory leak
                     // Delay removal so late subscribers can still receive final events
                     kotlinx.coroutines.delay(5000)
