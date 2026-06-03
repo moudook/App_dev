@@ -525,6 +525,8 @@ class ChatManager(
         messageId: String,
         isThinking: Boolean,
         isStreaming: Boolean,
+        content: String = "",
+        thinking: String? = null,
         toolCalls: List<com.example.smarty.core.domain.model.AgentToolCallEntry>,
         steps: List<com.example.smarty.core.domain.model.AgentStepEntry>,
         agentEvents: List<com.example.smarty.protocol.AgentEvent> = emptyList(),
@@ -536,6 +538,8 @@ class ChatManager(
                         msg.copy(
                             isThinking = isThinking,
                             isStreaming = isStreaming,
+                            content = content.ifEmpty { msg.content },
+                            thinking = thinking ?: msg.thinking,
                             toolCalls = toolCalls,
                             agentSteps = steps,
                             agentEvents = agentEvents,
@@ -567,6 +571,27 @@ class ChatManager(
                             toolCalls = toolCalls,
                             agentSteps = steps,
                             agentEvents = agentEvents,
+                        )
+                    } else {
+                        msg
+                    }
+                }
+        }
+    }
+
+    suspend fun updateMessageContent(
+        messageId: String,
+        content: String? = null,
+        thinking: String? = null,
+    ) {
+        if (content == null && thinking == null) return
+        chatMutex.withLock {
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) {
+                        msg.copy(
+                            content = content ?: msg.content,
+                            thinking = thinking ?: msg.thinking,
                         )
                     } else {
                         msg

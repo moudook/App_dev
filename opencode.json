@@ -12,7 +12,8 @@
   "enabled_providers": [
     "opencode",
     "kilo",
-    "nvidia"
+    "nvidia",
+    "modal"
   ],
   "default_agent": "smarty-headless-agent",
   "mcp": {
@@ -31,7 +32,6 @@
         "memory": "allow",
         "schedule": "allow",
         "remind": "allow",
-        // "device" is not listed — falls through so the CLI prompts for approval
         "navigate": "allow",
         "generate_image": "allow",
         "ask_user": "allow",

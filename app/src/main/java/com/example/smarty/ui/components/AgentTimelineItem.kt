@@ -122,23 +122,12 @@ fun AgentTimelineItem(
             val thinking = message.thinking
 
             // ── 1. THINKING BLOCK (skeleton spinner or clean content) ──
-            when {
-                message.isThinking && thinking.isNullOrBlank() -> {
-                    // Skeleton: thinking in progress (show spinner)
-                    ThinkingAccordion(
-                        thinking = "",
-                        isStreaming = true,
-                        onSkip = onSkip,
-                    )
-                }
-                !thinking.isNullOrBlank() -> {
-                    // Final: clean thinking content from snapshot
-                    ThinkingAccordion(
-                        thinking = thinking,
-                        isStreaming = false,
-                        onSkip = onSkip,
-                    )
-                }
+            if (message.isThinking || !thinking.isNullOrBlank()) {
+                ThinkingAccordion(
+                    thinking = thinking ?: "",
+                    isStreaming = message.isThinking,
+                    onSkip = onSkip,
+                )
             }
 
             // ── 2. TOOL CALLS (in order, with ASK/MCP/built-in badges) ──
@@ -162,30 +151,22 @@ fun AgentTimelineItem(
             }
 
             // ── 5. RESPONSE TEXT (skeleton or clean content) ──
-            when {
-                message.isStreaming && message.content.isBlank() -> {
-                    // Skeleton: response generating
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                    ) {
+            if (message.isStreaming || message.content.isNotBlank()) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                ) {
+                    if (message.isStreaming && message.content.isBlank()) {
+                        // Skeleton: response generating but no text yet
                         Text(
                             text = "…",
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp),
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         )
-                    }
-                }
-                message.content.isNotBlank() -> {
-                    // Final: clean response text
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                    ) {
+                    } else {
+                        // Show text (partial or final) with optional streaming cursor
                         TextEffectPerWord(
                             text = message.content,
                             textStyle =
@@ -199,7 +180,7 @@ fun AgentTimelineItem(
                             codeColor = MaterialTheme.colorScheme.onSurface,
                             codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                             codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                            isStreaming = false,
+                            isStreaming = message.isStreaming,
                         )
                     }
                 }

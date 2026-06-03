@@ -1842,18 +1842,30 @@ class ChatFeatureManager(
             }
 
             fun pushBlocks() {
-                val content = finalResponseText.ifEmpty { fallbackTextBuilder.toString() }
-                val thinking = finalReasoningText.ifEmpty {
-                    fallbackThinkingBuilder.toString().ifEmpty { null }
+                // If clean blocks arrived, use them. Otherwise parse think tags from fallback.
+                val rawFallback = fallbackTextBuilder.toString()
+                val hasCleanBlocks = finalResponseText.isNotEmpty()
+                val content = if (hasCleanBlocks) {
+                    finalResponseText
+                } else if (ThinkingParser.hasThinking(rawFallback)) {
+                    ThinkingParser.extractAnswer(rawFallback)
+                } else {
+                    rawFallback
+                }
+                val thinking = if (finalReasoningText.isNotEmpty()) {
+                    finalReasoningText
+                } else {
+                    fallbackThinkingBuilder.toString().ifEmpty {
+                        if (ThinkingParser.hasThinking(rawFallback)) ThinkingParser.extractThinking(rawFallback) else null
+                    }
                 }
                 scope.launch {
-                    chatManager.updateMessageWithBlocks(
+                    // During streaming, only update content without changing skeleton flags.
+                    // The final message is built after Done via replaceMessage.
+                    chatManager.updateMessageContent(
                         streamingMessageId,
                         content = content,
                         thinking = thinking,
-                        toolCalls = currentToolCalls(),
-                        steps = collectedAgentSteps.toList(),
-                        agentEvents = agentEventsBuilder.toList(),
                     )
                 }
             }
@@ -1889,13 +1901,11 @@ class ChatFeatureManager(
                         is AgentEvent.ReasoningBlock -> {
                             finalReasoningText = event.content
                             finalReasoningDurationMs = event.thinkingDurationMs
-                            isThinkingActive = false
                             pushBlocks()
                         }
 
                         is AgentEvent.ResponseBlock -> {
                             finalResponseText = event.content
-                            isStreamingActive = false
                             pushBlocks()
                         }
 
@@ -1907,6 +1917,7 @@ class ChatFeatureManager(
                                 isStreamingActive = true
                                 pushSkeleton()
                             }
+                            pushBlocks()
                         }
 
                         is AgentEvent.ReasoningDelta -> {
@@ -1916,6 +1927,7 @@ class ChatFeatureManager(
                                 isStreamingActive = false
                                 pushSkeleton()
                             }
+                            pushBlocks()
                         }
 
                         // ── Tool events (real-time, clean) ──────────────────
@@ -2062,6 +2074,9 @@ class ChatFeatureManager(
                         // ── Terminal ────────────────────────────────────────
                         is AgentEvent.Done -> {
                             Log.d(TAG, ">>> DONE: stream completed")
+                            isThinkingActive = false
+                            isStreamingActive = false
+                            pushSkeleton()
                         }
 
                         is AgentEvent.Error -> {
@@ -2098,16 +2113,30 @@ class ChatFeatureManager(
 
             chatManager.markApiCallSuccessful()
 
+            // If clean blocks arrived, use them. Otherwise parse think tags from fallback text.
+            val rawFallback = fallbackTextBuilder.toString()
+            val hasCleanBlocks = finalResponseText.isNotEmpty()
+            val finalContent = if (hasCleanBlocks) {
+                finalResponseText
+            } else if (ThinkingParser.hasThinking(rawFallback)) {
+                ThinkingParser.extractAnswer(rawFallback)
+            } else {
+                rawFallback.ifEmpty { "[No response received. Please try again.]" }
+            }
+            val finalThinking = if (finalReasoningText.isNotEmpty()) {
+                finalReasoningText
+            } else {
+                fallbackThinkingBuilder.toString().ifEmpty {
+                    if (ThinkingParser.hasThinking(rawFallback)) ThinkingParser.extractThinking(rawFallback) else null
+                }
+            }
+
             val smartyMessage =
                 ChatMessage(
                     id = streamingMessageId,
                     role = ChatRole.SMARTY,
-                    content = finalResponseText.ifEmpty {
-                        fallbackTextBuilder.toString().ifEmpty { "[No response received. Please try again.]" }
-                    },
-                    thinking = finalReasoningText.ifEmpty {
-                        fallbackThinkingBuilder.toString().ifEmpty { null }
-                    },
+                    content = finalContent,
+                    thinking = finalThinking,
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = currentToolCalls(),

@@ -62,6 +62,24 @@ fun Application.configureTimelineBridgeRoutes() {
 
 private val logger = LoggerFactory.getLogger("com.example.smarty.server.routes.TimelineBridgeRoutes")
 
+private val partTextLengths = ConcurrentHashMap<String, Int>()
+
+/** Track accumulated text per (sessionID, messageID) for streaming delta -> block translation. */
+private data class MessageContentState(
+    val textBuilder: StringBuilder = StringBuilder(),
+    val reasoningBuilder: StringBuilder = StringBuilder(),
+    var lastSentReasoningLen: Int = 0,
+    var lastSentResponseLen: Int = 0,
+)
+
+private val sessionContentStates = ConcurrentHashMap<String, MessageContentState>()
+
+private fun contentStateKey(sessionId: String, msgId: String) = "$sessionId:$msgId"
+
+private fun cleanupContentState(sessionId: String, msgId: String) {
+    sessionContentStates.remove(contentStateKey(sessionId, msgId))
+}
+
 private val INTERACTIVE_TOOLS = setOf(
     "ask_user", "ask", "askuser", "confirm", "question", "clarify", "input"
 )
@@ -97,10 +115,6 @@ private fun translatePluginEvent(
 
         // ── SESSION LIFECYCLE ──────────────────────────────────────────────
 
-        "session.idle" -> {
-            out += AgentEvent.Done(eventId = eid(), timestamp = ts)
-        }
-
         "session.error" -> {
             val msg = event["error"]?.let {
                 if (it is JsonObject) it["message"]?.jsonPrimitive?.content
@@ -121,22 +135,47 @@ private fun translatePluginEvent(
             val partType = event["partType"]?.jsonPrimitive?.content ?: ""
             val sId = sessionId
             val msgId = event["messageID"]?.jsonPrimitive?.content ?: ""
+            val partId = event["partID"]?.jsonPrimitive?.content ?: "default-part"
 
             when (partType) {
-
                 "text" -> {
                     if (phase == "streaming") {
-                        val isThinkingHint = event["isThinkingHint"]?.bool() ?: false
-                        if (isThinkingHint) {
-                            out += AgentEvent.ThinkingActive(
-                                eventId = eid(), timestamp = ts,
-                                sessionId = sId, messageId = msgId,
-                            )
-                        } else {
-                            out += AgentEvent.StreamingActive(
-                                eventId = eid(), timestamp = ts,
-                                sessionId = sId, messageId = msgId,
-                            )
+                        val fullRawText = event["text"]?.jsonPrimitive?.content ?: ""
+                        
+                        // 1. Accumulate globally to handle tags spanning multiple parts
+                        val key = contentStateKey(sId, msgId)
+                        val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+                        
+                        // Calculate delta for this partID to support real-time streaming UI without duplication
+                        val partKey = "$sessionId:$partId"
+                        val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
+                        val partDelta = if (fullRawText.length > lastPartLen) {
+                            fullRawText.substring(lastPartLen)
+                        } else ""
+                        partTextLengths[partKey] = fullRawText.length
+
+                        if (partDelta.isNotEmpty()) {
+                            // Append to the global message accumulator
+                            state.textBuilder.append(partDelta)
+                            
+                            // 2. Run splitting on the FULL accumulated message text
+                            val (accumulatedThinking, accumulatedResponse) = splitThinkTags(state.textBuilder.toString())
+                            
+                            // 3. Emit "Clean Deltas" for Reasoning
+                            if (accumulatedThinking.length > state.lastSentReasoningLen) {
+                                val reasoningDelta = accumulatedThinking.substring(state.lastSentReasoningLen)
+                                state.lastSentReasoningLen = accumulatedThinking.length
+                                out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = reasoningDelta)
+                                out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = sId, messageId = msgId)
+                            }
+
+                            // 4. Emit "Clean Deltas" for Response Text
+                            if (accumulatedResponse.length > state.lastSentResponseLen) {
+                                val responseDelta = accumulatedResponse.substring(state.lastSentResponseLen)
+                                state.lastSentResponseLen = accumulatedResponse.length
+                                out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = responseDelta)
+                                out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = sId, messageId = msgId)
+                            }
                         }
                     }
                 }
@@ -349,8 +388,8 @@ private fun translatePluginEvent(
                 ?: event["parts"]
             val parts = rawParts as? JsonArray ?: return out
 
-            var cleanReasoningText = ""
-            var cleanResponseText = ""
+            var combinedText = ""
+            val separateReasoning = StringBuilder()
 
             for (part in parts) {
                 val partObj = part.jsonObject
@@ -359,41 +398,38 @@ private fun translatePluginEvent(
                 when (partType) {
                     "reasoning" -> {
                         val r = partObj["reasoning"]?.jsonPrimitive?.content ?: ""
-                        if (r.isNotBlank()) cleanReasoningText += r
+                        if (r.isNotBlank()) separateReasoning.append(r).append("\n")
                     }
                     "text" -> {
                         val t = partObj["content"]?.jsonPrimitive?.content
                             ?: partObj["text"]?.jsonPrimitive?.content
                             ?: ""
                         if (t.isNotBlank()) {
-                            if (t.contains("<think>") || t.contains("</think>")) {
-                                val (thinking, response) = splitThinkTags(t)
-                                if (thinking.isNotBlank()) cleanReasoningText += thinking
-                                if (response.isNotBlank()) cleanResponseText += response
-                            } else {
-                                cleanResponseText += t
-                            }
+                            combinedText += t
                         }
                     }
                 }
             }
 
-            if (cleanReasoningText.isNotBlank()) {
+            // Robust split of thinking tags from combined text
+            val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
+            val finalReasoning = (separateReasoning.toString() + thinkingFromText).trim()
+
+            if (finalReasoning.isNotBlank()) {
                 out += AgentEvent.ReasoningBlock(
                     eventId = eid(), timestamp = ts,
                     sessionId = sId, messageId = msgId,
                     partId = "snapshot-reasoning",
-                    content = cleanReasoningText,
+                    content = finalReasoning,
                 )
             }
 
-            if (cleanResponseText.isNotBlank()) {
-                out += AgentEvent.ResponseBlock(
-                    eventId = eid(), timestamp = ts,
-                    sessionId = sId, messageId = msgId,
-                    content = cleanResponseText,
-                )
-            }
+            val finalResponse = if (cleanResponse.isNotBlank()) cleanResponse else " "
+            out += AgentEvent.ResponseBlock(
+                eventId = eid(), timestamp = ts,
+                sessionId = sId, messageId = msgId,
+                content = finalResponse,
+            )
         }
 
         // ── PERMISSION GATES ───────────────────────────────────────────────
@@ -424,7 +460,9 @@ private fun translatePluginEvent(
             )
         }
 
-        // ── BACKWARD COMPAT: legacy delta events ───────────────────────────
+        // ── BACKWARD COMPAT: legacy delta events (pass-through, no accumulation) ──
+        // The part.updated handler above handles accumulation + clean split emission.
+        // message.part.delta are raw daemon tokens — just forward for backward compat.
 
         "message.part.delta" -> {
             val field = event["field"]?.jsonPrimitive?.content
@@ -442,10 +480,23 @@ private fun translatePluginEvent(
         }
 
         "message.completed" -> {
+            val msgId = event["messageID"]?.jsonPrimitive?.content ?: ""
+            cleanupContentState(sessionId, msgId)
+            out += AgentEvent.Done(eventId = eid(), timestamp = ts)
+        }
+
+        "session.idle" -> {
+            partTextLengths.keys.removeAll { it.startsWith("$sessionId:") }
+            // ... (rest of the logic)
+            // Clean up all message states for this session
+            val prefix = "$sessionId:"
+            sessionContentStates.keys.removeAll { it.startsWith(prefix) }
             out += AgentEvent.Done(eventId = eid(), timestamp = ts)
         }
 
         "session.compacted" -> {
+            val msgId = event["messageID"]?.jsonPrimitive?.content ?: ""
+            cleanupContentState(sessionId, msgId)
             out += AgentEvent.CompactionMarker(
                 eventId = eid(), timestamp = ts, sessionId = sessionId,
             )
@@ -456,10 +507,38 @@ private fun translatePluginEvent(
 }
 
 private fun splitThinkTags(text: String): Pair<String, String> {
-    val thinkPattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
-    val thinking = thinkPattern.findAll(text).joinToString("\n") { it.groupValues[1].trim() }
-    val response = thinkPattern.replace(text, "").trim()
-    return Pair(thinking, response)
+    var thinkingStr = ""
+    var responseStr = ""
+    var currentIndex = 0
+
+    // Also support [think] and <thought> if needed, but <think> is the primary one.
+    // For simplicity, let's normalize [think] to <think> and <thought> to <think> before parsing
+    val normalizedText = text
+        .replace("[think]", "<think>", ignoreCase = true)
+        .replace("[/think]", "</think>", ignoreCase = true)
+        .replace("<thought>", "<think>", ignoreCase = true)
+        .replace("</thought>", "</think>", ignoreCase = true)
+
+    while (currentIndex < normalizedText.length) {
+        val nextStart = normalizedText.indexOf("<think>", currentIndex)
+        if (nextStart == -1) {
+            responseStr += normalizedText.substring(currentIndex)
+            break
+        }
+        responseStr += normalizedText.substring(currentIndex, nextStart)
+        
+        val contentStart = nextStart + "<think>".length
+        val nextEnd = normalizedText.indexOf("</think>", contentStart)
+        if (nextEnd == -1) {
+            thinkingStr += normalizedText.substring(contentStart)
+            break
+        }
+        
+        thinkingStr += normalizedText.substring(contentStart, nextEnd) + "\n"
+        currentIndex = nextEnd + "</think>".length
+    }
+    
+    return Pair(thinkingStr.trim(), responseStr.trim())
 }
 
 private fun buildInputSummary(toolName: String, args: JsonObject?): String {
