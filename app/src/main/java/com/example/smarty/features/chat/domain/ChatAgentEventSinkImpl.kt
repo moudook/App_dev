@@ -23,7 +23,7 @@ class ChatAgentEventSinkImpl(
     private val scope: CoroutineScope,
     private val repository: SmartyRepository,
     private val alarmScheduler: AlarmScheduler,
-    private val remoteAgentService: RemoteAgentService,
+    private val remoteAgentServiceProvider: () -> RemoteAgentService,
     private val commandTransport: CommandTransport,
     private val currentSessionId: StateFlow<String?>,
     private val _agentActivity: MutableStateFlow<AgentActivity?>,
@@ -204,8 +204,10 @@ class ChatAgentEventSinkImpl(
                         val result = commandTransport.dispatch(command)
                         // Send device status responses back to server
                         if (result is com.example.smarty.protocol.ClientEvent.SystemStatusResponse) {
-                            val sessionId = currentSessionId.value ?: "unknown"
-                            remoteAgentService.sendEvent(sessionId, result)
+                            val sessionId = currentSessionId.value
+                            if (sessionId != null) {
+                                remoteAgentServiceProvider().sendEvent(sessionId, result)
+                            }
                         }
                     }
                 }

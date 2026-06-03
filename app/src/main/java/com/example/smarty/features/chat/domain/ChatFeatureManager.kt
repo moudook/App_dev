@@ -163,7 +163,7 @@ class ChatFeatureManager(
             scope = scope,
             repository = repository,
             alarmScheduler = alarmScheduler,
-            remoteAgentService = remoteAgentService,
+            remoteAgentServiceProvider = { remoteAgentService },
             commandTransport = commandTransport,
             currentSessionId = currentSessionId,
             _agentActivity = _agentActivity,
