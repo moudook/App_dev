@@ -90,7 +90,7 @@ class McpServer(
         routing.route("/mcp") {
             evictStaleSessions()
 
-            sse("/sse") {
+            val sseHandler: suspend io.ktor.server.sse.ServerSSESession.() -> Unit = {
                 val sessionId = UUID.randomUUID().toString()
                 val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
                 sessions[sessionId] = McpSession(channel)
@@ -99,6 +99,7 @@ class McpServer(
                     val port = call.request.local.serverPort
                     val scheme = call.request.local.scheme
                     val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
+                    logger.info("[McpServer] SSE session created: $sessionId")
                     send(ServerSentEvent(event = "endpoint", data = endpointUrl))
                     while (isActive) {
                         val event = withTimeoutOrNull(30000) { channel.receive() }
@@ -112,20 +113,10 @@ class McpServer(
                 }
             }
 
-            post("/sse") {
-                val sessionId = UUID.randomUUID().toString()
-                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
-                sessions[sessionId] = McpSession(channel)
-                val host = call.request.local.serverHost
-                val port = call.request.local.serverPort
-                val scheme = call.request.local.scheme
-                val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
-                call.respondText(
-                    """{"sessionId":"$sessionId","endpoint":"$endpointUrl"}""",
-                    ContentType.Application.Json,
-                    HttpStatusCode.OK,
-                )
-                logger.info("[McpServer] POST-SSE session created: $sessionId")
+            sse("/sse", sseHandler)
+            
+            route("/sse", io.ktor.http.HttpMethod.Post) {
+                sse("", sseHandler)
             }
 
             post("/messages") {
