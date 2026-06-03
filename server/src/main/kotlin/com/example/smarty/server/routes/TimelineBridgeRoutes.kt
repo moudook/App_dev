@@ -142,8 +142,11 @@ private fun translatePluginEvent(
         }
 
         "session.status" -> {
-            val status = event["status"]?.jsonPrimitive?.content
-                ?: event["info"]?.jsonObject?.get("status")?.jsonPrimitive?.content
+            val status = when (val s = event["status"]) {
+                is JsonPrimitive -> s.content
+                is JsonObject -> s["type"]?.jsonPrimitive?.content
+                else -> null
+            } ?: event["info"]?.jsonObject?.get("status")?.jsonPrimitive?.content
             if (status == "error" || status == "failed") {
                 val msg = event["error"]?.let {
                     if (it is JsonObject) it["message"]?.jsonPrimitive?.content
