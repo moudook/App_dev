@@ -120,24 +120,40 @@ fun AgentTimelineItem(
             }
         } else {
             val thinking = message.thinking
-            if (!thinking.isNullOrBlank()) {
-                ThinkingAccordion(
-                    thinking = thinking,
-                    isStreaming = message.isStreaming,
-                    onSkip = onSkip,
-                )
+
+            // ── 1. THINKING BLOCK (skeleton spinner or clean content) ──
+            when {
+                message.isThinking && thinking.isNullOrBlank() -> {
+                    // Skeleton: thinking in progress (show spinner)
+                    ThinkingAccordion(
+                        thinking = "",
+                        isStreaming = true,
+                        onSkip = onSkip,
+                    )
+                }
+                !thinking.isNullOrBlank() -> {
+                    // Final: clean thinking content from snapshot
+                    ThinkingAccordion(
+                        thinking = thinking,
+                        isStreaming = false,
+                        onSkip = onSkip,
+                    )
+                }
             }
 
+            // ── 2. TOOL CALLS (in order, with ASK/MCP/built-in badges) ──
             if (message.toolCalls.isNotEmpty()) {
                 message.toolCalls.forEach { toolCall ->
                     ToolCallEntryCard(toolCall = toolCall)
                 }
             }
 
+            // ── 3. STEPS TIMELINE ──
             if (message.agentSteps.isNotEmpty()) {
                 StepTimeline(steps = message.agentSteps)
             }
 
+            // ── 4. CITATIONS ──
             if (message.citations.isNotEmpty()) {
                 CitationCards(
                     citations = message.citations,
@@ -145,28 +161,47 @@ fun AgentTimelineItem(
                 )
             }
 
-            if (message.content.isNotBlank() || message.isStreaming) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                ) {
-                    TextEffectPerWord(
-                        text = message.content,
-                        textStyle =
-                            MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 16.sp,
-                                lineHeight = 24.sp,
-                            ),
-                        normalColor = MaterialTheme.colorScheme.onSurface,
-                        boldColor = MaterialTheme.colorScheme.onSurface,
-                        linkColor = accentColor,
-                        codeColor = MaterialTheme.colorScheme.onSurface,
-                        codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                        codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        isStreaming = message.isStreaming,
-                    )
+            // ── 5. RESPONSE TEXT (skeleton or clean content) ──
+            when {
+                message.isStreaming && message.content.isBlank() -> {
+                    // Skeleton: response generating
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                    ) {
+                        Text(
+                            text = "…",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        )
+                    }
+                }
+                message.content.isNotBlank() -> {
+                    // Final: clean response text
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                    ) {
+                        TextEffectPerWord(
+                            text = message.content,
+                            textStyle =
+                                MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 16.sp,
+                                    lineHeight = 24.sp,
+                                ),
+                            normalColor = MaterialTheme.colorScheme.onSurface,
+                            boldColor = MaterialTheme.colorScheme.onSurface,
+                            linkColor = accentColor,
+                            codeColor = MaterialTheme.colorScheme.onSurface,
+                            codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            isStreaming = false,
+                        )
+                    }
                 }
             }
         }

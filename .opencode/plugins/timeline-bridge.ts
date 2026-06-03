@@ -1,467 +1,324 @@
 /**
- * Timeline Bridge Plugin — Ktor-only
- *
- * Captures every in-flight event from the OpenCode daemon's internal bus
- * and forwards them to the Ktor server at `http://127.0.0.1:7860/opencode/events`.
+ * Timeline Bridge Plugin v2 — Skeleton-Stream Pattern
  *
  * Architecture:
- *   OpenCode Bus -> Plugin Hooks -> HTTP POST -> Ktor /opencode/events
- *                                                -> Ktor /ws/timeline  -> Android timeline
- *                                                -> AgentRunManager flow (delta only) -> Android chat
+ *   DURING STREAMING: part.updated events carry phase:"streaming" — server uses them
+ *     ONLY for skeleton/spinner state, NEVER for final content.
+ *   AT COMPLETION: message.updated snapshot carries cleanly separated parts —
+ *     server extracts reasoning+text from parts array and emits content blocks.
  *
- * The Ktor server is the only consumer. A browser proxy was once considered
- * but removed; this plugin is intentionally single-target.
- *
- * CRITICAL — live streaming: the `message.part.delta` hook delivers incremental
- * tokens as the model produces them. Ktor translates these into
- * `AgentEvent.FinalAnswerDelta` chunks and pushes them into the per-session
- * flow so the Android app can stream tokens in real time (see
- * `TimelineBridgeRoutes.kt` and `ActiveSessionManager.registerOpencodeSessionId`).
- *
- * Hook reference:
- *   - event: catch-all for session lifecycle
- *   - message.part.updated: every Part state change (text, reasoning, tool, subtask, step, compaction, file)
- *   - tool.execute.before/after: tool args and results
- *   - permission.asked/replied: permission gates
- *   - experimental.session.compacting: before compaction LLM call
+ * Key changes from v1:
+ *   - escapeThinkTags() REMOVED — streaming text is never rendered as final content
+ *   - All events carry phase:"streaming" | "snapshot"
+ *   - Text events carry isThinkingHint boolean for skeleton detection
+ *   - Tool events carry isMcpTool boolean for MCP badge
+ *   - user.input.required emitted from tool.execute.before immediately
+ *   - user.input.resolved emitted from tool.execute.after
+ *   - Content-based dedup REMOVED (it suppressed valid updates)
  */
-
-// ── Configuration ──────────────────────────────────────────────────────────────
 
 const BRIDGE_URL = "http://127.0.0.1:7860/opencode/events"
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const MCP_TOOLS = new Set([
+  "ask_user", "ask", "askuser", "confirm", "question", "clarify", "input",
+  "memory", "memory_save", "memory_find", "memory_update", "memory_delete", "memory_remember",
+  "schedule", "schedule_add", "schedule_list", "schedule_remove",
+  "remind", "remind_set", "remind_list", "remind_cancel",
+  "device", "device_open", "device_media", "device_toggle", "device_status", "device_capture",
+  "navigate", "navigate_screen", "navigate_share",
+  "generate_image",
+  "search_history", "get_note_by_id",
+  "guided_breathing",
+  "save_progress", "read_progress",
+])
 
-function log(msg: string): void {
-  console.log(`[timeline-bridge] ${msg}`)
+const INTERACTIVE_TOOLS = new Set([
+  "ask_user", "ask", "askuser", "confirm", "question", "clarify", "input",
+])
+
+function emit(payload: object): void {
+  fetch(BRIDGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {})
 }
 
-/**
- * Fire-and-forget POST. Never blocks the event loop.
- * Failures silently swallowed — Ktor may not be ready at startup.
- */
-async function emit(payload: unknown): Promise<void> {
-  try {
-    await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-  } catch {}
-}
-
-/**
- * Replace think tags with safe markers to prevent CLI double-parsing.
- * Handles case variations: <Think>, <THINK>, <think ...>, etc.
- */
-function escapeThinkTags(text: string): string {
-  if (!text) return text
-  return text.replace(/<think\b[^>]*>/gi, "[think]").replace(/<\/think\b[^>]*>/gi, "[/think]")
-}
-
-/**
- * Truncate strings for safe transport. Handles non-string inputs gracefully.
- */
-function truncateStr(s: unknown, maxLen = 10240): string {
-  if (typeof s !== "string" || !s) return String(s ?? "")
-  if (s.length <= maxLen) return s
-  return s.substring(0, maxLen) + "... [truncated]"
-}
-
-// ── Plugin Entry Point ─────────────────────────────────────────────────────────
-
-export const TimelineBridgePlugin = async (ctx: any) => {
-  log(`PLUGIN LOADED — Timeline Bridge`)
-  log(`Project: ${ctx.project?.name ?? "unknown"}`)
-  log(`Worktree: ${ctx.worktree ?? "unknown"}`)
-  log(`Directory: ${ctx.directory ?? "unknown"}`)
-
-  // ── Per-session state (key by sessionID to prevent cross-session collision)
+export const TimelineBridgePlugin = async ({ client }: any) => {
   const sessions = new Map<string, {
     startedAt: number
     toolCallCount: number
-    eventCount: number
-    seenToolCalls: Set<string>
+    isThinking: boolean
+    partTextLength: Map<string, number>
   }>()
 
-  // TTL cleanup — sweep stale entries older than 1 hour every 5 minutes
-  const TTL_MS = 60 * 60 * 1000
-  const ttlInterval = setInterval(() => {
-    const now = Date.now()
-    for (const [sid, s] of sessions) {
-      if (now - s.startedAt > TTL_MS) {
-        sessions.delete(sid)
-      }
-    }
-  }, 5 * 60 * 1000)
-
-  // Content-based dedup: skip events with identical content for the same partID
-  const lastContentHash = new Map<string, string>()
-
-  // Circuit breaker: detect infinite retry loops (session.processor retries indefinitely)
-  const retryCount = new Map<string, number>()
-
-  // ── HOOK: event — catch-all for session lifecycle ────────────────────────
-
-  const onEvent = async ({ event }: { event: any }) => {
-    const kind: string = event.type ?? "unknown"
-    const props: Record<string, unknown> = event.properties ?? {}
-    const sid = (props.sessionID as string) ?? "no-session"
-    const ts = Date.now()
-
-    // Session lifecycle
-    if (kind === "session.created") {
-      sessions.set(sid, { startedAt: ts, toolCallCount: 0, eventCount: 0, seenToolCalls: new Set() })
-      await emit({ kind: "session.created", sessionID: sid, ts })
-    }
-
-    if (kind === "session.idle") {
-      const s = sessions.get(sid)
-      const duration = s ? ts - s.startedAt : null
-      await emit({ kind: "session.idle", sessionID: sid, durationMs: duration, totalToolCalls: s?.toolCallCount ?? null, ts })
-      sessions.delete(sid)
-      retryCount.delete(sid)
-    }
-
-    if (kind === "session.compacted") {
-      await emit({ kind: "session.compacted", sessionID: sid, ts })
-    }
-
-    if (kind === "session.error") {
-      await emit({ kind: "session.error", sessionID: sid, error: props.error, ts })
-      sessions.delete(sid)
-      retryCount.delete(sid)
-    }
-
-    if (kind === "session.status") {
-      const status = props.status as Record<string, unknown> | undefined
-      const statusType = status?.type as string
-
-      // Circuit breaker: abort if retry count exceeds 5
-      if (statusType === "retry") {
-        const count = (retryCount.get(sid) ?? 0) + 1
-        retryCount.set(sid, count)
-        if (count > 5) {
-          log(`CIRCUIT BREAKER: aborting session ${sid.substring(0, 8)} after ${count} retries`)
-          try {
-            await (ctx.client as any).session?.abort?.({ path: { id: sid } })
-          } catch {}
-          retryCount.delete(sid)
-        }
-      } else {
-        retryCount.delete(sid)
-      }
-
-      await emit({ kind: "session.status", sessionID: sid, status: props.status, ts })
-    }
-
-    // ── Live streaming deltas — text-delta, reasoning-delta ─────────────────
-    // CRITICAL: Ktor translates `message.part.delta` into `AgentEvent.FinalAnswerDelta`
-    // and routes it into the per-session WebSocket flow so the Android app can
-    // stream tokens in real time. Without this emit, the app would only see the
-    // full text when the response completed.
-    if (kind === "message.part.delta") {
-      const delta = escapeThinkTags(props.delta as string ?? "")
-      if (delta) {
-        await emit({
-          kind,
-          sessionID: sid,
-          messageID: props.messageID,
-          partID: props.partID,
-          field: props.field,
-          delta,
-          ts,
-        })
-      }
-    }
-
-    // Forward agent/model switches
-    if (kind === "session.next.agent.switched") {
-      await emit({ kind, sessionID: sid, agent: props.agent, ts })
-    }
-    if (kind === "session.next.model.switched") {
-      await emit({ kind, sessionID: sid, model: props.model, ts })
-    }
-
-    // Forward message.updated (only once — not via catch-all)
-    if (kind === "message.updated") {
-      const payload: Record<string, unknown> = { kind, sessionID: sid, info: props.info, ts }
-      const rawParts = (props as any).parts ?? (props.info as any)?.parts ?? (props.message as any)?.parts
-      if (rawParts) payload.parts = rawParts
-      await emit(payload)
-    }
-
-    // Count
-    const s = sessions.get(sid)
-    if (s) s.eventCount++
-  }
-
-  // ── HOOK: message.part.updated — the core event ─────────────────────────
-  // Fires on EVERY Part state change. Covers all part types:
-  // text, reasoning, tool, subtask, step-start, step-finish, compaction, file
-
-  const onPartUpdated = async ({ part }: { part: any }) => {
-    const sid = (part.sessionID as string) ?? "no-session"
-    const mid = (part.messageID as string) ?? "no-message"
-    const pid = (part.id as string) ?? "no-id"
-    const ptype = (part.type as string) ?? "unknown"
-    const ts = Date.now()
-
-    // Content-based dedup: skip if content is identical to last emission for this part
-    const contentStr = part.content ?? part.reasoning ?? part.text ?? part.description ?? JSON.stringify(part.state) ?? ""
-    const prev = lastContentHash.get(pid)
-    if (prev === contentStr) return
-    lastContentHash.set(pid, contentStr)
-    // Prune stale hash entries periodically
-    if (lastContentHash.size > 500) {
-      const keys = [...lastContentHash.keys()]
-      for (const k of keys.slice(0, 100)) lastContentHash.delete(k)
-    }
-
-    switch (ptype) {
-
-      case "text": {
-        await emit({
-          kind: "part.updated", partType: "text",
-          sessionID: sid, messageID: mid, partID: pid,
-          text: truncateStr(part.content, 10240),
-          synthetic: part.synthetic ?? false,
-          ignored: part.ignored ?? false,
-          ts,
-        })
-        break
-      }
-
-      case "reasoning": {
-        const escaped = escapeThinkTags(part.reasoning ?? "")
-        await emit({
-          kind: "part.updated", partType: "reasoning",
-          sessionID: sid, messageID: mid, partID: pid,
-          reasoning: truncateStr(escaped, 10240),
-          thinkingDurationMs: (part.time?.end != null && part.time?.start != null)
-            ? part.time.end - part.time.start : null,
-          ts,
-        })
-        break
-      }
-
-      case "tool": {
-        const state = (part.state?.status as string) ?? "unknown"
-        const tool = (part.tool as string) ?? "unknown"
-        const toolCallID = (part.toolCallID as string) ?? "unknown"
-
-        // Track unique tool calls per session
-        if (state === "running") {
-          const s = sessions.get(sid)
-          if (s && !s.seenToolCalls.has(toolCallID)) {
-            s.seenToolCalls.add(toolCallID)
-            s.toolCallCount++
-          }
-        }
-
-        // Build state-specific payload (ToolPart state machine)
-        const base = {
-          kind: "part.updated", partType: "tool",
-          sessionID: sid, messageID: mid, partID: pid,
-          tool, toolCallID, state,
-        }
-        const withState: Record<string, unknown> = { ...base }
-        if (state === "running" || state === "pending") {
-          withState.input = part.state?.input
-          withState.raw = part.state?.raw
-        } else if (state === "complete") {
-          withState.input = part.state?.input
-          withState.output = part.state?.output
-          withState.raw = part.state?.raw
-        } else if (state === "error") {
-          withState.input = part.state?.input
-          withState.error = part.state?.error
-        }
-
-        await emit({ ...withState, ts })
-        break
-      }
-
-      case "subtask": {
-        await emit({
-          kind: "part.updated", partType: "subtask",
-          sessionID: sid, messageID: mid, partID: pid,
-          agent: part.agent, description: part.description, state: part.state,
-          ts,
-        })
-        break
-      }
-
-      case "step-start": {
-        await emit({ kind: "part.updated", partType: "step-start", sessionID: sid, messageID: mid, partID: pid, step: part.step, ts })
-        break
-      }
-
-      case "step-finish": {
-        const costVal = typeof part.cost === "number" ? part.cost : Number(part.cost) || 0
-        await emit({
-          kind: "part.updated", partType: "step-finish",
-          sessionID: sid, messageID: mid, partID: pid,
-          step: part.step, cost: costVal, tokens: part.tokens,
-          ts,
-        })
-        break
-      }
-
-      case "compaction": {
-        await emit({ kind: "part.updated", partType: "compaction", sessionID: sid, messageID: mid, partID: pid, ts })
-        break
-      }
-
-      case "file": {
-        await emit({
-          kind: "part.updated", partType: "file",
-          sessionID: sid, messageID: mid, partID: pid,
-          filename: part.filename, mediaType: part.mediaType, source: part.source,
-          ts,
-        })
-        break
-      }
-
-      default: {
-        // Forward unknown part types with raw JSON
-        await emit({
-          kind: "part.updated", partType: ptype,
-          sessionID: sid, messageID: mid, partID: pid,
-          raw: truncateStr(JSON.stringify(part), 2000),
-          ts,
-        })
-        break
-      }
-    }
-  }
-
-  // ── HOOK: tool.execute.before — full parsed args ────────────────────────
-  // Fires when state transitions to running. Input is the parsed argument object.
-
-  // Tools in this set block waiting for user response.
-  // The plugin emits user.input.required so the app can show an interactive prompt.
-  // The MCP tool MUST be implemented to use ctx.client.session.permission.ask() to
-  // request input — that way the existing permission infrastructure unblocks it.
-  const INTERACTIVE_TOOLS = new Set([
-    "ask", "ask_user", "askuser", "input", "confirm", "question", "clarify",
-  ])
-
-  const onToolBefore = async (input: any, output: any) => {
-    log(`TOOL.BEFORE session=${(input.sessionID ?? "").substring(0, 8)} tool=${input.tool}`)
-    const args = output.args ?? {}
-
-    await emit({
-      kind: "tool.before",
-      sessionID: input.sessionID, messageID: input.messageID,
-      tool: input.tool, callID: input.callID,
-      args,
-      ts: Date.now(),
-    })
-
-    // ── Interactive tool: ask the user for input ─────────────────────────
-    // The CLI session is now BLOCKED waiting for this tool to return.
-    // We emit a special event so the app can show a question card.
-    // Delivery back to the tool: Ktor forwards the user's response to the
-    // OpenCode permission system (if the tool called permission.ask) OR
-    // to a file at /tmp/opencode-asks/<sessionID>/<callID>.response.txt
-    // which the MCP server polls.
-    if (INTERACTIVE_TOOLS.has((input.tool ?? "").toLowerCase())) {
-      const question =
-        (args.question as string) ??
-        (args.prompt as string) ??
-        (args.text as string) ??
-        (args.message as string) ??
-        JSON.stringify(args)
-      const options = Array.isArray(args.options) ? args.options : null
-
-      log(`USER.INPUT.REQUIRED tool=${input.tool} question=${question.substring(0, 80)}`)
-
-      await emit({
-        kind: "user.input.required",
-        sessionID: input.sessionID,
-        messageID: input.messageID,
-        tool: input.tool, callID: input.callID,
-        question, options,
-        ts: Date.now(),
+  function getSession(sessionID: string) {
+    if (!sessions.has(sessionID)) {
+      sessions.set(sessionID, {
+        startedAt: Date.now(),
+        toolCallCount: 0,
+        isThinking: false,
+        partTextLength: new Map(),
       })
     }
+    return sessions.get(sessionID)!
   }
 
-  // ── HOOK: tool.execute.after — full result/error ────────────────────────
-  // Fires when state transitions to complete or error.
-
-  const onToolAfter = async (input: any, output: any) => {
-    // output has { title, output, metadata } — also check output.value as fallback
-    const result = output.output ?? output.value ?? output
-    const errVal = typeof output.error === "string" ? output.error : JSON.stringify(output.error ?? null)
-    log(`TOOL.AFTER session=${(input.sessionID ?? "").substring(0, 8)} tool=${input.tool}`)
-    await emit({
-      kind: "tool.after",
-      sessionID: input.sessionID, messageID: input.messageID,
-      tool: input.tool, callID: input.callID,
-      result, error: output.error,
-      ts: Date.now(),
-    })
-  }
-
-  // ── HOOK: permission.asked / permission.replied ─────────────────────────
-  // Fires when agent requests permission to run a tool
-
-  const onPermissionAsked = async ({ permission }: { permission: any }) => {
-    log(`PERMISSION.ASKED tool=${permission.tool}`)
-    await emit({
-      kind: "permission.asked",
-      sessionID: permission.sessionID,
-      tool: permission.tool, args: permission.args,
-      ts: Date.now(),
-    })
-  }
-
-  const onPermissionReplied = async ({ permission }: { permission: any }) => {
-    log(`PERMISSION.REPLIED tool=${permission.tool} granted=${permission.granted}`)
-    await emit({
-      kind: "permission.replied",
-      sessionID: permission.sessionID,
-      tool: permission.tool, granted: permission.granted,
-      ts: Date.now(),
-    })
-  }
-
-  // ── HOOK: experimental.session.compacting ───────────────────────────────
-  // Fires BEFORE the LLM generates the compaction summary.
-  // Can inject context via output.context.push().
-
-  const onCompacting = async (input: any, output: any) => {
-    log(`COMPACTION.START session=${input.sessionID}`)
-    // Inject telemetry preservation marker into compaction context
-    if (output?.context) {
-      output.context.push(`## Telemetry Context Preserved\nTimeline bridge active for session ${input.sessionID}.`)
+  setInterval(() => {
+    const cutoff = Date.now() - 3_600_000
+    for (const [id, s] of sessions) {
+      if (s.startedAt < cutoff) sessions.delete(id)
     }
-    await emit({
-      kind: "compaction.start",
-      sessionID: input.sessionID,
-      ts: Date.now(),
-    })
-  }
-
-  // ── Done ────────────────────────────────────────────────────────────────
-
-  log("PLUGIN HOOKS REGISTERED")
+  }, 300_000)
 
   return {
-    event: onEvent,
-    "message.part.updated": onPartUpdated,
-    "tool.execute.before": onToolBefore,
-    "tool.execute.after": onToolAfter,
-    "permission.asked": onPermissionAsked,
-    "permission.replied": onPermissionReplied,
-    "experimental.session.compacting": onCompacting,
+    event: async ({ event }: { event: any }) => {
+      if (event.type === "session.created") {
+        getSession(event.properties.sessionID)
+        emit({ kind: "session.created", sessionID: event.properties.sessionID, ts: Date.now() })
+      }
+
+      if (event.type === "session.idle") {
+        const s = sessions.get(event.properties.sessionID)
+        emit({
+          kind: "session.idle",
+          sessionID: event.properties.sessionID,
+          durationMs: s ? Date.now() - s.startedAt : null,
+          ts: Date.now(),
+        })
+        sessions.delete(event.properties.sessionID)
+      }
+
+      if (event.type === "session.compacted") {
+        emit({ kind: "session.compacted", sessionID: event.properties.sessionID, ts: Date.now() })
+      }
+
+      if (event.type === "session.error") {
+        emit({ kind: "session.error", sessionID: event.properties.sessionID, error: event.properties.error, ts: Date.now() })
+        sessions.delete(event.properties.sessionID)
+      }
+
+      if (event.type === "session.status") {
+        const status = event.properties?.status
+        if (status?.type === "retry" && (status?.attempt ?? 0) > 5) {
+          try { await client.session.abort({ path: { id: event.properties.sessionID } }) } catch {}
+          emit({ kind: "session.aborted", reason: "retry_limit_exceeded", sessionID: event.properties.sessionID, ts: Date.now() })
+        }
+      }
+
+      if (event.type === "message.updated") {
+        const payload: Record<string, unknown> = {
+          kind: "message.updated",
+          sessionID: event.properties.sessionID,
+          messageID: event.properties.messageID,
+          info: event.properties.info,
+          ts: Date.now(),
+        }
+        const rawParts = (event.properties as any).parts ?? (event.properties.info as any)?.parts ?? (event.properties.message as any)?.parts
+        if (rawParts) payload.parts = rawParts
+        emit(payload)
+      }
+    },
+
+    "message.part.updated": async ({ part }: { part: any }) => {
+      const s = getSession(part.sessionID)
+
+      if (part.type === "text") {
+        const text: string = (part as any).content ?? (part as any).text ?? ""
+
+        const hasOpenThink = text.includes("<think>") || text.includes("[think]")
+        const hasCloseThink = text.includes("</think>") || text.includes("[/think]")
+        if (hasOpenThink && !hasCloseThink) s.isThinking = true
+        if (hasCloseThink) s.isThinking = false
+
+        emit({
+          kind: "part.updated",
+          phase: "streaming",
+          sessionID: part.sessionID,
+          messageID: part.messageID,
+          partID: (part as any).id,
+          partType: "text",
+          text: text,
+          isThinkingHint: s.isThinking,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "reasoning") {
+        const reasoning: string = (part as any).reasoning ?? ""
+        emit({
+          kind: "part.updated",
+          phase: "snapshot",
+          sessionID: part.sessionID,
+          messageID: part.messageID,
+          partID: (part as any).id,
+          partType: "reasoning",
+          reasoning: reasoning,
+          thinkingDurationMs:
+            (part as any).time?.end != null && (part as any).time?.start != null
+              ? (part as any).time.end - (part as any).time.start
+              : null,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "tool") {
+        const toolPart = part as any
+        if (toolPart.state?.status === "running") s.toolCallCount++
+
+        const isMcp = MCP_TOOLS.has((toolPart.tool ?? "").toLowerCase())
+        emit({
+          kind: "part.updated",
+          phase: "streaming",
+          sessionID: part.sessionID,
+          messageID: part.messageID,
+          partID: toolPart.id,
+          partType: "tool",
+          tool: toolPart.tool,
+          toolCallID: toolPart.toolCallID,
+          state: toolPart.state?.status,
+          input: "input" in (toolPart.state ?? {}) ? toolPart.state.input : undefined,
+          output: "output" in (toolPart.state ?? {}) ? toolPart.state.output : undefined,
+          error: "error" in (toolPart.state ?? {}) ? toolPart.state.error : undefined,
+          isMcpTool: isMcp,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "subtask") {
+        const sp = part as any
+        emit({
+          kind: "part.updated", phase: "streaming",
+          sessionID: part.sessionID, messageID: part.messageID, partID: sp.id,
+          partType: "subtask", agent: sp.agent, description: sp.description, state: sp.state,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "step-start") {
+        emit({
+          kind: "part.updated", phase: "streaming",
+          sessionID: part.sessionID, messageID: part.messageID,
+          partID: (part as any).id ?? `step-start-${(part as any).step}`,
+          partType: "step-start", step: (part as any).step,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "step-finish") {
+        const sfp = part as any
+        emit({
+          kind: "part.updated", phase: "streaming",
+          sessionID: part.sessionID, messageID: part.messageID,
+          partID: sfp.id ?? `step-finish-${sfp.step}`,
+          partType: "step-finish", step: sfp.step, cost: sfp.cost, tokens: sfp.tokens,
+          ts: Date.now(),
+        })
+      }
+
+      else if (part.type === "compaction") {
+        emit({
+          kind: "part.updated", phase: "streaming",
+          sessionID: part.sessionID, messageID: part.messageID,
+          partID: (part as any).id, partType: "compaction",
+          ts: Date.now(),
+        })
+      }
+    },
+
+    "tool.execute.before": async (input: any, output: any) => {
+      const toolName: string = (input as any).tool ?? ""
+      const isMcp = MCP_TOOLS.has(toolName.toLowerCase())
+      const isInteractive = INTERACTIVE_TOOLS.has(toolName.toLowerCase())
+      const args = (output as any).args ?? {}
+
+      emit({
+        kind: "tool.before",
+        sessionID: (input as any).sessionID,
+        messageID: (input as any).messageID,
+        callID: (input as any).callID ?? (input as any).toolCallID,
+        tool: toolName,
+        args: args,
+        isMcpTool: isMcp,
+        isInteractive: isInteractive,
+        ts: Date.now(),
+      })
+
+      if (isInteractive) {
+        const question: string = args.question ?? args.prompt ?? ""
+        const options: string[] = args.options ?? args.choices ?? []
+
+        emit({
+          kind: "user.input.required",
+          sessionID: (input as any).sessionID,
+          messageID: (input as any).messageID,
+          callID: (input as any).callID ?? (input as any).toolCallID,
+          tool: toolName,
+          question: question,
+          options: options,
+          inputMode: options.length >= 2 ? "choice" : "text",
+          ts: Date.now(),
+        })
+      }
+    },
+
+    "tool.execute.after": async (input: any, output: any) => {
+      const toolName: string = (input as any).tool ?? ""
+      const isMcp = MCP_TOOLS.has(toolName.toLowerCase())
+      const isInteractive = INTERACTIVE_TOOLS.has(toolName.toLowerCase())
+      const result = (output as any).value ?? (output as any).output
+      const error = (output as any).error
+
+      emit({
+        kind: "tool.after",
+        sessionID: (input as any).sessionID,
+        messageID: (input as any).messageID,
+        callID: (input as any).callID ?? (input as any).toolCallID,
+        tool: toolName,
+        result: result,
+        error: error,
+        isMcpTool: isMcp,
+        isInteractive: isInteractive,
+        userResponse: isInteractive ? result : undefined,
+        ts: Date.now(),
+      })
+
+      if (isInteractive) {
+        const wasDeclined = typeof result === "string" &&
+          (result.startsWith("User declined") || result.startsWith("Request timed out"))
+        emit({
+          kind: "user.input.resolved",
+          sessionID: (input as any).sessionID,
+          callID: (input as any).callID ?? (input as any).toolCallID,
+          response: result,
+          declined: wasDeclined,
+          ts: Date.now(),
+        })
+      }
+    },
+
+    "permission.asked": async ({ permission }: { permission: any }) => {
+      emit({
+        kind: "permission.asked",
+        sessionID: (permission as any).sessionID,
+        tool: (permission as any).tool,
+        args: (permission as any).args,
+        ts: Date.now(),
+      })
+    },
+
+    "permission.replied": async ({ permission }: { permission: any }) => {
+      emit({
+        kind: "permission.replied",
+        sessionID: (permission as any).sessionID,
+        tool: (permission as any).tool,
+        granted: (permission as any).granted,
+        ts: Date.now(),
+      })
+    },
+
     dispose: () => {
-      clearInterval(ttlInterval)
       sessions.clear()
-      lastContentHash.clear()
-      retryCount.clear()
     },
   }
 }

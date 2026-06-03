@@ -1785,15 +1785,10 @@ class ChatFeatureManager(
         pendingCitations.clear()
         pendingInlineImages.clear()
         pendingActions.clear()
-        pendingToolCalls.clear() // Fix #10: Clear tool calls for new message
         _mentionState.value = MentionState()
 
         // Prepare UI
         chatManager.setProcessing(true)
-
-        // Task 15: Thin Client Mode
-        // We delegate all logic to the Remote Agent Service via SSE.
-        // Local logic (history compression, context building) is handled by the server now.
 
         // Create a streaming placeholder message that updates live
         val streamingMessageId =
@@ -1813,11 +1808,56 @@ class ChatFeatureManager(
                 )
             chatManager.addSmartyMessage(streamingMessage)
 
-            // Collect chunks from the remote stream and update UI live
-            val responseBuilder = StringBuilder()
-            val thinkingBuilder = StringBuilder()
+            // ── Skeleton-Stream Pattern state ──────────────────────────────
+            // Streaming deltas drive only skeleton state (never rendered as final content)
+            // Final content comes from ReasoningBlock / ResponseBlock (clean snapshot)
+            var isThinkingActive = false
+            var isStreamingActive = false
+            var finalReasoningText = ""
+            var finalReasoningDurationMs: Long? = null
+            var finalResponseText = ""
+            val pendingToolCallsMap = LinkedHashMap<String, AgentToolCallEntry>()
+            val orderedToolCallIds = mutableListOf<String>()
             val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
+
+            // Backward-compat accumulators (used ONLY if clean blocks never arrive)
+            val fallbackTextBuilder = StringBuilder()
+            val fallbackThinkingBuilder = StringBuilder()
+
+            fun currentToolCalls(): List<AgentToolCallEntry> =
+                orderedToolCallIds.mapNotNull { pendingToolCallsMap[it] }
+
+            fun pushSkeleton() {
+                scope.launch {
+                    chatManager.updateMessageSkeleton(
+                        streamingMessageId,
+                        isThinking = isThinkingActive,
+                        isStreaming = isStreamingActive,
+                        toolCalls = currentToolCalls(),
+                        steps = collectedAgentSteps.toList(),
+                        agentEvents = agentEventsBuilder.toList(),
+                    )
+                }
+            }
+
+            fun pushBlocks() {
+                val content = finalResponseText.ifEmpty { fallbackTextBuilder.toString() }
+                val thinking = finalReasoningText.ifEmpty {
+                    fallbackThinkingBuilder.toString().ifEmpty { null }
+                }
+                scope.launch {
+                    chatManager.updateMessageWithBlocks(
+                        streamingMessageId,
+                        content = content,
+                        thinking = thinking,
+                        toolCalls = currentToolCalls(),
+                        steps = collectedAgentSteps.toList(),
+                        agentEvents = agentEventsBuilder.toList(),
+                    )
+                }
+            }
+
             val sessionId = currentSessionId.value
             val selectedModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
             val selectedVariant = securePreferences.getSelectedVariant()
@@ -1832,34 +1872,69 @@ class ChatFeatureManager(
                     agentEventsBuilder.add(event)
                     Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
                     when (event) {
+
+                        // ── Skeleton events ─────────────────────────────────
+                        is AgentEvent.ThinkingActive -> {
+                            isThinkingActive = true
+                            isStreamingActive = false
+                            pushSkeleton()
+                        }
+
+                        is AgentEvent.StreamingActive -> {
+                            isStreamingActive = true
+                            pushSkeleton()
+                        }
+
+                        // ── Content blocks (from clean snapshot) ────────────
+                        is AgentEvent.ReasoningBlock -> {
+                            finalReasoningText = event.content
+                            finalReasoningDurationMs = event.thinkingDurationMs
+                            isThinkingActive = false
+                            pushBlocks()
+                        }
+
+                        is AgentEvent.ResponseBlock -> {
+                            finalResponseText = event.content
+                            isStreamingActive = false
+                            pushBlocks()
+                        }
+
+                        // ── Legacy backward-compat streaming deltas ─────────
+                        // These only drive skeleton state; actual content waits for blocks
                         is AgentEvent.TextDelta -> {
-                            responseBuilder.append(event.text)
-                            chatManager.updateMessageWithThinking(
-                                streamingMessageId,
-                                responseBuilder.toString(),
-                                thinkingBuilder.toString().ifEmpty { null },
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
+                            fallbackTextBuilder.append(event.text)
+                            if (!isStreamingActive) {
+                                isStreamingActive = true
+                                pushSkeleton()
+                            }
                         }
+
                         is AgentEvent.ReasoningDelta -> {
-                            thinkingBuilder.append(event.text)
-                            chatManager.updateMessageWithThinking(
-                                streamingMessageId,
-                                responseBuilder.toString(),
-                                thinkingBuilder.toString().ifEmpty { null },
-                                agentEvents = agentEventsBuilder.toList(),
-                            )
+                            fallbackThinkingBuilder.append(event.text)
+                            if (!isThinkingActive) {
+                                isThinkingActive = true
+                                isStreamingActive = false
+                                pushSkeleton()
+                            }
                         }
+
+                        // ── Tool events (real-time, clean) ──────────────────
                         is AgentEvent.ToolStart -> {
-                            val toolCallEntry = com.example.smarty.core.domain.model.AgentToolCallEntry(
+                            val entry = AgentToolCallEntry(
                                 toolName = event.name,
                                 displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
                                 status = "started",
-                                inputSummary = event.args ?: "",
+                                inputSummary = event.args ?: event.inputSummary.ifEmpty { null },
                                 outputSummary = null,
                                 toolCallId = event.toolId,
+                                isMcpTool = event.isMcpTool,
+                                isInteractive = event.isInteractive,
+                                startedAt = event.timestamp,
                             )
-                            pendingToolCalls.add(toolCallEntry)
+                            if (!pendingToolCallsMap.containsKey(event.toolId)) {
+                                orderedToolCallIds.add(event.toolId)
+                            }
+                            pendingToolCallsMap[event.toolId] = entry
 
                             val actionResult = com.example.smarty.core.domain.model.AgentActionResult(
                                 action = event.name,
@@ -1868,28 +1943,32 @@ class ChatFeatureManager(
                             )
                             pendingActions.removeAll { it.action == event.name }
                             pendingActions.add(actionResult)
-                            chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
+                            pushSkeleton()
                         }
+
                         is AgentEvent.ToolEnd -> {
-                            val existing = pendingToolCalls.find { it.toolCallId == event.toolId }
-                            if (existing != null) {
-                                val idx = pendingToolCalls.indexOf(existing)
-                                val entry = pendingToolCalls[idx]
-                                pendingToolCalls[idx] = entry.copy(
-                                    status = if (event.error != null) "failed" else "completed",
-                                    outputSummary = event.result?.take(800) ?: event.error?.take(200),
+                            pendingToolCallsMap[event.toolId]?.let { existing ->
+                                val summary = event.outputSummary.ifEmpty {
+                                    event.result?.take(800) ?: event.error?.take(200)
+                                }
+                                pendingToolCallsMap[event.toolId] = existing.copy(
+                                    status = if (event.success) "completed" else "failed",
+                                    outputSummary = summary,
+                                    durationMs = existing.startedAt?.let { event.timestamp - it },
                                 )
-                                pendingActions.removeAll { it.action == entry.displayName }
+                                pendingActions.removeAll { it.action == existing.displayName }
                                 pendingActions.add(
                                     com.example.smarty.core.domain.model.AgentActionResult(
-                                        action = entry.displayName,
-                                        success = event.error == null,
-                                        resultSummary = event.result?.take(120) ?: event.error?.take(120) ?: "Completed",
+                                        action = existing.displayName,
+                                        success = event.success,
+                                        resultSummary = summary ?: "Completed",
                                     ),
                                 )
-                                chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
                             }
+                            pushSkeleton()
                         }
+
+                        // ── Step markers ────────────────────────────────────
                         is AgentEvent.StepStart -> {
                             val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
                                 stepType = "tool_call",
@@ -1899,8 +1978,9 @@ class ChatFeatureManager(
                                 stepIndex = collectedAgentSteps.size,
                             )
                             collectedAgentSteps.add(uiStep)
-                            chatManager.updateMessageAgentSteps(streamingMessageId, uiStep)
+                            pushSkeleton()
                         }
+
                         is AgentEvent.StepEnd -> {
                             if (collectedAgentSteps.isNotEmpty()) {
                                 val lastIdx = collectedAgentSteps.lastIndex
@@ -1908,20 +1988,32 @@ class ChatFeatureManager(
                                     stepStatus = if (event.success) "completed" else "failed",
                                 )
                                 collectedAgentSteps[lastIdx] = updated
-                                chatManager.updateMessageAgentSteps(streamingMessageId, updated)
                             }
+                            pushSkeleton()
                         }
-                        is AgentEvent.Done -> {
-                            Log.d(TAG, ">>> DONE: stream completed")
-                        }
-                        is AgentEvent.Error -> {
-                            responseBuilder.append("\n[${event.message}]")
-                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
-                            _pendingApprovalState.value = null
-                            _pendingClarificationRequests.value = emptyList()
-                        }
+
+                        // ── Interactive tool (ask_user) ─────────────────────
                         is AgentEvent.ApprovalRequested -> {
                             Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}")
+
+                            // Add tool card entry
+                            val entry = AgentToolCallEntry(
+                                toolName = event.toolName,
+                                displayName = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                                status = "waiting_user",
+                                inputSummary = event.question,
+                                outputSummary = null,
+                                toolCallId = event.toolId,
+                                isMcpTool = true,
+                                isInteractive = true,
+                                startedAt = event.timestamp,
+                            )
+                            if (!pendingToolCallsMap.containsKey(event.toolId)) {
+                                orderedToolCallIds.add(event.toolId)
+                            }
+                            pendingToolCallsMap[event.toolId] = entry
+
+                            // Set approval state
                             _pendingApprovalState.value = com.example.smarty.features.chat.domain.state.PendingApproval(
                                 messageId = streamingMessageId,
                                 sessionId = chatManager.currentSessionId.value,
@@ -1950,56 +2042,82 @@ class ChatFeatureManager(
                                 ))
                                 _pendingClarificationRequests.value = parsed
                             }
+                            pushSkeleton()
                         }
+
                         is AgentEvent.ApprovalResult -> {
                             Log.i(TAG, ">>> APPROVAL_RESULT: toolId=${event.toolId}, granted=${event.granted}")
                             _pendingApprovalState.value = null
                             _pendingClarificationRequests.value = emptyList()
+
+                            pendingToolCallsMap[event.toolId]?.let { existing ->
+                                pendingToolCallsMap[event.toolId] = existing.copy(
+                                    status = if (event.granted) "completed" else "declined",
+                                    outputSummary = if (event.granted) "User: ${event.feedback}" else "Declined",
+                                )
+                            }
+                            pushSkeleton()
                         }
+
+                        // ── Terminal ────────────────────────────────────────
+                        is AgentEvent.Done -> {
+                            Log.d(TAG, ">>> DONE: stream completed")
+                        }
+
+                        is AgentEvent.Error -> {
+                            isThinkingActive = false
+                            isStreamingActive = false
+                            fallbackTextBuilder.append("\n[${event.message}]")
+                            _pendingApprovalState.value = null
+                            _pendingClarificationRequests.value = emptyList()
+
+                            // Mark all pending tools as failed
+                            for (id in orderedToolCallIds) {
+                                pendingToolCallsMap[id]?.let { entry ->
+                                    if (entry.status == "started" || entry.status == "waiting_user") {
+                                        pendingToolCallsMap[id] = entry.copy(status = "failed", outputSummary = "Session error")
+                                    }
+                                }
+                            }
+                            pushBlocks()
+                        }
+
                         is AgentEvent.StateSync -> {
                             // Handled by eventSink (already dispatched separately)
+                        }
+
+                        is AgentEvent.SubAgentEvent -> {
+                            // Sub-agent events forwarded but not rendered yet
+                        }
+
+                        is AgentEvent.CompactionMarker -> {
+                            // Context compaction — not rendered in chat list
                         }
                     }
                 }
 
-            val fullResponse = responseBuilder.toString()
-
             chatManager.markApiCallSuccessful()
-
-            val parsedResponse = ThinkingParser.parse(fullResponse)
-
-            val streamingMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
-
-            // If ThinkingParser extracted reasoning from text (heuristic) AND
-            // thinkingBuilder is empty (no ReasoningDelta events received from daemon),
-            // use the extracted reasoning. This handles the case where the daemon sends
-            // reasoning as field:"text" deltas instead of field:"reasoning" deltas.
-            val finalThinking = thinkingBuilder.toString().ifEmpty {
-                parsedResponse.thinking ?: streamingMsg?.thinking
-            }
-            val finalContent = if (thinkingBuilder.isEmpty() && parsedResponse.thinking != null) {
-                // Reasoning was extracted from text — use the clean answer
-                parsedResponse.answer
-            } else {
-                parsedResponse.answer
-            }
 
             val smartyMessage =
                 ChatMessage(
                     id = streamingMessageId,
                     role = ChatRole.SMARTY,
-                    content = finalContent.ifEmpty { "[No response received. Please try again.]" },
-                    thinking = finalThinking,
+                    content = finalResponseText.ifEmpty {
+                        fallbackTextBuilder.toString().ifEmpty { "[No response received. Please try again.]" }
+                    },
+                    thinking = finalReasoningText.ifEmpty {
+                        fallbackThinkingBuilder.toString().ifEmpty { null }
+                    },
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
-                    toolCalls = pendingToolCalls.toList(),
+                    toolCalls = currentToolCalls(),
                     agentSteps = collectedAgentSteps.toList(),
                     citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                     inlineImages = pendingInlineImages.toList(),
                     isStreaming = false,
                     agentEvents = agentEventsBuilder.toList(),
-                    clarificationRequest = streamingMsg?.clarificationRequest,
-                    noteReferences = streamingMsg?.noteReferences ?: emptyList(),
+                    clarificationRequest = null,
+                    noteReferences = emptyList(),
                 )
 
             chatManager.replaceMessage(streamingMessageId, smartyMessage)

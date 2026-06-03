@@ -521,6 +521,60 @@ class ChatManager(
         return newSession.id
     }
 
+    suspend fun updateMessageSkeleton(
+        messageId: String,
+        isThinking: Boolean,
+        isStreaming: Boolean,
+        toolCalls: List<com.example.smarty.core.domain.model.AgentToolCallEntry>,
+        steps: List<com.example.smarty.core.domain.model.AgentStepEntry>,
+        agentEvents: List<com.example.smarty.protocol.AgentEvent> = emptyList(),
+    ) {
+        chatMutex.withLock {
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) {
+                        msg.copy(
+                            isThinking = isThinking,
+                            isStreaming = isStreaming,
+                            toolCalls = toolCalls,
+                            agentSteps = steps,
+                            agentEvents = agentEvents,
+                        )
+                    } else {
+                        msg
+                    }
+                }
+        }
+    }
+
+    suspend fun updateMessageWithBlocks(
+        messageId: String,
+        content: String,
+        thinking: String?,
+        toolCalls: List<com.example.smarty.core.domain.model.AgentToolCallEntry>,
+        steps: List<com.example.smarty.core.domain.model.AgentStepEntry>,
+        agentEvents: List<com.example.smarty.protocol.AgentEvent> = emptyList(),
+    ) {
+        chatMutex.withLock {
+            _chatMessages.value =
+                _chatMessages.value.map { msg ->
+                    if (msg.id == messageId) {
+                        msg.copy(
+                            content = content,
+                            thinking = thinking,
+                            isThinking = false,
+                            isStreaming = false,
+                            toolCalls = toolCalls,
+                            agentSteps = steps,
+                            agentEvents = agentEvents,
+                        )
+                    } else {
+                        msg
+                    }
+                }
+        }
+    }
+
     suspend fun updateSmartyMessageActions(
         messageId: String,
         updatedActions: List<com.example.smarty.core.domain.model.AgentActionResult>,

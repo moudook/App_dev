@@ -83,6 +83,10 @@ data class AgentToolCallEntry(
     val searchQueries: List<SearchQueryEntry> = emptyList(),
     val timestamp: Long = 0L,
     val toolCallId: String = "",
+    val isMcpTool: Boolean = false,
+    val isInteractive: Boolean = false,
+    val startedAt: Long? = null,
+    val durationMs: Long? = null,
 )
 
 /**
@@ -126,6 +130,7 @@ data class ChatMessage(
     val citations: List<Citation> = emptyList(), // Sources from web research
     val inlineImages: List<InlineChatImage> = emptyList(), // Images from ViewImageTool to display inline
     val clarificationRequest: ClarificationRequest? = null, // Interactive clarification request
+    val isThinking: Boolean = false, // True when AI is reasoning (show skeleton spinner)
     val noteReferences: List<NoteReference> = emptyList(), // Clickable note cards in AI response
     val eventReferences: List<EventReference> = emptyList(), // Clickable event cards in AI response
     val confidence: String? = null, // Server-computed confidence: verified, moderate, model_knowledge

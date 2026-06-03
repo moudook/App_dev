@@ -50,6 +50,13 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
             else -> accentColor
         }
 
+    val badge: ToolBadge? =
+        when {
+            toolCall.isInteractive && toolCall.isMcpTool -> ToolBadge.ASK
+            toolCall.isMcpTool -> ToolBadge.MCP
+            else -> null
+        }
+
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = optionBg,
@@ -66,7 +73,7 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
                         ) { expanded = !expanded }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     text = toolCall.displayName,
@@ -76,16 +83,22 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // ── Badge (ASK / MCP) ──
+                if (badge != null) {
+                    BadgeChip(badge = badge)
+                }
                 ToolCallStatusIndicator(status = toolCall.status, statusColor = statusColor)
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                    modifier = Modifier.size(18.dp),
-                )
+                if (toolCall.status != "waiting_user") {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             AnimatedVisibility(
-                visible = expanded,
+                visible = expanded || toolCall.status == "waiting_user",
                 enter = expandVertically(animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f)) + fadeIn(animationSpec = tween(200)),
                 exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(150)),
             ) {
@@ -97,6 +110,7 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+
                     toolCall.inputSummary?.takeIf { it.isNotBlank() }?.let { input ->
                         Text(
                             text = "INPUT",
@@ -121,7 +135,13 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (toolCall.inputSummary.isNullOrBlank() && toolCall.outputSummary.isNullOrBlank()) {
+                    if (toolCall.status == "waiting_user") {
+                        Text(
+                            text = toolCall.inputSummary ?: "Waiting for your response\u2026",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else if (toolCall.inputSummary.isNullOrBlank() && toolCall.outputSummary.isNullOrBlank()) {
                         Text(
                             text = if (toolCall.status == "started" || toolCall.status == "running") "Running\u2026" else "Completed",
                             style = MaterialTheme.typography.bodySmall,
@@ -131,6 +151,42 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
                 }
             }
         }
+    }
+}
+
+private enum class ToolBadge { ASK, MCP }
+
+@Composable
+private fun BadgeChip(badge: ToolBadge) {
+    val text: String
+    val bgColor: Color
+    val fgColor: Color
+    when (badge) {
+        ToolBadge.ASK -> {
+            text = "ASK"
+            bgColor = MaterialTheme.colorScheme.tertiaryContainer
+            fgColor = MaterialTheme.colorScheme.onTertiaryContainer
+        }
+        ToolBadge.MCP -> {
+            text = "MCP"
+            bgColor = MaterialTheme.colorScheme.secondaryContainer
+            fgColor = MaterialTheme.colorScheme.onSecondaryContainer
+        }
+    }
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = bgColor,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.sp,
+                letterSpacing = 0.6.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = fgColor,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+        )
     }
 }
 
@@ -152,6 +208,20 @@ private fun ToolCallStatusIndicator(
                 Icons.Default.ErrorOutline,
                 contentDescription = "Failed",
                 tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(16.dp),
+            )
+        "waiting_user" ->
+            Icon(
+                Icons.Default.HourglassEmpty,
+                contentDescription = "Waiting for you",
+                tint = ThemeAwareColors.warningColor(),
+                modifier = Modifier.size(16.dp),
+            )
+        "declined" ->
+            Icon(
+                Icons.Default.Cancel,
+                contentDescription = "Declined",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
             )
         else -> {
