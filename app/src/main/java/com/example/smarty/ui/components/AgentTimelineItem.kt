@@ -119,27 +119,44 @@ fun AgentTimelineItem(
                 }
             }
         } else {
-            val thinking = message.thinking
-
-            // ── 1. THINKING BLOCK (skeleton spinner or clean content) ──
-            if (message.isThinking || !thinking.isNullOrBlank()) {
-                ThinkingAccordion(
-                    thinking = thinking ?: "",
-                    isStreaming = message.isThinking,
-                    onSkip = onSkip,
-                )
-            }
-
-            // ── 2. TOOL CALLS (in order, with ASK/MCP/built-in badges) ──
-            if (message.toolCalls.isNotEmpty()) {
-                message.toolCalls.forEach { toolCall ->
-                    ToolCallEntryCard(toolCall = toolCall)
-                }
-            }
-
-            // ── 3. STEPS TIMELINE ──
+            // ── 1. & 2. & 3. INTERLEAVED TIMELINE (Thinking, Tools, Steps) ──
             if (message.agentSteps.isNotEmpty()) {
-                StepTimeline(steps = message.agentSteps)
+                var toolIdx = 0
+                message.agentSteps.forEach { step ->
+                    key(step.stepIndex) {
+                        if (step.stepType == "thinking") {
+                            ThinkingAccordion(
+                                thinking = step.stepContent,
+                                isStreaming = step.stepStatus == "started" || step.stepStatus == "streaming",
+                                onSkip = onSkip,
+                            )
+                        } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool") {
+                            if (toolIdx < message.toolCalls.size) {
+                                ToolCallEntryCard(toolCall = message.toolCalls[toolIdx])
+                                toolIdx++
+                            } else {
+                                StepTimeline(steps = listOf(step))
+                            }
+                        } else {
+                            StepTimeline(steps = listOf(step))
+                        }
+                    }
+                }
+            } else {
+                // Fallback for older messages
+                val thinking = message.thinking
+                if (message.isThinking || !thinking.isNullOrBlank()) {
+                    ThinkingAccordion(
+                        thinking = thinking ?: "",
+                        isStreaming = message.isThinking,
+                        onSkip = onSkip,
+                    )
+                }
+                if (message.toolCalls.isNotEmpty()) {
+                    message.toolCalls.forEach { toolCall ->
+                        ToolCallEntryCard(toolCall = toolCall)
+                    }
+                }
             }
 
             // ── 4. CITATIONS ──

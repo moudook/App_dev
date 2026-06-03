@@ -262,7 +262,9 @@ private fun translatePluginEvent(
                     return out
                 }
             } else {
+                var currentPartIndex = 0
                 for (part in parts) {
+                    currentPartIndex++
                     val partObj = part as? JsonObject ?: continue
                     val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
                     val deltaObj = partObj["delta"] as? JsonObject
@@ -275,15 +277,28 @@ private fun translatePluginEvent(
                         ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
                         ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
                         ?: ""
-
                     when {
                         partType == "reasoning" || reasoningContent.isNotEmpty() -> {
                             val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
                             if (r.isNotBlank()) {
                                 separateReasoning.append(r).append("\n")
-                                val quote = r.trim().replace("\n", "\n> ")
-                                if (quote.isNotEmpty()) {
-                                    combinedText += "\n\n> **Thought:**\n> $quote\n\n"
+                                val partKey = "$pluginSessionId:msg_$currentMsgId:part_$currentPartIndex"
+                                val lastLen = partTextLengths.getOrDefault(partKey, 0)
+                                if (lastLen == 0) {
+                                    out += AgentEvent.StepStart(eventId = eid(), timestamp = ts, title = "Thinking", messageId = currentMsgId)
+                                }
+                                val delta = if (r.length > lastLen) r.substring(lastLen) else ""
+                                partTextLengths[partKey] = r.length
+                                if (delta.isNotEmpty()) {
+                                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
+                                }
+                                // If there are more parts after this one, it means this reasoning step is finished.
+                                if (currentPartIndex < parts.size) {
+                                    val finishedKey = partKey + "_finished"
+                                    if (partTextLengths.getOrDefault(finishedKey, 0) == 0) {
+                                        out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts, success = true, stepNumber = currentPartIndex, cost = 0.0)
+                                        partTextLengths[finishedKey] = 1
+                                    }
                                 }
                             }
                         }
@@ -312,13 +327,13 @@ private fun translatePluginEvent(
             val fullReasoning = separateReasoning.toString()
             val mergedReasoning = (fullReasoning + "\n" + thinkingFromText).trim()
 
-            val hasNewReasoning = mergedReasoning.length > state.lastSentReasoningLen
+            val hasNewReasoningFromText = thinkingFromText.length > state.lastSentReasoningLen
             val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
 
-            if (hasNewReasoning || hasNewResponse || toolFound) {
+            if (hasNewReasoningFromText || hasNewResponse || toolFound) {
                 out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
                     sessionId = pluginSessionId, messageId = currentMsgId)
-                if (hasNewReasoning) {
+                if (hasNewReasoningFromText) {
                     out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId)
                 }
@@ -330,19 +345,20 @@ private fun translatePluginEvent(
                 state.lastSentResponseLen = cleanResponse.length
                 out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = delta)
             }
-            if (hasNewReasoning) {
-                val delta = mergedReasoning.substring(state.lastSentReasoningLen)
+            if (hasNewReasoningFromText) {
+                val delta = thinkingFromText.substring(state.lastSentReasoningLen)
                 state.reasoningBuilder.append(delta)
-                state.lastSentReasoningLen = mergedReasoning.length
+                state.lastSentReasoningLen = thinkingFromText.length
                 out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
             }
 
             // Emit final blocks only on the snapshot with info.finish == "stop"
             if (isFinalMessage) {
-                if (thinkingFromText.isNotBlank()) {
+                out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts, success = true, stepNumber = 999, cost = 0.0)
+                if (mergedReasoning.isNotBlank()) {
                     out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId,
-                        partId = "snapshot-reasoning", content = thinkingFromText)
+                        partId = "snapshot-reasoning", content = mergedReasoning)
                 }
                 if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
                     out += AgentEvent.ResponseBlock(eventId = eid(), timestamp = ts,

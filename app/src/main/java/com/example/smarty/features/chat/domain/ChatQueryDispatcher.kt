@@ -572,8 +572,9 @@ class ChatQueryDispatcher(
                                 }
                             } else {
                                 val stepIdx = collectedAgentSteps.size
+                                val isThinking = event.title.equals("Thinking", ignoreCase = true)
                                 val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
-                                    stepType = "tool_call",
+                                    stepType = if (isThinking) "thinking" else "tool_call",
                                     stepTitle = event.title,
                                     stepContent = "",
                                     stepStatus = "started",
