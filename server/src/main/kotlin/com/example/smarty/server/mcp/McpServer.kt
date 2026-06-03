@@ -26,6 +26,8 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
+import io.ktor.server.response.respondOutputStream
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -115,8 +117,47 @@ class McpServer(
 
             sse("/sse", sseHandler)
             
-            route("/sse", io.ktor.http.HttpMethod.Post) {
-                sse("", sseHandler)
+            post("/sse") {
+                val sessionId = UUID.randomUUID().toString()
+                val channel = Channel<ServerSentEvent>(Channel.BUFFERED)
+                sessions[sessionId] = McpSession(channel)
+                try {
+                    val host = call.request.local.serverHost
+                    val port = call.request.local.serverPort
+                    val scheme = call.request.local.scheme
+                    val endpointUrl = "$scheme://$host:$port/mcp/messages?sessionId=$sessionId"
+                    logger.info("[McpServer] POST-SSE session created: $sessionId")
+                    
+                    call.respondOutputStream(contentType = ContentType.Text.EventStream) {
+                        val writer = this.writer(Charsets.UTF_8)
+                        writer.write("event: endpoint\ndata: $endpointUrl\n\n")
+                        writer.flush()
+                        
+                        try {
+                            while (true) {
+                                val event = kotlinx.coroutines.runBlocking {
+                                    withTimeoutOrNull(30000) { channel.receive() }
+                                }
+                                if (event != null) {
+                                    if (event.event != null) writer.write("event: ${event.event}\n")
+                                    if (event.data != null) writer.write("data: ${event.data}\n")
+                                    writer.write("\n")
+                                    writer.flush()
+                                } else {
+                                    writer.write("event: heartbeat\ndata: ping\n\n")
+                                    writer.flush()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Client disconnected or channel closed
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.debug("[McpServer] SSE client disconnected from POST session $sessionId")
+                } finally {
+                    sessions.remove(sessionId)
+                    channel.close()
+                }
             }
 
             post("/messages") {
