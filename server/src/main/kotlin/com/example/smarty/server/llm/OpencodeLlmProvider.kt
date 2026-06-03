@@ -191,6 +191,14 @@ class OpencodeLlmProvider(
                             val contentType = response.headers["Content-Type"] ?: "unknown"
                             logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
 
+                            // If daemon returns JSON instead of SSE, treat the whole body as one message event
+                            if (contentType.contains("application/json", ignoreCase = true)) {
+                                val body = response.bodyAsText()
+                                logger.debug("[DAEMON_RAW_JSON][inference=$inferenceId] $body")
+                                flowCollector.processSseEvent("message", body, context)
+                                return@execute
+                            }
+
                             val channel = response.bodyAsChannel()
                             var currentEvent: String? = null
                             val currentData = StringBuilder()

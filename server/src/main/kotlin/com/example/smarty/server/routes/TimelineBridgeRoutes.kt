@@ -264,13 +264,16 @@ private fun translatePluginEvent(
                 val partObj = part as? JsonObject ?: continue
                 val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
                 
-                // Be aggressive: check all common content fields
-                val textContent = partObj["content"]?.jsonPrimitive?.contentOrNull
+                // Be aggressive: check all common content fields including nested delta (v1.15.13 parity)
+                val deltaObj = partObj["delta"] as? JsonObject
+                val textContent = deltaObj?.get("text")?.jsonPrimitive?.contentOrNull
+                    ?: partObj["content"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["text"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["message"]?.jsonPrimitive?.contentOrNull
                     ?: ""
                     
-                val reasoningContent = partObj["reasoning"]?.jsonPrimitive?.contentOrNull
+                val reasoningContent = deltaObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                    ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
                     ?: ""
 
@@ -282,6 +285,33 @@ private fun translatePluginEvent(
                             reasoningPartsFound++
                         }
                     }
+                    partType == "tool" -> {
+                        val toolName = partObj["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val callId = partObj["toolCallID"]?.jsonPrimitive?.contentOrNull ?: partObj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val state = partObj["state"]?.jsonPrimitive?.contentOrNull ?: "complete"
+                        val isMcp = partObj["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
+                        val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
+
+                        // Emit ToolStart and ToolEnd immediately for snapshots
+                        out += AgentEvent.ToolStart(
+                            eventId = eid(), timestamp = ts,
+                            toolId = callId, name = toolName,
+                            args = partObj["input"]?.toString(),
+                            isMcpTool = isMcp, isInteractive = isInteractive,
+                            inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
+                        )
+                        
+                        val outputStr = partObj["output"]?.toString()
+                        val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
+                        
+                        out += AgentEvent.ToolEnd(
+                            eventId = eid(), timestamp = ts,
+                            toolId = callId, result = outputStr, error = errorStr,
+                            isMcpTool = isMcp, isInteractive = isInteractive,
+                            success = errorStr == null, 
+                            outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
+                        )
+                    }
                     else -> {
                         if (textContent.isNotBlank()) {
                             combinedText += textContent
@@ -291,7 +321,7 @@ private fun translatePluginEvent(
                 }
             }
 
-            logger.debug("[TIMELINE] message.updated: Processed $textPartsFound text parts and $reasoningPartsFound reasoning parts")
+            logger.debug("[TIMELINE] message.updated: Processed $textPartsFound text and $reasoningPartsFound reasoning parts")
 
             val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
             val finalReasoning = (separateReasoning.toString() + thinkingFromText).trim()
@@ -304,7 +334,7 @@ private fun translatePluginEvent(
                 )
             }
             
-            // Only emit ResponseBlock if we actually have text or at least reasoning concluded
+            // Emit ResponseBlock for clean snapshot delivery
             if (cleanResponse.isNotBlank() || finalReasoning.isNotBlank()) {
                 out += AgentEvent.ResponseBlock(
                     eventId = eid(), timestamp = ts,
@@ -313,8 +343,6 @@ private fun translatePluginEvent(
                 )
             }
             
-            // NOTE: Do NOT emit Done here. The ServerAgent / AgentRunManager is the single
-            // source of truth for completion. Emitting Done here causes a race condition.
             cleanupContentState(pluginSessionId, currentMsgId)
         }
 
