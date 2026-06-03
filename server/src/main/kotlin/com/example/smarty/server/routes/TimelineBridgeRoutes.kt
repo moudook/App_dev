@@ -322,29 +322,121 @@ private fun translatePluginEvent(
                 }
             }
 
-            logger.debug("[TIMELINE] message.updated: Processed $textPartsFound text and $reasoningPartsFound reasoning parts")
+            // === Compute Deltas via accumulated state (skeleton-stream pattern) ===
+            val key = contentStateKey(pluginSessionId, currentMsgId)
+            val state = sessionContentStates.getOrPut(key) { MessageContentState() }
 
             val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
-            val finalReasoning = (separateReasoning.toString() + thinkingFromText).trim()
+            val fullReasoning = separateReasoning.toString()
+            val mergedReasoning = (fullReasoning + "\n" + thinkingFromText).trim()
 
-            if (finalReasoning.isNotBlank()) {
-                out += AgentEvent.ReasoningBlock(
+            val hasNewReasoning = mergedReasoning.length > state.lastSentReasoningLen
+            val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
+
+            if (hasNewReasoning || hasNewResponse) {
+                out += AgentEvent.StreamingActive(
                     eventId = eid(), timestamp = ts,
-                    sessionId = pluginSessionId, messageId = currentMsgId,
-                    partId = "snapshot-reasoning", content = finalReasoning
+                    sessionId = pluginSessionId, messageId = currentMsgId
                 )
+                if (hasNewReasoning || reasoningPartsFound > 0) {
+                    out += AgentEvent.ThinkingActive(
+                        eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId
+                    )
+                }
             }
-            
-            // Emit ResponseBlock for clean snapshot delivery
-            if (cleanResponse.isNotBlank() || finalReasoning.isNotBlank()) {
-                out += AgentEvent.ResponseBlock(
-                    eventId = eid(), timestamp = ts,
-                    sessionId = pluginSessionId, messageId = currentMsgId,
-                    content = if (cleanResponse.isNotBlank()) cleanResponse else " "
-                )
+
+            if (hasNewResponse) {
+                val delta = cleanResponse.substring(state.lastSentResponseLen)
+                state.textBuilder.append(delta)
+                state.lastSentResponseLen = cleanResponse.length
+                out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = delta)
             }
+
+            if (hasNewReasoning) {
+                val delta = mergedReasoning.substring(state.lastSentReasoningLen)
+                state.reasoningBuilder.append(delta)
+                state.lastSentReasoningLen = mergedReasoning.length
+                out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
+            }
+
+            logger.debug("[TIMELINE] message.updated: ${textPartsFound}text+${reasoningPartsFound}reasoning parts, reasoningDelta=${hasNewReasoning}, textDelta=${hasNewResponse}")
+
+            // Emit clean blocks only on final snapshot to avoid premature final content
+            val isFinalMessage = event["info"]?.jsonObject?.get("finish")?.jsonPrimitive?.contentOrNull == "stop"
             
+            if (isFinalMessage) {
+                if (mergedReasoning.isNotBlank()) {
+                    out += AgentEvent.ReasoningBlock(
+                        eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId,
+                        partId = "snapshot-reasoning", content = mergedReasoning
+                    )
+                }
+                if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
+                    out += AgentEvent.ResponseBlock(
+                        eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId,
+                        content = if (cleanResponse.isNotBlank()) cleanResponse else " "
+                    )
+                }
+                cleanupContentState(pluginSessionId, currentMsgId)
+            }
+        }
+
+        "message.completed" -> {
+            // Force final response blocks and cleanup
+            val key = contentStateKey(pluginSessionId, currentMsgId)
+            val state = sessionContentStates[key]
+            if (state != null) {
+                val fullReasoning = state.reasoningBuilder.toString()
+                val fullText = state.textBuilder.toString()
+                if (fullReasoning.isNotBlank()) {
+                    out += AgentEvent.ReasoningBlock(
+                        eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId,
+                        partId = "snapshot-reasoning", content = fullReasoning
+                    )
+                }
+                if (fullText.isNotBlank() || fullReasoning.isNotBlank()) {
+                    out += AgentEvent.ResponseBlock(
+                        eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId,
+                        content = if (fullText.isNotBlank()) fullText else " "
+                    )
+                }
+            }
             cleanupContentState(pluginSessionId, currentMsgId)
+        }
+
+        "tool.before" -> {
+            val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+            val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
+            val isMcp = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
+            val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
+            out += AgentEvent.ToolStart(
+                eventId = eid(), timestamp = ts,
+                toolId = callId, name = toolName,
+                args = event["args"]?.toString(),
+                isMcpTool = isMcp, isInteractive = isInteractive,
+                inputSummary = buildInputSummary(toolName, event["args"]?.jsonObject)
+            )
+        }
+
+        "tool.after" -> {
+            val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+            val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
+            val isMcp = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
+            val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
+            val result = event["result"]?.toString()
+            val error = event["error"]?.toString()
+            out += AgentEvent.ToolEnd(
+                eventId = eid(), timestamp = ts,
+                toolId = callId, result = result, error = error,
+                isMcpTool = isMcp, isInteractive = isInteractive,
+                success = error == null,
+                outputSummary = summarizeOutput(error ?: result, toolName) ?: ""
+            )
         }
 
         "session.idle" -> {

@@ -1890,10 +1890,9 @@ class ChatFeatureManager(
                     Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
                     when (event) {
 
-                        // ── Skeleton events ─────────────────────────────────
+                        // ── Skeleton events ──────────────────────────────────────────────
                         is AgentEvent.ThinkingActive -> {
                             isThinkingActive = true
-                            isStreamingActive = false
                             pushSkeleton()
                         }
 
@@ -1914,25 +1913,22 @@ class ChatFeatureManager(
                             pushBlocks()
                         }
 
-                        // ── Legacy backward-compat streaming deltas ─────────
-                        // These only drive skeleton state; actual content waits for blocks
+                        // ── Legacy backward-compat streaming deltas ───────────────
+                        // These drive skeleton state; actual content waits for blocks.
                         is AgentEvent.TextDelta -> {
                             fallbackTextBuilder.append(event.text)
                             if (!isStreamingActive && finalResponseText.isEmpty()) {
                                 isStreamingActive = true
-                                pushSkeleton()
                             }
-                            pushBlocks()
+                            pushSkeleton()
                         }
 
                         is AgentEvent.ReasoningDelta -> {
                             fallbackThinkingBuilder.append(event.text)
                             if (!isThinkingActive && finalReasoningText.isEmpty()) {
                                 isThinkingActive = true
-                                isStreamingActive = false
-                                pushSkeleton()
                             }
-                            pushBlocks()
+                            pushSkeleton()
                         }
 
                         // ── Tool events (real-time, clean) ──────────────────
@@ -1987,24 +1983,34 @@ class ChatFeatureManager(
 
                         // ── Step markers ────────────────────────────────────
                         is AgentEvent.StepStart -> {
-                            val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
-                                stepType = "tool_call",
-                                stepTitle = event.title,
-                                stepContent = "",
-                                stepStatus = "started",
-                                stepIndex = collectedAgentSteps.size,
-                            )
-                            collectedAgentSteps.add(uiStep)
+                            val existingIndex = collectedAgentSteps.indexOfFirst { it.stepTitle == event.title }
+                            if (existingIndex >= 0) {
+                                // Already exists, just ensure it's started
+                                val existing = collectedAgentSteps[existingIndex]
+                                if (existing.stepStatus != "completed" && existing.stepStatus != "failed") {
+                                    collectedAgentSteps[existingIndex] = existing.copy(stepStatus = "started")
+                                }
+                            } else {
+                                val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "tool_call",
+                                    stepTitle = event.title,
+                                    stepContent = "",
+                                    stepStatus = "started",
+                                    stepIndex = collectedAgentSteps.size,
+                                )
+                                collectedAgentSteps.add(uiStep)
+                            }
                             pushSkeleton()
                         }
 
                         is AgentEvent.StepEnd -> {
-                            if (collectedAgentSteps.isNotEmpty()) {
-                                val lastIdx = collectedAgentSteps.lastIndex
-                                val updated = collectedAgentSteps[lastIdx].copy(
+                            // Find the step by matching title, or just update the last one if we can't find it (legacy behavior)
+                            val targetIndex = if (collectedAgentSteps.isNotEmpty()) collectedAgentSteps.lastIndex else -1
+                            if (targetIndex >= 0) {
+                                val updated = collectedAgentSteps[targetIndex].copy(
                                     stepStatus = if (event.success) "completed" else "failed",
                                 )
-                                collectedAgentSteps[lastIdx] = updated
+                                collectedAgentSteps[targetIndex] = updated
                             }
                             pushSkeleton()
                         }
