@@ -563,13 +563,9 @@ class ChatQueryDispatcher(
                             pushSkeleton()
                         }
                         is AgentEvent.StepStart -> {
-                            val existingEntry = collectedAgentSteps.entries.find { it.value.stepTitle == event.title }
+                            val existingEntry = collectedAgentSteps.entries.find { it.value.stepTitle == event.title && it.value.stepStatus == "started" }
                             if (existingEntry != null) {
-                                val key = existingEntry.key
-                                val existing = existingEntry.value
-                                if (existing.stepStatus != "completed" && existing.stepStatus != "failed") {
-                                    collectedAgentSteps[key] = existing.copy(stepStatus = "started")
-                                }
+                                // Already started, keep it as is
                             } else {
                                 val stepIdx = collectedAgentSteps.size
                                 val isThinking = event.title.equals("Thinking", ignoreCase = true)

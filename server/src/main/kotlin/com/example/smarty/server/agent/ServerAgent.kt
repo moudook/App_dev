@@ -241,7 +241,7 @@ class ServerAgent(
                 // Note: daemonQuestion interception removed. McpServer.kt handles ask_user for OpenCode daemon.
 
                 // 4. Tool call detected — execute and loop
-                if (hasNativeToolCall && llmProvider.providerName != "opencode") {
+                if (hasNativeToolCall && llmProvider.providerName != "OpenCode CLI") {
                     val toolName = streamProcessor.currentToolName
                     val toolArgs = streamProcessor.currentToolArgs
 
