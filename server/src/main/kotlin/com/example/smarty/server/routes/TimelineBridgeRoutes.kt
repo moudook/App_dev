@@ -117,10 +117,8 @@ private fun translatePluginEvent(
                 val rawText: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("text")?.jsonPrimitive?.contentOrNull
                         ?: (event["delta"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
-                        ?: (event["delta"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["text"]?.jsonPrimitive?.contentOrNull
                         ?: event["content"]?.jsonPrimitive?.contentOrNull
-                        ?: event["message"]?.jsonPrimitive?.contentOrNull
                     fromDelta ?: fromEvent ?: ""
                 }
                 val rawReasoning: String = run {
@@ -128,7 +126,7 @@ private fun translatePluginEvent(
                         ?: (event["delta"] as? JsonObject)?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["reasoning"]?.jsonPrimitive?.contentOrNull
                         ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
-                    val fromTextFallback = if (partType == "reasoning") rawText else null
+                    val fromTextFallback = if (partType == "reasoning") event["text"]?.jsonPrimitive?.contentOrNull else null
                     fromDelta ?: fromEvent ?: fromTextFallback ?: ""
                 }
                 
@@ -143,7 +141,6 @@ private fun translatePluginEvent(
                     out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                 }
 
-                // If this was purely a reasoning update, we might not have 'rawText' content for splitThinkTags
                 if (rawText.isNotEmpty() && rawText != rawReasoning) {
                     val partKey = "$pluginSessionId:$partId"
                     val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
@@ -193,12 +190,12 @@ private fun translatePluginEvent(
                             inputSummary = buildInputSummary(toolName, event["input"]?.jsonObject)
                         )
                     }
-                    "complete" -> {
+                    "complete", "completed" -> {
                         out += AgentEvent.ToolEnd(
                             eventId = eid(), timestamp = ts,
                             toolId = callId, result = event["output"]?.toString(),
                             isMcpTool = isMcp, isInteractive = isInteractive,
-                            success = true, outputSummary = summarizeOutput(event["output"]?.jsonPrimitive?.contentOrNull, toolName) ?: ""
+                            success = true, outputSummary = summarizeOutput(event["output"]?.toString(), toolName) ?: ""
                         )
                     }
                     "error" -> {
@@ -235,12 +232,10 @@ private fun translatePluginEvent(
         }
 
         "message.updated" -> {
-            // Robust parts extraction: handle multiple possible nested structures in OpenCode payloads
             val parts = run {
                 val p = event["parts"]
                 val mParts = (event["message"] as? JsonObject)?.get("parts")
                 val iParts = (event["info"] as? JsonObject)?.get("parts")
-                
                 when {
                     p is JsonArray -> p
                     p is JsonObject && p["parts"] is JsonArray -> p["parts"] as JsonArray
@@ -250,29 +245,26 @@ private fun translatePluginEvent(
                     else -> null
                 }
             }
-            
             if (parts == null) {
-                logger.warn("[TIMELINE] message.updated: No parts found in payload keys (parts, message.parts, info.parts). Raw event: $event")
+                logger.warn("[TIMELINE] message.updated: No parts in session=$pluginSessionId msg=$currentMsgId")
                 return out
             }
 
+            val isFinalMessage = event["info"]?.jsonObject?.get("finish")?.jsonPrimitive?.contentOrNull == "stop"
+
             var combinedText = ""
             val separateReasoning = StringBuilder()
-            var textPartsFound = 0
-            var reasoningPartsFound = 0
+            var toolFound = false
 
             for (part in parts) {
                 val partObj = part as? JsonObject ?: continue
                 val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
-                
-                // Be aggressive: check all common content fields including nested delta (v1.15.13 parity)
                 val deltaObj = partObj["delta"] as? JsonObject
                 val textContent = deltaObj?.get("text")?.jsonPrimitive?.contentOrNull
                     ?: partObj["content"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["text"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["message"]?.jsonPrimitive?.contentOrNull
                     ?: ""
-                    
                 val reasoningContent = deltaObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
                     ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
                     ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
@@ -281,48 +273,25 @@ private fun translatePluginEvent(
                 when {
                     partType == "reasoning" || reasoningContent.isNotEmpty() -> {
                         val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
-                        if (r.isNotBlank()) {
-                            separateReasoning.append(r).append("\n")
-                            reasoningPartsFound++
-                        }
+                        if (r.isNotBlank()) { separateReasoning.append(r).append("\n") }
                     }
-                    partType == "tool" -> {
-                        val toolName = partObj["tool"]?.jsonPrimitive?.contentOrNull ?: ""
-                        val callId = partObj["toolCallID"]?.jsonPrimitive?.contentOrNull ?: partObj["id"]?.jsonPrimitive?.contentOrNull ?: ""
-                        val state = partObj["state"]?.jsonPrimitive?.contentOrNull ?: "complete"
-                        val isMcp = partObj["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
-                        val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
-
-                        // Emit ToolStart and ToolEnd immediately for snapshots
-                        out += AgentEvent.ToolStart(
-                            eventId = eid(), timestamp = ts,
-                            toolId = callId, name = toolName,
-                            args = partObj["input"]?.toString(),
-                            isMcpTool = isMcp, isInteractive = isInteractive,
-                            inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
-                        )
-                        
-                        val outputStr = partObj["output"]?.toString()
-                        val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
-                        
-                        out += AgentEvent.ToolEnd(
-                            eventId = eid(), timestamp = ts,
-                            toolId = callId, result = outputStr, error = errorStr,
-                            isMcpTool = isMcp, isInteractive = isInteractive,
-                            success = errorStr == null, 
-                            outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
-                        )
+                    partType == "tool" -> { extractToolFromPart(partObj, ts, eid, out); toolFound = true }
+                    partType == "step-start" -> {
+                        out += AgentEvent.StepStart(eventId = eid(), timestamp = ts,
+                            title = partObj["title"]?.jsonPrimitive?.contentOrNull ?: "Step ${partObj["step"]?.jsonPrimitive?.intOrNull ?: 0}",
+                            stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: 0, messageId = currentMsgId)
                     }
-                    else -> {
-                        if (textContent.isNotBlank()) {
-                            combinedText += textContent
-                            textPartsFound++
-                        }
+                    partType == "step-finish" -> {
+                        out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts,
+                            success = partObj["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true,
+                            stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: -1,
+                            cost = partObj["cost"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
                     }
+                    else -> { if (textContent.isNotBlank()) combinedText += textContent }
                 }
             }
 
-            // === Compute Deltas via accumulated state (skeleton-stream pattern) ===
+            // Delta computation via accumulated state (skeleton-stream pattern)
             val key = contentStateKey(pluginSessionId, currentMsgId)
             val state = sessionContentStates.getOrPut(key) { MessageContentState() }
 
@@ -333,16 +302,12 @@ private fun translatePluginEvent(
             val hasNewReasoning = mergedReasoning.length > state.lastSentReasoningLen
             val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
 
-            if (hasNewReasoning || hasNewResponse) {
-                out += AgentEvent.StreamingActive(
-                    eventId = eid(), timestamp = ts,
-                    sessionId = pluginSessionId, messageId = currentMsgId
-                )
-                if (hasNewReasoning || reasoningPartsFound > 0) {
-                    out += AgentEvent.ThinkingActive(
-                        eventId = eid(), timestamp = ts,
-                        sessionId = pluginSessionId, messageId = currentMsgId
-                    )
+            if (hasNewReasoning || hasNewResponse || toolFound) {
+                out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
+                    sessionId = pluginSessionId, messageId = currentMsgId)
+                if (hasNewReasoning) {
+                    out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts,
+                        sessionId = pluginSessionId, messageId = currentMsgId)
                 }
             }
 
@@ -352,7 +317,6 @@ private fun translatePluginEvent(
                 state.lastSentResponseLen = cleanResponse.length
                 out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = delta)
             }
-
             if (hasNewReasoning) {
                 val delta = mergedReasoning.substring(state.lastSentReasoningLen)
                 state.reasoningBuilder.append(delta)
@@ -360,87 +324,51 @@ private fun translatePluginEvent(
                 out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
             }
 
-            logger.debug("[TIMELINE] message.updated: ${textPartsFound}text+${reasoningPartsFound}reasoning parts, reasoningDelta=${hasNewReasoning}, textDelta=${hasNewResponse}")
-
-            // Emit clean blocks only on final snapshot to avoid premature final content
-            val isFinalMessage = event["info"]?.jsonObject?.get("finish")?.jsonPrimitive?.contentOrNull == "stop"
-            
+            // Emit final blocks only on the snapshot with info.finish == "stop"
             if (isFinalMessage) {
                 if (mergedReasoning.isNotBlank()) {
-                    out += AgentEvent.ReasoningBlock(
-                        eventId = eid(), timestamp = ts,
+                    out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId,
-                        partId = "snapshot-reasoning", content = mergedReasoning
-                    )
+                        partId = "snapshot-reasoning", content = mergedReasoning)
                 }
                 if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
-                    out += AgentEvent.ResponseBlock(
-                        eventId = eid(), timestamp = ts,
+                    out += AgentEvent.ResponseBlock(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId,
-                        content = if (cleanResponse.isNotBlank()) cleanResponse else " "
-                    )
+                        content = if (cleanResponse.isNotBlank()) cleanResponse else " ")
                 }
                 cleanupContentState(pluginSessionId, currentMsgId)
             }
         }
 
         "message.completed" -> {
-            // Force final response blocks and cleanup
-            val key = contentStateKey(pluginSessionId, currentMsgId)
-            val state = sessionContentStates[key]
-            if (state != null) {
-                val fullReasoning = state.reasoningBuilder.toString()
-                val fullText = state.textBuilder.toString()
-                if (fullReasoning.isNotBlank()) {
-                    out += AgentEvent.ReasoningBlock(
-                        eventId = eid(), timestamp = ts,
-                        sessionId = pluginSessionId, messageId = currentMsgId,
-                        partId = "snapshot-reasoning", content = fullReasoning
-                    )
-                }
-                if (fullText.isNotBlank() || fullReasoning.isNotBlank()) {
-                    out += AgentEvent.ResponseBlock(
-                        eventId = eid(), timestamp = ts,
-                        sessionId = pluginSessionId, messageId = currentMsgId,
-                        content = if (fullText.isNotBlank()) fullText else " "
-                    )
-                }
-            }
             cleanupContentState(pluginSessionId, currentMsgId)
         }
 
         "tool.before" -> {
             val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
             val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
-            val isMcp = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
-            val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
-            out += AgentEvent.ToolStart(
-                eventId = eid(), timestamp = ts,
+            out += AgentEvent.ToolStart(eventId = eid(), timestamp = ts,
                 toolId = callId, name = toolName,
                 args = event["args"]?.toString(),
-                isMcpTool = isMcp, isInteractive = isInteractive,
-                inputSummary = buildInputSummary(toolName, event["args"]?.jsonObject)
-            )
+                isMcpTool = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
+                inputSummary = buildInputSummary(toolName, event["args"]?.jsonObject))
         }
 
         "tool.after" -> {
             val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
             val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
-            val isMcp = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
-            val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
             val result = event["result"]?.toString()
             val error = event["error"]?.toString()
-            out += AgentEvent.ToolEnd(
-                eventId = eid(), timestamp = ts,
+            out += AgentEvent.ToolEnd(eventId = eid(), timestamp = ts,
                 toolId = callId, result = result, error = error,
-                isMcpTool = isMcp, isInteractive = isInteractive,
+                isMcpTool = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
                 success = error == null,
-                outputSummary = summarizeOutput(error ?: result, toolName) ?: ""
-            )
+                outputSummary = summarizeOutput(error ?: result, toolName) ?: "")
         }
 
         "session.idle" -> {
-            // Delay cleanup to catch late-arriving final snapshots
             bridgeScope.launch {
                 delay(3000) 
                 val prefix = "$pluginSessionId:"
@@ -450,6 +378,32 @@ private fun translatePluginEvent(
         }
     }
     return out
+}
+
+private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String, out: MutableList<AgentEvent>) {
+    val toolName = partObj["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+    val callId = partObj["toolCallID"]?.jsonPrimitive?.contentOrNull ?: partObj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+    val isMcp = partObj["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
+    val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
+
+    out += AgentEvent.ToolStart(
+        eventId = eid(), timestamp = ts,
+        toolId = callId, name = toolName,
+        args = partObj["input"]?.toString(),
+        isMcpTool = isMcp, isInteractive = isInteractive,
+        inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
+    )
+    
+    val outputStr = partObj["output"]?.toString()
+    val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
+    
+    out += AgentEvent.ToolEnd(
+        eventId = eid(), timestamp = ts,
+        toolId = callId, result = outputStr, error = errorStr,
+        isMcpTool = isMcp, isInteractive = isInteractive,
+        success = errorStr == null, 
+        outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
+    )
 }
 
 private fun splitThinkTags(text: String): Pair<String, String> {
@@ -509,7 +463,7 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
     if (args == null) return ""
     return when (toolName.lowercase()) {
         "websearch", "web_search" -> args["query"]?.jsonPrimitive?.contentOrNull?.let { "Search: \"$it\"" } ?: ""
-        "bash" -> args["command"]?.jsonPrimitive?.contentOrNull?.let { cmd -> if (cmd.length > 60) "$ ${cmd.take(57)}ΓÇª" else "$ $cmd" } ?: ""
+        "bash" -> args["command"]?.jsonPrimitive?.contentOrNull?.let { cmd -> if (cmd.length > 60) "$ ${cmd.take(57)}…" else "$ $cmd" } ?: ""
         else -> args.entries.firstOrNull { it.value is JsonPrimitive }?.let { (k, v) -> "$k: ${v.jsonPrimitive.content.take(50)}" } ?: ""
     }
 }
@@ -517,7 +471,7 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
 private fun summarizeOutput(result: String?, toolName: String): String? {
     if (result == null || result == "null") return null
     val clean = result.trim()
-    return if (clean.length <= 120) clean else "${clean.take(117)}ΓÇª"
+    return if (clean.length <= 120) clean else "${clean.take(117)}…"
 }
 
 object TimelineBridgeService {

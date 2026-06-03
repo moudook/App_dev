@@ -1818,7 +1818,7 @@ class ChatFeatureManager(
             var finalResponseText = ""
             val pendingToolCallsMap = LinkedHashMap<String, AgentToolCallEntry>()
             val orderedToolCallIds = mutableListOf<String>()
-            val collectedAgentSteps = mutableListOf<com.example.smarty.core.domain.model.AgentStepEntry>()
+            val collectedAgentSteps = LinkedHashMap<Int, com.example.smarty.core.domain.model.AgentStepEntry>()
             val agentEventsBuilder = mutableListOf<com.example.smarty.protocol.AgentEvent>()
 
             // Backward-compat accumulators (used ONLY if clean blocks never arrive)
@@ -1827,6 +1827,9 @@ class ChatFeatureManager(
 
             fun currentToolCalls(): List<AgentToolCallEntry> =
                 orderedToolCallIds.mapNotNull { pendingToolCallsMap[it] }
+
+            fun currentSteps(): List<com.example.smarty.core.domain.model.AgentStepEntry> =
+                collectedAgentSteps.values.sortedBy { it.stepIndex }
 
             fun pushSkeleton() {
                 val currentText = fallbackTextBuilder.toString()
@@ -1840,7 +1843,7 @@ class ChatFeatureManager(
                         content = currentText,
                         thinking = currentThinking.ifEmpty { null },
                         toolCalls = currentToolCalls(),
-                        steps = collectedAgentSteps.toList(),
+                        steps = currentSteps(),
                         agentEvents = agentEventsBuilder.toList(),
                     )
                 }
@@ -1983,34 +1986,36 @@ class ChatFeatureManager(
 
                         // ── Step markers ────────────────────────────────────
                         is AgentEvent.StepStart -> {
-                            val existingIndex = collectedAgentSteps.indexOfFirst { it.stepTitle == event.title }
-                            if (existingIndex >= 0) {
-                                // Already exists, just ensure it's started
-                                val existing = collectedAgentSteps[existingIndex]
+                            val existingEntry = collectedAgentSteps.entries.find { it.value.stepTitle == event.title }
+                            if (existingEntry != null) {
+                                val key = existingEntry.key
+                                val existing = existingEntry.value
                                 if (existing.stepStatus != "completed" && existing.stepStatus != "failed") {
-                                    collectedAgentSteps[existingIndex] = existing.copy(stepStatus = "started")
+                                    collectedAgentSteps[key] = existing.copy(stepStatus = "started")
                                 }
                             } else {
+                                val stepIdx = collectedAgentSteps.size
                                 val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
                                     stepType = "tool_call",
                                     stepTitle = event.title,
                                     stepContent = "",
                                     stepStatus = "started",
-                                    stepIndex = collectedAgentSteps.size,
+                                    stepIndex = stepIdx,
                                 )
-                                collectedAgentSteps.add(uiStep)
+                                collectedAgentSteps[stepIdx] = uiStep
                             }
                             pushSkeleton()
                         }
 
                         is AgentEvent.StepEnd -> {
-                            // Find the step by matching title, or just update the last one if we can't find it (legacy behavior)
-                            val targetIndex = if (collectedAgentSteps.isNotEmpty()) collectedAgentSteps.lastIndex else -1
-                            if (targetIndex >= 0) {
-                                val updated = collectedAgentSteps[targetIndex].copy(
-                                    stepStatus = if (event.success) "completed" else "failed",
-                                )
-                                collectedAgentSteps[targetIndex] = updated
+                            val targetKey = if (collectedAgentSteps.isNotEmpty()) collectedAgentSteps.keys.maxOrNull() ?: -1 else -1
+                            if (targetKey >= 0) {
+                                val existing = collectedAgentSteps[targetKey]
+                                if (existing != null) {
+                                    collectedAgentSteps[targetKey] = existing.copy(
+                                        stepStatus = if (event.success) "completed" else "failed",
+                                    )
+                                }
                             }
                             pushSkeleton()
                         }
@@ -2172,7 +2177,7 @@ class ChatFeatureManager(
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = currentToolCalls(),
-                    agentSteps = collectedAgentSteps.toList(),
+                    agentSteps = collectedAgentSteps.values.toList(),
                     citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },
                     inlineImages = pendingInlineImages.toList(),
                     isStreaming = false,
@@ -2186,7 +2191,7 @@ class ChatFeatureManager(
 
             if (collectedAgentSteps.isNotEmpty()) {
                 try {
-                    chatRepository.saveAgentSteps(streamingMessageId, collectedAgentSteps)
+                    chatRepository.saveAgentSteps(streamingMessageId, collectedAgentSteps.values.toList())
                 } catch (dbEx: Exception) {
                     Log.w(TAG, "Failed to persist agent steps: ${dbEx.message}")
                 }
