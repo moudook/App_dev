@@ -28,8 +28,14 @@ fun Application.configureTimelineBridgeRoutes() {
 
             try {
                 val event = Json.parseToJsonElement(body).jsonObject
-                val kind = event["kind"]?.jsonPrimitive?.content ?: "unknown"
-                val sessionID = event["sessionID"]?.jsonPrimitive?.content ?: "no-session"
+                val kind = event["type"]?.jsonPrimitive?.content 
+                    ?: event["kind"]?.jsonPrimitive?.content 
+                    ?: "unknown"
+                
+                val sessionID = event["sessionID"]?.jsonPrimitive?.content 
+                    ?: event["properties"]?.jsonObject?.get("message")?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
+                    ?: event["message"]?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
+                    ?: "no-session"
 
                 bridge.ingest(kind, sessionID, event, ts)
 
@@ -95,9 +101,11 @@ private fun translatePluginEvent(
     val out = mutableListOf<AgentEvent>()
     val eid = { UUID.randomUUID().toString() }
     
+    val payload = event["properties"]?.jsonObject ?: event
+    
     val currentMsgId: String = event["messageID"]?.jsonPrimitive?.contentOrNull
-        ?: runCatching { event["info"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
-        ?: runCatching { event["message"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
+        ?: runCatching { payload["info"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
+        ?: runCatching { payload["message"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull }.getOrNull()
         ?: ""
 
     when (kind) {
@@ -236,9 +244,9 @@ private fun translatePluginEvent(
 
         "message.updated" -> {
             val parts = run {
-                val p = event["parts"]
-                val mParts = (event["message"] as? JsonObject)?.get("parts")
-                val iParts = (event["info"] as? JsonObject)?.get("parts")
+                val p = payload["parts"] ?: event["parts"]
+                val mParts = (payload["message"] as? JsonObject)?.get("parts")
+                val iParts = (payload["info"] as? JsonObject)?.get("parts")
                 when {
                     p is JsonArray -> p
                     p is JsonObject && p["parts"] is JsonArray -> p["parts"] as JsonArray
@@ -251,11 +259,12 @@ private fun translatePluginEvent(
 
             val isFinalMessage = run {
                 // OpenCode v1.15.x puts finish in different places depending on version
-                val topLevel = event["finish"]?.jsonPrimitive?.contentOrNull
-                val inInfo = (event["info"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
-                val inMessage = (event["message"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
-                val inInfoTime = (event["info"] as? JsonObject)?.get("time")?.jsonObject?.get("completed")?.jsonPrimitive?.longOrNull != null
-                topLevel == "stop" || inInfo == "stop" || inMessage == "stop" || inInfoTime
+                val topLevel = event["finish"]?.jsonPrimitive?.contentOrNull ?: payload["finish"]?.jsonPrimitive?.contentOrNull
+                val inInfo = (payload["info"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
+                val inMessage = (payload["message"] as? JsonObject)?.get("finish")?.jsonPrimitive?.contentOrNull
+                val inInfoTime = (payload["info"] as? JsonObject)?.get("time")?.jsonObject?.get("completed")?.jsonPrimitive?.longOrNull != null
+                val inMessageSummary = (payload["message"] as? JsonObject)?.get("summary") != null // if it has a summary, it's done
+                topLevel == "stop" || inInfo == "stop" || inMessage == "stop" || inInfoTime || inMessageSummary
             }
 
             var combinedText = ""
@@ -264,8 +273,8 @@ private fun translatePluginEvent(
 
             if (parts == null) {
                 logger.warn("[TIMELINE] message.updated: No parts in session=$pluginSessionId msg=$currentMsgId. RAW EVENT: $event")
-                val msgContent = (event["message"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
-                val infoContent = (event["info"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                val msgContent = (payload["message"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                val infoContent = (payload["info"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
                 combinedText = msgContent ?: infoContent ?: ""
                 
                 if (combinedText.isEmpty()) {
@@ -388,25 +397,25 @@ private fun translatePluginEvent(
             cleanupContentState(pluginSessionId, currentMsgId)
         }
 
-        "tool.before" -> {
-            val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
-            val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
+        "tool.before", "tool.execute.before" -> {
+            val toolName = payload["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+            val callId = payload["callID"]?.jsonPrimitive?.contentOrNull ?: ""
             out += AgentEvent.ToolStart(eventId = eid(), timestamp = ts,
                 toolId = callId, name = toolName,
-                args = event["args"]?.toString(),
-                isMcpTool = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                args = payload["args"]?.toString() ?: payload["input"]?.toString(),
+                isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
                 isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
-                inputSummary = buildInputSummary(toolName, event["args"]?.jsonObject))
+                inputSummary = buildInputSummary(toolName, payload["args"]?.jsonObject ?: payload["input"]?.jsonObject))
         }
 
-        "tool.after" -> {
-            val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""
-            val callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: ""
-            val result = event["result"]?.toString()
-            val error = event["error"]?.toString()
+        "tool.after", "tool.execute.after" -> {
+            val toolName = payload["tool"]?.jsonPrimitive?.contentOrNull ?: ""
+            val callId = payload["callID"]?.jsonPrimitive?.contentOrNull ?: ""
+            val result = payload["result"]?.toString() ?: payload["output"]?.toString()
+            val error = payload["error"]?.toString()
             out += AgentEvent.ToolEnd(eventId = eid(), timestamp = ts,
                 toolId = callId, result = result, error = error,
-                isMcpTool = event["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
                 isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
                 success = error == null,
                 outputSummary = summarizeOutput(error ?: result, toolName) ?: "")
