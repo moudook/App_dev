@@ -114,8 +114,14 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
           info: event.properties.info,
           ts: Date.now(),
         }
-        const rawParts = (event.properties as any).parts ?? (event.properties.info as any)?.parts ?? (event.properties.message as any)?.parts
-        if (rawParts) payload.parts = rawParts
+        let rawParts = (event.properties as any).parts ?? (event.properties.info as any)?.parts ?? (event.properties.message as any)?.parts
+        if (rawParts) {
+            if (!Array.isArray(rawParts) && typeof rawParts === "object") {
+                payload.parts = Object.values(rawParts)
+            } else {
+                payload.parts = rawParts
+            }
+        }
         emit(payload)
       }
 

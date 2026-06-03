@@ -244,6 +244,7 @@ private fun translatePluginEvent(
                 when {
                     p is JsonArray -> p
                     p is JsonObject && p["parts"] is JsonArray -> p["parts"] as JsonArray
+                    p is JsonObject -> JsonArray(p.values.toList())
                     mParts is JsonArray -> mParts
                     iParts is JsonArray -> iParts
                     else -> null
@@ -251,7 +252,7 @@ private fun translatePluginEvent(
             }
             
             if (parts == null) {
-                logger.warn("[TIMELINE] message.updated: No parts found in payload keys (parts, message.parts, info.parts)")
+                logger.warn("[TIMELINE] message.updated: No parts found in payload keys (parts, message.parts, info.parts). Raw event: $event")
                 return out
             }
 
@@ -416,7 +417,7 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
     if (args == null) return ""
     return when (toolName.lowercase()) {
         "websearch", "web_search" -> args["query"]?.jsonPrimitive?.contentOrNull?.let { "Search: \"$it\"" } ?: ""
-        "bash" -> args["command"]?.jsonPrimitive?.contentOrNull?.let { cmd -> if (cmd.length > 60) "$ ${cmd.take(57)}…" else "$ $cmd" } ?: ""
+        "bash" -> args["command"]?.jsonPrimitive?.contentOrNull?.let { cmd -> if (cmd.length > 60) "$ ${cmd.take(57)}ΓÇª" else "$ $cmd" } ?: ""
         else -> args.entries.firstOrNull { it.value is JsonPrimitive }?.let { (k, v) -> "$k: ${v.jsonPrimitive.content.take(50)}" } ?: ""
     }
 }
@@ -424,7 +425,7 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
 private fun summarizeOutput(result: String?, toolName: String): String? {
     if (result == null || result == "null") return null
     val clean = result.trim()
-    return if (clean.length <= 120) clean else "${clean.take(117)}…"
+    return if (clean.length <= 120) clean else "${clean.take(117)}ΓÇª"
 }
 
 object TimelineBridgeService {

@@ -198,4 +198,16 @@ sealed class AgentEvent {
         override val timestamp: Long,
         val sessionId: String,
     ) : AgentEvent()
+
+    @Serializable
+    @SerialName("unknown")
+    data class Unknown(
+        override val eventId: String,
+        override val timestamp: Long,
+        val sessionId: String,
+        val messageId: String,
+        val kind: String,
+        val message: String,
+        val raw: kotlinx.serialization.json.JsonElement,
+    ) : AgentEvent()
 }

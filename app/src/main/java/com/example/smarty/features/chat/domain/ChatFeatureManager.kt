@@ -2124,6 +2124,10 @@ class ChatFeatureManager(
                         is AgentEvent.CompactionMarker -> {
                             // Context compaction — not rendered in chat list
                         }
+
+                        is AgentEvent.Unknown -> {
+                            Log.w(TAG, ">>> UNKNOWN_EVENT: kind=${event.kind}, message=${event.message}")
+                        }
                     }
                 }
 
