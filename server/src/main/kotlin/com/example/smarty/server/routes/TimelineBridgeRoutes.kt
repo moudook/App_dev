@@ -478,10 +478,8 @@ private fun translatePluginEvent(
         }
 
         "session.idle" -> {
-            partTextLengths.keys.removeAll { it.startsWith("$sessionId:") }
-            // ... (rest of the logic)
-            // Clean up all message states for this session
             val prefix = "$sessionId:"
+            partTextLengths.keys.removeAll { it.startsWith(prefix) }
             sessionContentStates.keys.removeAll { it.startsWith(prefix) }
             out += AgentEvent.Done(eventId = eid(), timestamp = ts)
         }

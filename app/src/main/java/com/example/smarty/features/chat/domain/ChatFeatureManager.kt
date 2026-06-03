@@ -1918,7 +1918,7 @@ class ChatFeatureManager(
                         // These only drive skeleton state; actual content waits for blocks
                         is AgentEvent.TextDelta -> {
                             fallbackTextBuilder.append(event.text)
-                            if (!isStreamingActive) {
+                            if (!isStreamingActive && finalResponseText.isEmpty()) {
                                 isStreamingActive = true
                                 pushSkeleton()
                             }
@@ -1927,7 +1927,7 @@ class ChatFeatureManager(
 
                         is AgentEvent.ReasoningDelta -> {
                             fallbackThinkingBuilder.append(event.text)
-                            if (!isThinkingActive) {
+                            if (!isThinkingActive && finalReasoningText.isEmpty()) {
                                 isThinkingActive = true
                                 isStreamingActive = false
                                 pushSkeleton()
