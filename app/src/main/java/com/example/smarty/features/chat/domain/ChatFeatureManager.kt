@@ -1965,12 +1965,27 @@ class ChatFeatureManager(
             val parsedResponse = ThinkingParser.parse(fullResponse)
 
             val streamingMsg = chatManager.chatMessages.value.find { it.id == streamingMessageId }
+
+            // If ThinkingParser extracted reasoning from text (heuristic) AND
+            // thinkingBuilder is empty (no ReasoningDelta events received from daemon),
+            // use the extracted reasoning. This handles the case where the daemon sends
+            // reasoning as field:"text" deltas instead of field:"reasoning" deltas.
+            val finalThinking = thinkingBuilder.toString().ifEmpty {
+                parsedResponse.thinking ?: streamingMsg?.thinking
+            }
+            val finalContent = if (thinkingBuilder.isEmpty() && parsedResponse.thinking != null) {
+                // Reasoning was extracted from text — use the clean answer
+                parsedResponse.answer
+            } else {
+                parsedResponse.answer
+            }
+
             val smartyMessage =
                 ChatMessage(
                     id = streamingMessageId,
                     role = ChatRole.SMARTY,
-                    content = parsedResponse.answer.ifEmpty { "[No response received. Please try again.]" },
-                    thinking = thinkingBuilder.toString().ifEmpty { streamingMsg?.thinking },
+                    content = finalContent.ifEmpty { "[No response received. Please try again.]" },
+                    thinking = finalThinking,
                     timestamp = System.currentTimeMillis(),
                     executedActions = pendingActions.toList(),
                     toolCalls = pendingToolCalls.toList(),
