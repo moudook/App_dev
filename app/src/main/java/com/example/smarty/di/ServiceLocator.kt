@@ -302,7 +302,11 @@ object ServiceLocator {
                             },
                         )
                     }
-                    install(WebSockets)
+                    install(WebSockets) {
+                        // 20s ping keeps the socket alive through Android network switches
+                        // (WiFi→Cellular, Doze mode). A missed pong reveals silent half-open sockets.
+                        pingIntervalMillis = 20_000L
+                    }
                 }.also { httpClient = it }
         }
 

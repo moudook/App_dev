@@ -225,9 +225,10 @@ class RemoteAgentService(
                                             }
                                             seenEventIds.add(eventId)
                                             if (seenEventIds.size > 5_000) {
-                                                val iter = seenEventIds.iterator()
-                                                repeat(1_000) { if (iter.hasNext()) iter.next() }
-                                                iter.forEachRemaining { entry -> seenEventIds.remove(entry) }
+                                                // Remove oldest 1000 IDs to prevent unbounded growth.
+                                                // Collect first so we don't mutate during iteration.
+                                                val toRemove = seenEventIds.take(1_000)
+                                                seenEventIds.removeAll(toRemove.toSet())
                                             }
                                         }
                                         val eventType = jsonElement["type"]?.jsonPrimitive?.content ?: "processing"

@@ -2081,13 +2081,23 @@ class ChatFeatureManager(
                             Log.d(TAG, ">>> DONE: stream completed")
                             isThinkingActive = false
                             isStreamingActive = false
+                            // Always call pushBlocks() on Done to render final content
+                            // even if ResponseBlock arrived before Done (idempotent).
+                            // This prevents edge case where Done fires after last skeleton
+                            // update but content hasn't been pushed to updateMessageContent.
+                            pushBlocks()
                             pushSkeleton()
                         }
 
                         is AgentEvent.Error -> {
                             isThinkingActive = false
                             isStreamingActive = false
-                            fallbackTextBuilder.append("\n[${event.message}]")
+                            // Strip think tags from error message before appending to avoid
+                            // leaking raw <think>...</think> noise into the UI on error paths.
+                            val cleanError = event.message
+                                .replace(Regex("<think>[\\s\\S]*?</think>", RegexOption.IGNORE_CASE), "")
+                                .trim()
+                            fallbackTextBuilder.append("\n[$cleanError]")
                             _pendingApprovalState.value = null
                             _pendingClarificationRequests.value = emptyList()
 
@@ -2100,6 +2110,7 @@ class ChatFeatureManager(
                                 }
                             }
                             pushBlocks()
+                            pushSkeleton()
                         }
 
                         is AgentEvent.StateSync -> {

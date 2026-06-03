@@ -6,8 +6,13 @@ data class ParsedResponse(
 )
 
 object ThinkingParser {
-    private val thinkTagPattern = Regex("""\[think\](.*?)\[/think\]""", RegexOption.DOT_MATCHES_ALL)
+    private val thinkTagPattern = Regex("""\[think](.*?)\[/think]""", RegexOption.DOT_MATCHES_ALL)
     private val thinkHtmlPattern = Regex("""<think>(.*?)</think>""", RegexOption.DOT_MATCHES_ALL)
+
+    // Simple one-entry length cache to avoid re-parsing the same accumulated string
+    // during streaming (pushBlocks() is called for every delta token).
+    @Volatile private var cachedInput = ""
+    @Volatile private var cachedResult: ParsedResponse? = null
 
     // Heuristic patterns for reasoning content that leaked into text deltas.
     // The OpenCode daemon sends reasoning as field:"text" deltas (not field:"reasoning"),
@@ -27,33 +32,45 @@ object ThinkingParser {
         Regex("""^[A-Z][a-z]+ (doing|going|is|was|has|can|will|looks|sounds|feels|seems)"""),
     )
 
+    /**
+     * Single-pass parse. Results are length-cached so repeated calls with the same
+     * growing string (streaming) pay near-zero cost.
+     */
     fun parse(content: String): ParsedResponse {
+        // Cache hit: avoid double regex on unchanged string
+        if (content === cachedInput || content == cachedInput) {
+            cachedResult?.let { return it }
+        }
+
+        val result = doParse(content)
+        cachedInput = content
+        cachedResult = result
+        return result
+    }
+
+    private fun doParse(content: String): ParsedResponse {
+        // Single regex pass — find first think block
         val match = thinkTagPattern.find(content) ?: thinkHtmlPattern.find(content)
         return if (match != null) {
             val thinking = match.groupValues[1].trim()
-            val answer = content.replace(thinkTagPattern, "").replace(thinkHtmlPattern, "").trim()
+            // Build answer by removing ALL think blocks in a single replace pass
+            val answer = content
+                .replace(thinkTagPattern, "")
+                .replace(thinkHtmlPattern, "")
+                .trim()
             ParsedResponse(thinking = thinking.ifEmpty { null }, answer = answer)
         } else {
-            // No think tags — try to extract reasoning from text heuristics
-            val extracted = extractReasoningFromText(content)
-            if (extracted != null) {
-                extracted
-            } else {
-                ParsedResponse(null, content)
-            }
+            extractReasoningFromText(content) ?: ParsedResponse(null, content)
         }
     }
 
     fun hasThinking(content: String): Boolean =
         thinkTagPattern.containsMatchIn(content) || thinkHtmlPattern.containsMatchIn(content)
 
-    fun extractThinking(content: String): String? {
-        val match = thinkTagPattern.find(content) ?: thinkHtmlPattern.find(content)
-        return match?.groupValues?.get(1)?.trim()?.ifEmpty { null }
-    }
+    /** Prefer parse() to avoid double-pass — these are kept for one-off callers. */
+    fun extractThinking(content: String): String? = parse(content).thinking
 
-    fun extractAnswer(content: String): String =
-        content.replace(thinkTagPattern, "").replace(thinkHtmlPattern, "").trim()
+    fun extractAnswer(content: String): String = parse(content).answer
 
     /**
      * Try to extract reasoning content that leaked into the text response.
