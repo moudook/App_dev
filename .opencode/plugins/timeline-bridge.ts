@@ -112,6 +112,7 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
           sessionID: event.properties.sessionID,
           messageID: event.properties.messageID,
           info: event.properties.info,
+          message: (event.properties as any).message,
           ts: Date.now(),
         }
         let rawParts = (event.properties as any).parts ?? (event.properties.info as any)?.parts ?? (event.properties.message as any)?.parts

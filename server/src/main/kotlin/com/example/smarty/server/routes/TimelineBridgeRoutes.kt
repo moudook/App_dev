@@ -245,10 +245,6 @@ private fun translatePluginEvent(
                     else -> null
                 }
             }
-            if (parts == null) {
-                logger.warn("[TIMELINE] message.updated: No parts in session=$pluginSessionId msg=$currentMsgId")
-                return out
-            }
 
             val isFinalMessage = event["info"]?.jsonObject?.get("finish")?.jsonPrimitive?.contentOrNull == "stop"
 
@@ -256,38 +252,49 @@ private fun translatePluginEvent(
             val separateReasoning = StringBuilder()
             var toolFound = false
 
-            for (part in parts) {
-                val partObj = part as? JsonObject ?: continue
-                val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
-                val deltaObj = partObj["delta"] as? JsonObject
-                val textContent = deltaObj?.get("text")?.jsonPrimitive?.contentOrNull
-                    ?: partObj["content"]?.jsonPrimitive?.contentOrNull
-                    ?: partObj["text"]?.jsonPrimitive?.contentOrNull
-                    ?: partObj["message"]?.jsonPrimitive?.contentOrNull
-                    ?: ""
-                val reasoningContent = deltaObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
-                    ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
-                    ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
-                    ?: ""
+            if (parts == null) {
+                logger.warn("[TIMELINE] message.updated: No parts in session=$pluginSessionId msg=$currentMsgId. RAW EVENT: $event")
+                val msgContent = (event["message"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                val infoContent = (event["info"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                combinedText = msgContent ?: infoContent ?: ""
+                
+                if (combinedText.isEmpty()) {
+                    return out
+                }
+            } else {
+                for (part in parts) {
+                    val partObj = part as? JsonObject ?: continue
+                    val partType = partObj["type"]?.jsonPrimitive?.contentOrNull ?: "text"
+                    val deltaObj = partObj["delta"] as? JsonObject
+                    val textContent = deltaObj?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: partObj["content"]?.jsonPrimitive?.contentOrNull
+                        ?: partObj["text"]?.jsonPrimitive?.contentOrNull
+                        ?: partObj["message"]?.jsonPrimitive?.contentOrNull
+                        ?: ""
+                    val reasoningContent = deltaObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: partObj["reasoning"]?.jsonPrimitive?.contentOrNull
+                        ?: partObj["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                        ?: ""
 
-                when {
-                    partType == "reasoning" || reasoningContent.isNotEmpty() -> {
-                        val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
-                        if (r.isNotBlank()) { separateReasoning.append(r).append("\n") }
+                    when {
+                        partType == "reasoning" || reasoningContent.isNotEmpty() -> {
+                            val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
+                            if (r.isNotBlank()) { separateReasoning.append(r).append("\n") }
+                        }
+                        partType == "tool" -> { extractToolFromPart(partObj, ts, eid, out); toolFound = true }
+                        partType == "step-start" -> {
+                            out += AgentEvent.StepStart(eventId = eid(), timestamp = ts,
+                                title = partObj["title"]?.jsonPrimitive?.contentOrNull ?: "Step ${partObj["step"]?.jsonPrimitive?.intOrNull ?: 0}",
+                                stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: 0, messageId = currentMsgId)
+                        }
+                        partType == "step-finish" -> {
+                            out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts,
+                                success = partObj["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true,
+                                stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: -1,
+                                cost = partObj["cost"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
+                        }
+                        else -> { if (textContent.isNotBlank()) combinedText += textContent }
                     }
-                    partType == "tool" -> { extractToolFromPart(partObj, ts, eid, out); toolFound = true }
-                    partType == "step-start" -> {
-                        out += AgentEvent.StepStart(eventId = eid(), timestamp = ts,
-                            title = partObj["title"]?.jsonPrimitive?.contentOrNull ?: "Step ${partObj["step"]?.jsonPrimitive?.intOrNull ?: 0}",
-                            stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: 0, messageId = currentMsgId)
-                    }
-                    partType == "step-finish" -> {
-                        out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts,
-                            success = partObj["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true,
-                            stepNumber = partObj["step"]?.jsonPrimitive?.intOrNull ?: -1,
-                            cost = partObj["cost"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
-                    }
-                    else -> { if (textContent.isNotBlank()) combinedText += textContent }
                 }
             }
 
@@ -366,6 +373,30 @@ private fun translatePluginEvent(
                 isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
                 success = error == null,
                 outputSummary = summarizeOutput(error ?: result, toolName) ?: "")
+        }
+
+        "permission.asked" -> {
+            val toolName = event["tool"]?.jsonPrimitive?.content ?: ""
+            val callId = event["callID"]?.jsonPrimitive?.content ?: "ask_${eid().substring(0, 8)}"
+            out += AgentEvent.ApprovalRequested(
+                eventId = eid(), timestamp = ts,
+                toolId = callId, toolName = toolName,
+                question = "Allow $toolName to run?",
+                options = listOf("Allow", "Deny"),
+                inputMode = "choice", interactive = false,
+            )
+        }
+
+        "permission.replied" -> {
+            val granted = event["granted"]?.jsonPrimitive?.let {
+                it.content.lowercase() in listOf("true", "yes", "1")
+            } ?: false
+            out += AgentEvent.ApprovalResult(
+                eventId = eid(), timestamp = ts,
+                toolId = event["tool"]?.jsonPrimitive?.content ?: "",
+                granted = granted,
+                feedback = if (granted) "Allowed" else "Denied",
+            )
         }
 
         "session.idle" -> {
