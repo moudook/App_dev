@@ -531,6 +531,7 @@ private fun splitThinkTags(text: String): Pair<String, String> {
         .replace("</thought>", "</think>", ignoreCase = true)
         .replace("<reasoning>", "<think>", ignoreCase = true)
         .replace("</reasoning>", "</think>", ignoreCase = true)
+        .replace("<|DSML|tool_calls>", "<think>Tool logic: ", ignoreCase = true)
 
     var thinking = ""
     var response = ""
@@ -558,20 +559,24 @@ private fun splitThinkTags(text: String): Pair<String, String> {
     }
 
     // 2. Supreme Heuristic: If no tags, detect "Internal Monologue" shift.
-    // DeepSeek V4 often starts with reasoning and then says "Wait," or "\n\nSure!"
-    if (thinking.isBlank() && response.length > 20) {
-        val splitMarkers = listOf(
-            Regex("""\n\n(Wait,|Actually,|However,|Sure,|Okay,|Yes,|No,|So,)""", RegexOption.IGNORE_CASE),
-            Regex("""\n\n[A-Z][a-z]+ (is|was|can|will|looks|sounds|seems|feels)""", RegexOption.IGNORE_CASE),
-            Regex("""\n\nI (will|should|can|need to|'ll|'m)""", RegexOption.IGNORE_CASE)
+    // Enhanced: Only split if the "reasoning" part looks like planning/analysis 
+    // AND the "response" part starts with a clear conversational marker.
+    if (thinking.isBlank() && response.length > 40) {
+        val responseStarts = listOf(
+            Regex("""\n\n(Wait,|Actually,|However,|Sure,|Okay,|Yes,|No,|So,|Hello,|Hi,)""", RegexOption.IGNORE_CASE),
+            Regex("""\n\n(I will|I'll|Let me|Based on|According to)""", RegexOption.IGNORE_CASE)
         )
         
-        for (pattern in splitMarkers) {
+        for (pattern in responseStarts) {
             val match = pattern.find(response)
-            if (match != null && match.range.first > 10) {
-                thinking = response.substring(0, match.range.first).trim()
-                response = response.substring(match.range.first).trim()
-                break
+            if (match != null && match.range.first > 15) {
+                val potentialThinking = response.substring(0, match.range.first).trim()
+                // Monologue check: does it look like reasoning? (no direct address)
+                if (!potentialThinking.contains(Regex("""\b(you|your|user)\b""", RegexOption.IGNORE_CASE))) {
+                    thinking = potentialThinking
+                    response = response.substring(match.range.first).trim()
+                    break
+                }
             }
         }
     }
