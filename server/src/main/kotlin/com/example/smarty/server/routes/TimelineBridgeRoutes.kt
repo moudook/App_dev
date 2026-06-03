@@ -509,12 +509,9 @@ private fun translatePluginEvent(
             val prefix = "$sessionId:"
             partTextLengths.keys.removeAll { it.startsWith(prefix) }
             sessionContentStates.keys.removeAll { it.startsWith(prefix) }
-            // Defer Done emission to allow late-arriving message.updated snapshots
-            // to be processed first (OpenCode can deliver message.updated after session.idle).
-            bridgeScope.launch {
-                kotlinx.coroutines.delay(1500)
-                AgentRunManager.emitEvent(chatSessionId, AgentEvent.Done(eventId = eid(), timestamp = ts))
-            }
+            // Done emitted by AgentRunManager after ServerAgent completes.
+            // Do NOT emit Done here — it would race with content from ServerAgent
+            // and cause Android to close the stream before content arrives.
         }
 
         "session.compacted" -> {

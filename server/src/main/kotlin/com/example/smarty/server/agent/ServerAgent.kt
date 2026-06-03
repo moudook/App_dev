@@ -201,6 +201,20 @@ class ServerAgent(
                         variantOverride,
                     ).collect { chunk ->
                         streamProcessor.processChunk(chunk)
+                        if (chunk.content != null) {
+                            eventEmitter(AgentEvent.TextDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                text = chunk.content,
+                            ))
+                        }
+                        if (chunk.reasoning != null) {
+                            eventEmitter(AgentEvent.ReasoningDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                text = chunk.reasoning,
+                            ))
+                        }
                     }
 
                 // Retry on busy — the daemon may be processing another request

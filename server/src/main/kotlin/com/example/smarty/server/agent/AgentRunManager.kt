@@ -97,7 +97,7 @@ object AgentRunManager {
 
         val job =
             agentScope.launch {
-                val eventEmitter: suspend (AgentEvent) -> Unit = { _ -> }
+                val eventEmitter: suspend (AgentEvent) -> Unit = { event -> emitEvent(sessionId, event) }
 
                 val agent =
                     ServerAgent(
@@ -149,6 +149,7 @@ object AgentRunManager {
                 } catch (e: Exception) {
                     logger.error("Agent execution failed in background job for session: $sessionId", e)
                 } finally {
+                    emitEvent(sessionId, AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
                     ActiveEventBridge.clear(userId)
                     ApprovalRegistry.cancelApprovalsForSession(sessionId)
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
