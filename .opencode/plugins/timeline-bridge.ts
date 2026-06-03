@@ -128,12 +128,20 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
       const s = getSession(part.sessionID)
 
       if (part.type === "text") {
-        const text: string = (part as any).content ?? (part as any).text ?? ""
+        const delta = (part as any).delta
+        const text: string = delta?.text ?? (part as any).content ?? (part as any).text ?? ""
+        const reasoning: string = delta?.reasoning ?? (part as any).reasoning ?? ""
 
-        const hasOpenThink = text.includes("<think>") || text.includes("[think]")
-        const hasCloseThink = text.includes("</think>") || text.includes("[/think]")
-        if (hasOpenThink && !hasCloseThink) s.isThinking = true
-        if (hasCloseThink) s.isThinking = false
+        // Robust thinking detection across all known model formats
+        const thinkTags = ["<think>", "[think]", "<thought>", "[thought]", "<reasoning>", "<|DSML|"]
+        const closeTags = ["</think>", "[/think]", "</thought>", "[/thought]", "</reasoning>", "|>"]
+        
+        const hasOpen = thinkTags.some(tag => text.includes(tag))
+        const hasClose = closeTags.some(tag => text.includes(tag))
+        
+        if (hasOpen && !hasClose) s.isThinking = true
+        if (hasClose) s.isThinking = false
+        if (reasoning.length > 0) s.isThinking = true // Native reasoning field always counts as thinking
 
         emit({
           kind: "part.updated",
@@ -143,7 +151,10 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
           partID: (part as any).id,
           partType: "text",
           text: text,
+          reasoning: reasoning, // Forward native reasoning if available
+          delta: delta, // Forward full v1.15.13 delta object
           isThinkingHint: s.isThinking,
+          model: (part as any).model, // Pass model info to server
           ts: Date.now(),
         })
       }

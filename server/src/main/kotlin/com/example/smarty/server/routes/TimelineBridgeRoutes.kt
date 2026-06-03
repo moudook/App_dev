@@ -163,14 +163,17 @@ private fun translatePluginEvent(
                         
                         val key = contentStateKey(sId, msgId)
                         val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+                        val isThinkingHint = event["isThinkingHint"]?.bool() ?: false
 
-                        // 1. Handle native reasoning from daemon
+                        // 1. Handle native reasoning from daemon (or plugin-inferred reasoning)
                         if (rawReasoning.isNotEmpty()) {
                             out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = rawReasoning)
                             out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = sId, messageId = msgId)
+                        } else if (isThinkingHint) {
+                            out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = sId, messageId = msgId)
                         }
 
-                        // 2. Handle text (may still contain interleaved tags from some models)
+                        // 2. Handle text (may still contain interleaved tags or hidden monologue)
                         if (rawText.isNotEmpty()) {
                             // Calculate specific part delta for tracking
                             val partKey = "$sessionId:$partId"
@@ -506,7 +509,12 @@ private fun translatePluginEvent(
             val prefix = "$sessionId:"
             partTextLengths.keys.removeAll { it.startsWith(prefix) }
             sessionContentStates.keys.removeAll { it.startsWith(prefix) }
-            out += AgentEvent.Done(eventId = eid(), timestamp = ts)
+            // Defer Done emission to allow late-arriving message.updated snapshots
+            // to be processed first (OpenCode can deliver message.updated after session.idle).
+            bridgeScope.launch {
+                kotlinx.coroutines.delay(1500)
+                AgentRunManager.emitEvent(chatSessionId, AgentEvent.Done(eventId = eid(), timestamp = ts))
+            }
         }
 
         "session.compacted" -> {
