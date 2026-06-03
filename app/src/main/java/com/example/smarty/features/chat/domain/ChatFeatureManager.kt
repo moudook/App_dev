@@ -1857,6 +1857,7 @@ class ChatFeatureManager(
                                 status = "started",
                                 inputSummary = event.args ?: "",
                                 outputSummary = null,
+                                toolCallId = event.toolId,
                             )
                             pendingToolCalls.add(toolCallEntry)
 
@@ -1870,19 +1871,22 @@ class ChatFeatureManager(
                             chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
                         }
                         is AgentEvent.ToolEnd -> {
-                            val idx = pendingToolCalls.lastIndex
-                            if (idx >= 0) {
+                            val existing = pendingToolCalls.find { it.toolCallId == event.toolId }
+                            if (existing != null) {
+                                val idx = pendingToolCalls.indexOf(existing)
                                 val entry = pendingToolCalls[idx]
                                 pendingToolCalls[idx] = entry.copy(
                                     status = if (event.error != null) "failed" else "completed",
                                     outputSummary = event.result?.take(800) ?: event.error?.take(200),
                                 )
                                 pendingActions.removeAll { it.action == entry.displayName }
-                                pendingActions.add(com.example.smarty.core.domain.model.AgentActionResult(
-                                    action = entry.displayName,
-                                    success = event.error == null,
-                                    resultSummary = event.result?.take(120) ?: event.error?.take(120) ?: "Completed",
-                                ))
+                                pendingActions.add(
+                                    com.example.smarty.core.domain.model.AgentActionResult(
+                                        action = entry.displayName,
+                                        success = event.error == null,
+                                        resultSummary = event.result?.take(120) ?: event.error?.take(120) ?: "Completed",
+                                    ),
+                                )
                                 chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
                             }
                         }

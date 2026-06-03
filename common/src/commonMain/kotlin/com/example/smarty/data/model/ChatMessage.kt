@@ -82,6 +82,7 @@ data class AgentToolCallEntry(
     val outputSummary: String? = null,
     val searchQueries: List<SearchQueryEntry> = emptyList(),
     val timestamp: Long = 0L,
+    val toolCallId: String = "",
 )
 
 /**

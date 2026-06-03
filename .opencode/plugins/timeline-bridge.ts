@@ -185,7 +185,10 @@ export const TimelineBridgePlugin = async (ctx: any) => {
 
     // Forward message.updated (only once — not via catch-all)
     if (kind === "message.updated") {
-      await emit({ kind, sessionID: sid, info: props.info, ts })
+      const payload: Record<string, unknown> = { kind, sessionID: sid, info: props.info, ts }
+      const rawParts = (props as any).parts ?? (props.info as any)?.parts ?? (props.message as any)?.parts
+      if (rawParts) payload.parts = rawParts
+      await emit(payload)
     }
 
     // Count

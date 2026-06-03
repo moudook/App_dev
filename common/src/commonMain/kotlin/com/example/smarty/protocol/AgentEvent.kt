@@ -55,6 +55,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val title: String,
+        val stepNumber: Int = 0,
     ) : AgentEvent()
 
     /** Agent step finished. */
@@ -64,6 +65,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val success: Boolean = true,
+        val stepNumber: Int = -1,
     ) : AgentEvent()
 
     /** Stream complete — terminal event. The response is done. */
