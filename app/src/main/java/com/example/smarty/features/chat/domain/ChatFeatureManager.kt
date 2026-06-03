@@ -1847,30 +1847,30 @@ class ChatFeatureManager(
             }
 
             fun pushBlocks() {
-                // If clean blocks arrived, use them. Otherwise parse think tags from fallback.
                 val rawFallback = fallbackTextBuilder.toString()
-                val hasCleanBlocks = finalResponseText.isNotEmpty()
-                val content = if (hasCleanBlocks) {
-                    finalResponseText
-                } else if (ThinkingParser.hasThinking(rawFallback)) {
-                    ThinkingParser.extractAnswer(rawFallback)
-                } else {
-                    rawFallback
+                val hasCleanResponse = finalResponseText.isNotBlank()
+                val hasCleanReasoning = finalReasoningText.isNotBlank()
+
+                val content = when {
+                    hasCleanResponse -> finalResponseText
+                    ThinkingParser.hasThinking(rawFallback) -> ThinkingParser.extractAnswer(rawFallback)
+                    else -> rawFallback
                 }
-                val thinking = if (finalReasoningText.isNotEmpty()) {
-                    finalReasoningText
-                } else {
-                    fallbackThinkingBuilder.toString().ifEmpty {
+
+                val thinking = when {
+                    hasCleanReasoning -> finalReasoningText
+                    else -> fallbackThinkingBuilder.toString().ifEmpty {
                         if (ThinkingParser.hasThinking(rawFallback)) ThinkingParser.extractThinking(rawFallback) else null
                     }
                 }
+
+                if (content.isBlank() && thinking.isNullOrBlank()) return
+
                 scope.launch {
-                    // During streaming, only update content without changing skeleton flags.
-                    // The final message is built after Done via replaceMessage.
                     chatManager.updateMessageContent(
                         streamingMessageId,
-                        content = content,
-                        thinking = thinking,
+                        content = content.trim(),
+                        thinking = thinking?.trim(),
                     )
                 }
             }
