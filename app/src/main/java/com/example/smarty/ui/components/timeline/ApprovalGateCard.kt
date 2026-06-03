@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 // ═══════════════════════════════════════════════════════════════════════
 // APPROVAL GATE CARD
@@ -56,9 +57,9 @@ fun ApprovalGateCard(
     val accent = LocalAccentColor.current
     val statusColor =
         when (node.status) {
-            TimelineNode.ApprovalGate.Status.PENDING -> Color(0xFFFFA726)
-            TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF66BB6A)
-            TimelineNode.ApprovalGate.Status.DENIED -> Color(0xFFEF5350)
+            TimelineNode.ApprovalGate.Status.PENDING -> ThemeAwareColors.warningColor()
+            TimelineNode.ApprovalGate.Status.GRANTED -> ThemeAwareColors.successColor()
+            TimelineNode.ApprovalGate.Status.DENIED -> ThemeAwareColors.errorColor()
         }
 
     val animatedColor by animateColorAsState(targetValue = statusColor, label = "approval-border")
@@ -99,9 +100,9 @@ fun ApprovalGateCard(
                     style = MaterialTheme.typography.labelSmall,
                     color =
                         when (node.status) {
-                            TimelineNode.ApprovalGate.Status.PENDING -> Color(0xFFFFA726)
-                            TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF66BB6A)
-                            TimelineNode.ApprovalGate.Status.DENIED -> Color(0xFFEF5350)
+                            TimelineNode.ApprovalGate.Status.PENDING -> ThemeAwareColors.warningColor()
+                            TimelineNode.ApprovalGate.Status.GRANTED -> ThemeAwareColors.successColor()
+                            TimelineNode.ApprovalGate.Status.DENIED -> ThemeAwareColors.errorColor()
                         },
                     fontWeight = FontWeight.Medium,
                 )
@@ -126,11 +127,9 @@ fun ApprovalGateCard(
                         contentDescription = null,
                         tint =
                             if (node.status == TimelineNode.ApprovalGate.Status.GRANTED) {
-                                Color(0xFF66BB6A)
+                                ThemeAwareColors.successColor()
                             } else {
-                                Color(
-                                    0xFFEF5350,
-                                )
+                                ThemeAwareColors.errorColor()
                             },
                         modifier = Modifier.size(20.dp),
                     )
@@ -179,7 +178,7 @@ private fun ApproveDenyButtons(
             onClick = onApprove,
             colors =
                 ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF66BB6A),
+                    containerColor = ThemeAwareColors.successColor(),
                     contentColor = Color.White,
                 ),
             shape = RoundedCornerShape(10.dp),
@@ -193,8 +192,8 @@ private fun ApproveDenyButtons(
 
         OutlinedButton(
             onClick = onDeny,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350)),
-            border = BorderStroke(1.5.dp, Color(0xFFEF5350)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = ThemeAwareColors.errorColor()),
+            border = BorderStroke(1.5.dp, ThemeAwareColors.errorColor()),
             shape = RoundedCornerShape(10.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             modifier = Modifier.weight(1f),
@@ -211,7 +210,7 @@ private fun ApprovedSummary() {
     Text(
         text = "You approved it. Let\'s keep going.",
         style = MaterialTheme.typography.bodySmall,
-        color = Color(0xFF66BB6A),
+        color = ThemeAwareColors.successColor(),
         modifier = Modifier.padding(top = 4.dp),
     )
 }
@@ -221,7 +220,7 @@ private fun DeniedSummary() {
     Text(
         text = "Declined. I\'ll try something else.",
         style = MaterialTheme.typography.bodySmall,
-        color = Color(0xFFEF5350),
+        color = ThemeAwareColors.errorColor(),
         modifier = Modifier.padding(top = 4.dp),
     )
 }

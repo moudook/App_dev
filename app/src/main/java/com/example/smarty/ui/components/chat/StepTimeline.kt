@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.smarty.core.domain.model.AgentStepEntry
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 @Composable
 fun StepTimeline(steps: List<AgentStepEntry>) {
@@ -31,7 +32,7 @@ fun StepTimeline(steps: List<AgentStepEntry>) {
             ) {
                 val (dotColor, dotIcon) =
                     when (step.stepStatus) {
-                        "completed" -> Color(0xFF4CAF50) to Icons.Outlined.CheckCircle
+                        "completed" -> ThemeAwareColors.successColor() to Icons.Outlined.CheckCircle
                         "failed" -> MaterialTheme.colorScheme.error to Icons.Default.Cancel
                         else -> LocalAccentColor.current to null
                     }

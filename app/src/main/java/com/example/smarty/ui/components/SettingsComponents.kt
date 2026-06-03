@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.ThemeAwareColors
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
@@ -61,9 +62,9 @@ fun ConnectionStatusIndicator(
 
     val statusColor =
         when (status) {
-            ConnectionStatus.CONNECTED -> Color(0xFF34C759) // Semantic Green
-            ConnectionStatus.CONNECTING -> Color(0xFF007AFF) // Semantic Blue
-            ConnectionStatus.DISCONNECTED -> Color(0xFFFF3B30) // Semantic Red
+            ConnectionStatus.CONNECTED -> ThemeAwareColors.successColor()
+            ConnectionStatus.CONNECTING -> ThemeAwareColors.accentColor()
+            ConnectionStatus.DISCONNECTED -> ThemeAwareColors.errorColor()
             ConnectionStatus.OFFLINE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         }
 
@@ -165,9 +166,9 @@ fun CloudSyncIndicator(
         is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Success -> {
             Surface(
                 shape = RoundedCornerShape(26.dp),
-                color = Color(0xFF34C759).copy(alpha = 0.15f),
+                color = ThemeAwareColors.successColor().copy(alpha = 0.15f),
                 tonalElevation = 0.dp,
-                border = BorderStroke(0.5.dp, Color(0xFF34C759).copy(alpha = 0.3f)),
+                border = BorderStroke(0.5.dp, ThemeAwareColors.successColor().copy(alpha = 0.3f)),
                 modifier = modifier.clickable(onClick = onSyncClick),
             ) {
                 Row(
@@ -179,13 +180,13 @@ fun CloudSyncIndicator(
                         imageVector = Icons.Default.Verified,
                         contentDescription = "Synced",
                         modifier = Modifier.size(12.dp),
-                        tint = Color(0xFF34C759),
+                        tint = ThemeAwareColors.successColor(),
                     )
                     if (showLabel) {
                         Text(
                             text = "Synced.",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = Color(0xFF34C759),
+                            color = ThemeAwareColors.successColor(),
                         )
                     }
                 }
@@ -194,9 +195,9 @@ fun CloudSyncIndicator(
         is com.example.smarty.features.notes.domain.SmartyViewModel.CloudSyncState.Error -> {
             Surface(
                 shape = RoundedCornerShape(26.dp),
-                color = Color(0xFFFF3B30).copy(alpha = 0.15f),
+                color = ThemeAwareColors.errorColor().copy(alpha = 0.15f),
                 tonalElevation = 0.dp,
-                border = BorderStroke(0.5.dp, Color(0xFFFF3B30).copy(alpha = 0.3f)),
+                border = BorderStroke(0.5.dp, ThemeAwareColors.errorColor().copy(alpha = 0.3f)),
                 modifier = modifier.clickable(onClick = onSyncClick),
             ) {
                 Row(
@@ -208,13 +209,13 @@ fun CloudSyncIndicator(
                         imageVector = Icons.Default.ErrorOutline,
                         contentDescription = "Sync error",
                         modifier = Modifier.size(12.dp),
-                        tint = Color(0xFFFF3B30),
+                        tint = ThemeAwareColors.errorColor(),
                     )
                     if (showLabel) {
                         Text(
                             text = "Sync failed.",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = Color(0xFFFF3B30),
+                            color = ThemeAwareColors.errorColor(),
                         )
                     }
                 }
@@ -286,7 +287,7 @@ fun CategoryActionsMenu(
             text = {
                 Text(
                     stringResource(R.string.remove),
-                    color = Color(0xFFFF3B30), // Semantic Red
+                    color = ThemeAwareColors.errorColor(),
                 )
             },
             onClick = {
@@ -297,7 +298,7 @@ fun CategoryActionsMenu(
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
                     contentDescription = null,
-                    tint = Color(0xFFFF3B30), // Semantic Red
+                    tint = ThemeAwareColors.errorColor(),
                 )
             },
         )

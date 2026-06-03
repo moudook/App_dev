@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tier 1 — Semantic Cards
@@ -49,7 +50,7 @@ fun ToolCallCard(
 
     val statusColor =
         when (node.status) {
-            TimelineNode.ToolExecution.Status.COMPLETED -> Color(0xFF4CAF50)
+            TimelineNode.ToolExecution.Status.COMPLETED -> ThemeAwareColors.successColor()
             TimelineNode.ToolExecution.Status.FAILED -> MaterialTheme.colorScheme.error
             TimelineNode.ToolExecution.Status.RUNNING -> accentColor
         }
@@ -187,7 +188,7 @@ fun ApprovalCard(
     val borderColor by animateColorAsState(
         targetValue =
             when (node.status) {
-                TimelineNode.ApprovalGate.Status.GRANTED -> Color(0xFF4CAF50)
+                TimelineNode.ApprovalGate.Status.GRANTED -> ThemeAwareColors.successColor()
                 TimelineNode.ApprovalGate.Status.DENIED -> MaterialTheme.colorScheme.error
                 TimelineNode.ApprovalGate.Status.PENDING -> accentColor
             },
@@ -222,8 +223,8 @@ fun ApprovalCard(
                 Spacer(Modifier.weight(1f))
                 when (node.status) {
                     TimelineNode.ApprovalGate.Status.GRANTED -> {
-                        Icon(Icons.Outlined.CheckCircle, "Approved", tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                        Text("Approved", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
+                        Icon(Icons.Outlined.CheckCircle, "Approved", tint = ThemeAwareColors.successColor(), modifier = Modifier.size(16.dp))
+                        Text("Approved", style = MaterialTheme.typography.labelSmall, color = ThemeAwareColors.successColor())
                     }
                     TimelineNode.ApprovalGate.Status.DENIED -> {
                         Icon(Icons.Default.Cancel, "Denied", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
@@ -357,7 +358,7 @@ fun RecoveryCard(
 
     val indicatorColor =
         when (succeeded) {
-            true -> Color(0xFF4CAF50)
+            true -> ThemeAwareColors.successColor()
             false -> MaterialTheme.colorScheme.error
             null -> accentColor
         }
@@ -476,7 +477,7 @@ fun SystemActivityCard(
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                     Spacer(Modifier.height(4.dp))
-                    if (node.cacheHits > 0) SystemActivityRow("Cache hits", node.cacheHits, Icons.Default.FlashOn, Color(0xFF4CAF50))
+                    if (node.cacheHits > 0) SystemActivityRow("Cache hits", node.cacheHits, Icons.Default.FlashOn, ThemeAwareColors.successColor())
                     if (node.cacheMisses >
                         0
                     ) {
@@ -554,7 +555,7 @@ private fun ToolStatusIndicator(
 ) {
     when (status) {
         TimelineNode.ToolExecution.Status.COMPLETED ->
-            Icon(Icons.Outlined.CheckCircle, "Done", tint = Color(0xFF4CAF50), modifier = Modifier.size(15.dp))
+            Icon(Icons.Outlined.CheckCircle, "Done", tint = ThemeAwareColors.successColor(), modifier = Modifier.size(15.dp))
         TimelineNode.ToolExecution.Status.FAILED ->
             Icon(Icons.Default.ErrorOutline, "Failed", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
         TimelineNode.ToolExecution.Status.RUNNING -> {
@@ -680,7 +681,7 @@ fun SubagentGroupCard(
                     val a by pulse.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
                     Box(Modifier.size(8.dp).clip(CircleShape).background(accentColor.copy(alpha = a)))
                 } else {
-                    Icon(Icons.Outlined.CheckCircle, "Done", tint = Color(0xFF4CAF50), modifier = Modifier.size(15.dp))
+                    Icon(Icons.Outlined.CheckCircle, "Done", tint = ThemeAwareColors.successColor(), modifier = Modifier.size(15.dp))
                 }
 
                 Icon(

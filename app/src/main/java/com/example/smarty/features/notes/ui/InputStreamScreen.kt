@@ -72,6 +72,7 @@ import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.features.voice.VoiceNoteRecorder
 import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.ConnectionStatus
@@ -1589,12 +1590,9 @@ fun SelectionPillBar(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isDark =
-        !MaterialTheme.colorScheme.surface
-            .luminance()
-            .let { it > 0.5f }
-    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
-    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+    val isDark = ThemeAwareColors.isDark()
+    val backgroundColor = ThemeAwareColors.surfaceBackground()
+    val borderColor = ThemeAwareColors.outlineVariant()
     val accentColor = LocalAccentColor.current
 
     Surface(

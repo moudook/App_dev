@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
+import com.example.smarty.ui.utils.ThemeAwareColors
+import com.example.smarty.ui.utils.TextEmphasis
 import kotlinx.coroutines.delay
 
 /**
@@ -37,10 +39,10 @@ fun UserMessageBubble(
     // Inverted colors for user bubble: opposite of theme
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val accentColor = LocalAccentColor.current
-    val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
+    val userBubbleBackground = if (isDark) ThemeAwareColors.surfaceBackground() else accentColor.copy(alpha = 0.2f)
     val userBubbleTextColor =
         if (isDark) {
-            Color(0xFF1A1A1A)
+            ThemeAwareColors.textColor(TextEmphasis.HIGH)
         } else {
             Color.Black
         }

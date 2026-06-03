@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 @Composable
 fun ThinkingAccordion(
@@ -33,8 +34,7 @@ fun ThinkingAccordion(
 ) {
     var expanded by remember(thinking) { mutableStateOf(isStreaming) }
     val accentColor = LocalAccentColor.current
-    val isDark = isSystemInDarkTheme()
-    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
+    val optionBg = ThemeAwareColors.surfaceBackground()
 
     Surface(
         shape = RoundedCornerShape(12.dp),

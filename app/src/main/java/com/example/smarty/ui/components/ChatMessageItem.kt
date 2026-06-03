@@ -77,6 +77,8 @@ import com.example.smarty.core.domain.model.ClarificationRequest
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.NoteReference
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
+import com.example.smarty.ui.utils.TextEmphasis
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
@@ -260,11 +262,10 @@ fun ChatMessageItem(
         // Apply Bubble or Container (isDark already computed above)
 
         // Inverted colors for user bubble
-        // TODO: For Dark Theme - currently using off-white, consider reducing intensity or using a different shade later
-        val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else accentColor.copy(alpha = 0.2f)
+        val userBubbleBackground = if (isDark) ThemeAwareColors.surfaceBackground() else accentColor.copy(alpha = 0.2f)
         val userBubbleTextColor =
             if (isDark) {
-                Color(0xFF1A1A1A)
+                ThemeAwareColors.textColor(TextEmphasis.HIGH)
             } else {
                 Color.Black
             }
@@ -525,15 +526,9 @@ fun ChatMessageItem(
                         val sourceCount = message.citations.size
                         val confidenceColor =
                             when (serverConfidence) {
-                                "verified" ->
-                                    androidx.compose.ui.graphics
-                                        .Color(0xFF4CAF50)
-                                "moderate" ->
-                                    androidx.compose.ui.graphics
-                                        .Color(0xFFFFA726)
-                                else ->
-                                    androidx.compose.ui.graphics
-                                        .Color(0xFF9E9E9E)
+                                "verified" -> ThemeAwareColors.successColor()
+                                "moderate" -> ThemeAwareColors.warningColor()
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             }
                         val confidenceText =
                             when (serverConfidence) {
@@ -862,7 +857,7 @@ fun CodeBlock(
     language: String,
     backgroundColor: Color,
     borderColor: Color,
-    headerBgColor: Color = Color(0xFF343541),
+    headerBgColor: Color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
@@ -870,13 +865,13 @@ fun CodeBlock(
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
     // Theme-aware colors
-    val codeBg = if (isDark) Color(0xFF1A1A2E) else Color(0xFFF8F8FA)
-    val headerBg = if (isDark) Color(0xFF252536) else Color(0xFFF0F0F5)
-    val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B)
-    val langLabelColor = if (isDark) Color(0xFF7C7C9A) else Color(0xFF6B6B80)
-    val copyBtnBg = if (isDark) Color(0xFF3A3A4A) else Color(0xFFE8E8ED)
-    val copyBtnText = if (isDark) Color(0xFFA0A0B0) else Color(0xFF52525B)
-    val separatorColor = if (isDark) Color(0xFF3A3A4A) else Color(0xFFD8D8DD)
+    val codeBg = ThemeAwareColors.surfaceBackground()
+    val headerBg = ThemeAwareColors.surfaceVariant()
+    val textColor = ThemeAwareColors.textColor(TextEmphasis.HIGH)
+    val langLabelColor = ThemeAwareColors.textColor(TextEmphasis.MEDIUM)
+    val copyBtnBg = ThemeAwareColors.surfaceVariant()
+    val copyBtnText = ThemeAwareColors.textColor(TextEmphasis.MEDIUM)
+    val separatorColor = ThemeAwareColors.outlineVariant()
 
     Column(
         modifier =

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 /**
  * Compact chip showing an action's result (success/fail).
@@ -42,22 +43,21 @@ fun ActionResultChip(
     summary: String,
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+    
+    // Compute colors first (composable context)
+    val successColor = ThemeAwareColors.successColor()
+    val errorColor = ThemeAwareColors.errorColor()
 
     // Cache color computation — stable across recompositions for same inputs
     val (backgroundColor, contentColor) =
         remember(success, isDark) {
             val bg =
                 if (success) {
-                    if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5)
+                    if (isDark) successColor.copy(alpha = 0.15f) else successColor.copy(alpha = 0.1f)
                 } else {
-                    if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2)
+                    if (isDark) errorColor.copy(alpha = 0.15f) else errorColor.copy(alpha = 0.1f)
                 }
-            val fg =
-                if (success) {
-                    if (isDark) Color(0xFF34D399) else Color(0xFF059669)
-                } else {
-                    if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
-                }
+            val fg = if (success) successColor else errorColor
             bg to fg
         }
 
