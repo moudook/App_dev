@@ -35,17 +35,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.AgentToolCallEntry
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.ThemeAwareColors
 
 @Composable
 fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
     val accentColor = LocalAccentColor.current
-    val isDark = isSystemInDarkTheme()
-    val optionBg = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF4F4F7)
+    val optionBg = ThemeAwareColors.surfaceBackground()
     var expanded by remember(toolCall.toolName) { mutableStateOf(false) }
 
     val statusColor =
         when (toolCall.status) {
-            "completed", "success" -> Color(0xFF4CAF50)
+            "completed", "success" -> ThemeAwareColors.successColor()
             "failed", "error" -> MaterialTheme.colorScheme.error
             else -> accentColor
         }
@@ -144,7 +144,7 @@ private fun ToolCallStatusIndicator(
             Icon(
                 Icons.Outlined.CheckCircle,
                 contentDescription = "Completed",
-                tint = Color(0xFF4CAF50),
+                tint = ThemeAwareColors.successColor(),
                 modifier = Modifier.size(16.dp),
             )
         "failed", "error" ->
