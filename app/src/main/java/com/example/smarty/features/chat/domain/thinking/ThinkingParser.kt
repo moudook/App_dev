@@ -6,8 +6,8 @@ data class ParsedResponse(
 )
 
 object ThinkingParser {
-    private val thinkTagPattern = Regex("""\[think](.*?)\[/think]""", RegexOption.DOT_MATCHES_ALL)
-    private val thinkHtmlPattern = Regex("""<think>(.*?)</think>""", RegexOption.DOT_MATCHES_ALL)
+    private val thinkTagPattern = Regex("""\[think](.*?)(?:\[/think]|$)""", RegexOption.DOT_MATCHES_ALL)
+    private val thinkHtmlPattern = Regex("""<think>(.*?)(?:</think>|$)""", RegexOption.DOT_MATCHES_ALL)
 
     // Simple one-entry length cache to avoid re-parsing the same accumulated string
     // during streaming (pushBlocks() is called for every delta token).

@@ -229,7 +229,9 @@ fun ChatScreen(
             (
                 pendingApproval!!.toolName.contains("ask_user") ||
                     pendingApproval!!.toolName.contains("askuser") ||
-                    pendingApproval!!.toolName.contains("ask-user")
+                    pendingApproval!!.toolName.contains("ask-user") ||
+                    pendingApproval!!.toolName.contains("ask_question") ||
+                    pendingApproval!!.toolName.contains("askquestion")
             )
         ) {
             activeApprovalId = pendingApproval!!.toolId
@@ -278,6 +280,7 @@ fun ChatScreen(
                         ),
                     )
                 }
+
             } catch (e: Exception) {
                 android.util.Log.e("ChatScreen", "Error parsing ask_user args: ${pendingApproval!!.toolArgs}", e)
                 if (pendingQuestions.isEmpty()) {
@@ -290,6 +293,16 @@ fun ChatScreen(
                     )
                 }
             }
+        } else if (pendingApproval != null) {
+            activeApprovalId = pendingApproval!!.toolId
+            val summary = pendingApproval!!.toolArgs
+            pendingQuestions.add(
+                com.example.smarty.core.domain.model.ClarificationRequest(
+                    question = "Approve tool call: ${pendingApproval!!.toolName}?\n$summary",
+                    options = listOf("Approve", "Deny"),
+                    allowCustomInput = false,
+                )
+            )
         } else if (clarificationMsg?.clarificationRequest != null) {
             pendingQuestions.add(clarificationMsg.clarificationRequest!!)
         }
@@ -315,7 +328,10 @@ fun ChatScreen(
                 if (clarificationMsg?.clarificationRequest != null) {
                     viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                 } else if (activeApprovalId != null) {
-                    viewModel.callApproval(activeApprovalId, response.isNotEmpty(), response.ifEmpty { null })
+                    val isApproved = response.equals("Approve", ignoreCase = true) || 
+                                     (response.isNotEmpty() && !response.equals("Deny", ignoreCase = true))
+                    val feedbackStr = if (response.equals("Approve", ignoreCase = true) || response.equals("Deny", ignoreCase = true)) null else response
+                    viewModel.callApproval(activeApprovalId, isApproved, feedbackStr)
                 }
             },
             isChatMode = true,
