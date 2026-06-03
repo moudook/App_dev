@@ -1829,11 +1829,16 @@ class ChatFeatureManager(
                 orderedToolCallIds.mapNotNull { pendingToolCallsMap[it] }
 
             fun pushSkeleton() {
+                val currentText = fallbackTextBuilder.toString()
+                val currentThinking = fallbackThinkingBuilder.toString()
+
                 scope.launch {
                     chatManager.updateMessageSkeleton(
                         streamingMessageId,
                         isThinking = isThinkingActive,
                         isStreaming = isStreamingActive,
+                        content = currentText,
+                        thinking = currentThinking.ifEmpty { null },
                         toolCalls = currentToolCalls(),
                         steps = collectedAgentSteps.toList(),
                         agentEvents = agentEventsBuilder.toList(),

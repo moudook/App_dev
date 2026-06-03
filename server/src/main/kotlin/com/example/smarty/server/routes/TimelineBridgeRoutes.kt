@@ -78,6 +78,9 @@ private fun contentStateKey(sessionId: String, msgId: String) = "$sessionId:$msg
 
 private fun cleanupContentState(sessionId: String, msgId: String) {
     sessionContentStates.remove(contentStateKey(sessionId, msgId))
+    // Also clean up part lengths for this session to ensure fresh deltas for next turn
+    val prefix = "$sessionId:"
+    partTextLengths.keys.removeAll { it.startsWith(prefix) }
 }
 
 private val INTERACTIVE_TOOLS = setOf(
@@ -460,23 +463,12 @@ private fun translatePluginEvent(
             )
         }
 
-        // ── BACKWARD COMPAT: legacy delta events (pass-through, no accumulation) ──
-        // The part.updated handler above handles accumulation + clean split emission.
-        // message.part.delta are raw daemon tokens — just forward for backward compat.
+        // ── LEGACY DAEMON DELTAS (suppressed — no-op) ──
+        // Raw message.part.delta is NOT forwarded because part.updated already
+        // emits clean (tag-split) deltas. Passing raw deltas would double content.
 
         "message.part.delta" -> {
-            val field = event["field"]?.jsonPrimitive?.content
-            val delta = event["delta"]?.jsonPrimitive?.content
-            if (!delta.isNullOrEmpty()) {
-                when (field) {
-                    "text" -> out += AgentEvent.TextDelta(
-                        eventId = eid(), timestamp = ts, text = delta,
-                    )
-                    "reasoning" -> out += AgentEvent.ReasoningDelta(
-                        eventId = eid(), timestamp = ts, text = delta,
-                    )
-                }
-            }
+            // no-op: part.updated is the single source of truth for streaming
         }
 
         "message.completed" -> {
@@ -507,38 +499,72 @@ private fun translatePluginEvent(
 }
 
 private fun splitThinkTags(text: String): Pair<String, String> {
-    var thinkingStr = ""
-    var responseStr = ""
-    var currentIndex = 0
+    if (text.isEmpty()) return Pair("", "")
 
-    // Also support [think] and <thought> if needed, but <think> is the primary one.
-    // For simplicity, let's normalize [think] to <think> and <thought> to <think> before parsing
-    val normalizedText = text
+    val normalized = text
         .replace("[think]", "<think>", ignoreCase = true)
         .replace("[/think]", "</think>", ignoreCase = true)
         .replace("<thought>", "<think>", ignoreCase = true)
         .replace("</thought>", "</think>", ignoreCase = true)
 
-    while (currentIndex < normalizedText.length) {
-        val nextStart = normalizedText.indexOf("<think>", currentIndex)
-        if (nextStart == -1) {
-            responseStr += normalizedText.substring(currentIndex)
-            break
-        }
-        responseStr += normalizedText.substring(currentIndex, nextStart)
-        
-        val contentStart = nextStart + "<think>".length
-        val nextEnd = normalizedText.indexOf("</think>", contentStart)
-        if (nextEnd == -1) {
-            thinkingStr += normalizedText.substring(contentStart)
+    var thinking = ""
+    var response = ""
+    var cursor = 0
+
+    // 1. Extract explicit tags
+    while (cursor < normalized.length) {
+        val start = normalized.indexOf("<think>", cursor)
+        if (start == -1) {
+            response += normalized.substring(cursor)
             break
         }
         
-        thinkingStr += normalizedText.substring(contentStart, nextEnd) + "\n"
-        currentIndex = nextEnd + "</think>".length
+        response += normalized.substring(cursor, start)
+        val contentStart = start + "<think>".length
+        val end = normalized.indexOf("</think>", contentStart)
+        
+        if (end == -1) {
+            thinking += normalized.substring(contentStart)
+            cursor = normalized.length
+        } else {
+            thinking += normalized.substring(contentStart, end) + "\n"
+            cursor = end + "</think>".length
+        }
     }
-    
-    return Pair(thinkingStr.trim(), responseStr.trim())
+
+    // 2. Heuristic: If there's no tagged thinking but the response starts with 
+    // "internal monologue" patterns, split it manually.
+    if (thinking.isBlank() && response.length > 30) {
+        val reasoningPatterns = listOf(
+            Regex("""^The user (is|was|has|said|wants|needs|is asking|is looking|just|might)""", RegexOption.IGNORE_CASE),
+            Regex("""^This (is|was|looks|seems|appears|might be)""", RegexOption.IGNORE_CASE),
+            Regex("""^(I|We) (need|should|must|can|could|will) (to |check |verify |look|search|find|process|handle)""", RegexOption.IGNORE_CASE),
+            Regex("""^(Let me|I'll|I will|I should|I need to|Let's)""", RegexOption.IGNORE_CASE)
+        )
+        
+        val responseStarts = listOf(
+            Regex("""\n\n(Hey|Hi|Hello|Sure|Of course|Absolutely|Certainly|Yeah|Yes|No|Actually|Okay|Ok)""", RegexOption.IGNORE_CASE),
+            Regex("""\n\n[A-Z][a-z]+ (doing|going|is|was|has|can|will|looks|sounds|seems)""", RegexOption.IGNORE_CASE)
+        )
+
+        if (reasoningPatterns.any { it.containsMatchIn(response) }) {
+            var bestSplit = -1
+            for (pattern in responseStarts) {
+                val match = pattern.find(response)
+                if (match != null && match.range.first > 15) {
+                    bestSplit = match.range.first
+                    break
+                }
+            }
+            
+            if (bestSplit != -1) {
+                thinking = response.substring(0, bestSplit)
+                response = response.substring(bestSplit)
+            }
+        }
+    }
+
+    return Pair(thinking, response)
 }
 
 private fun buildInputSummary(toolName: String, args: JsonObject?): String {
