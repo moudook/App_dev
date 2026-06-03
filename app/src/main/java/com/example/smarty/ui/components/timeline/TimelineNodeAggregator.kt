@@ -47,7 +47,7 @@ class TimelineNodeAggregator {
                         _nodes[idx] = old.copy(
                             status = if (event.error != null) TimelineNode.ToolExecution.Status.FAILED
                                      else TimelineNode.ToolExecution.Status.COMPLETED,
-                            outputSummary = event.result?.take(400) ?: event.error?.take(200) ?: "",
+                            outputSummary = event.result ?: event.error ?: "",
                         )
                     }
                 }
@@ -124,7 +124,20 @@ class TimelineNodeAggregator {
                 }
             }
 
-            else -> { /* TextDelta, ReasoningDelta, Done, StateSync — no timeline node */ }
+            is AgentEvent.ReasoningDelta -> {
+                val lastStepIdx = _nodes.indexOfLast { 
+                    it is TimelineNode.ToolExecution && 
+                    it.toolName == "step" && 
+                    it.status == TimelineNode.ToolExecution.Status.RUNNING 
+                }
+                if (lastStepIdx != -1) {
+                    val old = _nodes[lastStepIdx] as TimelineNode.ToolExecution
+                    _nodes[lastStepIdx] = old.copy(
+                        outputSummary = (old.outputSummary ?: "") + event.text
+                    )
+                }
+            }
+            else -> { /* TextDelta, Done, StateSync — no timeline node */ }
         }
     }
 

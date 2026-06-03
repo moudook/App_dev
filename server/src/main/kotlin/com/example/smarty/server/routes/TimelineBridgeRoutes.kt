@@ -279,7 +279,13 @@ private fun translatePluginEvent(
                     when {
                         partType == "reasoning" || reasoningContent.isNotEmpty() -> {
                             val r = if (reasoningContent.isNotEmpty()) reasoningContent else textContent
-                            if (r.isNotBlank()) { separateReasoning.append(r).append("\n") }
+                            if (r.isNotBlank()) {
+                                separateReasoning.append(r).append("\n")
+                                val quote = r.trim().replace("\n", "\n> ")
+                                if (quote.isNotEmpty()) {
+                                    combinedText += "\n\n> **Thought:**\n> $quote\n\n"
+                                }
+                            }
                         }
                         partType == "tool" -> { extractToolFromPart(partObj, ts, eid, out); toolFound = true }
                         partType == "step-start" -> {
@@ -333,10 +339,10 @@ private fun translatePluginEvent(
 
             // Emit final blocks only on the snapshot with info.finish == "stop"
             if (isFinalMessage) {
-                if (mergedReasoning.isNotBlank()) {
+                if (thinkingFromText.isNotBlank()) {
                     out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId,
-                        partId = "snapshot-reasoning", content = mergedReasoning)
+                        partId = "snapshot-reasoning", content = thinkingFromText)
                 }
                 if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
                     out += AgentEvent.ResponseBlock(eventId = eid(), timestamp = ts,
@@ -416,6 +422,7 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
     val callId = partObj["toolCallID"]?.jsonPrimitive?.contentOrNull ?: partObj["id"]?.jsonPrimitive?.contentOrNull ?: ""
     val isMcp = partObj["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
     val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
+    val state = partObj["state"]?.jsonPrimitive?.contentOrNull ?: ""
 
     out += AgentEvent.ToolStart(
         eventId = eid(), timestamp = ts,
@@ -428,13 +435,16 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
     val outputStr = partObj["output"]?.toString()
     val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
     
-    out += AgentEvent.ToolEnd(
-        eventId = eid(), timestamp = ts,
-        toolId = callId, result = outputStr, error = errorStr,
-        isMcpTool = isMcp, isInteractive = isInteractive,
-        success = errorStr == null, 
-        outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
-    )
+    val isDone = state == "complete" || state == "completed" || state == "error" || outputStr != null || errorStr != null
+    if (isDone) {
+        out += AgentEvent.ToolEnd(
+            eventId = eid(), timestamp = ts,
+            toolId = callId, result = outputStr, error = errorStr,
+            isMcpTool = isMcp, isInteractive = isInteractive,
+            success = errorStr == null, 
+            outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
+        )
+    }
 }
 
 private fun splitThinkTags(text: String): Pair<String, String> {
@@ -462,10 +472,16 @@ private fun splitThinkTags(text: String): Pair<String, String> {
         val contentStart = start + "<think>".length
         val end = normalized.indexOf("</think>", contentStart)
         if (end == -1) {
-            thinking += normalized.substring(contentStart)
+            val content = normalized.substring(contentStart)
+            thinking += content
+            val quote = content.trim().replace("\n", "\n> ")
+            if (quote.isNotEmpty()) response += "\n\n> **Thinking...**\n> $quote"
             cursor = normalized.length
         } else {
-            thinking += normalized.substring(contentStart, end) + "\n"
+            val content = normalized.substring(contentStart, end)
+            thinking += content + "\n"
+            val quote = content.trim().replace("\n", "\n> ")
+            if (quote.isNotEmpty()) response += "\n\n> **Thought:**\n> $quote\n\n"
             cursor = end + "</think>".length
         }
     }
@@ -502,7 +518,7 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
 private fun summarizeOutput(result: String?, toolName: String): String? {
     if (result == null || result == "null") return null
     val clean = result.trim()
-    return if (clean.length <= 120) clean else "${clean.take(117)}…"
+    return if (clean.length <= 100000) clean else "${clean.take(99997)}…"
 }
 
 object TimelineBridgeService {

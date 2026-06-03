@@ -114,6 +114,10 @@ object AgentRunManager {
                 )
             }
 
+        if (opencodeSessionId != null) {
+            ActiveSessionManager.registerOpencodeSessionId(opencodeSessionId, userId, sessionId)
+        }
+
         val job =
             agentScope.launch {
                 val eventEmitter: suspend (AgentEvent) -> Unit = { event -> emitEvent(sessionId, event) }

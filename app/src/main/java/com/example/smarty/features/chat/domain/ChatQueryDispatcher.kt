@@ -498,7 +498,19 @@ class ChatQueryDispatcher(
                             pushSkeleton()
                         }
                         is AgentEvent.ReasoningDelta -> {
-                            fallbackThinkingBuilder.append(event.text)
+                            val targetKey = if (collectedAgentSteps.isNotEmpty()) collectedAgentSteps.keys.maxOrNull() ?: -1 else -1
+                            var handled = false
+                            if (targetKey != -1) {
+                                val existing = collectedAgentSteps[targetKey]
+                                if (existing != null && existing.stepStatus == "started") {
+                                    val current = existing.stepContent ?: ""
+                                    collectedAgentSteps[targetKey] = existing.copy(stepContent = current + event.text)
+                                    handled = true
+                                }
+                            }
+                            if (!handled) {
+                                fallbackThinkingBuilder.append(event.text)
+                            }
                             if (!isThinkingActive && finalReasoningText.isEmpty()) {
                                 isThinkingActive = true
                             }
@@ -532,7 +544,7 @@ class ChatQueryDispatcher(
                         is AgentEvent.ToolEnd -> {
                             pendingToolCallsMap[event.toolId]?.let { existing ->
                                 val summary = event.outputSummary.ifEmpty {
-                                    event.result?.take(800) ?: event.error?.take(200)
+                                    event.result ?: event.error ?: ""
                                 }
                                 pendingToolCallsMap[event.toolId] = existing.copy(
                                     status = if (event.success) "completed" else "failed",
