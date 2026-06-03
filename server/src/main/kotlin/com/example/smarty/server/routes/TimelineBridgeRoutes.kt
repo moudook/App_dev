@@ -52,6 +52,14 @@ fun Application.configureTimelineBridgeRoutes() {
             } catch (e: Exception) {
                 val preview = body.substring(0, minOf(body.length, 200))
                 logger.error("[KTOR-RECV-ERROR] error=${e.message} body=$preview")
+                val partialEvent = Json.parseToJsonElement(body).jsonObject
+                val partialSessionId = partialEvent["sessionID"]?.jsonPrimitive?.content
+                val partialMsgId = partialEvent["messageID"]?.jsonPrimitive?.content
+                if (partialSessionId != null) {
+                    if (partialMsgId != null) cleanupContentState(partialSessionId, partialMsgId)
+                    val prefix = "$partialSessionId:"
+                    partTextLengths.keys.removeAll { it.startsWith(prefix) }
+                }
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "unknown")))
             }
         }
@@ -66,8 +74,8 @@ private val partTextLengths = ConcurrentHashMap<String, Int>()
 
 /** Track accumulated text per (sessionID, messageID) for streaming delta -> block translation. */
 private data class MessageContentState(
-    val textBuilder: StringBuilder = StringBuilder(),
-    val reasoningBuilder: StringBuilder = StringBuilder(),
+    val textBuilder: java.lang.StringBuffer = java.lang.StringBuffer(),
+    val reasoningBuilder: java.lang.StringBuffer = java.lang.StringBuffer(),
     var lastSentReasoningLen: Int = 0,
     var lastSentResponseLen: Int = 0,
 )
@@ -82,6 +90,11 @@ private fun cleanupContentState(sessionId: String, msgId: String) {
     val prefix = "$sessionId:"
     partTextLengths.keys.removeAll { it.startsWith(prefix) }
 }
+
+private val deltaAccumulator = ConcurrentHashMap<String, StringBuilder>()
+private val reasoningAccumulator = ConcurrentHashMap<String, StringBuilder>()
+
+private fun accumulatorKey(sessionId: String, messageId: String) = "$sessionId:$messageId"
 
 private val INTERACTIVE_TOOLS = setOf(
     "ask_user", "ask", "askuser", "confirm", "question", "clarify", "input"
@@ -433,6 +446,12 @@ private fun translatePluginEvent(
                 sessionId = sId, messageId = msgId,
                 content = finalResponse,
             )
+            
+            // Clean up session content states since this message is now finalized
+            cleanupContentState(sessionId, msgId)
+            
+            // Explicitly emit Done because the plugin does not emit message.completed natively
+            out += AgentEvent.Done(eventId = eid(), timestamp = ts)
         }
 
         // ── PERMISSION GATES ───────────────────────────────────────────────

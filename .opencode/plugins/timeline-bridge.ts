@@ -118,6 +118,10 @@ export const TimelineBridgePlugin = async ({ client }: any) => {
         if (rawParts) payload.parts = rawParts
         emit(payload)
       }
+
+      if (event.type === "message.completed") {
+        emit({ kind: "message.completed", sessionID: event.properties.sessionID, messageID: event.properties.messageID, ts: Date.now() })
+      }
     },
 
     "message.part.updated": async ({ part }: { part: any }) => {
