@@ -67,6 +67,13 @@ private val logger = LoggerFactory.getLogger("com.example.smarty.server.routes.T
 
 private val partTextLengths = ConcurrentHashMap<String, Int>()
 
+/** Cross-source tool event dedup (Issue #9): three sources emit ToolStart/ToolEnd (part.updated, message.updated parts walk, tool.before/tool.after). Track seen callIds per (sessionId, lifecycle) so we never emit a duplicate. */
+private val seenToolStarts = ConcurrentHashMap<String, Boolean>()
+private val seenToolEnds = ConcurrentHashMap<String, Boolean>()
+
+private fun toolStartKey(sessionId: String, callId: String) = "tool_start:$sessionId:$callId"
+private fun toolEndKey(sessionId: String, callId: String) = "tool_end:$sessionId:$callId"
+
 /** Track accumulated text per (sessionID, messageID) for streaming delta -> block translation. */
 private data class MessageContentState(
     val textBuilder: StringBuilder = StringBuilder(),
@@ -83,6 +90,10 @@ private fun cleanupContentState(sessionId: String, msgId: String) {
     sessionContentStates.remove(contentStateKey(sessionId, msgId))
     val prefix = "$sessionId:"
     partTextLengths.keys.removeAll { it.startsWith(prefix) }
+    val toolPrefix = "tool_start:$sessionId:"
+    val toolEndPrefix = "tool_end:$sessionId:"
+    seenToolStarts.keys.removeAll { it.startsWith(toolPrefix) }
+    seenToolEnds.keys.removeAll { it.startsWith(toolEndPrefix) }
 }
 
 private val INTERACTIVE_TOOLS = setOf(
@@ -193,29 +204,38 @@ private fun translatePluginEvent(
 
                 when (state) {
                     "running" -> {
-                        out += AgentEvent.ToolStart(
-                            eventId = eid(), timestamp = ts,
-                            toolId = callId, name = toolName,
-                            args = event["input"]?.toString(),
-                            isMcpTool = isMcp, isInteractive = isInteractive,
-                            inputSummary = buildInputSummary(toolName, event["input"]?.jsonObject)
-                        )
+                        val startKey = toolStartKey(pluginSessionId, callId)
+                        if (seenToolStarts.putIfAbsent(startKey, true) == null) {
+                            out += AgentEvent.ToolStart(
+                                eventId = eid(), timestamp = ts,
+                                toolId = callId, name = toolName,
+                                args = event["input"]?.toString(),
+                                isMcpTool = isMcp, isInteractive = isInteractive,
+                                inputSummary = buildInputSummary(toolName, event["input"]?.jsonObject)
+                            )
+                        }
                     }
                     "complete", "completed" -> {
-                        out += AgentEvent.ToolEnd(
-                            eventId = eid(), timestamp = ts,
-                            toolId = callId, result = event["output"]?.toString(),
-                            isMcpTool = isMcp, isInteractive = isInteractive,
-                            success = true, outputSummary = summarizeOutput(event["output"]?.toString(), toolName) ?: ""
-                        )
+                        val endKey = toolEndKey(pluginSessionId, callId)
+                        if (seenToolEnds.putIfAbsent(endKey, true) == null) {
+                            out += AgentEvent.ToolEnd(
+                                eventId = eid(), timestamp = ts,
+                                toolId = callId, result = event["output"]?.toString(),
+                                isMcpTool = isMcp, isInteractive = isInteractive,
+                                success = true, outputSummary = summarizeOutput(event["output"]?.toString(), toolName) ?: ""
+                            )
+                        }
                     }
                     "error" -> {
-                        out += AgentEvent.ToolEnd(
-                            eventId = eid(), timestamp = ts,
-                            toolId = callId, error = event["error"]?.jsonPrimitive?.contentOrNull ?: "Tool failed",
-                            isMcpTool = isMcp, isInteractive = isInteractive,
-                            success = false, outputSummary = event["error"]?.jsonPrimitive?.contentOrNull ?: "Error"
-                        )
+                        val endKey = toolEndKey(pluginSessionId, callId)
+                        if (seenToolEnds.putIfAbsent(endKey, true) == null) {
+                            out += AgentEvent.ToolEnd(
+                                eventId = eid(), timestamp = ts,
+                                toolId = callId, error = event["error"]?.jsonPrimitive?.contentOrNull ?: "Tool failed",
+                                isMcpTool = isMcp, isInteractive = isInteractive,
+                                success = false, outputSummary = event["error"]?.jsonPrimitive?.contentOrNull ?: "Error"
+                            )
+                        }
                     }
                 }
             }
@@ -328,7 +348,7 @@ private fun translatePluginEvent(
                                 }
                             }
                         }
-                        partType == "tool" -> { extractToolFromPart(partObj, ts, eid, out); toolFound = true }
+                        partType == "tool" -> { extractToolFromPart(pluginSessionId, partObj, ts, eid, out); toolFound = true }
                         partType == "step-start" -> {
                             out += AgentEvent.StepStart(eventId = eid(), timestamp = ts,
                                 title = partObj["title"]?.jsonPrimitive?.contentOrNull ?: "Step ${partObj["step"]?.jsonPrimitive?.intOrNull ?: 0}",
@@ -402,12 +422,15 @@ private fun translatePluginEvent(
         "tool.before", "tool.execute.before" -> {
             val toolName = payload["tool"]?.jsonPrimitive?.contentOrNull ?: ""
             val callId = payload["callID"]?.jsonPrimitive?.contentOrNull ?: ""
-            out += AgentEvent.ToolStart(eventId = eid(), timestamp = ts,
-                toolId = callId, name = toolName,
-                args = payload["args"]?.toString() ?: payload["input"]?.toString(),
-                isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
-                isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
-                inputSummary = buildInputSummary(toolName, payload["args"]?.jsonObject ?: payload["input"]?.jsonObject))
+            val startKey = toolStartKey(pluginSessionId, callId)
+            if (seenToolStarts.putIfAbsent(startKey, true) == null) {
+                out += AgentEvent.ToolStart(eventId = eid(), timestamp = ts,
+                    toolId = callId, name = toolName,
+                    args = payload["args"]?.toString() ?: payload["input"]?.toString(),
+                    isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                    isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
+                    inputSummary = buildInputSummary(toolName, payload["args"]?.jsonObject ?: payload["input"]?.jsonObject))
+            }
         }
 
         "tool.after", "tool.execute.after" -> {
@@ -415,12 +438,15 @@ private fun translatePluginEvent(
             val callId = payload["callID"]?.jsonPrimitive?.contentOrNull ?: ""
             val result = payload["result"]?.toString() ?: payload["output"]?.toString()
             val error = payload["error"]?.toString()
-            out += AgentEvent.ToolEnd(eventId = eid(), timestamp = ts,
-                toolId = callId, result = result, error = error,
-                isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
-                isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
-                success = error == null,
-                outputSummary = summarizeOutput(error ?: result, toolName) ?: "")
+            val endKey = toolEndKey(pluginSessionId, callId)
+            if (seenToolEnds.putIfAbsent(endKey, true) == null) {
+                out += AgentEvent.ToolEnd(eventId = eid(), timestamp = ts,
+                    toolId = callId, result = result, error = error,
+                    isMcpTool = payload["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                    isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase()),
+                    success = error == null,
+                    outputSummary = summarizeOutput(error ?: result, toolName) ?: "")
+            }
         }
 
         "permission.asked" -> {
@@ -459,17 +485,17 @@ private fun translatePluginEvent(
     return out
 }
 
-private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String, out: MutableList<AgentEvent>) {
+private fun extractToolFromPart(sessionId: String, partObj: JsonObject, ts: Long, eid: () -> String, out: MutableList<AgentEvent>) {
     val toolName = partObj["tool"]?.jsonPrimitive?.contentOrNull ?: ""
     val callId = partObj["toolCallID"]?.jsonPrimitive?.contentOrNull ?: partObj["id"]?.jsonPrimitive?.contentOrNull ?: ""
     val isMcp = partObj["isMcpTool"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
     val isInteractive = INTERACTIVE_TOOLS.contains(toolName.lowercase())
     val state = partObj["state"]?.jsonPrimitive?.contentOrNull ?: ""
 
-    val toolKey = "tool_start_$callId"
-    val hasStarted = partTextLengths.getOrDefault(toolKey, 0) == 1
-    
-    if (!hasStarted) {
+    val toolKey = toolStartKey(sessionId, callId)
+    val isFirstStart = seenToolStarts.putIfAbsent(toolKey, true) == null
+
+    if (isFirstStart) {
         out += AgentEvent.ToolStart(
             eventId = eid(), timestamp = ts,
             toolId = callId, name = toolName,
@@ -477,25 +503,23 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
             isMcpTool = isMcp, isInteractive = isInteractive,
             inputSummary = buildInputSummary(toolName, partObj["input"]?.jsonObject)
         )
-        partTextLengths[toolKey] = 1
     }
-    
+
     val outputStr = partObj["output"]?.toString()
     val errorStr = partObj["error"]?.jsonPrimitive?.contentOrNull
-    
+
     val isDone = state == "complete" || state == "completed" || state == "error" || outputStr != null || errorStr != null
-    val toolEndKey = "tool_end_$callId"
-    val hasEnded = partTextLengths.getOrDefault(toolEndKey, 0) == 1
-    
-    if (isDone && !hasEnded) {
+    val toolEndKey = toolEndKey(sessionId, callId)
+    val isFirstEnd = seenToolEnds.putIfAbsent(toolEndKey, true) == null
+
+    if (isDone && isFirstEnd) {
         out += AgentEvent.ToolEnd(
             eventId = eid(), timestamp = ts,
             toolId = callId, result = outputStr, error = errorStr,
             isMcpTool = isMcp, isInteractive = isInteractive,
-            success = errorStr == null, 
+            success = errorStr == null,
             outputSummary = summarizeOutput(errorStr ?: outputStr, toolName) ?: ""
         )
-        partTextLengths[toolEndKey] = 1
     }
 }
 
