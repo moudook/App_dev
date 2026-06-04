@@ -120,19 +120,16 @@ object OpencodeModelRegistry {
                 }
 
                 val exitCode = process.exitValue()
-                logger.info(
-                    "[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
-                    cliDuration,
-                    exitCode,
-                    lines.size,
-                )
+    logger.info(
+        "[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
+        cliDuration,
+        exitCode,
+        lines.size,
+    )
 
-                if (exitCode != 0) {
-                    logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
-                    lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
-                } else {
-                    lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
-                }
+    if (exitCode != 0) {
+        logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+    }
 
                 parseModelsVerbose(lines)
             }.getOrElse { error ->
@@ -267,9 +264,9 @@ object OpencodeModelRegistry {
                         lines.size,
                     )
 
-                    if (exitCode != 0) {
-                        lines.forEach { logger.debug("[OpencodeModelRegistry]   RAW: {}", it) }
-                    }
+    if (exitCode != 0) {
+        logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+    }
 
                     parseModelsVerbose(lines)
                 }.getOrElse { error ->
@@ -295,10 +292,8 @@ object OpencodeModelRegistry {
                 System.currentTimeMillis() - refreshStart,
                 finalModels.size,
                 newState.source,
-            )
-            finalModels.forEach { logger.info("[OpencodeModelRegistry]   - {} ({})", it.id, it.label) }
-            logger.info("[OpencodeModelRegistry] === PHASE COMPLETE ===")
-            newState
+    )
+    newState
         }
 
     private fun runBlockingRefresh(): OpencodeModelState {
