@@ -484,6 +484,14 @@ class ChatQueryDispatcher(
                         is AgentEvent.ReasoningBlock -> {
                             finalReasoningText = event.content
                             finalReasoningDurationMs = event.thinkingDurationMs
+                            val lastThinkingKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "thinking" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                            if (lastThinkingKey != null) {
+                                collectedAgentSteps[lastThinkingKey] = collectedAgentSteps[lastThinkingKey]!!
+                                    .copy(stepStatus = "completed", stepContent = event.content)
+                            }
                             pushBlocks()
                         }
                         is AgentEvent.ResponseBlock -> {
@@ -498,25 +506,42 @@ class ChatQueryDispatcher(
                             pushSkeleton()
                         }
                         is AgentEvent.ReasoningDelta -> {
-                            val targetKey = if (collectedAgentSteps.isNotEmpty()) collectedAgentSteps.keys.maxOrNull() ?: -1 else -1
-                            var handled = false
-                            if (targetKey != -1) {
-                                val existing = collectedAgentSteps[targetKey]
-                                if (existing != null && existing.stepStatus == "started") {
-                                    val current = existing.stepContent ?: ""
-                                    collectedAgentSteps[targetKey] = existing.copy(stepContent = current + event.text)
-                                    handled = true
-                                }
+                            val thinkingKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "thinking" && it.value.stepStatus == "started" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                        
+                            if (thinkingKey != null) {
+                                val existing = collectedAgentSteps[thinkingKey]!!
+                                collectedAgentSteps[thinkingKey] = existing.copy(
+                                    stepContent = existing.stepContent + event.text
+                                )
+                            } else {
+                                val stepIdx = collectedAgentSteps.size
+                                collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "thinking",
+                                    stepTitle = "Thinking",
+                                    stepContent = event.text,
+                                    stepStatus = "started",
+                                    stepIndex = stepIdx,
+                                )
                             }
-                            if (!handled) {
-                                fallbackThinkingBuilder.append(event.text)
-                            }
+                        
                             if (!isThinkingActive && finalReasoningText.isEmpty()) {
                                 isThinkingActive = true
                             }
                             pushSkeleton()
                         }
                         is AgentEvent.ToolStart -> {
+                            val openThinkingKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "thinking" && it.value.stepStatus == "started" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                            if (openThinkingKey != null) {
+                                collectedAgentSteps[openThinkingKey] = collectedAgentSteps[openThinkingKey]!!
+                                    .copy(stepStatus = "completed")
+                            }
+
                             val entry = AgentToolCallEntry(
                                 toolName = event.name,
                                 displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
@@ -563,20 +588,45 @@ class ChatQueryDispatcher(
                             pushSkeleton()
                         }
                         is AgentEvent.StepStart -> {
-                            val existingEntry = collectedAgentSteps.entries.find { it.value.stepTitle == event.title && it.value.stepStatus == "started" }
-                            if (existingEntry != null) {
-                                // Already started, keep it as is
+                            val isThinking = event.title.equals("Thinking", ignoreCase = true)
+                        
+                            if (isThinking) {
+                                val alreadyOpen = collectedAgentSteps.values.any {
+                                    it.stepType == "thinking" && it.stepStatus == "started"
+                                }
+                                if (!alreadyOpen) {
+                                    val stepIdx = collectedAgentSteps.size
+                                    collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                        stepType = "thinking",
+                                        stepTitle = "Thinking",
+                                        stepContent = "",
+                                        stepStatus = "started",
+                                        stepIndex = stepIdx,
+                                    )
+                                }
                             } else {
-                                val stepIdx = collectedAgentSteps.size
-                                val isThinking = event.title.equals("Thinking", ignoreCase = true)
-                                val uiStep = com.example.smarty.core.domain.model.AgentStepEntry(
-                                    stepType = if (isThinking) "thinking" else "tool_call",
-                                    stepTitle = event.title,
-                                    stepContent = "",
-                                    stepStatus = "started",
-                                    stepIndex = stepIdx,
-                                )
-                                collectedAgentSteps[stepIdx] = uiStep
+                                val openThinkingKey = collectedAgentSteps.entries
+                                    .filter { it.value.stepType == "thinking" && it.value.stepStatus == "started" }
+                                    .maxByOrNull { it.key }
+                                    ?.key
+                                if (openThinkingKey != null) {
+                                    collectedAgentSteps[openThinkingKey] = collectedAgentSteps[openThinkingKey]!!
+                                        .copy(stepStatus = "completed")
+                                }
+                        
+                                val existing = collectedAgentSteps.values.find {
+                                    it.stepTitle == event.title && it.stepStatus == "started"
+                                }
+                                if (existing == null) {
+                                    val stepIdx = collectedAgentSteps.size
+                                    collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                        stepType = "tool_call",
+                                        stepTitle = event.title,
+                                        stepContent = "",
+                                        stepStatus = "started",
+                                        stepIndex = stepIdx,
+                                    )
+                                }
                             }
                             pushSkeleton()
                         }
