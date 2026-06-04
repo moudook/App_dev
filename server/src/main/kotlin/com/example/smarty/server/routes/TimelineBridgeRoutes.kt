@@ -277,6 +277,16 @@ private fun translatePluginEvent(
                 val infoContent = (payload["info"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
                 combinedText = msgContent ?: infoContent ?: ""
                 
+                val role = (payload["info"] as? JsonObject)?.get("role")?.jsonPrimitive?.contentOrNull
+                if (role == "assistant" && combinedText.isEmpty()) {
+                    val key = "$pluginSessionId:$currentMsgId:skeleton"
+                    if (!partTextLengths.containsKey(key)) {
+                        partTextLengths[key] = 1
+                        out += AgentEvent.StepStart(eventId = eid(), timestamp = ts, title = "Thinking", messageId = currentMsgId)
+                        out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
+                }
+                
                 if (combinedText.isEmpty()) {
                     return out
                 }
