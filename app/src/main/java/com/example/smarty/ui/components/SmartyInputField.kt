@@ -701,7 +701,7 @@ fun STierAttachmentPreview(
                                     com.example.smarty.core.domain.model.AttachmentType.IMAGE -> Icons.Rounded.Image
                                     com.example.smarty.core.domain.model.AttachmentType.VIDEO -> Icons.Rounded.Videocam
                                     com.example.smarty.core.domain.model.AttachmentType.DOCUMENT -> Icons.Rounded.Description
-                                    else -> Icons.Rounded.InsertDriveFile
+                                    else -> Icons.AutoMirrored.Rounded.InsertDriveFile
                                 },
                             contentDescription = null,
                             tint = Color.Gray,

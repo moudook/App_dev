@@ -600,7 +600,7 @@ class ChatQueryDispatcher(
                                     AgentActionResult(
                                         action = existing.displayName,
                                         success = event.success,
-                                        resultSummary = summary ?: "Completed",
+                                        resultSummary = summary,
                                     )
                                 )
                             }

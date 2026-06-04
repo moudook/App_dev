@@ -661,9 +661,6 @@ class MainActivity : ComponentActivity() {
                                         onDeleteCalendarEvent = { eventId ->
                                             viewModel.deleteCalendarEvent(eventId)
                                         },
-                                        onNavigateToTasks = {
-                                            navController.navigate(Screen.Tasks.route)
-                                        },
                                         onNavigateToNotifications = {
                                             navController.navigate(Screen.Notifications.route)
                                         },

@@ -52,7 +52,6 @@ import com.example.smarty.features.settings.ui.BackupSettingsScreen
 import com.example.smarty.features.settings.ui.SettingsScreen
 import com.example.smarty.features.tags.ui.TagNotesScreen
 import com.example.smarty.features.tags.ui.TagsScreen
-import com.example.smarty.features.tasks.ui.TasksScreen
 import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.ConnectionStatus
@@ -105,8 +104,6 @@ sealed class Screen(
     data object Digest : Screen("digest")
 
     data object GuidedBreathing : Screen("guided_breathing")
-
-    data object Tasks : Screen("tasks")
 
     data object Tags : Screen("tags")
 
@@ -252,7 +249,6 @@ fun SmartyNavHost(
     onUpdateCalendarEvent: (CalendarEvent) -> Unit = {},
     onDeleteCalendarEvent: (String) -> Unit = {},
     onCancelTimer: (SmartyTimer) -> Unit = {},
-    onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToChatFolders: () -> Unit = {},
@@ -723,9 +719,6 @@ fun SmartyNavHost(
                 onSetTargetCalendarId = onSetTargetCalendarId,
                 onLoadDeviceCalendars = onLoadDeviceCalendars,
                 onSignOut = onSignOut,
-                onNavigateToTasks = {
-                    navController.navigate(Screen.Tasks.route)
-                },
                 onNavigateToTags = {
                     navController.navigate(Screen.Tags.route)
                 },
@@ -833,16 +826,6 @@ fun SmartyNavHost(
         composable(Screen.GuidedBreathing.route) { _ ->
             GuidedBreathingScreen(
                 onDismiss = { navController.safePopBackStack() },
-            )
-        }
-
-        composable(Screen.Tasks.route) { _ ->
-            val viewModel: com.example.smarty.features.tasks.domain.TasksViewModel = viewModel()
-            val uiState by viewModel.uiState.collectAsState()
-            val tasks by viewModel.tasks.collectAsState()
-
-            TasksScreen(
-                onNavigateBack = { navController.safePopBackStack() },
             )
         }
 

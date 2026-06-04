@@ -106,7 +106,6 @@ fun SettingsScreen(
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit = {},
-    onNavigateToTasks: () -> Unit = {},
     onNavigateToTags: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToChatFolders: () -> Unit = {},
@@ -424,12 +423,6 @@ fun SettingsScreen(
                                             icon = SmartyIcons.Games,
                                             subtitle = "5-minute mental break",
                                             onClick = { currentView = SettingsView.GuidedBreathing },
-                                        )
-                                        SmartySettingsRow(
-                                            label = "Tasks",
-                                            icon = SmartyIcons.Tasks,
-                                            subtitle = "Manage your tasks",
-                                            onClick = { onNavigateToTasks() },
                                         )
                                         SmartySettingsRow(
                                             label = "Tags",
