@@ -89,6 +89,7 @@ class ServerAgent(
         opencodeSessionId: String? = null,
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
+        section: String? = null,
     ): String {
         if (query.length > 10000) {
             throw IllegalArgumentException("Query too long")
@@ -108,6 +109,7 @@ class ServerAgent(
             opencodeSessionId,
             onOpencodeSessionCreated,
             variantOverride,
+            section,
         )
     }
 
@@ -122,6 +124,7 @@ class ServerAgent(
         opencodeSessionId: String? = null,
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
+        section: String? = null,
     ): String {
         var toolCallCount = 0
 
@@ -150,7 +153,7 @@ class ServerAgent(
         val toolExamples = toolExampleStore.getRelevantExamples(query)
 
         // 2. Build Messages
-        val systemMessage = stateManager.buildSystemMessage(query, clientTimezone, clientTimeMillis, personality, goalMemoryManager)
+        val systemMessage = stateManager.buildSystemMessage(query, clientTimezone, clientTimeMillis, personality, goalMemoryManager, section)
 
         val userMessage =
             if (query.isNotBlank()) {
@@ -305,6 +308,7 @@ class ServerAgent(
                                 clientTimeMillis = clientTimeMillis,
                                 toolCallId = toolCallId,
                                 sessionId = sessionId,
+                                section = section,
                             )
 
                         val isToolError =

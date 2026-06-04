@@ -90,6 +90,7 @@ object AgentRunManager {
         opencodeSessionId: String?,
         messageId: String? = null,
         variantOverride: String? = null,
+        section: String? = null,
     ): Boolean {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
@@ -164,6 +165,7 @@ object AgentRunManager {
                                     }
                                 },
                                 variantOverride = variantOverride,
+                                section = section,
                             )
                         }
 

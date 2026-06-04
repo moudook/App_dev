@@ -75,6 +75,7 @@ data class ChatRequest(
     val clientTime: Long? = null, // User's current time in epoch millis
     val personality: String? = null, // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
     val messageId: String? = null, // Client-generated message ID for sync matching
+    val section: String? = null, // "chat" or "notes" — Issue #18: server-side mode differentiation
 )
 
 @Serializable
@@ -386,6 +387,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
                                     messageId = chatRequest.messageId,
                                     variantOverride = chatRequest.variant,
+                                    section = chatRequest.section,
                                 )
                                 if (!started) {
                                     send(Frame.Text(json.encodeToString(

@@ -111,6 +111,7 @@ class ToolExecutor(
         skipApprovalGate: Boolean = false,
         toolCallId: String = "tool-${java.util.UUID.randomUUID()}",
         sessionId: String = "",
+        section: String? = null,
     ): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
@@ -152,10 +153,20 @@ class ToolExecutor(
         }
 
         return when (toolName) {
-            "memory_save" -> executeMemorySave(args)
+            "memory_save" -> {
+                if (section?.lowercase() == "notes") {
+                    return """{"error":"Notes section is refinement-only. The agent cannot create new notes here. Use 'memory_update' to refine the existing note, or move to Chat to create new notes."}"""
+                }
+                executeMemorySave(args)
+            }
             "memory_find" -> executeMemoryFind(args)
             "memory_update" -> executeMemoryUpdate(args)
-            "memory_delete" -> executeMemoryDelete(args)
+            "memory_delete" -> {
+                if (section?.lowercase() == "notes") {
+                    return """{"error":"Notes section is refinement-only. Notes cannot be deleted from here."}"""
+                }
+                executeMemoryDelete(args)
+            }
             "memory_remember" -> executeMemoryRemember(args)
             "memory" -> executeMemoryTool(args)
             "save_progress" -> executeSaveProgress(args)

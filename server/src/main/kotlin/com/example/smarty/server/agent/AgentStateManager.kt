@@ -58,6 +58,7 @@ class AgentStateManager(
         clientTimeMillis: Long?,
         personality: String?,
         goalMemoryManager: GoalMemoryManager,
+        section: String? = null,
     ): LlmMessage {
         val queryContext =
             try {
@@ -527,6 +528,8 @@ class AgentStateManager(
 
                 ---
 
+                ${notesSectionModePrompt(section)}
+
                 <context>
                 User Profile: ${userProfile}
                 Query Context: ${queryContext}
@@ -536,6 +539,29 @@ class AgentStateManager(
 
                 """.trimIndent(),
         )
+    }
+
+    private fun notesSectionModePrompt(section: String?): String {
+        if (section?.lowercase() != "notes") return ""
+        return """<notes_section_mode>
+                **YOU ARE IN THE NOTES SECTION — STRICT REFINEMENT ONLY.**
+
+                The user is in the dedicated Notes screen, not Chat. Your behavior here is heavily restricted:
+
+                - **PROCESS each user-generated note ONCE**: improve grammar, add a clear title, restructure for clarity, extract personal facts.
+                - **UPDATE the existing note in place** with your refinements. NEVER create a new note.
+                - **MARK the note as processed** by setting its tags to include "ai_processed" (or extending the existing tag list).
+                - **NEVER re-process a note** that already has the "ai_processed" tag. Skip it and tell the user.
+                - **NEVER create new notes from existing notes** — this creates infinite loops. If the user asks for "10 notes from this one", refuse.
+                - **NEVER delete notes** from the notes section.
+                - **DO NOT** run the agent in agentic mode here. The notes section is a refinement pipeline, not a chat.
+                - You MAY read other notes for personalization context, but never modify them.
+                - You MAY extract personal information from the note to update the user profile.
+                - If the user's input isn't a note (e.g. random chat), politely redirect: "This is the Notes section. Tap the chat tab if you want to talk."
+                </notes_section_mode>
+
+                ---
+                """
     }
 
     private fun buildTimeContext(
