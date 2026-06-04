@@ -126,7 +126,7 @@ object ActiveSessionManager {
         chatSessionId: String,
     ) {
         opencodeIndex[opencodeSessionId] = userId to chatSessionId
-        logger.debug("[ActiveSessionManager] opencode session mapped: $opencodeSessionId -> user=$userId, chatSession=$chatSessionId")
+        logger.debug("[ActiveSessionManager] opencode session mapped: $opencodeSessionId -> user=$userId, chat=$chatSessionId")
     }
 
     /**

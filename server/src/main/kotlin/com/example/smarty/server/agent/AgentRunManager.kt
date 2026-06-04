@@ -43,8 +43,8 @@ object AgentRunManager {
         sessionEventFlows
             .getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 50,
-                    extraBufferCapacity = 500,
+                    replay = 10,
+                    extraBufferCapacity = 100,
                 )
             }.asSharedFlow()
 
@@ -110,8 +110,8 @@ object AgentRunManager {
         val flow =
             sessionEventFlows.getOrPut(sessionId) {
                 MutableSharedFlow(
-                    replay = 50,
-                    extraBufferCapacity = 500,
+                    replay = 10,
+                    extraBufferCapacity = 100,
                 )
             }
 

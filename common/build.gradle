@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.kotlin.serialization)
+    alias libs.plugins.kotlin.multiplatform
+    alias libs.plugins.kotlin.serialization
     alias(libs.plugins.ksp) apply false
 }
 
@@ -24,7 +24,7 @@ if (hasAndroidSdk) {
 kotlin {
     // android target is auto-created by com.android.kotlin.multiplatform.library
     if (hasAndroidSdk) {
-        android {
+        androidLibrary {
             namespace = "com.example.smarty.common"
             compileSdk = 35
             minSdk = 26

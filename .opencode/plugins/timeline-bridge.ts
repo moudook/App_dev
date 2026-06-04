@@ -153,6 +153,42 @@ class EventQueue {
   }
 }
 
+// ── Coalescing buffer for message.part.delta events (Phase 3.1) ───────────────
+const COALESCE_WINDOW_MS = 50
+const coalescingBuffers = new Map<string, { text: string[], reasoning: string[], timer: ReturnType<typeof setTimeout> }>()
+let coalesceSeq = 0
+
+function flushCoalesced(key: string, buf: { text: string[], reasoning: string[], timer: ReturnType<typeof setTimeout> }): void {
+  const text = buf.text.join("")
+  const reasoning = buf.reasoning.join("")
+  if (text || reasoning) {
+    queue.enqueue(JSON.stringify({
+      ts: Date.now(),
+      kind: "message.part.delta",
+      sessionID: key.split(":")[0],
+      messageID: key.split(":")[1],
+      partID: key.split(":")[2],
+      coalesceSeq: ++coalesceSeq,
+      text,
+      reasoning,
+    }))
+  }
+  coalescingBuffers.delete(key)
+}
+
+function enqueueCoalesced(sessionID: string, messageID: string, partID: string, text: string, reasoning: string): void {
+  const key = `${sessionID}:${messageID}:${partID}`
+  const buf = coalescingBuffers.get(key) ?? { text: [], reasoning: [], timer: null }
+  if (text) buf.text.push(text)
+  if (reasoning) buf.reasoning.push(reasoning)
+  if (!buf.timer) {
+    buf.timer = setTimeout(() => {
+      flushCoalesced(key, buf)
+    }, COALESCE_WINDOW_MS)
+  }
+  coalescingBuffers.set(key, buf)
+}
+
 // ── Extract website domains from websearch/webfetch result ──────────────────
 function extractDomains(text: string): string[] {
   if (!text || typeof text !== "string") return []
@@ -463,18 +499,16 @@ export const TimelineBridgePlugin: Plugin = async ({ client, project }: any) => 
     // ── Word-by-word streaming ─────────────────────────────────────────────
     "message.part.delta": async ({ part, delta }: { part: any; delta: any }) => {
       const s = sessions.get(part.sessionID)
-      emit({
-        kind: "message.part.delta",
-        sessionID: part.sessionID,
-        messageID: part.messageID,
-        partID: part.id,
-        field: delta?.field,
-        text: delta?.text ?? delta?.content ?? "",
-        reasoning: delta?.reasoning ?? delta?.reasoning_content ?? "",
-        isSubAgent: s?.isSubAgent ?? false,
-        parentSessionID: s?.parentSessionID,
-        ts: Date.now(),
-      })
+      const text = delta?.text ?? delta?.content ?? ""
+      const reasoning = delta?.reasoning ?? delta?.reasoning_content ?? ""
+      if (!text && !reasoning) return
+      enqueueCoalesced(
+        part.sessionID,
+        part.messageID,
+        part.id,
+        text,
+        reasoning,
+      )
     },
 
     // ── Tool execution — safety net for denied tools + web tool metadata ──

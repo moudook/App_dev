@@ -157,6 +157,32 @@ if [ "$DAEMON_READY" = true ]; then
     fi
 fi
 
+# -----------------------------------------------------------------------------
+# Step 4b: Verify MCP tools are registered in the daemon
+# -----------------------------------------------------------------------------
+echo ""
+echo "[4b/5] Verifying MCP tools are registered in OpenCode daemon..."
+MCP_TOOLS_ENDPOINT="$DAEMON_URL/tools"
+MCP_VERIFIED=false
+for i in $(seq 1 12); do
+    MCP_RESPONSE=$(wget -q -O - --timeout=3 "$MCP_TOOLS_ENDPOINT" 2>/dev/null || echo "")
+    if echo "$MCP_RESPONSE" | grep -q "memory\|ask_user\|schedule\|device"; then
+        echo "  MCP tools verified (found in response)"
+        MCP_VERIFIED=true
+        break
+    fi
+    if [ $((i % 4)) -eq 0 ]; then
+        echo "  Still waiting for MCP tool registration... ($((i * 5))s elapsed)"
+    fi
+    sleep 5
+done
+if [ "$MCP_VERIFIED" = false ]; then
+    echo "  WARNING: Could not verify MCP tools after 60 seconds."
+    echo "  Daemon log (last 15 lines):"
+    tail -15 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
+fi
+echo ""
+
 echo ""
 echo "============================================"
 echo "  Startup complete — Ktor + daemon running"

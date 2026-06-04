@@ -2,7 +2,7 @@ plugins {
     application
     kotlin("jvm")
     alias(libs.plugins.kotlin.serialization)
-    id("com.gradleup.shadow") version "9.4.1"
+    alias(libs.plugins.shadow)
 }
 
 group = "com.example.smarty.server"
@@ -11,7 +11,7 @@ version = "1.0.0"
 application {
     mainClass.set("com.example.smarty.server.ApplicationKt")
 
-    val isDevelopment: Boolean = project.ext.has("development")
+    val isDevelopment: Boolean = project.hasProperty("development")
     applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
 }
 
