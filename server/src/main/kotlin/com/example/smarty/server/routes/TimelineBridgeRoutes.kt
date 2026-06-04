@@ -31,6 +31,8 @@ fun Application.configureTimelineBridgeRoutes() {
                 val kind = event["type"]?.jsonPrimitive?.content 
                     ?: event["kind"]?.jsonPrimitive?.content 
                     ?: "unknown"
+
+                logger.debug("[KTOR-RECV] kind=$kind bodyLen=${body.length}")
                 
                 val sessionID = event["sessionID"]?.jsonPrimitive?.content 
                     ?: event["properties"]?.jsonObject?.get("message")?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
@@ -80,8 +82,6 @@ private data class MessageContentState(
     val reasoningBuilder: StringBuilder = StringBuilder(),
     var lastSentReasoningLen: Int = 0,
     var lastSentResponseLen: Int = 0,
-    /** Hash of last processed `combinedText` for message.updated snapshots; skip if unchanged (Issue #8). */
-    var lastSnapshotTextHash: Int = 0,
 )
 
 private val sessionContentStates = ConcurrentHashMap<String, MessageContentState>()
@@ -246,8 +246,22 @@ private fun translatePluginEvent(
         }
 
         "message.part.delta" -> {
-            val delta = event["delta"]?.jsonPrimitive?.contentOrNull ?: ""
+            // Daemon sends delta as a JSON object {text: "..."} or sometimes as a string primitive
+            val delta: String = run {
+                val deltaEl = event["delta"]
+                when (deltaEl) {
+                    is kotlinx.serialization.json.JsonPrimitive -> deltaEl.contentOrNull ?: ""
+                    is kotlinx.serialization.json.JsonObject -> {
+                        deltaEl["text"]?.jsonPrimitive?.contentOrNull
+                            ?: deltaEl["content"]?.jsonPrimitive?.contentOrNull
+                            ?: deltaEl["reasoning"]?.jsonPrimitive?.contentOrNull
+                            ?: deltaEl.toString()
+                    }
+                    else -> ""
+                }
+            }
             if (delta.isNotEmpty()) {
+                logger.debug("[message.part.delta] delta.length=${delta.length}, preview=${delta.take(60)}")
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates.getOrPut(key) { MessageContentState() }
                 synchronized(state) {
@@ -375,14 +389,11 @@ private fun translatePluginEvent(
             val key = contentStateKey(pluginSessionId, currentMsgId)
             val state = sessionContentStates.getOrPut(key) { MessageContentState() }
 
-            // Issue #8: skip redundant work if snapshot text is unchanged since last processed
-            val snapshotHash = combinedText.hashCode()
-            val snapshotUnchanged = snapshotHash == state.lastSnapshotTextHash && !toolFound
-
-            if (snapshotUnchanged && !isFinalMessage) {
-                return out
-            }
-            state.lastSnapshotTextHash = snapshotHash
+            // Issue #8: Snapshot dedup is now handled by the delta gate below
+            // (hasNewResponse / hasNewReasoningFromText check lastSentXxxLen).
+            // The previous hash check had a bug: "".hashCode() == 0, which matched the
+            // initial value 0 and caused the FIRST snapshot to be skipped entirely,
+            // dropping all content events. The delta gate is correct and sufficient.
 
             val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
             val fullReasoning = separateReasoning.toString()
