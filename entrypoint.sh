@@ -1,10 +1,13 @@
 #!/bin/bash
 # =============================================================================
 # Entrypoint for Hugging Face Spaces (glibc-based JRE)
+# 0. Configure non-NFS storage paths
+# 0b. Install Timeline Bridge plugin
 # 1. Verify OpenCode CLI is installed
 # 2. Start Ktor server FIRST so MCP SSE endpoint is available
 # 3. Wait for Ktor to be healthy
 # 4. Start OpenCode daemon (it can now connect to MCP tools at startup)
+# 5. Verify MCP tools registered
 # =============================================================================
 set -e
 
@@ -24,7 +27,7 @@ echo ""
 # Required to prevent SQLite "database disk image is malformed" corruption
 # See: https://github.com/anomalyco/opencode/issues/14970
 # -----------------------------------------------------------------------------
-echo "[0/4] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
+echo "[0/5] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
 export XDG_DATA_HOME="/tmp/opencode-data"
 export XDG_CONFIG_HOME="/tmp/opencode-config"
 export OPENCODE_DATA_DIR="/tmp/opencode"
@@ -36,9 +39,23 @@ echo "  Directories created OK"
 echo ""
 
 # -----------------------------------------------------------------------------
+# Step 0b: Install Timeline Bridge plugin so daemon sends part.updated / message.part.delta events
+# -----------------------------------------------------------------------------
+echo "[0b/5] Installing Timeline Bridge plugin..."
+PLUGIN_SRC=".opencode/plugins/timeline-bridge.ts"
+PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/timeline-bridge.ts"
+if [ -f "$PLUGIN_SRC" ]; then
+    cp "$PLUGIN_SRC" "$PLUGIN_DEST"
+    echo "  Plugin installed to $PLUGIN_DEST"
+else
+    echo "  WARNING: Plugin source not found at $PLUGIN_SRC"
+fi
+echo ""
+
+# -----------------------------------------------------------------------------
 # Step 1: Verify OpenCode CLI is installed
 # -----------------------------------------------------------------------------
-echo "[1/4] Verifying OpenCode CLI installation..."
+echo "[1/5] Verifying OpenCode CLI installation..."
 if ! command -v opencode &> /dev/null; then
     echo "ERROR: opencode CLI not found. Install with: npm install -g opencode-ai"
     exit 1
@@ -55,7 +72,7 @@ echo ""
 # is available BEFORE the OpenCode daemon starts. This is critical for MCP
 # tool registration — if the daemon starts first, it cannot see any MCP tools.
 # -----------------------------------------------------------------------------
-echo "[2/4] Launching Ktor server on port ${SERVER_PORT:-7860}..."
+echo "[2/5] Launching Ktor server on port ${SERVER_PORT:-7860}..."
 echo "  JVM heap: -Xmx384m"
 echo "  GC: G1GC"
 echo "  Max RAM: 80%"
@@ -101,7 +118,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 3: Start OpenCode daemon (Ktor is already up — MCP tools will register)
 # -----------------------------------------------------------------------------
-echo "[3/4] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
@@ -125,7 +142,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 4: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[4/4] Waiting for OpenCode daemon to be ready..."
+echo "[4/5] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -158,10 +175,10 @@ if [ "$DAEMON_READY" = true ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Step 4b: Verify MCP tools are registered in the daemon
+# Step 5: Verify MCP tools are registered in the daemon
 # -----------------------------------------------------------------------------
 echo ""
-echo "[4b/5] Verifying MCP tools are registered in OpenCode daemon..."
+echo "[5/5] Verifying MCP tools are registered in OpenCode daemon..."
 MCP_TOOLS_ENDPOINT="$DAEMON_URL/tools"
 MCP_VERIFIED=false
 for i in $(seq 1 12); do
