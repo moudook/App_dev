@@ -80,6 +80,8 @@ private data class MessageContentState(
     val reasoningBuilder: StringBuilder = StringBuilder(),
     var lastSentReasoningLen: Int = 0,
     var lastSentResponseLen: Int = 0,
+    /** Hash of last processed `combinedText` for message.updated snapshots; skip if unchanged (Issue #8). */
+    var lastSnapshotTextHash: Int = 0,
 )
 
 private val sessionContentStates = ConcurrentHashMap<String, MessageContentState>()
@@ -372,6 +374,15 @@ private fun translatePluginEvent(
             // Delta computation via accumulated state (skeleton-stream pattern)
             val key = contentStateKey(pluginSessionId, currentMsgId)
             val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+
+            // Issue #8: skip redundant work if snapshot text is unchanged since last processed
+            val snapshotHash = combinedText.hashCode()
+            val snapshotUnchanged = snapshotHash == state.lastSnapshotTextHash && !toolFound
+
+            if (snapshotUnchanged && !isFinalMessage) {
+                return out
+            }
+            state.lastSnapshotTextHash = snapshotHash
 
             val (thinkingFromText, cleanResponse) = splitThinkTags(combinedText)
             val fullReasoning = separateReasoning.toString()
