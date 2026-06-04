@@ -431,30 +431,72 @@ private fun translatePluginEvent(
                 topLevel == "stop" || inInfo == "stop" || inMessage == "stop" || inInfoTime || inMessageSummary
             }
 
+            // Extract content from snapshot as fallback when streaming deltas never arrived
+            val snapshotText = run {
+                val info = payload["info"] as? JsonObject
+                val msg = payload["message"] as? JsonObject
+                val parts = payload["parts"] as? JsonArray ?: event["parts"] as? JsonArray
+                var text = ""
+                var reasoning = ""
+                if (parts != null) {
+                    for (part in parts) {
+                        val p = part as? JsonObject ?: continue
+                        val type = p["type"]?.jsonPrimitive?.contentOrNull ?: "text"
+                        val content = p["content"]?.jsonPrimitive?.contentOrNull
+                            ?: p["text"]?.jsonPrimitive?.contentOrNull
+                            ?: p["message"]?.jsonPrimitive?.contentOrNull
+                            ?: ""
+                        val r = p["reasoning"]?.jsonPrimitive?.contentOrNull
+                            ?: p["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                            ?: ""
+                        if (type == "reasoning" || r.isNotEmpty()) {
+                            reasoning += r + "\n"
+                        } else {
+                            text += content
+                        }
+                    }
+                } else {
+                    // Fallback: check info.message.content or info.content
+                    text = info?.get("content")?.jsonPrimitive?.contentOrNull
+                        ?: msg?.get("content")?.jsonPrimitive?.contentOrNull
+                        ?: msg?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: ""
+                    reasoning = info?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: info?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                        ?: msg?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: msg?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                        ?: ""
+                }
+                Pair(text, reasoning)
+            }
+
             if (isFinalMessage) {
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates[key]
-                if (state != null) {
-                    getLock(pluginSessionId).let { lock ->
-                        synchronized(lock) {
-                            val thinking = state.reasoningBuilder.toString()
-                            val response = state.textBuilder.toString()
-                            val (cleanThinking, cleanResponse) = splitThinkTags(response)
-                            val mergedReasoning = (thinking + "\n" + cleanThinking).trim()
+                getLock(pluginSessionId).let { lock ->
+                    synchronized(lock) {
+                        // Use accumulated streaming state if available, otherwise fall back to snapshot
+                        val (accumulatedText, accumulatedReasoning) = if (state != null) {
+                            state.textBuilder.toString() to state.reasoningBuilder.toString()
+                        } else {
+                            snapshotText
+                        }
 
-                            out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
-                                sessionId = pluginSessionId, messageId = currentMsgId)
-                            out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts, success = true, stepNumber = 999, cost = 0.0)
-                            if (mergedReasoning.isNotBlank()) {
-                                out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
-                                    sessionId = pluginSessionId, messageId = currentMsgId,
-                                    partId = "snapshot-reasoning", content = mergedReasoning)
-                            }
-                            if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
-                                out += AgentEvent.ResponseBlock(eventId = eid(), timestamp = ts,
-                                    sessionId = pluginSessionId, messageId = currentMsgId,
-                                    content = if (cleanResponse.isNotBlank()) cleanResponse else " ")
-                            }
+                        val (cleanThinking, cleanResponse) = splitThinkTags(accumulatedText)
+                        val mergedReasoning = (accumulatedReasoning + "\n" + cleanThinking).trim()
+
+                        out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
+                            sessionId = pluginSessionId, messageId = currentMsgId)
+                        out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts, success = true, stepNumber = 999, cost = 0.0)
+                        if (mergedReasoning.isNotBlank()) {
+                            out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
+                                sessionId = pluginSessionId, messageId = currentMsgId,
+                                partId = "snapshot-reasoning", content = mergedReasoning)
+                        }
+                        if (cleanResponse.isNotBlank() || mergedReasoning.isNotBlank()) {
+                            out += AgentEvent.ResponseBlock(eventId = eid(), timestamp = ts,
+                                sessionId = pluginSessionId, messageId = currentMsgId,
+                                content = if (cleanResponse.isNotBlank()) cleanResponse else " ")
                         }
                     }
                 }

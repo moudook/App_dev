@@ -349,6 +349,7 @@ export const TimelineBridgePlugin: Plugin = async ({ client, project }: any) => 
 
     // ── Message parts — text, reasoning, tool, sub-agent, steps ────────────
     "message.part.updated": async ({ part }: { part: any }) => {
+      console.log("[TimelineBridge] hook:message.part.updated type=" + part.type + " session=" + part.sessionID)
       const s = getSession(part.sessionID)
 
       if (part.type === "text") {
