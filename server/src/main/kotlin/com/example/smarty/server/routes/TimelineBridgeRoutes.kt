@@ -431,8 +431,7 @@ private fun translatePluginEvent(
                 topLevel == "stop" || inInfo == "stop" || inMessage == "stop" || inInfoTime || inMessageSummary
             }
 
-            // Extract content from snapshot as fallback when streaming deltas never arrived
-            val snapshotText = run {
+            val snapshot = run {
                 val info = payload["info"] as? JsonObject
                 val msg = payload["message"] as? JsonObject
                 val parts = payload["parts"] as? JsonArray ?: event["parts"] as? JsonArray
@@ -456,7 +455,6 @@ private fun translatePluginEvent(
                         }
                     }
                 } else {
-                    // Fallback: check info.message.content or info.content
                     text = info?.get("content")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("content")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("text")?.jsonPrimitive?.contentOrNull
@@ -470,23 +468,35 @@ private fun translatePluginEvent(
                 Pair(text, reasoning)
             }
 
-            if (isFinalMessage) {
-                val key = contentStateKey(pluginSessionId, currentMsgId)
-                val state = sessionContentStates[key]
-                getLock(pluginSessionId).let { lock ->
-                    synchronized(lock) {
-                        // Use accumulated streaming state if available, otherwise fall back to snapshot
-                        val (accumulatedText, accumulatedReasoning) = if (state != null) {
-                            state.textBuilder.toString() to state.reasoningBuilder.toString()
-                        } else {
-                            snapshotText
-                        }
+            val key = contentStateKey(pluginSessionId, currentMsgId)
+            val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+            getLock(pluginSessionId).let { lock ->
+                synchronized(lock) {
+                    val (snapshotText, snapshotReasoning) = snapshot
+                    val (cleanThinking, cleanResponse) = splitThinkTags(snapshotText)
+                    val mergedReasoning = (state.reasoningBuilder.toString() + "\n" + cleanThinking).trim()
 
-                        val (cleanThinking, cleanResponse) = splitThinkTags(accumulatedText)
-                        val mergedReasoning = (accumulatedReasoning + "\n" + cleanThinking).trim()
+                    val hasNewReasoning = mergedReasoning.length > state.lastSentReasoningLen
+                    val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
 
+                    if (hasNewReasoning || hasNewResponse || isFinalMessage) {
                         out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
                             sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
+                    if (hasNewReasoning) {
+                        val d = mergedReasoning.substring(state.lastSentReasoningLen)
+                        state.lastSentReasoningLen = mergedReasoning.length
+                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                        out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
+                    if (hasNewResponse) {
+                        val d = cleanResponse.substring(state.lastSentResponseLen)
+                        state.lastSentResponseLen = cleanResponse.length
+                        state.textBuilder.append(d)
+                        out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                    }
+
+                    if (isFinalMessage) {
                         out += AgentEvent.StepEnd(eventId = eid(), timestamp = ts, success = true, stepNumber = 999, cost = 0.0)
                         if (mergedReasoning.isNotBlank()) {
                             out += AgentEvent.ReasoningBlock(eventId = eid(), timestamp = ts,
@@ -498,9 +508,9 @@ private fun translatePluginEvent(
                                 sessionId = pluginSessionId, messageId = currentMsgId,
                                 content = if (cleanResponse.isNotBlank()) cleanResponse else " ")
                         }
+                        cleanupContentState(pluginSessionId, currentMsgId)
                     }
                 }
-                cleanupContentState(pluginSessionId, currentMsgId)
             }
         }
 
