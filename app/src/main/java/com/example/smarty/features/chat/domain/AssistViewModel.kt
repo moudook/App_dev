@@ -31,9 +31,13 @@ import com.example.smarty.features.notes.domain.NoteOperationsManager
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.system.domain.SystemFeatureManager
 import com.example.smarty.protocol.AgentCommand
+import com.example.smarty.protocol.NoteInfo
 import com.example.smarty.service.CommandResult
 import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.ui.components.ConnectionStatus
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import com.example.smarty.viewmodel.managers.MemoryFeatureManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -147,7 +151,59 @@ class AssistViewModel(
             override fun onStateSync(
                 syncType: String,
                 data: String,
-            ) {}
+            ) {
+                viewModelScope.launch {
+                    try {
+                        when (syncType) {
+                            "note_created" -> {
+                                val info = kotlinx.serialization.json.Json.decodeFromString<NoteInfo>(data)
+                                val note =
+                                    Note(
+                                        id = info.id,
+                                        title = info.title,
+                                        content = info.content,
+                                        categoryId = info.categoryId,
+                                        categoryName = null,
+                                        type = NoteType.BRAIN_DUMP,
+                                        createdAt = info.createdAt,
+                                        updatedAt = info.updatedAt,
+                                        isArchived = info.isArchived,
+                                    )
+                                noteOperationsManager.insertNoteFromAgent(note)
+                                _notes.value = noteOperationsManager.getAllNotes().first()
+                            }
+                            "note_updated" -> {
+                                val info = kotlinx.serialization.json.Json.decodeFromString<NoteInfo>(data)
+                                val note =
+                                    Note(
+                                        id = info.id,
+                                        title = info.title,
+                                        content = info.content,
+                                        categoryId = info.categoryId,
+                                        categoryName = null,
+                                        type = NoteType.BRAIN_DUMP,
+                                        createdAt = info.createdAt,
+                                        updatedAt = info.updatedAt,
+                                        isArchived = info.isArchived,
+                                    )
+                                noteOperationsManager.updateNoteFromAgent(note)
+                                _notes.value = noteOperationsManager.getAllNotes().first()
+                            }
+                            "note_deleted" -> {
+                                val info = kotlinx.serialization.json.Json.parseToJsonElement(data).jsonObject
+                                val noteId = info["id"]?.jsonPrimitive?.contentOrNull
+                                if (noteId != null) {
+                                    noteOperationsManager.deleteNoteById(noteId, _notes.value, _archivedNotes.value)
+                                    _notes.value = noteOperationsManager.getAllNotes().first()
+                                }
+                            }
+                            else -> android.util.Log.d("AssistVM", "Unhandled state sync: $syncType")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AssistVM", "StateSync failed for $syncType", e)
+                    }
+                }
+            }
 
             override fun emit(command: AgentCommand) {
                 when (command) {

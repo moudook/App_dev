@@ -154,6 +154,41 @@ class NoteOperationsManager(
         }
     }
 
+    /**
+     * Issue #17: Insert a note that came from the agent (via StateSync event).
+     * Skips AI processing — the agent already produced it.
+     */
+    fun insertNoteFromAgent(note: Note) {
+        scope.launch {
+            noteOperationMutex.withLock {
+                val withAgentFlag = note.copy(
+                    isAiCreated = true,
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    contentHash = note.content.sha256(),
+                    processedContentHash = note.content.sha256(),
+                )
+                repository.insertNote(withAgentFlag)
+            }
+        }
+    }
+
+    /**
+     * Issue #17: Update a note that came from the agent (via StateSync event).
+     */
+    fun updateNoteFromAgent(note: Note) {
+        scope.launch {
+            noteOperationMutex.withLock {
+                val withAgentFlag = note.copy(
+                    isAiCreated = true,
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    contentHash = note.content.sha256(),
+                    processedContentHash = note.content.sha256(),
+                )
+                repository.updateNote(withAgentFlag)
+            }
+        }
+    }
+
     fun addNoteFromShare(sharedContent: SharedContent) {
         scope.launch {
             if (!checkNoteCreationRateLimit()) {

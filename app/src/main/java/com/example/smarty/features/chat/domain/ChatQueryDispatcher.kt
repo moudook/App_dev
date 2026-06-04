@@ -773,6 +773,9 @@ class ChatQueryDispatcher(
                         is AgentEvent.StateSync -> {}
                         is AgentEvent.SubAgentEvent -> {}
                         is AgentEvent.CompactionMarker -> {}
+                        is AgentEvent.DeviceCommand -> {
+                            Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}")
+                        }
                         is AgentEvent.Unknown -> {
                             Log.w(TAG, ">>> UNKNOWN_EVENT: kind=${event.kind}, message=${event.message}")
                         }

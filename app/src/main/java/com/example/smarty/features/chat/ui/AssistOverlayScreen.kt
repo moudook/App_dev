@@ -81,8 +81,7 @@ fun AssistOverlayScreen(
                     Log.d("AssistOverlay", "Speech result received, sending message")
                     viewModel.sendMessage(result)
                     inputText = TextFieldValue("")
-                    // Close the overlay smoothly after command
-                    onDismiss()
+                    // Don't auto-dismiss — keep overlay open so user can see response and continue conversation
                 }
             },
             onError = { error ->
@@ -105,10 +104,8 @@ fun AssistOverlayScreen(
         viewModel.setListening(speechState.isListening)
     }
 
-    // ALWAYS start fresh - clear previous messages
-    LaunchedEffect(Unit) {
-        viewModel.clearMessages()
-    }
+    // Preserve message history between overlay opens — don't clear on open.
+    // Removed: LaunchedEffect(Unit) { viewModel.clearMessages() } — was destroying multi-turn context.
 
     // Permission launcher for voice
     val permissionLauncher =
