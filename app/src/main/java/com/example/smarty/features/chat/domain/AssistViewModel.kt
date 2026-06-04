@@ -837,12 +837,14 @@ class AssistViewModel(
 
         try {
             val selectedModel = selectedModel.value
+            val sectionName = if (chatManager.isChatMode.value) "chat" else "notes"
             remoteAgentService
                 .sendQuery(
                     content,
                     sessionId = chatManager.currentSessionId.value,
                     model = selectedModel,
                     messageId = streamingMessageId,
+                    section = sectionName,
                 ).collect { event ->
                     try {
                         val eventType = event::class.simpleName ?: "Unknown"

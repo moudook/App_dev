@@ -396,6 +396,7 @@ class ChatViewModel(
                     model = _uiState.value.selectedModel,
                     variant = _uiState.value.selectedVariant,
                     messageId = streamingMessageId,
+                    section = "chat",
                 ).collect { event ->
                     Log.d(TAG, "<<< EVENT: ${event::class.simpleName} (sessionId=$sessionId)")
                     when (event) {

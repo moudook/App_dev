@@ -140,6 +140,7 @@ class RemoteAgentService(
         sessionId: String? = null,
         personality: String? = null,
         messageId: String? = null,
+        section: String? = null,
     ): Flow<AgentEvent> =
         flow {
             val baseUrl = serverUrlProvider().replace("http://", "ws://").replace("https://", "wss://")
@@ -197,6 +198,7 @@ class RemoteAgentService(
                                 timezone = timezone,
                                 clientTime = clientTime,
                                 personality = personality,
+                                section = section,
                                 messageId = messageId,
                             )
 
@@ -1347,6 +1349,7 @@ data class ChatQueryRequest(
     val clientTime: Long? = null,
     val personality: String? = null,
     val messageId: String? = null,
+    val section: String? = null,
 )
 
 @Serializable

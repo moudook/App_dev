@@ -462,6 +462,7 @@ class ChatQueryDispatcher(
             val sessionId = currentSessionId.value
             val selectedModel = securePreferences.getSelectedModel(com.example.smarty.data.local.AIConnection.LOCAL_PC)
             val selectedVariant = securePreferences.getSelectedVariant()
+            val sectionName = if (chatManager.isChatMode.value) "chat" else "notes"
             remoteAgentService
                 .sendQuery(
                     query = content,
@@ -469,6 +470,7 @@ class ChatQueryDispatcher(
                     model = selectedModel,
                     variant = selectedVariant,
                     messageId = streamingMessageId,
+                    section = sectionName,
                 ).collect { event ->
                     agentEventsBuilder.add(event)
                     Log.d(TAG, ">>> EVENT: ${event::class.simpleName}")
