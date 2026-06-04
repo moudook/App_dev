@@ -778,6 +778,49 @@ class ChatQueryDispatcher(
                         is AgentEvent.DeviceCommand -> {
                             Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}")
                         }
+                        // ── Plugin v3 events (100% transparency) ─────────────────
+                        is AgentEvent.SubAgentCreated -> {
+                            Log.d(TAG, ">>> SUBAGENT_CREATED: session=${event.sessionId} parent=${event.parentSessionId} title=${event.title}")
+                        }
+                        is AgentEvent.SubAgentIdle -> {
+                            Log.d(TAG, ">>> SUBAGENT_IDLE: session=${event.sessionId} duration=${event.durationMs}ms")
+                        }
+                        is AgentEvent.WebSearchQuery -> {
+                            Log.d(TAG, ">>> WEBSEARCH_QUERY: q='${event.query}' numResults=${event.numResults}")
+                        }
+                        is AgentEvent.WebSearchResult -> {
+                            Log.d(TAG, ">>> WEBSEARCH_RESULT: domains=${event.domains}")
+                        }
+                        is AgentEvent.WebFetchUrl -> {
+                            Log.d(TAG, ">>> WEBFETCH_URL: url=${event.url} domain=${event.domain}")
+                        }
+                        is AgentEvent.WebFetchResult -> {
+                            Log.d(TAG, ">>> WEBFETCH_RESULT: domains=${event.domains} length=${event.resultLength}")
+                        }
+                        is AgentEvent.ToolDenied -> {
+                            Log.w(TAG, ">>> TOOL_DENIED: ${event.tool} - ${event.reason}")
+                        }
+                        is AgentEvent.CompactionStart -> {
+                            Log.d(TAG, ">>> COMPACTION_START: #${event.compactionCount}")
+                        }
+                        is AgentEvent.CompactionComplete -> {
+                            Log.d(TAG, ">>> COMPACTION_COMPLETE")
+                        }
+                        is AgentEvent.FileEdited -> {
+                            Log.d(TAG, ">>> FILE_EDITED: ${event.path}")
+                        }
+                        is AgentEvent.LspDiagnostics -> {
+                            Log.d(TAG, ">>> LSP_DIAGNOSTICS: ${event.path} (${event.count} issues)")
+                        }
+                        is AgentEvent.CommandExecuted -> {
+                            Log.d(TAG, ">>> COMMAND_EXECUTED: ${event.command}")
+                        }
+                        is AgentEvent.PluginDispose -> {
+                            Log.d(TAG, ">>> PLUGIN_DISPOSE")
+                        }
+                        is AgentEvent.SessionAborted -> {
+                            Log.w(TAG, ">>> SESSION_ABORTED: reason=${event.reason}")
+                        }
                         is AgentEvent.Unknown -> {
                             Log.w(TAG, ">>> UNKNOWN_EVENT: kind=${event.kind}, message=${event.message}")
                         }

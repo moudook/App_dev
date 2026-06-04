@@ -129,7 +129,138 @@ private fun translatePluginEvent(
 
         "session.aborted" -> {
             val reason = event["reason"]?.jsonPrimitive?.contentOrNull ?: "aborted"
-            out += AgentEvent.Error(eventId = eid(), timestamp = ts, message = reason)
+            out += AgentEvent.SessionAborted(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, reason = reason)
+        }
+
+        // ── Plugin v3 events ────────────────────────────────────────────────
+        "session.created" -> { /* logged for trace; client uses Unknown fallback if needed */ }
+
+        "session.compacted" -> {
+            out += AgentEvent.CompactionMarker(eventId = eid(), timestamp = ts, sessionId = pluginSessionId)
+        }
+
+        "subagent.created" -> {
+            out += AgentEvent.SubAgentCreated(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                parentSessionId = event["parentSessionID"]?.jsonPrimitive?.contentOrNull ?: "",
+                title = event["title"]?.jsonPrimitive?.contentOrNull,
+            )
+        }
+
+        "subagent.idle" -> {
+            out += AgentEvent.SubAgentIdle(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                parentSessionId = event["parentSessionID"]?.jsonPrimitive?.contentOrNull ?: "",
+                durationMs = event["durationMs"]?.jsonPrimitive?.longOrNull,
+                totalToolCalls = event["totalToolCalls"]?.jsonPrimitive?.intOrNull,
+            )
+        }
+
+        "websearch.query" -> {
+            out += AgentEvent.WebSearchQuery(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: "",
+                query = event["query"]?.jsonPrimitive?.contentOrNull ?: "",
+                numResults = event["numResults"]?.jsonPrimitive?.intOrNull ?: 5,
+            )
+        }
+
+        "websearch.result" -> {
+            val domains = (event["domains"] as? JsonArray)?.mapNotNull {
+                it.jsonPrimitive.contentOrNull
+            } ?: emptyList()
+            out += AgentEvent.WebSearchResult(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: "",
+                domains = domains,
+                resultLength = event["resultLength"]?.jsonPrimitive?.intOrNull ?: 0,
+            )
+        }
+
+        "webfetch.url" -> {
+            out += AgentEvent.WebFetchUrl(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: "",
+                url = event["url"]?.jsonPrimitive?.contentOrNull ?: "",
+                domain = event["domain"]?.jsonPrimitive?.contentOrNull ?: "",
+            )
+        }
+
+        "webfetch.result" -> {
+            val domains = (event["domains"] as? JsonArray)?.mapNotNull {
+                it.jsonPrimitive.contentOrNull
+            } ?: emptyList()
+            out += AgentEvent.WebFetchResult(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: "",
+                url = event["url"]?.jsonPrimitive?.contentOrNull ?: "",
+                domains = domains,
+                resultLength = event["resultLength"]?.jsonPrimitive?.intOrNull ?: 0,
+            )
+        }
+
+        "tool.denied" -> {
+            out += AgentEvent.ToolDenied(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                callId = event["callID"]?.jsonPrimitive?.contentOrNull ?: "",
+                tool = event["tool"]?.jsonPrimitive?.contentOrNull ?: "",
+                reason = event["reason"]?.jsonPrimitive?.contentOrNull ?: "Tool disabled",
+            )
+        }
+
+        "compaction.start" -> {
+            out += AgentEvent.CompactionStart(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                compactionCount = event["compactionCount"]?.jsonPrimitive?.intOrNull ?: 1,
+            )
+        }
+
+        "compaction.complete" -> {
+            out += AgentEvent.CompactionComplete(eventId = eid(), timestamp = ts, sessionId = pluginSessionId)
+        }
+
+        "file.edited" -> {
+            out += AgentEvent.FileEdited(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                path = event["path"]?.jsonPrimitive?.contentOrNull,
+            )
+        }
+
+        "lsp.diagnostics" -> {
+            val diagCount = (event["diagnostics"] as? JsonArray)?.size ?: 0
+            out += AgentEvent.LspDiagnostics(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                path = event["path"]?.jsonPrimitive?.contentOrNull,
+                count = diagCount,
+            )
+        }
+
+        "command.execute" -> {
+            out += AgentEvent.CommandExecuted(
+                eventId = eid(), timestamp = ts,
+                sessionId = pluginSessionId,
+                command = event["command"]?.jsonPrimitive?.contentOrNull,
+                arguments = event["arguments"]?.jsonPrimitive?.contentOrNull,
+            )
+        }
+
+        "plugin.dispose" -> {
+            out += AgentEvent.PluginDispose(eventId = eid(), timestamp = ts)
+        }
+
+        "permission.ask" -> {
+            // Informational — native permission flow, not used in our app
+            logger.debug("[plugin] permission.ask session=$pluginSessionId tool=${event["tool"]?.jsonPrimitive?.contentOrNull}")
         }
 
         "part.updated" -> {

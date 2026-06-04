@@ -109,7 +109,8 @@ else
 fi
 
 echo "  Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
+echo "  With --plugin-preload for timeline-bridge.v3 (early hook attachment)"
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --plugin-preload .opencode/plugins/timeline-bridge.ts > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
 
