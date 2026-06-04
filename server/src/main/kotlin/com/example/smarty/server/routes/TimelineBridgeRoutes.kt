@@ -610,7 +610,84 @@ private fun buildInputSummary(toolName: String, args: JsonObject?): String {
 private fun summarizeOutput(result: String?, toolName: String): String? {
     if (result == null || result == "null") return null
     val clean = result.trim()
-    return if (clean.length <= 100000) clean else "${clean.take(99997)}…"
+    if (clean.isEmpty()) return null
+
+    return when (toolName.lowercase()) {
+        "memory", "save_progress", "read_progress", "get_note_by_id" -> summarizeNoteLike(clean)
+        "search_history" -> summarizeSearchHistory(clean)
+        "schedule", "remind" -> summarizeSchedule(clean)
+        "ask_user", "ask" -> summarizeAskUser(clean)
+        else -> if (clean.length <= 100000) clean else "${clean.take(99997)}…"
+    }
+}
+
+private fun summarizeNoteLike(json: String): String {
+    return try {
+        val obj = Json.parseToJsonElement(json).jsonObject
+        val title = obj["title"]?.jsonPrimitive?.contentOrNull
+        val content = obj["content"]?.jsonPrimitive?.contentOrNull
+        val category = obj["category"]?.jsonPrimitive?.contentOrNull
+        val tags = obj["tags"]?.toString()?.take(80)
+        buildString {
+            if (title != null) append("**").append(title).append("**")
+            if (category != null) append(" _[").append(category).append("]_")
+            append("\n")
+            if (content != null) {
+                val preview = content.take(400)
+                append(preview)
+                if (content.length > 400) append("…")
+            }
+            if (tags != null) append("\n🏷 ").append(tags)
+        }.take(800)
+    } catch (_: Exception) {
+        if (json.length <= 100000) json else "${json.take(99997)}…"
+    }
+}
+
+private fun summarizeSearchHistory(json: String): String {
+    return try {
+        val arr = Json.parseToJsonElement(json)
+        val list = when (arr) {
+            is JsonArray -> arr
+            is JsonObject -> arr["results"] as? JsonArray ?: arr["messages"] as? JsonArray
+            else -> null
+        }
+        if (list == null) {
+            return if (json.length <= 100000) json else "${json.take(99997)}…"
+        }
+        val first = list.firstOrNull()?.toString()?.take(300) ?: "(no results)"
+        "${list.size} result(s). First: $first…"
+    } catch (_: Exception) {
+        if (json.length <= 100000) json else "${json.take(99997)}…"
+    }
+}
+
+private fun summarizeSchedule(json: String): String {
+    return try {
+        val obj = Json.parseToJsonElement(json).jsonObject
+        val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: obj["summary"]?.jsonPrimitive?.contentOrNull
+        val time = obj["startTime"]?.jsonPrimitive?.contentOrNull ?: obj["time"]?.jsonPrimitive?.contentOrNull
+        val loc = obj["location"]?.jsonPrimitive?.contentOrNull
+        buildString {
+            if (title != null) append("📅 ").append(title)
+            if (time != null) append(" @ ").append(time)
+            if (loc != null) append(" — ").append(loc)
+        }
+    } catch (_: Exception) {
+        if (json.length <= 100000) json else "${json.take(99997)}…"
+    }
+}
+
+private fun summarizeAskUser(json: String): String {
+    return try {
+        val obj = Json.parseToJsonElement(json).jsonObject
+        obj["answer"]?.jsonPrimitive?.contentOrNull
+            ?: obj["response"]?.jsonPrimitive?.contentOrNull
+            ?: obj["choice"]?.jsonPrimitive?.contentOrNull
+            ?: json.take(200)
+    } catch (_: Exception) {
+        json.take(200)
+    }
 }
 
 object TimelineBridgeService {
