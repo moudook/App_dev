@@ -165,25 +165,27 @@ private fun translatePluginEvent(
 
                 if (rawText.isNotEmpty() && rawText != rawReasoning) {
                     val partKey = "$pluginSessionId:$partId"
-                    val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
-                    val partDelta = if (rawText.length > lastPartLen) rawText.substring(lastPartLen) else ""
-                    partTextLengths[partKey] = rawText.length
+                    synchronized(state) {
+                        val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
+                        val partDelta = if (rawText.length > lastPartLen) rawText.substring(lastPartLen) else ""
+                        partTextLengths[partKey] = rawText.length
 
-                    if (partDelta.isNotEmpty()) {
-                        state.textBuilder.append(partDelta)
-                        val (thinking, response) = splitThinkTags(state.textBuilder.toString())
-                        
-                        if (thinking.length > state.lastSentReasoningLen) {
-                            val d = thinking.substring(state.lastSentReasoningLen)
-                            state.lastSentReasoningLen = thinking.length
-                            out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
-                            out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
-                        }
-                        if (response.length > state.lastSentResponseLen) {
-                            val d = response.substring(state.lastSentResponseLen)
-                            state.lastSentResponseLen = response.length
-                            out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
-                            out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                        if (partDelta.isNotEmpty()) {
+                            state.textBuilder.append(partDelta)
+                            val (thinking, response) = splitThinkTags(state.textBuilder.toString())
+
+                            if (thinking.length > state.lastSentReasoningLen) {
+                                val d = thinking.substring(state.lastSentReasoningLen)
+                                state.lastSentReasoningLen = thinking.length
+                                out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                                out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                            }
+                            if (response.length > state.lastSentResponseLen) {
+                                val d = response.substring(state.lastSentResponseLen)
+                                state.lastSentResponseLen = response.length
+                                out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                                out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                            }
                         }
                     }
                 }
@@ -246,18 +248,20 @@ private fun translatePluginEvent(
             if (delta.isNotEmpty()) {
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates.getOrPut(key) { MessageContentState() }
-                state.textBuilder.append(delta)
-                val (thinking, response) = splitThinkTags(state.textBuilder.toString())
+                synchronized(state) {
+                    state.textBuilder.append(delta)
+                    val (thinking, response) = splitThinkTags(state.textBuilder.toString())
 
-                if (thinking.length > state.lastSentReasoningLen) {
-                    val d = thinking.substring(state.lastSentReasoningLen)
-                    state.lastSentReasoningLen = thinking.length
-                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
-                }
-                if (response.length > state.lastSentResponseLen) {
-                    val d = response.substring(state.lastSentResponseLen)
-                    state.lastSentResponseLen = response.length
-                    out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                    if (thinking.length > state.lastSentReasoningLen) {
+                        val d = thinking.substring(state.lastSentReasoningLen)
+                        state.lastSentReasoningLen = thinking.length
+                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                    }
+                    if (response.length > state.lastSentResponseLen) {
+                        val d = response.substring(state.lastSentResponseLen)
+                        state.lastSentResponseLen = response.length
+                        out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                    }
                 }
             }
         }
@@ -373,29 +377,31 @@ private fun translatePluginEvent(
             val fullReasoning = separateReasoning.toString()
             val mergedReasoning = (fullReasoning + "\n" + thinkingFromText).trim()
 
-            val hasNewReasoningFromText = thinkingFromText.length > state.lastSentReasoningLen
-            val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
+            synchronized(state) {
+                val hasNewReasoningFromText = thinkingFromText.length > state.lastSentReasoningLen
+                val hasNewResponse = cleanResponse.length > state.lastSentResponseLen
 
-            if (hasNewReasoningFromText || hasNewResponse || toolFound) {
-                out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
-                    sessionId = pluginSessionId, messageId = currentMsgId)
-                if (hasNewReasoningFromText) {
-                    out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts,
+                if (hasNewReasoningFromText || hasNewResponse || toolFound) {
+                    out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId)
+                    if (hasNewReasoningFromText) {
+                        out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts,
+                            sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
                 }
-            }
 
-            if (hasNewResponse) {
-                val delta = cleanResponse.substring(state.lastSentResponseLen)
-                state.textBuilder.append(delta)
-                state.lastSentResponseLen = cleanResponse.length
-                out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = delta)
-            }
-            if (hasNewReasoningFromText) {
-                val delta = thinkingFromText.substring(state.lastSentReasoningLen)
-                state.reasoningBuilder.append(delta)
-                state.lastSentReasoningLen = thinkingFromText.length
-                out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
+                if (hasNewResponse) {
+                    val delta = cleanResponse.substring(state.lastSentResponseLen)
+                    state.textBuilder.append(delta)
+                    state.lastSentResponseLen = cleanResponse.length
+                    out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = delta)
+                }
+                if (hasNewReasoningFromText) {
+                    val delta = thinkingFromText.substring(state.lastSentReasoningLen)
+                    state.reasoningBuilder.append(delta)
+                    state.lastSentReasoningLen = thinkingFromText.length
+                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = delta)
+                }
             }
 
             // Emit final blocks only on the snapshot with info.finish == "stop"
