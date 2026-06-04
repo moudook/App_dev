@@ -546,10 +546,13 @@ class ChatQueryDispatcher(
                                 }
                             }
 
+                            val existing = pendingToolCallsMap[event.toolId]
+                            val finalStatus = if (existing?.status == "waiting_user") "waiting_user" else "started"
+
                             val entry = AgentToolCallEntry(
                                 toolName = event.name,
                                 displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                                status = "started",
+                                status = finalStatus,
                                 inputSummary = event.args ?: event.inputSummary.ifEmpty { null },
                                 outputSummary = null,
                                 toolCallId = event.toolId,
@@ -557,20 +560,20 @@ class ChatQueryDispatcher(
                                 isInteractive = event.isInteractive,
                                 startedAt = event.timestamp,
                             )
-                            if (!pendingToolCallsMap.containsKey(event.toolId)) {
+                            val isNewTool = !pendingToolCallsMap.containsKey(event.toolId)
+                            if (isNewTool) {
                                 orderedToolCallIds.add(event.toolId)
+                                val stepIdx = collectedAgentSteps.size
+                                collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "tool_call",
+                                    stepTitle = entry.displayName,
+                                    stepContent = "",
+                                    stepStatus = "started",
+                                    stepIndex = stepIdx,
+                                )
                             }
                             pendingToolCallsMap[event.toolId] = entry
                             
-                            val stepIdx = collectedAgentSteps.size
-                            collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
-                                stepType = "tool_call",
-                                stepTitle = entry.displayName,
-                                stepContent = "",
-                                stepStatus = "started",
-                                stepIndex = stepIdx,
-                            )
-
                             val actionResult = AgentActionResult(
                                 action = event.name,
                                 success = true,
@@ -662,6 +665,19 @@ class ChatQueryDispatcher(
                         }
                         is AgentEvent.ApprovalRequested -> {
                             Log.i(TAG, ">>> APPROVAL_REQUESTED: toolName=${event.toolName}, toolId=${event.toolId}")
+                            val openThinkingKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "thinking" && it.value.stepStatus == "started" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                            if (openThinkingKey != null) {
+                                val thinkingStep = collectedAgentSteps[openThinkingKey]!!
+                                if (thinkingStep.stepContent.isBlank()) {
+                                    collectedAgentSteps.remove(openThinkingKey)
+                                } else {
+                                    collectedAgentSteps[openThinkingKey] = thinkingStep.copy(stepStatus = "completed")
+                                }
+                            }
+
                             val entry = AgentToolCallEntry(
                                 toolName = event.toolName,
                                 displayName = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
@@ -673,8 +689,17 @@ class ChatQueryDispatcher(
                                 isInteractive = true,
                                 startedAt = event.timestamp,
                             )
-                            if (!pendingToolCallsMap.containsKey(event.toolId)) {
+                            val isNewTool = !pendingToolCallsMap.containsKey(event.toolId)
+                            if (isNewTool) {
                                 orderedToolCallIds.add(event.toolId)
+                                val stepIdx = collectedAgentSteps.size
+                                collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "tool_call",
+                                    stepTitle = entry.displayName,
+                                    stepContent = "",
+                                    stepStatus = "started",
+                                    stepIndex = stepIdx,
+                                )
                             }
                             pendingToolCallsMap[event.toolId] = entry
                             _pendingApprovalState.value = PendingApproval(
@@ -713,7 +738,7 @@ class ChatQueryDispatcher(
                             _pendingClarificationRequests.value = emptyList()
                             pendingToolCallsMap[event.toolId]?.let { existing ->
                                 pendingToolCallsMap[event.toolId] = existing.copy(
-                                    status = if (event.granted) "completed" else "declined",
+                                    status = if (event.granted) "started" else "declined",
                                     outputSummary = if (event.granted) "User: ${event.feedback}" else "Declined",
                                 )
                             }
