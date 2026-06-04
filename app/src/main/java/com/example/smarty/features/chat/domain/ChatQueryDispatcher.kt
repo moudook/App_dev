@@ -538,8 +538,12 @@ class ChatQueryDispatcher(
                                 .maxByOrNull { it.key }
                                 ?.key
                             if (openThinkingKey != null) {
-                                collectedAgentSteps[openThinkingKey] = collectedAgentSteps[openThinkingKey]!!
-                                    .copy(stepStatus = "completed")
+                                val thinkingStep = collectedAgentSteps[openThinkingKey]!!
+                                if (thinkingStep.stepContent.isBlank()) {
+                                    collectedAgentSteps.remove(openThinkingKey)
+                                } else {
+                                    collectedAgentSteps[openThinkingKey] = thinkingStep.copy(stepStatus = "completed")
+                                }
                             }
 
                             val entry = AgentToolCallEntry(
@@ -557,6 +561,16 @@ class ChatQueryDispatcher(
                                 orderedToolCallIds.add(event.toolId)
                             }
                             pendingToolCallsMap[event.toolId] = entry
+                            
+                            val stepIdx = collectedAgentSteps.size
+                            collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = "tool_call",
+                                stepTitle = entry.displayName,
+                                stepContent = "",
+                                stepStatus = "started",
+                                stepIndex = stepIdx,
+                            )
+
                             val actionResult = AgentActionResult(
                                 action = event.name,
                                 success = true,
@@ -610,8 +624,12 @@ class ChatQueryDispatcher(
                                     .maxByOrNull { it.key }
                                     ?.key
                                 if (openThinkingKey != null) {
-                                    collectedAgentSteps[openThinkingKey] = collectedAgentSteps[openThinkingKey]!!
-                                        .copy(stepStatus = "completed")
+                                    val thinkingStep = collectedAgentSteps[openThinkingKey]!!
+                                    if (thinkingStep.stepContent.isBlank()) {
+                                        collectedAgentSteps.remove(openThinkingKey)
+                                    } else {
+                                        collectedAgentSteps[openThinkingKey] = thinkingStep.copy(stepStatus = "completed")
+                                    }
                                 }
                         
                                 val existing = collectedAgentSteps.values.find {
