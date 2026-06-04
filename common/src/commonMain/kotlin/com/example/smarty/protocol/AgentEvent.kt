@@ -200,6 +200,21 @@ sealed class AgentEvent {
     ) : AgentEvent()
 
     @Serializable
+    @SerialName("device_command")
+    data class DeviceCommand(
+        override val eventId: String,
+        override val timestamp: Long,
+        val sessionId: String,
+        val commandId: String,
+        val action: String,
+        val setting: String? = null,
+        val on: Boolean? = null,
+        val app: String? = null,
+        val actionType: String? = null,
+        val info: String? = null,
+    ) : AgentEvent()
+
+    @Serializable
     @SerialName("unknown")
     data class Unknown(
         override val eventId: String,

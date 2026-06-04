@@ -524,40 +524,56 @@ class ToolExecutor(
         args: UnifiedToolArgs,
         sessionId: String,
     ): String {
+        // Issue #16: Real device dispatch via DeviceResponseRegistry + WebSocket
+        val commandId = "devcmd-${java.util.UUID.randomUUID()}"
+        val deferred = com.example.smarty.server.agent.DeviceResponseRegistry.createPendingRequest(commandId, sessionId)
+
+        val deviceCommand =
+            com.example.smarty.protocol.AgentEvent.DeviceCommand(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                sessionId = sessionId,
+                commandId = commandId,
+                action = args.action ?: "unknown",
+                setting = args.setting,
+                on = args.on,
+                app = args.app,
+                actionType = args.actionType,
+                info = args.info,
+            )
+        eventEmitter(deviceCommand)
+        logger.info("[ToolExecutor] Dispatched device command: $commandId (action=${args.action}) to session=$sessionId")
+
+        val result =
+            try {
+                kotlinx.coroutines.withTimeout(15_000) { deferred.await() }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(commandId, emptyMap())
+                return "Device command timed out after 15s. Make sure your device is connected."
+            }
+
+        val status = result.status
+        if (status.isEmpty()) {
+            return when (args.action) {
+                "status" -> "No device status available. Is your device connected?"
+                "capture" -> "Screenshot request sent but no response from device."
+                "open" -> "App open request sent but no response from device."
+                "media" -> "Media control sent but no response from device."
+                "toggle" -> "${args.setting} request sent but no response from device."
+                else -> "Device command sent but no response."
+            }
+        }
+
         return when (args.action) {
-            "open" -> {
-                logger.info("Device open app requested: ${args.app}")
-                "Opening: ${args.app}"
-            }
-            "media" -> {
-                logger.info("Device media control requested: ${args.actionType}")
-                "Media: ${args.actionType}"
-            }
+            "open" -> "Opened ${args.app}: ${status.entries.joinToString { "${it.key}=${it.value}" }}"
+            "media" -> "Media ${args.actionType}: ${status.entries.joinToString { "${it.key}=${it.value}" }}"
             "toggle" -> {
-                if (args.setting == "flashlight" && capabilities?.hardware?.flashlight == false) {
-                    return "Device does not have a flashlight."
-                }
-                logger.info("Device toggle requested: ${args.setting} = ${args.on}")
-                val statusStr =
-                    when (args.on) {
-                        true -> "on"
-                        false -> "off"
-                        null -> "toggle request sent"
-                    }
-                "${args.setting} $statusStr"
+                val reported = status[args.setting]
+                if (reported != null) "${args.setting} = $reported" else "${args.setting} toggled"
             }
-            "status" -> {
-                logger.info("Device status requested: ${args.info}")
-                "Device status requested"
-            }
-            "capture" -> {
-                if (capabilities?.hardware?.screenCapture == false) {
-                    return "Device does not support screen capture."
-                }
-                logger.info("Device screenshot requested")
-                "Capturing screenshot."
-            }
-            else -> "Unknown device action: ${args.action}"
+            "status" -> status.entries.joinToString { "${it.key}: ${it.value}" }
+            "capture" -> "Screenshot captured: ${status["path"] ?: status["url"] ?: "ok"}"
+            else -> "Device: ${status.entries.joinToString { "${it.key}=${it.value}" }}"
         }
     }
 
