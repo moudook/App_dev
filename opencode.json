@@ -6,16 +6,28 @@
   "disabled_providers": [
     "anthropic",
     "openai",
-    "google",
-    "openrouter"
+    "google"
   ],
   "enabled_providers": [
     "opencode",
     "kilo",
     "nvidia",
-    "modal"
+    "openrouter"
   ],
   "default_agent": "smarty-headless-agent",
+  "provider": {
+    "openrouter": {
+      "options": {
+        "apiKey": "${OPENROUTER_API_KEY}"
+      },
+      "models": {
+        "owl-alpha": {
+          "id": "openrouter/owl-alpha",
+          "name": "Owl Alpha"
+        }
+      }
+    }
+  },
   "mcp": {
     "smarty": {
       "type": "sse",

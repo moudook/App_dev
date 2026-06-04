@@ -188,6 +188,7 @@ app/src/main/assets/tts_models/
 !DEPLOYMENT.md
 !LOCAL_HOSTING.md
 _feat-cli-analysis/
+Rewiring/
 
 # Ignore all text files generally
 *.txt

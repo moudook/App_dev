@@ -2,9 +2,9 @@
 # =============================================================================
 # Entrypoint for Hugging Face Spaces (glibc-based JRE)
 # 1. Verify OpenCode CLI is installed
-# 2. Start OpenCode daemon (Ktor's DaemonManager finds it healthy)
-# 3. Health check loop — wait for daemon to be ready
-# 4. Launch Ktor server
+# 2. Start Ktor server FIRST so MCP SSE endpoint is available
+# 3. Wait for Ktor to be healthy
+# 4. Start OpenCode daemon (it can now connect to MCP tools at startup)
 # =============================================================================
 set -e
 
@@ -51,9 +51,57 @@ echo "  opencode.json exists: $([ -f ./opencode.json ] && echo 'YES' || echo 'NO
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 2: Start OpenCode daemon FIRST so Ktor's DaemonManager finds it healthy
+# Step 2: Start Ktor server FIRST so MCP SSE endpoint (localhost:7860/mcp/sse)
+# is available BEFORE the OpenCode daemon starts. This is critical for MCP
+# tool registration — if the daemon starts first, it cannot see any MCP tools.
 # -----------------------------------------------------------------------------
-echo "[2/4] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[2/4] Launching Ktor server on port ${SERVER_PORT:-7860}..."
+echo "  JVM heap: -Xmx384m"
+echo "  GC: G1GC"
+echo "  Max RAM: 80%"
+echo "  OOM behavior: ExitOnOutOfMemoryError"
+
+JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
+java $JAVA_OPTS -jar app.jar 2>&1 | tee /tmp/ktor-server.log &
+KTOR_PID=$!
+echo "  Ktor PID: $KTOR_PID"
+echo "  Ktor log: /tmp/ktor-server.log"
+
+# Wait for Ktor to be healthy (so MCP SSE endpoint is reachable)
+KTOR_PORT="${SERVER_PORT:-7860}"
+echo "  Waiting for Ktor health endpoint at http://127.0.0.1:${KTOR_PORT}/health..."
+KTOR_READY=false
+for i in $(seq 1 30); do
+    if wget -q -O /dev/null --timeout=2 "http://127.0.0.1:${KTOR_PORT}/health" 2>/dev/null; then
+        echo "  Ktor is healthy after $((i * 2)) seconds!"
+        KTOR_READY=true
+        break
+    fi
+    if [ $((i % 5)) -eq 0 ]; then
+        echo "  Still waiting for Ktor... ($((i * 2))s elapsed)"
+    fi
+    sleep 2
+done
+if [ "$KTOR_READY" = false ]; then
+    echo "  ERROR: Ktor did not become healthy after 60 seconds."
+    echo "  Ktor log (last 10 lines):"
+    tail -10 /tmp/ktor-server.log 2>/dev/null || echo "  (no log output)"
+    exit 1
+fi
+
+# Verify MCP SSE endpoint is actually responding (not just /health)
+echo "  Verifying MCP SSE endpoint at http://127.0.0.1:${KTOR_PORT}/mcp/sse..."
+if wget -q --spider --timeout=2 "http://127.0.0.1:${KTOR_PORT}/mcp/sse" 2>/dev/null; then
+    echo "  MCP SSE endpoint: RESPONDING"
+else
+    echo "  WARNING: MCP SSE endpoint not responding yet (may need a moment)"
+fi
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 3: Start OpenCode daemon (Ktor is already up — MCP tools will register)
+# -----------------------------------------------------------------------------
+echo "[3/4] Starting OpenCode daemon on port $DAEMON_PORT..."
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
@@ -75,9 +123,9 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 3: Health check loop — wait for daemon to respond
+# Step 4: Health check loop — wait for daemon to respond
 # -----------------------------------------------------------------------------
-echo "[3/4] Waiting for OpenCode daemon to be ready..."
+echo "[4/4] Waiting for OpenCode daemon to be ready..."
 echo "  Health endpoint: $DAEMON_URL/global/health"
 echo "  Max retries: $MAX_RETRIES (every ${RETRY_INTERVAL}s)"
 
@@ -110,49 +158,12 @@ if [ "$DAEMON_READY" = true ]; then
 fi
 
 echo ""
-
-# -----------------------------------------------------------------------------
-# Step 4: Launch Ktor server (daemon is already running - MCP routes available)
-# -----------------------------------------------------------------------------
-echo "[4/4] Launching Ktor server on port ${SERVER_PORT:-7860}..."
-echo "  JVM heap: -Xmx384m"
-echo "  GC: G1GC"
-echo "  Max RAM: 80%"
-echo "  OOM behavior: ExitOnOutOfMemoryError"
-
-JAVA_OPTS="-Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=80.0 -XX:+ExitOnOutOfMemoryError"
-java $JAVA_OPTS -jar app.jar 2>&1 | tee /tmp/ktor-server.log &
-KTOR_PID=$!
-echo "  Ktor PID: $KTOR_PID"
-echo "  Ktor log: /tmp/ktor-server.log"
-
-# Wait for Ktor to be healthy
-KTOR_PORT="${SERVER_PORT:-7860}"
-echo "  Waiting for Ktor health endpoint at http://127.0.0.1:${KTOR_PORT}/health..."
-KTOR_READY=false
-for i in $(seq 1 30); do
-    if wget -q -O /dev/null --timeout=2 "http://127.0.0.1:${KTOR_PORT}/health" 2>/dev/null; then
-        echo "  Ktor is healthy after $((i * 2)) seconds!"
-        KTOR_READY=true
-        break
-    fi
-    if [ $((i % 5)) -eq 0 ]; then
-        echo "  Still waiting for Ktor... ($((i * 2))s elapsed)"
-    fi
-    sleep 2
-done
-if [ "$KTOR_READY" = false ]; then
-    echo "  WARNING: Ktor did not become healthy after 60 seconds."
-    echo "  Ktor log (last 10 lines):"
-    tail -10 /tmp/ktor-server.log 2>/dev/null || echo "  (no log output)"
-fi
-
-echo ""
 echo "============================================"
-echo "  Startup complete — daemon + Ktor running"
+echo "  Startup complete — Ktor + daemon running"
 echo "============================================"
 echo "  Ktor PID: $KTOR_PID"
 echo "  Daemon PID: $DAEMON_PID"
+echo "  MCP SSE: http://127.0.0.1:${KTOR_PORT}/mcp/sse (started before daemon)"
 echo "  Model discovery: handled by Ktor's OpencodeModelRegistry"
 echo ""
 

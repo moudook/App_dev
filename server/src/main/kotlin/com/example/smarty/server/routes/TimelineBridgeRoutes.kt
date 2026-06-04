@@ -272,13 +272,8 @@ private fun translatePluginEvent(
             var toolFound = false
 
             if (parts == null) {
-                logger.warn("[TIMELINE] message.updated: No parts in session=$pluginSessionId msg=$currentMsgId. RAW EVENT: $event")
-                val msgContent = (payload["message"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
-                val infoContent = (payload["info"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
-                combinedText = msgContent ?: infoContent ?: ""
-                
                 val role = (payload["info"] as? JsonObject)?.get("role")?.jsonPrimitive?.contentOrNull
-                if (role == "assistant" && combinedText.isEmpty()) {
+                if (role == "assistant") {
                     val key = "$pluginSessionId:$currentMsgId:skeleton"
                     if (!partTextLengths.containsKey(key)) {
                         partTextLengths[key] = 1
@@ -286,10 +281,7 @@ private fun translatePluginEvent(
                         out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                     }
                 }
-                
-                if (combinedText.isEmpty()) {
-                    return out
-                }
+                return out
             } else {
                 var currentPartIndex = 0
                 for (part in parts) {
@@ -510,6 +502,7 @@ private fun extractToolFromPart(partObj: JsonObject, ts: Long, eid: () -> String
 private fun splitThinkTags(text: String): Pair<String, String> {
     if (text.isEmpty()) return Pair("", "")
     val normalized = text
+        .replace(Regex("<final>|</final>", RegexOption.IGNORE_CASE), "")
         .replace("[think]", "<think>", ignoreCase = true)
         .replace("[/think]", "</think>", ignoreCase = true)
         .replace("<thought>", "<think>", ignoreCase = true)
@@ -517,6 +510,8 @@ private fun splitThinkTags(text: String): Pair<String, String> {
         .replace("<reasoning>", "<think>", ignoreCase = true)
         .replace("</reasoning>", "</think>", ignoreCase = true)
         .replace("<|DSML|tool_calls>", "<think>Tool logic: ", ignoreCase = true)
+        .replace(Regex("<think>", RegexOption.IGNORE_CASE), "<think>")
+        .replace(Regex("</think>", RegexOption.IGNORE_CASE), "</think>")
 
     var thinking = ""
     var response = ""
@@ -534,14 +529,10 @@ private fun splitThinkTags(text: String): Pair<String, String> {
         if (end == -1) {
             val content = normalized.substring(contentStart)
             thinking += content
-            val quote = content.trim().replace("\n", "\n> ")
-            if (quote.isNotEmpty()) response += "\n\n> **Thinking...**\n> $quote"
             cursor = normalized.length
         } else {
             val content = normalized.substring(contentStart, end)
             thinking += content + "\n"
-            val quote = content.trim().replace("\n", "\n> ")
-            if (quote.isNotEmpty()) response += "\n\n> **Thought:**\n> $quote\n\n"
             cursor = end + "</think>".length
         }
     }
