@@ -28,13 +28,16 @@ import com.example.smarty.core.common.util.CompletionSoundManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ChatQueryDispatcher(
     private val scope: CoroutineScope,
@@ -410,22 +413,51 @@ class ChatQueryDispatcher(
             fun currentSteps(): List<com.example.smarty.core.domain.model.AgentStepEntry> =
                 collectedAgentSteps.values.sortedBy { it.stepIndex }
 
+            // ── 50ms debounce: one Room write per 50ms window instead of per-token ──
+            // hasPendingFlush is set by every event that mutates skeleton state.
+            // The flushJob polls every 50ms and fires updateMessageSkeleton only when dirty.
+            val hasPendingFlush = AtomicBoolean(false)
+            val flushJob = scope.launch {
+                while (isActive) {
+                    delay(50L)
+                    if (hasPendingFlush.getAndSet(false)) {
+                        val currentText = fallbackTextBuilder.toString()
+                        val currentThinking = fallbackThinkingBuilder.toString()
+                        chatManager.updateMessageSkeleton(
+                            streamingMessageId,
+                            isThinking = isThinkingActive,
+                            isStreaming = isStreamingActive,
+                            content = currentText,
+                            thinking = currentThinking.ifEmpty { null },
+                            toolCalls = currentToolCalls(),
+                            steps = currentSteps(),
+                            agentEvents = agentEventsBuilder.toList(),
+                        )
+                    }
+                }
+            }
+
+            // Mark dirty — the flush job picks it up on next 50ms tick.
+            // Terminal events (Done, Error) must call flushNow() to guarantee
+            // the final state is written before the job is cancelled.
             fun pushSkeleton() {
+                hasPendingFlush.set(true)
+            }
+
+            suspend fun flushNow() {
+                hasPendingFlush.set(false)
                 val currentText = fallbackTextBuilder.toString()
                 val currentThinking = fallbackThinkingBuilder.toString()
-
-                scope.launch {
-                    chatManager.updateMessageSkeleton(
-                        streamingMessageId,
-                        isThinking = isThinkingActive,
-                        isStreaming = isStreamingActive,
-                        content = currentText,
-                        thinking = currentThinking.ifEmpty { null },
-                        toolCalls = currentToolCalls(),
-                        steps = currentSteps(),
-                        agentEvents = agentEventsBuilder.toList(),
-                    )
-                }
+                chatManager.updateMessageSkeleton(
+                    streamingMessageId,
+                    isThinking = isThinkingActive,
+                    isStreaming = isStreamingActive,
+                    content = currentText,
+                    thinking = currentThinking.ifEmpty { null },
+                    toolCalls = currentToolCalls(),
+                    steps = currentSteps(),
+                    agentEvents = agentEventsBuilder.toList(),
+                )
             }
 
             fun pushBlocks() {
@@ -745,8 +777,9 @@ class ChatQueryDispatcher(
                             Log.d(TAG, ">>> DONE: stream completed")
                             isThinkingActive = false
                             isStreamingActive = false
+                            flushJob.cancel()
                             pushBlocks()
-                            pushSkeleton()
+                            flushNow()
                         }
                         is AgentEvent.Error -> {
                             isThinkingActive = false
@@ -764,11 +797,33 @@ class ChatQueryDispatcher(
                                     }
                                 }
                             }
+                            flushJob.cancel()
                             pushBlocks()
-                            pushSkeleton()
+                            flushNow()
                         }
                         is AgentEvent.StateSync -> {}
-                        is AgentEvent.SubAgentEvent -> {}
+                        is AgentEvent.SubAgentEvent -> {
+                            // Render sub-agent task as a timeline step (agent/description/state fields)
+                            val existingKey = collectedAgentSteps.entries
+                                .find { it.value.stepTitle == event.agent && it.value.stepType == "sub_agent" }
+                                ?.key
+                            if (existingKey != null) {
+                                collectedAgentSteps[existingKey] = collectedAgentSteps[existingKey]!!.copy(
+                                    stepStatus = if (event.state == "running") "started" else event.state,
+                                    stepContent = event.description,
+                                )
+                            } else {
+                                val stepIdx = collectedAgentSteps.size
+                                collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "sub_agent",
+                                    stepTitle = event.agent.ifBlank { "Sub-Agent" },
+                                    stepContent = event.description,
+                                    stepStatus = if (event.state == "running") "started" else event.state,
+                                    stepIndex = stepIdx,
+                                )
+                            }
+                            pushSkeleton()
+                        }
                         is AgentEvent.CompactionMarker -> {}
                         is AgentEvent.DeviceCommand -> {
                             Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}, info=${event.info}")
@@ -853,15 +908,63 @@ class ChatQueryDispatcher(
                         // ── Plugin v3 events (100% transparency) ─────────────────
                         is AgentEvent.SubAgentCreated -> {
                             Log.d(TAG, ">>> SUBAGENT_CREATED: session=${event.sessionId} parent=${event.parentSessionId} title=${event.title}")
+                            val stepIdx = collectedAgentSteps.size
+                            collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                stepType = "sub_agent",
+                                stepTitle = event.title?.ifBlank { null } ?: "Sub-Agent Task",
+                                stepContent = "Session: ${event.sessionId}",
+                                stepStatus = "started",
+                                stepIndex = stepIdx,
+                            )
+                            pushSkeleton()
                         }
                         is AgentEvent.SubAgentIdle -> {
                             Log.d(TAG, ">>> SUBAGENT_IDLE: session=${event.sessionId} duration=${event.durationMs}ms")
+                            val targetKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "sub_agent" && it.value.stepStatus == "started" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                            if (targetKey != null) {
+                                val toolCount = event.totalToolCalls ?: 0
+                                collectedAgentSteps[targetKey] = collectedAgentSteps[targetKey]!!.copy(
+                                    stepStatus = "completed",
+                                    stepContent = if (toolCount > 0) "$toolCount tool calls" else "Done",
+                                )
+                                pushSkeleton()
+                            }
                         }
                         is AgentEvent.WebSearchQuery -> {
                             Log.d(TAG, ">>> WEBSEARCH_QUERY: q='${event.query}' numResults=${event.numResults}")
+                            // Show web search as a live step so users see what's being searched
+                            val existingSearchKey = collectedAgentSteps.entries
+                                .find { it.value.stepType == "web_search" && it.value.stepContent == event.query }
+                                ?.key
+                            if (existingSearchKey == null) {
+                                val stepIdx = collectedAgentSteps.size
+                                collectedAgentSteps[stepIdx] = com.example.smarty.core.domain.model.AgentStepEntry(
+                                    stepType = "web_search",
+                                    stepTitle = "Web Search",
+                                    stepContent = event.query,
+                                    stepStatus = "started",
+                                    stepIndex = stepIdx,
+                                )
+                                pushSkeleton()
+                            }
                         }
                         is AgentEvent.WebSearchResult -> {
                             Log.d(TAG, ">>> WEBSEARCH_RESULT: domains=${event.domains}")
+                            val searchKey = collectedAgentSteps.entries
+                                .filter { it.value.stepType == "web_search" && it.value.stepStatus == "started" }
+                                .maxByOrNull { it.key }
+                                ?.key
+                            if (searchKey != null) {
+                                val summary = event.domains.take(3).joinToString(", ").ifEmpty { "Results received" }
+                                collectedAgentSteps[searchKey] = collectedAgentSteps[searchKey]!!.copy(
+                                    stepStatus = "completed",
+                                    stepContent = collectedAgentSteps[searchKey]!!.stepContent + " → $summary",
+                                )
+                                pushSkeleton()
+                            }
                         }
                         is AgentEvent.WebFetchUrl -> {
                             Log.d(TAG, ">>> WEBFETCH_URL: url=${event.url} domain=${event.domain}")

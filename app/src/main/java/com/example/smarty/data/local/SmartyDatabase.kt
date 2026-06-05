@@ -59,7 +59,7 @@ import com.example.smarty.features.chat.domain.memory.AIMemoryDao
         NoteStackEntity::class,
         com.example.smarty.data.local.entity.TimelineEventEntity::class,
     ],
-    version = 44,
+    version = 45,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -317,6 +317,7 @@ abstract class SmartyDatabase : RoomDatabase() {
                             Migrations.MIGRATION_41_42,
                             Migrations.MIGRATION_42_43,
                             Migrations.MIGRATION_43_44,
+                            Migrations.MIGRATION_44_45,
                         ).fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

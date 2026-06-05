@@ -1338,4 +1338,22 @@ object Migrations {
                 db.execSQL("ALTER TABLE chat_messages ADD COLUMN agentEventsJson TEXT NOT NULL DEFAULT '[]'")
             }
         }
+
+    /**
+     * Migration 44 → 45: Add hierarchy metadata to timeline_events.
+     * - parentId: references the eventId of the parent event (NULL = top-level)
+     * - depth: nesting depth (0 = top-level, 1 = sub-agent, 2 = sub-sub-agent)
+     * - sequence: ordering within the same parent
+     * - collapsed: UI collapse state persisted per event
+     */
+    val MIGRATION_44_45 =
+        object : Migration(44, 45) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE timeline_events ADD COLUMN parentId TEXT")
+                db.execSQL("ALTER TABLE timeline_events ADD COLUMN depth INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE timeline_events ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE timeline_events ADD COLUMN collapsed INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 }
+
