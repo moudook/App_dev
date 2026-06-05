@@ -398,13 +398,17 @@ class OpencodeLlmProvider(
                                 val nowMs = System.currentTimeMillis()
                                 val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
                                 val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
-                                if (!content.isNullOrEmpty()) {
+                                val reasoning = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                                if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty()) {
                                     if (!firstChunkLogged) {
                                         logger.info("[OpenCode.DirectZen.StreamDiag][inference=$inferenceId] FIRST_SSE_CHUNK after ${nowMs - requestStartMs}ms")
                                         firstChunkLogged = true
                                     }
                                     directChunkCount++
-                                    emit(LlmChunk(content = content, rawJson = data, sseEvent = "message"))
+                                    // Emit the user-facing content if present; otherwise emit the
+                                    // reasoning chunk so the caller can see tokens streaming in.
+                                    val emitText = content ?: reasoning ?: ""
+                                    emit(LlmChunk(content = emitText, rawJson = data, sseEvent = "message"))
                                 } else {
                                     emit(LlmChunk(content = null, rawJson = data, sseEvent = "message"))
                                 }
@@ -421,9 +425,11 @@ class OpencodeLlmProvider(
                         if (json != null) {
                             val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
                             val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
-                            if (!content.isNullOrEmpty()) {
+                            val reasoning = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                            if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty()) {
                                 directChunkCount++
-                                emit(LlmChunk(content = content, rawJson = line, sseEvent = "message"))
+                                val emitText = content ?: reasoning ?: ""
+                                emit(LlmChunk(content = emitText, rawJson = line, sseEvent = "message"))
                             } else {
                                 emit(LlmChunk(content = null, rawJson = line, sseEvent = "message"))
                             }
