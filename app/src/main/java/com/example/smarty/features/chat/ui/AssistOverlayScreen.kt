@@ -72,16 +72,31 @@ fun AssistOverlayScreen(
     // Input text state
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
 
+    // Voice Input tracking states
+    var lastPartialText by remember { mutableStateOf("") }
+    var partialTextStartIndex by remember { mutableIntStateOf(0) }
+    var hadSpeechInput by remember { mutableStateOf(false) }
+
     // Voice Input State (Speech-to-Text)
     val speechState =
         rememberSpeechToText(
             onResult = { result ->
                 if (result.isNotBlank()) {
-                    inputText = TextFieldValue(result, TextRange(result.length))
-                    Log.d("AssistOverlay", "Speech result received, sending message")
-                    viewModel.sendMessage(result)
-                    inputText = TextFieldValue("")
-                    // Don't auto-dismiss — keep overlay open so user can see response and continue conversation
+                    hadSpeechInput = true
+                    val currentText = inputText.text
+                    val baseText =
+                        if (lastPartialText.isNotEmpty()) {
+                            val safeIndex = partialTextStartIndex.coerceAtMost(currentText.length)
+                            currentText.take(safeIndex)
+                        } else {
+                            val spacer = if (currentText.isNotEmpty() && !currentText.endsWith(" ")) " " else ""
+                            currentText + spacer
+                        }
+
+                    val newText = baseText + result
+                    inputText = TextFieldValue(newText, TextRange(newText.length))
+                    lastPartialText = ""
+                    partialTextStartIndex = 0
                 }
             },
             onError = { error ->
@@ -94,8 +109,57 @@ fun AssistOverlayScreen(
     LaunchedEffect(speechState) {
         speechState.onPartialResult = { partialText ->
             if (partialText.isNotBlank()) {
-                inputText = TextFieldValue(partialText, TextRange(partialText.length))
+                hadSpeechInput = true
+                val currentText = inputText.text
+
+                if (lastPartialText.isEmpty()) {
+                    partialTextStartIndex = currentText.length
+                    if (currentText.isNotEmpty() && !currentText.endsWith(" ")) {
+                        val spacedText = "$currentText "
+                        partialTextStartIndex = spacedText.length
+                        inputText = TextFieldValue(spacedText, TextRange(spacedText.length))
+                    }
+                }
+
+                val safeStartIndex = partialTextStartIndex.coerceAtMost(inputText.text.length)
+                val baseText = inputText.text.take(safeStartIndex)
+                val newText = baseText + partialText
+                inputText = TextFieldValue(newText, TextRange(newText.length))
+                lastPartialText = partialText
             }
+        }
+    }
+
+    var autoSendActive by remember { mutableStateOf(false) }
+    var autoSendJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    // Auto-send 0.7s after speech stops
+    LaunchedEffect(speechState.isListening) {
+        if (!speechState.isListening && hadSpeechInput) {
+            autoSendActive = true
+            autoSendJob?.cancel()
+            autoSendJob = scope.launch {
+                kotlinx.coroutines.delay(700)
+                if (autoSendActive) {
+                    val finalChatText = inputText.text
+                    if (finalChatText.isNotBlank()) {
+                        Log.d("AssistOverlay", "Speech result received, sending message")
+                        if (viewModel.isImageGenMode.value) {
+                            viewModel.generateImageDirect(finalChatText)
+                        } else {
+                            viewModel.sendMessage(finalChatText)
+                        }
+                        inputText = TextFieldValue("")
+                        autoSendActive = false
+                        hadSpeechInput = false
+                        lastPartialText = ""
+                        partialTextStartIndex = 0
+                    }
+                }
+            }
+        } else if (speechState.isListening) {
+            autoSendActive = false
+            autoSendJob?.cancel()
         }
     }
 

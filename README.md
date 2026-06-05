@@ -149,6 +149,7 @@ The server enforces an **admin-only email whitelist** at the authentication laye
 This allows the Hugging Face Space to be public (enabling direct WebSocket connections) while ensuring only the owner's Google account can access data. Remove this when the app is ready for multi-user support.
 
 ### The last commit worked what it have right now is I can only see the final response that being sand all at once not even streaming not even other components like web search thinking steps etc
+### Sorry in the last commit the web searches and the streaming is working MCP tools are not working The streaming is working fine here I can see the web search outputs also the markdown rendering is working fine here The thinking sections are not appearing, Surveillance are called Task And we can see parallel sub agents now, What we cannot see is the to do list, Sub agent sections are expandable But not entered properly,[Additional UI changes Fixed the speech input! It now waits 0.7s before sending, smoothly combines what you type with what you say instead of overwriting it, and cleanly resets the text box afterward.]
 
 # License
 MIT License

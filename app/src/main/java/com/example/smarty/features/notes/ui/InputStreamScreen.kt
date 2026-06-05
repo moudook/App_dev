@@ -549,14 +549,14 @@ fun InputStreamScreen(
         }
     }
 
-    // Auto-send in chat mode: 0.4s after speech recognition stops
+    // Auto-send in chat mode: 0.7s after speech recognition stops
     LaunchedEffect(speechState.isListening, isChatMode) {
         if (!speechState.isListening && isChatMode && hadSpeechInput) {
             autoSendActive = true
             autoSendJob?.cancel()
             autoSendJob =
                 scope.launch {
-                    delay(100) // Reduced to 0.1 seconds for faster auto-send
+                    delay(700) // Increased to 0.7 seconds for better UX and text clearing sync
                     if (autoSendActive) {
                         val finalChatText = chatModeTextValue.text
                         if (finalChatText.isNotBlank()) {
