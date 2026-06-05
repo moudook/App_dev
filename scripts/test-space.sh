@@ -30,9 +30,14 @@ set -a
 set +a
 
 if [ -z "$HUGGINGFACE_ACCESS_TOKEN" ] || [ "$HUGGINGFACE_ACCESS_TOKEN" = "my_hf_token" ]; then
-    echo "ERROR: HUGGINGFACE_ACCESS_TOKEN is unset or still the placeholder in $ENV_FILE"
-    echo "Paste your real HF token into the .env file and re-run."
-    exit 1
+    # Fall back to the typo'd name HUGGINGFACE_ACESS_TOKEN (missing C) if present
+    if [ -n "$HUGGINGFACE_ACESS_TOKEN" ] && [ "$HUGGINGFACE_ACESS_TOKEN" != "my_hf_token" ]; then
+        HUGGINGFACE_ACCESS_TOKEN="$HUGGINGFACE_ACESS_TOKEN"
+    else
+        echo "ERROR: HUGGINGFACE_ACCESS_TOKEN is unset or still the placeholder in $ENV_FILE"
+        echo "Paste your real HF token into the .env file and re-run."
+        exit 1
+    fi
 fi
 
 SPACE_URL="https://K1tt3n-Friday-server.hf.space"
