@@ -106,8 +106,20 @@ fun preprocessContent(raw: String): String {
     var text = raw
     // Normalise line endings
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    // Replace literal two-char sequence \n with real newline
-    text = text.replace("\\n", "\n")
+
+    // Only replace literal \n outside code fences (H-1)
+    val fencePattern = Regex("```[\\s\\S]*?```")
+    val parts = text.split(fencePattern)
+    val fences = fencePattern.findAll(text).toList()
+    val sb = StringBuilder()
+    for (i in parts.indices) {
+        if (i > 0 && i - 1 < fences.size) {
+            sb.append(fences[i - 1].value)
+        }
+        sb.append(parts[i].replace("\\n", "\n"))
+    }
+    text = sb.toString()
+
     // Fix quoted/escaped dollar signs → bare $...$ or $$...$$
     // Using manual indexOf/substring instead of regex replacements to avoid
     // Java Matcher.replaceAll's dangerous $-escaping semantics.
@@ -199,6 +211,47 @@ private fun findClosingEscaped(
     return -1
 }
 
+/**
+ * Finds markdown links with bracket-counting to handle nested brackets (H-3).
+ * Returns list of (range, linkText, url) triples.
+ */
+private fun findMarkdownLinks(text: String): List<Triple<IntRange, String, String>> {
+    val result = mutableListOf<Triple<IntRange, String, String>>()
+    var i = 0
+    while (i < text.length) {
+        if (text[i] == '\\') { i += 2; continue }
+        if (text[i] != '[') { i++; continue }
+        val openBracket = i
+        var bracketDepth = 1
+        var j = i + 1
+        while (j < text.length && bracketDepth > 0) {
+            if (text[j] == '\\') { j += 2; continue }
+            if (text[j] == '[') bracketDepth++
+            else if (text[j] == ']') bracketDepth--
+            if (bracketDepth > 0) j++
+        }
+        if (bracketDepth != 0) { i = openBracket + 1; continue }
+        val closeBracket = j
+        // Expect '(' after ']'
+        if (closeBracket + 1 >= text.length || text[closeBracket + 1] != '(') {
+            i = openBracket + 1; continue
+        }
+        var k = closeBracket + 2
+        while (k < text.length && text[k] != ')' && text[k] != '\n' && text[k] != ' ') {
+            if (text[k] == '\\') k++
+            k++
+        }
+        if (k >= text.length || text[k] != ')') {
+            i = openBracket + 1; continue
+        }
+        val linkText = text.substring(openBracket + 1, closeBracket)
+        val url = text.substring(closeBracket + 2, k)
+        result.add(Triple(IntRange(openBracket, k), linkText, url))
+        i = k + 1
+    }
+    return result
+}
+
 private val annotatedStringCache =
     object : LruCache<String, AnnotatedString>(256) {
         override fun sizeOf(
@@ -206,6 +259,17 @@ private val annotatedStringCache =
             value: AnnotatedString,
         ): Int = key.length / 512 + value.text.length / 512 + 1
     }
+
+private fun sanitizeUrl(url: String): String {
+    val trimmed = url.trim()
+    val lower = trimmed.lowercase()
+    return when {
+        lower.startsWith("https://") ||
+        lower.startsWith("http://") ||
+        lower.startsWith("mailto:") -> trimmed
+        else -> ""
+    }
+}
 
 private const val MAX_PARSE_DEPTH = 8
 
@@ -226,7 +290,11 @@ fun parseMarkdownToAnnotatedString(
     codeColor: Color,
     isStreaming: Boolean = false,
 ): AnnotatedString {
-    val cacheKey = if (content.length <= 2048) content else content.substring(0, 2048)
+    val cacheKey = if (content.length <= 2048) {
+        "$isStreaming|$content"
+    } else {
+        "$isStreaming|${content.hashCode()}"
+    }
     annotatedStringCache.get(cacheKey)?.let { return it }
 
     val result =
@@ -361,13 +429,12 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         )
     }
 
-    // Markdown links [text](url) (priority 3)
-    MarkdownPatterns.link.findAll(text).forEach { m ->
-        val url = m.groupValues.getOrNull(2) ?: ""
+    // Markdown links [text](url) (priority 3) — bracket-counting supports nested brackets (H-3)
+    findMarkdownLinks(text).forEach { (range, linkText, url) ->
         addCandidate(
             MarkdownMatch(
-                range = m.range,
-                displayText = m.groupValues[1],
+                range = range,
+                displayText = linkText,
                 style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
                 priority = 3,
                 isLink = true,
@@ -507,12 +574,17 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.parseMarkdownIntern
         }
 
         if (match.isLink && match.url != null) {
-            val linkStyle =
-                TextLinkStyles(
-                    style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-                )
-            withLink(LinkAnnotation.Url(url = match.url, styles = linkStyle)) {
-                parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
+            val safeUrl = sanitizeUrl(match.url)
+            if (safeUrl.isNotEmpty()) {
+                val linkStyle =
+                    TextLinkStyles(
+                        style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                    )
+                withLink(LinkAnnotation.Url(url = safeUrl, styles = linkStyle)) {
+                    parseMarkdownInternal(match.displayText, normalColor, boldColor, italicColor, linkColor, codeColor, isStreaming, depth + 1)
+                }
+            } else {
+                append(match.displayText)
             }
         } else {
             withStyle(match.style) {

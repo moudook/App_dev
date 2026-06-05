@@ -80,7 +80,7 @@ fun LaTeXView(
         if (painter.intrinsicSize == Size.Zero && latex.isNotEmpty()) {
             // Render error fallback
             Text(
-                text = "Math Error: $latex",
+                text = "Formula rendering error",
                 color = Color.Red,
                 fontSize = 12.sp,
             )

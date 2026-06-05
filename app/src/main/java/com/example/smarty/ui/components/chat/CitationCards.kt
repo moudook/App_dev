@@ -31,6 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.Citation
 
+private fun isSafeUrl(url: String): Boolean {
+    val lower = url.trim().lowercase()
+    return lower.startsWith("https://") || lower.startsWith("http://")
+}
+
 /**
  * Single citation source card.
  */
@@ -52,7 +57,7 @@ fun CitationCard(
             Modifier
                 .widthIn(min = 200.dp, max = 280.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable { onClick(citation.url) },
+                .clickable { if (isSafeUrl(citation.url)) onClick(citation.url) },
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
         border = BorderStroke(0.5.dp, accentColor.copy(alpha = 0.2f)),

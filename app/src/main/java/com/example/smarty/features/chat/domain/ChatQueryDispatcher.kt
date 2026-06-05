@@ -336,17 +336,15 @@ class ChatQueryDispatcher(
             val noteId = matchResult.groupValues[1]
             newContent = newContent.replace(matchResult.value, "")
             hasChanges = true
-            scope.launch {
-                val dbNote = repository.getNoteById(noteId)
-                if (dbNote != null) {
-                    val noteRef = com.example.smarty.core.domain.model.NoteReference(
-                        noteId = dbNote.id,
-                        title = dbNote.title,
-                        snippet = dbNote.summary ?: dbNote.content.take(100),
-                        category = dbNote.categoryName,
-                    )
-                    chatManager.updateMessageNoteReferences(messageId, noteRef)
-                }
+            val dbNote = repository.getNoteById(noteId)
+            if (dbNote != null) {
+                val noteRef = com.example.smarty.core.domain.model.NoteReference(
+                    noteId = dbNote.id,
+                    title = dbNote.title,
+                    snippet = dbNote.summary ?: dbNote.content.take(100),
+                    category = dbNote.categoryName,
+                )
+                chatManager.updateMessageNoteReferences(messageId, noteRef)
             }
         }
 
@@ -354,17 +352,15 @@ class ChatQueryDispatcher(
             val eventId = matchResult.groupValues[1]
             newContent = newContent.replace(matchResult.value, "")
             hasChanges = true
-            scope.launch {
-                val dbEvent = repository.getCalendarEventById(eventId)
-                if (dbEvent != null) {
-                    val eventRef = com.example.smarty.core.domain.model.EventReference(
-                        eventId = dbEvent.id,
-                        title = dbEvent.title,
-                        timeSnippet = "Planned Event",
-                        description = dbEvent.description,
-                    )
-                    chatManager.updateMessageEventReferences(messageId, eventRef)
-                }
+            val dbEvent = repository.getCalendarEventById(eventId)
+            if (dbEvent != null) {
+                val eventRef = com.example.smarty.core.domain.model.EventReference(
+                    eventId = dbEvent.id,
+                    title = dbEvent.title,
+                    timeSnippet = "Planned Event",
+                    description = dbEvent.description,
+                )
+                chatManager.updateMessageEventReferences(messageId, eventRef)
             }
         }
 

@@ -53,6 +53,8 @@ data class AccordionItemData(
 )
 
 object MarkdownAstParser {
+    private const val MAX_ACCORDION_LINES = 200
+
     private val cache =
         object : android.util.LruCache<String, List<MarkdownNode>>(16) {
             override fun sizeOf(
@@ -172,7 +174,7 @@ object MarkdownAstParser {
                         i++
 
                         var depth = 1
-                        var maxLines = 200
+                        var maxLines = MAX_ACCORDION_LINES
                         while (i < lines.size && maxLines > 0) {
                             maxLines--
                             val nextLine = lines[i]
@@ -298,7 +300,7 @@ object MarkdownAstParser {
             // 9. Handle Numbered Lists
             if (trimStart.firstOrNull()?.isDigit() == true && trimStart.contains(". ")) {
                 val dotIdx = trimStart.indexOf(". ")
-                if (dotIdx in 1..3) {
+                if (dotIdx in 1..3 && trimStart.substring(0, dotIdx).all { it.isDigit() }) {
                     val prefix = trimStart.substring(0, dotIdx + 1)
                     var itemText = trimStart.substring(dotIdx + 2)
                     i++
@@ -351,7 +353,7 @@ object MarkdownAstParser {
         if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) return true
         if (trimmed.firstOrNull()?.isDigit() == true && trimmed.contains(". ")) {
             val dotIdx = trimmed.indexOf(". ")
-            if (dotIdx in 1..3) return true
+            if (dotIdx in 1..3 && trimmed.substring(0, dotIdx).all { it.isDigit() }) return true
         }
         if (trimmed.matches(horizontalRule)) return true
         if (trimmed.startsWith("$$") || trimmed.startsWith("\\[")) return true

@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 // Import extracted chat components for DRY principle
 import com.example.smarty.ui.components.chat.TextEffectPerWord
 import com.example.smarty.ui.components.chat.CitationCards
+import com.example.smarty.ui.components.chat.cleanContent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,107 +90,11 @@ import kotlinx.coroutines.delay
 
 private const val TAG = "ChatMessageItem"
 
-/**
- * Pre-compiled regex patterns for markdown parsing.
- * Supports: bold, italic, strikethrough, inline code, links, task lists, LaTeX math
- */
-private object MarkdownPatterns {
-    // Escape character handling - must check for escaped characters first
-    val escape = Regex("\\\\(.)")
-
-    // Priority ordered patterns - longer/more specific first
-    // Block elements take priority
-    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]")
-
-    // Inline code - must be checked before bold/italic (backticks are literal)
-    val inlineCode = Regex("`+([^`\n]+?)`+")
-
-    // Links - must be checked before bold/italic (brackets are literal in link context)
-    val link = Regex("\\[([^\\]\\\\]*(?:\\\\.[^\\]\\\\]*)*)\\]\\(([^)\\s]*(?:\\s+[^)\\s]+)*)\\)")
-
-    // Autolinks
-    val autolink = Regex("<([a-zA-Z][a-zA-Z0-9+.-]*://[^>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})>")
-
-    // Bold - **text** or __text__ - must check before italic
-    val boldAsterisk = Regex("(?<![*])\\*\\*(.+?)\\*\\*(?![*])")
-    val boldUnderscore = Regex("(?<![a-zA-Z])__(.+?)__(?![a-zA-Z])")
-
-    // Italic - *text* or _text_ (but not ** or __ which are bold)
-    val italicAsterisk = Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")
-    val italicUnderscore = Regex("(?<!_) _([^_]+) _(?!_)")
-
-    // Strikethrough: ~~text~~
-    val strikethrough = Regex("~~([^~]+)~~")
-
-    // Task lists: - [ ] or - [x]
-    val taskListItem = Regex("^(\\s*)[-*]\\s+\\[([ xX])\\]\\s+(.+)$", RegexOption.MULTILINE)
-
-    // LaTeX inline math
-    val inlineMath = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
-
-    // Code block fence
-    val codeFence = Regex("^```(\\w*)$", RegexOption.MULTILINE)
-
-    // --- PRECOMPILED patterns (previously created inline on every recomposition) ---
-    // Task list line detection
-    val taskListUnchecked = Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")
-    val taskListChecked = Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")
-    val taskListParse = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
-    val taskListDetect = Regex("^\\s*[-*]\\s+\\[\\s*[xX]?\\s*\\]")
-
-    // Numbered list detection (not task list)
-    val numberedListNotTask = Regex("^\\s*\\d+\\.\\s+\\[.*")
-
-    // Horizontal rule
-    val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
-
-    // Table separator
-    val tableSeparator = Regex("[|\\-:\\s]")
-
-    // Inline math detection (for StandardText)
-    val inlineMathDetect = Regex("(?<!\\$)\\$(?!\\$)[^\\n]+\\$(?!\\$)")
-
-    // formatActionName regex
-    val actionNameSplit = Regex("([A-Z])")
-}
-
-// Precompiled regex for cleanContent â€” called on every AI message render
-private val THINK_TAG_REGEX = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
-private val THINK_OPEN_REGEX = Regex("<think>.*", RegexOption.DOT_MATCHES_ALL)
-private val PARTIAL_FINAL_REGEX = Regex("<fi?n?a?l?$")
-private val PARTIAL_THINK_REGEX = Regex("<th?i?n?k?$")
+// Precompiled regex for content cleaning — delegated to ChatUtils.cleanContent()
 
 // Cached SimpleDateFormat for timestamp formatting (avoids re-creation per message)
 private val timestampDateFormat by lazy {
     java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
-}
-
-private data class TextSegment(
-    val content: String,
-    val isLatex: Boolean = false,
-    val isBlock: Boolean = false,
-)
-
-private fun parseTextWithInlineMath(text: String): List<TextSegment> {
-    val segments = mutableListOf<TextSegment>()
-    val inlinePattern = MarkdownPatterns.inlineMath // Reuse precompiled pattern
-
-    var lastEnd = 0
-    inlinePattern.findAll(text).forEach { match ->
-        // Add text before this math
-        if (match.range.first > lastEnd) {
-            segments.add(TextSegment(text.substring(lastEnd, match.range.first)))
-        }
-        // Add math segment
-        segments.add(TextSegment(match.groupValues[1], isLatex = true))
-        lastEnd = match.range.last + 1
-    }
-    // Add remaining text
-    if (lastEnd < text.length) {
-        segments.add(TextSegment(text.substring(lastEnd)))
-    }
-
-    return segments
 }
 
 /**
@@ -718,11 +623,11 @@ private fun MessageContent(
                             generateImageCall.outputSummary?.let { summary ->
                                 android.util.Log.d("ChatMessageItem", "Image generation outputSummary: $summary")
                                 when {
-                                    summary.startsWith("http") -> summary
+                                    summary.startsWith("https://") || summary.startsWith("http://") -> summary
                                     summary.startsWith("{") && summary.contains("\"url\"") -> {
                                         val extracted = summary.substringAfter("\"url\":").substringAfter("\"").substringBefore("\"")
                                         android.util.Log.d("ChatMessageItem", "Extracted image URL: $extracted")
-                                        extracted
+                                        if (extracted.startsWith("https://") || extracted.startsWith("http://")) extracted else null
                                     }
                                     else -> {
                                         android.util.Log.w("ChatMessageItem", "Could not extract image URL from summary: $summary")
@@ -1042,7 +947,7 @@ private fun formatTimestamp(timestamp: Long): String {
         diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
         diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
         else -> {
-            timestampDateFormat.format(java.util.Date(timestamp)).lowercase()
+            timestampDateFormat.format(java.util.Date(timestamp)).lowercase(java.util.Locale.ROOT)
         }
     }
 }
@@ -1269,15 +1174,4 @@ private fun EventBlockCard(
     }
 }
 
-private fun cleanContent(raw: String): String {
-    var text = raw
-    text = text.replace(THINK_TAG_REGEX, "")
-    text = text.replace(THINK_OPEN_REGEX, "")
-    text = text.replace("<final>", "").replace("</final>", "")
-
-    // Clean up partial tags when streaming
-    text = text.replace(PARTIAL_FINAL_REGEX, "")
-    text = text.replace(PARTIAL_THINK_REGEX, "")
-
-    return text.trim()
-}
+private fun cleanContent(raw: String): String = com.example.smarty.ui.components.chat.cleanContent(raw)

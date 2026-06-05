@@ -6,6 +6,8 @@ data class ParsedResponse(
 )
 
 object ThinkingParser {
+    private const val MAX_THINKING_LENGTH = 5000
+
     private val thinkTagPattern = Regex("""\[think](.*?)(?:\[/think]|$)""", RegexOption.DOT_MATCHES_ALL)
     private val thinkHtmlPattern = Regex("""<think>(.*?)(?:</think>|$)""", RegexOption.DOT_MATCHES_ALL)
 
@@ -53,6 +55,10 @@ object ThinkingParser {
         val match = thinkTagPattern.find(content) ?: thinkHtmlPattern.find(content)
         return if (match != null) {
             val thinking = match.groupValues[1].trim()
+            // Guard against unclosed think tag consuming entire message (H-2)
+            if (thinking.length > MAX_THINKING_LENGTH) {
+                return ParsedResponse(null, content)
+            }
             // Build answer by removing ALL think blocks in a single replace pass
             val answer = content
                 .replace(thinkTagPattern, "")
@@ -79,7 +85,7 @@ object ThinkingParser {
      * pattern and splits reasoning from the actual answer.
      */
     fun extractReasoningFromText(content: String): ParsedResponse? {
-        if (content.length < 20) return null
+        if (content.length < 40) return null
 
         val hasReasoningStart = reasoningStartPatterns.any { it.containsMatchIn(content) }
         if (!hasReasoningStart) return null
