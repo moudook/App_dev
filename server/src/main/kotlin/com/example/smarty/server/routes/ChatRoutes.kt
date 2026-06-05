@@ -1119,8 +1119,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         get("/debug/model/info") {
             val models = com.example.smarty.server.llm.OpencodeModelRegistry.discoveredFreeModels()
             val currentDefault = com.example.smarty.server.llm.OpencodeModelRegistry.requireAllowedFreeModel(null)
+            val directZenFlag = System.getenv("OPENCODE_USE_DIRECT_ZEN") ?: ""
             val stateJson = buildString {
-                append("{\"defaultModel\":\"$currentDefault\",\"discovered\":[")
+                append("{\"defaultModel\":\"$currentDefault\",\"opencodeUseDirectZen\":\"$directZenFlag\",\"discovered\":[")
                 models.forEachIndexed { i, m ->
                     if (i > 0) append(",")
                     append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
