@@ -148,5 +148,7 @@ The server enforces an **admin-only email whitelist** at the authentication laye
 ### Why it exists:
 This allows the Hugging Face Space to be public (enabling direct WebSocket connections) while ensuring only the owner's Google account can access data. Remove this when the app is ready for multi-user support.
 
+### The last commit worked what it have right now is I can only see the final response that being sand all at once not even streaming not even other components like web search thinking steps etc
+
 # License
 MIT License
