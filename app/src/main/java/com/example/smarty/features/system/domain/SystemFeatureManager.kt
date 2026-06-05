@@ -113,21 +113,21 @@ class SystemFeatureManager(
     fun toggleSetting(
         setting: String,
         enable: Boolean,
-    ): Boolean {
+    ): Result<String> {
         Log.i(TAG, "Setting toggle requested: $setting -> $enable")
         return when (setting.lowercase()) {
             "dark_theme", "dark_mode", "theme" -> {
                 toggleTheme(enable)
-                true
+                Result.success("Theme toggled")
             }
             "sound", "completion_sound" -> {
                 securePreferences.setSoundEnabled(enable)
-                true
+                Result.success("Sound toggled")
             }
             "flashlight", "torch" -> toggleFlashlight(enable)
             else -> {
                 Log.w(TAG, "Unknown setting toggle requested: $setting")
-                false
+                Result.failure(IllegalArgumentException("Unknown setting: $setting"))
             }
         }
     }
@@ -354,20 +354,26 @@ class SystemFeatureManager(
     /**
      * Toggle the device flashlight.
      */
-    fun toggleFlashlight(enabled: Boolean): Boolean =
+    fun toggleFlashlight(enabled: Boolean): Result<String> =
         try {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
             val cameraId = cameraManager.cameraIdList.firstOrNull()
             if (cameraId != null) {
                 cameraManager.setTorchMode(cameraId, enabled)
                 Log.i(TAG, "Flashlight ${if (enabled) "on" else "off"}")
-                true
+                Result.success("Flashlight turned ${if (enabled) "on" else "off"}")
             } else {
-                false
+                Result.failure(IllegalStateException("No camera available to use as a flashlight on this device."))
             }
+        } catch (e: android.hardware.camera2.CameraAccessException) {
+            Log.e(TAG, "CameraAccessException: failed to toggle flashlight", e)
+            Result.failure(IllegalStateException("Camera is currently in use by another application or the system. Please close other camera apps.", e))
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgumentException: failed to toggle flashlight", e)
+            Result.failure(IllegalStateException("Flashlight is not available on this device.", e))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle flashlight", e)
-            false
+            Result.failure(IllegalStateException("Failed to toggle flashlight: ${e.message}", e))
         }
 
     /**

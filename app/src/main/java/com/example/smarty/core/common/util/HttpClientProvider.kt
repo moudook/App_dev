@@ -1,4 +1,4 @@
-﻿package com.example.smarty.core.common.util
+package com.example.smarty.core.common.util
 
 import okhttp3.CertificatePinner
 import okhttp3.MediaType.Companion.toMediaType
@@ -87,6 +87,7 @@ object HttpClientProvider {
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .certificatePinner(certificatePinner)
             .build()
@@ -130,6 +131,7 @@ object HttpClientProvider {
             .connectTimeout(LONG_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(LONG_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(LONG_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
     }

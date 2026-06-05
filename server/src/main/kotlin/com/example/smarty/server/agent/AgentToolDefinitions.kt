@@ -148,7 +148,8 @@ EXAMPLES:
 - device(action='status', info='battery')
 - device(action='capture')
 
-Use for: opening apps, media control, settings, device status.""",
+Use for: opening apps, media control, settings, device status.
+NOTE: If a hardware tool fails (e.g. toggle flashlight), the tool will return the EXACT failure reason (e.g. "Camera is in use by another app"). You MUST relay this precise reason to the user rather than claiming a generic timeout or failure.""",
             parameters =
                 ToolParameters(
                     properties =

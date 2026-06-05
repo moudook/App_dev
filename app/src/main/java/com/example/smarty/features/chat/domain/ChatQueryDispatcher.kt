@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CopyOnWriteArrayList
 
 class ChatQueryDispatcher(
@@ -778,55 +780,63 @@ class ChatQueryDispatcher(
                                 var success = true
                                 var resultMsg = "Success"
                                 try {
-                                    when (event.action) {
-                                        "navigate" -> {
-                                            val info = event.info
-                                            if (info != null) {
-                                                navigateTo(info)
-                                                resultMsg = "Navigated to $info"
-                                            } else {
-                                                success = false
-                                                resultMsg = "Missing info for navigation"
+                                    withContext(Dispatchers.IO) {
+                                        withTimeout(10_000) {
+                                            when (event.action) {
+                                                "navigate" -> {
+                                                    val info = event.info
+                                                    if (info != null) {
+                                                        withContext(Dispatchers.Main) { navigateTo(info) }
+                                                        resultMsg = "Navigated to $info"
+                                                    } else {
+                                                        success = false
+                                                        resultMsg = "Missing info for navigation"
+                                                    }
+                                                }
+                                                "guided_breathing" -> {
+                                                    withContext(Dispatchers.Main) { navigateTo("guided_breathing") }
+                                                    resultMsg = "Started guided breathing"
+                                                }
+                                                "toggle" -> {
+                                                    val setting = event.setting ?: "unknown"
+                                                    val on = event.on ?: false
+                                                    val toggledResult = systemFeatureManager.toggleSetting(setting, on)
+                                                    if (toggledResult.isSuccess) {
+                                                        resultMsg = toggledResult.getOrDefault("Toggled $setting to $on")
+                                                    } else {
+                                                        success = false
+                                                        resultMsg = toggledResult.exceptionOrNull()?.message ?: "Failed to toggle $setting"
+                                                    }
+                                                }
+                                                "launch" -> {
+                                                    val app = event.app ?: ""
+                                                    val launched = systemFeatureManager.launchApp(app)
+                                                    if (launched) {
+                                                        resultMsg = "Launched $app"
+                                                    } else {
+                                                        success = false
+                                                        resultMsg = "Failed to launch $app"
+                                                    }
+                                                }
+                                                "status" -> {
+                                                    val battery = systemFeatureManager.getBatteryLevel()
+                                                    resultMsg = "Battery: $battery"
+                                                }
+                                                "capture" -> {
+                                                    systemFeatureManager.captureScreen()
+                                                    resultMsg = "Captured screen"
+                                                }
+                                                else -> {
+                                                    success = false
+                                                    resultMsg = "Unknown action: ${event.action}"
+                                                }
                                             }
-                                        }
-                                        "guided_breathing" -> {
-                                            navigateTo("guided_breathing")
-                                            resultMsg = "Started guided breathing"
-                                        }
-                                        "toggle" -> {
-                                            val setting = event.setting ?: "unknown"
-                                            val on = event.on ?: false
-                                            val toggled = systemFeatureManager.toggleSetting(setting, on)
-                                            if (toggled) {
-                                                resultMsg = "Toggled $setting to $on"
-                                            } else {
-                                                success = false
-                                                resultMsg = "Failed to toggle $setting"
-                                            }
-                                        }
-                                        "launch" -> {
-                                            val app = event.app ?: ""
-                                            val launched = systemFeatureManager.launchApp(app)
-                                            if (launched) {
-                                                resultMsg = "Launched $app"
-                                            } else {
-                                                success = false
-                                                resultMsg = "Failed to launch $app"
-                                            }
-                                        }
-                                        "status" -> {
-                                            val battery = systemFeatureManager.getBatteryLevel()
-                                            resultMsg = "Battery: $battery"
-                                        }
-                                        "capture" -> {
-                                            systemFeatureManager.captureScreen()
-                                            resultMsg = "Captured screen"
-                                        }
-                                        else -> {
-                                            success = false
-                                            resultMsg = "Unknown action: ${event.action}"
                                         }
                                     }
+                                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                                    success = false
+                                    resultMsg = "Hardware command hung on device (10s timeout)"
+                                    Log.e(TAG, "Device command timed out", e)
                                 } catch (e: Exception) {
                                     success = false
                                     resultMsg = e.message ?: "Unknown error"
