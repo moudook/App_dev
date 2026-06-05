@@ -302,8 +302,15 @@ private fun translatePluginEvent(
                 val isThinkingHint = event["isThinkingHint"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
 
                 if (rawReasoning.isNotEmpty()) {
-                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = rawReasoning)
-                    out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    val partKey = "$pluginSessionId:$partId:reasoning"
+                    val lastPartLen = partTextLengths.getOrDefault(partKey, 0)
+                    val reasoningDelta = if (rawReasoning.length > lastPartLen) rawReasoning.substring(lastPartLen) else ""
+                    partTextLengths[partKey] = rawReasoning.length
+
+                    if (reasoningDelta.isNotEmpty()) {
+                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = reasoningDelta)
+                        out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
                 } else if (isThinkingHint) {
                     out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                 }
