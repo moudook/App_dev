@@ -152,6 +152,7 @@ This allows the Hugging Face Space to be public (enabling direct WebSocket conne
 ### Sorry in the last commit the web searches and the streaming is working MCP tools are not working The streaming is working fine here I can see the web search outputs also the markdown rendering is working fine here The thinking sections are not appearing, Surveillance are called Task And we can see parallel sub agents now, What we cannot see is the to do list, Sub agent sections are expandable But not entered properly,[Additional UI changes Fixed the speech input! It now waits 0.7s before sending, smoothly combines what you type with what you say instead of overwriting it, and cleanly resets the text box afterward.]
 
 ### Next push may be a very huge improvements
+### ths commti wasnt worth it might make improvements on the way
 
 # License
 MIT License
