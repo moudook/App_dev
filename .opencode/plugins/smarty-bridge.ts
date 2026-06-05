@@ -83,5 +83,4 @@ const SmartyBridge = async ({client}: {client: any}) => {
     };
 };
 
-// Export as both default and named to handle different plugin loaders
-export { SmartyBridge };
+export default SmartyBridge;
