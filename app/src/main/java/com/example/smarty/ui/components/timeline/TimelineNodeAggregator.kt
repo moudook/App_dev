@@ -125,18 +125,65 @@ class TimelineNodeAggregator {
             }
 
             is AgentEvent.ReasoningDelta -> {
-                val lastStepIdx = _nodes.indexOfLast { 
-                    it is TimelineNode.ToolExecution && 
-                    it.toolName == "step" && 
-                    it.status == TimelineNode.ToolExecution.Status.RUNNING 
-                }
-                if (lastStepIdx != -1) {
-                    val old = _nodes[lastStepIdx] as TimelineNode.ToolExecution
-                    _nodes[lastStepIdx] = old.copy(
-                        outputSummary = (old.outputSummary ?: "") + event.text
+                val lastIdx = _nodes.indexOfLast { it is TimelineNode.ReasoningTrace }
+                if (lastIdx != -1) {
+                    val old = _nodes[lastIdx] as TimelineNode.ReasoningTrace
+                    if (old.isOngoing) {
+                        _nodes[lastIdx] = old.copy(text = old.text + event.text)
+                    } else {
+                        val node = TimelineNode.ReasoningTrace(
+                            id = event.eventId,
+                            timestamp = event.timestamp,
+                            text = event.text,
+                            isOngoing = true
+                        )
+                        _nodes.add(node)
+                    }
+                } else {
+                    val node = TimelineNode.ReasoningTrace(
+                        id = event.eventId,
+                        timestamp = event.timestamp,
+                        text = event.text,
+                        isOngoing = true
                     )
+                    _nodes.add(node)
                 }
             }
+
+            is AgentEvent.ReasoningBlock -> {
+                val lastIdx = _nodes.indexOfLast { 
+                    it is TimelineNode.ReasoningTrace && (it.id == event.eventId || it.isOngoing)
+                }
+                if (lastIdx != -1) {
+                    val old = _nodes[lastIdx] as TimelineNode.ReasoningTrace
+                    _nodes[lastIdx] = old.copy(
+                        text = event.content,
+                        isOngoing = false,
+                        durationMs = event.thinkingDurationMs
+                    )
+                } else {
+                    val node = TimelineNode.ReasoningTrace(
+                        id = event.eventId,
+                        timestamp = event.timestamp,
+                        text = event.content,
+                        isOngoing = false,
+                        durationMs = event.thinkingDurationMs
+                    )
+                    _nodes.add(node)
+                }
+            }
+            
+            is AgentEvent.StreamingActive -> {
+                // If text is streaming, reasoning is no longer ongoing
+                val lastIdx = _nodes.indexOfLast { it is TimelineNode.ReasoningTrace }
+                if (lastIdx != -1) {
+                    val old = _nodes[lastIdx] as TimelineNode.ReasoningTrace
+                    if (old.isOngoing) {
+                        _nodes[lastIdx] = old.copy(isOngoing = false)
+                    }
+                }
+            }
+
             else -> { /* TextDelta, Done, StateSync — no timeline node */ }
         }
     }

@@ -267,26 +267,34 @@ private fun translatePluginEvent(
             logger.debug("[plugin] permission.ask session=$pluginSessionId tool=${event["tool"]?.jsonPrimitive?.contentOrNull}")
         }
 
-        "part.updated" -> {
-            val phase = event["phase"]?.jsonPrimitive?.contentOrNull ?: "streaming"
-            val partType = event["partType"]?.jsonPrimitive?.contentOrNull ?: ""
-            val partId = event["partID"]?.jsonPrimitive?.contentOrNull ?: "default-part"
+        "message.part.updated", "part.updated" -> {
+            val partObj = event["part"]?.jsonObject
+            val phase = partObj?.get("phase")?.jsonPrimitive?.contentOrNull 
+                ?: event["phase"]?.jsonPrimitive?.contentOrNull ?: "streaming"
+            val partType = partObj?.get("type")?.jsonPrimitive?.contentOrNull 
+                ?: event["partType"]?.jsonPrimitive?.contentOrNull ?: ""
+            val partId = partObj?.get("id")?.jsonPrimitive?.contentOrNull 
+                ?: event["partID"]?.jsonPrimitive?.contentOrNull ?: "default-part"
 
-            if (phase == "streaming" && (partType == "text" || partType == "reasoning")) {
+            if (phase == "streaming" && (partType == "text" || partType == "reasoning" || partType == "content")) {
                 val rawText: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("text")?.jsonPrimitive?.contentOrNull
                         ?: (event["delta"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
+                    val fromPart = partObj?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: partObj?.get("content")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["text"]?.jsonPrimitive?.contentOrNull
                         ?: event["content"]?.jsonPrimitive?.contentOrNull
-                    fromDelta ?: fromEvent ?: ""
+                    fromDelta ?: fromPart ?: fromEvent ?: ""
                 }
                 val rawReasoning: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("reasoning")?.jsonPrimitive?.contentOrNull
                         ?: (event["delta"] as? JsonObject)?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                    val fromPart = partObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: partObj?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
                     val fromEvent = event["reasoning"]?.jsonPrimitive?.contentOrNull
                         ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
-                    val fromTextFallback = if (partType == "reasoning") event["text"]?.jsonPrimitive?.contentOrNull else null
-                    fromDelta ?: fromEvent ?: fromTextFallback ?: ""
+                    val fromTextFallback = if (partType == "reasoning") rawText else null
+                    fromDelta ?: fromPart ?: fromEvent ?: fromTextFallback ?: ""
                 }
 
                 val key = contentStateKey(pluginSessionId, currentMsgId)
@@ -326,12 +334,14 @@ private fun translatePluginEvent(
                     }
                 }
             } else if (phase == "snapshot" && partType == "reasoning") {
-                val content = event["reasoning"]?.jsonPrimitive?.contentOrNull ?: ""
+                val content = partObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                    ?: event["reasoning"]?.jsonPrimitive?.contentOrNull ?: ""
                 out += AgentEvent.ReasoningBlock(
                     eventId = eid(), timestamp = ts,
                     sessionId = pluginSessionId, messageId = currentMsgId,
                     partId = partId, content = content,
-                    thinkingDurationMs = event["thinkingDurationMs"]?.jsonPrimitive?.longOrNull
+                    thinkingDurationMs = partObj?.get("thinkingDurationMs")?.jsonPrimitive?.longOrNull
+                        ?: event["thinkingDurationMs"]?.jsonPrimitive?.longOrNull
                 )
             } else if (partType == "tool") {
                 val toolName = event["tool"]?.jsonPrimitive?.contentOrNull ?: ""

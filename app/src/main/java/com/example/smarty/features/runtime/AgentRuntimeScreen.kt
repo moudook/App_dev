@@ -69,6 +69,7 @@ private fun RuntimeTimelineNodeItem(
 ) {
     when (node) {
         is TimelineNode.ToolExecution -> ToolCallCard(node = node)
+        is TimelineNode.ReasoningTrace -> ReasoningCard(node = node)
         is TimelineNode.ApprovalGate ->
             ApprovalCard(
                 node = node,

@@ -43,6 +43,18 @@ sealed class TimelineNode {
     }
 
     /**
+     * A streaming or completed reasoning/thinking block.
+     */
+    @Immutable
+    data class ReasoningTrace(
+        override val id: String,
+        override val timestamp: Long,
+        val text: String,
+        val isOngoing: Boolean = true,
+        val durationMs: Long? = null,
+    ) : TimelineNode()
+
+    /**
      * Approval gate — maps ApprovalRequested / Granted / Denied.
      * The agent stream is paused while this is in PENDING state.
      * [requiresText] = true when the tool is "ask_user" (needs free-text input).

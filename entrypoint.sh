@@ -42,8 +42,8 @@ echo ""
 # Step 0b: Install Timeline Bridge plugin so daemon sends part.updated / message.part.delta events
 # -----------------------------------------------------------------------------
 echo "[0b/5] Installing Timeline Bridge plugin..."
-PLUGIN_SRC=".opencode/plugins/timeline-bridge.ts"
-PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/timeline-bridge.ts"
+PLUGIN_SRC=".opencode/plugins/smarty-bridge.ts"
+PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.ts"
 if [ -f "$PLUGIN_SRC" ]; then
     cp "$PLUGIN_SRC" "$PLUGIN_DEST"
     echo "  Plugin installed to $PLUGIN_DEST"
@@ -118,17 +118,20 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 3: Start OpenCode daemon (Ktor is already up — MCP tools will register)
 # -----------------------------------------------------------------------------
-echo "[3/5] Starting OpenCode daemon on port $DAEMON_PORT..."
+echo "[3/5] Starting OpenCode daemon via UDS..."
 if [ ! -f "./opencode.json" ]; then
     echo "WARNING: opencode.json not found in $(pwd), using defaults"
 else
     echo "  opencode.json: FOUND"
 fi
 
-echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
+echo " Launching: opencode serve --socket /tmp/opencode.sock"
+opencode serve --socket /tmp/opencode.sock > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
+
+echo "  Starting socat proxy TCP:$DAEMON_PORT -> UNIX:/tmp/opencode.sock"
+socat TCP-LISTEN:$DAEMON_PORT,bind=127.0.0.1,reuseaddr,fork UNIX-CLIENT:/tmp/opencode.sock &
 
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
