@@ -20,8 +20,12 @@ import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
+import io.ktor.client.request.preparePost
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -1260,6 +1264,78 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     mapOf("error" to "daemon event stream failed: ${e.message}"),
+                )
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/chat") {
+            val messageText = call.request.queryParameters["message"] ?: "hi"
+            val modelOverride = call.request.queryParameters["model"] ?: "opencode/big-pickle"
+
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            val started = System.currentTimeMillis()
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    write(":ping\n\n")
+                    flush()
+                    // Create session
+                    val sessionText = client.preparePost("http://127.0.0.1:4096/session") {
+                        contentType(ContentType.Application.Json)
+                        setBody("{}")
+                    }.execute { it.bodyAsText() }
+                    val sessionId = runCatching {
+                        Json.parseToJsonElement(sessionText).jsonObject["id"]?.jsonPrimitive?.content
+                    }.getOrNull()
+                    write("event: session\ndata: {\"id\":\"$sessionId\"}\n\n")
+                    flush()
+
+                    val slashIdx = modelOverride.indexOf('/')
+                    val providerId = if (slashIdx > 0) modelOverride.substring(0, slashIdx) else "opencode"
+                    val modelId = if (slashIdx > 0) modelOverride.substring(slashIdx + 1) else modelOverride
+
+                    val body2 = buildString {
+                        append("{\"parts\":[{\"type\":\"text\",\"text\":")
+                        append(JsonPrimitive(messageText).toString())
+                        append("}],\"model\":{\"providerID\":")
+                        append(JsonPrimitive(providerId).toString())
+                        append(",\"modelID\":")
+                        append(JsonPrimitive(modelId).toString())
+                        append("}}")
+                    }
+                    write("event: requestBody\ndata: ")
+                    write(JsonPrimitive(body2).toString())
+                    write("\n\n")
+                    flush()
+
+                    client.preparePost("http://127.0.0.1:4096/session/$sessionId/message") {
+                        contentType(ContentType.Application.Json)
+                        header("Accept", "text/event-stream")
+                        setBody(body2)
+                    }.execute { response ->
+                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
+                        flush()
+                        val channel = response.bodyAsChannel()
+                        var chunkN = 0
+                        while (!channel.isClosedForRead) {
+                            val line = channel.readLine() ?: break
+                            chunkN++
+                            val safeLine = JsonPrimitive(line.take(400)).toString()
+                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                            flush()
+                            if (chunkN > 200) break
+                        }
+                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
+                    }
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[debug/daemon/chat] error class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName), "class" to e.javaClass.name),
                 )
             }
         }
