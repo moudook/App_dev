@@ -57,4 +57,7 @@ class SmartyBridge {
   }
 }
 
-module.exports = new SmartyBridge();
+module.exports = async function(ctx) {
+  const bridge = new SmartyBridge();
+  await bridge.setup(ctx);
+};
