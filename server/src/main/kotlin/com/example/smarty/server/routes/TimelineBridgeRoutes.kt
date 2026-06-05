@@ -33,11 +33,12 @@ fun Application.configureTimelineBridgeRoutes() {
                     ?: event["kind"]?.jsonPrimitive?.content 
                     ?: "unknown"
 
-                logger.debug("[KTOR-RECV] kind=$kind bodyLen=${body.length}")
+                logger.info("[KTOR-RECV] kind=$kind body=${body.take(500)}")
                 
                 val sessionID = event["sessionID"]?.jsonPrimitive?.content 
                     ?: event["properties"]?.jsonObject?.get("message")?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
                     ?: event["message"]?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
+                    ?: event["session"]?.jsonObject?.get("id")?.jsonPrimitive?.content
                     ?: "no-session"
 
                 bridge.ingest(kind, sessionID, event, ts)

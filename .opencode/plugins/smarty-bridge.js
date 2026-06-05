@@ -1,11 +1,11 @@
 class SmartyBridge {
-  private bridgeUrl = 'http://127.0.0.1:7860/opencode/events';
+  constructor() {
+    this.bridgeUrl = 'http://127.0.0.1:7860/opencode/events';
+    this.seenParts = new Map();
+  }
 
-  // Part tracking deduplication: {partId: {textLen: 0, reasoningLen: 0}}
-  private seenParts = new Map<string, {textLen: number, reasoningLen: number}>();
-
-  async setup(opencode: any) {
-    opencode.on('message.updated', async (event: any) => {
+  async setup(opencode) {
+    opencode.on('message.updated', async (event) => {
       if (!event) return;
       try {
         await fetch(this.bridgeUrl, {
@@ -30,11 +30,11 @@ class SmartyBridge {
     ];
     
     for (const kind of directEvents) {
-      opencode.on(kind, async (e: any) => this.forward(kind, e));
+      opencode.on(kind, async (e) => this.forward(kind, e));
     }
   }
 
-  private async forward(kind: string, event: any) {
+  async forward(kind, event) {
     try {
       await fetch(this.bridgeUrl, {
         method: 'POST',
@@ -45,7 +45,7 @@ class SmartyBridge {
       console.error(`[SmartyBridge] ${kind} error:`, e);
     }
   }
-  private safeStringify(obj: any): string {
+  safeStringify(obj) {
     const cache = new Set();
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'object' && value !== null) {

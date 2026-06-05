@@ -42,8 +42,8 @@ echo ""
 # Step 0b: Install Timeline Bridge plugin so daemon sends part.updated / message.part.delta events
 # -----------------------------------------------------------------------------
 echo "[0b/5] Installing Timeline Bridge plugin..."
-PLUGIN_SRC=".opencode/plugins/smarty-bridge.ts"
-PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.ts"
+PLUGIN_SRC=".opencode/plugins/smarty-bridge.js"
+PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.js"
 if [ -f "$PLUGIN_SRC" ]; then
     cp "$PLUGIN_SRC" "$PLUGIN_DEST"
     echo "  Plugin installed to $PLUGIN_DEST"
