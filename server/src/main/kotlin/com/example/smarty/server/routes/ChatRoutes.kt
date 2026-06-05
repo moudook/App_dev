@@ -1108,8 +1108,26 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         }
 
         // ============================================================================
+        // DEBUG: current model state (discovered models, default, active)
+        // GET /debug/model/info
+        // AUTH DISABLED.
+        // ============================================================================
+        get("/debug/model/info") {
+            val models = com.example.smarty.server.llm.OpencodeModelRegistry.discoveredFreeModels()
+            val currentDefault = com.example.smarty.server.llm.OpencodeModelRegistry.requireAllowedFreeModel(null)
+            val stateJson = buildString {
+                append("{\"defaultModel\":\"$currentDefault\",\"discovered\":[")
+                models.forEachIndexed { i, m ->
+                    if (i > 0) append(",")
+                    append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
+                }
+                append("],\"count\":${models.size}}")
+            }
+            call.respondText(stateJson, ContentType.Application.Json)
+        }
+
         // DEBUG: direct OpenCode streaming test (used by scripts/test-space.sh chat)
-        // POST /debug/llm/stream  body: {"message":"..."}
+        // POST /debug/llm/stream  body: {"message":"...","model":"opencode/auto"}
         // Streams the OpenCode daemon's response as SSE. Each chunk arrival time is
         // logged at INFO with [OpenCode.StreamDiag] so we can prove streaming.
         // AUTH DISABLED — see AGENTS.md "Auth State".
@@ -1120,6 +1138,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             val messageText = parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
                 ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
                 ?: "Say hi in one short sentence."
+            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
 
             val provider = com.example.smarty.server.llm.LlmProviderFactory.create(
                 com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient(),
@@ -1147,6 +1166,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                     ),
                                 ),
                                 tools = emptyList(),
+                                model = modelOverride,
                             ).collect { chunk ->
                                 val now = System.currentTimeMillis()
                                 val dFromStart = now - started
