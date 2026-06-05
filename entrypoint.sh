@@ -31,6 +31,10 @@ echo "[0/5] Configuring OpenCode storage paths (avoid NFS SQLite corruption)..."
 export XDG_DATA_HOME="/tmp/opencode-data"
 export XDG_CONFIG_HOME="/tmp/opencode-config"
 export OPENCODE_DATA_DIR="/tmp/opencode"
+# Bypass the opencode CLI daemon for LLM calls — the CLI v1.16.0 has auth bugs
+# with the Zen provider (no key sent when set to "public", hangs on free models).
+# The direct path uses Bearer public which Zen free tier accepts.
+export OPENCODE_USE_DIRECT_ZEN="true"
 mkdir -p "$XDG_DATA_HOME/opencode" "$XDG_CONFIG_HOME/opencode/plugins" "$OPENCODE_DATA_DIR"
 echo "  XDG_DATA_HOME=$XDG_DATA_HOME"
 echo "  XDG_CONFIG_HOME=$XDG_CONFIG_HOME"

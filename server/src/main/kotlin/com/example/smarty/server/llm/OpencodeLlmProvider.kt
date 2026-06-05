@@ -73,6 +73,11 @@ class OpencodeLlmProvider(
     private val agentName = System.getenv("OPENCODE_AGENT")?.takeIf { it.isNotBlank() } ?: "smarty-headless-agent"
 
     companion object {
+        // Direct Zen API endpoint — used as fallback when the opencode CLI daemon
+        // hangs or returns APIError. The free tier accepts `Authorization: Bearer public`.
+        private const val ZEN_BASE_URL = "https://opencode.ai/zen/v1"
+        private const val ZEN_PUBLIC_KEY = "public"
+        private const val USE_DIRECT_ZEN_ENV = "OPENCODE_USE_DIRECT_ZEN"
         private val daemonSemaphore = kotlinx.coroutines.sync.Semaphore(5)
         private val TAG_STRIP_REGEX = Regex("</?(think|final)>", RegexOption.IGNORE_CASE)
         private const val MAX_SSE_LINE_LENGTH = 1_000_000 // 1 MB per line
@@ -115,6 +120,15 @@ class OpencodeLlmProvider(
             val slashIndex = selectedModel.indexOf('/')
             val providerId = if (slashIndex > 0) selectedModel.substring(0, slashIndex) else "opencode"
             val modelId = if (slashIndex > 0) selectedModel.substring(slashIndex + 1) else selectedModel
+
+            // Direct Zen path: skip the opencode CLI daemon entirely. The CLI v1.16.0
+            // has issues with the opencode/Zen provider (auth not sent, hangs on free
+            // models). The direct path uses Bearer public which the Zen free tier accepts.
+            if (System.getenv(USE_DIRECT_ZEN_ENV) == "true" || System.getenv(USE_DIRECT_ZEN_ENV) == "1") {
+                logger.info("[OpenCode.LlmProvider][inference=$inferenceId] OPENCODE_USE_DIRECT_ZEN set — bypassing daemon, calling $ZEN_BASE_URL directly")
+                streamDirectZen(messages, model, inferenceId)
+                return@flow
+            }
 
             var activeSessionId = externalSessionId ?: createDaemonSession().also { onExternalSessionCreated(it) }
             val flowCollector = this
@@ -297,6 +311,132 @@ class OpencodeLlmProvider(
                 tryExecuteStream(activeSessionId, isRetry = true)
             }
         }.flowOn(Dispatchers.IO)
+
+    /**
+     * Direct call to the Zen chat completions API. Bypasses the opencode CLI daemon.
+     * Returns a Flow<LlmChunk> that emits SSE chunks from Zen.
+     *
+     * The Zen API is OpenAI-compatible: POST /chat/completions with stream=true returns
+     * SSE chunks of `data: {"choices":[{"delta":{"content":"text"},...}]}\n\n`.
+     */
+    private fun streamDirectZen(
+        messages: List<LlmMessage>,
+        model: String?,
+        inferenceId: String,
+    ): Flow<LlmChunk> = flow {
+        val modelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
+        val requestStartMs = System.currentTimeMillis()
+
+        val systemPrompt =
+            messages.filter { it.role == LlmMessage.Role.SYSTEM }
+                .joinToString("\n\n") { it.content }
+                .takeIf { it.isNotBlank() }
+        val chatMessages = buildList {
+            if (systemPrompt != null) add(
+                buildJsonObject {
+                    put("role", JsonPrimitive("system"))
+                    put("content", JsonPrimitive(systemPrompt))
+                },
+            )
+            messages.filter { it.role != LlmMessage.Role.SYSTEM }.forEach { msg ->
+                val role =
+                    when (msg.role) {
+                        LlmMessage.Role.USER -> "user"
+                        LlmMessage.Role.ASSISTANT -> "assistant"
+                        LlmMessage.Role.TOOL -> "tool"
+                        LlmMessage.Role.SYSTEM -> "system"
+                    }
+                add(
+                    buildJsonObject {
+                        put("role", JsonPrimitive(role))
+                        put("content", JsonPrimitive(msg.content))
+                    },
+                )
+            }
+        }
+
+        val body = buildJsonObject {
+            put("model", JsonPrimitive(modelId))
+            put("stream", JsonPrimitive(true))
+            put("messages", kotlinx.serialization.json.JsonArray(chatMessages))
+        }
+
+        logger.info("[OpenCode.DirectZen][inference=$inferenceId] POST $ZEN_BASE_URL/chat/completions model=$modelId")
+
+        try {
+            client.preparePost("$ZEN_BASE_URL/chat/completions") {
+                contentType(ContentType.Application.Json)
+                header("Authorization", "Bearer $ZEN_PUBLIC_KEY")
+                header("Accept", "text/event-stream")
+                setBody(body.toString())
+            }.execute { response ->
+                val statusMs = System.currentTimeMillis() - requestStartMs
+                logger.info("[OpenCode.DirectZen][inference=$inferenceId] status=${response.status} headersAfterMs=$statusMs")
+                if (response.status.value !in 200..299) {
+                    val errBody = runCatching { response.bodyAsText() }.getOrElse { "<no body>" }
+                    logger.error("[OpenCode.DirectZen][inference=$inferenceId] HTTP ${response.status} body=$errBody")
+                    emit(LlmChunk(content = null, finishReason = "error", rawJson = errBody.take(500), sseEvent = "error"))
+                    return@execute
+                }
+                val channel = response.bodyAsChannel()
+                var currentData = StringBuilder()
+                var directChunkCount = 0
+                var firstChunkLogged = false
+                while (!channel.isClosedForRead) {
+                    val line = channel.readLine() ?: break
+                    if (line.isBlank()) {
+                        if (currentData.isNotEmpty()) {
+                            val data = currentData.toString().trim()
+                            currentData.setLength(0)
+                            if (data == "[DONE]") {
+                                emit(LlmChunk(content = null, finishReason = "stop", sseEvent = "done"))
+                                break
+                            }
+                            val json = runCatching { Json.parseToJsonElement(data) }.getOrNull() as? JsonObject
+                            if (json != null) {
+                                val nowMs = System.currentTimeMillis()
+                                val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
+                                val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
+                                if (!content.isNullOrEmpty()) {
+                                    if (!firstChunkLogged) {
+                                        logger.info("[OpenCode.DirectZen.StreamDiag][inference=$inferenceId] FIRST_SSE_CHUNK after ${nowMs - requestStartMs}ms")
+                                        firstChunkLogged = true
+                                    }
+                                    directChunkCount++
+                                    emit(LlmChunk(content = content, rawJson = data, sseEvent = "message"))
+                                } else {
+                                    emit(LlmChunk(content = null, rawJson = data, sseEvent = "message"))
+                                }
+                            }
+                        }
+                        continue
+                    }
+                    if (line.startsWith("data:")) {
+                        val d = line.substringAfter("data:").trim()
+                        if (currentData.isNotEmpty()) currentData.append("\n")
+                        currentData.append(d)
+                    } else if (line.startsWith("{")) {
+                        val json = runCatching { Json.parseToJsonElement(line) }.getOrNull() as? JsonObject
+                        if (json != null) {
+                            val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
+                            val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
+                            if (!content.isNullOrEmpty()) {
+                                directChunkCount++
+                                emit(LlmChunk(content = content, rawJson = line, sseEvent = "message"))
+                            } else {
+                                emit(LlmChunk(content = null, rawJson = line, sseEvent = "message"))
+                            }
+                        }
+                    }
+                }
+                val totalMs = System.currentTimeMillis() - requestStartMs
+                logger.info("[OpenCode.DirectZen.StreamDiag][inference=$inferenceId] STREAM_COMPLETE totalMs=$totalMs chunks=$directChunkCount")
+            }
+        } catch (e: Exception) {
+            logger.error("[OpenCode.DirectZen][inference=$inferenceId] failed class={} msg={}", e.javaClass.name, e.message)
+            emit(LlmChunk(content = null, finishReason = "error", sseEvent = "error"))
+        }
+    }.flowOn(Dispatchers.IO)
 
     suspend fun getSessionHistory(sessionId: String): JsonArray? =
         try {
