@@ -18,6 +18,9 @@ import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
+import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -29,12 +32,14 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
+import io.ktor.utils.io.readLine
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
@@ -45,6 +50,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
@@ -1098,6 +1105,98 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     routing {
         post("/chat/test-ask-user") {
             call.respond(mapOf("status" to "noop", "message" to "ActiveEventBridge removed; use WebSocket /chat/ws for approval flows"))
+        }
+
+        // ============================================================================
+        // DEBUG: direct OpenCode streaming test (used by scripts/test-space.sh chat)
+        // POST /debug/llm/stream  body: {"message":"..."}
+        // Streams the OpenCode daemon's response as SSE. Each chunk arrival time is
+        // logged at INFO with [OpenCode.StreamDiag] so we can prove streaming.
+        // AUTH DISABLED — see AGENTS.md "Auth State".
+        // ============================================================================
+        post("/debug/llm/stream") {
+            val body = call.receiveText()
+            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+            val messageText = parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: "Say hi in one short sentence."
+
+            val provider = com.example.smarty.server.llm.LlmProviderFactory.create(
+                com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient(),
+            )
+
+            val started = System.currentTimeMillis()
+            var firstChunkMs: Long? = null
+            var lastChunkMs = started
+            var chunkCount = 0
+            val accumulated = StringBuilder()
+
+            call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                kotlinx.coroutines.runBlocking {
+                    try {
+                        provider.stream(
+                            messages = listOf(
+                                com.example.smarty.server.llm.LlmMessage(
+                                    role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                                    content = messageText,
+                                ),
+                            ),
+                            tools = emptyList(),
+                        ).collect { chunk ->
+                            val now = System.currentTimeMillis()
+                            val dFromStart = now - started
+                            val dFromLast = now - lastChunkMs
+                            if (firstChunkMs == null) firstChunkMs = dFromStart
+                            chunkCount++
+                            val content = chunk.content
+                            if (!content.isNullOrBlank()) {
+                                accumulated.append(content)
+                                val safeText = JsonPrimitive(content).toString()
+                                write("data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"text\":$safeText}\n\n")
+                                flush()
+                            }
+                            lastChunkMs = now
+                        }
+                    } catch (e: Exception) {
+                        write("event: error\ndata: {\"message\":${JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()}}\n\n")
+                    }
+                }
+                val total = System.currentTimeMillis() - started
+                val safeAcc = JsonPrimitive(accumulated.toString()).toString()
+                write("event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n")
+            }
+        }
+
+        // DEBUG: ping the OpenCode daemon (port 4096) directly
+        get("/debug/daemon/event") {
+            val started = System.currentTimeMillis()
+            try {
+                val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    client.prepareGet("http://127.0.0.1:4096/event") {
+                        header("Accept", "text/event-stream")
+                    }.execute { response ->
+                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
+                        flush()
+                        val channel = response.bodyAsChannel()
+                        var chunkN = 0
+                        while (!channel.isClosedForRead) {
+                            val line = channel.readLine() ?: break
+                            chunkN++
+                            val safeLine = JsonPrimitive(line.take(300)).toString()
+                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                            flush()
+                            if (chunkN > 100) break
+                        }
+                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
+                    }
+                }
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to "daemon event stream failed: ${e.message}"),
+                )
+            }
         }
     }
 }
