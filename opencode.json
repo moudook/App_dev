@@ -9,33 +9,16 @@
   "disabled_providers": [
     "anthropic",
     "openai",
-    "google",
-    "opencode"
+    "google"
   ],
   "enabled_providers": [
-    "zen",
+    "opencode",
     "kilo",
     "nvidia",
     "openrouter"
   ],
   "default_agent": "smarty-headless-agent",
   "provider": {
-    "zen": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "OpenCode Zen (free)",
-      "options": {
-        "baseURL": "https://opencode.ai/zen/v1",
-        "apiKey": "sk-zen-public-free-anon-no-key-required"
-      },
-      "models": {
-        "deepseek-v4-flash": {
-          "name": "DeepSeek V4 Flash (direct, no aliasing)"
-        },
-        "minimax-m3-free": {
-          "name": "Minimax M3 (Zen free)"
-        }
-      }
-    },
     "openrouter": {
       "options": {
         "apiKey": "${OPENROUTER_API_KEY}"
