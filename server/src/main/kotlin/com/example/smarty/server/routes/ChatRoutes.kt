@@ -1130,42 +1130,56 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             var lastChunkMs = started
             var chunkCount = 0
             val accumulated = StringBuilder()
+            val chunkLog = StringBuilder()
 
+            // Run the flow asynchronously so we can flush each chunk as it arrives
+            // through the SSE response. The HF gateway has a ~5 min limit so we also
+            // log every chunk to chunkLog so if the connection drops we still see it.
             call.respondTextWriter(contentType = ContentType.Text.EventStream) {
                 kotlinx.coroutines.runBlocking {
-                    try {
-                        provider.stream(
-                            messages = listOf(
-                                com.example.smarty.server.llm.LlmMessage(
-                                    role = com.example.smarty.server.llm.LlmMessage.Role.USER,
-                                    content = messageText,
+                    val job = kotlinx.coroutines.GlobalScope.launch {
+                        try {
+                            provider.stream(
+                                messages = listOf(
+                                    com.example.smarty.server.llm.LlmMessage(
+                                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                                        content = messageText,
+                                    ),
                                 ),
-                            ),
-                            tools = emptyList(),
-                        ).collect { chunk ->
-                            val now = System.currentTimeMillis()
-                            val dFromStart = now - started
-                            val dFromLast = now - lastChunkMs
-                            if (firstChunkMs == null) firstChunkMs = dFromStart
-                            chunkCount++
-                            val content = chunk.content
-                            val rawJson = chunk.rawJson
-                            val sseEvent = chunk.sseEvent
-                            val safeText = JsonPrimitive(content ?: "").toString()
-                            val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
-                            val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
-                            write("data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n")
-                            flush()
-                            if (!content.isNullOrBlank()) accumulated.append(content)
-                            lastChunkMs = now
+                                tools = emptyList(),
+                            ).collect { chunk ->
+                                val now = System.currentTimeMillis()
+                                val dFromStart = now - started
+                                val dFromLast = now - lastChunkMs
+                                if (firstChunkMs == null) firstChunkMs = dFromStart
+                                chunkCount++
+                                val content = chunk.content
+                                val rawJson = chunk.rawJson
+                                val sseEvent = chunk.sseEvent
+                                val safeText = JsonPrimitive(content ?: "").toString()
+                                val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
+                                val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
+                                val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
+                                chunkLog.append(line)
+                                write(line)
+                                flush()
+                                if (!content.isNullOrBlank()) accumulated.append(content)
+                                lastChunkMs = now
+                            }
+                        } catch (e: Exception) {
+                            val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                            write("event: error\ndata: {\"message\":$safeMsg}\n\n")
+                            chunkLog.append("event: error\ndata: {\"message\":$safeMsg}\n\n")
                         }
-                    } catch (e: Exception) {
-                        write("event: error\ndata: {\"message\":${JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()}}\n\n")
                     }
+                    job.join()
                 }
                 val total = System.currentTimeMillis() - started
                 val safeAcc = JsonPrimitive(accumulated.toString()).toString()
-                write("event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n")
+                val doneLine = "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n"
+                chunkLog.append(doneLine)
+                write(doneLine)
+                flush()
             }
         }
 
