@@ -1272,6 +1272,31 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         // the raw SSE back. Used to isolate "is it the agent config that hangs?"
         // vs "is the LLM call itself slow".
         // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/auth") {
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            try {
+                call.respondTextWriter(contentType = ContentType.Application.Json) {
+                    val authText = runCatching {
+                        client.prepareGet("http://127.0.0.1:4096/auth") {
+                            header("Accept", "application/json")
+                        }.execute { it.bodyAsText() }
+                    }.getOrElse { "ERR: ${it.message}" }
+                    write("event: auth\ndata: ")
+                    write(JsonPrimitive(authText.take(5000)).toString())
+                    write("\n\n")
+                }
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName)),
+                )
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
         get("/debug/daemon/config") {
             val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
             try {
