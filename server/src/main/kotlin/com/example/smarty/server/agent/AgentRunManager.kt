@@ -39,6 +39,10 @@ object AgentRunManager {
     // can carry the correct ID that Android filters on.
     private val messageIdMap = ConcurrentHashMap<String, String>()
 
+    // Track sessions where the plugin bridge has successfully emitted text content.
+    // If the bridge emits text, we skip the AgentRunManager fallback delivery.
+    private val bridgeSentTextSessions = ConcurrentHashMap<String, Boolean>()
+
     fun getEventFlow(sessionId: String): SharedFlow<AgentEvent> =
         sessionEventFlows
             .getOrPut(sessionId) {
@@ -58,6 +62,13 @@ object AgentRunManager {
     fun clearMessageId(sessionId: String) {
         messageIdMap.remove(sessionId)
     }
+
+    /** Called by the TimelineBridgeRoutes when it successfully emits text content for a session. */
+    fun markBridgeSentText(sessionId: String) {
+        bridgeSentTextSessions[sessionId] = true
+    }
+
+    fun hasBridgeSentText(sessionId: String): Boolean = bridgeSentTextSessions.containsKey(sessionId)
 
     suspend fun emitEvent(
         sessionId: String,
@@ -170,6 +181,26 @@ object AgentRunManager {
                         }
 
                     logger.info("Agent run completed for session: $sessionId, response length: ${assistantResponse.length}")
+
+                    // GUARANTEED DELIVERY: emit the final response text directly via the SharedFlow.
+                    // The plugin bridge's message.updated path may fail to parse text when the daemon
+                    // returns a JSON body (not SSE) and the plugin's final message.updated snapshot
+                    // does not include the full parts array. This is the authoritative fallback.
+                    if (assistantResponse.isNotBlank()) {
+                        val ts = System.currentTimeMillis()
+                        val eid = UUID.randomUUID().toString()
+                        // Only emit if bridge hasn't already sent the text (bridge sets sentTextForSession flag)
+                        if (!hasBridgeSentText(sessionId)) {
+                            logger.info("AgentRunManager: bridge did not emit text, emitting directly for session=$sessionId len=${assistantResponse.length}")
+                            emitEvent(sessionId, AgentEvent.TextDelta(
+                                eventId = UUID.randomUUID().toString(), timestamp = ts, text = assistantResponse))
+                            emitEvent(sessionId, AgentEvent.ResponseBlock(
+                                eventId = UUID.randomUUID().toString(), timestamp = ts,
+                                sessionId = sessionId, messageId = messageIdMap[sessionId] ?: eid,
+                                content = assistantResponse))
+                        }
+                    }
+
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     val msg = "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId"
                     logger.error(msg, e)
@@ -190,6 +221,7 @@ object AgentRunManager {
                     ActiveSessionManager.endSession(userId, sessionId)
                     activeRuns.remove(sessionId)
                     messageIdMap.remove(sessionId)
+                    bridgeSentTextSessions.remove(sessionId)
                     // Clean up the SharedFlow to prevent memory leak
                     // Delay removal so late subscribers can still receive final events
                     kotlinx.coroutines.delay(5000)

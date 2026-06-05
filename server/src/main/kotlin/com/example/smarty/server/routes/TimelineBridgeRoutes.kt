@@ -320,6 +320,7 @@ private fun translatePluginEvent(
                             val d = response.substring(state.lastSentResponseLen)
                             state.lastSentResponseLen = response.length
                             out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                            AgentRunManager.markBridgeSentText(pluginSessionId)
                             out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                         }
                     }
