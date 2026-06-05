@@ -51,7 +51,7 @@ class NoteRepository(
                         is_ai_created, is_viewed, todo_content, attachments_json,
                         tags_json, chunk_analyses_json, reminder_text, reminder_expires_at,
                         metadata, word_count, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, now(), now())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, now(), now())
                     """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     var idx = 1

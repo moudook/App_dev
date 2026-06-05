@@ -15,6 +15,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import com.example.smarty.protocol.AgentEvent
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -92,7 +95,7 @@ class ToolExecutor(
         @SerialName("allow_custom") val allowCustom: Boolean? = null,
         @SerialName("note_id") val noteId: String? = null,
         val snippet: String? = null,
-        val limit: String? = null,
+        val limit: kotlinx.serialization.json.JsonElement? = null,
         val finding: String? = null,
         val source: String? = null,
         val url: String? = null,
@@ -176,9 +179,9 @@ class ToolExecutor(
             "device" -> executeDeviceTool(args, sessionId)
             "ask_user" -> executeAskUser(args, toolCallId, sessionId)
             "get_note_by_id" -> executeGetNoteById(args)
-            "navigate" -> executeNavigateTool(args)
+            "navigate" -> executeNavigateTool(args, sessionId)
             "search_history" -> executeSearchHistory(args)
-            "guided_breathing" -> executeGuidedBreathing()
+            "guided_breathing" -> executeGuidedBreathing(sessionId)
             else -> "Unknown tool: $name"
         }
     }
@@ -577,8 +580,17 @@ class ToolExecutor(
         }
     }
 
-    private suspend fun executeGuidedBreathing(): String {
+    private suspend fun executeGuidedBreathing(sessionId: String): String {
         logger.info("Device breathing session requested")
+        eventEmitter?.invoke(
+            AgentEvent.DeviceCommand(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                action = "guided_breathing",
+                sessionId = sessionId,
+                commandId = UUID.randomUUID().toString()
+            )
+        )
         return "Starting guided breathing session."
     }
 
@@ -727,7 +739,7 @@ class ToolExecutor(
                 if (isPrivate) {
                     "Note not found: ${args.noteId}"
                 } else {
-                    "Note: ${note.title}"
+                    "Note retrieved. To display the interactive note card to the user, you MUST include the exact string <note_${args.noteId}> in your final message to the user.\n\nTitle: ${note.title}\n\nContent:\n${note.content}"
                 }
             } else {
                 "Note not found: ${args.noteId}"
@@ -736,14 +748,34 @@ class ToolExecutor(
             "Note retrieval not available"
         }
 
-    private suspend fun executeNavigateTool(args: UnifiedToolArgs): String =
+    private suspend fun executeNavigateTool(args: UnifiedToolArgs, sessionId: String): String =
         when (args.action) {
             "go" -> {
                 logger.info("Device navigate requested: ${args.screen}")
+                eventEmitter?.invoke(
+                    AgentEvent.DeviceCommand(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        action = "navigate",
+                        info = args.screen,
+                        sessionId = sessionId,
+                        commandId = UUID.randomUUID().toString()
+                    )
+                )
                 "Going to ${args.screen}."
             }
             "share" -> {
                 logger.info("Device share requested")
+                eventEmitter?.invoke(
+                    AgentEvent.DeviceCommand(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        action = "navigate",
+                        actionType = "share",
+                        sessionId = sessionId,
+                        commandId = UUID.randomUUID().toString()
+                    )
+                )
                 "Sharing content."
             }
             else -> "Unknown navigate action: ${args.action}"
@@ -751,7 +783,8 @@ class ToolExecutor(
 
     private suspend fun executeSearchHistory(args: UnifiedToolArgs): String {
         val query = args.query ?: return "Search query required"
-        val limit = args.limit?.toIntOrNull() ?: 10
+        val limitStr = args.limit?.jsonPrimitive?.contentOrNull
+        val limit = limitStr?.toIntOrNull() ?: args.limit?.jsonPrimitive?.intOrNull ?: 10
 
         val dataSource =
             com.example.smarty.server.data.DatabaseFactory

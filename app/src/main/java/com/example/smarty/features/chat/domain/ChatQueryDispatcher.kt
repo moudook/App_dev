@@ -711,18 +711,15 @@ class ChatQueryDispatcher(
                                 toolId = event.toolId,
                                 toolName = event.toolName,
                                 toolTitle = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                                toolArgs = buildString {
-                                    append("{\"questions\":[{")
-                                    append("\"question\":")
-                                    append(org.json.JSONObject().put("q", event.question).toString())
-                                    if (event.options.isNotEmpty()) {
-                                        append(",\"options\":[")
-                                        append(event.options.joinToString(",") { "\"$it\"" })
-                                        append("]")
-                                    }
-                                    append(",\"allow_custom\":true")
-                                    append("}]}")
-                                },
+                                toolArgs = org.json.JSONObject().apply {
+                                    put("questions", org.json.JSONArray().apply {
+                                        put(org.json.JSONObject().apply {
+                                            put("question", event.question)
+                                            put("options", org.json.JSONArray(event.options))
+                                            put("allow_custom", true)
+                                        })
+                                    })
+                                }.toString(),
                             )
                             if (event.interactive) {
                                 val parsed = listOf(ClarificationRequest(
@@ -776,7 +773,15 @@ class ChatQueryDispatcher(
                         is AgentEvent.SubAgentEvent -> {}
                         is AgentEvent.CompactionMarker -> {}
                         is AgentEvent.DeviceCommand -> {
-                            Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}")
+                            Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}, info=${event.info}")
+                            when (event.action) {
+                                "navigate" -> {
+                                    event.info?.let { navigateTo(it) }
+                                }
+                                "guided_breathing" -> {
+                                    navigateTo("guided_breathing")
+                                }
+                            }
                         }
                         // ── Plugin v3 events (100% transparency) ─────────────────
                         is AgentEvent.SubAgentCreated -> {

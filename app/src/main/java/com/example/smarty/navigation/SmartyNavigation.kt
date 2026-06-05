@@ -299,6 +299,8 @@ fun SmartyNavHost(
                     "backup" -> Screen.BackupSettings.route
                     "tictactoe", "game", "play" -> Screen.TicTacToe.route
                     "cointoss", "flip", "decision", "coin" -> Screen.CoinToss.route
+                    "chess" -> Screen.Chess.route
+                    "guided_breathing", "breathing", "breathe" -> Screen.GuidedBreathing.route
                     else -> null
                 }
 

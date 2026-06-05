@@ -447,11 +447,14 @@ class McpServer(
                 }
             }
 
-            val questionText = args["question"]?.jsonPrimitive?.content
+            val firstQuestionObj = args["questions"]?.jsonArray?.firstOrNull()?.jsonObject
+            val questionText = firstQuestionObj?.get("question")?.jsonPrimitive?.content
+                ?: args["question"]?.jsonPrimitive?.content
                 ?: args["prompt"]?.jsonPrimitive?.content
                 ?: args["text"]?.jsonPrimitive?.content
                 ?: resolvedName.replace('_', ' ').replaceFirstChar { it.uppercase() }
-            val optionsArray = args["options"] as? JsonArray
+            val optionsArray = (firstQuestionObj?.get("options") as? JsonArray)
+                ?: (args["options"] as? JsonArray)
             val questionOptions = optionsArray?.mapNotNull {
                 (it as? JsonPrimitive)?.content
             } ?: emptyList()
