@@ -105,7 +105,12 @@ class McpServer(
                     send(ServerSentEvent(event = "endpoint", data = endpointUrl))
                     while (isActive) {
                         val event = withTimeoutOrNull(30000) { channel.receive() }
-                        if (event != null) send(event) else send(ServerSentEvent(event = "heartbeat", data = "ping"))
+                        if (event != null) {
+                            logger.info("[McpServer] OUTGOING SSE -> \n  event: ${event.event}\n  data: ${event.data}")
+                            send(event)
+                        } else {
+                            send(ServerSentEvent(event = "heartbeat", data = "ping"))
+                        }
                     }
                 } catch (e: Exception) {
                     logger.debug("[McpServer] SSE client disconnected from session $sessionId")
