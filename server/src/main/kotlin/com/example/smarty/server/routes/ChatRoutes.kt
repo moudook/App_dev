@@ -1156,6 +1156,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             // log every chunk to chunkLog so if the connection drops we still see it.
             try {
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    // Send an immediate ping so HF gateway sees headers and the
+                    // connection is alive — LLM cold start can take 30-60s with
+                    // no events, and the gateway otherwise 500s the response.
+                    write(":ping\n\n")
+                    flush()
                     try {
                         kotlinx.coroutines.runBlocking {
                             val job = kotlinx.coroutines.GlobalScope.launch {
