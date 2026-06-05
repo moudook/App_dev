@@ -435,7 +435,9 @@ private fun translatePluginEvent(
             val snapshot = run {
                 val info = payload["info"] as? JsonObject
                 val msg = payload["message"] as? JsonObject
-                val parts = payload["parts"] as? JsonArray ?: event["parts"] as? JsonArray
+                val parts = payload["parts"] as? JsonArray 
+                    ?: event["parts"] as? JsonArray
+                    ?: payload["rawParts"] as? JsonArray
                 var text = ""
                 var reasoning = ""
                 if (parts != null) {

@@ -30,7 +30,7 @@
   },
   "mcp": {
     "smarty": {
-      "type": "sse",
+      "type": "remote",
       "url": "http://localhost:7860/mcp/sse",
       "enabled": true,
       "timeout": 120000

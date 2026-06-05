@@ -235,7 +235,7 @@ class McpServer(
 
     private fun handleInitialize() =
         buildJsonObject {
-            put("protocolVersion", JsonPrimitive("2025-11-25"))
+            put("protocolVersion", JsonPrimitive("2024-11-05"))
             put("capabilities", buildJsonObject { put("tools", buildJsonObject {}) })
             put(
                 "serverInfo",
