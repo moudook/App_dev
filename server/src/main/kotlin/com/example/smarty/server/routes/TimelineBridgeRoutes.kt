@@ -438,6 +438,7 @@ private fun translatePluginEvent(
                 val parts = payload["parts"] as? JsonArray 
                     ?: event["parts"] as? JsonArray
                     ?: payload["rawParts"] as? JsonArray
+                    ?: event["rawParts"] as? JsonArray
                 var text = ""
                 var reasoning = ""
                 if (parts != null) {
@@ -465,11 +466,19 @@ private fun translatePluginEvent(
                     text = info?.get("content")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("content")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: payload["content"]?.jsonPrimitive?.contentOrNull
+                        ?: payload["text"]?.jsonPrimitive?.contentOrNull
+                        ?: event["content"]?.jsonPrimitive?.contentOrNull
+                        ?: event["text"]?.jsonPrimitive?.contentOrNull
                         ?: ""
                     reasoning = info?.get("reasoning")?.jsonPrimitive?.contentOrNull
                         ?: info?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("reasoning")?.jsonPrimitive?.contentOrNull
                         ?: msg?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                        ?: payload["reasoning"]?.jsonPrimitive?.contentOrNull
+                        ?: payload["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                        ?: event["reasoning"]?.jsonPrimitive?.contentOrNull
+                        ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
                         ?: ""
                 }
                 Pair(text.trim(), reasoning.trim())
