@@ -46,7 +46,9 @@ PLUGIN_SRC=".opencode/plugins/smarty-bridge.js"
 PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.js"
 if [ -f "$PLUGIN_SRC" ]; then
     cp "$PLUGIN_SRC" "$PLUGIN_DEST"
-    echo "  Plugin installed to $PLUGIN_DEST"
+    mkdir -p ~/.opencode/plugins
+    cp "$PLUGIN_SRC" ~/.opencode/plugins/smarty-bridge.js
+    echo "  Plugin installed to $PLUGIN_DEST and ~/.opencode/plugins"
 else
     echo "  WARNING: Plugin source not found at $PLUGIN_SRC"
 fi
