@@ -204,21 +204,24 @@ class ServerAgent(
                         variantOverride,
                     ).collect { chunk ->
                         streamProcessor.processChunk(chunk)
-                        if (llmProvider.providerName != "OpenCode CLI") {
-                            if (chunk.content != null) {
-                                eventEmitter(AgentEvent.TextDelta(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    text = chunk.content,
-                                ))
-                            }
-                            if (chunk.reasoning != null) {
-                                eventEmitter(AgentEvent.ReasoningDelta(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    text = chunk.reasoning,
-                                ))
-                            }
+                        if (chunk.content != null) {
+                            eventEmitter(AgentEvent.TextDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                text = chunk.content,
+                            ))
+                            // Mark that the LLM provider (not the plugin bridge) emitted text first.
+                            // This prevents the plugin bridge from emitting duplicate text deltas
+                            // and also prevents the AgentRunManager fallback from re-emitting the
+                            // full response after agent.run() returns.
+                            AgentRunManager.markBridgeSentText(sessionId)
+                        }
+                        if (chunk.reasoning != null) {
+                            eventEmitter(AgentEvent.ReasoningDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                text = chunk.reasoning,
+                            ))
                         }
                     }
 

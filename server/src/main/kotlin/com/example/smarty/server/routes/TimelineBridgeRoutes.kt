@@ -46,7 +46,7 @@ fun Application.configureTimelineBridgeRoutes() {
                 val resolved = com.example.smarty.server.agent.ActiveSessionManager.resolveOpencodeSessionId(sessionID)
                 if (resolved != null) {
                     val (userId, chatSessionId) = resolved
-                    val streamEvents = translatePluginEvent(kind, event, ts, sessionID)
+                    val streamEvents = translatePluginEvent(kind, event, ts, sessionID, chatSessionId)
                     for (streamEvent in streamEvents) {
                         AgentRunManager.emitEvent(chatSessionId, streamEvent)
                     }
@@ -115,6 +115,7 @@ private fun translatePluginEvent(
     event: JsonObject,
     ts: Long,
     pluginSessionId: String,
+    chatSessionId: String,
 ): List<AgentEvent> {
     val out = mutableListOf<AgentEvent>()
     val eid = { UUID.randomUUID().toString() }
@@ -270,14 +271,37 @@ private fun translatePluginEvent(
 
         "message.part.updated", "part.updated" -> {
             val partObj = event["part"]?.jsonObject
-            val phase = partObj?.get("phase")?.jsonPrimitive?.contentOrNull 
+            val phase = partObj?.get("phase")?.jsonPrimitive?.contentOrNull
                 ?: event["phase"]?.jsonPrimitive?.contentOrNull ?: "streaming"
-            val partType = partObj?.get("type")?.jsonPrimitive?.contentOrNull 
+            val partType = partObj?.get("type")?.jsonPrimitive?.contentOrNull
                 ?: event["partType"]?.jsonPrimitive?.contentOrNull ?: ""
-            val partId = partObj?.get("id")?.jsonPrimitive?.contentOrNull 
+            val partId = partObj?.get("id")?.jsonPrimitive?.contentOrNull
                 ?: event["partID"]?.jsonPrimitive?.contentOrNull ?: "default-part"
 
+            // Skip text/reasoning emission if the LLM provider (ServerAgent) already streamed it.
+            // Tool events below still pass through.
+            val llmProviderAlreadyEmitted = com.example.smarty.server.agent.AgentRunManager.hasBridgeSentText(chatSessionId)
+
             if (phase == "streaming" && (partType == "text" || partType == "reasoning" || partType == "content")) {
+                if (llmProviderAlreadyEmitted) {
+                    // LLM provider (ServerAgent) already streamed the text — skip duplicate emission.
+                    // We still want to track state lengths to prevent runaway if the flag is later unset.
+                    val partKeyText = "$pluginSessionId:$partId"
+                    val partKeyReasoning = "$pluginSessionId:$partId:reasoning"
+                    val partObj2 = event["part"]?.jsonObject
+                    val rt2 = partObj2?.get("text")?.jsonPrimitive?.contentOrNull
+                        ?: partObj2?.get("content")?.jsonPrimitive?.contentOrNull
+                        ?: event["text"]?.jsonPrimitive?.contentOrNull
+                        ?: event["content"]?.jsonPrimitive?.contentOrNull
+                        ?: ""
+                    if (rt2.isNotEmpty()) partTextLengths[partKeyText] = rt2.length
+                    val rr2 = partObj2?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                        ?: partObj2?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                        ?: event["reasoning"]?.jsonPrimitive?.contentOrNull
+                        ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                        ?: ""
+                    if (rr2.isNotEmpty()) partTextLengths[partKeyReasoning] = rr2.length
+                } else {
                 val rawText: String = run {
                     val fromDelta = (event["delta"] as? JsonObject)?.get("text")?.jsonPrimitive?.contentOrNull
                         ?: (event["delta"] as? JsonObject)?.get("content")?.jsonPrimitive?.contentOrNull
@@ -336,10 +360,11 @@ private fun translatePluginEvent(
                             val d = response.substring(state.lastSentResponseLen)
                             state.lastSentResponseLen = response.length
                             out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
-                            AgentRunManager.markBridgeSentText(pluginSessionId)
+                            AgentRunManager.markBridgeSentText(chatSessionId)
                             out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                         }
                     }
+                }
                 }
             } else if (phase == "snapshot" && partType == "reasoning") {
                 val content = partObj?.get("reasoning")?.jsonPrimitive?.contentOrNull
@@ -429,30 +454,33 @@ private fun translatePluginEvent(
                 logger.debug("[message.part.delta] delta.length=${delta.length}, reasoning.length=${pluginReasoning.length}, preview=${delta.take(60)}")
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+                val llmProviderAlreadyEmitted2 = com.example.smarty.server.agent.AgentRunManager.hasBridgeSentText(chatSessionId)
 
-                // Emit reasoning delta directly if the plugin already separated it
-                if (pluginReasoning.isNotEmpty()) {
-                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = pluginReasoning)
-                    out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
-                }
-
-                // Accumulate text delta for think-tag splitting
-                if (delta.isNotEmpty()) {
-                    state.textBuilder.append(delta)
-                    val (thinking, response) = splitThinkTags(state.textBuilder.toString())
-
-                    if (thinking.length > state.lastSentReasoningLen) {
-                        val d = thinking.substring(state.lastSentReasoningLen)
-                        state.lastSentReasoningLen = thinking.length
-                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                if (!llmProviderAlreadyEmitted2) {
+                    // Emit reasoning delta directly if the plugin already separated it
+                    if (pluginReasoning.isNotEmpty()) {
+                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = pluginReasoning)
                         out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                     }
-                    if (response.length > state.lastSentResponseLen) {
-                        val d = response.substring(state.lastSentResponseLen)
-                        state.lastSentResponseLen = response.length
-                        out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
-                        AgentRunManager.markBridgeSentText(pluginSessionId)
-                        out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+
+                    // Accumulate text delta for think-tag splitting
+                    if (delta.isNotEmpty()) {
+                        state.textBuilder.append(delta)
+                        val (thinking, response) = splitThinkTags(state.textBuilder.toString())
+
+                        if (thinking.length > state.lastSentReasoningLen) {
+                            val d = thinking.substring(state.lastSentReasoningLen)
+                            state.lastSentReasoningLen = thinking.length
+                            out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                            out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                        }
+                        if (response.length > state.lastSentResponseLen) {
+                            val d = response.substring(state.lastSentResponseLen)
+                            state.lastSentResponseLen = response.length
+                            out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                            AgentRunManager.markBridgeSentText(chatSessionId)
+                            out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                        }
                     }
                 }
             }
@@ -548,6 +576,7 @@ private fun translatePluginEvent(
             } else {
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates.getOrPut(key) { MessageContentState() }
+                val llmProviderAlreadyEmitted3 = com.example.smarty.server.agent.AgentRunManager.hasBridgeSentText(chatSessionId)
 
                 val (cleanThinking, cleanResponse) = splitThinkTags(snapshotText)
                 val mergedReasoning = (snapshotReasoning + "\n" + cleanThinking).trim()
@@ -561,17 +590,26 @@ private fun translatePluginEvent(
                     out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts,
                         sessionId = pluginSessionId, messageId = currentMsgId)
                 }
-                if (hasNewReasoning) {
+                // Skip streaming text/reasoning deltas if the LLM provider already streamed them.
+                // The LLM provider's chunks were the authoritative source — the bridge's snapshot
+                // is only useful for terminal ResponseBlock/StepEnd/cleanup.
+                if (hasNewReasoning && !llmProviderAlreadyEmitted3) {
                     val d = mergedReasoning.substring(state.lastSentReasoningLen)
                     state.lastSentReasoningLen = mergedReasoning.length
                     out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
                     out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                } else if (hasNewReasoning) {
+                    // Update internal state to keep state in sync, but don't emit duplicate deltas.
+                    state.lastSentReasoningLen = mergedReasoning.length
                 }
-                if (hasNewResponse) {
+                if (hasNewResponse && !llmProviderAlreadyEmitted3) {
                     val d = cleanResponse.substring(state.lastSentResponseLen)
                     state.lastSentResponseLen = cleanResponse.length
                     state.textBuilder.append(d)
                     out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                } else if (hasNewResponse) {
+                    state.lastSentResponseLen = cleanResponse.length
+                    state.textBuilder.append(cleanResponse.substring(state.textBuilder.length))
                 }
 
                 if (isFinalMessage) {
