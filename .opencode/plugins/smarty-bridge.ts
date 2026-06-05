@@ -11,10 +11,10 @@ class SmartyBridge {
         await fetch(this.bridgeUrl, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ type: 'message.updated', ...event })
+          body: this.safeStringify({ type: 'message.updated', ...event })
         });
       } catch (e) {
-        // Ignore fetch errors to avoid crashing daemon
+        console.error('[SmartyBridge] message.updated error:', e);
       }
     });
 
@@ -39,11 +39,21 @@ class SmartyBridge {
       await fetch(this.bridgeUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ type: kind, ...event })
+        body: this.safeStringify({ type: kind, ...event })
       });
     } catch(e) {
-      // Ignore
+      console.error(`[SmartyBridge] ${kind} error:`, e);
     }
+  }
+  private safeStringify(obj: any): string {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return undefined;
+        cache.add(value);
+      }
+      return value;
+    });
   }
 }
 
