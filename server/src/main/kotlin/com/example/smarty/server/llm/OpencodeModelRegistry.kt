@@ -45,7 +45,13 @@ object OpencodeModelRegistry {
      * The pattern rule: if a model ID contains "free" and starts with "opencode/", it's treated as free.
      * We do NOT hardcode specific model names here by design — they rotate.
      */
-    val KNOWN_FREE_MODELS = listOf<OpencodeModelInfo>() // Intentionally empty: rely on CLI discovery
+    val KNOWN_FREE_MODELS = listOf(
+        OpencodeModelInfo(id = "opencode/big-pickle", label = "Big Pickle (free)"),
+        OpencodeModelInfo(id = "opencode/gpt-5-nano", label = "GPT-5 Nano (free)"),
+        OpencodeModelInfo(id = "opencode/glm-4.6-free", label = "GLM 4.6 (free)"),
+        OpencodeModelInfo(id = "opencode/kimi-k2-free", label = "Kimi K2 (free)"),
+        OpencodeModelInfo(id = "opencode/minimax-m2-free", label = "Minimax M2 (free)"),
+    ) // Safety net when CLI discovery returns 0 — Zen rotates free models, so this list is best-effort.
 
     /**
      * Sentinel string returned when no models discovered yet.
@@ -121,6 +127,13 @@ object OpencodeModelRegistry {
 
                 if (exitCode != 0) {
                     logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+                }
+
+                if (lines.isEmpty()) {
+                    logger.error("[OpencodeModelRegistry] CLI returned ZERO lines — discovery will fail")
+                } else {
+                    logger.info("[OpencodeModelRegistry] CLI output (first 30 lines):")
+                    lines.take(30).forEachIndexed { i, l -> logger.info("  [{}] {}", i, l.take(200)) }
                 }
 
                 parseModelsVerbose(lines)
