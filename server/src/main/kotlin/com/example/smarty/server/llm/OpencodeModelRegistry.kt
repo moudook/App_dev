@@ -145,7 +145,11 @@ object OpencodeModelRegistry {
         discoveredModels.set(models)
 
         if (models.isEmpty()) {
-            logger.error("[OpencodeModelRegistry] CRITICAL: ZERO free models discovered! Chat will fail.")
+            logger.error("[OpencodeModelRegistry] ZERO free models discovered from CLI — falling back to KNOWN_FREE_MODELS (size={})", KNOWN_FREE_MODELS.size)
+            discoveredModels.set(KNOWN_FREE_MODELS)
+            models.forEachIndexed { i, m ->
+                logger.info("[OpencodeModelRegistry]   [${i + 1}] {} ({}) [FALLBACK]", m.id, m.label)
+            }
         } else {
             logger.info(
                 "[OpencodeModelRegistry] Discovery complete in {}ms — {} free models:",
