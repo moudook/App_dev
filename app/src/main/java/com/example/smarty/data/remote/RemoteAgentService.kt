@@ -322,11 +322,10 @@ class RemoteAgentService(
             val token = getFirebaseToken()
 
             val response =
-                client.post("$baseUrl/chat/events") {
+                client.post("$baseUrl/chat/events?sessionId=${sessionId.encodeURLParameter()}") {
                     if (token != null) {
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
-                    parameter("sessionId", sessionId)
                     contentType(ContentType.Application.Json)
                     setBody(event)
                 }
