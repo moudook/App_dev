@@ -582,7 +582,7 @@ class ToolExecutor(
 
     private suspend fun executeGuidedBreathing(sessionId: String): String {
         logger.info("Device breathing session requested")
-        eventEmitter?.invoke(
+        eventEmitter(
             AgentEvent.DeviceCommand(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
@@ -752,7 +752,7 @@ class ToolExecutor(
         when (args.action) {
             "go" -> {
                 logger.info("Device navigate requested: ${args.screen}")
-                eventEmitter?.invoke(
+                eventEmitter(
                     AgentEvent.DeviceCommand(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
@@ -766,7 +766,7 @@ class ToolExecutor(
             }
             "share" -> {
                 logger.info("Device share requested")
-                eventEmitter?.invoke(
+                eventEmitter(
                     AgentEvent.DeviceCommand(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),

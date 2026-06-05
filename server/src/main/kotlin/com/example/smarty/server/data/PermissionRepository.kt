@@ -161,8 +161,9 @@ class PermissionRepository(
                     overrideExpiresAt = null,
                 )
             }
+            val expiresAt = override.d
             val now = Instant.now()
-            val expired = override.d != null && override.d!! < now
+            val expired = expiresAt != null && expiresAt < now
             when {
                 override.a == "INHERIT" || expired ->
                     EffectiveDecision(

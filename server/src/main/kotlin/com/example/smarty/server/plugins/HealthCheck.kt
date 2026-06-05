@@ -151,7 +151,7 @@ object HealthMonitor {
             CheckResult(
                 status = "fail",
                 message = "Database check failed: ${e.message}",
-                details = mapOf("error" to (e.message?.toString() ?: "unknown")),
+                details = mapOf("error" to (e.message ?: "unknown")),
             )
         }
 

@@ -536,11 +536,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
 
                             // Save User Message
                             if (request.query.isNotBlank()) {
-                                chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.USER.name, fullQuery)
+                                chatRepository.saveMessage(userId, sessionId, LlmMessage.Role.USER.name, fullQuery)
                             }
 
-                            opencodeSessionId = chatRepository.getSession(userId, sessionId!!)?.opencodeSessionId
-                            chatRepository.getHistory(userId, sessionId!!)
+                            opencodeSessionId = chatRepository.getSession(userId, sessionId)?.opencodeSessionId
+                            chatRepository.getHistory(userId, sessionId)
                         } else {
                             opencodeSessionId = null
                             emptyList()
@@ -854,7 +854,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         "sessions" to
                             sessions.map {
                                 mapOf(
-                                    "id" to it.id.toString(),
+                                    "id" to it.id,
                                     "title" to it.title,
                                     "messageCount" to it.messageCount,
                                     "createdAt" to it.createdAt.toString(),

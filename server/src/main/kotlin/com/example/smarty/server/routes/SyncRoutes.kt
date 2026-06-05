@@ -157,11 +157,9 @@ fun Application.configureSyncRoutes() {
 
                         // Get generated images for sync
                         val generatedImageRepo =
-                            dataSource?.let {
-                                com.example.smarty.server.data
-                                    .GeneratedImageRepository(it)
-                            }
-                        val generatedImages = generatedImageRepo?.listByUser(userId, limit = 100) ?: emptyList()
+                            com.example.smarty.server.data
+                                .GeneratedImageRepository(dataSource)
+                        val generatedImages = generatedImageRepo.listByUser(userId, limit = 100)
                         val generatedImagesData =
                             generatedImages.map { img ->
                                 com.example.smarty.protocol.GeneratedImageInfo(
@@ -286,7 +284,7 @@ fun Application.configureSyncRoutes() {
                                         chatRepository.saveMessageWithId(
                                             userId,
                                             sessionItem.id,
-                                            msg.id!!,
+                                            msg.id,
                                             msg.role,
                                             msg.content,
                                             msg.thinking,

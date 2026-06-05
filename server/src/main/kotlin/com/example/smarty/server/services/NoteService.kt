@@ -192,8 +192,8 @@ class NoteService(
                     mapOf(
                         "id" to noteId,
                         "title" to title,
-                        "summary" to (analysis.summary ?: ""),
-                        "category" to (analysis.category ?: "note"),
+                        "summary" to analysis.summary,
+                        "category" to analysis.category,
                     ),
                 )
 

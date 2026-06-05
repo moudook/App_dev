@@ -95,22 +95,23 @@ fun Application.configureFileRoutes(
                             val channel = httpPart.provider.invoke()
                             fileBytes = channel.readRemaining().readByteArray()
                         }
-                        httpPart.dispose()
+                        httpPart.release()
                         httpPart = multipart.readPart()
                     }
 
-                    if (fileBytes == null) {
+                    val bytes = fileBytes
+                    if (bytes == null) {
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing file data"))
                         return@post
                     }
 
-                    if (fileBytes!!.size > 25 * 1024 * 1024) {
+                    if (bytes.size > 25 * 1024 * 1024) {
                         call.respond(HttpStatusCode.PayloadTooLarge, mapOf("error" to "File exceeds 25MB limit for transcription"))
                         return@post
                     }
 
                     try {
-                        val text = groqWhisperService.transcribeAudio(fileBytes!!, fileName)
+                        val text = groqWhisperService.transcribeAudio(bytes, fileName)
                         if (text != null) {
                             call.respond(HttpStatusCode.OK, mapOf("text" to text))
                         } else {

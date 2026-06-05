@@ -171,11 +171,12 @@ fun Application.configureProcessingRoutes() {
                             }
                             else -> {}
                         }
-                        httpPart.dispose()
+                        httpPart.release()
                         httpPart = multipart.readPart()
                     }
 
-                    if (fileBytes == null) {
+                    val bytes = fileBytes
+                    if (bytes == null) {
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No file uploaded"))
                         return@post
                     }
@@ -194,7 +195,7 @@ fun Application.configureProcessingRoutes() {
                         return@post
                     }
 
-                    val safeBytes = fileBytes!!
+                    val safeBytes = bytes
                     call.application.log.info("File upload: $fileName ($contentType) from user: ${user.userId}")
 
                     val result: Any =
@@ -212,7 +213,7 @@ fun Application.configureProcessingRoutes() {
                             }
                             contentType?.startsWith("image/") == true -> {
                                 val base64 = Base64.getEncoder().encodeToString(safeBytes)
-                                val ocrResult = visionService.performOcr(base64, contentType!!)
+                                val ocrResult = visionService.performOcr(base64, contentType)
                                 if (analysisType == "content") contentAnalysisService.analyzeContent(ocrResult.extractedText) else ocrResult
                             }
                             contentType?.startsWith("text/") == true -> {
