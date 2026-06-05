@@ -29,24 +29,40 @@ fun Application.configureTimelineBridgeRoutes() {
 
             try {
                 val event = Json.parseToJsonElement(body).jsonObject
-                val kind = event["type"]?.jsonPrimitive?.content 
-                    ?: event["kind"]?.jsonPrimitive?.content 
+                val kind = event["type"]?.jsonPrimitive?.content
+                    ?: event["kind"]?.jsonPrimitive?.content
                     ?: "unknown"
 
                 logger.info("[KTOR-RECV] kind=$kind body=${body.take(500)}")
-                
-                val sessionID = event["sessionID"]?.jsonPrimitive?.content 
-                    ?: event["properties"]?.jsonObject?.get("message")?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
-                    ?: event["message"]?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
-                    ?: event["session"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+
+                // ── Unwrap OpenCode 1.16+ envelope { type, properties } ─────────
+                // The new daemon/event format wraps the actual payload under
+                // "properties". Flatten it so downstream code (translatePluginEvent)
+                // can keep using the older top-level-field layout it was built for.
+                val flatEvent: JsonObject = if (event["properties"] is JsonObject) {
+                    val inner = event["properties"]?.jsonObject
+                    buildJsonObject {
+                        event.forEach { (k, v) -> put(k, v) }
+                        if (inner != null) {
+                            inner.forEach { (k, v) -> if (event[k] == null) put(k, v) }
+                        }
+                    }
+                } else {
+                    event
+                }
+
+                val sessionID = flatEvent["sessionID"]?.jsonPrimitive?.content
+                    ?: flatEvent["properties"]?.jsonObject?.get("message")?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
+                    ?: flatEvent["message"]?.jsonObject?.get("sessionID")?.jsonPrimitive?.content
+                    ?: flatEvent["session"]?.jsonObject?.get("id")?.jsonPrimitive?.content
                     ?: "no-session"
 
-                bridge.ingest(kind, sessionID, event, ts)
+                bridge.ingest(kind, sessionID, flatEvent, ts)
 
                 val resolved = com.example.smarty.server.agent.ActiveSessionManager.resolveOpencodeSessionId(sessionID)
                 if (resolved != null) {
                     val (userId, chatSessionId) = resolved
-                    val streamEvents = translatePluginEvent(kind, event, ts, sessionID, chatSessionId)
+                    val streamEvents = translatePluginEvent(kind, flatEvent, ts, sessionID, chatSessionId)
                     for (streamEvent in streamEvents) {
                         AgentRunManager.emitEvent(chatSessionId, streamEvent)
                     }

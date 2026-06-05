@@ -293,10 +293,19 @@ class OpencodeLlmProvider(
         emit(LlmChunk(content = null, rawJson = data, sseEvent = eventType))
 
         if (data.startsWith("{")) {
-            val json = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return true
+            val outerJson = runCatching { Json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return true
+
+            // ── Unwrap OpenCode 1.16+ envelope: { type, properties } ─────────────
+            // New daemon SSE format wraps the actual payload under "properties" with
+            // the event name under "type". Older formats put fields at top level.
+            val (effectiveType, json) = if (outerJson["properties"] is JsonObject && outerJson["type"] is JsonPrimitive) {
+                outerJson["type"]?.safeStr to (outerJson["properties"]?.jsonObject ?: outerJson)
+            } else {
+                eventType to outerJson
+            }
 
             val jsonKind = json["kind"]?.safeStr
-            if (eventType == "session.status" || jsonKind == "session.status") {
+            if (effectiveType == "session.status" || jsonKind == "session.status") {
                 val statusObj = json["status"]?.jsonObject
                 if (statusObj != null) {
                     val statusType = statusObj["type"]?.safeStr
@@ -305,12 +314,12 @@ class OpencodeLlmProvider(
                         val fullMsg = "OpenCode free tier: $errorMsg"
                         logger.error("[OpenCode.Error][inference=$inferenceId] $fullMsg")
                         // Emit error chunk instead of throwing — lets agent loop retry upstream
-                        emit(LlmChunk(content = null, finishReason = "error", sseEvent = eventType))
+                        emit(LlmChunk(content = null, finishReason = "error", sseEvent = effectiveType))
                         return false
                     }
                     if (statusType == "busy") {
                         logger.warn("[OpenCode.Busy][inference=$inferenceId] Daemon is busy, will retry upstream")
-                        emit(LlmChunk(content = null, finishReason = "busy", sseEvent = eventType))
+                        emit(LlmChunk(content = null, finishReason = "busy", sseEvent = effectiveType))
                         return false
                     }
                 }
@@ -320,11 +329,11 @@ class OpencodeLlmProvider(
                 val errorMsg = "Daemon error: ${json["message"]?.safeStr ?: data.take(200)}"
                 logger.error("[OpenCode.Error][inference=$inferenceId] $errorMsg")
                 // Emit error chunk for upstream retry instead of silent swallow
-                emit(LlmChunk(content = null, finishReason = "error", sseEvent = eventType))
+                emit(LlmChunk(content = null, finishReason = "error", sseEvent = effectiveType))
                 return false
             }
 
-            parseCanonicalResponse(json, eventType)?.parts?.forEachIndexed { i, part ->
+            parseCanonicalResponse(json, effectiveType)?.parts?.forEachIndexed { i, part ->
                 val chunk =
                     when (part.type) {
                         "text" -> {
@@ -338,7 +347,7 @@ class OpencodeLlmProvider(
                                     },
                                 reasoning = null,
                                 subagentId = part.subagentId,
-                                sseEvent = eventType,
+                                sseEvent = effectiveType,
                             )
                         }
                         "reasoning" ->
@@ -346,7 +355,7 @@ class OpencodeLlmProvider(
                                 content = null,
                                 reasoning = part.content,
                                 subagentId = part.subagentId,
-                                sseEvent = eventType,
+                                sseEvent = effectiveType,
                             )
                         "tool_use", "tool", "call" -> {
                             val pendingQ =
@@ -367,7 +376,7 @@ class OpencodeLlmProvider(
                                     ),
                                 question = pendingQ,
                                 subagentId = part.subagentId,
-                                sseEvent = eventType,
+                                sseEvent = effectiveType,
                             )
                         }
                         "tool_result", "result" ->
@@ -375,7 +384,7 @@ class OpencodeLlmProvider(
                                 content = null,
                                 toolResult = LlmToolResult(part.toolName ?: "unknown", part.content ?: ""),
                                 subagentId = part.subagentId,
-                                sseEvent = eventType,
+                                sseEvent = effectiveType,
                             )
                         else -> null
                     }
@@ -385,10 +394,10 @@ class OpencodeLlmProvider(
                 // When running against OpenCode CLI provider we expect parseCanonicalResponse
                 // to always return a result for assistant-content events. A null here means
                 // the daemon is using an event shape we haven't accounted for yet.
-                if (eventType != null && (eventType.contains("message", ignoreCase = true) || eventType.contains("part", ignoreCase = true))) {
-                    logger.warn("[OpenCode.SSE][inference=$inferenceId] UNPARSEABLE eventType=$eventType dataPreview=${data.take(300)}")
+                if (effectiveType != null && (effectiveType.contains("message", ignoreCase = true) || effectiveType.contains("part", ignoreCase = true))) {
+                    logger.warn("[OpenCode.SSE][inference=$inferenceId] UNPARSEABLE eventType=$effectiveType dataPreview=${data.take(300)}")
                 } else {
-                    logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$eventType")
+                    logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$effectiveType")
                 }
             }
         }
@@ -449,15 +458,21 @@ class OpencodeLlmProvider(
             }
         }
 
-        // Format: event: message.part.updated  data: {"sessionID":"...","part":{...}}
+        // Format: event: message.part.updated  data: {"sessionID":"...","part":{...},"delta":"Hello"}
+        // New (1.16+) format: data: {"type":"message.part.updated","properties":{"part":{...},"delta":"Hello"}}
+        // — when we get here, `json` is already the unwrapped `properties` object.
         if (eventType == "message.part.updated") {
             val part = json["part"]?.jsonObject
+            val explicitDelta = json["delta"]?.deepStr()
             if (part != null) {
                 val partType = part["type"].safeStr ?: "text"
                 val content = part.deepStr()
-                if (content != null) {
-                    logger.trace("[OpenCode.SSE] message.part.updated partType=$partType content=${content.take(80)}")
-                    return CanonicalResponse(listOf(CanonicalPart(partType, content, subagentId = topSubagentId)))
+                // Prefer the explicit delta when present — it is the incremental text.
+                // Fall back to the full content only when no delta was supplied.
+                val emitContent = explicitDelta ?: content
+                if (emitContent != null) {
+                    logger.trace("[OpenCode.SSE] message.part.updated partType=$partType delta=${explicitDelta?.take(80)} fullLen=${content?.length}")
+                    return CanonicalResponse(listOf(CanonicalPart(partType, emitContent, subagentId = topSubagentId)))
                 }
             }
             // Fallback: maybe the data itself has a type field

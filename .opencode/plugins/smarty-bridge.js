@@ -1,35 +1,34 @@
+// Smarty Bridge plugin for OpenCode CLI 1.16.0+
+// Uses the new event hook API: { event: async ({ event }) => { ... } }
+// where event is { type: string, properties: object }
 const SmartyPlugin = async function(ctx) {
   const bridgeUrl = 'http://127.0.0.1:7860/opencode/events';
 
-  const forward = async (kind, ...args) => {
+  const forward = async (event) => {
     try {
-      const payload = { type: kind };
-      if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
-        Object.assign(payload, args[0]);
-      } else if (args.length > 0) {
-        payload.args = args;
+      // event has shape: { type: "message.part.updated", properties: { ... } }
+      // Flatten properties to top-level for the Ktor bridge which expects both
+      // the old format (top-level fields) and the new format (under properties).
+      const payload = {
+        type: event.type,
+        ...(event.properties || {}),
+      };
+      // Ensure sessionID is at top level for Ktor bridge session lookup
+      if (!payload.sessionID && event.properties) {
+        const props = event.properties;
+        const sid = props.sessionID
+          || (props.part && (props.part.sessionID || props.part.sessionId))
+          || (props.info && props.info.sessionID)
+          || (props.message && props.message.sessionID);
+        if (sid) payload.sessionID = sid;
       }
-      
-      // Ensure sessionID is present at the top level
-      if (!payload.sessionID && !payload.sessionId) {
-        for (const arg of args) {
-          if (arg && typeof arg === 'object') {
-            const sid = arg.sessionID || arg.sessionId || (arg.part && (arg.part.sessionID || arg.part.sessionId));
-            if (sid) {
-              payload.sessionID = sid;
-              break;
-            }
-          }
-        }
-      }
-
       await fetch(bridgeUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: safeStringify(payload)
       });
     } catch (e) {
-      console.error(`[SmartyBridge] ${kind} forward error:`, e);
+      console.error(`[SmartyBridge] ${event.type} forward error:`, e && e.message ? e.message : e);
     }
   };
 
@@ -44,52 +43,22 @@ const SmartyPlugin = async function(ctx) {
     });
   }
 
-  // Support legacy event emitter pattern if ctx has 'on' method
-  if (ctx && typeof ctx.on === 'function') {
-    try {
-      ctx.on('message.updated', async (event) => forward('message.updated', event));
-      ctx.on('message.part.updated', async (event) => forward('message.part.updated', event));
-      ctx.on('message.part.delta', async (event) => forward('message.part.delta', event));
-
-      const legacyEvents = [
-        'tool.execute.before', 'tool.execute.after', 
-        'session.created', 'session.aborted',
-        'subagent.created', 'subagent.idle',
-        'websearch.query', 'websearch.result',
-        'webfetch.url', 'webfetch.result',
-        'compaction.start', 'compaction.complete',
-        'file.edited', 'command.execute'
-      ];
-      for (const kind of legacyEvents) {
-        ctx.on(kind, async (...args) => forward(kind, ...args));
-      }
-    } catch (err) {
-      console.error('[SmartyBridge] legacy EventEmitter attachment failed:', err);
-    }
-  }
-
-  // Return the hooks object for the new Plugin API
+  // New OpenCode 1.16.0+ plugin API:
+  // A single `event` hook receives ALL events as { type, properties }
   return {
-    "message.part.updated": async (event) => forward("message.part.updated", event),
-    "message.part.delta": async (event) => forward("message.part.delta", event),
-    "message.updated": async (event) => forward("message.updated", event),
-    "session.created": async (event) => forward("session.created", event),
-    "session.aborted": async (event) => forward("session.aborted", event),
-    "subagent.created": async (event) => forward("subagent.created", event),
-    "subagent.idle": async (event) => forward("subagent.idle", event),
-    "websearch.query": async (event) => forward("websearch.query", event),
-    "websearch.result": async (event) => forward("websearch.result", event),
-    "webfetch.url": async (event) => forward("webfetch.url", event),
-    "webfetch.result": async (event) => forward("webfetch.result", event),
-    "compaction.start": async (event) => forward("compaction.start", event),
-    "compaction.complete": async (event) => forward("compaction.complete", event),
-    "file.edited": async (event) => forward("file.edited", event),
-    "command.execute": async (event) => forward("command.execute", event),
-    "tool.execute.before": async (...args) => forward("tool.execute.before", ...args),
-    "tool.execute.after": async (...args) => forward("tool.execute.after", ...args),
-    "dispose": async () => {
+    event: async ({ event }) => {
+      if (!event || !event.type) return;
+      await forward(event);
+    },
+    dispose: async () => {
       console.log('[SmartyBridge] disposing plugin');
-      await forward("plugin.dispose");
+      try {
+        await fetch(bridgeUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ type: 'plugin.dispose' })
+        });
+      } catch (_) {}
     }
   };
 };
@@ -97,4 +66,3 @@ const SmartyPlugin = async function(ctx) {
 module.exports = SmartyPlugin;
 module.exports.Plugin = SmartyPlugin;
 module.exports.default = SmartyPlugin;
-
