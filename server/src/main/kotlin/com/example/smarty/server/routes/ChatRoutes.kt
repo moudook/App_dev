@@ -1272,6 +1272,32 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         // the raw SSE back. Used to isolate "is it the agent config that hangs?"
         // vs "is the LLM call itself slow".
         // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/config") {
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            try {
+                call.respondTextWriter(contentType = ContentType.Application.Json) {
+                    write(":ping\n\n")
+                    flush()
+                    val cfgText = client.prepareGet("http://127.0.0.1:4096/config") {
+                        header("Accept", "application/json")
+                    }.execute { it.bodyAsText() }
+                    write("event: config\ndata: ")
+                    write(JsonPrimitive(cfgText.take(20000)).toString())
+                    write("\n\n")
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[debug/daemon/config] error class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName), "class" to e.javaClass.name),
+                )
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
         get("/debug/daemon/chat") {
             val messageText = call.request.queryParameters["message"] ?: "hi"
             val modelOverride = call.request.queryParameters["model"] ?: "opencode/big-pickle"
