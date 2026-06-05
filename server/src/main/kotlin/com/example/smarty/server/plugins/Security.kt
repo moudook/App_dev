@@ -1,22 +1,23 @@
 package com.example.smarty.server.plugins
 
 import com.example.smarty.server.data.DatabaseFactory
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthException
 import io.ktor.http.*
-import io.ktor.http.auth.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import org.slf4j.LoggerFactory
-import java.io.FileInputStream
+
+// =========================================================================
+// AUTH DISABLED — HF Space is public for live testing of OpenCode streaming.
+// All Firebase init + token verification is a no-op. Re-add ONLY with explicit
+// user instruction. See AGENTS.md "Auth State".
+// =========================================================================
 
 /**
  * Principal representing an authenticated Firebase user.
+ * Kept as a data class so route code that reads `call.firebaseUser()` still
+ * compiles and returns a non-null stub.
  */
 data class FirebaseUserPrincipal(
     val userId: String,
@@ -29,11 +30,11 @@ data class FirebaseUserPrincipal(
 
 /**
  * Global flag to track if Firebase is properly initialized.
- * Used for security checks throughout the application.
+ * Always returns true now — kept for API compatibility.
  */
 object FirebaseStatus {
     @Volatile
-    var isInitialized: Boolean = false
+    var isInitialized: Boolean = true
         private set
 
     fun markInitialized() {
@@ -51,301 +52,65 @@ object FirebaseStatus {
 fun isProductionEnvironment(): Boolean {
     return System.getenv("ENVIRONMENT")?.lowercase() == "production" ||
         System.getenv("K_SERVICE") != null ||
-        // Cloud Run
-        System.getenv("HUGGINGFACE_SPACES") == "1" // Hugging Face Spaces
+        System.getenv("HUGGINGFACE_SPACES") == "1"
 }
 
 /**
- * Initializes Firebase Admin SDK from service account credentials.
- * Looks for credentials in:
- * 1. FIREBASE_CREDENTIALS environment variable (Raw JSON string)
- * 2. GOOGLE_APPLICATION_CREDENTIALS environment variable (File path)
- * 3. server/src/main/resources/firebase-service-account.json
- *
- * SECURITY: In production, this will FAIL if credentials are not provided.
+ * AUTH DISABLED — no-op stub. Original logic commented out below for restore.
+ * All calls return immediately. FirebaseStatus is marked initialized so other
+ * checks that gate on it (e.g. production safety checks) pass through.
  */
 fun initializeFirebase() {
     val logger = LoggerFactory.getLogger("FirebaseInit")
+    logger.warn("[AUTH_DISABLED] initializeFirebase() is a no-op — server is running without Firebase auth.")
+    FirebaseStatus.markInitialized()
+    return
+
+    // ---- ORIGINAL CODE (COMMENTED OUT, UNREACHABLE) ----
+    /*
     val isProduction = isProductionEnvironment()
-
-    // Skip if already initialized
-    if (FirebaseApp.getApps().isNotEmpty()) {
-        logger.info("Firebase already initialized")
-        FirebaseStatus.markInitialized()
-        return
-    }
-
-    val credentialsJson = System.getenv("FIREBASE_CREDENTIALS")
-    val credentialsPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
-    // SECURITY CHECK: In production, require Firebase credentials
-    if (isProduction && credentialsJson.isNullOrBlank() && credentialsPath.isNullOrBlank()) {
-        logger.error("=".repeat(80))
-        logger.error("CRITICAL SECURITY ERROR: Firebase credentials required in production!")
-        logger.error("=".repeat(80))
-        logger.error("Firebase is not initialized and we are running in PRODUCTION environment.")
-        logger.error("This is a critical security requirement - authentication cannot be bypassed.")
-        logger.error("")
-        logger.error("To fix this, set ONE of the following environment variables:")
-        logger.error("  1. FIREBASE_CREDENTIALS=<service_account_json>")
-        logger.error("  2. GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json")
-        logger.error("")
-        logger.error("Shutting down to prevent insecure operation.")
-        logger.error("=".repeat(80))
-        FirebaseStatus.markNotInitialized()
-        throw IllegalStateException("Firebase credentials required in production - shutting down for security")
-    }
-
-    val options =
-        if (!credentialsJson.isNullOrBlank()) {
-            logger.info("Initializing Firebase with raw JSON from FIREBASE_CREDENTIALS")
-            try {
-                FirebaseOptions
-                    .builder()
-                    .setCredentials(GoogleCredentials.fromStream(credentialsJson.byteInputStream()))
-                    .build()
-            } catch (e: Exception) {
-                logger.error("Failed to load Firebase credentials from JSON string: ${e.message}")
-                FirebaseStatus.markNotInitialized()
-                if (isProduction) {
-                    throw IllegalStateException("Invalid Firebase credentials in production", e)
-                }
-                return
-            }
-        } else if (!credentialsPath.isNullOrBlank()) {
-            logger.info("Initializing Firebase with service account from: $credentialsPath")
-            try {
-                FirebaseOptions
-                    .builder()
-                    .setCredentials(GoogleCredentials.fromStream(FileInputStream(credentialsPath)))
-                    .build()
-            } catch (e: Exception) {
-                logger.error("Failed to load Firebase credentials from path: ${e.message}")
-                FirebaseStatus.markNotInitialized()
-                if (isProduction) {
-                    throw IllegalStateException("Invalid Firebase credentials in production", e)
-                }
-                return
-            }
-        } else {
-            // Only allow Firebase to be disabled in NON-production environments
-            if (!isProduction) {
-                logger.warn("=".repeat(60))
-                logger.warn("FIREBASE DISABLED - Running without authentication")
-                logger.warn("=".repeat(60))
-                logger.warn("This is ONLY allowed in non-production environments.")
-                logger.warn("All API requests will return 401 Unauthorized.")
-                logger.warn("Set FIREBASE_CREDENTIALS to enable authentication.")
-                logger.warn("=".repeat(60))
-            } else {
-                // This branch should never be reached due to the check above
-                logger.error("Firebase credentials missing in production - shutting down")
-                FirebaseStatus.markNotInitialized()
-                throw IllegalStateException("Firebase credentials required in production")
-            }
-
-            FirebaseStatus.markNotInitialized()
-            return
-        }
-
-    try {
-        FirebaseApp.initializeApp(options)
-        logger.info("Firebase Admin SDK initialized successfully")
-        FirebaseStatus.markInitialized()
-    } catch (e: Exception) {
-        logger.error("Failed to initialize Firebase: ${e.message}")
-        FirebaseStatus.markNotInitialized()
-        if (isProduction) {
-            throw IllegalStateException("Failed to initialize Firebase in production", e)
-        }
-    }
+    if (FirebaseApp.getApps().isNotEmpty()) { ... }
+    // ... full original implementation, see git history ...
+    */
 }
-
-/**
- * Verifies a Firebase ID token and returns the user principal.
- * Also ensures the user exists in the database.
- *
- * SECURITY: This function NEVER allows bypassing authentication.
- * - In production: ALWAYS requires valid Firebase token
- * - In development: Returns null if Firebase not initialized (caller must handle 401)
- */
-fun verifyFirebaseToken(
-    token: String,
-    deviceId: String?,
-): FirebaseUserPrincipal? {
-    val logger = LoggerFactory.getLogger("FirebaseAuth")
-
-    // SECURITY: NEVER allow dev mode bypass - removed ALLOW_UNSECURE_DEV_AUTH check
-    if (FirebaseApp.getApps().isEmpty()) {
-        logger.error("Firebase not initialized - cannot verify token. All requests will be rejected.")
-        return null
-    }
-
-    return try {
-        val decodedToken = FirebaseAuth.getInstance().verifyIdToken(token)
-        val firebaseUid = decodedToken.uid
-        val email = decodedToken.email
-        val displayName = decodedToken.name
-
-        // Ensure user exists in database and get their UUID user_id
-        val userId = ensureUserExistsInDatabase(firebaseUid, email, displayName)
-
-        // Create FirebaseUserPrincipal with UUID user_id
-        val principal =
-            FirebaseUserPrincipal(
-                userId = userId,
-                email = email,
-                displayName = displayName,
-                deviceId = deviceId,
-            )
-
-        return principal
-    } catch (e: FirebaseAuthException) {
-        logger.warn("Firebase token verification failed: ${e.message}")
-        throw e // Re-throw to allow specific handling in auth routes
-    } catch (e: IllegalStateException) {
-        logger.warn("Single user restriction: ${e.message}")
-        throw e // Re-throw for specific handling
-    } catch (e: Exception) {
-        logger.error("Unexpected error verifying Firebase token: ${e.message}")
-        throw e
-    }
-}
-
-/**
- * Ensures a user exists in the database. Creates the user record if it doesn't exist.
- * Returns the user's UUID user_id.
- */
 
 /**
  * Admin-only whitelist: only this email can access the server.
- * All other authenticated Firebase users will receive 401/403.
+ * Kept as a constant so old route code that imports it still compiles.
  */
 const val ADMIN_EMAIL = "forpblcusz@gmail.com"
 
 fun isAdminEmail(email: String?): Boolean = email == ADMIN_EMAIL
 
-private fun ensureUserExistsInDatabase(
-    firebaseUid: String,
-    email: String?,
-    displayName: String?,
-): String {
-    val ds = DatabaseFactory.getDataSource()
-    if (ds == null) {
-        // DB unavailable — authenticate with Firebase UID directly, skip DB user lookup
-        LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, using Firebase UID as user ID")
-        return firebaseUid
-    }
-
-    val logger = LoggerFactory.getLogger("FirebaseAuth")
-
-    ds.connection.use { conn ->
-        // Always SELECT first to get the id if it exists
-        val checkSql = "SELECT id FROM users WHERE firebase_uid = ?"
-        conn.prepareStatement(checkSql).use { stmt ->
-            stmt.setString(1, firebaseUid)
-            stmt.executeQuery().use { rs ->
-                if (rs.next()) {
-                    val userId = rs.getString("id")
-                    logger.info("Resolved user for Firebase UID: {}, User ID: {}", firebaseUid, userId)
-                    return userId
-                }
-            }
-        }
-
-        // User not found — create via upsert (ON CONFLICT handles race conditions)
-        val insertSql =
-            """
-            INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
-            VALUES (?, ?, ?, NOW(), NOW())
-            ON CONFLICT (firebase_uid) DO NOTHING
-            """.trimIndent()
-        conn.prepareStatement(insertSql).use { stmt ->
-            stmt.setString(1, firebaseUid)
-            stmt.setString(2, email)
-            stmt.setString(3, displayName)
-            val rowsAffected = stmt.executeUpdate()
-            if (rowsAffected > 0) {
-                logger.info("Created user record for Firebase UID: {}", firebaseUid)
-            }
-        }
-
-        // Always SELECT to get the id — works whether the row was just inserted or already existed
-        val selectSql = "SELECT id FROM users WHERE firebase_uid = ?"
-        conn.prepareStatement(selectSql).use { stmt ->
-            stmt.setString(1, firebaseUid)
-            stmt.executeQuery().use { rs ->
-                if (rs.next()) {
-                    val userId = rs.getString("id")
-                    logger.info("Resolved user for Firebase UID: {}, User ID: {}", firebaseUid, userId)
-                    return userId
-                }
-            }
-        }
-
-        throw IllegalStateException("Failed to find or create user record for Firebase UID: $firebaseUid")
-    }
-}
-
 /**
  * Configures Firebase JWT authentication for the Ktor application.
  *
- * SECURITY CHANGES:
- * - REMOVED: DevModeAuthProvider (allowed complete auth bypass)
- * - REMOVED: ALLOW_UNSECURE_DEV_AUTH environment variable support
- * - ADDED: Production safety checks
- * - ADDED: Firebase initialization requirement
+ * AUTH DISABLED — bearer("firebase") is a no-op stub. Any bearer token
+ * (or even no token) returns a stub principal. See AGENTS.md "Auth State".
  */
 fun Application.configureSecurity() {
     val logger = LoggerFactory.getLogger("Security")
-    val isProduction = isProductionEnvironment()
 
-    // Initialize Firebase Admin SDK (will throw in production if credentials missing)
     initializeFirebase()
 
-    // SECURITY CHECK: Verify Firebase is initialized in production
-    if (isProduction && !FirebaseStatus.isInitialized) {
-        logger.error("=".repeat(80))
-        logger.error("CRITICAL: Firebase not initialized in production!")
-        logger.error("Shutting down to prevent security breach.")
-        logger.error("=".repeat(80))
-        throw IllegalStateException("Firebase must be initialized in production")
-    }
-
     install(Authentication) {
-        // SECURITY: REMOVED DevModeAuthProvider - NO MORE AUTH BYPASS
-        // All environments now require proper Firebase authentication
-
         bearer("firebase") {
             realm = "Smarty API"
             authenticate { credential ->
-                try {
-                    val deviceId = this.request.header("X-Smarty-Device-Id")
-                    val user = verifyFirebaseToken(credential.token, deviceId)
-                    // Admin whitelist: only forpblcusz@gmail.com can use this server
-                    if (user != null && !isAdminEmail(user.email)) {
-                        return@authenticate null
-                    }
-                    user
-                } catch (e: Exception) {
-                    null // Let Ktor return 401 for standard authenticated routes
-                }
+                logger.debug("[AUTH_DISABLED] bearer('firebase') no-op — token=${credential.token.take(8)}...")
+                FirebaseUserPrincipal(
+                    userId = "anonymous",
+                    email = ADMIN_EMAIL,
+                    displayName = "Auth Disabled",
+                )
             }
         }
     }
 
-    if (FirebaseStatus.isInitialized) {
-        logger.info("Security plugin configured - Firebase authentication ENABLED")
-        if (isProduction) {
-            logger.info("Running in PRODUCTION mode - all requests require valid authentication")
-        }
-    } else {
-        logger.warn("=".repeat(60))
-        logger.warn("SECURITY WARNING: Firebase authentication DISABLED")
-        logger.warn("All API requests will return 401 Unauthorized")
-        logger.warn("This should ONLY happen in local development")
-        logger.warn("=".repeat(60))
-    }
+    logger.warn("=".repeat(80))
+    logger.warn("[AUTH_DISABLED] Security plugin configured as a no-op stub.")
+    logger.warn("All requests with ANY bearer token are accepted as ADMIN_EMAIL.")
+    logger.warn("=".repeat(80))
 }
 
 /**
@@ -355,15 +120,6 @@ fun ApplicationCall.firebaseUser(): FirebaseUserPrincipal? = principal<FirebaseU
 
 /**
  * Extension to require authenticated user, responding with 401 if not authenticated.
+ * Now always returns the stub principal because the no-op auth provider always succeeds.
  */
-suspend fun ApplicationCall.requireFirebaseUser(): FirebaseUserPrincipal? {
-    val user = firebaseUser()
-    if (user == null) {
-        respondText(
-            text = """{"error":"Authentication required. Valid Firebase token must be provided."}""",
-            contentType = ContentType.Application.Json,
-            status = HttpStatusCode.Unauthorized,
-        )
-    }
-    return user
-}
+suspend fun ApplicationCall.requireFirebaseUser(): FirebaseUserPrincipal? = firebaseUser()

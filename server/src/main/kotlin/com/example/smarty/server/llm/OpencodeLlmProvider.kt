@@ -164,6 +164,12 @@ class OpencodeLlmProvider(
 
                 daemonSemaphore.acquire()
                 try {
+                    val requestStartMs = System.currentTimeMillis()
+                    var firstChunkMs: Long? = null
+                    var lastChunkMs: Long = requestStartMs
+                    var chunkCount = 0
+                    var bytesRead = 0L
+
                     client
                         .preparePost("$daemonBaseUrl/session/$sessId/message") {
                             contentType(ContentType.Application.Json)
@@ -189,11 +195,14 @@ class OpencodeLlmProvider(
                             }
 
                             val contentType = response.headers["Content-Type"] ?: "unknown"
-                            logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType")
+                            val statusMs = System.currentTimeMillis() - requestStartMs
+                            logger.info("[OpenCode.Response][inference=$inferenceId] Status=${response.status}, Content-Type=$contentType, headersAfterMs=$statusMs")
 
                             // If daemon returns JSON instead of SSE, treat the whole body as one message event
                             if (contentType.contains("application/json", ignoreCase = true)) {
                                 val body = response.bodyAsText()
+                                val jsonMs = System.currentTimeMillis() - requestStartMs
+                                logger.warn("[OpenCode.StreamDiag][inference=$inferenceId] contentType=application/json — daemon returned STATIC JSON, NOT SSE. bodyLen=${body.length} arrivedAfterMs=$jsonMs")
                                 logger.debug("[DAEMON_RAW_JSON][inference=$inferenceId] $body")
                                 flowCollector.processSseEvent("message", body, context)
                                 return@execute
@@ -206,6 +215,7 @@ class OpencodeLlmProvider(
 
                             while (!channel.isClosedForRead) {
                                 val rawLine = channel.readLine() ?: break
+                                bytesRead += rawLine.length + 1
                                 if (rawLine.length > MAX_SSE_LINE_LENGTH) {
                                     logger.warn(
                                         "[OpenCode.SSE][inference=$inferenceId] Line exceeds ${MAX_SSE_LINE_LENGTH} bytes, skipping",
@@ -217,6 +227,22 @@ class OpencodeLlmProvider(
                                         Regex("\u001B\\][^\u0007]+\u0007|\u001B\\[[;\\d]*[ -/]*[@-~]|\u001B\\][^\u001B]+\u001B\\\\"),
                                         "",
                                     )
+
+                                // ─── STREAMING DIAGNOSTIC ─────────────────────────────
+                                // Log first chunk arrival + per-chunk elapsed so we can
+                                // prove the daemon is actually streaming, not buffered.
+                                val nowMs = System.currentTimeMillis()
+                                val elapsedFromRequest = nowMs - requestStartMs
+                                val deltaFromLastChunk = nowMs - lastChunkMs
+                                chunkCount++
+                                if (firstChunkMs == null) {
+                                    firstChunkMs = nowMs
+                                    logger.info("[OpenCode.StreamDiag][inference=$inferenceId] FIRST_SSE_CHUNK arrived after ${elapsedFromRequest}ms (request→first)")
+                                } else if (chunkCount % 5 == 0) {
+                                    logger.info("[OpenCode.StreamDiag][inference=$inferenceId] chunk#${chunkCount} +${deltaFromLastChunk}ms (total=${elapsedFromRequest}ms, bytesRead=$bytesRead)")
+                                }
+                                lastChunkMs = nowMs
+                                // ───────────────────────────────────────────────────────
 
                                 logger.debug("[DAEMON_RAW][inference=$inferenceId] $line")
 
@@ -252,6 +278,10 @@ class OpencodeLlmProvider(
                             if (currentData.isNotEmpty()) {
                                 flowCollector.processSseEvent(currentEvent ?: "message", currentData.toString(), context)
                             }
+
+                            val totalMs = System.currentTimeMillis() - requestStartMs
+                            val firstMs = firstChunkMs?.let { it - requestStartMs } ?: -1
+                            logger.info("[OpenCode.StreamDiag][inference=$inferenceId] STREAM_COMPLETE totalMs=$totalMs firstChunkMs=$firstMs chunks=$chunkCount bytesRead=$bytesRead")
                         }
                 } finally {
                     daemonSemaphore.release()

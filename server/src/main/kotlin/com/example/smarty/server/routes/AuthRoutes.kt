@@ -1,7 +1,6 @@
 package com.example.smarty.server.routes
 
 import com.example.smarty.server.plugins.isAdminEmail
-import com.example.smarty.server.plugins.verifyFirebaseToken
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -14,20 +13,30 @@ import io.ktor.server.routing.routing
 fun Application.configureAuthRoutes() {
     routing {
         post("/auth/verify") {
-            // Get the Bearer token from the Authorization header
+            // AUTH DISABLED — always returns 200 with a stub principal. See AGENTS.md "Auth State".
             val authHeader = call.request.header(HttpHeaders.Authorization)
             val token = authHeader?.removePrefix("Bearer ")?.trim()
             if (token.isNullOrBlank()) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid token"))
-                return@post
+                // AUTH DISABLED — accept even no-token requests for testing.
+                // Original: call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing or invalid token"))
             }
             val deviceId = call.request.header("X-Smarty-Device-Id")
 
+            // AUTH DISABLED — skip verifyFirebaseToken and ADMIN_EMAIL whitelist, return OK with stub.
+            call.respond(
+                HttpStatusCode.OK,
+                mapOf(
+                    "userId" to "anonymous",
+                    "email" to "forpblcusz@gmail.com",
+                    "displayName" to "Auth Disabled",
+                ),
+            )
+
+            // ---- ORIGINAL CODE (COMMENTED OUT) ----
+            /*
             try {
-                // Verify the token and get the user
                 val user = verifyFirebaseToken(token, deviceId)
                 if (user != null) {
-                    // Admin whitelist: only forpblcusz@gmail.com can use this server
                     if (!isAdminEmail(user.email)) {
                         call.respond(
                             HttpStatusCode.Forbidden,
@@ -60,6 +69,7 @@ fun Application.configureAuthRoutes() {
             } catch (e: Exception) {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication failed: ${e.message}"))
             }
+            */
         }
     }
 }

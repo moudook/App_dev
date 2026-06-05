@@ -292,17 +292,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             /**
              * WebSocket endpoint for bidirectional agent event streaming and client events.
              * Supports robust reconnection via AgentRunManager.
+             * AUTH DISABLED — accepts any connection as anonymous user. See AGENTS.md "Auth State".
              */
             webSocket("/chat/ws") {
-                val token = call.request.headers[io.ktor.http.HttpHeaders.Authorization]?.removePrefix("Bearer ")
+                // AUTH DISABLED — skip Firebase token verify, accept all connections.
                 val user =
-                    com.example.smarty.server.plugins
-                        .verifyFirebaseToken(token ?: "", null)
-
-                if (user == null) {
-                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication required"))
-                    return@webSocket
-                }
+                    com.example.smarty.server.plugins.FirebaseUserPrincipal(
+                        userId = "anonymous",
+                        email = com.example.smarty.server.plugins.ADMIN_EMAIL,
+                        displayName = "Auth Disabled",
+                    )
 
                 val userId = user.userId
                 val sessionIdParam = call.request.queryParameters["sessionId"] ?: UUID.randomUUID().toString()
