@@ -3,6 +3,9 @@
   "share": "disabled",
   "autoupdate": false,
   "snapshot": false,
+  "plugin": [
+    "/app/.opencode/plugins/smarty-bridge.js"
+  ],
   "disabled_providers": [
     "anthropic",
     "openai",

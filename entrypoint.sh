@@ -43,12 +43,14 @@ echo ""
 # -----------------------------------------------------------------------------
 echo "[0b/5] Installing Timeline Bridge plugin..."
 PLUGIN_SRC=".opencode/plugins/smarty-bridge.js"
-PLUGIN_DEST="$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.js"
 if [ -f "$PLUGIN_SRC" ]; then
-    cp "$PLUGIN_SRC" "$PLUGIN_DEST"
-    mkdir -p ~/.opencode/plugins
+    mkdir -p "$XDG_CONFIG_HOME/opencode/plugins" "$XDG_CONFIG_HOME/opencode/plugin"
+    cp "$PLUGIN_SRC" "$XDG_CONFIG_HOME/opencode/plugins/smarty-bridge.js"
+    cp "$PLUGIN_SRC" "$XDG_CONFIG_HOME/opencode/plugin/smarty-bridge.js"
+    mkdir -p ~/.opencode/plugins ~/.opencode/plugin
     cp "$PLUGIN_SRC" ~/.opencode/plugins/smarty-bridge.js
-    echo "  Plugin installed to $PLUGIN_DEST and ~/.opencode/plugins"
+    cp "$PLUGIN_SRC" ~/.opencode/plugin/smarty-bridge.js
+    echo "  Plugin installed to config & home plugin/plugins directories"
 else
     echo "  WARNING: Plugin source not found at $PLUGIN_SRC"
 fi
@@ -128,18 +130,15 @@ else
 fi
 
 echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG"
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG > /tmp/opencode-daemon.log 2>&1 &
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
-tail -f /tmp/opencode-daemon.log &
-
 
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
     echo "  Daemon process: RUNNING"
 else
-    echo "  Daemon process: EXITED (check /tmp/opencode-daemon.log)"
-    tail -5 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
+    echo "  Daemon process: EXITED"
 fi
 echo ""
 
@@ -199,8 +198,6 @@ for i in $(seq 1 12); do
 done
 if [ "$MCP_VERIFIED" = false ]; then
     echo "  WARNING: Could not verify MCP tools after 60 seconds."
-    echo "  Daemon log (last 15 lines):"
-    tail -15 /tmp/opencode-daemon.log 2>/dev/null || echo "  (no log output)"
 fi
 echo ""
 
