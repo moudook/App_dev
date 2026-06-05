@@ -125,13 +125,10 @@ else
     echo "  opencode.json: FOUND"
 fi
 
-echo " Launching: opencode serve --socket /tmp/opencode.sock"
-opencode serve --socket /tmp/opencode.sock > /tmp/opencode-daemon.log 2>&1 &
+echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
-
-echo "  Starting socat proxy TCP:$DAEMON_PORT -> UNIX:/tmp/opencode.sock"
-socat TCP-LISTEN:$DAEMON_PORT,bind=127.0.0.1,reuseaddr,fork UNIX-CLIENT:/tmp/opencode.sock &
 
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
