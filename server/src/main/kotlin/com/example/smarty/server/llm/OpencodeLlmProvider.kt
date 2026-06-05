@@ -381,7 +381,15 @@ class OpencodeLlmProvider(
                     }
                 if (chunk != null) emit(chunk)
             } ?: run {
-                logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$eventType")
+                // PROBE: Log unparseable events at WARN so we can see the actual daemon format.
+                // When running against OpenCode CLI provider we expect parseCanonicalResponse
+                // to always return a result for assistant-content events. A null here means
+                // the daemon is using an event shape we haven't accounted for yet.
+                if (eventType != null && (eventType.contains("message", ignoreCase = true) || eventType.contains("part", ignoreCase = true))) {
+                    logger.warn("[OpenCode.SSE][inference=$inferenceId] UNPARSEABLE eventType=$eventType dataPreview=${data.take(300)}")
+                } else {
+                    logger.debug("[OpenCode.SSE][inference=$inferenceId] No parser matched eventType=$eventType")
+                }
             }
         }
         return true
@@ -558,10 +566,18 @@ class OpencodeLlmProvider(
                 }
                 // Handle message.updated — may contain assembled parts array
                 "message.updated" -> {
-                    val partsArray =
+                    var partsArray =
                         json["parts"]?.jsonArray
                             ?: json["info"]?.jsonObject?.get("parts")?.jsonArray
                             ?: json["message"]?.jsonObject?.get("parts")?.jsonArray
+
+                    // Extra fallback: daemon may nest content under info.message.content
+                    if (partsArray == null) {
+                        partsArray =
+                            json["info"]?.jsonObject?.get("message")?.jsonObject?.get("parts")?.jsonArray
+                                ?: json["info"]?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonArray
+                    }
+
                     if (partsArray != null) {
                         val parts =
                             partsArray.flatMap { el ->
@@ -571,18 +587,24 @@ class OpencodeLlmProvider(
                                 when (pType) {
                                     "text", "content" -> listOf(CanonicalPart("text", pContent, subagentId = sid))
                                     "reasoning" -> listOf(CanonicalPart("reasoning", pContent, subagentId = sid))
+                                    "tool_result", "result" ->
+                                        listOf(CanonicalPart("tool_result", pContent, subagentId = sid))
+
                                     else -> emptyList()
                                 }
                             }
                         if (parts.isNotEmpty()) CanonicalResponse(parts) else null
                     } else {
-                        val fallbackText = json["text"]?.deepStr()
-                            ?: json["content"]?.deepStr()
-                            ?: json["delta"]?.deepStr()
-                            ?: json["info"]?.jsonObject?.get("text")?.deepStr()
-                            ?: json["info"]?.jsonObject?.get("content")?.deepStr()
-                            ?: json["message"]?.jsonObject?.get("content")?.deepStr()
-                            ?: json["message"]?.jsonObject?.get("text")?.deepStr()
+                        val fallbackText =
+                            json["text"]?.deepStr()
+                                ?: json["content"]?.deepStr()
+                                ?: json["delta"]?.deepStr()
+                                // deeply nested: info.message.content
+                                ?: json["info"]?.jsonObject?.get("message")?.jsonObject?.get("content")?.deepStr()
+                                ?: json["info"]?.jsonObject?.get("content")?.deepStr()
+                                ?: json["info"]?.jsonObject?.get("text")?.deepStr()
+                                ?: json["message"]?.jsonObject?.get("content")?.deepStr()
+                                ?: json["message"]?.jsonObject?.get("text")?.deepStr()
                         if (!fallbackText.isNullOrBlank()) {
                             CanonicalResponse(listOf(CanonicalPart("text", fallbackText, subagentId = sid)))
                         } else null

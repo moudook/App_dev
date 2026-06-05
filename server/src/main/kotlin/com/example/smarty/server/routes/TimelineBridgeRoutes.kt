@@ -529,9 +529,11 @@ private fun translatePluginEvent(
                         ?: ""
                 }
                 if (text.isEmpty() && reasoning.isEmpty()) {
-                    logger.error("[message.updated] DEBUG EMPTY TEXT: payloadKeys=${payload.keys}, eventKeys=${event.keys}")
-                    logger.error("[message.updated] DEBUG msg=${msg?.keys}, info=${info?.keys}")
-                    logger.error("[message.updated] DEBUG FULL PAYLOAD: $payload")
+                    logger.warn("[message.updated] EMPTY TEXT session=$pluginSessionId msgId=$currentMsgId isFinal=$isFinalMessage " +
+                        "payloadKeys=${payload.keys} topKeys=${event.keys} " +
+                        "infoKeys=${info?.keys} msgKeys=${msg?.keys} " +
+                        "payloadPreview=${payload.toString().take(400)}")
+                    logger.warn("[message.updated] FULL_EVENT=${event.toString().take(800)}")
                 }
                 Pair(text.trim(), reasoning.trim())
             }
