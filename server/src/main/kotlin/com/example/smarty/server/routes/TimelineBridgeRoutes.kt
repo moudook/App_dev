@@ -380,6 +380,8 @@ private fun translatePluginEvent(
         }
 
         "message.part.delta" -> {
+            // Plugin sends text/reasoning as top-level JSON fields (coalesced in flushCoalesced).
+            // Also handle nested under "delta" for forward-compat with SDK-native deltas.
             val delta: String = run {
                 val deltaEl = event["delta"]
                 when (deltaEl) {
@@ -392,25 +394,48 @@ private fun translatePluginEvent(
                             ?: deltaEl["delta"]?.jsonPrimitive?.contentOrNull
                             ?: ""
                     }
-                    else -> ""
+                    else -> {
+                        // Plugin v3 sends text/reasoning at top level (not under "delta")
+                        event["text"]?.jsonPrimitive?.contentOrNull
+                            ?: event["content"]?.jsonPrimitive?.contentOrNull
+                            ?: ""
+                    }
                 }
             }
-            if (delta.isNotEmpty()) {
-                logger.debug("[message.part.delta] delta.length=${delta.length}, preview=${delta.take(60)}")
+            val pluginReasoning: String = run {
+                event["reasoning"]?.jsonPrimitive?.contentOrNull
+                    ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
+                    ?: ""
+            }
+            if (delta.isNotEmpty() || pluginReasoning.isNotEmpty()) {
+                logger.debug("[message.part.delta] delta.length=${delta.length}, reasoning.length=${pluginReasoning.length}, preview=${delta.take(60)}")
                 val key = contentStateKey(pluginSessionId, currentMsgId)
                 val state = sessionContentStates.getOrPut(key) { MessageContentState() }
-                state.textBuilder.append(delta)
-                val (thinking, response) = splitThinkTags(state.textBuilder.toString())
 
-                if (thinking.length > state.lastSentReasoningLen) {
-                    val d = thinking.substring(state.lastSentReasoningLen)
-                    state.lastSentReasoningLen = thinking.length
-                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                // Emit reasoning delta directly if the plugin already separated it
+                if (pluginReasoning.isNotEmpty()) {
+                    out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = pluginReasoning)
+                    out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
                 }
-                if (response.length > state.lastSentResponseLen) {
-                    val d = response.substring(state.lastSentResponseLen)
-                    state.lastSentResponseLen = response.length
-                    out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+
+                // Accumulate text delta for think-tag splitting
+                if (delta.isNotEmpty()) {
+                    state.textBuilder.append(delta)
+                    val (thinking, response) = splitThinkTags(state.textBuilder.toString())
+
+                    if (thinking.length > state.lastSentReasoningLen) {
+                        val d = thinking.substring(state.lastSentReasoningLen)
+                        state.lastSentReasoningLen = thinking.length
+                        out += AgentEvent.ReasoningDelta(eventId = eid(), timestamp = ts, text = d)
+                        out += AgentEvent.ThinkingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
+                    if (response.length > state.lastSentResponseLen) {
+                        val d = response.substring(state.lastSentResponseLen)
+                        state.lastSentResponseLen = response.length
+                        out += AgentEvent.TextDelta(eventId = eid(), timestamp = ts, text = d)
+                        AgentRunManager.markBridgeSentText(pluginSessionId)
+                        out += AgentEvent.StreamingActive(eventId = eid(), timestamp = ts, sessionId = pluginSessionId, messageId = currentMsgId)
+                    }
                 }
             }
         }
