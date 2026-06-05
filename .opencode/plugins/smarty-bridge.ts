@@ -24,11 +24,11 @@ async function forward(kind: string, payload: any) {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(bodyStr)
             }
-        }, (res) => {
+        }, (res: any) => {
             log(`forward() SUCCESS for ${kind}, status: ${res.statusCode}`);
         });
 
-        req.on('error', (e) => {
+        req.on('error', (e: any) => {
             log(`forward() HTTP ERROR for ${kind}: ${e.message}`);
         });
 
