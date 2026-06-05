@@ -5,26 +5,13 @@ class SmartyBridge {
   private seenParts = new Map<string, {textLen: number, reasoningLen: number}>();
 
   async setup(opencode: any) {
-    opencode.on('message.part.updated', async (event: any) => {
-      const p = event.part;
-      if (!p || !p.id) return;
-      
-      const state = this.seenParts.get(p.id) || {textLen: 0, reasoningLen: 0};
-      
-      const textLen = p.text?.length || p.content?.length || 0;
-      const rLen = p.reasoning?.length || p.reasoning_content?.length || 0;
-
-      // Deduplicate: don't forward if we haven't gained any new text or reasoning
-      if (textLen === state.textLen && rLen === state.reasoningLen) {
-         return;
-      }
-      this.seenParts.set(p.id, {textLen, reasoningLen: rLen});
-
+    opencode.on('message.updated', async (event: any) => {
+      if (!event) return;
       try {
         await fetch(this.bridgeUrl, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ type: 'message.part.updated', ...event })
+          body: JSON.stringify({ type: 'message.updated', ...event })
         });
       } catch (e) {
         // Ignore fetch errors to avoid crashing daemon
@@ -32,10 +19,19 @@ class SmartyBridge {
     });
 
     // Forward tool lifecycle and session events directly
-    opencode.on('tool.execute.before', async (e: any) => this.forward('tool.execute.before', e));
-    opencode.on('tool.execute.after', async (e: any) => this.forward('tool.execute.after', e));
-    opencode.on('session.created', async (e: any) => this.forward('session.created', e));
-    opencode.on('session.aborted', async (e: any) => this.forward('session.aborted', e));
+    const directEvents = [
+      'tool.execute.before', 'tool.execute.after', 
+      'session.created', 'session.aborted',
+      'subagent.created', 'subagent.idle',
+      'websearch.query', 'websearch.result',
+      'webfetch.url', 'webfetch.result',
+      'compaction.start', 'compaction.complete',
+      'file.edited', 'command.execute'
+    ];
+    
+    for (const kind of directEvents) {
+      opencode.on(kind, async (e: any) => this.forward(kind, e));
+    }
   }
 
   private async forward(kind: string, event: any) {
