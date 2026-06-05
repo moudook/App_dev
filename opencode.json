@@ -9,10 +9,11 @@
   "disabled_providers": [
     "anthropic",
     "openai",
-    "google"
+    "google",
+    "opencode",
+    "zen"
   ],
   "enabled_providers": [
-    "opencode",
     "kilo",
     "nvidia",
     "openrouter"
