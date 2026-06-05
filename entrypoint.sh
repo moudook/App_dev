@@ -127,10 +127,12 @@ else
     echo "  opencode.json: FOUND"
 fi
 
-echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST"
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST > /tmp/opencode-daemon.log 2>&1 &
+echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG"
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
+tail -f /tmp/opencode-daemon.log &
+
 
 sleep 1
 if kill -0 $DAEMON_PID 2>/dev/null; then
