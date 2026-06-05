@@ -601,20 +601,13 @@ private fun translatePluginEvent(
         }
 
         "session.idle" -> {
-            // Emit Done via the AgentRunManager so the Android WebSocket stream
-            // terminates cleanly when the OpenCode session goes idle.
-            // This is critical: without it the app spinner never stops.
-            val resolved = ActiveSessionManager.resolveOpencodeSessionId(pluginSessionId)
-            if (resolved != null) {
-                val (_, chatSessionId) = resolved
-                bridgeScope.launch {
-                    // Small delay to ensure last message.updated / message.completed events arrive first
-                    delay(800)
-                    logger.info("[session.idle] Emitting Done for chatSession=$chatSessionId")
-                    AgentRunManager.emitEvent(chatSessionId,
-                        AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
-                }
-            }
+            // DO NOT EMIT DONE HERE! 
+            // The OpenCode daemon goes idle before ServerAgent finishes processing its response.
+            // If we emit Done here, it closes the Android WebSocket connection prematurely,
+            // preventing the AgentRunManager fallback from delivering the text.
+            // AgentRunManager's finally block will handle emitting Done when it is actually finished.
+            logger.info("[session.idle] Received from plugin but delegating Done emission to AgentRunManager")
+            
             bridgeScope.launch {
                 delay(5000)
                 val prefix = "$pluginSessionId:"
