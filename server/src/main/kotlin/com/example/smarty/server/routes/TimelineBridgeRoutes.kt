@@ -439,6 +439,10 @@ private fun translatePluginEvent(
                     ?: event["parts"] as? JsonArray
                     ?: payload["rawParts"] as? JsonArray
                     ?: event["rawParts"] as? JsonArray
+                    ?: msg?.get("parts") as? JsonArray
+                    ?: msg?.get("content") as? JsonArray
+                    ?: info?.get("parts") as? JsonArray
+                    ?: info?.get("content") as? JsonArray
                 var text = ""
                 var reasoning = ""
                 if (parts != null) {
@@ -480,6 +484,11 @@ private fun translatePluginEvent(
                         ?: event["reasoning"]?.jsonPrimitive?.contentOrNull
                         ?: event["reasoning_content"]?.jsonPrimitive?.contentOrNull
                         ?: ""
+                }
+                if (text.isEmpty() && reasoning.isEmpty()) {
+                    logger.error("[message.updated] DEBUG EMPTY TEXT: payloadKeys=${payload.keys}, eventKeys=${event.keys}")
+                    logger.error("[message.updated] DEBUG msg=${msg?.keys}, info=${info?.keys}")
+                    logger.error("[message.updated] DEBUG FULL PAYLOAD: $payload")
                 }
                 Pair(text.trim(), reasoning.trim())
             }
