@@ -15,6 +15,7 @@ import io.ktor.utils.io.readLine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
@@ -126,7 +127,7 @@ class OpencodeLlmProvider(
             // models). The direct path uses Bearer public which the Zen free tier accepts.
             if (System.getenv(USE_DIRECT_ZEN_ENV) == "true" || System.getenv(USE_DIRECT_ZEN_ENV) == "1") {
                 logger.info("[OpenCode.LlmProvider][inference=$inferenceId] OPENCODE_USE_DIRECT_ZEN set — bypassing daemon, calling $ZEN_BASE_URL directly")
-                streamDirectZen(messages, model, inferenceId)
+                emitAll(streamDirectZen(messages, model, inferenceId))
                 return@flow
             }
 
