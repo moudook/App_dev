@@ -48,9 +48,9 @@ object OpencodeModelRegistry {
     val KNOWN_FREE_MODELS = listOf(
         OpencodeModelInfo(id = "opencode/big-pickle", label = "Big Pickle (free)"),
         OpencodeModelInfo(id = "opencode/gpt-5-nano", label = "GPT-5 Nano (free)"),
-        OpencodeModelInfo(id = "opencode/glm-4.6-free", label = "GLM 4.6 (free)"),
-        OpencodeModelInfo(id = "opencode/kimi-k2-free", label = "Kimi K2 (free)"),
-        OpencodeModelInfo(id = "opencode/minimax-m2-free", label = "Minimax M2 (free)"),
+        OpencodeModelInfo(id = "opencode/mimo-v2.5-free", label = "MiMo V2.5 (free)"),
+        OpencodeModelInfo(id = "opencode/deepseek-v4-flash-free", label = "DeepSeek V4 Flash (free)"),
+        OpencodeModelInfo(id = "opencode/nemotron-3-ultra-free", label = "Nemotron 3 Ultra (free)"),
     ) // Safety net when CLI discovery returns 0 — Zen rotates free models, so this list is best-effort.
 
     /**
