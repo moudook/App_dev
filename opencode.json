@@ -70,6 +70,36 @@
         "send_message": "allow",
         "manage_subagents": "allow"
       }
+    },
+    "explore": {
+      "description": "Exploration and web search agent",
+      "permission": {
+        "bash": "deny",
+        "read": "deny",
+        "write": "deny",
+        "edit": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "skill": "deny",
+        "task": "deny",
+        "invoke_subagent": "deny",
+        "define_subagent": "deny"
+      }
+    },
+    "general": {
+      "description": "General worker agent",
+      "permission": {
+        "bash": "deny",
+        "read": "deny",
+        "write": "deny",
+        "edit": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "skill": "deny",
+        "task": "deny",
+        "invoke_subagent": "deny",
+        "define_subagent": "deny"
+      }
     }
   }
 }

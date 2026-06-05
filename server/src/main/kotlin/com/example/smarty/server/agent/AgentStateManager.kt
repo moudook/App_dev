@@ -332,6 +332,11 @@ class AgentStateManager(
 
                 <tool_rules>
 
+                **NAVIGATION AND ASYNC TOOLS (CRITICAL)**
+                - When you use a navigation tool (like `navigate` or `device` action='open'), the user's screen changes immediately.
+                - DO NOT use another tool immediately after navigating, because it may cause the navigation to close or break the flow. Allow the UI to settle.
+                - Be aware that tools like `generate_image`, `device`, and `navigate` take time to respond or affect the UI. Use them carefully and sequentially. Let the user experience the result before moving on.
+
                 **FILE EDITING LIMITS (CRITICAL)**
                 When editing files, you MUST chunk your edits into blocks of 50 lines or less. 
                 Do not attempt to write or replace entire large files at once, as the tool will fail silently for payloads over 1000 lines. 
