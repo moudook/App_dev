@@ -1272,6 +1272,25 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         // the raw SSE back. Used to isolate "is it the agent config that hangs?"
         // vs "is the LLM call itself slow".
         // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/log") {
+            try {
+                val log = java.io.File("/tmp/opencode-daemon.log")
+                if (log.exists()) {
+                    val text = log.readText()
+                    val tail = if (text.length > 10000) text.substring(text.length - 10000) else text
+                    call.respondText(tail, ContentType.Text.Plain)
+                } else {
+                    call.respondText("LOG FILE NOT FOUND at /tmp/opencode-daemon.log", ContentType.Text.Plain)
+                }
+            } catch (e: Exception) {
+                call.respondText("ERR: ${e.javaClass.name}: ${e.message}", ContentType.Text.Plain)
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
         get("/debug/daemon/auth") {
             val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
             try {

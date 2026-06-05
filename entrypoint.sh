@@ -130,7 +130,7 @@ else
 fi
 
 echo " Launching: opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG"
-opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG &
+opencode serve --port $DAEMON_PORT --hostname $DAEMON_HOST --log-level DEBUG > /tmp/opencode-daemon.log 2>&1 &
 DAEMON_PID=$!
 echo "  Daemon PID: $DAEMON_PID"
 
