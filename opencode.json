@@ -25,7 +25,7 @@
       "name": "OpenCode Zen (free)",
       "options": {
         "baseURL": "https://opencode.ai/zen/v1",
-        "apiKey": "public"
+        "apiKey": "sk-zen-public-free-anon-no-key-required"
       },
       "models": {
         "deepseek-v4-flash": {
