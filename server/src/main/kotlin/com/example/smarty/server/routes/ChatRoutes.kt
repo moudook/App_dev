@@ -1349,7 +1349,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         while (!channel.isClosedForRead) {
                             val line = channel.readLine() ?: break
                             chunkN++
-                            val safeLine = JsonPrimitive(line.take(400)).toString()
+                            val safeLine = JsonPrimitive(line.take(2000)).toString()
                             write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
                             flush()
                             if (chunkN > 200) break
