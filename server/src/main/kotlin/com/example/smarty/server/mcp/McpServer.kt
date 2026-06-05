@@ -388,6 +388,19 @@ class McpServer(
 
         thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "started", args.toString())
 
+        val startEvent = com.example.smarty.protocol.AgentEvent.ToolStart(
+            eventId = java.util.UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            toolId = toolCallId,
+            name = resolvedName,
+            args = args.toString(),
+            isMcpTool = true,
+            isInteractive = resolvedName == "ask_user" || resolvedName == "askuser",
+            inputSummary = args.toString().take(100)
+        )
+        eventEmitter?.invoke(startEvent) ?: emitToAllSessions(startEvent)
+
+
         // High-risk path sandbox (only for file-adjacent tools)
         if (resolvedName == "bash" || resolvedName == "command" || resolvedName.contains("write") || resolvedName.contains("replace")) {
             val argsStr = args.toString()
@@ -402,6 +415,19 @@ class McpServer(
             if (isHighRisk) {
                 val errorMsg = "Security Violation: Access to high-risk path blocked by Ktor MCP Sandbox."
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
+                
+                val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                    eventId = java.util.UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                    success = false,
+                    error = errorMsg,
+                    isMcpTool = true,
+                    isInteractive = false,
+                    outputSummary = "Blocked"
+                )
+                eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+                
                 return buildJsonObject {
                     put("isError", JsonPrimitive(true))
                     put(
@@ -431,6 +457,19 @@ class McpServer(
             if (validationError != null) {
                 logger.warn("[MCP] ask_user validation failed for toolCallId=$toolCallId: ${validationError.take(200)}")
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), validationError)
+                
+                val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                    eventId = java.util.UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                    success = false,
+                    error = validationError,
+                    isMcpTool = true,
+                    isInteractive = true,
+                    outputSummary = "Validation failed"
+                )
+                eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+
                 return buildJsonObject {
                     put("isError", JsonPrimitive(true))
                     put(
@@ -496,8 +535,21 @@ class McpServer(
             if (!result.approved) {
                 val denial = result.feedback ?: "User denied"
                 thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), denial)
-                val deniedEvent = AgentEvent.ApprovalResult(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = false)
+                val deniedEvent = com.example.smarty.protocol.AgentEvent.ApprovalResult(java.util.UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = false)
                 eventEmitter?.invoke(deniedEvent) ?: emitToAllSessions(deniedEvent)
+                
+                val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                    eventId = java.util.UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = toolCallId,
+                    success = false,
+                    error = denial,
+                    isMcpTool = true,
+                    isInteractive = true,
+                    outputSummary = denial.take(100)
+                )
+                eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+
                 return buildJsonObject {
                     put(
                         "content",
@@ -515,9 +567,22 @@ class McpServer(
 
             val userResponse = result.feedback ?: "Proceed with your best judgment"
             thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), userResponse)
-            val grantedEvent = AgentEvent.ApprovalResult(UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = true)
+            val grantedEvent = com.example.smarty.protocol.AgentEvent.ApprovalResult(java.util.UUID.randomUUID().toString(), System.currentTimeMillis(), toolCallId, granted = true)
             eventEmitter?.invoke(grantedEvent)
             emitToAllSessions(grantedEvent)
+            
+            val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = toolCallId,
+                success = true,
+                error = null,
+                isMcpTool = true,
+                isInteractive = true,
+                outputSummary = userResponse.take(100)
+            )
+            eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+
             return buildJsonObject {
                 put(
                     "content",
@@ -553,6 +618,19 @@ class McpServer(
         return try {
             val resultStr = executor.executeTool(name, args.toString(), emptyList(), skipApprovalGate = true)
             thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "completed", args.toString(), resultStr)
+            
+            val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = toolCallId,
+                success = true,
+                error = null,
+                isMcpTool = true,
+                isInteractive = false,
+                outputSummary = resultStr.take(100)
+            )
+            eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+
             buildJsonObject {
                 put(
                     "content",
@@ -569,6 +647,19 @@ class McpServer(
         } catch (e: Exception) {
             val errorMsg = "Error executing tool: ${e.message}"
             thinkingStorage.updateToolCall(primarySessionId, toolCallId, resolvedName, "failed", args.toString(), errorMsg)
+            
+            val endEvent = com.example.smarty.protocol.AgentEvent.ToolEnd(
+                eventId = java.util.UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = toolCallId,
+                success = false,
+                error = errorMsg,
+                isMcpTool = true,
+                isInteractive = false,
+                outputSummary = "Failed"
+            )
+            eventEmitter?.invoke(endEvent) ?: emitToAllSessions(endEvent)
+
             buildJsonObject {
                 put("isError", JsonPrimitive(true))
                 put(
