@@ -113,13 +113,22 @@ class SystemFeatureManager(
     fun toggleSetting(
         setting: String,
         enable: Boolean,
-    ) {
+    ): Boolean {
         Log.i(TAG, "Setting toggle requested: $setting -> $enable")
-        when (setting.lowercase()) {
-            "dark_theme", "dark_mode", "theme" -> toggleTheme(enable)
-            "sound", "completion_sound" -> securePreferences.setSoundEnabled(enable)
+        return when (setting.lowercase()) {
+            "dark_theme", "dark_mode", "theme" -> {
+                toggleTheme(enable)
+                true
+            }
+            "sound", "completion_sound" -> {
+                securePreferences.setSoundEnabled(enable)
+                true
+            }
             "flashlight", "torch" -> toggleFlashlight(enable)
-            else -> Log.w(TAG, "Unknown setting toggle requested: $setting")
+            else -> {
+                Log.w(TAG, "Unknown setting toggle requested: $setting")
+                false
+            }
         }
     }
 

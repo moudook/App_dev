@@ -774,13 +774,74 @@ class ChatQueryDispatcher(
                         is AgentEvent.CompactionMarker -> {}
                         is AgentEvent.DeviceCommand -> {
                             Log.d(TAG, ">>> DEVICE_COMMAND: action=${event.action}, app=${event.app}, setting=${event.setting}, on=${event.on}, info=${event.info}")
-                            when (event.action) {
-                                "navigate" -> {
-                                    event.info?.let { navigateTo(it) }
+                            scope.launch {
+                                var success = true
+                                var resultMsg = "Success"
+                                try {
+                                    when (event.action) {
+                                        "navigate" -> {
+                                            val info = event.info
+                                            if (info != null) {
+                                                navigateTo(info)
+                                                resultMsg = "Navigated to $info"
+                                            } else {
+                                                success = false
+                                                resultMsg = "Missing info for navigation"
+                                            }
+                                        }
+                                        "guided_breathing" -> {
+                                            navigateTo("guided_breathing")
+                                            resultMsg = "Started guided breathing"
+                                        }
+                                        "toggle" -> {
+                                            val setting = event.setting ?: "unknown"
+                                            val on = event.on ?: false
+                                            val toggled = systemFeatureManager.toggleSetting(setting, on)
+                                            if (toggled) {
+                                                resultMsg = "Toggled $setting to $on"
+                                            } else {
+                                                success = false
+                                                resultMsg = "Failed to toggle $setting"
+                                            }
+                                        }
+                                        "launch" -> {
+                                            val app = event.app ?: ""
+                                            val launched = systemFeatureManager.launchApp(app)
+                                            if (launched) {
+                                                resultMsg = "Launched $app"
+                                            } else {
+                                                success = false
+                                                resultMsg = "Failed to launch $app"
+                                            }
+                                        }
+                                        "status" -> {
+                                            val battery = systemFeatureManager.getBatteryLevel()
+                                            resultMsg = "Battery: $battery"
+                                        }
+                                        "capture" -> {
+                                            systemFeatureManager.captureScreen()
+                                            resultMsg = "Captured screen"
+                                        }
+                                        else -> {
+                                            success = false
+                                            resultMsg = "Unknown action: ${event.action}"
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    success = false
+                                    resultMsg = e.message ?: "Unknown error"
+                                    Log.e(TAG, "Error executing device command", e)
                                 }
-                                "guided_breathing" -> {
-                                    navigateTo("guided_breathing")
-                                }
+                                
+                                remoteAgentService.sendEvent(
+                                    sessionId = event.sessionId,
+                                    event = com.example.smarty.protocol.ClientEvent.ToolResult(
+                                        commandId = event.commandId,
+                                        result = resultMsg,
+                                        isError = !success,
+                                        timestamp = System.currentTimeMillis()
+                                    )
+                                )
                             }
                         }
                         // ── Plugin v3 events (100% transparency) ─────────────────

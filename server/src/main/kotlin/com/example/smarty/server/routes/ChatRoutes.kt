@@ -233,6 +233,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                 val statusPrefix = if (event.isError) "Error" else "Success"
                                 val content = "Tool Output [${event.commandId}] ($statusPrefix): ${event.result}"
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
+                                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
+                                    event.commandId,
+                                    mapOf("result" to event.result, "status" to if (event.isError) "error" else "success")
+                                )
                             }
                             is ClientEvent.ActiveNotesResponse -> {
                                 val content = "Active Notes Context: ${event.notes.joinToString { it.title }}"
@@ -412,6 +416,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                                     "Tool Output [${clientEvent.commandId}] ($statusPrefix): " +
                                                         clientEvent.result
                                                 chatRepository.saveMessage(userId, sessionIdParam, LlmMessage.Role.TOOL.name, content)
+                                                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
+                                                    clientEvent.commandId,
+                                                    mapOf("result" to clientEvent.result, "status" to if (clientEvent.isError) "error" else "success")
+                                                )
                                             }
                                             is ClientEvent.SystemStatusResponse -> {
                                                 com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
