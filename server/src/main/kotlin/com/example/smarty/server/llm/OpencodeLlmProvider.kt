@@ -558,7 +558,6 @@ class OpencodeLlmProvider(
                 }
                 // Handle message.updated — may contain assembled parts array
                 "message.updated" -> {
-                    // Parts could be at top level or inside an "info" or "message" object
                     val partsArray =
                         json["parts"]?.jsonArray
                             ?: json["info"]?.jsonObject?.get("parts")?.jsonArray
@@ -577,7 +576,16 @@ class OpencodeLlmProvider(
                             }
                         if (parts.isNotEmpty()) CanonicalResponse(parts) else null
                     } else {
-                        null
+                        val fallbackText = json["text"]?.deepStr()
+                            ?: json["content"]?.deepStr()
+                            ?: json["delta"]?.deepStr()
+                            ?: json["info"]?.jsonObject?.get("text")?.deepStr()
+                            ?: json["info"]?.jsonObject?.get("content")?.deepStr()
+                            ?: json["message"]?.jsonObject?.get("content")?.deepStr()
+                            ?: json["message"]?.jsonObject?.get("text")?.deepStr()
+                        if (!fallbackText.isNullOrBlank()) {
+                            CanonicalResponse(listOf(CanonicalPart("text", fallbackText, subagentId = sid)))
+                        } else null
                     }
                 }
                 // Ignore status events — they carry no text content
