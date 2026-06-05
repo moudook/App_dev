@@ -138,7 +138,7 @@ class IntentClassifier {
         if (deviceHits > 0) scores[IntentType.DEVICE_TOGGLE] = (deviceHits * 0.3f).coerceAtMost(1.0f)
 
         // Complex reasoning indicators (reduce simple intent scores)
-        val complexKeywords = setOf("why", "explain", "analyze", "compare", "research", "find", "search", "details")
+        val complexKeywords = setOf("why", "explain", "analyze", "compare", "find", "search", "details")
         val complexHits = words.count { it in complexKeywords }
         if (complexHits >= 2) {
             // Boost REASONING_REQUIRED by penalizing simple intents

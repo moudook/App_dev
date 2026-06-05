@@ -121,7 +121,7 @@ class PostgresTracer(
     private fun AgentStepType.toReasoningStepType(): com.example.smarty.server.data.ReasoningStepType =
         when (this) {
             AgentStepType.THOUGHT -> com.example.smarty.server.data.ReasoningStepType.ANALYSIS
-            AgentStepType.TOOL_CALL -> com.example.smarty.server.data.ReasoningStepType.RESEARCH
+            AgentStepType.TOOL_CALL -> com.example.smarty.server.data.ReasoningStepType.VERIFICATION
             AgentStepType.TOOL_RESULT -> com.example.smarty.server.data.ReasoningStepType.VERIFICATION
             AgentStepType.FINAL -> com.example.smarty.server.data.ReasoningStepType.SYNTHESIS
             AgentStepType.ERROR -> com.example.smarty.server.data.ReasoningStepType.REFLECTION

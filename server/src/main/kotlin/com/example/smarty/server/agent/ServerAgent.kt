@@ -253,17 +253,7 @@ class ServerAgent(
                     val argsHash = toolArgs.take(100).hashCode().toString()
                     val sameCallCount = toolCallHistory.count { it.first == toolName && it.second == argsHash }
 
-                    val isResearchTool =
-                        toolName.lowercase().let {
-                            it.contains("search") ||
-                                it.contains("web") ||
-                                it.contains("tavily") ||
-                                it.contains("fetch") ||
-                                it.contains("scrape") ||
-                                it.contains("browser")
-                        }
-
-                    val shouldBlock = !isResearchTool && sameCallCount >= 3
+                    val shouldBlock = sameCallCount >= 3
 
                     if (shouldBlock) {
                         logger.warn(

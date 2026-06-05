@@ -75,8 +75,6 @@ sealed class AttachmentOption {
 
     data object Link : AttachmentOption()
 
-    data object Research : AttachmentOption()
-
     companion object {
         fun fromAttachmentType(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentOption =
             when (type.name) {
@@ -85,7 +83,6 @@ sealed class AttachmentOption {
                 "DOCUMENT" -> Document
                 "AUDIO" -> Audio
                 "LINK" -> Link
-                "RESEARCH" -> Research
                 else -> Document // Default fallback for any other type
             }
     }

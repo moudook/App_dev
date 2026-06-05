@@ -295,7 +295,6 @@ class CapabilityNegotiator(
                                 "WEB_SEARCH",
                                 "BATCH_ACTIONS",
                                 "SCHEDULE_EVENT",
-                                "DEEP_RESEARCH",
                                 "MEMORY_STORE",
                                 "GENERATE_BRIEFING",
                                 "ANALYZE_DOCUMENT",

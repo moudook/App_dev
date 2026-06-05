@@ -6,7 +6,7 @@ import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.agent.AgentRunManager
 import com.example.smarty.server.agent.AgentToolDefinitions
 import com.example.smarty.server.agent.ApprovalRegistry
-import com.example.smarty.server.agent.ResearchAgentTools
+
 import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 import com.example.smarty.server.agent.ToolExecutor
 import com.example.smarty.server.agent.ToolPermissionEnforcer
@@ -85,7 +85,7 @@ class McpServer(
     private val sessionTtlMs = 300_000L
 
     private val allTools: List<ToolDefinition> by lazy {
-        AgentToolDefinitions.getAllTools() + ResearchAgentTools.getEnhancedTools()
+        AgentToolDefinitions.getAllTools()
     }
 
     fun configureRouting(routing: Routing) {

@@ -10,7 +10,6 @@ enum class ReasoningStepType {
     ANALYSIS,
     PLANNING,
     HYPOTHESIS,
-    RESEARCH,
     VERIFICATION,
     SYNTHESIS,
     REFLECTION,

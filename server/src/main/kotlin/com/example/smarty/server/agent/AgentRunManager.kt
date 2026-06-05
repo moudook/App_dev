@@ -150,7 +150,7 @@ object AgentRunManager {
 
                 try {
                     // Match ServerAgent's hard limit — the agent itself manages timeouts per-iteration.
-                    // The previous 2-minute limit killed legitimate deep research tasks.
+                    // Enforce 10-minute maximum runtime per agent session.
                     val assistantResponse =
                         kotlinx.coroutines.withTimeout(com.example.smarty.server.agent.ServerAgent.MAX_EXECUTION_TIME_MS) {
                             agent.run(

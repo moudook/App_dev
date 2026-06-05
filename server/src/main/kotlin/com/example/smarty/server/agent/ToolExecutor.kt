@@ -172,8 +172,7 @@ class ToolExecutor(
             }
             "memory_remember" -> executeMemoryRemember(args)
             "memory" -> executeMemoryTool(args)
-            "save_progress" -> executeSaveProgress(args)
-            "read_progress" -> executeReadProgress(args)
+
             "schedule" -> executeScheduleTool(args, clientTimezone, clientTimeMillis)
             "remind" -> executeRemindTool(args, clientTimezone, clientTimeMillis)
             "device" -> executeDeviceTool(args, sessionId)
@@ -1158,80 +1157,5 @@ class ToolExecutor(
             else -> "Execute '$canonicalToolName'?"
         }
 
-    private fun getProgressFile(): java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "research_progress_$userId.json")
 
-    private fun executeSaveProgress(args: UnifiedToolArgs): String {
-        val finding = args.finding ?: args.content ?: args.note ?: return "Error: missing 'finding'"
-        val source = args.source ?: args.url ?: "unknown source"
-        val category = args.category ?: "general"
-
-        val file = getProgressFile()
-        val findingsList =
-            if (file.exists()) {
-                try {
-                    json.decodeFromString<List<Map<String, String>>>(file.readText())
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            } else {
-                emptyList()
-            }
-
-        val newFinding =
-            mapOf(
-                "timestamp" to
-                    java.time.Instant
-                        .now()
-                        .toString(),
-                "finding" to finding,
-                "source" to source,
-                "category" to category,
-            )
-
-        val updatedList = findingsList + newFinding
-        file.writeText(json.encodeToString(updatedList))
-
-        return "Progress saved successfully. Finding added to category '$category'."
-    }
-
-    private fun executeReadProgress(args: UnifiedToolArgs): String {
-        val categoryFilter = args.category
-
-        val file = getProgressFile()
-        if (!file.exists()) {
-            return "No research progress saved yet."
-        }
-
-        val findingsList =
-            try {
-                json.decodeFromString<List<Map<String, String>>>(file.readText())
-            } catch (e: Exception) {
-                return "Error reading progress file: ${e.message}"
-            }
-
-        if (findingsList.isEmpty()) {
-            return "Research progress is empty."
-        }
-
-        val filteredList =
-            if (categoryFilter == null || categoryFilter.isBlank()) {
-                findingsList
-            } else {
-                findingsList.filter { it["category"]?.equals(categoryFilter, ignoreCase = true) == true }
-            }
-
-        if (filteredList.isEmpty()) {
-            return "No findings found in category '$categoryFilter'."
-        }
-
-        val sb = StringBuilder()
-        sb.append("Research Progress (Category: ${categoryFilter ?: "All"}):\n\n")
-        for ((index, item) in filteredList.withIndex()) {
-            sb.append("${index + 1}. [${item["category"]}] ${item["finding"]}\n")
-            sb.append("   Source: ${item["source"]}\n")
-            sb.append("   Time: ${item["timestamp"]}\n\n")
-        }
-
-        return sb.toString()
-    }
 }

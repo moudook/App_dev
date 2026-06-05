@@ -1083,7 +1083,7 @@ class RemoteAgentService(
 
     /**
      * Interrupt ongoing agent execution for a session.
-     * Used to stop deep research or long-running tasks.
+     * Used to stop long-running tasks.
      */
     suspend fun interruptSession(sessionId: String): InterruptResponse {
         val baseUrl = serverUrlProvider()
