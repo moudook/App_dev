@@ -1,19 +1,47 @@
+import * as fs from "fs";
+import * as http from "http";
+
 const bridgeUrl = 'http://127.0.0.1:7860/opencode/events';
+const logFile = "/tmp/smarty-plugin.log";
+
+function log(msg: string) {
+    try { fs.appendFileSync(logFile, new Date().toISOString() + " " + msg + "\n"); } catch (e) {}
+}
+
+log("smarty-bridge: Plugin script evaluated!");
+
 const seenParts = new Map<string, {textLen: number, reasoningLen: number}>();
 
 async function forward(kind: string, payload: any) {
     try {
-        await fetch(bridgeUrl, {
+        log(`forward() called for ${kind}`);
+        const bodyStr = JSON.stringify({ type: kind, ...payload });
+        
+        // Use Node's native http to avoid fetch() compatibility issues
+        const req = http.request(bridgeUrl, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ type: kind, ...payload })
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(bodyStr)
+            }
+        }, (res) => {
+            log(`forward() SUCCESS for ${kind}, status: ${res.statusCode}`);
         });
-    } catch(e) {
-        // Ignore fetch errors to avoid crashing daemon
+
+        req.on('error', (e) => {
+            log(`forward() HTTP ERROR for ${kind}: ${e.message}`);
+        });
+
+        req.write(bodyStr);
+        req.end();
+
+    } catch(e: any) {
+        log(`forward() CATCH ERROR for ${kind}: ${e?.message}`);
     }
 }
 
-export const SmartyBridge = async ({client}: {client: any}) => {
+const SmartyBridge = async ({client}: {client: any}) => {
+    log("smarty-bridge: Plugin initialized by OpenCode!");
     return {
         "message.part.updated": async (payload: any) => {
             const p = payload.part;
@@ -24,7 +52,6 @@ export const SmartyBridge = async ({client}: {client: any}) => {
             const textLen = p.text?.length || p.content?.length || 0;
             const rLen = p.reasoning?.length || p.reasoning_content?.length || 0;
 
-            // Deduplicate: don't forward if we haven't gained any new text or reasoning
             if (textLen === state.textLen && rLen === state.reasoningLen) {
                 return;
             }
@@ -49,10 +76,13 @@ export const SmartyBridge = async ({client}: {client: any}) => {
             await forward("session.aborted", payload);
         },
         dispose: async () => {
+            log("smarty-bridge: dispose() called");
             await forward("plugin.dispose", {});
             seenParts.clear();
         }
     };
 };
 
+// Export as both default and named to handle different plugin loaders
+export { SmartyBridge };
 export default SmartyBridge;
