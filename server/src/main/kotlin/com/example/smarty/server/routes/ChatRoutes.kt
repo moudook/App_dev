@@ -1154,52 +1154,76 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             // Run the flow asynchronously so we can flush each chunk as it arrives
             // through the SSE response. The HF gateway has a ~5 min limit so we also
             // log every chunk to chunkLog so if the connection drops we still see it.
-            call.respondTextWriter(contentType = ContentType.Text.EventStream) {
-                kotlinx.coroutines.runBlocking {
-                    val job = kotlinx.coroutines.GlobalScope.launch {
-                        try {
-                            provider.stream(
-                                messages = listOf(
-                                    com.example.smarty.server.llm.LlmMessage(
-                                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
-                                        content = messageText,
-                                    ),
-                                ),
-                                tools = emptyList(),
-                                model = modelOverride,
-                            ).collect { chunk ->
-                                val now = System.currentTimeMillis()
-                                val dFromStart = now - started
-                                val dFromLast = now - lastChunkMs
-                                if (firstChunkMs == null) firstChunkMs = dFromStart
-                                chunkCount++
-                                val content = chunk.content
-                                val rawJson = chunk.rawJson
-                                val sseEvent = chunk.sseEvent
-                                val safeText = JsonPrimitive(content ?: "").toString()
-                                val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
-                                val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
-                                val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
-                                chunkLog.append(line)
-                                write(line)
-                                flush()
-                                if (!content.isNullOrBlank()) accumulated.append(content)
-                                lastChunkMs = now
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    try {
+                        kotlinx.coroutines.runBlocking {
+                            val job = kotlinx.coroutines.GlobalScope.launch {
+                                try {
+                                    provider.stream(
+                                        messages = listOf(
+                                            com.example.smarty.server.llm.LlmMessage(
+                                                role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                                                content = messageText,
+                                            ),
+                                        ),
+                                        tools = emptyList(),
+                                        model = modelOverride,
+                                    ).collect { chunk ->
+                                        val now = System.currentTimeMillis()
+                                        val dFromStart = now - started
+                                        val dFromLast = now - lastChunkMs
+                                        if (firstChunkMs == null) firstChunkMs = dFromStart
+                                        chunkCount++
+                                        val content = chunk.content
+                                        val rawJson = chunk.rawJson
+                                        val sseEvent = chunk.sseEvent
+                                        val safeText = JsonPrimitive(content ?: "").toString()
+                                        val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
+                                        val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
+                                        val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
+                                        chunkLog.append(line)
+                                        write(line)
+                                        flush()
+                                        if (!content.isNullOrBlank()) accumulated.append(content)
+                                        lastChunkMs = now
+                                    }
+                                } catch (e: Exception) {
+                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                    val safeStack = JsonPrimitive((e.stackTraceToString().take(800))).toString()
+                                    call.application.log.error("[debug/llm/stream] INTERNAL CATCH class={} msg={} stack={}", e.javaClass.name, e.message, e.stackTraceToString().take(500))
+                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
+                                    chunkLog.append("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
+                                }
                             }
-                        } catch (e: Exception) {
-                            val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
-                            write("event: error\ndata: {\"message\":$safeMsg}\n\n")
-                            chunkLog.append("event: error\ndata: {\"message\":$safeMsg}\n\n")
+                            job.join()
                         }
+                    } catch (e: Exception) {
+                        val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                        val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                        call.application.log.error("[debug/llm/stream] runBlocking/launch outer CATCH class={} msg={}", e.javaClass.name, e.message)
+                        write("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
+                        chunkLog.append("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
                     }
-                    job.join()
+                    val total = System.currentTimeMillis() - started
+                    val safeAcc = JsonPrimitive(accumulated.toString()).toString()
+                    val doneLine = "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n"
+                    chunkLog.append(doneLine)
+                    write(doneLine)
+                    flush()
                 }
-                val total = System.currentTimeMillis() - started
-                val safeAcc = JsonPrimitive(accumulated.toString()).toString()
-                val doneLine = "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n"
-                chunkLog.append(doneLine)
-                write(doneLine)
-                flush()
+            } catch (e: Exception) {
+                call.application.log.error("[debug/llm/stream] respondTextWriter OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                call.application.log.error("[debug/llm/stream] OUTER STACK: {}", e.stackTraceToString().take(1000))
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf(
+                        "error" to "debug stream outer failure",
+                        "class" to e.javaClass.name,
+                        "message" to (e.message ?: ""),
+                    ),
+                )
             }
         }
 
