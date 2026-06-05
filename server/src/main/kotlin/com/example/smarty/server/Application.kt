@@ -115,9 +115,14 @@ fun main() {
 }
 
 fun Application.module() {
-    // Discover OpenCode free models at startup (blocking, runs `opencode models`)
-    com.example.smarty.server.llm.OpencodeModelRegistry
-        .discoverAtStartup()
+    // Discover OpenCode free models in background (daemon thread, non-blocking).
+    // The registry falls back to "opencode/auto" (daemon decides) until discovery completes.
+    val modelDiscoveryThread = Thread {
+        com.example.smarty.server.llm.OpencodeModelRegistry.discoverAtStartup()
+    }
+    modelDiscoveryThread.isDaemon = true
+    modelDiscoveryThread.name = "model-discovery"
+    modelDiscoveryThread.start()
 
     // Initialize Database
     DatabaseFactory.init()

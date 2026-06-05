@@ -8,8 +8,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -104,13 +102,6 @@ object OpencodeModelRegistry {
                         .redirectErrorStream(true)
                         .start()
 
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                val lines = mutableListOf<String>()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    lines.add(line!!)
-                }
-
                 val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
                 val cliDuration = System.currentTimeMillis() - cliStart
 
@@ -119,17 +110,18 @@ object OpencodeModelRegistry {
                     throw IllegalStateException("opencode models --verbose timed out after ${timeoutMs}ms")
                 }
 
+                val lines = process.inputStream.bufferedReader().readLines()
                 val exitCode = process.exitValue()
-    logger.info(
-        "[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
-        cliDuration,
-        exitCode,
-        lines.size,
-    )
+                logger.info(
+                    "[OpencodeModelRegistry] CLI exited in {}ms — exit code: {}, raw lines: {}",
+                    cliDuration,
+                    exitCode,
+                    lines.size,
+                )
 
-    if (exitCode != 0) {
-        logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
-    }
+                if (exitCode != 0) {
+                    logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+                }
 
                 parseModelsVerbose(lines)
             }.getOrElse { error ->
@@ -241,13 +233,6 @@ object OpencodeModelRegistry {
                             .redirectErrorStream(true)
                             .start()
 
-                    val reader = BufferedReader(InputStreamReader(process.inputStream))
-                    val lines = mutableListOf<String>()
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        lines.add(line!!)
-                    }
-
                     val completed = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
                     val cliDuration = System.currentTimeMillis() - cliStart
 
@@ -256,6 +241,7 @@ object OpencodeModelRegistry {
                         throw IllegalStateException("opencode models --verbose timed out")
                     }
 
+                    val lines = process.inputStream.bufferedReader().readLines()
                     val exitCode = process.exitValue()
                     logger.info(
                         "[OpencodeModelRegistry] CLI exited in {}ms — code: {}, lines: {}",
@@ -264,9 +250,9 @@ object OpencodeModelRegistry {
                         lines.size,
                     )
 
-    if (exitCode != 0) {
-        logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
-    }
+                    if (exitCode != 0) {
+                        logger.warn("[OpencodeModelRegistry] CLI returned non-zero exit code")
+                    }
 
                     parseModelsVerbose(lines)
                 }.getOrElse { error ->
@@ -307,19 +293,13 @@ object OpencodeModelRegistry {
                         .redirectErrorStream(true)
                         .start()
 
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                val lines = mutableListOf<String>()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    lines.add(line!!)
-                }
-
                 val completed = process.waitFor(12_000L, TimeUnit.MILLISECONDS)
                 if (!completed) {
                     process.destroyForcibly()
                     throw IllegalStateException("opencode models --verbose timed out")
                 }
 
+                val lines = process.inputStream.bufferedReader().readLines()
                 if (process.exitValue() != 0) {
                     logger.warn("[OpencodeModelRegistry] CLI exited with code ${process.exitValue()}")
                 }
