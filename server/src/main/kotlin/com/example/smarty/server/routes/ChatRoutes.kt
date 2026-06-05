@@ -1149,12 +1149,14 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             if (firstChunkMs == null) firstChunkMs = dFromStart
                             chunkCount++
                             val content = chunk.content
-                            if (!content.isNullOrBlank()) {
-                                accumulated.append(content)
-                                val safeText = JsonPrimitive(content).toString()
-                                write("data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"text\":$safeText}\n\n")
-                                flush()
-                            }
+                            val rawJson = chunk.rawJson
+                            val sseEvent = chunk.sseEvent
+                            val safeText = JsonPrimitive(content ?: "").toString()
+                            val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
+                            val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
+                            write("data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n")
+                            flush()
+                            if (!content.isNullOrBlank()) accumulated.append(content)
                             lastChunkMs = now
                         }
                     } catch (e: Exception) {
