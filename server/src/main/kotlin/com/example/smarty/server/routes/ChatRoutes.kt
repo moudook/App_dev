@@ -55,6 +55,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -1317,6 +1318,146 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     mapOf("error" to "daemon event stream failed: ${e.message}"),
+                )
+            }
+        }
+
+        // ============================================================================
+        // POST /chat/query/stream
+        // Same input shape as /chat/query (body: {query|message, model?, tools?,
+        // history?, sessionId?}) but responds with a Server-Sent Events stream.
+        // Each chunk is `data: {"chunk":N,"+ms":...,"content":"...","reasoning":"...",
+        //   "toolCall":{...}|null,"finishReason":"...","rawJson":"..."}\n\n`
+        // and the final event is `event: done data: {"chunks":N,"accumulated":"..."}`.
+        //
+        // This is the streaming LLM-only path used by the Android client to render
+        // tokens as they arrive. The full ServerAgent flow (MCP tools, history,
+        // permission engine, etc.) is NOT invoked here — use /chat/query for that.
+        // AUTH DISABLED — see AGENTS.md "Auth State".
+        // ============================================================================
+        post("/chat/query/stream") {
+            val body = call.receiveText()
+            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+            val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: "Say hi in one short sentence."
+            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
+            val historyJson = parsed?.get("history") as? kotlinx.serialization.json.JsonArray
+            val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+            val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
+
+            val streamProvider = LlmProviderFactory.create(
+                LlmProviderFactory.getOrCreateHttpClient(),
+            )
+
+            val started = System.currentTimeMillis()
+            var firstChunkMs: Long? = null
+            var lastChunkMs = started
+            var chunkCount = 0
+            val accumulated = StringBuilder()
+
+            val messages = mutableListOf<com.example.smarty.server.llm.LlmMessage>()
+            if (historyJson != null) {
+                historyJson.forEach { el ->
+                    val obj = el as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                    val role = (obj["role"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+                    val content = (obj["content"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+                    val r =
+                        when (role.lowercase()) {
+                            "user" -> com.example.smarty.server.llm.LlmMessage.Role.USER
+                            "assistant" -> com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT
+                            "system" -> com.example.smarty.server.llm.LlmMessage.Role.SYSTEM
+                            "tool" -> com.example.smarty.server.llm.LlmMessage.Role.TOOL
+                            else -> return@forEach
+                        }
+                    messages.add(com.example.smarty.server.llm.LlmMessage(role = r, content = content))
+                }
+            }
+            messages.add(
+                com.example.smarty.server.llm.LlmMessage(
+                    role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                    content = messageText,
+                ),
+            )
+
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    write(":ping\n\n")
+                    flush()
+                    try {
+                        kotlinx.coroutines.runBlocking {
+                            val job = kotlinx.coroutines.GlobalScope.launch {
+                                try {
+                                    streamProvider.stream(
+                                        messages = messages,
+                                        tools = convertTools(toolsOverride),
+                                        model = safeModelOverride,
+                                    ).collect { chunk ->
+                                        val now = System.currentTimeMillis()
+                                        val dFromStart = now - started
+                                        val dFromLast = now - lastChunkMs
+                                        if (firstChunkMs == null) firstChunkMs = dFromStart
+                                        chunkCount++
+                                        val safeText = JsonPrimitive(chunk.content ?: "").toString()
+                                        val safeReasoning = JsonPrimitive(chunk.reasoning ?: "").toString()
+                                        val safeRaw = JsonPrimitive((chunk.rawJson ?: "").take(500)).toString()
+                                        val safeEvent = JsonPrimitive(chunk.sseEvent ?: "").toString()
+                                        val safeFinish = JsonPrimitive(chunk.finishReason ?: "").toString()
+                                        val toolJson =
+                                            if (chunk.toolCall != null) {
+                                                buildJsonObject {
+                                                    put("id", JsonPrimitive(chunk.toolCall.id))
+                                                    put("functionName", JsonPrimitive(chunk.toolCall.functionName))
+                                                    put("arguments", JsonPrimitive(chunk.toolCall.arguments))
+                                                }.toString()
+                                            } else {
+                                                "null"
+                                            }
+                                        write(
+                                            "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast," +
+                                                "\"fromStart\":$dFromStart,\"content\":$safeText," +
+                                                "\"reasoning\":$safeReasoning,\"sseEvent\":$safeEvent," +
+                                                "\"finishReason\":$safeFinish,\"toolCall\":$toolJson," +
+                                                "\"rawJson\":$safeRaw}\n\n",
+                                        )
+                                        flush()
+                                        if (!chunk.content.isNullOrEmpty()) accumulated.append(chunk.content)
+                                        lastChunkMs = now
+                                    }
+                                } catch (e: Exception) {
+                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
+                                    flush()
+                                }
+                            }
+                            job.join()
+                        }
+                    } catch (e: Exception) {
+                        call.application.log.error("[/chat/query/stream] runBlocking CATCH class={} msg={}", e.javaClass.name, e.message)
+                    }
+                    val total = System.currentTimeMillis() - started
+                    val accRaw = accumulated.toString()
+                    val accClean = accRaw.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
+                    val safeAcc = JsonPrimitive(accClean).toString()
+                    val safeSession = JsonPrimitive(sessionId ?: "").toString()
+                    write(
+                        "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1}," +
+                            "\"totalMs\":$total,\"sessionId\":$safeSession," +
+                            "\"accumulated\":$safeAcc}\n\n",
+                    )
+                    flush()
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[/chat/query/stream] respondTextWriter OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf(
+                        "error" to "stream outer failure",
+                        "class" to e.javaClass.name,
+                        "message" to e.message,
+                    ),
                 )
             }
         }

@@ -1,119 +1,223 @@
-# AGENTS.md — Critical Project Info
+# AGENTS.md — Smarty / K1tt3n OpenCode Streaming Investigation
 
-## CRITICAL: Git Branch Deployment Mapping
+## TL;DR — The Mission
 
-**Local `feat/cli` → GitHub `origin/feat/cli` AND HF Space `space main`**
+- **Goal:** Make OpenCode CLI's chat completions actually **stream incrementally** to the
+  Ktor server, then through to the Android client. Right now the stream path is broken
+  or looks static — we are proving it with timing logs and fixing it.
+- **Stack:** Android app → Ktor server (HF Space public) → OpenCode CLI v1.16.0 daemon
+  (port 4096, internal) → free model.
+- **Working window:** 24 hours. We are inside a `commit → push → test → fix → repeat`
+  loop. Do not stop until the user explicitly says "stop" or the streaming is proven
+  incremental end-to-end.
 
-Every commit MUST be pushed to BOTH remotes:
-```bash
-git push origin feat/cli
-git push space HEAD:main
+## Repo Layout & Key Files
+
+| Path | What it does |
+|---|---|
+| `server/src/main/kotlin/com/example/smarty/server/Application.kt` | Ktor `Application.module()` — wires routes, CORS, plugins. |
+| `server/.../plugins/Security.kt` | `bearer("firebase")` no-op stub. `ADMIN_EMAIL` constant. |
+| `server/.../routes/AuthRoutes.kt` | `POST /auth/verify` always 200 with anonymous principal. |
+| `server/.../routes/ChatRoutes.kt` | `POST /chat/query` (real flow, heavy) + `POST /debug/llm/stream` + `GET /debug/daemon/event` (lightweight test endpoints). |
+| `server/.../llm/OpencodeLlmProvider.kt` | The streaming consumer — POSTs to daemon `/session/{id}/message`, reads SSE. Logs `[OpenCode.StreamDiag]` timing. |
+| `server/.../llm/LlmProviderFactory.kt` | Returns `OpencodeLlmProvider` with 30-min read timeout. |
+| `server/.../agent/ApplicationAttributes.kt` | Tool-permission enforcer singleton. |
+| `server/.../routes/TimelineBridgeRoutes.kt` | `/opencode/events` POST — receives events from the JS plugin. |
+| `.opencode/plugins/smarty-bridge.js` | OpenCode 1.16+ plugin (`event` hook) — POSTs every `Bus` event to `http://127.0.0.1:7860/opencode/events`. |
+| `entrypoint.sh` | Bash — exports env, copies plugin to 4 paths, launches Ktor FIRST (so MCP SSE is up), waits for `/health`, then launches `opencode serve --port 4096 --hostname 127.0.0.1 --log-level DEBUG`. |
+| `Dockerfile` | 3-stage — Gradle build → JRE + Node 20 + `opencode-ai@1.16.0` → runtime with HF user 1000. |
+| `scripts/test-space.sh` | Local helper — sources `.env` and curls Space endpoints. |
+| `AGENTS.md` | **This file** — agent working memory. |
+
+## Git Workflow (HARD RULES)
+
+**Local `feat/cli` → GitHub `origin/feat/cli` AND HF Space `space main`** — every commit
+goes to BOTH, no exceptions.
+
+```powershell
+git add <files>
+git commit -m "<message>"
+git push origin feat/cli    # GitHub
+git push space HEAD:main    # HF Space (Docker build triggered, ~5 min boot)
 ```
 
-- `origin` = `git@github.com-personal:moudook/App_dev.git`
-- `space` = `huggingface.co/spaces/K1tt3n/Friday-server`
-- The local `feat/cli` branch is the single source of truth
-- GitHub `feat/cli` = HF Space `main` — they must always be identical
-- Tag stable checkpoints with `git tag checkpoint-<short-sha>` BEFORE risky changes so we can revert
-
-## Server Architecture
-
-- Server runs on HuggingFace Spaces at `https://K1tt3n-Friday-server.hf.space`
-- **HF Space is now PUBLIC — all auth stripped from Ktor. See "Auth State" below.**
-- OpenCode CLI v1.16.0 runs on port 4096, Ktor on port 7860
-- Daemon started via `entrypoint.sh` with `opencode serve --port 4096 --hostname 127.0.0.1` (NO `--bridge-url`)
-- Daemon auto-detects plugin bridge at `localhost:7860/opencode/events`
-- Plugin: `.opencode/plugins/smarty-bridge.js` (uses OpenCode 1.16+ `event` hook, CJS export)
-- MCP tool calls are handled by the server's `/mcp/sse` endpoint (custom rules in `opencode.json`)
-
-## Auth State (STRIPPED — DO NOT RE-ADD WITHOUT EXPLICIT ASK)
-
-- **Firebase auth is DISABLED.** `bearer("firebase")` provider in `server/.../plugins/Security.kt` is a no-op that returns a stub `FirebaseUserPrincipal` for any `Authorization: Bearer <anything>` header. Real Firebase token verification is commented out.
-- **ADMIN_EMAIL whitelist is DISABLED.** The `forpblcusz@gmail.com` check in `Security.kt:224` and `AuthRoutes.kt:30` is commented out.
-- `POST /auth/verify` always returns 200 with a stub principal (deviceId, userId="anonymous", email=ADMIN_EMAIL).
-- All `authenticate("firebase") { ... }` route wrappers remain (for minimal diff) but always pass through.
-- **Reason:** the HF Space is public and we are in a tight live-test loop. Do not re-add auth without explicit user instruction.
+- Branch is single source of truth — do not commit to `main` or other branches.
+- Push to `space` triggers a Docker rebuild. **Wait ~5 minutes** before testing.
+- **Token in `.env` MUST stay there** — never paste into any tracked file (pre-push hook scans for `hf_…` tokens and rejects the commit). Use `<HF_TOKEN_REDACTED>` placeholder in docs.
+- AGENTS.md is a working memory file. It is intentionally committed (so it survives
+  session restarts). Keep it useful.
 
 ## The Recursion Test Loop (PRIMARY WORKFLOW)
 
-The user is in a tight commit-push-test loop. We are testing the OpenCode CLI's streaming behavior end-to-end. The protocol is:
+You are inside an autonomous test-fix-push loop. The protocol:
 
-1. **Make a change** (small, focused).
-2. **Build**: `.\gradlew.bat :server:compileKotlin` must pass (enforce a 5-minute maximum timeout to prevent terminal hangs).
-3. **Commit** with a descriptive message.
-4. **Push to BOTH remotes**: `git push origin feat/cli && git push space HEAD:main`.
-5. **Wait ~5 minutes** for the HF Space to rebuild and boot.
-6. **Verify the Space is live**: `curl -s -o /dev/null -w "%{http_code}" https://K1tt3n-Friday-server.hf.space/health` → expect `200`.
-7. **Stream the live logs** to see what the daemon/ktor is actually doing:
-   ```bash
-   curl -N -H "Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" \
-     "https://huggingface.co/api/spaces/K1tt3n/Friday-server/logs/run"
+1. **Read AGENTS.md first** (this file) — what's the current state, what was the last
+   known good / bad commit.
+2. **Read `git log --oneline -15` and `git status`** — see what's uncommitted / pushed.
+3. **Make a focused change** (≤ ~50 lines if possible).
+4. **Build & verify** locally:
+   ```powershell
+   # 5-min max timeout. Use 600 for tracing builds.
+   $p = Start-Process .\gradlew.bat -ArgumentList ":server:compileKotlin" -PassThru -NoNewWindow
+   $p | Wait-Process -Timeout 300 -ErrorAction SilentlyContinue
+   if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; throw "Timeout" }
    ```
-8. **Curl a real endpoint** to trigger an LLM call and see the stream:
-   ```bash
-   curl -N -X POST -H "Content-Type: application/json" \
-     -d '{"message":"say hi"}' \
-     https://K1tt3n-Friday-server.hf.space/api/v1/chat/stream
+5. **Commit with WHY** — message describes the symptom fixed and the diagnosis.
+6. **Push to BOTH remotes.**
+7. **Wait 5 minutes for Space to rebuild.** Check `https://K1tt3n-Friday-server.hf.space/health` (HTTP 200, `uptime` should be small).
+8. **Test the endpoint:**
+   ```powershell
+   # 60-90s max — first LLM call is slow because the daemon model cache is cold.
+   cmd.exe /c 'curl.exe -sN --max-time 60 -X POST -H "Content-Type: application/json" -H "Authorization: Bearer dummy" -d "{\"message\":\"Say hi in one sentence.\"}" "https://K1tt3n-Friday-server.hf.space/debug/llm/stream" > C:\Users\gbust\Smarty\debug-out.txt 2>&1'
+   Get-Content C:\Users\gbust\Smarty\debug-out.txt
    ```
-9. **Read the logs** — look for `[OpenCode.Request]`, `[OpenCode.SSE]`, `[DAEMON_RAW]`, `[OpenCode.Response]` lines. If missing, the stream is broken.
-10. **Fix and repeat** until streaming works end-to-end.
+9. **Read the output** — look at the `+ms` field (time since previous chunk). Real
+   streaming shows non-zero `+ms` values, sometimes hundreds of ms. Static/batched
+   responses show `+ms` ≈ 0 for every chunk or arrive as a single blob.
+10. **Inspect the response shape** — every chunk now has `content`, `sseEvent`,
+    `rawJson`. If `content` is empty but `rawJson` is non-empty, the parser is
+    dropping text. If both are empty, the daemon returned no data.
+11. **Fix and repeat.** Do not stop after a single fix.
 
-**This loop is the primary mode of work. Do not stop after a single fix. Keep iterating until the user says stop or all known issues are resolved.**
+## Endpoints Cheat Sheet
 
-- **8-hour budget** — user has set this as the working window. Use it.
-- **Internal recursion stop** — the user has set up a backup recursion. If internal recursion stops, restart the loop on the most-recent failed endpoint.
-- **Persistence & Self-Correction Loop**: This is a strict, unavoidable, and absolute rule:
-  > [!IMPORTANT]
-  > **UNAVOIDABLE PERSISTENCE & SELF-CORRECTION LOOP RULE:**
-  > If testing gets stuck or the issue persists on the server side (or the testing is not successful), the agent **MUST** follow this exact flow:
-  > 1. **Commit** the current changes.
-  > 2. **Modify the `README.md`** to append/prepend a trace update indicating progress: `"this is commit number X, and from now I am again testing it doing more testing multiple variant testing"` (where X is the sequential commit/attempt count).
-  > 3. **Resume the testing flow**, trying different variants.
-  > 4. **Continue this loop** until the feature is successfully implemented end-to-end. If even a single item/detail is missing, the loop **MUST** continue. This directive is absolute and cannot be skipped under any circumstances.
-- **Never break the commit-push-test cadence** even if a single push fails; tag the broken commit and try a different approach.
+| Method | Path | Auth | Purpose | Expected |
+|---|---|---|---|---|
+| GET | `/health` | none | Liveness check | `{"status":"ok",...}` |
+| POST | `/chat/query` | bearer (no-op) | Real Android flow | Streams events. Heavy. |
+| POST | `/auth/verify` | none | Always 200 stub | `{"userId":"anonymous",...}` |
+| POST | `/debug/llm/stream` | none | Direct OpenCode stream test | SSE with `{"chunk":N,"+ms":...,"content":"...","rawJson":"..."}` |
+| GET | `/debug/daemon/event` | none | Daemon `/event` SSE passthrough | SSE with `{"daemonChunk":N,"line":"..."}` |
+| GET | `/chat/events/test` | none | Test event JSON | Returns array of stub events |
+| POST | `/opencode/events` | none | Plugin → Ktor event bridge | Internal, 200 OK |
 
-## Local Testing Setup
+**Always include** `-H "Authorization: Bearer dummy"` even on no-auth routes — keeps
+the no-op provider in the principal context.
 
-- Local computer is a **Windows 10/11** laptop. The server is on HF Space.
-- HF token is in `C:\Users\gbust\Smarty\.env` as `HUGGINGFACE_ACCESS_TOKEN=<token>`.
-  - The token is also embedded in the `space` git remote URL: `https://User:<HF_TOKEN_REDACTED>@huggingface.co/spaces/K1tt3n/Friday-server`. The token there has push access; for read-only log access, prefer a separate read-only token. The actual token is in the git remote URL on the local machine only — DO NOT paste it into any tracked file (the push hook will reject the commit).
+## Streaming Verification (THE KEY DIAGNOSTIC)
+
+The OpenCode daemon returns SSE in two shapes:
+- **Old (pre-1.16):** `event: message.part.delta\ndata: {...}` on each line
+- **New (1.16+):** `data: {"type":"message.part.updated","properties":{"part":{...},"delta":"..."}}`
+
+Both must be handled. The provider's `processSseEvent` unwraps `{type, properties}`.
+
+**Proving streaming (must do after every test):**
+- Look at `+ms` field in `/debug/llm/stream` output — should be NON-ZERO across chunks
+  (a few ms to several hundred ms). All-zero means the chunks were batched.
+- Look at `fromStart` field — first chunk should arrive 1-10s after request, not 0ms
+  (cold daemon) and not >60s (timeout).
+- Look at `chunks` and `accumulated` in the `done` event — `accumulated` should be the
+  full text.
+
+**If you see:** `[OpenCode.Request]` then long pause then a single `[OpenCode.Response]`
+with all content → **NOT streaming**, buffered. Fix the consumer.
+
+**If you see:** `[OpenCode.Request]` then NO `[OpenCode.Response]` at all → daemon call
+hung. Check daemon logs / restart.
+
+## Failure Modes We Have Hit
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| HF returns HTML 500 page | Ktor threw before writing headers, or upstream call hit HF 5-min gateway cap | Check Ktor logs via `/tmp/ktor-server.log` (need container access) or add try-catch in route |
+| `/debug/llm/stream` returns "An internal error occurred" | Bug in the route code (e.g. `runBlocking` issue, wrong import, Ktor version mismatch) | Add try-catch in route, log error to a file the agent can read |
+| `OpenCode.Response` logged with Content-Type=application/json | Daemon returned the whole response as JSON, not SSE — it's NOT streaming | Add the "static JSON" branch to handle gracefully (already added); investigate why SSE didn't form |
+| All chunks have `content=""` but `rawJson` non-empty | `parseCanonicalResponse` not matching the daemon's event shape | Look at rawJson, add a new branch in `parseCanonicalResponse` for the shape |
+| `uptime` is 0:00:00 right after a push | Space just rebooted, MCP not registered yet | Wait 1-2 minutes more |
+| Push rejected with "Hugging Face secrets" | AGENTS.md or other file contains `hf_…` token | Replace with `<HF_TOKEN_REDACTED>` or use env var ref |
+| Empty `+ms` for all chunks | Ktor buffered the stream — `respondTextWriter` may be flushing in big batches | Add explicit `flush()` after each `write()` (done) |
+
+## Auth State (STRIPPED)
+
+- HF Space is public. All Firebase + ADMIN_EMAIL gating is a no-op.
+- `bearer("firebase")` always returns `FirebaseUserPrincipal(userId="anonymous", email=ADMIN_EMAIL)`.
+- Don't re-add auth without explicit user instruction.
+- See `server/.../plugins/Security.kt` and `server/.../routes/AuthRoutes.kt` for the no-op implementations.
+
+## OpenCode Daemon Configuration
+
+```
+opencode serve --port 4096 --hostname 127.0.0.1 --log-level DEBUG
+```
+
+- NO `--bridge-url` — plugin auto-detects bridge at `http://127.0.0.1:7860/opencode/events`.
+- Plugin copied to 4 locations by `entrypoint.sh` (XDG_CONFIG and HOME, both `plugin/` and `plugins/`).
+- MCP tools at `http://127.0.0.1:7860/mcp/sse` — daemon calls this for tool execution.
+- Ktor launches FIRST (so MCP SSE is up), daemon SECOND.
+
+## Local Testing Setup (Windows)
+
 - PowerShell 5.1 — no `head`/`tail`; use `Get-Content -Head N` / `Select-Object -Last N`.
-- `scripts/test-space.sh` (to be created) sources `.env` and curls the Space.
-- **Build Timeout Wrapper (5-minute max)**: To prevent builds from hanging the terminal, run Gradle tasks with a timeout check. Example template:
-  ```powershell
-  $p = Start-Process .\gradlew.bat -ArgumentList ":server:compileKotlin" -PassThru -NoNewWindow
-  $p | Wait-Process -Timeout 300 -ErrorAction SilentlyContinue
-  if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; throw "Build timed out!" }
-  ```
+- HF token in `C:\Users\gbust\Smarty\.env` as `HUGGINGFACE_ACCESS_TOKEN=hf_xxx`.
+  - The token is also embedded in the `space` git remote URL (with push access).
+  - For log-streaming specifically, the user's read-only token is fine.
+- `scripts/test-space.sh {logs|health|chat|events|all}` — sources `.env` and curls.
+- All commands MUST have a timeout (5 min default, 10 min for tracing).
 
-## Streaming Verification (KEY DIAGNOSTIC)
+**The HF log streaming endpoint (`/logs/run`) currently returns
+`{"error":"Invalid username or password."}` with the read-only token** — known issue.
+The container's actual logs are inside the container at `/tmp/ktor-server.log`. We
+have no direct read access from outside. Workaround: trigger behavior via
+`/debug/llm/stream` and read the diagnostic info it returns.
 
-The main thing we are debugging: **is OpenCode CLI actually streaming chat completions, or returning a single static block?**
+## Hard Rules (Do Not Violate)
 
-To verify, the `OpencodeLlmProvider` MUST log:
-- **Request start timestamp** when the POST is sent.
-- **First chunk arrival** with elapsed milliseconds since request start (proves the daemon didn't buffer the whole response).
-- **Per-chunk elapsed** since the previous chunk (proves incremental delivery, not batched).
-- **Total response time** and **total chunk count** at end of stream.
+1. **No stubbing or TODOs** — all code must be production-ready.
+2. **No bypassing the commit-push-test cadence** — even if a push fails, tag and pivot.
+3. **Read the actual error** before guessing the cause.
+4. **Test in vacuum first** for new code paths (small scratch file → integrate).
+5. **Don't ask the user for clarification** — make a calculated assumption or search
+   the web. Absolute autonomy.
+6. **Never paste HF token into a tracked file.**
+7. **Don't re-add auth** without explicit user instruction.
+8. **Work the full 24 hours** — never declare success unless user confirms.
+9. **Goal persists across compaction** — if you lose context, come back to this file
+   and the `git log` to recover.
 
-If you see `[OpenCode.Request]` followed by a long pause then a single `[OpenCode.Response]` with all content at once — that is NOT streaming, it is buffered or static. The fix must enforce incremental delivery.
+## Decision Log (Last 15 Commits)
 
-## Testing Checklist (Before Every Push)
+```
+a2a3a8ee  debug: include rawJson + sseEvent in /debug/llm/stream chunks
+a742160f  feat: add debug endpoints /debug/llm/stream and /debug/daemon/event
+1fbb378b  test-script: support typo'd HUGGINGFACE_ACESS_TOKEN for compat
+a4cdb3a2  feat: strip all auth + add streaming timing logs
+5ba39b98  fix(bridge): migrate to OpenCode 1.16+ new event-hook plugin API
+810036be  issue is ,,,,......'''({    })
+541b2dd0  might test these two also
+322f528b  Its getting tiring
+69e37b92  fix: declare plugin in opencode.json and avoid daemon stdout buffering
+```
 
-- [ ] Server compiles: `.\gradlew.bat :server:compileKotlin` (with 5-minute maximum timeout wrapper)
-- [ ] App still compiles: `.\gradlew.bat :app:compileDebugKotlin` (with 5-minute maximum timeout wrapper)
-- [ ] Commit message describes WHAT and WHY
-- [ ] Push to BOTH `origin/feat/cli` AND `space/main`
-- [ ] Wait 5 min for Space rebuild
-- [ ] `/health` returns 200
-- [ ] Streaming logs show `[OpenCode.SSE]` chunks with timing deltas
+## Current Investigation State (as of last test)
 
-## Event Pipeline (for context)
+- **Last good:** Build `a2a3a8ee` deployed, `/debug/llm/stream` returned 2 chunks in 3.5s with `accumulated=""` (chunks had data but `content` was empty). Then HF returned a 500 HTML page on a second call.
+- **Last bad:** Build `a742160f` was the working version that returned the 2-chunk data.
+- **Open hypothesis:** `parseCanonicalResponse` is missing a branch for the daemon's actual event shape. Need to see the `rawJson` to confirm.
+- **Open hypothesis:** The 500 HTML page on retry suggests the daemon is intermittently timing out, OR the response is hitting HF's gateway-level timeout (>5 min).
+- **Next steps to try:** Add explicit `cacheControl(CacheControl.NoStore(null))` to `/debug/llm/stream`, add a try-catch in the route that writes the error to the SSE response, try a smaller test message, retry with a fresh Space reboot.
 
-1. Daemon emits `message.part.updated` / `message.part.delta` events via `Bus.subscribeAll`
-2. Plugin's `event` hook receives every event, POSTs to `http://127.0.0.1:7860/opencode/events`
-3. `TimelineBridgeRoutes.translatePluginEvent()` flattens `{type, properties}` envelope, maps to internal events
-4. Events flow via `AgentRunManager.emitEvent()` → `sessionEventFlows` → WebSocket → Android
-5. Android `ChatFeatureManager` processes events in `processRemoteQuery()` with `hasReceivedPluginEvents` guard for deduplication
+## Appendix: Useful One-Liners
 
-There is ALSO a second ingestion path: `OpencodeLlmProvider.stream()` POSTs directly to `/session/{id}/message` and reads SSE. This bypasses the plugin and feeds the agent loop. Both paths must produce streaming output.
+```powershell
+# Health check
+cmd.exe /c 'curl.exe -s --max-time 10 "https://K1tt3n-Friday-server.hf.space/health"'
+
+# Quick stream test (60s)
+cmd.exe /c 'curl.exe -sN --max-time 60 -X POST -H "Content-Type: application/json" -H "Authorization: Bearer dummy" -d "{\"message\":\"hi\"}" "https://K1tt3n-Friday-server.hf.space/debug/llm/stream"'
+
+# Tail the last 100 lines of a log file
+Get-Content C:\Users\gbust\Smarty\debug-out.txt -Tail 100
+
+# Kill any stuck curl
+Get-Process curl -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# Build server (5-min max)
+$p = Start-Process .\gradlew.bat -ArgumentList ":server:compileKotlin" -PassThru -NoNewWindow
+$p | Wait-Process -Timeout 300 -ErrorAction SilentlyContinue
+if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; throw "Timeout" }
+
+# Push to both remotes
+git push origin feat/cli 2>&1 | Select-Object -Last 3
+git push space HEAD:main 2>&1 | Select-Object -Last 3
+```
