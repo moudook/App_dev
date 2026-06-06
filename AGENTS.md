@@ -85,6 +85,7 @@ You are inside an autonomous test-fix-push loop. The protocol:
 |---|---|---|---|---|
 | GET | `/health` | none | Liveness check | `{"status":"ok",...}` |
 | POST | `/chat/query` | bearer (no-op) | Real Android flow | Streams events. Heavy. |
+| POST | `/chat/query/stream` | none | LLM-only SSE stream for Android | `data: {chunk,+ms,content,reasoning,toolCall,rawJson}\n\n` + `event: done`. Body: `{query|message, model?, tools?, history?, sessionId?}`. |
 | POST | `/auth/verify` | none | Always 200 stub | `{"userId":"anonymous",...}` |
 | POST | `/debug/llm/stream` | none | Direct OpenCode stream test | SSE with `{"chunk":N,"+ms":...,"content":"...","rawJson":"..."}` |
 | GET | `/debug/daemon/event` | none | Daemon `/event` SSE passthrough | SSE with `{"daemonChunk":N,"line":"..."}` |
