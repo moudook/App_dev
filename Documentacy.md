@@ -778,4 +778,206 @@ calling the available tools.
 - `C:\Users\gbust\Smarty\test-multistep-m3.txt` — **m3 multi-step SUCCESS** (3 iters)
 - `C:\Users\gbust\Smarty\test-multistep-iter{1,2,3}.txt` — raw SSE for each iteration
 - `C:\Users\gbust\Smarty\multistep_test.py` — harness script
+- `C:\Users\gbust\Smarty\test-multistep-mimo.txt` — **mimo multi-step SUCCESS** (3 iters)
+- `C:\Users\gbust\Smarty\test-tool-error-real.txt` — deepseek tool error propagation (5+0 → error → 5+3 → 8)
+- `C:\Users\gbust\Smarty\test-tool-error-m3.txt` — m3 tool error: refused 5+0, only called 5+3
+- `C:\Users\gbust\Smarty\test-tool-error-mimo2.txt` — mimo tool error: eventually handled
+- `C:\Users\gbust\Smarty\test-tool-error-ds.txt` — deepseek fail-tool stubbornness (called 5+3 8 times)
+
+---
+
+## Part 4: Side-by-side tool call streaming comparison
+
+Captured from `/chat/query/stream` raw SSE (pre-merge fix) and post-merge
+output. All three providers tested with the same harness, same tools
+(add, multiply, fibonacci, fail).
+
+| Aspect | `deepseek-v4-flash-free` | `minimax-m3-free` | `mimo-v2.5-free` |
+|---|---|---|---|
+| Streaming style | char-by-char | atomic (1 call) | char-by-char |
+| Frame count for one tool call | 8-30 frames | 2 frames (with merge fix) | 6-15 frames |
+| Tool call id format | `call_00_<base36>` | `call_function_<base36>_<n>` | `call_function_<base36>_<n>` |
+| `id` on first frame | yes | yes (with `id`+`name`+`arguments` in 1 frame) | yes |
+| `id` on continuation frames | empty | empty (only `}` arrives) | empty |
+| `function.name` on first frame | absent (only in `delta`) | present | present |
+| `finish_reason` | `tool_calls` on final | `tool_calls` on final | `tool_calls` on final |
+| `native_finish_reason` | absent | absent | present |
+| `provider` field | absent | absent | `"Xiaomi"` |
+| `cost` field on final empty-chunk | absent | `"0"` | `"0"` |
+| `service_tier` | absent | absent | `null` |
+| Schema enforcement at LLM | yes (passed only valid types) | yes (avoided bad calls) | **no** (passed `b: "hello"`) |
+| Error recovery | clean, recovers | gets stuck, gives up | handles after delay |
+| Total tokens for 3-iter chain | ~1500-2000 | ~2000-2500 | ~1500-2000 |
+
+### Example raw chunks side by side
+
+**deepseek (one tool call, 4 frames):**
+```json
+// frame 1
+{"choices":[{"index":0,"delta":{"role":"assistant","content":"","tool_calls":[{"index":0,"id":"call_00_abc123","type":"function","function":{"name":"fibonacci","arguments":""}}]}}]}
+// frame 2
+{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\""}}]}}]}
+// frame 3
+{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"n\":"}}]}}]}
+// frame N
+{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+```
+
+**m3 (one tool call, 2 frames, pre-merge):**
+```json
+// frame 1
+{"choices":[{"index":0,"delta":{"role":"assistant","name":"MiniMax AI","tool_calls":[{"id":"call_function_xxx_1","type":"function","function":{"name":"add","arguments":"{\"a\": 2, \"b\": 3"}}]}}]}
+// frame 2
+{"choices":[{"index":0,"delta":{"role":"assistant","name":"MiniMax AI","tool_calls":[{"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}
+```
+
+**mimo (one tool call, 8-15 frames):**
+```json
+// frame 1
+{"choices":[{"index":0,"delta":{"role":"assistant","content":"","tool_calls":[{"index":0,"id":"call_function_xxx_1","type":"function","function":{"name":"fibonacci","arguments":""}}]}}]}
+// frame 2..N
+{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\""}}]}}]}
+// frame N+1
+{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls","native_finish_reason":"tool_calls"}]}
+// final empty chunk
+{"choices":[],"provider":"Xiaomi","cost":"0","service_tier":null}
+```
+
+### Why m3 needs the merge fix
+
+m3 emits the tool_call as ONE OpenAI-spec object, but the SSE transport
+splits it into 2 frames:
+- **Frame 1**: `{id, type, function: {name, arguments: "{\"a\":2,\"b\":3"}`
+- **Frame 2**: `{function: {arguments: "}"}, finish_reason: "tool_calls"}`
+
+This is non-standard. Other providers either keep it atomic (deepseek's
+delta.tool_calls only sends the id+name+"" once, then streams args)
+or always include the full id+name on every frame. m3 omits the
+`id`+`name` on the trailing frame, which broke our parser.
+
+The merge fix in `OpencodeLlmProvider.kt` (commit `04fb2845`) tracks
+`activeToolCall` and appends `arguments` when the next frame's id+name
+are empty.
+
+---
+
+## Part 5: Tool error propagation
+
+When a tool returns an error (e.g., divide by zero, network failure,
+invalid input), the LLM can either:
+- (a) Read the error and recover (try a different call)
+- (b) Get stuck calling the same failing tool
+- (c) Avoid the call entirely if the system prompt hints at it
+
+We tested with a mock `add` tool that returns
+`{"error":"DivisionByZero","message":"b cannot be zero"}` when `b=0`.
+
+### Test: "Use add to compute 5+0, then 5+3. Report both."
+
+| Model | iter 1 | iter 2 | iter 3 | Verdict |
+|---|---|---|---|---|
+| deepseek | calls `add(5,0)` → error | calls `add(5,3)` → 8 | reports both cleanly | **PASS** (clean recovery) |
+| m3 | calls `add(5,3)` (skips 5+0) | calls `add(5,3)` | ... loops 6 iters, then gives up | **WEAK** (filter pattern) |
+| mimo | calls `add(5,3)` (skips 5+0) | calls `add(5,0)` → error | reports both | **PASS** (delay then recovery) |
+
+### Test: type-error recovery (mimo)
+
+mimo passed `b: "hello"` (a string) when the schema says `integer`.
+The harness's add() function caught it and returned
+`{"error":"TypeError","message":"add requires numbers, got int and str"}`.
+The LLM did NOT recover from this — it kept trying the same wrong
+type. This is a schema-enforcement gap: the LLM is supposed to validate
+types against the tool definition but mimo doesn't.
+
+### Key insight: where schema enforcement happens
+
+| Layer | deepseek | m3 | mimo |
+|---|---|---|---|
+| LLM respects `parameters.properties.<x>.type` | yes | yes | **no** |
+| LLM respects `parameters.required` | yes | yes | yes |
+| Harness / server validation needed? | belt-and-suspenders | belt-and-suspenders | **required** |
+
+For production use, **always validate arguments server-side** before
+calling the tool — the LLM's schema enforcement is unreliable, especially
+with mimo.
+
+### Implication for /chat/query/agent/stream
+
+ServerAgent should add an `ArgumentValidator` that runs before
+`ToolExecutor.execute()` to catch type errors. Without it, a single
+bad LLM call could crash the tool or produce wrong results.
+
+---
+
+## Part 6: Error catalog
+
+Distinct error strings observed during testing, grouped by source.
+
+### Ktor / Server errors
+
+| Error | Where | Cause | Retry behavior |
+|---|---|---|---|
+| `"An internal error occurred."` (HTTP 500) | `/chat/query` | unhandled exception in route | does not retry, returns 500 |
+| `MissingKotlinParameterException` | `Json.parseToJsonElement` | malformed JSON in body | returns 400 |
+| `Unnecessary non-null assertion (!!) on a non-null receiver` (compiler warning) | ChatRoutes.kt | `!!` on `Throwable` | code smell, not runtime error |
+
+### LLM provider errors (from Zen free tier)
+
+| Error | Provider | HTTP code | Cause |
+|---|---|---|---|
+| `Rate limit exceeded. Please try again later.` | All | 429 | shared egress IP rate-limited |
+| `Free promotion has ended for ...` | qwen3.6-plus-free | 402 | model is now paid |
+| `ModelError: ...` | various | 400 | model-level rejection |
+| `Invalid API key.` (zen) | daemon with `sk-...` | 401 | wrong apiKey value |
+| `Missing API key.` (zen) | daemon with `public` | 401 | CLI doesn't send Authorization header |
+| `Thinking mode does not support this tool_choice` | deepseek | 400 | `tool_choice: "required"` with thinking |
+| `invalid params, tool result's tool id() not found (2013)` | m3 | 400 | tool_call_id not in LLM's internal state |
+| `messages[3]: missing field 'tool_call_id'` | deepseek | 400 | tool message without tool_call_id field |
+
+### OpenCode CLI daemon errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `{"error":{"type":"FreeUsageLimitError","message":"Rate limit exceeded. Please try again later."}}` | shared HF egress IP | wait 5-20 min, no code fix |
+| `UnknownError` (raw) | daemon can't reach Zen | check `OPENCODE_USE_DIRECT_ZEN=true` and daemon restart |
+| `connection refused on port 4096` | daemon not started | check `entrypoint.sh`, MCP SSE must be up first |
+
+### HF Space infrastructure errors
+
+| Error | Cause | Behavior |
+|---|---|---|
+| HTML 500 page (3044 bytes) | Ktor threw before writing headers | retry, or add `try-catch` in route |
+| 5-min gateway cap | long-running stream exceeds 5 min | add `:ping\n\n` keepalive (done) |
+| `uptime: 00:00:00` right after push | Space just rebooted, MCP not ready | wait 1-2 minutes more |
+| `{"error":"Invalid username or password."}` on `/logs/run` | read-only HF token | can't fix, use stdout capture |
+
+### SSE wire format errors
+
+| Error | Cause | Mitigation |
+|---|---|---|
+| `toolCall: {id:"", functionName:"", arguments:"}"}` | m3 atomic split into 2 frames | merge in parser (commit `04fb2845`) |
+| `accumulated=""` for entire stream | reasoning in `<think>`, no visible content | strip `<think>` in accumulator (commit `1eec8526`) |
+| `finishReason: ""` for first chunks | OpenAI only sets on the last | only check non-empty `finishReason` |
+| `Malformed JSON in tool result` | harness returned non-JSON for error | always return JSON for errors (fixed in harness) |
+
+### Parsing errors observed in rawJson
+
+| Malformed input | Behavior | Workaround |
+|---|---|---|
+| `{"choices":[], "cost":"0"}` (final summary chunk) | no delta | emit empty `LlmChunk` with rawJson |
+| `{"id":"...","choices":[],"created":...,"model":"...","usage":{...}}` | usage-only chunk | parse `usage` into LlmChunk.usage |
+| `data: [DONE]` (SSE end marker) | break loop | handled |
+| `event: message.part.updated\ndata: {properties: {delta: "..."}}` (old daemon format) | envelope shape | unwrap in TimelineBridgeRoutes.kt |
+
+### Why a central error catalog matters
+
+When `/chat/query/agent/stream` returns an error, the SSE client
+(Android) currently shows a generic message. With this catalog, the
+client can map `error.type` to a user-friendly message:
+- `FreeUsageLimitError` → "Free tier is busy, try again in a few minutes"
+- `tool_id_not_found` → "Tool call mismatch, please retry"
+- `Rate limit exceeded` → "Too many requests, slow down"
+
+Implementation: add `error_code` and `error_category` to the SSE
+error event shape in the next iteration.
 
