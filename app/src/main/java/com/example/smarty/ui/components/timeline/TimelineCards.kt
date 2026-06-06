@@ -102,7 +102,6 @@ fun ToolCallCard(
                     Text(
                         text =
                             when {
-                                node.source == "mcp" -> "MCP · $displayLabel"
                                 node.toolName.lowercase().contains("search") -> "Looking that up"
                                 node.toolName.lowercase().contains("image") -> "Painting something"
                                 else -> displayLabel

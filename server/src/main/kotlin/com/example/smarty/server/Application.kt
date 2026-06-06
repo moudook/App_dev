@@ -398,51 +398,7 @@ fun Application.module() {
         configurePermissionRoutes()
         log.info("PermissionRoutes configured")
 
-        val mcpServer =
-            com.example.smarty.server.mcp.McpServer(
-                vectorStore = PostgresVectorStore(),
-                noteRepository = noteRepo,
-                timerRepository = TimerRepository(ds),
-                calendarRepository = CalendarRepository(ds, calendarEventNotesRepo),
-                noteService = noteService,
-                toolPermissionEnforcer = toolPermissionEnforcer,
-            )
-        // Wire McpServer approval events into the active WebSocket sessions so Android
-        // receives ApprovalRequested/Granted/Denied in real time.
-        mcpServer.eventEmitter = { event ->
-            log.info("[McpServer] Routing approval event: ${event::class.simpleName}")
-            val userId =
-                com.example.smarty.server.agent.ActiveUserRegistry
-                    .getMostRecentActiveUser()
-            if (userId != null) {
-                // ActiveEventBridge delivers to SSE clients and maintains a pending
-                // queue for late-connecting SSE subscribers.
-                com.example.smarty.server.agent.ActiveEventBridge
-                    .emit(userId, event)
-                // Per-session flows deliver to WebSocket emitJob subscribers via a
-                // single send() path (eliminating the dual-coroutine WS send that
-                // caused Netty channel corruption on HF Spaces free tier).
-                val sessions = try {
-                    com.example.smarty.server.agent.ActiveSessionManager.getAllSessions()
-                } catch (e: Exception) {
-                    emptyList()
-                }
-                for (session in sessions) {
-                    if (session.userId == userId) {
-                        try {
-                            com.example.smarty.server.agent.AgentRunManager
-                                .emitEvent(session.sessionId, event)
-                        } catch (e: Exception) {
-                            log.warn("[McpServer] Failed to emit to session flow: ${session.sessionId}")
-                        }
-                    }
-                }
-            }
-        }
-        routing {
-            mcpServer.configureRouting(this)
-        }
-        log.info("McpServer configured")
+
 
         // Image serving endpoint (Firebase-authenticated)
         routing {
@@ -527,19 +483,7 @@ fun Application.module() {
         configureModelRoutes()
         configureChatRoutes(null)
 
-        // Register MCP even without DB so opencode CLI can connect
-        val mcpServer =
-            com.example.smarty.server.mcp.McpServer(
-                vectorStore = PostgresVectorStore(),
-                noteRepository = null,
-                timerRepository = null,
-                calendarRepository = null,
-                noteService = null,
-            )
-        routing {
-            mcpServer.configureRouting(this)
-        }
-        log.info("McpServer configured (no-DB mode)")
+
     }
 
     // Configure Monitoring

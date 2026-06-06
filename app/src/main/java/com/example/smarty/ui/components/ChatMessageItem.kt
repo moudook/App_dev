@@ -525,24 +525,7 @@ private fun MessageContent(
                 )
 
 
-                // Tool denied banners
-                message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.ToolDenied>().forEach { denial ->
-                    com.example.smarty.features.chat.ui.components.ToolDeniedBanner(denial = denial)
-                }
 
-                // Compaction indicators
-                val compactions = message.agentEvents
-                    .filterIsInstance<com.example.smarty.protocol.AgentEvent.CompactionStart>()
-                    .map { start ->
-                        start to message.agentEvents
-                            .filterIsInstance<com.example.smarty.protocol.AgentEvent.CompactionComplete>()
-                            .firstOrNull()
-                    }
-                compactions.forEach { (start, complete) ->
-                    com.example.smarty.features.chat.ui.components.CompactionIndicator(
-                        start = start, complete = complete,
-                    )
-                }
             } else {
                 if (message.content.isNotEmpty()) {
                     val rawContent = if (isUser) message.content else cleanContent(message.content)
