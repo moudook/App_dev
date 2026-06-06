@@ -470,6 +470,7 @@ class OpencodeLlmProvider(
                 var currentData = StringBuilder()
                 var directChunkCount = 0
                 var firstChunkLogged = false
+                var activeToolCall: com.example.smarty.server.llm.LlmToolCall? = null
                 while (!channel.isClosedForRead) {
                     val line = channel.readLine() ?: break
                     if (line.isBlank()) {
@@ -477,6 +478,7 @@ class OpencodeLlmProvider(
                             val data = currentData.toString().trim()
                             currentData.setLength(0)
                             if (data == "[DONE]") {
+                                activeToolCall = null
                                 emit(LlmChunk(content = null, finishReason = "stop", sseEvent = "done"))
                                 break
                             }
@@ -507,8 +509,13 @@ class OpencodeLlmProvider(
 
                                 // Tool call delta — every provider uses the same shape but m3
                                 // sends it atomically, deepseek/mimo stream the arguments.
+                                // m3 SPLITS the atomic call across 2 chunks (JSON body in chunk N,
+                                // closing `}` + finish_reason in chunk N+1). Without merging the
+                                // client sees an empty toolCall overwrite. Merge by `index`:
+                                //   - same index + new id present -> new tool call, replace
+                                //   - same index + empty id/name  -> continuation, append args
                                 val toolCallDelta = delta?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
-                                val toolCall =
+                                val rawToolCall =
                                     if (toolCallDelta != null) {
                                         val fn = toolCallDelta["function"]?.jsonObject
                                         val args =
@@ -523,6 +530,27 @@ class OpencodeLlmProvider(
                                     } else {
                                         null
                                     }
+                                val toolCall =
+                                    if (rawToolCall != null) {
+                                        val prev = activeToolCall
+                                        val merged =
+                                            if (prev != null && rawToolCall.id.isBlank() && rawToolCall.functionName.isBlank()) {
+                                                com.example.smarty.server.llm.LlmToolCall(
+                                                    id = prev.id,
+                                                    functionName = prev.functionName,
+                                                    arguments = prev.arguments + rawToolCall.arguments,
+                                                )
+                                            } else {
+                                                rawToolCall
+                                            }
+                                        activeToolCall = merged
+                                        merged
+                                    } else {
+                                        null
+                                    }
+                                if (finishReason != null) {
+                                    activeToolCall = null
+                                }
 
                                 if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty() || toolCall != null) {
                                     if (!firstChunkLogged) {
@@ -557,6 +585,7 @@ class OpencodeLlmProvider(
                         if (json != null) {
                             val choice = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject
                             val delta = choice?.get("delta")?.jsonObject
+                            var activeToolCall2: com.example.smarty.server.llm.LlmToolCall? = activeToolCall
                             val finishReason = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull
                             val reasoning = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
                                 ?: delta?.get("reasoning")?.jsonPrimitive?.contentOrNull
@@ -568,7 +597,7 @@ class OpencodeLlmProvider(
                                     rawContent
                                 }
                             val toolCallDelta = delta?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
-                            val toolCall =
+                            val rawToolCall =
                                 if (toolCallDelta != null) {
                                     val fn = toolCallDelta["function"]?.jsonObject
                                     com.example.smarty.server.llm.LlmToolCall(
@@ -579,6 +608,28 @@ class OpencodeLlmProvider(
                                 } else {
                                     null
                                 }
+                            val toolCall =
+                                if (rawToolCall != null) {
+                                    val prev = activeToolCall2
+                                    val merged =
+                                        if (prev != null && rawToolCall.id.isBlank() && rawToolCall.functionName.isBlank()) {
+                                            com.example.smarty.server.llm.LlmToolCall(
+                                                id = prev.id,
+                                                functionName = prev.functionName,
+                                                arguments = prev.arguments + rawToolCall.arguments,
+                                            )
+                                        } else {
+                                            rawToolCall
+                                        }
+                                    activeToolCall2 = merged
+                                    activeToolCall = merged
+                                    merged
+                                } else {
+                                    null
+                                }
+                            if (finishReason != null) {
+                                activeToolCall = null
+                            }
                             if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty() || toolCall != null) {
                                 directChunkCount++
                                 val emitText = content ?: reasoning ?: ""
