@@ -396,21 +396,65 @@ class OpencodeLlmProvider(
                             val json = runCatching { Json.parseToJsonElement(data) }.getOrNull() as? JsonObject
                             if (json != null) {
                                 val nowMs = System.currentTimeMillis()
-                                val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
-                                val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
-                                val reasoning = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
-                                if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty()) {
+                                val choice = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                                val delta = choice?.get("delta")?.jsonObject
+                                val finishReason = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull
+
+                                // Reasoning field discovery — three shapes from three providers.
+                                //   deepseek-v4-flash: delta.reasoning_content  (string)
+                                //   mimo-v2.5-free:    delta.reasoning         (string, paired with delta.reasoning_details[])
+                                //   minimax-m3-free:   embedded in delta.content as <think>...\n</think>
+                                val reasoningContent = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
+                                val reasoningField = delta?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                                val reasoning = reasoningContent ?: reasoningField
+
+                                val rawContent = delta?.get("content")?.jsonPrimitive?.contentOrNull
+                                // For m3: strip the <think>...\n</think> block from content
+                                val content =
+                                    if (rawContent != null && rawContent.contains("<think>")) {
+                                        rawContent.replace(Regex("<think>[\\s\\S]*?\\n</think>\\n?"), "")
+                                    } else {
+                                        rawContent
+                                    }
+
+                                // Tool call delta — every provider uses the same shape but m3
+                                // sends it atomically, deepseek/mimo stream the arguments.
+                                val toolCallDelta = delta?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
+                                val toolCall =
+                                    if (toolCallDelta != null) {
+                                        val fn = toolCallDelta["function"]?.jsonObject
+                                        val args =
+                                            fn?.get("arguments")?.jsonPrimitive?.contentOrNull
+                                                ?: fn?.get("arguments")?.toString()
+                                                ?: ""
+                                        com.example.smarty.server.llm.LlmToolCall(
+                                            id = toolCallDelta["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                                            functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
+                                            arguments = args,
+                                        )
+                                    } else {
+                                        null
+                                    }
+
+                                if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty() || toolCall != null) {
                                     if (!firstChunkLogged) {
                                         logger.info("[OpenCode.DirectZen.StreamDiag][inference=$inferenceId] FIRST_SSE_CHUNK after ${nowMs - requestStartMs}ms")
                                         firstChunkLogged = true
                                     }
                                     directChunkCount++
-                                    // Emit the user-facing content if present; otherwise emit the
-                                    // reasoning chunk so the caller can see tokens streaming in.
                                     val emitText = content ?: reasoning ?: ""
-                                    emit(LlmChunk(content = emitText, rawJson = data, sseEvent = "message"))
+                                    emit(
+                                        LlmChunk(
+                                            content = emitText,
+                                            reasoning = reasoning,
+                                            toolCall = toolCall,
+                                            finishReason = finishReason,
+                                            rawJson = data,
+                                            sseEvent = "message",
+                                        ),
+                                    )
                                 } else {
-                                    emit(LlmChunk(content = null, rawJson = data, sseEvent = "message"))
+                                    emit(LlmChunk(content = null, rawJson = data, sseEvent = "message", finishReason = finishReason))
                                 }
                             }
                         }
@@ -423,15 +467,45 @@ class OpencodeLlmProvider(
                     } else if (line.startsWith("{")) {
                         val json = runCatching { Json.parseToJsonElement(line) }.getOrNull() as? JsonObject
                         if (json != null) {
-                            val delta = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
-                            val content = delta?.get("content")?.jsonPrimitive?.contentOrNull
+                            val choice = json["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                            val delta = choice?.get("delta")?.jsonObject
+                            val finishReason = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull
                             val reasoning = delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
-                            if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty()) {
+                                ?: delta?.get("reasoning")?.jsonPrimitive?.contentOrNull
+                            val rawContent = delta?.get("content")?.jsonPrimitive?.contentOrNull
+                            val content =
+                                if (rawContent != null && rawContent.contains("<think>")) {
+                                    rawContent.replace(Regex("<think>[\\s\\S]*?\\n</think>\\n?"), "")
+                                } else {
+                                    rawContent
+                                }
+                            val toolCallDelta = delta?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
+                            val toolCall =
+                                if (toolCallDelta != null) {
+                                    val fn = toolCallDelta["function"]?.jsonObject
+                                    com.example.smarty.server.llm.LlmToolCall(
+                                        id = toolCallDelta["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                                        functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
+                                        arguments = fn?.get("arguments")?.toString() ?: "",
+                                    )
+                                } else {
+                                    null
+                                }
+                            if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty() || toolCall != null) {
                                 directChunkCount++
                                 val emitText = content ?: reasoning ?: ""
-                                emit(LlmChunk(content = emitText, rawJson = line, sseEvent = "message"))
+                                emit(
+                                    LlmChunk(
+                                        content = emitText,
+                                        reasoning = reasoning,
+                                        toolCall = toolCall,
+                                        finishReason = finishReason,
+                                        rawJson = line,
+                                        sseEvent = "message",
+                                    ),
+                                )
                             } else {
-                                emit(LlmChunk(content = null, rawJson = line, sseEvent = "message"))
+                                emit(LlmChunk(content = null, rawJson = line, sseEvent = "message", finishReason = finishReason))
                             }
                         }
                     }
