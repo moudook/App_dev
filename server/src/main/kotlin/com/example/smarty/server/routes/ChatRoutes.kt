@@ -1340,10 +1340,13 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
             val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
                 ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: "Say hi in one short sentence."
+                ?: ""
+            val hasExplicitHistory = parsed?.get("history") is kotlinx.serialization.json.JsonArray
+                || parsed?.get("messages") is kotlinx.serialization.json.JsonArray
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
             val historyJson = parsed?.get("history") as? kotlinx.serialization.json.JsonArray
+                ?: parsed?.get("messages") as? kotlinx.serialization.json.JsonArray
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
             val systemOverride = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
@@ -1384,12 +1387,22 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     ),
                 )
             }
-            messages.add(
-                com.example.smarty.server.llm.LlmMessage(
-                    role = com.example.smarty.server.llm.LlmMessage.Role.USER,
-                    content = messageText,
-                ),
-            )
+            if (messageText.isNotBlank()) {
+                messages.add(
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                        content = messageText,
+                    ),
+                )
+            } else if (!hasExplicitHistory) {
+                // No history and no query — fall back to a default so the LLM has SOMETHING
+                messages.add(
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                        content = "Say hi in one short sentence.",
+                    ),
+                )
+            }
 
             try {
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
