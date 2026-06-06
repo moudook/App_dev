@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * Service for processing images and performing OCR.
- * Routes all requests through OpenCode CLI free models.
+ * Routes all requests through OpenCode Zen free models.
  *
  * Since OpenCode free models are text-only, images are sent as base64 data
  * embedded in the prompt text. The LLM processes the textual representation.
@@ -78,7 +78,7 @@ class VisionService(
 
     /**
      * Perform OCR on a base64-encoded image.
-     * Routes through OpenCode CLI free models.
+     * Routes through OpenCode Zen API.
      */
     suspend fun performOcr(
         base64Image: String,
@@ -97,7 +97,7 @@ class VisionService(
 
         return try {
             val ocrStart = System.currentTimeMillis()
-            logger.info("[VisionService] Sending OCR request to OpenCode CLI...")
+            logger.info("[VisionService] Sending OCR request to Zen API...")
             val response = StringBuilder()
             llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }
@@ -137,7 +137,7 @@ class VisionService(
 
     /**
      * Analyze an image and return a description.
-     * Routes through OpenCode CLI free models.
+     * Routes through OpenCode Zen API.
      */
     suspend fun analyzeImage(
         base64Image: String,
@@ -164,7 +164,7 @@ class VisionService(
 
         return try {
             val analysisStart = System.currentTimeMillis()
-            logger.info("[VisionService] Sending image analysis request to OpenCode CLI...")
+            logger.info("[VisionService] Sending image analysis request to Zen API...")
             val response = StringBuilder()
             llmProvider.stream(messages, emptyList(), null).collect { chunk ->
                 chunk.content?.let { response.append(it) }

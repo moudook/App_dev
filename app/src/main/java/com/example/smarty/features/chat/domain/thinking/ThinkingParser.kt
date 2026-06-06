@@ -17,7 +17,7 @@ object ThinkingParser {
     @Volatile private var cachedResult: ParsedResponse? = null
 
     // Heuristic patterns for reasoning content that leaked into text deltas.
-    // The OpenCode daemon sends reasoning as field:"text" deltas (not field:"reasoning"),
+    // The Zen API sends reasoning as field:"text" deltas (not field:"reasoning"),
     // so the model's internal monologue appears at the start of the response.
     private val reasoningStartPatterns = listOf(
         Regex("""^The user (is|was|has|said|wants|needs|is asking|is looking|just|might)"""),

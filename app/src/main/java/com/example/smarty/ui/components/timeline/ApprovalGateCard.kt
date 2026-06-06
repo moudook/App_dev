@@ -35,7 +35,7 @@ import com.example.smarty.ui.utils.ThemeAwareColors
 //
 // When the user acts, ChatViewModel.callApproval() sends the response back
 // to the server via POST /api/v1/chat/events/approval which resumes the
-// OpenCode daemon stream.
+// Server agent stream.
 
 /**
  * Expanded state tracks the approval card's own fold/unfold animation.

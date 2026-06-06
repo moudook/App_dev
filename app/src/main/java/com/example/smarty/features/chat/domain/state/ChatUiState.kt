@@ -6,11 +6,10 @@ import com.example.smarty.core.domain.model.MentionState
 
 /**
  * Fallback model list — used only before the server responds with the real list.
- * The server discovers free models at runtime via `opencode models`, so this
- * list is a best-effort default that may be stale.
+ * The server connects to the Zen API to fetch free models.
  *
- * IMPORTANT: ONLY include models that the server actually discovers.
- * Current server-discovered models: deepseek-v4-flash-free, nemotron-3-super-free, qwen3.6-plus-free.
+ * IMPORTANT: ONLY include models that the server actually returns.
+ * Current models: deepseek-v4-flash-free, nemotron-3-super-free, qwen3.6-plus-free.
  */
 val DEFAULT_FREE_MODELS = listOf(
     "default" to "Default Model",

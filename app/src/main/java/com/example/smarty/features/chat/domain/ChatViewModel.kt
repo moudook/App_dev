@@ -757,7 +757,7 @@ class ChatViewModel(
     private fun handleModelsRefresh() {
         viewModelScope.launch {
             try {
-                val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+                val refreshed = remoteAgentService.getZenModels(refresh = true)
                 if (refreshed.isNotEmpty()) {
                     val pairs = refreshed.map { it.id to it.label }
                     val variantMap = refreshed.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
@@ -782,7 +782,7 @@ class ChatViewModel(
      */
     suspend fun refreshModelsNow(): List<Pair<String, String>> =
         try {
-            val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+            val refreshed = remoteAgentService.getZenModels(refresh = true)
             val models =
                 if (refreshed.isNotEmpty()) {
                     val pairs = refreshed.map { it.id to it.label }

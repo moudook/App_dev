@@ -58,9 +58,9 @@ object ServerMonitor {
     private const val MAX_LLM_LOGS = 50
 
     // --- Health Status (Volatile for thread visibility) ---
-    @Volatile var isOpenCodeDaemonReachable: Boolean = false
+    @Volatile var isZenApiReachable: Boolean = true
 
-    @Volatile var openCodeDaemonStatusMsg: String = "Checking..."
+    @Volatile var zenApiStatusMsg: String = "Cloud API"
 
     @Volatile var isDbConnected: Boolean = false
 
@@ -129,8 +129,8 @@ object ServerMonitor {
             "requestsPerMinute" to if (uptimeMs > 60000) "%.1f".format(totalRequests.get() * 60000.0 / uptimeMs) else "N/A",
             "uniqueIps" to requestLogs.map { it.sourceIp }.toSet().size,
             // Infrastructure
-            "isOpenCodeDaemonReachable" to isOpenCodeDaemonReachable,
-            "openCodeDaemonStatusMsg" to openCodeDaemonStatusMsg,
+            "isZenApiReachable" to isZenApiReachable,
+            "zenApiStatusMsg" to zenApiStatusMsg,
             "isDbConnected" to isDbConnected,
             "activeSse" to activeSseConnections.get(),
             "usedMemoryMb" to usedMem,
@@ -148,53 +148,9 @@ object ServerMonitor {
 }
 
 fun Application.configureMonitoring() {
-    val monitorLogger = org.slf4j.LoggerFactory.getLogger("OpenCodeMonitor")
-    monitorLogger.info("[OpenCodeMonitor] Monitoring subsystem started — checking daemon at 127.0.0.1:4096/global/health")
-
-    // 1. Start Background Health Check
-    val monitorScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    monitorScope.launch {
-        var consecutiveFailures = 0
-        while (isActive) {
-            runCatching {
-                // Check OpenCode Daemon
-                val daemonCheckStart = System.currentTimeMillis()
-                try {
-                    val url = URL("http://127.0.0.1:4096/global/health")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 2000
-                    conn.readTimeout = 2000
-                    conn.requestMethod = "GET"
-
-                    if (conn.responseCode == 200) {
-                        val wasDown = !ServerMonitor.isOpenCodeDaemonReachable
-                        ServerMonitor.isOpenCodeDaemonReachable = true
-                        ServerMonitor.openCodeDaemonStatusMsg = "Online (${conn.responseCode})"
-                        if (wasDown) {
-                            monitorLogger.info(
-                                "[OpenCodeMonitor] Daemon RECOVERED — now healthy (check took ${System.currentTimeMillis() - daemonCheckStart}ms)",
-                            )
-                        }
-                        consecutiveFailures = 0
-                    } else {
-                        ServerMonitor.isOpenCodeDaemonReachable = false
-                        ServerMonitor.openCodeDaemonStatusMsg = "HTTP ${conn.responseCode}"
-                        monitorLogger.warn("[OpenCodeMonitor] Daemon returned HTTP ${conn.responseCode}")
-                        consecutiveFailures++
-                    }
-                    conn.disconnect()
-                } catch (e: Exception) {
-                    val wasUp = ServerMonitor.isOpenCodeDaemonReachable
-                    ServerMonitor.isOpenCodeDaemonReachable = false
-                    ServerMonitor.openCodeDaemonStatusMsg = "Unreachable (${e.message?.take(60)})"
-                    if (wasUp) {
-                        monitorLogger.error("[OpenCodeMonitor] Daemon WENT DOWN — ${e.message?.take(80)}")
-                    }
-                    consecutiveFailures++
-                    if (consecutiveFailures > 0 && consecutiveFailures % 6 == 0) {
-                        monitorLogger.warn("[OpenCodeMonitor] Daemon unreachable for ${consecutiveFailures * 5}s — ${e.message?.take(80)}")
-                    }
-                }
+                // Zen API is remote, we don't ping it locally.
+                ServerMonitor.isZenApiReachable = true
+                ServerMonitor.zenApiStatusMsg = "Cloud API"
 
                 // Check DB
                 try {
@@ -294,8 +250,8 @@ fun Application.configureMonitoring() {
                 </tr>"""
                 }
 
-            val opencodeStatus = stats["isOpenCodeDaemonReachable"] as Boolean
-            val opencodeMsg = stats["openCodeDaemonStatusMsg"] as String
+            val zenApiStatus = stats["isZenApiReachable"] as Boolean
+            val zenApiMsg = stats["zenApiStatusMsg"] as String
 
             call.respondText(ContentType.Text.Html) {
                 """
@@ -335,11 +291,11 @@ fun Application.configureMonitoring() {
                     <!-- Health & Resources -->
                     <div class="grid">
                         <div class="card">
-                            <h3>OpenCode Daemon</h3>
-                            <div class="val" style="color:${statusColor(opencodeStatus)}">
-                                ${if (opencodeStatus) "HEALTHY" else "DOWN"}
+                            <h3>Zen API</h3>
+                            <div class="val" style="color:${statusColor(zenApiStatus)}">
+                                ${if (zenApiStatus) "HEALTHY" else "DOWN"}
                             </div>
-                            <div class="sub">$opencodeMsg</div>
+                            <div class="sub">$zenApiMsg</div>
                         </div>
                         <div class="card">
                             <h3>Database</h3>

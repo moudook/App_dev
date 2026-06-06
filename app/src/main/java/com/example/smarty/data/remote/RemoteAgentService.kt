@@ -426,18 +426,18 @@ class RemoteAgentService(
     }
 
     /**
-     * Fetch available OpenCode models from the server, including variant info.
+     * Fetch available Zen models from the server, including variant info.
      * Returns list of ModelInfo with id, label, and available variants.
      * Falls back to cached models if server call fails.
      */
-    suspend fun getOpencodeModels(refresh: Boolean = false): List<ModelInfo> {
+    suspend fun getZenModels(refresh: Boolean = false): List<ModelInfo> {
         return listOf(ModelInfo(id = "default", label = "Default Model", variants = emptyList()))
     }
 
     /**
      * Legacy variant — returns plain (modelId, label) pairs for backward compat.
      */
-    suspend fun getOpencodeModelPairs(refresh: Boolean = false): List<Pair<String, String>> =
+    suspend fun getZenModelPairs(refresh: Boolean = false): List<Pair<String, String>> =
         listOf("default" to "Default Model")
 
     /**

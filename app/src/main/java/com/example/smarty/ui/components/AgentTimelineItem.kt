@@ -130,7 +130,7 @@ fun AgentTimelineItem(
                                 isStreaming = step.stepStatus == "started" || step.stepStatus == "streaming",
                                 onSkip = onSkip,
                             )
-                        } else if (step.stepType == "tool_call" || step.stepType == "opencode_tool") {
+                        } else if (step.stepType == "tool_call" || step.stepType == "server_tool") {
                             if (toolIdx < message.toolCalls.size) {
                                 ToolCallEntryCard(toolCall = message.toolCalls[toolIdx])
                                 toolIdx++

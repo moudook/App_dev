@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  * Persistent Room entity for individual agent steps.
  *
  * Each row represents one discrete phase in the AI's execution timeline:
- * thinking, tool_call, tool_result, opencode_tool, checkpoint.
+ * thinking, tool_call, tool_result, server_tool, checkpoint.
  *
  * Linked to chat_messages via messageId (CASCADE DELETE).
  * When a message is deleted, all its agent steps are automatically removed.
@@ -40,7 +40,7 @@ data class AgentStepEntity(
     @PrimaryKey
     val stepId: String,
     val messageId: String,
-    val stepType: String, // "thinking", "tool_call", "tool_result", "opencode_tool", "checkpoint"
+    val stepType: String, // "thinking", "tool_call", "tool_result", "server_tool", "checkpoint"
     val stepTitle: String,
     val stepContent: String,
     val stepStatus: String, // "started", "streaming", "completed", "failed"

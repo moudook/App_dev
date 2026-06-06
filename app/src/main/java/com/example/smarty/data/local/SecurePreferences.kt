@@ -14,8 +14,8 @@ import java.util.UUID
 
 /**
  * Available models for the server connection.
- * These are FALLBACK defaults — the app fetches the real list from the server
- * at startup via GET /api/v1/opencode/models (which runs `opencode models`).
+ * These are FALLBACK defaults * The available models list should be hydrated with the available free models
+ * at startup via GET /api/v1/models.
  * The server discovers free models at runtime, so this list may be stale.
  */
 object AIModels {

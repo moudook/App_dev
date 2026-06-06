@@ -219,7 +219,7 @@ class SmartyViewModel(
 
     suspend fun refreshModels(): List<Pair<String, String>> =
         try {
-            val refreshed = remoteAgentService.getOpencodeModels(refresh = true)
+            val refreshed = remoteAgentService.getZenModels(refresh = true)
             if (refreshed.isNotEmpty()) {
                 val pairs = refreshed.map { it.id to it.label }
                 val variantMap = refreshed.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }

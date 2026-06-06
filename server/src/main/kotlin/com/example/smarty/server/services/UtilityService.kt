@@ -9,7 +9,7 @@ import java.util.regex.Pattern
 /**
  * Utility Service for common tasks like Date Parsing, Summarization, Categorization.
  * Migrated from Android App to Server.
- * All LLM calls route through OpenCode CLI free models.
+ * All LLM calls route through OpenCode Zen API.
  */
 class UtilityService(
     private val llmProvider: LlmProvider,
@@ -45,7 +45,7 @@ class UtilityService(
             }
         }
 
-        // 2. LLM Fallback (Smart) — uses OpenCode CLI free model
+        // 2. LLM Fallback (Smart) — uses OpenCode Zen API
         try {
             logger.info("[UtilityService] LLM date extraction requested — query: '{}', timezone: {}", query.take(80), userTimezone)
             val llmStart = System.currentTimeMillis()

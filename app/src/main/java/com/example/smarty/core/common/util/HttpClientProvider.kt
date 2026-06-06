@@ -55,7 +55,7 @@ object HttpClientProvider {
      *
      * PIN STRATEGY:
      * - Only Hugging Face Spaces is pinned (the app only talks to the server)
-     * - All LLM inference is handled by OpenCode CLI on the server side
+     * - All LLM inference is handled by Zen API on the server side
      * - No API keys or external provider calls from the app
      *
      * HOW TO UPDATE PINS:
