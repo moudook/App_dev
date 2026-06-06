@@ -1,4 +1,4 @@
-package com.example.smarty.server.routes
+﻿package com.example.smarty.server.routes
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
@@ -87,7 +87,7 @@ data class ChatRequest(
     val clientTime: Long? = null, // User's current time in epoch millis
     val personality: String? = null, // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
     val messageId: String? = null, // Client-generated message ID for sync matching
-    val section: String? = null, // "chat" or "notes" — Issue #18: server-side mode differentiation
+    val section: String? = null, // "chat" or "notes" â€” Issue #18: server-side mode differentiation
 )
 
 @Serializable
@@ -304,10 +304,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             /**
              * WebSocket endpoint for bidirectional agent event streaming and client events.
              * Supports robust reconnection via AgentRunManager.
-             * AUTH DISABLED — accepts any connection as anonymous user. See AGENTS.md "Auth State".
+             * AUTH DISABLED â€” accepts any connection as anonymous user. See AGENTS.md "Auth State".
              */
             webSocket("/chat/ws") {
-                // AUTH DISABLED — skip Firebase token verify, accept all connections.
+                // AUTH DISABLED â€” skip Firebase token verify, accept all connections.
                 val user =
                     com.example.smarty.server.plugins.FirebaseUserPrincipal(
                         userId = "anonymous",
@@ -327,7 +327,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     .setActive(userId)
 
                 // MCP approval events reach this WebSocket via the AgentRunManager event flow,
-                // NOT via ActiveEventBridge — the emitJob below subscribes to the per-session
+                // NOT via ActiveEventBridge â€” the emitJob below subscribes to the per-session
                 // flow and delivers every event (agent + MCP) through a single send() path,
                 // eliminating the dual-coroutine Netty channel corruption.
                 val flow =
@@ -450,7 +450,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     emitJob.cancel()
                     heartbeatJob.cancel()
-                    // Don't cancel the run if there are pending approvals — the user
+                    // Don't cancel the run if there are pending approvals â€” the user
                     // can still respond via HTTP at /api/v1/chat/events/approval.
                     // AgentRunManager cleans up on natural completion or 2-hour timeout.
                     if (!com.example.smarty.server.agent.ApprovalRegistry.hasPendingForSession(sessionIdParam)) {
@@ -925,9 +925,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             }
         }
 
-        // ────────────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // STACKS ROUTES (stacks + note_stacks junction)
-        // ────────────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /**
          * POST /stacks
@@ -1179,7 +1179,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         // POST /debug/llm/stream  body: {"message":"...","model":"opencode/auto"}
         // Streams the OpenCode daemon's response as SSE. Each chunk arrival time is
         // logged at INFO with [OpenCode.StreamDiag] so we can prove streaming.
-        // AUTH DISABLED — see AGENTS.md "Auth State".
+        // AUTH DISABLED â€” see AGENTS.md "Auth State".
         // ============================================================================
         post("/debug/llm/stream") {
             val body = call.receiveText()
@@ -1210,7 +1210,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             try {
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
                     // Send an immediate ping so HF gateway sees headers and the
-                    // connection is alive — LLM cold start can take 30-60s with
+                    // connection is alive â€” LLM cold start can take 30-60s with
                     // no events, and the gateway otherwise 500s the response.
                     write(":ping\n\n")
                     flush()
@@ -1332,8 +1332,8 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         //
         // This is the streaming LLM-only path used by the Android client to render
         // tokens as they arrive. The full ServerAgent flow (MCP tools, history,
-        // permission engine, etc.) is NOT invoked here — use /chat/query for that.
-        // AUTH DISABLED — see AGENTS.md "Auth State".
+        // permission engine, etc.) is NOT invoked here â€” use /chat/query for that.
+        // AUTH DISABLED â€” see AGENTS.md "Auth State".
         // ============================================================================
         post("/chat/query/stream") {
             val body = call.receiveText()
@@ -1463,63 +1463,36 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         }
 
         // ============================================================================
-        // POST /chat/query/agent
-        // Multi-step tool-calling agent loop. Exposes 4 mock tools (add, multiply,
-        // get_current_time, get_weather) to the LLM. The LLM may call any subset
-        // in sequence and we re-stream from the LLM after each tool result until
-        // finish_reason != "tool_calls" or maxSteps is reached.
+        // POST /chat/query/agent/stream
+        // Streaming version of /chat/query. Uses the real ServerAgent (so the
+        // OpenCode CLI tool/MCP/subagent/permission loop is exercised) but
+        // returns AgentEvents as SSE so the client sees them live instead of
+        // waiting for the final JSON blob.
         //
-        // SSE event types:
-        //   {type:"step_start", step, model}
-        //   {type:"reasoning", step, content, +ms}
-        //   {type:"content", step, content, +ms}
-        //   {type:"tool_call", step, id, name, arguments, +ms}
-        //   {type:"tool_result", step, id, name, result, +ms}
-        //   {type:"step_end", step, finishReason}
-        //   {type:"error", class, message}
-        //   event: done  {steps, totalToolCalls, totalMs, finalAnswer}
+        // SSE data: {type:"event", eventType, +ms, event:<AgentEvent JSON>}
+        //   event: done  {response, sessionId, totalMs, totalEvents}
         //
-        // Logs to /tmp/agent-loop.log inside the container (visible in HF Space
-        // logs at /tmp/) so we can tail -f to watch a live agent run.
+        // Logs every emission to /tmp/agent-loop.log with relative timestamps.
         // AUTH DISABLED.
         // ============================================================================
-        post("/chat/query/agent") {
+        post("/chat/query/agent/stream") {
             val body = call.receiveText()
             val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
             val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
                 ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: "What is (2+3) * 4? Use the tools."
+                ?: "What is 2+2? Briefly."
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
-            val maxSteps = (parsed?.get("maxSteps")?.let { (it as? JsonPrimitive)?.content?.toIntOrNull() }) ?: 6
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
-            val safeModel = OpencodeModelRegistry.requireAllowedFreeModel(modelOverride)
+            val safeModel = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
-            val tools = defaultMockTools()
-            val toolImpls = defaultMockToolImpls()
-
-            val streamProvider = LlmProviderFactory.create(
-                LlmProviderFactory.getOrCreateHttpClient(),
-            )
-
-            val messages = mutableListOf<com.example.smarty.server.llm.LlmMessage>(
-                com.example.smarty.server.llm.LlmMessage(
-                    role = com.example.smarty.server.llm.LlmMessage.Role.SYSTEM,
-                    content = "You are a careful assistant. When you need exact values (math, time, " +
-                        "weather), call the appropriate tool. After receiving a tool result, " +
-                        "continue reasoning if needed. Only give your final answer when you have " +
-                        "all the information you need.",
-                ),
-                com.example.smarty.server.llm.LlmMessage(
-                    role = com.example.smarty.server.llm.LlmMessage.Role.USER,
-                    content = messageText,
-                ),
-            )
+            val streamProvider = LlmProviderFactory.create(LlmProviderFactory.getOrCreateHttpClient())
+            val streamSummarizer = com.example.smarty.server.data.ConversationSummarizer(streamProvider)
+            val activeSessionId = sessionId ?: UUID.randomUUID().toString()
 
             val started = System.currentTimeMillis()
-            val finalAnswer = StringBuilder()
             val trace = StringBuilder()
-            var step = 0
-            var totalToolCalls = 0
+            val totalEventsBoxed = intArrayOf(0)
+            val lastEventMsBoxed = longArrayOf(started)
 
             fun log(line: String) {
                 val ts = System.currentTimeMillis() - started
@@ -1532,176 +1505,104 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 call.application.log.info(withTs)
             }
 
-            log("AGENT START model=$safeModel maxSteps=$maxSteps query=\"$messageText\"")
+            val eventChannel = kotlinx.coroutines.channels.Channel<com.example.smarty.protocol.AgentEvent>(
+                kotlinx.coroutines.channels.Channel.UNLIMITED,
+            )
+            val agent = ServerAgent(
+                llmProvider = streamProvider,
+                vectorStore = vectorStore,
+                summarizer = streamSummarizer,
+                noteRepository = noteRepository,
+                timerRepository = timerRepository,
+                calendarRepository = calendarRepository,
+                eventEmitter = { event ->
+                    eventChannel.trySend(event)
+                    val now = System.currentTimeMillis()
+                    val dMs = now - lastEventMsBoxed[0]
+                    lastEventMsBoxed[0] = now
+                    totalEventsBoxed[0]++
+                    val typeName = event::class.simpleName ?: "unknown"
+                    log("EVENT $typeName +${dMs}ms")
+                },
+                userId = "agent-stream-test",
+                noteService = noteService,
+                capabilities = null,
+            )
 
+            var responseText = ""
+            var runError: Throwable? = null
             try {
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
                     write(":ping\n\n")
                     flush()
+                    log("AGENT START model=$safeModel query=\"$messageText\"")
 
-                    fun emitEvent(json: String) {
-                        write("data: $json\n\n")
+                    // Drain events from the channel and emit them as SSE.
+                    val drainJob = kotlinx.coroutines.GlobalScope.launch {
+                        try {
+                            for (event in eventChannel) {
+                                val now2 = System.currentTimeMillis()
+                                val dMs2 = now2 - lastEventMsBoxed[0]
+                                val typeName = event::class.simpleName ?: "unknown"
+                                val eventJson = runCatching {
+                                    Json.encodeToString(
+                                        com.example.smarty.protocol.AgentEvent.serializer(),
+                                        event,
+                                    )
+                                }.getOrElse { "{\"err\":${JsonPrimitive(it.message ?: it.javaClass.simpleName).toString()}}" }
+                                write(
+                                    "data: {\"type\":\"event\",\"eventType\":${JsonPrimitive(typeName).toString()}," +
+                                        "\"+ms\":$dMs2,\"event\":$eventJson}\n\n",
+                                )
+                                flush()
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+
+                    try {
+                        responseText = agent.run(
+                            query = messageText,
+                            sessionId = activeSessionId,
+                            history = emptyList(),
+                            modelOverride = safeModel,
+                        )
+                    } catch (e: Throwable) {
+                        runError = e
+                        log("AGENT RUN FAILED class=${e.javaClass.name} msg=${e.message}")
+                    }
+                    eventChannel.close()
+                    drainJob.join()
+
+                    // Final done event inside the writer so it lands on the SSE stream.
+                    val finalTotalMs = System.currentTimeMillis() - started
+                    log("AGENT END totalEvents=${totalEventsBoxed[0]} totalMs=$finalTotalMs responseLen=${responseText.length}")
+                    if (runError != null) {
+                        write(
+                            "data: {\"type\":\"error\",\"class\":${JsonPrimitive(runError!!.javaClass.name).toString()}," +
+                                "\"message\":${JsonPrimitive(runError!!.message ?: "").toString()}}\n\n",
+                        )
                         flush()
                     }
-
-                    while (step < maxSteps) {
-                        step++
-                        val stepStart = System.currentTimeMillis()
-                        var lastChunkMs = stepStart
-                        val stepReasoning = StringBuilder()
-                        val stepContent = StringBuilder()
-                        val stepToolCalls = mutableListOf<com.example.smarty.server.llm.LlmToolCall>()
-                        var stepFinishReason: String? = null
-                        emitEvent("""{"type":"step_start","step":$step,"model":${JsonPrimitive(safeModel).toString()}}""")
-                        log("STEP $step START model=$safeModel")
-
-                        try {
-                            kotlinx.coroutines.runBlocking {
-                                streamProvider.stream(
-                                    messages = messages.toList(),
-                                    tools = tools,
-                                    model = safeModel,
-                                ).collect { chunk ->
-                                    val now = System.currentTimeMillis()
-                                    val dMs = now - lastChunkMs
-                                    if (!chunk.reasoning.isNullOrEmpty()) {
-                                        stepReasoning.append(chunk.reasoning)
-                                        emitEvent(
-                                            "{\"type\":\"reasoning\",\"step\":$step," +
-                                                "\"content\":${JsonPrimitive(chunk.reasoning).toString()}," +
-                                                "\"+ms\":$dMs}",
-                                        )
-                                    }
-                                    if (!chunk.content.isNullOrEmpty()) {
-                                        stepContent.append(chunk.content)
-                                        emitEvent(
-                                            "{\"type\":\"content\",\"step\":$step," +
-                                                "\"content\":${JsonPrimitive(chunk.content).toString()}," +
-                                                "\"+ms\":$dMs}",
-                                        )
-                                    }
-                                    chunk.toolCall?.let { tc ->
-                                        // Deduplicate by id+name+args (chunked tool calls may repeat)
-                                        val existing = stepToolCalls.find { it.id == tc.id }
-                                        if (existing == null) {
-                                            stepToolCalls.add(tc)
-                                            emitEvent(
-                                                "{\"type\":\"tool_call\",\"step\":$step," +
-                                                    "\"id\":${JsonPrimitive(tc.id).toString()}," +
-                                                    "\"name\":${JsonPrimitive(tc.functionName).toString()}," +
-                                                    "\"arguments\":${JsonPrimitive(tc.arguments).toString()}," +
-                                                    "\"+ms\":$dMs}",
-                                            )
-                                        } else if (tc.functionName.isNotBlank() && existing.functionName.isBlank()) {
-                                            val idx = stepToolCalls.indexOf(existing)
-                                            stepToolCalls[idx] = tc
-                                        } else if (tc.arguments.isNotBlank() && existing.arguments != tc.arguments) {
-                                            // Some providers stream arg chunks; for now keep first complete
-                                        }
-                                    }
-                                    if (!chunk.finishReason.isNullOrBlank()) {
-                                        stepFinishReason = chunk.finishReason
-                                    }
-                                    lastChunkMs = now
-                                }
-                            }
-                        } catch (e: Exception) {
-                            log("STEP $step ERROR class=${e.javaClass.name} msg=${e.message}")
-                            emitEvent(
-                                "{\"type\":\"error\",\"step\":$step," +
-                                    "\"class\":${JsonPrimitive(e.javaClass.name).toString()}," +
-                                    "\"message\":${JsonPrimitive(e.message ?: "").toString()}}",
-                            )
-                            break
-                        }
-
-                        val stepDur = System.currentTimeMillis() - stepStart
-                        log(
-                            "STEP $step END finishReason=$stepFinishReason " +
-                                "content=\"${stepContent.toString().take(80)}\" " +
-                                "toolCalls=${stepToolCalls.size} " +
-                                "duration=${stepDur}ms",
-                        )
-                        emitEvent(
-                            "{\"type\":\"step_end\",\"step\":$step," +
-                                "\"finishReason\":${JsonPrimitive(stepFinishReason ?: "").toString()}," +
-                                "\"durationMs\":$stepDur}",
-                        )
-
-                        // Append assistant message with tool calls + final step content
-                        if (stepContent.isNotEmpty() || stepToolCalls.isNotEmpty()) {
-                            val cleanContent = stepContent.toString()
-                                .replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
-                            messages.add(
-                                com.example.smarty.server.llm.LlmMessage(
-                                    role = com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT,
-                                    content = cleanContent,
-                                    toolCalls = stepToolCalls.toList(),
-                                ),
-                            )
-                            finalAnswer.append(cleanContent)
-                        }
-
-                        // If the model wants to call tools, execute them
-                        val isToolCallFinish = stepFinishReason == "tool_calls" ||
-                            stepFinishReason == "tool_use" ||
-                            stepToolCalls.isNotEmpty()
-                        if (isToolCallFinish && stepToolCalls.isNotEmpty()) {
-                            totalToolCalls += stepToolCalls.size
-                            for (tc in stepToolCalls) {
-                                val execStart = System.currentTimeMillis()
-                                val result = try {
-                                    val args = if (tc.arguments.isBlank()) emptyMap() else
-                                        runCatching { Json.parseToJsonElement(tc.arguments).jsonObject.toMap() }
-                                            .getOrElse { emptyMap() }
-                                    val impl = toolImpls[tc.functionName]
-                                    if (impl != null) impl(args) else "{\"error\":\"unknown tool\"}"
-                                } catch (e: Exception) {
-                                    "{\"error\":${JsonPrimitive(e.message ?: "exec failed").toString()}}"
-                                }
-                                val execDur = System.currentTimeMillis() - execStart
-                                log("TOOL ${tc.functionName}(${tc.arguments}) -> $result (${execDur}ms)")
-                                emitEvent(
-                                    "{\"type\":\"tool_result\",\"step\":$step," +
-                                        "\"id\":${JsonPrimitive(tc.id).toString()}," +
-                                        "\"name\":${JsonPrimitive(tc.functionName).toString()}," +
-                                        "\"result\":${JsonPrimitive(result).toString()}," +
-                                        "\"durationMs\":$execDur}",
-                                )
-                                messages.add(
-                                    com.example.smarty.server.llm.LlmMessage(
-                                        role = com.example.smarty.server.llm.LlmMessage.Role.TOOL,
-                                        content = result,
-                                        toolCallId = tc.id,
-                                    ),
-                                )
-                            }
-                            continue // next iteration: ask the LLM again
-                        }
-
-                        // No tool calls requested → done
-                        break
-                    }
-
-                    val totalMs = System.currentTimeMillis() - started
-                    val final = finalAnswer.toString()
-                        .replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
-                    log("AGENT END steps=$step totalToolCalls=$totalToolCalls totalMs=$totalMs finalLen=${final.length}")
-                    val safeFinal = JsonPrimitive(final).toString()
-                    val safeSession = JsonPrimitive(sessionId ?: "").toString()
                     write(
-                        "event: done\ndata: {\"steps\":$step,\"totalToolCalls\":$totalToolCalls," +
-                            "\"totalMs\":$totalMs,\"sessionId\":$safeSession," +
-                            "\"finalAnswer\":$safeFinal,\"trace\":${JsonPrimitive(trace.toString()).toString()}}\n\n",
+                        "event: done\ndata: {\"type\":\"done\"," +
+                            "\"response\":${JsonPrimitive(responseText).toString()}," +
+                            "\"sessionId\":${JsonPrimitive(activeSessionId).toString()}," +
+                            "\"totalEvents\":${totalEventsBoxed[0]}," +
+                            "\"totalMs\":$finalTotalMs}\n\n",
                     )
                     flush()
                 }
             } catch (e: Exception) {
-                call.application.log.error("[/chat/query/agent] OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                log("RESPOND WRITER FAILED class=${e.javaClass.name} msg=${e.message}")
+                if (eventChannel.isClosedForReceive.not() && eventChannel.isClosedForSend.not()) {
+                    runCatching { eventChannel.close() }
+                }
                 call.respond(
                     HttpStatusCode.InternalServerError,
-                    mapOf("error" to "agent outer failure", "class" to e.javaClass.name, "message" to e.message),
+                    mapOf("error" to "agent stream failed", "class" to e.javaClass.name, "message" to e.message),
                 )
+                return@post
             }
         }
 
@@ -1859,64 +1760,6 @@ data class InterruptResponse(
     val success: Boolean,
     val message: String,
 )
-
-/**
- * Default mock tools exposed to the LLM by /chat/query/agent. These are
- * simple, deterministic, and don't need any external service so we can
- * prove multi-step tool-calling works end-to-end on the free Zen tier.
- */
-private fun defaultMockTools(): List<com.example.smarty.server.llm.ToolDefinition> {
-    val intProp = com.example.smarty.server.llm.ToolProperty(type = "integer", description = "an integer")
-    val numProp = com.example.smarty.server.llm.ToolProperty(type = "number", description = "a number")
-    val strProp = com.example.smarty.server.llm.ToolProperty(type = "string", description = "a string")
-    return listOf(
-        com.example.smarty.server.llm.ToolDefinition(
-            name = "add",
-            description = "Add two integers and return the sum. Use this whenever you need exact arithmetic.",
-            parameters = com.example.smarty.server.llm.ToolParameters(
-                type = "object",
-                properties = mapOf("a" to intProp, "b" to intProp),
-                required = listOf("a", "b"),
-            ),
-        ),
-        com.example.smarty.server.llm.ToolDefinition(
-            name = "multiply",
-            description = "Multiply two integers and return the product.",
-            parameters = com.example.smarty.server.llm.ToolParameters(
-                type = "object",
-                properties = mapOf("a" to intProp, "b" to intProp),
-                required = listOf("a", "b"),
-            ),
-        ),
-        com.example.smarty.server.llm.ToolDefinition(
-            name = "get_current_time",
-            description = "Return the current UTC time as an ISO-8601 string.",
-            parameters = com.example.smarty.server.llm.ToolParameters(
-                type = "object",
-                properties = emptyMap(),
-                required = emptyList(),
-            ),
-        ),
-        com.example.smarty.server.llm.ToolDefinition(
-            name = "get_weather",
-            description = "Return a fake weather report for a given city. Always returns 22°C and sunny.",
-            parameters = com.example.smarty.server.llm.ToolParameters(
-                type = "object",
-                properties = mapOf("city" to strProp),
-                required = listOf("city"),
-            ),
-        ),
-        com.example.smarty.server.llm.ToolDefinition(
-            name = "fibonacci",
-            description = "Return the n-th Fibonacci number (0-indexed).",
-            parameters = com.example.smarty.server.llm.ToolParameters(
-                type = "object",
-                properties = mapOf("n" to intProp),
-                required = listOf("n"),
-            ),
-        ),
-    )
-}
 
 private fun defaultMockToolImpls(): Map<String, (Map<String, kotlinx.serialization.json.JsonElement>) -> String> {
     return mapOf(
