@@ -524,3 +524,153 @@ curl -sN --max-time 60 -X POST \
 ---
 
 _Last updated: end of /debug/llm/stream sweep on commit `e8ff5aac`._
+
+---
+
+# Part 2 — Ktor Endpoints, Edge Cases & ServerAgent Streaming (commit `c0bd2095`)
+
+This part covers what was added in commits `fd2b20cd` (bare-name models) and
+`c0bd2095` (ServerAgent-based SSE stream).
+
+## Endpoints added / changed
+
+| Path | Body | Output | Auth |
+|---|---|---|---|
+| `POST /chat/query/stream` | `{query\|message, model?, tools?, history?, sessionId?}` | SSE: `data: {chunk,+ms,fromStart,content,reasoning,finishReason,toolCall,rawJson}` + `event: done {chunks,firstChunkMs,totalMs,accumulated}` | none |
+| `POST /chat/query/agent/stream` | `{query\|message, model?, sessionId?}` | SSE: `data: {type:"event",eventType,+ms,event:<AgentEvent>}` + `event: done {response,sessionId,totalEvents,totalMs}` | none |
+| `POST /debug/llm/stream` | unchanged | unchanged | none |
+| `POST /chat/query` | unchanged | non-stream JSON (existing 500 in v1.16.0) | bearer no-op |
+
+## /chat/query/stream — verified outputs
+
+### 1. Basic — 2+2 question, default model
+- Request: `{"query":"What is 2+2? Answer in 3 words."}`
+- Result: **1448 chunks, first chunk 786ms, total 15.5s**
+- `accumulated`: reasoning + `"Answer is four."` (exactly 3 words)
+- `<think>...</think>` block stripped at accumulator level
+
+### 2. Model override — `minimax-m3-free`
+- Request: `{"query":"Name one primary color.","model":"opencode/minimax-m3-free"}`
+- Result: **4 chunks, first chunk 2250ms, total 3.0s**
+- `accumulated`: `"One primary color is **red**."`
+- `<think>` reasoning stripped, inline `<think>\n...`/`\n</think>` blocks visible in rawJson
+
+### 3. Bare model name — `minimax-m3-free` (no prefix)
+- Request: `{"query":"Name one primary color.","model":"minimax-m3-free"}` (no `opencode/`)
+- After commit `fd2b20cd`, bare names containing "free" are accepted by `isAllowedFreeModel`
+- Result: passes through; LLM provider normalizes to `opencode/minimax-m3-free`
+
+### 4. Tool call captured — m3
+- Request: `{"query":"use add tool to compute 2+3","model":"opencode/minimax-m3-free","tools":[...add...]}` 
+- Chunk 3 (atomic for m3):
+  ```json
+  {
+    "chunk":3, "+ms":0, "fromStart":2254,
+    "content":"", "reasoning":"",
+    "finishReason":"tool_calls",
+    "toolCall":{
+      "id":"call_function_o2nf010tpe0f_1",
+      "functionName":"add",
+      "arguments":"{\"a\": 2, \"b\": 3}"
+    }
+  }
+  ```
+- m3 emits tool calls atomically (full args in one chunk). Stream ends with `finish_reason: tool_calls`.
+
+### 5. Long stream — 200-word essay on photosynthesis
+- Request: `{"message":"write a 200 word essay on photosynthesis"}`
+- Result: **2332 chunks, 1.2 MB, first chunk 398ms, total 21.2s**
+- m3 went through multiple draft+revision cycles with extensive `Thinking. ...` blocks
+- Final `accumulated` contains 3 full paragraphs
+- No HF gateway timeout (stayed under 5 min)
+
+### 6. Bad model — non-existent
+- Request: `{"query":"hi","model":"opencode/nonexistent-model-xyz"}`
+- Result: 200 OK, falls back to default (`deepseek-v4-flash` via `requireAllowedFreeModel` fallback)
+- Returns content, no 4xx
+- **Should** probably 400 with "model not allowed" — known minor issue
+
+### 7. Bad JSON
+- Request: `not-json` body
+- Result: defaults to `"Say hi in one short sentence."` and streams normally
+- The route catches `parseToJsonElement` failure and uses fallback message
+
+### 8. Client cancellation
+- `cmd.exe curl.exe` killed after 4s of a 120s essay request
+- Server released the connection (Ktor default behavior)
+- No half-written state observed
+
+### 9. Concurrent streams — 3 parallel
+- Three `curl` invocations fired simultaneously to `/chat/query/stream`
+- All 3 completed successfully with isolated `accumulated` answers
+- Stream 1 (count to 5): **202 chunks, 2.4s**
+- Stream 2 (name 2 fruits): **276 chunks, 3.4s**
+- Stream 3 (capital of France): **203 chunks, 2.8s**
+- No cross-contamination, no rate limiting observed for 3 streams
+
+## /chat/query/agent/stream — ServerAgent SSE
+
+### 1. Basic — ServerAgent.run() with eventEmitter
+- Request: `{"query":"What time is it right now?"}`
+- Result: **160 events in 3.4s**
+- Event types observed: `TextDelta`, `ReasoningDelta`
+- Each event has `+ms` (time since previous event)
+- Final `done` event: `{response, sessionId, totalEvents, totalMs}`
+
+### 2. ServerAgent tool narration
+- Request: `{"query":"Please search my history for any note containing the word friday."}`
+- Result: model **narrates** using the tool (`Let me use the memory tool with the find action...`) but **doesn't actually issue a tool_call** to the agent loop
+- 93 events in 3.2s, all TextDelta/ReasoningDelta
+- The model has the tool definitions but chose to chat about using them
+- **Known issue:** ServerAgent loop wires tool execution but the LLM needs stronger prompting or `tool_choice: required` to actually call. deepseek rejects `tool_choice: required` per Part 1.
+
+### 3. Architecture notes — /chat/query/agent/stream
+- Uses `Channel<AgentEvent>(UNLIMITED)` to bridge:
+  - `eventEmitter` lambda: `eventChannel.trySend(event)` + side-effect logging
+  - Separate coroutine in the writer: `for (event in eventChannel) { write(SSE); flush() }`
+- Logs every event with `+ms` to `/tmp/agent-loop.log` inside the container
+- All real ServerAgent `AgentEvent` subtypes are serialised: `TextDelta`, `ReasoningDelta`, `ToolStart`, `ToolEnd`, `DeviceCommand`, `StateSync`, etc.
+
+## Tool call shape — m3 atomic
+
+```json
+{
+  "id": "call_function_g5vazqlx6s7f_1",
+  "type": "function",
+  "function": {
+    "name": "add",
+    "arguments": "{\"a\": 2, \"b\": 3}"
+  }
+}
+```
+
+- Full args in one chunk (m3 doesn't stream char-by-char)
+- `delta.tool_calls: [{...}]` is the delta
+- `delta.content: null` (m3 doesn't write text after deciding to call a tool)
+- `finish_reason: "tool_calls"` on the same chunk
+
+## Tool call shape — deepseek/mimo streamed
+
+(deepseek example captured in Part 1)
+- `delta.tool_calls: [{id, function:{name, arguments:"{\"a\":"}}]` — first chunk
+- Subsequent chunks: `delta.tool_calls: [{function:{arguments:" 2, \"b\":"}}]` — args grow
+- `id` and `name` only present on the first chunk of each call
+
+## Test artifacts (in repo root)
+
+- `test-cqs-m3-tools.txt` — m3 atomic tool call
+- `test-m3-tools.txt` — /debug/llm/stream with m3 tool (older format)
+- `test-bad-model.txt` — 200 OK with fallback model
+- `test-bad-json.txt` — defaults to "Say hi"
+- `test-long-200.txt` — 2332 chunks, 1.2MB, 21s
+- `test-cancel.txt` — killed mid-stream, 144 chunks before kill
+- `concurrent-1/2/3.txt` — three parallel streams, all completed
+- `agent-stream-test.txt` — 160 events from ServerAgent
+- `agent-stream-tools.txt` — model narrating tool use without calling
+
+## Known remaining gaps
+
+- **Multi-step tool execution not yet visible** in /chat/query/agent/stream output — the LLM receives tool definitions but narrates instead of calling. Need stronger system prompt or `tool_choice` parameter (currently deepseek rejects `required`).
+- **No Android-side SSE consumer** — the Android app still uses /chat/query (non-stream, returns 500). The new /chat/query/agent/stream endpoint is for testing.
+- **HF gateway 5-min cap** — not yet hit. /chat/query/agent/stream with a very long agent loop might hit it.
+- **/chat/query (non-stream) returns 500** — existing bug, not in scope of streaming work.
