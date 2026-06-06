@@ -18,7 +18,14 @@ import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
+import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
+import io.ktor.client.request.preparePost
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -29,12 +36,14 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
+import io.ktor.utils.io.readLine
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
@@ -45,6 +54,9 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
@@ -75,7 +87,7 @@ data class ChatRequest(
     val clientTime: Long? = null, // User's current time in epoch millis
     val personality: String? = null, // AI personality: PROFESSIONAL, CASUAL, CONCISE, DETAILED
     val messageId: String? = null, // Client-generated message ID for sync matching
-    val section: String? = null, // "chat" or "notes" — Issue #18: server-side mode differentiation
+    val section: String? = null, // "chat" or "notes" â€” Issue #18: server-side mode differentiation
 )
 
 @Serializable
@@ -292,17 +304,16 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             /**
              * WebSocket endpoint for bidirectional agent event streaming and client events.
              * Supports robust reconnection via AgentRunManager.
+             * AUTH DISABLED â€” accepts any connection as anonymous user. See AGENTS.md "Auth State".
              */
             webSocket("/chat/ws") {
-                val token = call.request.headers[io.ktor.http.HttpHeaders.Authorization]?.removePrefix("Bearer ")
+                // AUTH DISABLED â€” skip Firebase token verify, accept all connections.
                 val user =
-                    com.example.smarty.server.plugins
-                        .verifyFirebaseToken(token ?: "", null)
-
-                if (user == null) {
-                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication required"))
-                    return@webSocket
-                }
+                    com.example.smarty.server.plugins.FirebaseUserPrincipal(
+                        userId = "anonymous",
+                        email = com.example.smarty.server.plugins.ADMIN_EMAIL,
+                        displayName = "Auth Disabled",
+                    )
 
                 val userId = user.userId
                 val sessionIdParam = call.request.queryParameters["sessionId"] ?: UUID.randomUUID().toString()
@@ -316,7 +327,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     .setActive(userId)
 
                 // MCP approval events reach this WebSocket via the AgentRunManager event flow,
-                // NOT via ActiveEventBridge — the emitJob below subscribes to the per-session
+                // NOT via ActiveEventBridge â€” the emitJob below subscribes to the per-session
                 // flow and delivers every event (agent + MCP) through a single send() path,
                 // eliminating the dual-coroutine Netty channel corruption.
                 val flow =
@@ -439,7 +450,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 } finally {
                     emitJob.cancel()
                     heartbeatJob.cancel()
-                    // Don't cancel the run if there are pending approvals — the user
+                    // Don't cancel the run if there are pending approvals â€” the user
                     // can still respond via HTTP at /api/v1/chat/events/approval.
                     // AgentRunManager cleans up on natural completion or 2-hour timeout.
                     if (!com.example.smarty.server.agent.ApprovalRegistry.hasPendingForSession(sessionIdParam)) {
@@ -613,7 +624,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         call.application.log.error("POST chat/query OpenCode agent execution failed", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "An internal error occurred."),
+                            mapOf(
+                                "error" to "An internal error occurred.",
+                                "type" to e.javaClass.simpleName,
+                                "message" to (e.message?.take(400) ?: "no message"),
+                            ),
                         )
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager
@@ -621,7 +636,14 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        mapOf(
+                            "error" to "An internal error occurred.",
+                            "type" to e.javaClass.simpleName,
+                            "message" to (e.message?.take(400) ?: "no message"),
+                        ),
+                    )
                 }
             }
 
@@ -914,9 +936,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             }
         }
 
-        // ────────────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // STACKS ROUTES (stacks + note_stacks junction)
-        // ────────────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /**
          * POST /stacks
@@ -1100,6 +1122,691 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
         post("/chat/test-ask-user") {
             call.respond(mapOf("status" to "noop", "message" to "ActiveEventBridge removed; use WebSocket /chat/ws for approval flows"))
         }
+
+        // ============================================================================
+        // DEBUG: current model state (discovered models, default, active)
+        // GET /debug/model/info
+        // AUTH DISABLED.
+        // ============================================================================
+        get("/debug/model/info") {
+            val models = com.example.smarty.server.llm.OpencodeModelRegistry.discoveredFreeModels()
+            val currentDefault = com.example.smarty.server.llm.OpencodeModelRegistry.requireAllowedFreeModel(null)
+            val directZenFlag = System.getenv("OPENCODE_USE_DIRECT_ZEN") ?: ""
+            val stateJson = buildString {
+                append("{\"defaultModel\":\"$currentDefault\",\"opencodeUseDirectZen\":\"$directZenFlag\",\"discovered\":[")
+                models.forEachIndexed { i, m ->
+                    if (i > 0) append(",")
+                    append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
+                }
+                append("],\"count\":${models.size}}")
+            }
+            call.respondText(stateJson, ContentType.Application.Json)
+        }
+
+        /**
+         * Convert a JSON tools array (OpenAI shape) into the LlmProvider's
+         * structured ToolDefinition list. We do this conversion in the route
+         * so the LlmProvider interface stays clean.
+         */
+        // @VisibleForTesting
+        fun convertTools(
+            tools: kotlinx.serialization.json.JsonArray?,
+        ): List<com.example.smarty.server.llm.ToolDefinition> {
+            if (tools == null || tools.isEmpty()) return emptyList()
+            return tools.mapNotNull { el ->
+                val obj = el as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val fn = obj["function"]?.let { it as? kotlinx.serialization.json.JsonObject }
+                    ?: return@mapNotNull null
+                val name = fn["name"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: return@mapNotNull null
+                val description = fn["description"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: ""
+                val paramsJson = fn["parameters"]?.let { it as? kotlinx.serialization.json.JsonObject }
+                val paramsType = paramsJson?.get("type")?.let { (it as? JsonPrimitive)?.contentOrNull } ?: "object"
+                val rawProps = paramsJson?.get("properties")?.let { it as? kotlinx.serialization.json.JsonObject }
+                val props =
+                    rawProps?.mapValues { (_, v) ->
+                        val p = v as? kotlinx.serialization.json.JsonObject
+                        com.example.smarty.server.llm.ToolProperty(
+                            type = p?.get("type")?.let { (it as? JsonPrimitive)?.contentOrNull } ?: "string",
+                            description = p?.get("description")?.let { (it as? JsonPrimitive)?.contentOrNull },
+                        )
+                    } ?: emptyMap()
+                val required =
+                    paramsJson?.get("required")?.let { it as? kotlinx.serialization.json.JsonArray }
+                        ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
+                com.example.smarty.server.llm.ToolDefinition(
+                    name = name,
+                    description = description,
+                    parameters =
+                        com.example.smarty.server.llm.ToolParameters(
+                            type = paramsType,
+                            properties = props,
+                            required = required,
+                        ),
+                )
+            }
+        }
+
+        // DEBUG: direct OpenCode streaming test (used by scripts/test-space.sh chat)
+        // POST /debug/llm/stream  body: {"message":"...","model":"opencode/auto"}
+        // Streams the OpenCode daemon's response as SSE. Each chunk arrival time is
+        // logged at INFO with [OpenCode.StreamDiag] so we can prove streaming.
+        // AUTH DISABLED â€” see AGENTS.md "Auth State".
+        // ============================================================================
+        post("/debug/llm/stream") {
+            val body = call.receiveText()
+            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+            val messageText = parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: "Say hi in one short sentence."
+            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            // Optional tools definition (OpenAI format). Pass straight through to the LLM.
+            val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
+            val toolChoiceOverride =
+                parsed?.get("tool_choice")?.let { (it as? JsonPrimitive)?.contentOrNull }
+
+            val provider = com.example.smarty.server.llm.LlmProviderFactory.create(
+                com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient(),
+            )
+
+            val started = System.currentTimeMillis()
+            var firstChunkMs: Long? = null
+            var lastChunkMs = started
+            var chunkCount = 0
+            val accumulated = StringBuilder()
+            val chunkLog = StringBuilder()
+
+            // Run the flow asynchronously so we can flush each chunk as it arrives
+            // through the SSE response. The HF gateway has a ~5 min limit so we also
+            // log every chunk to chunkLog so if the connection drops we still see it.
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    // Send an immediate ping so HF gateway sees headers and the
+                    // connection is alive â€” LLM cold start can take 30-60s with
+                    // no events, and the gateway otherwise 500s the response.
+                    write(":ping\n\n")
+                    flush()
+                    try {
+                        kotlinx.coroutines.runBlocking {
+                            val job = kotlinx.coroutines.GlobalScope.launch {
+                                try {
+                                    provider.stream(
+                                        messages = listOf(
+                                            com.example.smarty.server.llm.LlmMessage(
+                                                role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                                                content = messageText,
+                                            ),
+                                        ),
+                                        tools = convertTools(toolsOverride),
+                                        model = modelOverride,
+                                    ).collect { chunk ->
+                                        val now = System.currentTimeMillis()
+                                        val dFromStart = now - started
+                                        val dFromLast = now - lastChunkMs
+                                        if (firstChunkMs == null) firstChunkMs = dFromStart
+                                        chunkCount++
+                                        val content = chunk.content
+                                        val rawJson = chunk.rawJson
+                                        val sseEvent = chunk.sseEvent
+                                        val safeText = JsonPrimitive(content ?: "").toString()
+                                        val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
+                                        val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
+                                        val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
+                                        chunkLog.append(line)
+                                        write(line)
+                                        flush()
+                                        if (!content.isNullOrBlank()) accumulated.append(content)
+                                        lastChunkMs = now
+                                    }
+                                } catch (e: Exception) {
+                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                    val safeStack = JsonPrimitive((e.stackTraceToString().take(800))).toString()
+                                    call.application.log.error("[debug/llm/stream] INTERNAL CATCH class={} msg={} stack={}", e.javaClass.name, e.message, e.stackTraceToString().take(500))
+                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
+                                    chunkLog.append("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
+                                }
+                            }
+                            job.join()
+                        }
+                    } catch (e: Exception) {
+                        val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                        val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                        call.application.log.error("[debug/llm/stream] runBlocking/launch outer CATCH class={} msg={}", e.javaClass.name, e.message)
+                        write("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
+                        chunkLog.append("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
+                    }
+                    val total = System.currentTimeMillis() - started
+                    // Post-process the accumulator: strip any <think>...</think> block
+                    // (the model streams them in pieces so per-chunk regex misses)
+                    val accRaw = accumulated.toString()
+                    val accClean =
+                        accRaw.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
+                    val safeAcc = JsonPrimitive(accClean).toString()
+                    val doneLine = "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n"
+                    chunkLog.append(doneLine)
+                    write(doneLine)
+                    flush()
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[debug/llm/stream] respondTextWriter OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                call.application.log.error("[debug/llm/stream] OUTER STACK: {}", e.stackTraceToString().take(1000))
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf(
+                        "error" to "debug stream outer failure",
+                        "class" to e.javaClass.name,
+                        "message" to (e.message ?: ""),
+                    ),
+                )
+            }
+        }
+
+        // DEBUG: ping the OpenCode daemon (port 4096) directly
+        get("/debug/daemon/event") {
+            val started = System.currentTimeMillis()
+            try {
+                val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    client.prepareGet("http://127.0.0.1:4096/event") {
+                        header("Accept", "text/event-stream")
+                    }.execute { response ->
+                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
+                        flush()
+                        val channel = response.bodyAsChannel()
+                        var chunkN = 0
+                        while (!channel.isClosedForRead) {
+                            val line = channel.readLine() ?: break
+                            chunkN++
+                            val safeLine = JsonPrimitive(line.take(300)).toString()
+                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                            flush()
+                            if (chunkN > 100) break
+                        }
+                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
+                    }
+                }
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to "daemon event stream failed: ${e.message}"),
+                )
+            }
+        }
+
+        // ============================================================================
+        // POST /chat/query/stream
+        // Same input shape as /chat/query (body: {query|message, model?, tools?,
+        // history?, sessionId?}) but responds with a Server-Sent Events stream.
+        // Each chunk is `data: {"chunk":N,"+ms":...,"content":"...","reasoning":"...",
+        //   "toolCall":{...}|null,"finishReason":"...","rawJson":"..."}\n\n`
+        // and the final event is `event: done data: {"chunks":N,"accumulated":"..."}`.
+        //
+        // This is the streaming LLM-only path used by the Android client to render
+        // tokens as they arrive. The full ServerAgent flow (MCP tools, history,
+        // permission engine, etc.) is NOT invoked here â€” use /chat/query for that.
+        // AUTH DISABLED â€” see AGENTS.md "Auth State".
+        // ============================================================================
+        post("/chat/query/stream") {
+            val body = call.receiveText()
+            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+            val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: ""
+            val hasExplicitHistory = parsed?.get("history") is kotlinx.serialization.json.JsonArray
+                || parsed?.get("messages") is kotlinx.serialization.json.JsonArray
+            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
+            val historyJson = parsed?.get("history") as? kotlinx.serialization.json.JsonArray
+                ?: parsed?.get("messages") as? kotlinx.serialization.json.JsonArray
+            val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+            val systemOverride = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
+
+            val streamProvider = LlmProviderFactory.create(
+                LlmProviderFactory.getOrCreateHttpClient(),
+            )
+
+            val started = System.currentTimeMillis()
+            var firstChunkMs: Long? = null
+            var lastChunkMs = started
+            var chunkCount = 0
+            val accumulated = StringBuilder()
+
+            val messages = mutableListOf<com.example.smarty.server.llm.LlmMessage>()
+            if (historyJson != null) {
+                historyJson.forEach { el ->
+                    val obj = el as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                    val role = (obj["role"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+                    val content = (obj["content"] as? JsonPrimitive)?.contentOrNull ?: ""
+                    val toolCallId = (obj["tool_call_id"] as? JsonPrimitive)?.contentOrNull
+                    val toolCallsJson = obj["tool_calls"] as? kotlinx.serialization.json.JsonArray
+                    val r =
+                        when (role.lowercase()) {
+                            "user" -> com.example.smarty.server.llm.LlmMessage.Role.USER
+                            "assistant" -> com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT
+                            "system" -> com.example.smarty.server.llm.LlmMessage.Role.SYSTEM
+                            "tool" -> com.example.smarty.server.llm.LlmMessage.Role.TOOL
+                            else -> return@forEach
+                        }
+                    val toolCalls =
+                        if (r == com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT && toolCallsJson != null) {
+                            toolCallsJson.mapNotNull { tcEl ->
+                                val tcObj = tcEl as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                val fn = tcObj["function"]?.jsonObject
+                                com.example.smarty.server.llm.LlmToolCall(
+                                    id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                                    functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
+                                    arguments = fn?.get("arguments")?.jsonPrimitive?.contentOrNull
+                                        ?: fn?.get("arguments")?.toString() ?: "",
+                                )
+                            }
+                        } else {
+                            emptyList()
+                        }
+                    messages.add(
+                        com.example.smarty.server.llm.LlmMessage(
+                            role = r,
+                            content = content,
+                            toolCallId = toolCallId,
+                            toolCalls = toolCalls,
+                        ),
+                    )
+                }
+            }
+            if (!systemOverride.isNullOrBlank()) {
+                messages.add(
+                    0,
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.SYSTEM,
+                        content = systemOverride,
+                    ),
+                )
+            }
+            if (messageText.isNotBlank()) {
+                messages.add(
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                        content = messageText,
+                    ),
+                )
+            } else if (!hasExplicitHistory) {
+                // No history and no query — fall back to a default so the LLM has SOMETHING
+                messages.add(
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                        content = "Say hi in one short sentence.",
+                    ),
+                )
+            }
+
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    write(":ping\n\n")
+                    flush()
+                    try {
+                        kotlinx.coroutines.runBlocking {
+                            val job = kotlinx.coroutines.GlobalScope.launch {
+                                try {
+                                    streamProvider.stream(
+                                        messages = messages,
+                                        tools = convertTools(toolsOverride),
+                                        model = safeModelOverride,
+                                    ).collect { chunk ->
+                                        val now = System.currentTimeMillis()
+                                        val dFromStart = now - started
+                                        val dFromLast = now - lastChunkMs
+                                        if (firstChunkMs == null) firstChunkMs = dFromStart
+                                        chunkCount++
+                                        val safeText = JsonPrimitive(chunk.content ?: "").toString()
+                                        val safeReasoning = JsonPrimitive(chunk.reasoning ?: "").toString()
+                                        val safeRaw = JsonPrimitive((chunk.rawJson ?: "").take(500)).toString()
+                                        val safeEvent = JsonPrimitive(chunk.sseEvent ?: "").toString()
+                                        val safeFinish = JsonPrimitive(chunk.finishReason ?: "").toString()
+                                        val toolJson =
+                                            if (chunk.toolCall != null) {
+                                                buildJsonObject {
+                                                    put("id", JsonPrimitive(chunk.toolCall.id))
+                                                    put("functionName", JsonPrimitive(chunk.toolCall.functionName))
+                                                    put("arguments", JsonPrimitive(chunk.toolCall.arguments))
+                                                }.toString()
+                                            } else {
+                                                "null"
+                                            }
+                                        write(
+                                            "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast," +
+                                                "\"fromStart\":$dFromStart,\"content\":$safeText," +
+                                                "\"reasoning\":$safeReasoning,\"sseEvent\":$safeEvent," +
+                                                "\"finishReason\":$safeFinish,\"toolCall\":$toolJson," +
+                                                "\"rawJson\":$safeRaw}\n\n",
+                                        )
+                                        flush()
+                                        if (!chunk.content.isNullOrEmpty()) accumulated.append(chunk.content)
+                                        lastChunkMs = now
+                                    }
+                                } catch (e: Exception) {
+                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
+                                    flush()
+                                }
+                            }
+                            job.join()
+                        }
+                    } catch (e: Exception) {
+                        call.application.log.error("[/chat/query/stream] runBlocking CATCH class={} msg={}", e.javaClass.name, e.message)
+                    }
+                    val total = System.currentTimeMillis() - started
+                    val accRaw = accumulated.toString()
+                    val accClean = accRaw.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
+                    val safeAcc = JsonPrimitive(accClean).toString()
+                    val safeSession = JsonPrimitive(sessionId ?: "").toString()
+                    write(
+                        "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1}," +
+                            "\"totalMs\":$total,\"sessionId\":$safeSession," +
+                            "\"accumulated\":$safeAcc}\n\n",
+                    )
+                    flush()
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[/chat/query/stream] respondTextWriter OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf(
+                        "error" to "stream outer failure",
+                        "class" to e.javaClass.name,
+                        "message" to e.message,
+                    ),
+                )
+            }
+        }
+
+        // ============================================================================
+        // POST /chat/query/agent/stream
+        // Streaming version of /chat/query. Uses the real ServerAgent (so the
+        // OpenCode CLI tool/MCP/subagent/permission loop is exercised) but
+        // returns AgentEvents as SSE so the client sees them live instead of
+        // waiting for the final JSON blob.
+        //
+        // SSE data: {type:"event", eventType, +ms, event:<AgentEvent JSON>}
+        //   event: done  {response, sessionId, totalMs, totalEvents}
+        //
+        // Logs every emission to /tmp/agent-loop.log with relative timestamps.
+        // AUTH DISABLED.
+        // ============================================================================
+        post("/chat/query/agent/stream") {
+            val body = call.receiveText()
+            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+            val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                ?: "What is 2+2? Briefly."
+            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+
+            val safeModel = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
+
+            val streamProvider = LlmProviderFactory.create(LlmProviderFactory.getOrCreateHttpClient())
+            val streamSummarizer = com.example.smarty.server.data.ConversationSummarizer(streamProvider)
+            val activeSessionId = sessionId ?: UUID.randomUUID().toString()
+
+            val started = System.currentTimeMillis()
+            val trace = StringBuilder()
+            val totalEventsBoxed = intArrayOf(0)
+            val lastEventMsBoxed = longArrayOf(started)
+
+            fun log(line: String) {
+                val ts = System.currentTimeMillis() - started
+                val withTs = "[+${ts}ms] $line"
+                trace.append(withTs).append("\n")
+                try {
+                    java.io.File("/tmp/agent-loop.log").appendText("$withTs\n")
+                } catch (_: Exception) {
+                }
+                call.application.log.info(withTs)
+            }
+
+            val eventChannel = kotlinx.coroutines.channels.Channel<com.example.smarty.protocol.AgentEvent>(
+                kotlinx.coroutines.channels.Channel.UNLIMITED,
+            )
+            val agent = ServerAgent(
+                llmProvider = streamProvider,
+                vectorStore = vectorStore,
+                summarizer = streamSummarizer,
+                noteRepository = noteRepository,
+                timerRepository = timerRepository,
+                calendarRepository = calendarRepository,
+                eventEmitter = { event ->
+                    eventChannel.trySend(event)
+                    val now = System.currentTimeMillis()
+                    val dMs = now - lastEventMsBoxed[0]
+                    lastEventMsBoxed[0] = now
+                    totalEventsBoxed[0]++
+                    val typeName = event::class.simpleName ?: "unknown"
+                    log("EVENT $typeName +${dMs}ms")
+                },
+                userId = "agent-stream-test",
+                noteService = noteService,
+                capabilities = null,
+            )
+
+            var responseText = ""
+            var runError: Throwable? = null
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    write(":ping\n\n")
+                    flush()
+                    log("AGENT START model=$safeModel query=\"$messageText\"")
+
+                    // Drain events from the channel and emit them as SSE.
+                    val drainJob = kotlinx.coroutines.GlobalScope.launch {
+                        try {
+                            for (event in eventChannel) {
+                                val now2 = System.currentTimeMillis()
+                                val dMs2 = now2 - lastEventMsBoxed[0]
+                                val typeName = event::class.simpleName ?: "unknown"
+                                val eventJson = runCatching {
+                                    Json.encodeToString(
+                                        com.example.smarty.protocol.AgentEvent.serializer(),
+                                        event,
+                                    )
+                                }.getOrElse { "{\"err\":${JsonPrimitive(it.message ?: it.javaClass.simpleName).toString()}}" }
+                                write(
+                                    "data: {\"type\":\"event\",\"eventType\":${JsonPrimitive(typeName).toString()}," +
+                                        "\"+ms\":$dMs2,\"event\":$eventJson}\n\n",
+                                )
+                                flush()
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+
+                    try {
+                        responseText = agent.run(
+                            query = messageText,
+                            sessionId = activeSessionId,
+                            history = emptyList(),
+                            modelOverride = safeModel,
+
+                        )
+                    } catch (e: Throwable) {
+                        runError = e
+                        log("AGENT RUN FAILED class=${e.javaClass.name} msg=${e.message}")
+                    }
+                    eventChannel.close()
+                    drainJob.join()
+
+                    // Final done event inside the writer so it lands on the SSE stream.
+                    val finalTotalMs = System.currentTimeMillis() - started
+                    log("AGENT END totalEvents=${totalEventsBoxed[0]} totalMs=$finalTotalMs responseLen=${responseText.length}")
+                    if (runError != null) {
+                        write(
+                            "data: {\"type\":\"error\",\"class\":${JsonPrimitive(runError!!.javaClass.name).toString()}," +
+                                "\"message\":${JsonPrimitive(runError!!.message ?: "").toString()}}\n\n",
+                        )
+                        flush()
+                    }
+                    write(
+                        "event: done\ndata: {\"type\":\"done\"," +
+                            "\"response\":${JsonPrimitive(responseText).toString()}," +
+                            "\"sessionId\":${JsonPrimitive(activeSessionId).toString()}," +
+                            "\"totalEvents\":${totalEventsBoxed[0]}," +
+                            "\"totalMs\":$finalTotalMs}\n\n",
+                    )
+                    flush()
+                }
+            } catch (e: Exception) {
+                log("RESPOND WRITER FAILED class=${e.javaClass.name} msg=${e.message}")
+                if (eventChannel.isClosedForReceive.not() && eventChannel.isClosedForSend.not()) {
+                    runCatching { eventChannel.close() }
+                }
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to "agent stream failed", "class" to e.javaClass.name, "message" to e.message),
+                )
+                return@post
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/log") {
+            try {
+                val log = java.io.File("/tmp/opencode-daemon.log")
+                if (log.exists()) {
+                    val text = log.readText()
+                    val tail = if (text.length > 10000) text.substring(text.length - 10000) else text
+                    call.respondText(tail, ContentType.Text.Plain)
+                } else {
+                    call.respondText("LOG FILE NOT FOUND at /tmp/opencode-daemon.log", ContentType.Text.Plain)
+                }
+            } catch (e: Exception) {
+                call.respondText("ERR: ${e.javaClass.name}: ${e.message}", ContentType.Text.Plain)
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/auth") {
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            try {
+                call.respondTextWriter(contentType = ContentType.Application.Json) {
+                    val authText = runCatching {
+                        client.prepareGet("http://127.0.0.1:4096/auth") {
+                            header("Accept", "application/json")
+                        }.execute { it.bodyAsText() }
+                    }.getOrElse { "ERR: ${it.message}" }
+                    write("event: auth\ndata: ")
+                    write(JsonPrimitive(authText.take(5000)).toString())
+                    write("\n\n")
+                }
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName)),
+                )
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/config") {
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            try {
+                call.respondTextWriter(contentType = ContentType.Application.Json) {
+                    write(":ping\n\n")
+                    flush()
+                    val cfgText = client.prepareGet("http://127.0.0.1:4096/config") {
+                        header("Accept", "application/json")
+                    }.execute { it.bodyAsText() }
+                    write("event: config\ndata: ")
+                    write(JsonPrimitive(cfgText.take(20000)).toString())
+                    write("\n\n")
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[debug/daemon/config] error class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName), "class" to e.javaClass.name),
+                )
+            }
+        }
+
+        // DEBUG: post a minimal request directly to daemon (no agent) and stream
+        // the raw SSE back. Used to isolate "is it the agent config that hangs?"
+        // vs "is the LLM call itself slow".
+        // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
+        get("/debug/daemon/chat") {
+            val messageText = call.request.queryParameters["message"] ?: "hi"
+            val modelOverride = call.request.queryParameters["model"] ?: "opencode/big-pickle"
+
+            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            val started = System.currentTimeMillis()
+            try {
+                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                    write(":ping\n\n")
+                    flush()
+                    // Create session
+                    val sessionText = client.preparePost("http://127.0.0.1:4096/session") {
+                        contentType(ContentType.Application.Json)
+                        setBody("{}")
+                    }.execute { it.bodyAsText() }
+                    val sessionId = runCatching {
+                        Json.parseToJsonElement(sessionText).jsonObject["id"]?.jsonPrimitive?.content
+                    }.getOrNull()
+                    write("event: session\ndata: {\"id\":\"$sessionId\"}\n\n")
+                    flush()
+
+                    val slashIdx = modelOverride.indexOf('/')
+                    val providerId = if (slashIdx > 0) modelOverride.substring(0, slashIdx) else "opencode"
+                    val modelId = if (slashIdx > 0) modelOverride.substring(slashIdx + 1) else modelOverride
+
+                    val body2 = buildString {
+                        append("{\"parts\":[{\"type\":\"text\",\"text\":")
+                        append(JsonPrimitive(messageText).toString())
+                        append("}],\"model\":{\"providerID\":")
+                        append(JsonPrimitive(providerId).toString())
+                        append(",\"modelID\":")
+                        append(JsonPrimitive(modelId).toString())
+                        append("}}")
+                    }
+                    write("event: requestBody\ndata: ")
+                    write(JsonPrimitive(body2).toString())
+                    write("\n\n")
+                    flush()
+
+                    client.preparePost("http://127.0.0.1:4096/session/$sessionId/message") {
+                        contentType(ContentType.Application.Json)
+                        header("Accept", "text/event-stream")
+                        setBody(body2)
+                    }.execute { response ->
+                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
+                        flush()
+                        val channel = response.bodyAsChannel()
+                        var chunkN = 0
+                        while (!channel.isClosedForRead) {
+                            val line = channel.readLine() ?: break
+                            chunkN++
+                            val safeLine = JsonPrimitive(line.take(2000)).toString()
+                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                            flush()
+                            if (chunkN > 200) break
+                        }
+                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
+                    }
+                }
+            } catch (e: Exception) {
+                call.application.log.error("[debug/daemon/chat] error class={} msg={}", e.javaClass.name, e.message)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to (e.message ?: e.javaClass.simpleName), "class" to e.javaClass.name),
+                )
+            }
+        }
     }
 }
 
@@ -1113,3 +1820,36 @@ data class InterruptResponse(
     val success: Boolean,
     val message: String,
 )
+
+private fun defaultMockToolImpls(): Map<String, (Map<String, kotlinx.serialization.json.JsonElement>) -> String> {
+    return mapOf(
+        "add" to { args ->
+            val a = (args["a"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+            val b = (args["b"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+            """{"sum":${a + b}}"""
+        },
+        "multiply" to { args ->
+            val a = (args["a"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+            val b = (args["b"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+            """{"product":${a * b}}"""
+        },
+        "get_current_time" to { _ ->
+            val now = java.time.Instant.now().toString()
+            """{"utc":${JsonPrimitive(now).toString()}}"""
+        },
+        "get_weather" to { args ->
+            val city = (args["city"] as? JsonPrimitive)?.contentOrNull ?: "unknown"
+            """{"city":${JsonPrimitive(city).toString()},"temp_c":22,"condition":"sunny"}"""
+        },
+        "fibonacci" to { args ->
+            val n = (args["n"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+            fun fib(k: Int): Long {
+                if (k < 2) return k.toLong()
+                var a = 0L; var b = 1L
+                repeat(k - 1) { val c = a + b; a = b; b = c }
+                return b
+            }
+            """{"n":$n,"value":${fib(n)}}"""
+        },
+    )
+}

@@ -4,13 +4,19 @@ import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.server.agent.AgentRunManager
 import com.example.smarty.server.agent.ActiveSessionManager
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
+import io.ktor.http.CacheControl
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondTextWriter
+import io.ktor.server.response.header
 import io.ktor.server.routing.post
+import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.*
+import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -23,6 +29,58 @@ fun Application.configureTimelineBridgeRoutes() {
     val bridge = TimelineBridgeService
 
     routing {
+        // ============================================================================
+        // GET /chat/events
+        // SSE endpoint for Android to receive persistent event updates from the daemon
+        // ============================================================================
+        get("/chat/events") {
+            val sessionId = call.request.queryParameters["sessionId"]
+            if (sessionId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Missing sessionId")
+                return@get
+            }
+
+            // Prevent proxies from buffering the SSE stream
+            call.response.header("Cache-Control", "no-cache, no-store, must-revalidate")
+            call.response.header("Connection", "keep-alive")
+            call.response.header("X-Accel-Buffering", "no")
+
+            call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                write(":ping\n\n")
+                flush()
+                logger.info("[SSE] Connection established for sessionId=$sessionId")
+
+                val eventFlow = AgentRunManager.getEventFlow(sessionId)
+                
+                try {
+                    coroutineScope {
+                        // Keep-alive job
+                        val keepAliveJob = launch {
+                            while (isActive) {
+                                delay(15_000)
+                                write(":ping\n\n")
+                                flush()
+                            }
+                        }
+
+                        // Collect events from the flow
+                        eventFlow.collect { event ->
+                            val json = Json.encodeToString(AgentEvent.serializer(), event)
+                            write("data: $json\n\n")
+                            flush()
+                            logger.debug("[SSE] Sent event ${event::class.simpleName} to $sessionId")
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e !is kotlinx.coroutines.CancellationException) {
+                        logger.error("[SSE] Error in stream for $sessionId", e)
+                    }
+                } finally {
+                    logger.info("[SSE] Connection closed for sessionId=$sessionId")
+                }
+            }
+        }
+
         post("/opencode/events") {
             val body = call.receiveText()
             val ts = System.currentTimeMillis()
