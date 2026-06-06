@@ -1217,7 +1217,12 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         chunkLog.append("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
                     }
                     val total = System.currentTimeMillis() - started
-                    val safeAcc = JsonPrimitive(accumulated.toString()).toString()
+                    // Post-process the accumulator: strip any <think>...</think> block
+                    // (the model streams them in pieces so per-chunk regex misses)
+                    val accRaw = accumulated.toString()
+                    val accClean =
+                        accRaw.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "").trimStart()
+                    val safeAcc = JsonPrimitive(accClean).toString()
                     val doneLine = "event: done\ndata: {\"chunks\":$chunkCount,\"firstChunkMs\":${firstChunkMs ?: -1},\"totalMs\":$total,\"accumulated\":$safeAcc}\n\n"
                     chunkLog.append(doneLine)
                     write(doneLine)
