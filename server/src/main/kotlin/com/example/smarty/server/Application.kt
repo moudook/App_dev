@@ -39,7 +39,6 @@ import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.routes.configureReasoningRoutes
 import com.example.smarty.server.routes.configureSearchHistoryRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
-import com.example.smarty.server.routes.configureTimelineBridgeRoutes
 import com.example.smarty.server.routes.configureUserDeviceRoutes
 import com.example.smarty.server.routes.configureUtilityRoutes
 import com.example.smarty.server.services.DigestScheduler
@@ -396,7 +395,6 @@ fun Application.module() {
         configureModelRoutes()
         log.info("ModelRoutes configured")
 
-        configureTimelineBridgeRoutes()
         configurePermissionRoutes()
         log.info("PermissionRoutes configured")
 
@@ -551,10 +549,6 @@ fun Application.module() {
     com.example.smarty.server.agent.ActiveSessionManager
         .startSweeper(this)
 
-    // Start OpenCode Daemon Monitor
-    com.example.smarty.server.agent.OpencodeDaemonManager
-        .startMonitoring()
-
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
 
@@ -572,8 +566,6 @@ fun Application.module() {
         digestScheduler?.stop()
         com.example.smarty.server.agent.AgentRunManager
             .shutdown()
-        com.example.smarty.server.agent.OpencodeDaemonManager
-            .stopMonitoring()
         DatabaseFactory.close()
         log.info("Server shutdown complete")
     }

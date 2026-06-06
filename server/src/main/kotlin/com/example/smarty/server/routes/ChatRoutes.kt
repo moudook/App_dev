@@ -37,6 +37,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.response.respondTextWriter
+import io.ktor.server.response.header
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -148,6 +149,58 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
     val stackRepository = dataSource?.let { StackRepository(it) }
 
     routing {
+        // ============================================================================
+        // GET /chat/events
+        // SSE endpoint for Android to receive persistent event updates
+        // ============================================================================
+        get("/chat/events") {
+            val sessionId = call.request.queryParameters["sessionId"]
+            if (sessionId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Missing sessionId")
+                return@get
+            }
+
+            // Prevent proxies from buffering the SSE stream
+            call.response.header("Cache-Control", "no-cache, no-store, must-revalidate")
+            call.response.header("Connection", "keep-alive")
+            call.response.header("X-Accel-Buffering", "no")
+
+            call.respondTextWriter(contentType = ContentType.Text.EventStream) {
+                write(":ping\n\n")
+                flush()
+                call.application.log.info("[SSE] Connection established for sessionId=$sessionId")
+
+                val eventFlow = com.example.smarty.server.agent.AgentRunManager.getEventFlow(sessionId)
+                
+                try {
+                    kotlinx.coroutines.coroutineScope {
+                        // Keep-alive job
+                        val keepAliveJob = launch {
+                            while (isActive) {
+                                delay(15_000)
+                                write(":ping\n\n")
+                                flush()
+                            }
+                        }
+
+                        // Collect events from the flow
+                        eventFlow.collect { event ->
+                            val jsonStr = kotlinx.serialization.json.Json.encodeToString(AgentEvent.serializer(), event)
+                            write("data: $jsonStr\n\n")
+                            flush()
+                            call.application.log.debug("[SSE] Sent event ${event::class.simpleName} to $sessionId")
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e !is kotlinx.coroutines.CancellationException) {
+                        call.application.log.error("[SSE] Error in stream for $sessionId", e)
+                    }
+                } finally {
+                    call.application.log.info("[SSE] Connection closed for sessionId=$sessionId")
+                }
+            }
+        }
+
         // Authenticated routes
         authenticate("firebase") {
             /**

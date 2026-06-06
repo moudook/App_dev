@@ -52,17 +52,10 @@ RUN ./gradlew :server:shadowJar --no-daemon --parallel -x test \
 # -----------------------------------------------------------------------------
 FROM eclipse-temurin:17-jre
 
-# Install Node.js 20.x (LTS), NPM, bash, and wget for orchestration
+# Install bash and wget for orchestration
 RUN apt-get update && apt-get install -y curl gnupg ca-certificates && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs bash wget socat && \
+    apt-get install -y bash wget socat && \
     rm -rf /var/lib/apt/lists/*
-
-# Install OpenCode CLI globally and clean npm cache to reduce image size
-# --unsafe-perm required because Docker build runs as root and npm >= 7
-# skips postinstall scripts for root users. Without this, the native Go binary
-# (bin/.opencode) is never downloaded by postinstall.mjs and the CLI is broken.
-RUN npm install -g opencode-ai@1.16.0 --unsafe-perm && npm cache clean --force
 
 # Security: non-root user (HF Spaces uses UID 1000)
 # eclipse-temurin:17-jre base image ships a pre-existing 'ubuntu' user with
@@ -78,8 +71,6 @@ WORKDIR /app
 # Copy fat JAR and configurations
 COPY --from=builder --chown=user:appgroup /build/server/build/libs/server-1.0.0-all.jar app.jar
 COPY --chown=user:appgroup entrypoint.sh /app/entrypoint.sh
-COPY --chown=user:appgroup opencode.json /app/opencode.json
-COPY --chown=user:appgroup .opencode/ /app/.opencode/
 
 # Pre-create temp directories and set permissions
 RUN mkdir -p /app/_temp && \

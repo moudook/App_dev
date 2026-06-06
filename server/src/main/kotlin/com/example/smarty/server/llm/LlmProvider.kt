@@ -41,6 +41,8 @@ data class LlmMessage(
     val content: String,
     val thinking: String? = null,
     val name: String? = null,
+    val toolCallId: String? = null,
+    val toolCalls: List<LlmToolCall> = emptyList(),
     val images: List<ByteArray>? = null, // Optional image attachments
 ) {
     enum class Role {
