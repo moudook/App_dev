@@ -409,10 +409,11 @@ class OpencodeLlmProvider(
                                 val reasoning = reasoningContent ?: reasoningField
 
                                 val rawContent = delta?.get("content")?.jsonPrimitive?.contentOrNull
-                                // For m3: strip the <think>...\n</think> block from content
+                                // For m3: strip the <think>...</think> block from content
+                                // (m3 sometimes emits no newline after </think> — handle both)
                                 val content =
                                     if (rawContent != null && rawContent.contains("<think>")) {
-                                        rawContent.replace(Regex("<think>[\\s\\S]*?\\n</think>\\n?"), "")
+                                        rawContent.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "")
                                     } else {
                                         rawContent
                                     }
@@ -475,7 +476,7 @@ class OpencodeLlmProvider(
                             val rawContent = delta?.get("content")?.jsonPrimitive?.contentOrNull
                             val content =
                                 if (rawContent != null && rawContent.contains("<think>")) {
-                                    rawContent.replace(Regex("<think>[\\s\\S]*?\\n</think>\\n?"), "")
+                                    rawContent.replace(Regex("<think>[\\s\\S]*?</think>\\n?"), "")
                                 } else {
                                     rawContent
                                 }
