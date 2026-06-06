@@ -1345,6 +1345,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
             val historyJson = parsed?.get("history") as? kotlinx.serialization.json.JsonArray
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+            val systemOverride = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
             val streamProvider = LlmProviderFactory.create(
@@ -1373,6 +1374,15 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         }
                     messages.add(com.example.smarty.server.llm.LlmMessage(role = r, content = content))
                 }
+            }
+            if (!systemOverride.isNullOrBlank()) {
+                messages.add(
+                    0,
+                    com.example.smarty.server.llm.LlmMessage(
+                        role = com.example.smarty.server.llm.LlmMessage.Role.SYSTEM,
+                        content = systemOverride,
+                    ),
+                )
             }
             messages.add(
                 com.example.smarty.server.llm.LlmMessage(
