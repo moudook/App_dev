@@ -1541,6 +1541,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 ?: "What is 2+2? Briefly."
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+            val systemOverrideAgent = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val safeModel = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
             val streamProvider = LlmProviderFactory.create(LlmProviderFactory.getOrCreateHttpClient())
@@ -1624,6 +1625,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             sessionId = activeSessionId,
                             history = emptyList(),
                             modelOverride = safeModel,
+                            systemOverride = systemOverrideAgent,
                         )
                     } catch (e: Throwable) {
                         runError = e

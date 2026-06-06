@@ -90,6 +90,7 @@ class ServerAgent(
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
         section: String? = null,
+        systemOverride: String? = null,
     ): String {
         if (query.length > 10000) {
             throw IllegalArgumentException("Query too long")
@@ -110,6 +111,7 @@ class ServerAgent(
             onOpencodeSessionCreated,
             variantOverride,
             section,
+            systemOverride,
         )
     }
 
@@ -125,6 +127,7 @@ class ServerAgent(
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
         section: String? = null,
+        systemOverride: String? = null,
     ): String {
         var toolCallCount = 0
 
@@ -162,7 +165,20 @@ class ServerAgent(
                 null
             }
 
-        val messages = stateManager.buildMessageList(systemMessage, initialHistory, userMessage)
+        val messages = stateManager.buildMessageList(systemMessage, initialHistory, userMessage).toMutableList()
+        if (!systemOverride.isNullOrBlank()) {
+            // Caller-provided system prompt override — append to existing system
+            // message so we keep tool definitions + personality guidance but force
+            // specific behavior (e.g. tool use, persona, output format).
+            val existingSys = messages.firstOrNull { it.role == LlmMessage.Role.SYSTEM }
+            if (existingSys != null) {
+                val merged = existingSys.copy(content = existingSys.content + "\n\n" + systemOverride)
+                val idx = messages.indexOf(existingSys)
+                messages[idx] = merged
+            } else {
+                messages.add(0, LlmMessage(role = LlmMessage.Role.SYSTEM, content = systemOverride))
+            }
+        }
 
         // 3. Agentic Loop
         val messagesForAgent = messages.toMutableList()
