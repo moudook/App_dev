@@ -192,11 +192,29 @@ a4cdb3a2  feat: strip all auth + add streaming timing logs
 
 ## Current Investigation State (as of last test)
 
-- **Last good:** Build `a2a3a8ee` deployed, `/debug/llm/stream` returned 2 chunks in 3.5s with `accumulated=""` (chunks had data but `content` was empty). Then HF returned a 500 HTML page on a second call.
-- **Last bad:** Build `a742160f` was the working version that returned the 2-chunk data.
-- **Open hypothesis:** `parseCanonicalResponse` is missing a branch for the daemon's actual event shape. Need to see the `rawJson` to confirm.
-- **Open hypothesis:** The 500 HTML page on retry suggests the daemon is intermittently timing out, OR the response is hitting HF's gateway-level timeout (>5 min).
-- **Next steps to try:** Add explicit `cacheControl(CacheControl.NoStore(null))` to `/debug/llm/stream`, add a try-catch in the route that writes the error to the SSE response, try a smaller test message, retry with a fresh Space reboot.
+- **Last good:** Multi-step tool calls proven end-to-end on Space.
+- Commit graph (latest at bottom):
+  ```
+  a2a3a8ee → ... → 2f455033 → ... → 1eec8526 → f9b34e88 → aba428d6
+  → 84060322 → fd2b20cd → 388220aa → c0bd2095 → fd08dc43
+  → 0be960fd → d5c45d22 → 04fb2845 → 2b69ff2a → c8adc4be
+  → e3dfa666 (Documentacy Part 3)
+  ```
+- **Wire format PROVEN**: deepseek and m3 both successfully execute
+  3-iter chains (fibonacci → add → final) via /chat/query/stream with
+  the `messages` field carrying `tool_calls` and `tool_call_id`.
+- **Bugs fixed in this session**:
+  - m3 splits atomic tool_call across 2 SSE frames; parser now merges via `activeToolCall`.
+  - history parser was dropping `tool_call_id` (TOOL) and `tool_calls` (ASSISTANT) — now extracted.
+  - server injected default "What is 2+2?" user msg when `query=""` — now only when no `history`/`messages` present.
+  - server now accepts `messages` field (not just `history`) for full conversation passing.
+- **Test artifacts** at `C:\Users\gbust\Smarty\`:
+  - `test-multistep-ds2.txt` — deepseek 3-iter SUCCESS
+  - `test-multistep-m3.txt` — m3 3-iter SUCCESS
+  - `test-multistep-iter{1,2,3}.txt` — raw SSE per iteration
+  - `multistep_test.py` — harness (gitignored, lives locally)
+- **Open hypothesis:** ServerAgent's system prompt doesn't force tool use; with a stronger system prompt the production loop will drive tool calls naturally.
+- **Next step to try:** add `system` parameter to `/chat/query/agent/stream` that injects into ServerAgent's system message — should make the LLM call ServerAgent's real tools (memory, schedule, etc.) instead of narrating.
 
 ## Appendix: Useful One-Liners
 
