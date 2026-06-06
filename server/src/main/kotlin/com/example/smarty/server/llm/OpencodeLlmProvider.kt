@@ -407,6 +407,31 @@ class OpencodeLlmProvider(
                     buildJsonObject {
                         put("role", JsonPrimitive(role))
                         put("content", JsonPrimitive(msg.content))
+                        if (msg.role == LlmMessage.Role.TOOL && !msg.toolCallId.isNullOrBlank()) {
+                            put("tool_call_id", JsonPrimitive(msg.toolCallId))
+                        }
+                        if (msg.role == LlmMessage.Role.ASSISTANT && msg.toolCalls.isNotEmpty()) {
+                            put(
+                                "tool_calls",
+                                kotlinx.serialization.json.buildJsonArray {
+                                    msg.toolCalls.forEach { tc ->
+                                        add(
+                                            buildJsonObject {
+                                                put("id", JsonPrimitive(tc.id))
+                                                put("type", JsonPrimitive("function"))
+                                                put(
+                                                    "function",
+                                                    buildJsonObject {
+                                                        put("name", JsonPrimitive(tc.functionName))
+                                                        put("arguments", JsonPrimitive(tc.arguments))
+                                                    },
+                                                )
+                                            },
+                                        )
+                                    }
+                                },
+                            )
+                        }
                     },
                 )
             }

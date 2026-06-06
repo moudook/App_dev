@@ -42,6 +42,8 @@ data class LlmMessage(
     val thinking: String? = null,
     val name: String? = null,
     val images: List<ByteArray>? = null, // Optional image attachments
+    val toolCallId: String? = null, // For TOOL role: the tool_call.id this result answers
+    val toolCalls: List<LlmToolCall> = emptyList(), // For ASSISTANT role: tool calls requested by the LLM
 ) {
     enum class Role {
         SYSTEM,
