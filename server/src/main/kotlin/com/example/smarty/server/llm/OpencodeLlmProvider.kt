@@ -25,6 +25,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -127,7 +128,60 @@ class OpencodeLlmProvider(
             // models). The direct path uses Bearer public which the Zen free tier accepts.
             if (System.getenv(USE_DIRECT_ZEN_ENV) == "true" || System.getenv(USE_DIRECT_ZEN_ENV) == "1") {
                 logger.info("[OpenCode.LlmProvider][inference=$inferenceId] OPENCODE_USE_DIRECT_ZEN set — bypassing daemon, calling $ZEN_BASE_URL directly")
-                emitAll(streamDirectZen(messages, model, inferenceId))
+                // Build raw tools JSON from the structured ToolDefinitions (or pass empty)
+                val toolsJson =
+                    if (tools.isNotEmpty()) {
+                        buildJsonArray {
+                            tools.forEach { td ->
+                                add(
+                                    buildJsonObject {
+                                        put("type", JsonPrimitive("function"))
+                                        put(
+                                            "function",
+                                            buildJsonObject {
+                                                put("name", JsonPrimitive(td.name))
+                                                put("description", JsonPrimitive(td.description))
+                                                put(
+                                                    "parameters",
+                                                    buildJsonObject {
+                                                        put("type", JsonPrimitive(td.parameters.type))
+                                                        put(
+                                                            "properties",
+                                                            kotlinx.serialization.json.JsonObject(
+                                                                td.parameters.properties.mapValues { (_, v) ->
+                                                                    buildJsonObject {
+                                                                        put("type", JsonPrimitive(v.type))
+                                                                        v.description?.let { put("description", JsonPrimitive(it)) }
+                                                                    }
+                                                                },
+                                                            ),
+                                                        )
+                                                        put(
+                                                            "required",
+                                                            kotlinx.serialization.json.JsonArray(
+                                                                td.parameters.required.map { JsonPrimitive(it) },
+                                                            ),
+                                                        )
+                                                    },
+                                                )
+                                            },
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    } else {
+                        kotlinx.serialization.json.JsonArray(emptyList())
+                    }
+                emitAll(
+                    streamDirectZen(
+                        messages = messages,
+                        model = model,
+                        inferenceId = inferenceId,
+                        toolsJson = toolsJson,
+                        toolChoice = null,
+                    ),
+                )
                 return@flow
             }
 
@@ -324,6 +378,8 @@ class OpencodeLlmProvider(
         messages: List<LlmMessage>,
         model: String?,
         inferenceId: String,
+        toolsJson: kotlinx.serialization.json.JsonArray = kotlinx.serialization.json.JsonArray(emptyList()),
+        toolChoice: String? = null,
     ): Flow<LlmChunk> = flow {
         val modelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
         val requestStartMs = System.currentTimeMillis()
@@ -360,6 +416,12 @@ class OpencodeLlmProvider(
             put("model", JsonPrimitive(modelId))
             put("stream", JsonPrimitive(true))
             put("messages", kotlinx.serialization.json.JsonArray(chatMessages))
+            if (toolsJson.isNotEmpty()) {
+                put("tools", toolsJson)
+            }
+            if (toolChoice != null) {
+                put("tool_choice", JsonPrimitive(toolChoice))
+            }
         }
 
         logger.info("[OpenCode.DirectZen][inference=$inferenceId] POST $ZEN_BASE_URL/chat/completions model=$modelId")

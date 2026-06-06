@@ -1131,6 +1131,49 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
             call.respondText(stateJson, ContentType.Application.Json)
         }
 
+        /**
+         * Convert a JSON tools array (OpenAI shape) into the LlmProvider's
+         * structured ToolDefinition list. We do this conversion in the route
+         * so the LlmProvider interface stays clean.
+         */
+        // @VisibleForTesting
+        fun convertTools(
+            tools: kotlinx.serialization.json.JsonArray?,
+        ): List<com.example.smarty.server.llm.ToolDefinition> {
+            if (tools == null || tools.isEmpty()) return emptyList()
+            return tools.mapNotNull { el ->
+                val obj = el as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val fn = obj["function"]?.let { it as? kotlinx.serialization.json.JsonObject }
+                    ?: return@mapNotNull null
+                val name = fn["name"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: return@mapNotNull null
+                val description = fn["description"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: ""
+                val paramsJson = fn["parameters"]?.let { it as? kotlinx.serialization.json.JsonObject }
+                val paramsType = paramsJson?.get("type")?.let { (it as? JsonPrimitive)?.contentOrNull } ?: "object"
+                val rawProps = paramsJson?.get("properties")?.let { it as? kotlinx.serialization.json.JsonObject }
+                val props =
+                    rawProps?.mapValues { (_, v) ->
+                        val p = v as? kotlinx.serialization.json.JsonObject
+                        com.example.smarty.server.llm.ToolProperty(
+                            type = p?.get("type")?.let { (it as? JsonPrimitive)?.contentOrNull } ?: "string",
+                            description = p?.get("description")?.let { (it as? JsonPrimitive)?.contentOrNull },
+                        )
+                    } ?: emptyMap()
+                val required =
+                    paramsJson?.get("required")?.let { it as? kotlinx.serialization.json.JsonArray }
+                        ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
+                com.example.smarty.server.llm.ToolDefinition(
+                    name = name,
+                    description = description,
+                    parameters =
+                        com.example.smarty.server.llm.ToolParameters(
+                            type = paramsType,
+                            properties = props,
+                            required = required,
+                        ),
+                )
+            }
+        }
+
         // DEBUG: direct OpenCode streaming test (used by scripts/test-space.sh chat)
         // POST /debug/llm/stream  body: {"message":"...","model":"opencode/auto"}
         // Streams the OpenCode daemon's response as SSE. Each chunk arrival time is
@@ -1144,6 +1187,10 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
                 ?: "Say hi in one short sentence."
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            // Optional tools definition (OpenAI format). Pass straight through to the LLM.
+            val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
+            val toolChoiceOverride =
+                parsed?.get("tool_choice")?.let { (it as? JsonPrimitive)?.contentOrNull }
 
             val provider = com.example.smarty.server.llm.LlmProviderFactory.create(
                 com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient(),
@@ -1177,7 +1224,7 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                                                 content = messageText,
                                             ),
                                         ),
-                                        tools = emptyList(),
+                                        tools = convertTools(toolsOverride),
                                         model = modelOverride,
                                     ).collect { chunk ->
                                         val now = System.currentTimeMillis()
