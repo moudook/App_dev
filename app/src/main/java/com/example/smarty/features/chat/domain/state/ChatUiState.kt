@@ -12,12 +12,9 @@ import com.example.smarty.core.domain.model.MentionState
  * IMPORTANT: ONLY include models that the server actually discovers.
  * Current server-discovered models: deepseek-v4-flash-free, nemotron-3-super-free, qwen3.6-plus-free.
  */
-val DEFAULT_FREE_MODELS =
-    listOf(
-        "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash",
-        "opencode/nemotron-3-super-free" to "Nemotron 3 Super",
-        "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus",
-    )
+val DEFAULT_FREE_MODELS = listOf(
+    "default" to "Default Model",
+)
 
 /**
  * UI-specific state for chat screen.
@@ -46,7 +43,7 @@ data class ChatUiState(
     val isAgentWorking: Boolean = false,
     val autoSendActive: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
-    val selectedModel: String = "opencode/deepseek-v4-flash-free",
+    val selectedModel: String = "default",
     val availableModels: List<Pair<String, String>> = DEFAULT_FREE_MODELS,
     val modelVariantMap: Map<String, List<String>> = emptyMap(),
     val selectedVariant: String? = null,

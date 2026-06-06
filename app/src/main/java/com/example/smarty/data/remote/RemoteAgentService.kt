@@ -372,81 +372,6 @@ class RemoteAgentService(
         }
     }
 
-    /**
-     * Deliver the user's response to a plugin-driven MCP `ask` tool call.
-     *
-     * When the OpenCode CLI plugin emits `user.input.required` over
-     * `/ws/timeline` (origin = `ApprovalSource.Plugin`), the corresponding
-     * tool is blocked in the plugin and is polling
-     *   `/tmp/opencode-asks/<sessionID>/<callID>.response.txt`
-     * on disk. The Ktor `/opencode/ask-response/{sessionId}/{callId}` route
-     * writes the response to that file and unblocks the tool.
-     *
-     * Path param characters are restricted to the same `[A-Za-z0-9_-]+` set
-     * enforced server-side, so any rogue values are rejected with a clear
-     * 400 instead of smuggling through URL slashes.
-     *
-     * @param sessionId OpenCode session ID — required so the file is written
-     *                  to the right per-session directory.
-     * @param callId    Plugin `callID` from the `user.input.required` event.
-     * @param response  The user's text reply.
-     * @return `true` if Ktor accepted the response (200 OK), `false` on any
-     *         transport or HTTP error.
-     */
-    suspend fun sendPluginAskResponse(
-        sessionId: String,
-        callId: String,
-        response: String,
-    ): Boolean {
-        Log.i(
-            TAG,
-            ">>> SEND_PLUGIN_ASK_RESPONSE: session=$sessionId call=$callId response.len=${response.length}",
-        )
-        return try {
-            val baseUrl = serverUrlProvider()
-            val token = getFirebaseToken()
-            val safePathRegex = Regex("[A-Za-z0-9_-]+")
-            if (!sessionId.matches(safePathRegex) || !callId.matches(safePathRegex)) {
-                Log.e(
-                    TAG,
-                    ">>> SEND_PLUGIN_ASK_RESPONSE_REJECTED: sessionId/callId contains unsafe characters",
-                )
-                return false
-            }
-
-            val httpResponse =
-                client.post("$baseUrl/opencode/ask-response/$sessionId/$callId") {
-                    if (!token.isNullOrBlank()) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        buildString {
-                            append("{\"response\":")
-                            append(json.encodeToString(JsonPrimitive(response)))
-                            append("}")
-                        },
-                    )
-                }
-
-            if (httpResponse.status.isSuccess()) {
-                Log.i(
-                    TAG,
-                    ">>> SEND_PLUGIN_ASK_RESPONSE_OK: session=$sessionId call=$callId (${httpResponse.status})",
-                )
-                true
-            } else {
-                Log.e(
-                    TAG,
-                    ">>> SEND_PLUGIN_ASK_RESPONSE_FAILED: session=$sessionId call=$callId status=${httpResponse.status}",
-                )
-                false
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, ">>> SEND_PLUGIN_ASK_RESPONSE_ERROR: session=$sessionId call=$callId", e)
-            false
-        }
-    }
 
     /**
      * Delete a chat session from the server (Supabase sync).
@@ -506,81 +431,14 @@ class RemoteAgentService(
      * Falls back to cached models if server call fails.
      */
     suspend fun getOpencodeModels(refresh: Boolean = false): List<ModelInfo> {
-        return try {
-            val baseUrl = serverUrlProvider()
-            val token = getFirebaseToken()
-
-            Log.d(TAG, "Fetching opencode models: refresh=$refresh, url=$baseUrl/api/v1/opencode/models")
-
-            val response =
-                client.get("$baseUrl/api/v1/opencode/models") {
-                    if (token != null) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                    parameter("refresh", refresh)
-                }
-
-            Log.d(TAG, "Models API response status: ${response.status}")
-
-            if (response.status.isSuccess()) {
-                val body = response.bodyAsText()
-                Log.d(TAG, "Models API response body (first 500 chars): ${body.take(500)}")
-
-                val jsonObject =
-                    com.google.gson.JsonParser
-                        .parseString(body)
-                        .asJsonObject
-
-                // Check if models array exists
-                if (!jsonObject.has("models")) {
-                    Log.e(TAG, "Response missing 'models' field: ${body.take(200)}")
-                    return emptyList()
-                }
-
-                val modelsArray = jsonObject.getAsJsonArray("models")
-                Log.d(TAG, "Models array size: ${modelsArray.size()}")
-
-                val resultList = mutableListOf<ModelInfo>()
-                for (i in 0 until modelsArray.size()) {
-                    val element = modelsArray.get(i)
-                    if (element.isJsonObject) {
-                        val mObj = element.asJsonObject
-                        val id = mObj.get("id")?.asString
-                        val label = mObj.get("label")?.asString
-
-                        if (id != null && label != null) {
-                            val variants = mutableListOf<String>()
-                            val variantsObj = mObj.getAsJsonObject("variants")
-                            if (variantsObj != null) {
-                                variants.addAll(variantsObj.keySet())
-                            }
-                            resultList.add(ModelInfo(id = id, label = label, variants = variants))
-                            Log.d(TAG, "  Model[$i]: $id -> $label, variants=$variants")
-                        } else {
-                            Log.w(TAG, "  Model[$i] missing id or label: $element")
-                        }
-                    } else {
-                        Log.w(TAG, "  Model[$i] is not a JSON object: $element")
-                    }
-                }
-
-                Log.d(TAG, "Successfully parsed ${resultList.size} models from server")
-                resultList
-            } else {
-                Log.e(TAG, "Failed to fetch opencode models: ${response.status}")
-                emptyList()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching opencode models: ${e.message}", e)
-            emptyList()
-        }
+        return listOf(ModelInfo(id = "default", label = "Default Model", variants = emptyList()))
     }
 
     /**
      * Legacy variant — returns plain (modelId, label) pairs for backward compat.
      */
     suspend fun getOpencodeModelPairs(refresh: Boolean = false): List<Pair<String, String>> =
-        getOpencodeModels(refresh).map { it.id to it.label }
+        listOf("default" to "Default Model")
 
     /**
      * Analyze content on the server.

@@ -19,13 +19,10 @@ import java.util.UUID
  * The server discovers free models at runtime, so this list may be stale.
  */
 object AIModels {
-    val SERVER_MODELS =
-        listOf(
-            "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash",
-            "opencode/nemotron-3-super-free" to "Nemotron 3 Super",
-            "opencode/qwen3.6-plus-free" to "Qwen 3.6 Plus",
-        )
-    const val SERVER_DEFAULT = "opencode/deepseek-v4-flash-free"
+    val SERVER_MODELS = listOf(
+        "default" to "Default Model",
+    )
+    const val SERVER_DEFAULT = "default"
 
     fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> =
         when (connection) {
@@ -190,7 +187,7 @@ class SecurePreferences(
 
     fun getSelectedModel(connection: AIConnection): String {
         val saved = encryptedPrefs.getString(KEY_LOCAL_PC_MODEL, null)
-        if (saved == null || !saved.startsWith("opencode/")) {
+        if (saved == null) {
             return AIModels.getDefaultModel(connection)
         }
         return saved

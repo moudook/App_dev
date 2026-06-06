@@ -524,49 +524,6 @@ private fun MessageContent(
                     onApproval = onApproval,
                 )
 
-                // Web search sliding card
-                val webSearchQueries = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.WebSearchQuery>()
-                val webSearchResults = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.WebSearchResult>()
-                if (webSearchQueries.isNotEmpty() || webSearchResults.isNotEmpty()) {
-                    com.example.smarty.features.chat.ui.components.WebSearchSlidingCard(
-                        queries = webSearchQueries,
-                        results = webSearchResults,
-                    )
-                }
-
-                // Web fetch card
-                val webFetchUrls = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.WebFetchUrl>()
-                val webFetchResults = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.WebFetchResult>()
-                if (webFetchUrls.isNotEmpty() || webFetchResults.isNotEmpty()) {
-                    com.example.smarty.features.chat.ui.components.WebFetchCard(
-                        fetches = webFetchUrls,
-                        results = webFetchResults,
-                    )
-                }
-
-                // Sub-agent inline cards
-                val subAgentCreateds = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.SubAgentCreated>()
-                if (subAgentCreateds.isNotEmpty()) {
-                    val subAgentIdles = message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.SubAgentIdle>()
-                    subAgentCreateds.forEach { created ->
-                        val idle = subAgentIdles.firstOrNull { it.sessionId == created.sessionId }
-                        val subEvents = message.agentEvents.filter { event ->
-                            when (event) {
-                                is com.example.smarty.protocol.AgentEvent.SubAgentCreated -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.SubAgentIdle -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.ReasoningBlock -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.ResponseBlock -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.ThinkingActive -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.StreamingActive -> event.sessionId == created.sessionId
-                                is com.example.smarty.protocol.AgentEvent.SubAgentEvent -> event.sessionId == created.sessionId
-                                else -> false
-                            }
-                        }
-                        com.example.smarty.features.chat.ui.components.SubAgentCard(
-                            created = created, idle = idle, subAgentEvents = subEvents,
-                        )
-                    }
-                }
 
                 // Tool denied banners
                 message.agentEvents.filterIsInstance<com.example.smarty.protocol.AgentEvent.ToolDenied>().forEach { denial ->

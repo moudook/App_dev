@@ -237,7 +237,7 @@ fun InputStreamScreen(
     // Shake Blocking
     onSetShakeBlocked: (Boolean) -> Unit = {},
     // Dynamic Model Selection
-    selectedModel: String = "opencode/deepseek-v4-flash-free",
+    selectedModel: String = "default",
     availableModels: List<Pair<String, String>> = emptyList(),
     onModelSelected: (String) -> Unit = {},
     modelVariantMap: Map<String, List<String>> = emptyMap(),

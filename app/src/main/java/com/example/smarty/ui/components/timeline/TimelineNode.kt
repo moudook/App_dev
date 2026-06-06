@@ -32,7 +32,7 @@ sealed class TimelineNode {
         override val timestamp: Long,
         val toolName: String,
         val displayName: String,
-        val source: String, // "opencode" | "mcp" | "native"
+
         val status: Status,
         val inputSummary: String?,
         val outputSummary: String?,

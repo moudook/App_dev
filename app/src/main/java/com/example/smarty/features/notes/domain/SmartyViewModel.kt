@@ -893,20 +893,7 @@ class SmartyViewModel(
             }
         }
 
-        // Fetch latest dynamic models from server
-        viewModelScope.launch {
-            try {
-                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = true)
-                if (dynamicModels.isNotEmpty()) {
-                    val modelPairs = dynamicModels.map { it.id to it.label }
-                    val variantMap = dynamicModels.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
-                    securePreferences.setCachedModels(modelPairs)
-                    _modelVariantMap.value = variantMap
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize opencode models in Notes Mode: ${e.message}", e)
-            }
-        }
+
 
         // Restore state from SavedStateHandle after process death (BUG-053)
         // Made non-blocking - failures won't affect startup

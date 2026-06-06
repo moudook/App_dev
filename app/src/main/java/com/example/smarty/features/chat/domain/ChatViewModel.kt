@@ -16,7 +16,7 @@ import com.example.smarty.data.state.SharedAppState
 import com.example.smarty.di.ServiceLocator
 import com.example.smarty.features.chat.domain.event.ChatEvent
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
-import com.example.smarty.features.chat.domain.state.ApprovalSource
+
 import com.example.smarty.features.chat.domain.state.ChatState
 import com.example.smarty.features.chat.domain.state.ChatUiState
 import com.example.smarty.features.chat.domain.state.PendingApproval
@@ -112,17 +112,7 @@ class ChatViewModel(
 
     /**
      * Call when user taps Approve or Deny on the PermissionCard, or submits
-     * an answer to an MCP `ask_user` clarification bubble.
-     *
-     * Routes the response to the correct backend endpoint based on
-     * [PendingApproval.source]:
-     *
-     * - [ApprovalSource.KtorMcp] → `POST /api/v1/chat/events/approval`
-     *   (resolves an entry in the server's [ApprovalRegistry])
-     *
-     * - [ApprovalSource.Plugin] → `POST /opencode/ask-response/{sessionId}/{callId}`
-     *   (writes to `/tmp/opencode-asks/<sessionID>/<callID>.response.txt`
-     *   for the OpenCode CLI plugin's MCP `ask` tool to poll and unblock)
+     * an answer to an interactive tool.
      */
     fun callApproval(
         toolId: String,
@@ -130,8 +120,6 @@ class ChatViewModel(
         feedback: String? = null,
     ) {
         Log.i(TAG, ">>> CALL_APPROVAL: toolId=$toolId, approved=$approved, feedback=${feedback?.take(100)}")
-        // Read pending atomically — if a newer ApprovalRequested arrived between
-        // the user tap and this execution, the toolId won't match and we bail.
         val current = _pendingApprovalState.value
         if (current == null) {
             Log.w(TAG, "callApproval: no pending approval found — discarding")
@@ -142,67 +130,18 @@ class ChatViewModel(
             return
         }
 
-        // Interactive tools (ask_user, confirm, etc.) MUST respond through
-        // the Ktor MCP proxy — that's where the ApprovalRegistry deferred
-        // is waiting. The `liftPluginApprovalIntoState` override already
-        // forces source=KtorMcp for interactive tools, but this check
-        // catches any edge case where source was not corrected.
-        val isInteractive = current.toolName.equals("ask_user", ignoreCase = true)
-        val effectiveSource = if (isInteractive) ApprovalSource.KtorMcp else current.source
-
-        when (effectiveSource) {
-            ApprovalSource.KtorMcp -> {
-                viewModelScope.launch {
-                    try {
-                        Log.i(TAG, ">>> CALL_APPROVAL: sending Ktor MCP approval to server...")
-                        remoteAgentService.sendApproval(
-                            toolId = toolId,
-                            approved = approved,
-                            feedback = feedback,
-                        )
-                        Log.i(TAG, ">>> CALL_APPROVAL: Ktor MCP approval sent successfully")
-                        _pendingApprovalState.update { null }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to send Ktor MCP approval response: ${e.message}", e)
-                    }
-                }
-            }
-            ApprovalSource.Plugin -> {
-                // The plugin's MCP `ask` tool doesn't have a deny mode — it
-                // expects the user to *answer* the question. If the user
-                // tapped Deny on a plugin-driven ask, we deliver an empty
-                // response so the tool unblocks without stalling the agent.
-                val answer = if (approved) (feedback ?: "") else ""
-                val sessionId = current.sessionId
-                if (sessionId == null) {
-                    Log.w(TAG, ">>> CALL_APPROVAL: Plugin source missing sessionId — discarding")
-                    return
-                }
-                viewModelScope.launch {
-                    try {
-                        Log.i(
-                            TAG,
-                            ">>> CALL_APPROVAL: sending plugin ask response (session=$sessionId, call=$toolId, len=${answer.length})",
-                        )
-                        val ok =
-                            remoteAgentService.sendPluginAskResponse(
-                                sessionId = sessionId,
-                                callId = toolId,
-                                response = answer,
-                            )
-                        if (ok) {
-                            Log.i(TAG, ">>> CALL_APPROVAL: plugin ask response sent successfully")
-                        } else {
-                            Log.w(TAG, ">>> CALL_APPROVAL: plugin ask response failed (server returned non-2xx)")
-                        }
-                        // Clear pending state either way — the plugin will
-                        // either unblock the tool or the next event will
-                        // tell us it's failed.
-                        _pendingApprovalState.update { null }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to send plugin ask response: ${e.message}", e)
-                    }
-                }
+        viewModelScope.launch {
+            try {
+                Log.i(TAG, ">>> CALL_APPROVAL: sending approval to server webhook...")
+                remoteAgentService.sendApproval(
+                    toolId = toolId,
+                    approved = approved,
+                    feedback = feedback,
+                )
+                Log.i(TAG, ">>> CALL_APPROVAL: approval sent successfully")
+                _pendingApprovalState.update { null }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send approval response: ${e.message}", e)
             }
         }
     }
@@ -236,47 +175,7 @@ class ChatViewModel(
             )
         }
 
-        // Fetch latest dynamic list of models from backend
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "Fetching dynamic models from server...")
-                val dynamicModels = remoteAgentService.getOpencodeModels(refresh = true)
-                Log.d(TAG, "Server returned ${dynamicModels.size} models: $dynamicModels")
 
-                if (dynamicModels.isNotEmpty()) {
-                    val modelPairs = dynamicModels.map { it.id to it.label }
-                    val variantMap = dynamicModels.filter { it.variants.isNotEmpty() }.associate { m -> m.id to m.variants }
-                    securePreferences.setCachedModels(modelPairs)
-
-                    // Validate current selected model is still in the list
-                    val currentModel = securePreferences.getSelectedModel(AIConnection.LOCAL_PC)
-                    val activeModel =
-                        if (modelPairs.any { it.first == currentModel }) {
-                            currentModel
-                        } else {
-                            val defaultModel = modelPairs.first().first
-                            securePreferences.setSelectedModel(AIConnection.LOCAL_PC, defaultModel)
-                            defaultModel
-                        }
-
-                    _uiState.update {
-                        it.copy(
-                            selectedModel = activeModel,
-                            availableModels = modelPairs,
-                            modelVariantMap = variantMap,
-                        )
-                    }
-                    Log.d(TAG, "Models updated: selected=$activeModel, available=${modelPairs.size}, variants=$variantMap")
-                } else {
-                    Log.w(TAG, "Server returned empty model list, keeping fallback models")
-                    // Don't update UI - keep the correct fallback models
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize opencode models: ${e.message}", e)
-                // Keep using correct fallback models - don't fall back to potentially stale cache
-            }
-
-        }
     }
 
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
@@ -452,7 +351,6 @@ class ChatViewModel(
                                     toolName = event.toolName,
                                     toolTitle = event.toolName.replace('_', ' ').replaceFirstChar { it.uppercase() },
                                     toolArgs = event.question,
-                                    source = ApprovalSource.KtorMcp,
                                 )
                             }
                             Log.i(TAG, ">>> APPROVAL_STATE_UPDATED: pendingApproval is now set (source=KtorMcp)")

@@ -51,11 +51,7 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
         }
 
     val badge: ToolBadge? =
-        when {
-            toolCall.isInteractive && toolCall.isMcpTool -> ToolBadge.ASK
-            toolCall.isMcpTool -> ToolBadge.MCP
-            else -> null
-        }
+        if (toolCall.isInteractive) ToolBadge.ASK else null
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -154,7 +150,7 @@ fun ToolCallEntryCard(toolCall: AgentToolCallEntry) {
     }
 }
 
-private enum class ToolBadge { ASK, MCP }
+private enum class ToolBadge { ASK }
 
 @Composable
 private fun BadgeChip(badge: ToolBadge) {
@@ -166,11 +162,6 @@ private fun BadgeChip(badge: ToolBadge) {
             text = "ASK"
             bgColor = MaterialTheme.colorScheme.tertiaryContainer
             fgColor = MaterialTheme.colorScheme.onTertiaryContainer
-        }
-        ToolBadge.MCP -> {
-            text = "MCP"
-            bgColor = MaterialTheme.colorScheme.secondaryContainer
-            fgColor = MaterialTheme.colorScheme.onSecondaryContainer
         }
     }
     Surface(

@@ -29,7 +29,7 @@ class TimelineNodeAggregator {
                     timestamp = event.timestamp,
                     toolName = event.name,
                     displayName = event.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    source = "mcp",
+
                     status = TimelineNode.ToolExecution.Status.RUNNING,
                     inputSummary = event.args ?: "",
                     outputSummary = null,
@@ -101,7 +101,7 @@ class TimelineNodeAggregator {
                     timestamp = event.timestamp,
                     toolName = "step",
                     displayName = event.title,
-                    source = "mcp",
+
                     status = TimelineNode.ToolExecution.Status.RUNNING,
                     inputSummary = null,
                     outputSummary = null,
