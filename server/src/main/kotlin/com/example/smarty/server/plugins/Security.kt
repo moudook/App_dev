@@ -93,6 +93,49 @@ const val ADMIN_EMAIL = "forpblcusz@gmail.com"
 fun isAdminEmail(email: String?): Boolean = email == ADMIN_EMAIL
 
 /**
+ * Idempotently ensure the anonymous user row exists in the `users` table.
+ * Required because /chat/query (and many other routes) insert into
+ * `chat_sessions` with a FK to `users.id`. Without this, every request
+ * to a FK-protected table fails with:
+ *   "insert or update on table 'chat_sessions' violates foreign key
+ *    constraint 'chat_sessions_user_id_fkey'"
+ *
+ * Uses ON CONFLICT DO NOTHING so this is safe to call repeatedly.
+ * Failures are logged but non-fatal — the auth provider will still
+ * return a principal, the route will just fail at insert time.
+ */
+fun ensureAnonymousUser(logger: org.slf4j.Logger) {
+    val ds = com.example.smarty.server.data.DatabaseFactory.getDataSource() ?: run {
+        logger.warn("[AUTH_DISABLED] cannot ensure anonymous user — no datasource")
+        return
+    }
+    try {
+        ds.connection.use { conn ->
+            conn.prepareStatement(
+                """
+                INSERT INTO users (id, firebase_uid, email, display_name, is_active, is_premium)
+                VALUES (?, ?, ?, ?, true, false)
+                ON CONFLICT (id) DO NOTHING
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setObject(1, java.util.UUID.fromString(ANONYMOUS_USER_ID))
+                stmt.setString(2, "anonymous")
+                stmt.setString(3, ADMIN_EMAIL)
+                stmt.setString(4, "Auth Disabled")
+                val rows = stmt.executeUpdate()
+                if (rows > 0) {
+                    logger.info("[AUTH_DISABLED] inserted anonymous user row (id=$ANONYMOUS_USER_ID)")
+                } else {
+                    logger.debug("[AUTH_DISABLED] anonymous user row already exists (id=$ANONYMOUS_USER_ID)")
+                }
+            }
+        }
+    } catch (e: Exception) {
+        logger.warn("[AUTH_DISABLED] failed to ensure anonymous user: ${e.message}")
+    }
+}
+
+/**
  * Configures Firebase JWT authentication for the Ktor application.
  *
  * AUTH DISABLED — bearer("firebase") is a no-op stub. Any bearer token
@@ -102,6 +145,7 @@ fun Application.configureSecurity() {
     val logger = LoggerFactory.getLogger("Security")
 
     initializeFirebase()
+    ensureAnonymousUser(logger)
 
     install(Authentication) {
         bearer("firebase") {
