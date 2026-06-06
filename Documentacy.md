@@ -674,3 +674,108 @@ This part covers what was added in commits `fd2b20cd` (bare-name models) and
 - **No Android-side SSE consumer** — the Android app still uses /chat/query (non-stream, returns 500). The new /chat/query/agent/stream endpoint is for testing.
 - **HF gateway 5-min cap** — not yet hit. /chat/query/agent/stream with a very long agent loop might hit it.
 - **/chat/query (non-stream) returns 500** — existing bug, not in scope of streaming work.
+
+---
+
+## Part 3: Multi-step tool calls — end-to-end proof
+
+This is the BIG milestone. Sequential tool calls work over the wire. The
+client sends the full conversation history (with tool_calls from the
+previous assistant turn, and tool results as TOOL role messages), the
+server forwards it to the LLM, and the LLM continues with the next
+tool call.
+
+### Test harness: `multistep_test.py`
+
+Local Node-free Python script (Python 3.12) that:
+1. POSTs a query + tools to `/chat/query/stream` with `system` override
+2. Parses SSE chunks, accumulates content, extracts `toolCall`
+3. If `toolCall` is set, executes the mock tool locally
+4. Pipes the tool result back as `{role: "tool", tool_call_id, content}`
+5. Adds a follow-up user message re-asserting the task
+6. Loops until LLM produces a final answer with no tool call
+
+The `messages` array sent in iter N+1 looks like:
+```json
+[
+  {"role":"user", "content":"Compute 7th fibonacci, then add 10."},
+  {"role":"assistant", "content":"", "tool_calls":[{"id":"...","type":"function","function":{"name":"fibonacci","arguments":"{\"n\": 7}"}}]},
+  {"role":"tool", "tool_call_id":"call_function_...", "content":"13"},
+  {"role":"user", "content":"Got it. Tool result was 13. Now continue: Compute 7th fibonacci, then add 10."}
+]
+```
+
+### Bug discovered and fixed: split tool_call chunks
+
+m3 emits the tool_call as ONE OpenAI spec object, but splits it across
+2 SSE frames:
+- **Chunk N**: `{"id":"call_function_xxx","function":{"name":"add","arguments":"{\"a\":2,\"b\":3"}` (no closing `}`)
+- **Chunk N+1**: `{"id":"","function":{"name":"","arguments":"}"}}` + `finish_reason: "tool_calls"`
+
+Without merging, the client overwrites the good chunk with the trailing
+empty one and sees `toolCall: {id:"", functionName:"", arguments:"}"}`.
+
+**Fix in `OpencodeLlmProvider.kt`**: track `activeToolCall` across chunks.
+- Same `index`, new `id` present → new tool call, replace active
+- Same `index`, empty `id`+`name` → continuation, append `arguments`
+- `finish_reason` received → clear active
+
+### Bug discovered and fixed: history parser dropped tool_call_id/tool_calls
+
+The history parser in `/chat/query/stream` was only reading `role` and
+`content` from each history message, silently dropping `tool_call_id`
+(TOOL role) and `tool_calls` (ASSISTANT role). This caused:
+- **deepseek**: `messages[3]: missing field 'tool_call_id'`
+- **m3**: `tool result's tool id() not found (2013)`
+
+**Fix in `ChatRoutes.kt`**: extract all four fields, build proper
+`LlmMessage(role, content, toolCallId, toolCalls)`.
+
+Also fixed: server was defaulting `query=""` to a "What is 2+2?" user
+message, corrupting multi-step follow-up turns. Now only injects the
+default if neither `query` nor `messages`/`history` is provided.
+
+### Test results: m3 multi-step
+
+Query: "Compute the 7th Fibonacci number, then add 10 to that result. Report only the final number."
+
+- **iter 1**: 7 chunks, 3751ms first chunk, finish=`tool_calls`, m3 calls `fibonacci(n:7)` → tool result: `13`
+- **iter 2**: 5 chunks, 2620ms first chunk, finish=`tool_calls`, m3 calls `add(a:13, b:10)` → tool result: `23`
+- **iter 3**: 4 chunks, 887ms first chunk, finish=`stop`, final answer: `23`
+
+### Test results: deepseek multi-step
+
+Same query, same system prompt.
+
+- **iter 1**: 116 chunks, 558ms first chunk, finish=`stop`, deepseek called `fibonacci(n:7)` → tool result: `13`
+- **iter 2**: 60 chunks, 389ms first chunk, finish=`stop`, deepseek called `add(a:13, b:10)` → tool result: `23`
+- **iter 3**: 11 chunks, 429ms first chunk, finish=`stop`, final answer: `23`
+
+### Why this matters
+
+The ServerAgent loop on the server has the structure to drive this
+multi-step flow (it already does `while (tool_call_in_response) { run_tool(); add_result() }`),
+but the LLM wasn't calling tools in production. Now that we've proven:
+
+1. **The wire format works** — the LLM accepts the OpenAI-spec
+   `tool_calls` array in assistant messages and the `tool_call_id`
+   reference in tool messages.
+2. **The parser handles split chunks** — m3's atomic-over-2-frames
+   pattern no longer corrupts downstream.
+3. **The history parser preserves the fields** — no silent dropping.
+
+We can confidently wire `/chat/query/agent/stream` to drive a real
+multi-step agent loop. The next step is to add a `system` prompt
+parameter to ServerAgent (or its route) so the LLM is forced into
+calling the available tools.
+
+### Test artifacts
+
+- `C:\Users\gbust\Smarty\test-multistep-final.txt` — first m3 run, tool result not piped (pre-fix)
+- `C:\Users\gbust\Smarty\test-multistep-ds.txt` — deepseek, split chunk bug observed
+- `C:\Users\gbust\Smarty\test-multistep-fib3.txt` — m3, after messages field added
+- `C:\Users\gbust\Smarty\test-multistep-ds2.txt` — **deepseek multi-step SUCCESS** (3 iters)
+- `C:\Users\gbust\Smarty\test-multistep-m3.txt` — **m3 multi-step SUCCESS** (3 iters)
+- `C:\Users\gbust\Smarty\test-multistep-iter{1,2,3}.txt` — raw SSE for each iteration
+- `C:\Users\gbust\Smarty\multistep_test.py` — harness script
+
