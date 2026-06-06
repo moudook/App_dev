@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at      TIMESTAMPTZ,
-    opencode_session_id VARCHAR(255)
+    expires_at      TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -531,11 +531,20 @@ BEGIN
     -- (Add other triggers if needed)
 END $$;
 
+-- Create tool_sessions
 DO $$ 
 BEGIN
-    BEGIN
-        ALTER TABLE chat_sessions ADD COLUMN opencode_session_id VARCHAR(255);
-    EXCEPTION
-        WHEN duplicate_column THEN RAISE NOTICE 'column opencode_session_id already exists in chat_sessions.';
-    END;
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tool_sessions') THEN
+        CREATE TABLE tool_sessions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tool_call_id TEXT NOT NULL UNIQUE,
+            session_id TEXT NOT NULL,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            tool_name VARCHAR(255) NOT NULL,
+            status VARCHAR(50) DEFAULT 'WAITING',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE TRIGGER trg_tool_sessions_updated_at BEFORE UPDATE ON tool_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
 END $$;

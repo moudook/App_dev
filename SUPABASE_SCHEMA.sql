@@ -285,7 +285,7 @@ CREATE TABLE chat_sessions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at      TIMESTAMPTZ,
-    opencode_session_id VARCHAR(255)
+    expires_at      TIMESTAMPTZ
 );
 CREATE INDEX idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
 CREATE TRIGGER trg_chat_sessions_updated_at BEFORE UPDATE ON chat_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -718,22 +718,22 @@ CREATE TABLE permission_audit_log (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- Nullable: a `permission.asked` event from the plugin's
     -- global WebSocket may not carry a userId. In that case
-    -- `session_id` carries the OpenCode session and the raw
+    -- `session_id` carries the tool session and the raw
     -- userId is preserved in `metadata.user_id_raw` for
     -- forensic correlation.
     user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
-    -- OpenCode session id (also broadcast on the WebSocket).
+    -- Session id (also broadcast on the WebSocket).
     session_id      TEXT,
     tool_name       TEXT NOT NULL,
     -- ALLOW, DENY, DEFAULT, USER_APPROVED, USER_DENIED.
     decision        TEXT NOT NULL CHECK (decision IN
         ('ALLOW','DENY','DEFAULT','USER_APPROVED','USER_DENIED',
          'AUTO_APPROVED','AUTO_DENIED','INTERACTIVE_BYPASS')),
-    -- Where the decision was made: 'cli' (OpenCode native),
+    -- Where the decision was made: 'server' (server native),
     -- 'ktor_enforcer' (server-side defensive), 'app' (Android
     -- defensive), 'user' (interactive prompt answer).
     actor           TEXT NOT NULL CHECK (actor IN
-        ('cli','ktor_enforcer','app','user','plugin')),
+        ('server','ktor_enforcer','app','user','plugin')),
     -- The interactive tool's callID (for `user.input.required`
     -- events) or the policy rule that matched (for ALLOW/DENY
     -- auto-decisions).
@@ -798,6 +798,22 @@ CREATE POLICY "Users can manage own note stacks" ON note_stacks FOR ALL USING (n
 ALTER TABLE note_tasks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own note tasks" ON note_tasks FOR ALL USING (user_id = auth.uid());
 
+-- ============================================================
+-- TOOL SESSIONS
+-- ============================================================
+CREATE TABLE tool_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tool_call_id TEXT NOT NULL UNIQUE,
+    session_id TEXT NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    tool_name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'WAITING',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TRIGGER trg_tool_sessions_updated_at BEFORE UPDATE ON tool_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+ALTER TABLE tool_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own tool sessions" ON tool_sessions FOR SELECT USING (user_id = auth.uid());
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can CRUD own calendar events" ON calendar_events FOR ALL USING (user_id = auth.uid());
 
