@@ -1366,7 +1366,9 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                 historyJson.forEach { el ->
                     val obj = el as? kotlinx.serialization.json.JsonObject ?: return@forEach
                     val role = (obj["role"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
-                    val content = (obj["content"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+                    val content = (obj["content"] as? JsonPrimitive)?.contentOrNull ?: ""
+                    val toolCallId = (obj["tool_call_id"] as? JsonPrimitive)?.contentOrNull
+                    val toolCallsJson = obj["tool_calls"] as? kotlinx.serialization.json.JsonArray
                     val r =
                         when (role.lowercase()) {
                             "user" -> com.example.smarty.server.llm.LlmMessage.Role.USER
@@ -1375,7 +1377,29 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                             "tool" -> com.example.smarty.server.llm.LlmMessage.Role.TOOL
                             else -> return@forEach
                         }
-                    messages.add(com.example.smarty.server.llm.LlmMessage(role = r, content = content))
+                    val toolCalls =
+                        if (r == com.example.smarty.server.llm.LlmMessage.Role.ASSISTANT && toolCallsJson != null) {
+                            toolCallsJson.mapNotNull { tcEl ->
+                                val tcObj = tcEl as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                val fn = tcObj["function"]?.jsonObject
+                                com.example.smarty.server.llm.LlmToolCall(
+                                    id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                                    functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
+                                    arguments = fn?.get("arguments")?.jsonPrimitive?.contentOrNull
+                                        ?: fn?.get("arguments")?.toString() ?: "",
+                                )
+                            }
+                        } else {
+                            emptyList()
+                        }
+                    messages.add(
+                        com.example.smarty.server.llm.LlmMessage(
+                            role = r,
+                            content = content,
+                            toolCallId = toolCallId,
+                            toolCalls = toolCalls,
+                        ),
+                    )
                 }
             }
             if (!systemOverride.isNullOrBlank()) {
