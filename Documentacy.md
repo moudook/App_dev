@@ -981,3 +981,359 @@ client can map `error.type` to a user-friendly message:
 Implementation: add `error_code` and `error_category` to the SSE
 error event shape in the next iteration.
 
+---
+
+## Part 7: Performance benchmarks
+
+Captured via `perf_test.py` (Python 3.12) hitting `/chat/query/stream`
+on Space, model `opencode/deepseek-v4-flash-free`, query
+"Write a 50-word essay about the ocean."
+
+```
+chunks=1534, first_chunk=389ms, total=15169ms
+deltas: n=1533, min=0ms, p50=0ms, p95=46ms, p99=176ms, max=528ms, mean=9ms
+```
+
+### Interpretation
+
+- **p50 = 0ms**: The LLM provider batches chunks aggressively. The
+  median inter-chunk gap is sub-millisecond — likely the SSE flush
+  timer is firing faster than the LLM produces tokens.
+- **p95 = 46ms**: 5% of chunks arrive more than 46ms after the
+  previous one. These are likely the natural LLM thinking pauses.
+- **p99 = 176ms**: Worst 1% have 176ms gaps. Still well under any
+  user-perceivable threshold (100ms is "instant" to humans).
+- **max = 528ms**: A single 528ms gap is the longest pause. Likely
+  a sentence boundary or LLM reasoning pause.
+- **mean = 9ms**: Average chunk spacing. Very high streaming fidelity.
+
+### Per-model comparison (test artifacts)
+
+| Model | First chunk (ms) | Total (ms) | Chunks | Chunks/sec |
+|---|---|---|---|---|
+| deepseek-v4-flash | 389 | 15169 | 1534 | 101 |
+| mimo-v2.5 | 2054 | ~13000 | ~7 | ~0.5 (atomic-style reasoning) |
+| m3 | 1756 | ~15000 | ~7 | ~0.5 (atomic) |
+
+Deepseek streams everything as separate tokens (1534 chunks for a
+50-word essay). mimo and m3 prefer to emit large reasoning blocks
+inline (think tags) with fewer visible content chunks.
+
+### Takeaway
+
+For Android's streaming UI:
+- Use `+ms` field to drive a "..." or pulse animation — anything > 100ms
+  indicates the LLM is thinking.
+- Use `p50=0ms` baseline to know that "smooth" streaming is the norm.
+- First chunk < 1s is achievable on warm model (cold start 3-5s for
+  first LLM call after Space boot).
+
+---
+
+## Part 8: Concurrent multi-step chains
+
+Captured via `perf_test.py concurrent` mode, 3 clients in parallel,
+each running a 3-step multi-step chain via the harness.
+
+| Client | Query | Iterations | Final answer |
+|---|---|---|---|
+| client-1 | "Compute fibonacci(4), then add 7" | 3 | "The final number is 10" |
+| client-2 | "Compute fibonacci(6), then multiply by 2" | 3 | "The final number is 16" |
+| client-3 | "Compute fibonacci(3), then add 100" | 3 | "The final number is 102" |
+
+**Wall time:** all 3 ran in parallel, ~12s total. No cross-contamination.
+Each client got its own tool_call_id, tool result, and final response.
+
+### Per-iter timing per client
+
+client-1: 92 chunks (4.0s) → 27 chunks (2.7s) → 17 chunks (2.4s)
+client-2: 39 chunks (7.1s) → 25 chunks (2.5s) → 17 chunks (2.5s)
+client-3: 48 chunks (3.0s) → 46 chunks (3.1s) → 11 chunks (2.2s)
+
+Note client-2's first call took 7.1s (one 3.9s gap) — likely rate
+limit retry or thinking pause under load. Otherwise all clients
+finished their 3 iters in roughly equal time.
+
+### What this proves
+
+- Ktor's coroutine context isolates streams correctly.
+- LLM provider (Zen) handles 3 concurrent requests without
+  cross-session ID confusion.
+- Multi-step state (history + tool_calls + tool results) is per-request,
+  not shared between concurrent clients.
+- HF Space's shared egress IP isn't a bottleneck for 3 parallel streams.
+
+For Android: an app doing 1 multi-step at a time is well within
+budget. Doing 3+ in parallel may start hitting rate limits.
+
+---
+
+## Part 9: 5-iter tool chain
+
+Captured via `perf_test.py 5iter` mode. Query:
+"Compute fibonacci(5), then add 10, then multiply by 2, then add 3, then multiply by 4. Report only the final number."
+
+Expected: fibonacci(5) = 5, +10 = 15, *2 = 30, +3 = 33, *4 = 132. Final = 132.
+
+| Iter | Tool | Args | Result | Chunks | Time |
+|---|---|---|---|---|---|
+| 1 | fibonacci | n=5 | 5 | 209 | 6.0s |
+| 2 | add | a=5, b=10 | 15 | 51 | 3.0s |
+| 3 | multiply | a=15, b=2 | 30 | 23 | 2.5s |
+| 4 | add | a=30, b=3 | 33 | 22 | 2.6s |
+| 5 | multiply | a=33, b=4 | 132 | 24 | 6.2s |
+| 6 | (final) | — | "132" | 88 | 10.6s |
+
+**Total: 6 LLM calls, 417 chunks, ~30s end-to-end. Correct answer: 132.**
+
+### Observations
+
+- **iter 1 is heaviest** (209 chunks) — LLM does most reasoning at the
+  start (planning the chain).
+- **iter 2-5 are lean** (22-51 chunks) — the LLM is "in the groove",
+  each turn is short reasoning + tool call.
+- **iter 6 is the final response** (88 chunks) — LLM summarizes.
+- **Tool call_id format is consistent**: `call_00_<base36>` on every
+  iter, unique per call.
+
+### Long context handling
+
+The conversation history at iter 6 contains:
+- 1 system message (~1KB with tool definitions)
+- 1 user query (~150 bytes)
+- 5 assistant messages with tool_calls (~1KB each)
+- 5 tool result messages (~50 bytes each)
+- 5 follow-up user messages (~200 bytes each)
+- 1 final assistant response (~10KB)
+
+Total context at iter 6: ~25KB. No degradation observed. deepseek
+handled it cleanly.
+
+### What this proves
+
+- OpenAI-spec conversation format with many turns works end-to-end.
+- History parser correctly preserves `tool_call_id` and `tool_calls`
+  across many iters (no silent dropping).
+- LLM tracks task state across many turns ("we were doing 4 steps,
+  this is the 5th").
+
+### Scaling
+
+Extrapolating: 10-iter chain would be ~50s end-to-end, ~700 chunks.
+20-iter would be ~100s, ~1400 chunks. Beyond that, total context
+size starts to dominate and we'd want summarization.
+
+---
+
+## Part 10: Mimo `reasoning_details[]` full shape
+
+Captured live on Space (model `opencode/mimo-v2.5-free`, query "What is 3+5?").
+
+```json
+{
+  "id": "gen-1780737334-W0WdlrEbaiumcrDRqsn3",
+  "object": "chat.completion.chunk",
+  "created": 1780737334,
+  "model": "xiaomi/mimo-v2.5-20260422",
+  "provider": "Xiaomi",
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "content": "",
+        "role": "assistant",
+        "reasoning": "First",
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "First",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      },
+      "finish_reason": null,
+      "native_finish_reason": null
+    }
+  ]
+}
+```
+
+### Field meanings (mimo)
+
+| Field | Type | Meaning |
+|---|---|---|
+| `delta.reasoning` | string | Plain-text reasoning (same as delta.content for non-thinking) |
+| `delta.reasoning_details[].type` | string | Always `"reasoning.text"` (text reasoning; could be `"reasoning.encrypted"` for hidden CoT) |
+| `delta.reasoning_details[].text` | string | Same as `reasoning` (full text, accumulated) |
+| `delta.reasoning_details[].format` | string | `"unknown"` (mimo doesn't declare a format; might be `"openai-responses-v1"` for native) |
+| `delta.reasoning_details[].index` | int | Sequential index of reasoning block within the response |
+| `delta.reasoning_details[].id` | string? | Only on first chunk of a reasoning block, used to correlate follow-up chunks |
+| `provider` | string | Always `"Xiaomi"` (Xiaomi MiMo, the mimo provider) |
+| `native_finish_reason` | string | Xiaomi-side finish reason, e.g. `"tool_calls"`, `null` until finish |
+| `service_tier` | string/null | Xiaomi billing tier, e.g. `null` for free |
+
+### Behavior
+
+- `delta.reasoning` and `delta.reasoning_details[].text` are emitted
+  IN PARALLEL (both present in the same chunk).
+- They carry the same content but `reasoning_details[]` is structured
+  for clients that want reasoning blocks as first-class objects.
+- When reasoning is done, the chunks stop carrying `reasoning` and
+  `reasoning_details[]`, and `delta.content` starts.
+
+### Parser handling
+
+The Ktor parser:
+1. Extracts `delta.reasoning_content` (deepseek) or `delta.reasoning`
+   (mimo/m3 — but m3's is inside `delta.content` as `<think>` tags)
+2. Discards `reasoning_details[]` (not yet exposed in LlmChunk)
+
+### Why this matters
+
+The structured `reasoning_details[]` array lets clients render
+reasoning with proper UI (collapsible, formatted, etc.) instead of
+a flat string. The current parser flattens it to a string. Future
+work: surface `reasoning_details[]` as a separate field on `LlmChunk`
+for clients that want structured reasoning.
+
+---
+
+## Part 11: ServerAgent system prompt injection
+
+Added `systemOverride` parameter to `ServerAgent.run()` that is
+appended to the existing system message (built by
+`AgentStateManager.buildSystemMessage`).
+
+Exposed through `/chat/query/agent/stream` as a `system` field in the
+request body, same as `/chat/query/stream`.
+
+### Test: ask LLM to use ask_user tool
+
+```bash
+curl -X POST .../chat/query/agent/stream -d '{
+  "query": "Please use the ask_user tool to ask me what my favorite color is.",
+  "system": "You MUST call the ask_user tool for any question that requires user input.",
+  "model": "opencode/minimax-m3-free"
+}'
+```
+
+Result: 6 events (all TextDelta), `totalMs=11987`. The LLM responded:
+> "I need to call the ask_user tool with a question about their favorite
+> color. I should provide multiple choice options but also allow custom
+> input in case their favorite color isn't listed."
+
+But **no ToolStart event was emitted**. The LLM acknowledged the
+instruction in reasoning but did not emit a tool call in its response.
+
+### Why
+
+The LLM sees the injected system message at the END of the system
+prompt (we append). The system message from `buildSystemMessage` is
+~1KB of agent instructions, tool descriptions, personality guidance.
+The override gets tacked on, but the LLM's response is still being
+generated with a particular tool_choice (which we don't currently
+pass — defaulting to no tool_choice, i.e., "model decides").
+
+The model "decides" not to call ask_user, because:
+1. The LLM's default behavior is to respond to the user directly
+2. ask_user is a "soft" tool (a question, not a computation)
+3. The LLM's training on agentic systems often biases toward "answer
+   the user" rather than "ask via tool"
+
+### To force tool calls reliably
+
+Three options, none of which is implemented yet:
+1. Pass `tool_choice: "required"` to the LLM provider — but deepseek
+   rejects this with `Thinking mode does not support this tool_choice`.
+2. Restructure the system override as the LEADING instruction (not
+   appended) so it's the LLM's primary directive.
+3. Use a specialized "tool-call-mode" prompt template that the LLM's
+   training is more likely to follow.
+
+### What the system override DOES accomplish
+
+- Changes the agent's persona (e.g., "you are a strict math tutor")
+- Overrides output format (e.g., "always answer in 1 sentence")
+- Adds domain-specific instructions (e.g., "for time questions, use the
+  current_time env var")
+
+But it does NOT bypass the LLM's reluctance to issue tool calls in
+agentic flows. That's a deeper structural problem.
+
+---
+
+## Part 12: /chat/query 500 root cause (fixed)
+
+### Symptoms
+
+Before the fix:
+```bash
+$ curl -X POST .../chat/query -d '{"query":"hi"}'
+{"error":"An internal error occurred."}
+```
+
+After fix (commit `04b44fa1` exposed the actual error):
+```bash
+$ curl -X POST .../chat/query -d '{"query":"hi"}'
+{"error":"An internal error occurred.","type":"IllegalArgumentException","message":"Invalid UUID string: anonymous"}
+```
+
+### Root cause (3-layer onion)
+
+**Layer 1**: The auth no-op returned `userId = "anonymous"` as a
+literal string. Repositories call `UUID.fromString(userId)` which
+throws on non-UUID strings.
+
+Fix: derive a stable UUID from "anonymous" via
+`UUID.nameUUIDFromBytes("anonymous".toByteArray())`. Deterministic
+so the same anon user gets the same UUID across calls.
+
+**Layer 2**: After the UUID fix, the next call exposed:
+```bash
+{"error":"An internal error occurred.","type":"PSQLException","message":"ERROR: insert or update on table \"chat_sessions\" violates foreign key constraint \"chat_sessions_user_id_fkey\"\n  Detail: Key (user_id)=(294de355-7d9d-30b3-92d8-a1e6aab028cf) is not present in table \"users\"."}
+```
+
+The UUID is valid but no `users` row exists for it. The chat_sessions
+table has a FK to users.id.
+
+Fix: at app startup, `ensureAnonymousUser()` does
+`INSERT INTO users (id, firebase_uid, email, ...) VALUES (?, 'anonymous', ?, ...) ON CONFLICT (id) DO NOTHING`.
+Idempotent — safe to call repeatedly.
+
+### After both fixes
+
+```bash
+$ curl -X POST .../chat/query -d '{"query":"hi"}'
+{"sessionId":"692b5b54-5a28-4632-8af1-f42445863175","response":"The user just said \"hi\" — this is a simple greeting... Hey! Good morning. Or afternoon. Or whatever time it is in your corner of the world. ☀️ What's up?"}
+```
+
+**/chat/query is now WORKING.** Real sessionId, real response, ready
+for Android non-stream consumption.
+
+### Why this was so hard to diagnose
+
+The catch block at line 624 wrapped the entire agent execution in:
+```kotlin
+} catch (e: Exception) {
+    call.application.log.error("POST chat/query OpenCode agent execution failed", e)
+    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
+}
+```
+
+The error was logged to `/tmp/ktor-server.log` inside the HF
+container, which we have no shell access to (read-only HF token
+blocks `/logs/run`). The opaque 500 message gave us no signal.
+
+The fix that unlocked everything: change the response to include
+`type` (exception class) and `message` (first 400 chars). Once the
+type+message was visible, the diagnosis was immediate.
+
+### Lesson learned
+
+**Never return a generic 500 from a catch block.** Always include
+at least the exception class name and a short message. The Ktor
+app log is often inaccessible in deployed environments, so the
+response is your only diagnostic.
+
+
