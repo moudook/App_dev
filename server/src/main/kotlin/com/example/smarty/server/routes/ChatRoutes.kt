@@ -624,7 +624,11 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                         call.application.log.error("POST chat/query OpenCode agent execution failed", e)
                         call.respond(
                             HttpStatusCode.InternalServerError,
-                            mapOf("error" to "An internal error occurred."),
+                            mapOf(
+                                "error" to "An internal error occurred.",
+                                "type" to e.javaClass.simpleName,
+                                "message" to (e.message?.take(400) ?: "no message"),
+                            ),
                         )
                     } finally {
                         com.example.smarty.server.agent.ActiveSessionManager
@@ -632,7 +636,14 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     }
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "An internal error occurred."))
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        mapOf(
+                            "error" to "An internal error occurred.",
+                            "type" to e.javaClass.simpleName,
+                            "message" to (e.message?.take(400) ?: "no message"),
+                        ),
+                    )
                 }
             }
 
