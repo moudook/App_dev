@@ -7,12 +7,22 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 // =========================================================================
 // AUTH DISABLED — HF Space is public for live testing of OpenCode streaming.
 // All Firebase init + token verification is a no-op. Re-add ONLY with explicit
 // user instruction. See AGENTS.md "Auth State".
 // =========================================================================
+
+/**
+ * Stable UUID derived from the literal "anonymous" string. Used as the
+ * userId in the no-op FirebaseUserPrincipal. Many repositories call
+ * `UUID.fromString(userId)` when binding to Postgres columns typed as UUID,
+ * so a non-UUID string ("anonymous") causes IllegalArgumentException
+ * (the /chat/query 500 we just fixed).
+ */
+val ANONYMOUS_USER_ID: String = UUID.nameUUIDFromBytes("anonymous".toByteArray()).toString()
 
 /**
  * Principal representing an authenticated Firebase user.
@@ -99,7 +109,7 @@ fun Application.configureSecurity() {
             authenticate { credential ->
                 logger.debug("[AUTH_DISABLED] bearer('firebase') no-op — token=${credential.token.take(8)}...")
                 FirebaseUserPrincipal(
-                    userId = "anonymous",
+                    userId = ANONYMOUS_USER_ID,
                     email = ADMIN_EMAIL,
                     displayName = "Auth Disabled",
                 )
