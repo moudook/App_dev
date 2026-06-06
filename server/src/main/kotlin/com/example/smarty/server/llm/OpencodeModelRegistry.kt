@@ -265,12 +265,14 @@ object OpencodeModelRegistry {
         val normalized = model?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         val discovered = discoveredModels.get()
 
-        if (discovered.any { it.id == normalized }) {
+        if (discovered.any { it.id == normalized || it.id.endsWith("/$normalized") }) {
             return true
         }
 
-        // Dynamic pattern: any model with "opencode/" prefix AND "free" in name.
-        return normalized.startsWith("opencode/") && normalized.contains("free", ignoreCase = true)
+        // Dynamic pattern: any model with "opencode/" prefix AND "free" in name,
+        // OR a bare name that contains "free" (e.g. "minimax-m3-free"). Bare names
+        // are passed through to the LLM provider which normalizes them.
+        return normalized.contains("free", ignoreCase = true)
     }
 
     /**
