@@ -30,8 +30,6 @@ import com.example.smarty.core.domain.model.NoteAttachment
 import com.example.smarty.core.domain.model.NoteVersion
 import com.example.smarty.core.domain.model.SmartyTimer
 import com.example.smarty.core.domain.model.TodoItem
-import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.features.auth.ui.OnboardingScreen
 import com.example.smarty.features.auth.ui.RefinedLoginScreen
 import com.example.smarty.features.breathing.GuidedBreathingScreen
 import com.example.smarty.features.calendar.ui.CalendarScreen
@@ -92,8 +90,6 @@ sealed class Screen(
     data object Calendar : Screen("calendar")
 
     data object Login : Screen("login")
-
-    data object Onboarding : Screen("onboarding")
 
     data object TicTacToe : Screen("tic_tac_toe")
 
@@ -274,9 +270,7 @@ fun SmartyNavHost(
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {},
 ) {
-    val securePreferences = SecurePreferences.getInstance(androidx.compose.ui.platform.LocalContext.current)
-    // Decide start destination based on onboarding state
-    val startDestination = if (securePreferences.isOnboarded()) Screen.InputStream.route else Screen.Onboarding.route
+    val startDestination = Screen.InputStream.route
 
     val viewModel: com.example.smarty.features.notes.domain.SmartyViewModel = viewModel()
     val selectedTab by viewModel.selectedTab.collectAsState()
@@ -771,17 +765,6 @@ fun SmartyNavHost(
                 onLoginSuccess = {
                     navController.navigate(Screen.InputStream.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
-                    }
-                },
-            )
-        }
-
-        composable(Screen.Onboarding.route) { _ ->
-            OnboardingScreen(
-                securePreferences = securePreferences,
-                onFinish = {
-                    navController.navigate(Screen.InputStream.route) {
-                        popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
                 },
             )

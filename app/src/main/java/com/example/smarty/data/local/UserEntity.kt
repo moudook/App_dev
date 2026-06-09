@@ -26,8 +26,6 @@ data class UserEntity(
     val email: String?,
     @ColumnInfo(name = "display_name")
     val displayName: String?,
-    @ColumnInfo(name = "avatar_url")
-    val avatarUrl: String?,
     @ColumnInfo(name = "is_active")
     val isActive: Boolean = true,
     @ColumnInfo(name = "is_premium")

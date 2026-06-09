@@ -39,8 +39,6 @@ import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.ui.components.UnifiedDragHandle
-import com.example.smarty.ui.components.timeline.ApprovalCard
-import com.example.smarty.ui.components.timeline.TimelineNode
 import kotlinx.coroutines.launch
 
 /**
@@ -388,28 +386,7 @@ fun AssistOverlayScreen(
                         }
                     }
 
-                    // Input field at bottom OR Standard Approval UI
-                    if (approval != null && approval.toolName != "ask_user" && approval.toolName != "askuser") {
-                        // Standard Approval
-                        val node =
-                            TimelineNode.ApprovalGate(
-                                id = "approval_${approval.toolId}",
-                                timestamp = System.currentTimeMillis(),
-                                toolId = approval.toolId,
-                                toolName = approval.toolName,
-                                toolTitle = approval.toolTitle,
-                                toolArgs = approval.toolArgs,
-                                status = TimelineNode.ApprovalGate.Status.PENDING,
-                                requiresText = false,
-                            )
-                        ApprovalCard(
-                            node = node,
-                            onGrant = { viewModel.callApproval(approval.toolId, true) },
-                            onDeny = { viewModel.callApproval(approval.toolId, false) },
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    } else {
-                        SmartyInputField(
+                    SmartyInputField(
                             value = inputText,
                             onValueChange = { inputText = it },
                             onSubmit = {
@@ -460,7 +437,6 @@ fun AssistOverlayScreen(
                             onVariantSelected = { viewModel.selectVariant(it) },
                             onRefreshModels = { viewModel.refreshModelsNow() },
                         )
-                    }
                 }
             }
         }

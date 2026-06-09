@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -232,7 +233,7 @@ fun CircularIconButton(
         modifier =
             modifier
                 .size(sizeConfig.containerSize)
-                .clip(shapes.avatar) // Circular shape
+                .clip(CircleShape) // Circular shape
                 .background(effectiveBackgroundColor)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

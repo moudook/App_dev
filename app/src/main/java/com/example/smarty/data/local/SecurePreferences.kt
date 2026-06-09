@@ -97,7 +97,6 @@ class SecurePreferences(
 
     companion object {
         private const val KEY_FIRST_LAUNCH = "first_launch"
-        private const val KEY_IS_ONBOARDED = "is_onboarded"
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_GOALS = "user_goals"
         private const val KEY_USER_PREFERENCES = "user_preferences"
@@ -144,12 +143,6 @@ class SecurePreferences(
 
     fun setFirstLaunchComplete() {
         encryptedPrefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
-    }
-
-    fun isOnboarded(): Boolean = encryptedPrefs.getBoolean(KEY_IS_ONBOARDED, false)
-
-    fun setOnboarded(onboarded: Boolean) {
-        encryptedPrefs.edit().putBoolean(KEY_IS_ONBOARDED, onboarded).apply()
     }
 
     // User Profile

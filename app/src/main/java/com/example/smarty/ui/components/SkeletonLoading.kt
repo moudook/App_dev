@@ -139,7 +139,7 @@ fun SkeletonListItem(
                 .fillMaxWidth()
                 .padding(16.dp),
     ) {
-        // Icon/avatar placeholder
+        // Icon placeholder
         Box(
             modifier =
                 Modifier

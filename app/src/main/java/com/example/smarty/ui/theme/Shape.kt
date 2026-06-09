@@ -40,8 +40,6 @@ data class SmartyShapes(
     // FAB and icon button shapes
     val fab: RoundedCornerShape = RoundedCornerShape(16.dp),
     val iconButton: RoundedCornerShape = RoundedCornerShape(12.dp),
-    // Avatar (circular)
-    val avatar: RoundedCornerShape = RoundedCornerShape(50),
     // Chat bubble shapes (asymmetric "tail" corners)
     val bubbleUser: RoundedCornerShape = RoundedCornerShape(24.dp, 24.dp, 4.dp, 24.dp),
     val bubbleAi: RoundedCornerShape = RoundedCornerShape(24.dp, 24.dp, 24.dp, 4.dp),

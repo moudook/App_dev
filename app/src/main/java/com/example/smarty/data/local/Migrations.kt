@@ -937,7 +937,6 @@ object Migrations {
                         firebase_uid TEXT NOT NULL,
                         email TEXT,
                         display_name TEXT,
-                        avatar_url TEXT,
                         is_active INTEGER NOT NULL DEFAULT 1,
                         is_premium INTEGER NOT NULL DEFAULT 0,
                         subscription_expires_at INTEGER,

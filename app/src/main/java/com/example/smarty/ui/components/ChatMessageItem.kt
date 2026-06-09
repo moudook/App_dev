@@ -80,7 +80,6 @@ import com.example.smarty.core.domain.model.NoteReference
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.ThemeAwareColors
 import com.example.smarty.ui.utils.TextEmphasis
-import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
@@ -517,17 +516,7 @@ private fun MessageContent(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         if (!isUser) {
-            if (message.agentEvents.isNotEmpty()) {
-                AgentTimelineItem(
-                    message = message,
-                    onRegenerateMessage = onRegenerateMessage,
-                    onApproval = onApproval,
-                )
-
-
-
-            } else {
-                if (message.content.isNotEmpty()) {
+            if (message.content.isNotEmpty()) {
                     val rawContent = if (isUser) message.content else cleanContent(message.content)
 
                     TextEffectPerWord(
@@ -612,16 +601,6 @@ private fun MessageContent(
                                     .clip(RoundedCornerShape(16.dp)),
                         )
 
-                        if (showFullScreen && message.inlineImages.isNotEmpty()) {
-                            val currentImage =
-                                message.inlineImages.getOrNull(fullScreenIndex)
-                                    ?: message.inlineImages.first()
-                            FullScreenImageViewer(
-                                imageUri = currentImage.uri,
-                                onDismiss = { showFullScreen = false },
-                                contentDescription = currentImage.fileName,
-                            )
-                        }
                     }
 
                     if (message.referencedNoteIds.isNotEmpty()) {
@@ -633,14 +612,6 @@ private fun MessageContent(
 
                         if (relevantNotes.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            InlineNotePreview(
-                                notes = relevantNotes,
-                                onNoteClick = { onNoteClick(it) },
-                                modifier =
-                                    Modifier
-                                        .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                                        .clip(RoundedCornerShape(16.dp)),
-                            )
                         }
                     }
 
@@ -675,14 +646,6 @@ private fun MessageContent(
                                     .clip(RoundedCornerShape(16.dp)),
                         )
 
-                        if (showFullScreen) {
-                            val currentImage = inlineImages.getOrNull(fullScreenIndex) ?: inlineImages.first()
-                            FullScreenImageViewer(
-                                imageUri = currentImage.uri,
-                                onDismiss = { showFullScreen = false },
-                                contentDescription = currentImage.fileName,
-                            )
-                        }
                     }
 
                     val otherAttachments =
@@ -753,7 +716,6 @@ private fun MessageContent(
                             },
                         )
                     }
-                }
             }
         }
     }

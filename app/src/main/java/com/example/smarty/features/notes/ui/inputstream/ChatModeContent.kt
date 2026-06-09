@@ -169,14 +169,6 @@ fun ChatModeContent(
                             remember(notes) {
                                 { id: String -> notes.find { it.id == id } }
                             }
-
-                        com.example.smarty.ui.components.AgentTimelineItem(
-                            message = message,
-                            onCopyMessage = onCopyMessage,
-                            onRegenerateMessage = onRegenerateMessage,
-                            onSkip = onStopGeneration,
-                            modifier = Modifier.padding(top = topSpacing),
-                        )
                     }
                 }
 

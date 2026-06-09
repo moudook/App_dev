@@ -47,7 +47,6 @@ class SmartRepository
                     firebaseUid = firebaseUid,
                     email = email,
                     displayName = displayName,
-                    avatarUrl = null,
                     deviceFingerprint = generateDeviceFingerprint(),
                 )
             smartDao.insertUser(user)

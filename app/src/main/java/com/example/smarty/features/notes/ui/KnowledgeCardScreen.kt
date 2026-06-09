@@ -38,9 +38,6 @@ import com.example.smarty.ui.components.audio.AudioWaveform
 import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.components.markdown.MarkdownRenderer
-import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
-import com.example.smarty.ui.components.viewers.FullScreenImageViewer
-import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
 import com.example.smarty.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -105,15 +102,7 @@ fun KnowledgeCardScreen(
     // Check if dirty
     val isModified = title != note.title || content != note.content
 
-    // Viewer states
-    var showImageViewer by remember { mutableStateOf(false) }
-    var imageViewerUri by remember { mutableStateOf<String?>(null) }
-    var showVideoPlayer by remember { mutableStateOf(false) }
-    var videoPlayerUri by remember { mutableStateOf<String?>(null) }
-    var showDocumentViewer by remember { mutableStateOf(false) }
-    var documentViewerUri by remember { mutableStateOf<String?>(null) }
-    var documentViewerMimeType by remember { mutableStateOf<String?>(null) }
-    var documentViewerFileName by remember { mutableStateOf<String?>(null) }
+
 
     // Mark as viewed
     LaunchedEffect(note.id) {
@@ -276,25 +265,7 @@ fun KnowledgeCardScreen(
                                 if (!attachment.mimeType.startsWith("audio/")) { // Hide audio as it is shown in player
                                     AttachmentChip(
                                         attachment = attachment,
-                                        onClick = {
-                                            val mime = attachment.mimeType
-                                            when {
-                                                mime.startsWith("image/") -> {
-                                                    imageViewerUri = attachment.uri
-                                                    showImageViewer = true
-                                                }
-                                                mime.startsWith("video/") -> {
-                                                    videoPlayerUri = attachment.uri
-                                                    showVideoPlayer = true
-                                                }
-                                                else -> {
-                                                    documentViewerUri = attachment.uri
-                                                    documentViewerMimeType = mime
-                                                    documentViewerFileName = attachment.fileName
-                                                    showDocumentViewer = true
-                                                }
-                                            }
-                                        },
+                                        onClick = {},
                                     )
                                 }
                             }
@@ -371,30 +342,6 @@ fun KnowledgeCardScreen(
             confirmText = stringResource(R.string.delete),
             dismissText = stringResource(R.string.cancel),
             isDestructive = true,
-        )
-    }
-
-    if (showImageViewer && imageViewerUri != null) {
-        FullScreenImageViewer(imageUri = imageViewerUri!!, onDismiss = {
-            showImageViewer = false
-            imageViewerUri = null
-        })
-    }
-    if (showVideoPlayer && videoPlayerUri != null) {
-        FullScreenVideoPlayer(videoUri = videoPlayerUri!!, onDismiss = {
-            showVideoPlayer = false
-            videoPlayerUri = null
-        })
-    }
-    if (showDocumentViewer && documentViewerUri != null) {
-        FullScreenDocumentViewer(
-            documentUri = documentViewerUri!!,
-            mimeType = documentViewerMimeType,
-            fileName = documentViewerFileName,
-            onDismiss = {
-                showDocumentViewer = false
-                documentViewerUri = null
-            },
         )
     }
 
