@@ -1,4 +1,4 @@
-package com.example.smarty.ui.components
+﻿package com.example.smarty.ui.components
 
 import android.util.Log
 import androidx.compose.animation.core.Animatable
@@ -46,6 +46,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -121,12 +123,12 @@ fun InlineImagePreview(
             modifier
                 .fillMaxWidth()
                 .aspectRatio(1.2f)
-                .clip(RoundedCornerShape(24.dp)) // Increased to 24dp for Soft Tech
+                .clip(MaterialTheme.appleShapes.large) // Increased to 24dp for Soft Tech
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(
                     1.dp,
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f), // Subtle border
-                    RoundedCornerShape(24.dp),
+                    MaterialTheme.appleShapes.large,
                 ).clickable { onExpandImage(currentIndex) }
                 .pointerInput(images.size) {
                     if (images.size <= 1) return@pointerInput // No swipe for single image
@@ -282,7 +284,7 @@ fun InlineImagePreview(
                     Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.appleShapes.small,
                 color = Color.Black.copy(alpha = 0.6f),
             ) {
                 Text(
@@ -305,7 +307,7 @@ fun InlineImagePreview(
                     Modifier
                         .align(Alignment.BottomStart)
                         .padding(8.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.appleShapes.small,
                 color = Color.Black.copy(alpha = 0.6f),
             ) {
                 Text(
@@ -348,3 +350,4 @@ fun InlineImagePreview(
         }
     }
 }
+

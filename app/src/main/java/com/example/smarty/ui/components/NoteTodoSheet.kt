@@ -1,4 +1,4 @@
-package com.example.smarty.ui.components
+﻿package com.example.smarty.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -37,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Note
@@ -95,7 +97,7 @@ fun NoteTodoSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = MaterialTheme.appleSpacing.large)
                     .padding(bottom = 24.dp),
         ) {
             //
@@ -220,8 +222,8 @@ fun NoteTodoSheet(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .softCardShadow(shape = RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
+                        .softCardShadow(shape = MaterialTheme.appleShapes.medium),
+                shape = MaterialTheme.appleShapes.medium,
                 color = LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
                 border = BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.3f)),
             ) {
@@ -303,12 +305,12 @@ fun NoteTodoSheet(
                         .fillMaxWidth()
                         .then(
                             if (isInputActive) {
-                                Modifier.activeGlow(shape = RoundedCornerShape(16.dp))
+                                Modifier.activeGlow(shape = MaterialTheme.appleShapes.medium)
                             } else {
-                                Modifier.softCardShadow(shape = RoundedCornerShape(16.dp))
+                                Modifier.softCardShadow(shape = MaterialTheme.appleShapes.medium)
                             },
                         ),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.appleShapes.medium,
                 color = LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
                 border =
                     BorderStroke(
@@ -434,7 +436,7 @@ private fun TodoItemRow(
             Modifier
                 .fillMaxWidth()
                 .scale(scale)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(MaterialTheme.appleShapes.small)
                 .background(backgroundColor)
                 .clickable(
                     indication = null,
@@ -538,3 +540,4 @@ private fun parseNewTodos(input: String): List<TodoItem> {
         )
     }
 }
+

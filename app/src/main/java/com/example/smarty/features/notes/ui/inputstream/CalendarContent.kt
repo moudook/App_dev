@@ -1,4 +1,4 @@
-package com.example.smarty.features.notes.ui.inputstream
+﻿package com.example.smarty.features.notes.ui.inputstream
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.*
@@ -32,6 +32,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import androidx.compose.ui.unit.sp
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.SmartyTimer
@@ -139,7 +141,7 @@ fun CalendarContent(
             // ── TIMERS ──
             if (activeTimers.isNotEmpty()) {
                 item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.appleSpacing.large)) {
                         Text(
                             "ACTIVE",
                             fontSize = 11.sp,
@@ -169,7 +171,7 @@ fun CalendarContent(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = textColor,
-                    modifier = Modifier.padding(horizontal = 24.dp),
+                    modifier = Modifier.padding(horizontal = MaterialTheme.appleSpacing.large),
                 )
                 Spacer(Modifier.height(16.dp))
             }
@@ -181,7 +183,7 @@ fun CalendarContent(
                     enter = expandVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeIn(),
                     exit = shrinkVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeOut(),
                 ) {
-                    Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    Box(modifier = Modifier.padding(horizontal = MaterialTheme.appleSpacing.large)) {
                         com.example.smarty.ui.components.TimeEditor(
                             onSave = { h, m, t ->
                                 val durationMs = (h * 60 + m) * 60 * 1000L
@@ -249,7 +251,7 @@ fun CalendarContent(
                         scaleX = headerScale
                         scaleY = headerScale
                         alpha = headerAlpha
-                    }.padding(horizontal = 24.dp)
+                    }.padding(horizontal = MaterialTheme.appleSpacing.large)
                     .padding(bottom = 32.dp),
             contentAlignment = Alignment.BottomStart,
         ) {
@@ -282,7 +284,7 @@ fun CalendarContent(
                     modifier =
                         Modifier
                             .size(52.dp)
-                            .clip(RoundedCornerShape(18.dp)) // Squircle FAB
+                            .clip(MaterialTheme.appleShapes.medium) // Squircle FAB
                             .background(if (isCreatingEvent) Color.Gray.copy(0.3f) else accentColor)
                             .squishClick {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
@@ -345,9 +347,9 @@ fun STierSlidingWeekTrack(
                 .fillMaxWidth()
                 .padding(horizontal = trackPadding)
                 .height(72.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(MaterialTheme.appleShapes.large)
                 .background(surfaceColor)
-                .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.03f), RoundedCornerShape(24.dp)),
+                .border(1.dp, if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.03f), MaterialTheme.appleShapes.large),
     ) {
         // The Physical Background Pill that slides
         Box(
@@ -357,7 +359,7 @@ fun STierSlidingWeekTrack(
                     .width(dayWidth)
                     .fillMaxHeight()
                     .padding(4.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(MaterialTheme.appleShapes.medium)
                     .background(accentColor),
         )
 
@@ -425,7 +427,7 @@ fun BentoTimelineNode(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = MaterialTheme.appleSpacing.large)
                 .height(IntrinsicSize.Min), // Matches row height to content
     ) {
         // Left Timeline
@@ -467,7 +469,7 @@ fun BentoTimelineNode(
 
         // Right Bento Card
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = MaterialTheme.appleShapes.large,
             color = surfaceColor,
             modifier =
                 Modifier
@@ -488,10 +490,10 @@ fun BentoTimelineNode(
                             } else {
                                 Color.Transparent
                             },
-                        shape = RoundedCornerShape(24.dp),
+                        shape = MaterialTheme.appleShapes.large,
                     ),
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(MaterialTheme.appleSpacing.large)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isHappeningNow) {
                         Icon(Icons.Rounded.AutoAwesome, null, tint = accentColor, modifier = Modifier.size(16.dp))
@@ -530,7 +532,7 @@ fun BentoTimelineNode(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier =
                                 Modifier
-                                    .background(if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.05f), RoundedCornerShape(8.dp))
+                                    .background(if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.05f), MaterialTheme.appleShapes.small)
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                         ) {
                             Icon(
@@ -577,7 +579,7 @@ fun STierLiveTimerCard(
         }
 
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.appleShapes.large,
         color = surfaceColor,
         modifier =
             Modifier.fillMaxWidth().graphicsLayer {
@@ -587,7 +589,7 @@ fun STierLiveTimerCard(
             },
     ) {
         Row(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(MaterialTheme.appleSpacing.large),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val infiniteTransition = rememberInfiniteTransition()
@@ -662,3 +664,4 @@ private fun filterEventsForDate(
             event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
         }.sortedBy { it.startTime }
 }
+

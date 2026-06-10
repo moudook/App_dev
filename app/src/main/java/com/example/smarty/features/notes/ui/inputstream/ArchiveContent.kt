@@ -1,4 +1,4 @@
-package com.example.smarty.features.notes.ui.inputstream
+﻿package com.example.smarty.features.notes.ui.inputstream
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
@@ -55,7 +57,7 @@ fun ArchiveContent(
             item {
                 com.example.smarty.ui.components.NotesLoadingState(
                     count = 4,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.appleSpacing.medium),
                 )
             }
         } else if (archivedNotes.isEmpty()) {
@@ -152,7 +154,7 @@ private fun InlineArchiveNoteItem(
         onUnarchive = onUnarchive,
         modifier =
             Modifier
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = MaterialTheme.appleSpacing.medium)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -160,5 +162,6 @@ private fun InlineArchiveNoteItem(
                 },
     )
 }
+
 
 

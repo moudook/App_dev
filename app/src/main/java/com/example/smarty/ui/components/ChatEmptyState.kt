@@ -1,4 +1,4 @@
-package com.example.smarty.ui.components
+﻿package com.example.smarty.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -116,7 +116,7 @@ private fun EmptyStateContainer(
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onAction,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.appleShapes.small,
                 ) {
                     Text(text = actionLabel)
                 }
@@ -135,7 +135,7 @@ fun CompactEmptyState(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(MaterialTheme.appleSpacing.large),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -426,6 +426,7 @@ fun IntelligenceEmptyState(modifier: Modifier = Modifier) {
         // No graphic
     }
 }
+
 
 
 

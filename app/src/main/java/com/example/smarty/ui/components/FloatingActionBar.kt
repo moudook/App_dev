@@ -1,4 +1,4 @@
-package com.example.smarty.ui.components
+﻿package com.example.smarty.ui.components
 
 import androidx.compose.material3.MaterialTheme
 
@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.appleSpacing
@@ -69,7 +71,7 @@ fun FloatingActionBar(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = MaterialTheme.appleSpacing.large),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -185,13 +187,13 @@ fun SelectionFloatingBar(
     val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.outlineVariant
 
     Surface(
-        shape = RoundedCornerShape(28.dp),
+        shape = MaterialTheme.appleShapes.extraLarge,
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
         modifier =
             modifier.softCardShadow(
                 elevation = 12.dp,
-                shape = RoundedCornerShape(28.dp),
+                shape = MaterialTheme.appleShapes.extraLarge,
                 spotColor = Color.Black.copy(alpha = 0.15f),
             ),
     ) {
@@ -255,6 +257,7 @@ fun SelectionFloatingBar(
         }
     }
 }
+
 
 
 

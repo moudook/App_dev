@@ -1,4 +1,4 @@
-package com.example.smarty.ui.components
+﻿package com.example.smarty.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -23,6 +23,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import androidx.compose.ui.window.Dialog
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.CalendarEvent
@@ -287,7 +289,7 @@ fun EditEventSheet(
                     Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
+                        .padding(MaterialTheme.appleSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Title field
@@ -409,7 +411,7 @@ fun EditEventSheet(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 showDeleteConfirmation = true
                             },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.appleShapes.medium,
                     color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
                 ) {
                     Row(
@@ -564,7 +566,7 @@ fun EditEventSheet(
                 color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(MaterialTheme.appleSpacing.large),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -582,7 +584,7 @@ fun EditEventSheet(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(MaterialTheme.appleShapes.small)
                                         .clickable {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             selectedReminder = minutes
@@ -615,7 +617,7 @@ fun EditEventSheet(
                 color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(MaterialTheme.appleSpacing.large),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -692,7 +694,7 @@ private fun EditDarkTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.appleShapes.medium,
         colors =
             OutlinedTextFieldDefaults.colors(
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -721,7 +723,7 @@ private fun EditDarkFormRow(
             Modifier
                 .fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.appleShapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
     ) {
         Row(
@@ -806,7 +808,7 @@ private fun EditDarkTimePickerDialog(
             color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(MaterialTheme.appleSpacing.large),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
@@ -851,3 +853,4 @@ private fun EditDarkTimePickerDialog(
         }
     }
 }
+

@@ -1,4 +1,4 @@
-package com.example.smarty.features.notes.ui
+﻿package com.example.smarty.features.notes.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -1528,7 +1528,7 @@ fun SearchSuggestionsDropdown(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = MaterialTheme.appleSpacing.medium),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1596,7 +1596,7 @@ fun SelectionPillBar(
     val accentColor = LocalAccentColor.current
 
     Surface(
-        shape = RoundedCornerShape(28.dp), // Same as input field
+        shape = MaterialTheme.appleShapes.extraLarge, // Same as input field
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
         shadowElevation = 8.dp, // Same as input field
@@ -1604,7 +1604,7 @@ fun SelectionPillBar(
             modifier
                 .softCardShadow(
                     elevation = 8.dp,
-                    shape = RoundedCornerShape(28.dp),
+                    shape = MaterialTheme.appleShapes.extraLarge,
                 ),
     ) {
         Row(
@@ -1635,7 +1635,7 @@ fun SelectionPillBar(
 
                 // Selected count pill
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.appleShapes.medium,
                     color = accentColor.copy(alpha = 0.15f),
                     modifier = Modifier.padding(vertical = 4.dp),
                 ) {
@@ -1739,5 +1739,6 @@ fun SelectionPillBar(
         }
     }
 }
+
 
 
