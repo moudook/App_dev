@@ -31,7 +31,7 @@ import com.example.smarty.core.domain.model.AudioPlayerUiState
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CalmLinearProgress
 import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
@@ -58,7 +58,8 @@ fun MiniAudioPlayer(
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(ComponentSpacing.miniPlayerHeight)
+                .height(64.dp)
+                .padding(horizontal = MaterialTheme.appleSpacing.medium)
                 .softCardShadow(
                     shape = containerShape,
                     elevation = 8.dp,

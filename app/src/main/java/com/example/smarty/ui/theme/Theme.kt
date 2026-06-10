@@ -27,42 +27,33 @@ import com.example.smarty.ui.LocalAccentColor
  */
 private val DarkColorScheme =
     darkColorScheme(
-        // Primary - Monochrome White
-        primary = Color.White,
-        onPrimary = Color.Black,
-        primaryContainer = Color.White.copy(alpha = 0.15f),
-        onPrimaryContainer = Color.White,
-        // Secondary - Grayscale
-        secondary = DarkTextSecondary,
+        primary = ThemeDarkPrimary,
+        onPrimary = ThemeDarkOnPrimary,
+        primaryContainer = ThemeDarkPrimary.copy(alpha = 0.15f),
+        onPrimaryContainer = ThemeDarkPrimary,
+        secondary = ThemeDarkTextSecondary,
         onSecondary = Color.White,
-        secondaryContainer = Color.White.copy(alpha = 0.1f),
+        secondaryContainer = ThemeDarkSurfaceVariant,
         onSecondaryContainer = Color.White,
-        // Tertiary - Grayscale
-        tertiary = Color.White.copy(alpha = 0.7f),
+        tertiary = ThemeDarkTextSecondary.copy(alpha = 0.7f),
         onTertiary = Color.White,
-        tertiaryContainer = Color.White.copy(alpha = 0.1f),
+        tertiaryContainer = ThemeDarkSurfaceVariant.copy(alpha = 0.5f),
         onTertiaryContainer = Color.White,
-        // Background - True black for OLED
-        background = Color.Black,
-        onBackground = Color.White,
-        // Surface - Near black card
-        surface = Color(0xFF0A0A0A),
-        onSurface = Color.White,
-        surfaceVariant = SmartyChipGrayDark,
-        onSurfaceVariant = DarkTextSecondary,
-        // Borders - Subtle dark
-        outline = SmartyChipSeparatorDark,
-        outlineVariant = DarkBorder.copy(alpha = 0.5f),
-        // Error - System Red (Calmer than Safety Orange)
-        error = SystemRed,
+        background = ThemeDarkBackground,
+        onBackground = ThemeDarkTextPrimary,
+        surface = ThemeDarkSurface,
+        onSurface = ThemeDarkTextPrimary,
+        surfaceVariant = ThemeDarkSurfaceVariant,
+        onSurfaceVariant = ThemeDarkTextSecondary,
+        outline = ThemeDarkOutline,
+        outlineVariant = ThemeDarkOutline.copy(alpha = 0.5f),
+        error = AppleError,
         onError = Color.White,
-        errorContainer = SystemRed.copy(alpha = 0.15f),
-        onErrorContainer = SystemRed,
-        // Inverse
-        inverseSurface = Color.White,
-        inverseOnSurface = Color.Black,
-        inversePrimary = Color.Black,
-        // Scrim
+        errorContainer = AppleError.copy(alpha = 0.15f),
+        onErrorContainer = AppleError,
+        inverseSurface = ThemeLightSurface,
+        inverseOnSurface = ThemeLightTextPrimary,
+        inversePrimary = ThemeLightPrimary,
         scrim = Color.Black.copy(alpha = 0.5f),
     )
 
@@ -73,42 +64,33 @@ private val DarkColorScheme =
  */
 private val LightColorScheme =
     lightColorScheme(
-        // Primary - Pink Theme
-        primary = PinkAccent,
-        onPrimary = PinkText, // Use non-pink text color for readability
-        primaryContainer = PinkLight,
-        onPrimaryContainer = PinkText, // Use non-pink text color for readability
-        // Secondary - Grayscale
-        secondary = TextCoolGrey,
+        primary = ThemeLightPrimary,
+        onPrimary = ThemeLightOnPrimary,
+        primaryContainer = ThemeLightPrimary.copy(alpha = 0.15f),
+        onPrimaryContainer = ThemeLightPrimary,
+        secondary = ThemeLightTextSecondary,
         onSecondary = Color.White,
-        secondaryContainer = Color.Black.copy(alpha = 0.05f),
+        secondaryContainer = ThemeLightSurfaceVariant,
         onSecondaryContainer = Color.Black,
-        // Tertiary - Grayscale
-        tertiary = Color.Black.copy(alpha = 0.7f),
+        tertiary = ThemeLightTextSecondary.copy(alpha = 0.7f),
         onTertiary = Color.White,
-        tertiaryContainer = Color.Black.copy(alpha = 0.05f),
+        tertiaryContainer = ThemeLightSurfaceVariant.copy(alpha = 0.5f),
         onTertiaryContainer = Color.Black,
-        // Background - Warm light grey canvas
-        background = SoftBackground,
-        onBackground = Color.Black,
-        // Surface - Pure white cards
-        surface = Color.White,
-        onSurface = Color.Black,
-        surfaceVariant = SmartyChipGrayLight,
-        onSurfaceVariant = TextCoolGrey,
-        // Borders - Very subtle
-        outline = SmartyChipSeparatorLight,
-        outlineVariant = SubtleBorder.copy(alpha = 0.5f),
-        // Error
-        error = SystemRed,
+        background = ThemeLightBackground,
+        onBackground = ThemeLightTextPrimary,
+        surface = ThemeLightSurface,
+        onSurface = ThemeLightTextPrimary,
+        surfaceVariant = ThemeLightSurfaceVariant,
+        onSurfaceVariant = ThemeLightTextSecondary,
+        outline = ThemeLightOutline,
+        outlineVariant = ThemeLightOutline.copy(alpha = 0.5f),
+        error = AppleError,
         onError = Color.White,
-        errorContainer = SystemRed.copy(alpha = 0.1f),
-        onErrorContainer = SystemRed,
-        // Inverse
-        inverseSurface = Color(0xFF0A0A0A),
-        inverseOnSurface = Color.White,
-        inversePrimary = Color.White,
-        // Scrim
+        errorContainer = AppleError.copy(alpha = 0.1f),
+        onErrorContainer = AppleError,
+        inverseSurface = ThemeDarkSurface,
+        inverseOnSurface = ThemeDarkTextPrimary,
+        inversePrimary = ThemeDarkPrimary,
         scrim = Color.Black.copy(alpha = 0.3f),
     )
 
@@ -284,6 +266,8 @@ fun SmartyTheme(
     CompositionLocalProvider(
         LocalSpacing provides Spacing(),
         LocalShapes provides SmartyShapes(),
+        LocalAppleSpacing provides AppleSpacing(),
+        LocalAppleShapes provides AppleShapes(),
         LocalAccentColor provides animatedColorScheme.primary,
     ) {
         MaterialTheme(

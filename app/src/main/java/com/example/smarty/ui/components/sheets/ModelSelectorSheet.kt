@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.squishClick
+import com.example.smarty.ui.theme.appleShapes
 
 @Composable
 fun ModelSelectorSheet(
@@ -58,6 +59,8 @@ fun ModelSelectorSheet(
             val surfaceColor = if (isDark) Color(0xFF1E1E1E) else Color.White
             val borderColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f)
 
+            val shapes = MaterialTheme.appleShapes
+
             // Styled EXACTLY like the Smarty Input Block (graphicsLayer shadows, borders, rounded shape)
             Column(
                 modifier =
@@ -65,12 +68,12 @@ fun ModelSelectorSheet(
                         .widthIn(min = 220.dp, max = 280.dp)
                         .graphicsLayer {
                             shadowElevation = 24.dp.toPx()
-                            shape = RoundedCornerShape(24.dp)
+                            shape = shapes.large
                             clip = true
                             ambientShadowColor = Color.Black.copy(alpha = 0.05f)
                             spotShadowColor = Color.Black.copy(alpha = 0.12f)
                         }.background(surfaceColor)
-                        .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+                        .border(1.dp, borderColor, shapes.large)
                         .padding(8.dp),
             ) {
                 // Title (Optional, keeping it very minimal)
@@ -174,7 +177,7 @@ private fun ModelRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.appleShapes.medium)
                 .background(bg)
                 .squishClick {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -228,7 +231,7 @@ private fun VariantRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(MaterialTheme.appleShapes.small)
                 .background(bg)
                 .squishClick {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)

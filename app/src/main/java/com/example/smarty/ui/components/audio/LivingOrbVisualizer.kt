@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.theme.AudioPink
+import com.example.smarty.ui.theme.AssistantGlowPink1
 
 /**
  * A simplified "Soft Aura" Visualizer.
@@ -31,9 +31,9 @@ fun LivingOrbVisualizer(
     treble: Float = 0f,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    primaryColor: Color = AudioPink,
-    secondaryColor: Color = AudioPink.copy(alpha = 0.5f),
-    backgroundColor: Color = AudioPink.copy(alpha = 0.1f),
+    primaryColor: Color = AssistantGlowPink1,
+    secondaryColor: Color = AssistantGlowPink1.copy(alpha = 0.5f),
+    backgroundColor: Color = AssistantGlowPink1.copy(alpha = 0.1f),
 ) {
     // === JELLY PHYSICS ===
     // Low damping + low stiffness = Maximum jiggle!

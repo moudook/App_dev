@@ -18,7 +18,7 @@ import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.components.ArchiveEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.common.SmartyDialog
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 
 /**
  * Inline archive content that displays in the main content area.
@@ -49,7 +49,7 @@ fun ArchiveContent(
         state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.appleSpacing.medium),
     ) {
         if (isLoading) {
             item {
@@ -160,3 +160,5 @@ private fun InlineArchiveNoteItem(
                 },
     )
 }
+
+

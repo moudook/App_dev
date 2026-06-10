@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,10 +47,10 @@ enum class PinterestAction(
     val icon: ImageVector,
     val color: Color,
 ) {
-    PIN("Pin", Icons.Default.PushPin, ElectricBlue),
-    SHARE("Share", Icons.Default.Share, SystemGreen),
-    ARCHIVE("Archive", Icons.Default.Archive, SystemOrange),
-    DELETE("Delete", Icons.Default.Delete, SystemRed),
+    PIN("Pin", Icons.Default.PushPin, AppleInfo),
+    SHARE("Share", Icons.Default.Share, AppleSuccess),
+    ARCHIVE("Archive", Icons.Default.Archive, AppleWarning),
+    DELETE("Delete", Icons.Default.Delete, AppleError),
 }
 
 @Composable
@@ -58,6 +59,7 @@ fun PinterestMenu(
     onDismiss: () -> Unit,
     onAction: (PinterestAction) -> Unit,
 ) {
+    val CardWhite = MaterialTheme.colorScheme.surface
     val haptic = rememberHapticHelper()
     val density = LocalDensity.current
 
@@ -236,6 +238,7 @@ private fun ActionItem(
     modifier: Modifier = Modifier,
     itemSize: androidx.compose.ui.unit.Dp,
 ) {
+    val CardWhite = MaterialTheme.colorScheme.surface
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier,

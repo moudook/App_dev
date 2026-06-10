@@ -16,8 +16,8 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.theme.ComponentColors
-import com.example.smarty.ui.theme.LocalShapes
+import androidx.compose.material3.MaterialTheme
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.SmartyBrushes
 
 /**
@@ -129,14 +129,14 @@ fun GeometricGradientBackground(
 @Composable
 fun TechnicalSurface(
     modifier: Modifier = Modifier,
-    shape: Shape = LocalShapes.current.iconButton,
+    shape: Shape = MaterialTheme.appleShapes.medium,
     content: @Composable () -> Unit,
 ) {
     val isDark = isSystemInDarkTheme()
     Surface(
         modifier = modifier,
         shape = shape,
-        color = if (isDark) ComponentColors.technicalSurfaceDark else ComponentColors.technicalSurfaceLight,
+        color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
         content = content,
     )

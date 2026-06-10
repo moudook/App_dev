@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.utils.ThemeAwareColors
 import com.example.smarty.ui.utils.TextEmphasis
 import kotlinx.coroutines.delay
@@ -62,10 +64,10 @@ fun UserMessageBubble(
     ) {
         Surface(
             color = userBubbleBackground,
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.appleShapes.bubbleUser,
         ) {
             Box(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = MaterialTheme.appleSpacing.medium, vertical = MaterialTheme.appleSpacing.small),
             ) {
                 Text(
                     text = content,

@@ -47,7 +47,7 @@ import com.example.smarty.R
 import com.example.smarty.core.domain.model.MentionState
 import com.example.smarty.core.domain.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
 
@@ -88,7 +88,7 @@ fun MentionDropdown(
                 ),
         modifier = modifier,
     ) {
-        val cardShape = LocalShapes.current.cardMedium
+        val cardShape = MaterialTheme.appleShapes.large
 
         Surface(
             modifier =
@@ -517,3 +517,4 @@ private fun getSpecialFilterIcon(filterName: String): ImageVector =
         "all" -> Icons.Default.FilterList
         else -> Icons.Default.FilterList
     }
+

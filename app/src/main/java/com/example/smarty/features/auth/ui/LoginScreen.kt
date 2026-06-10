@@ -47,7 +47,7 @@ import com.example.smarty.features.auth.domain.AuthViewModelFactory
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartySettingsCard
 import com.example.smarty.ui.components.SmartySettingsRow
-import com.example.smarty.ui.theme.PinkAccent
+import com.example.smarty.ui.theme.ApplePink
 import com.example.smarty.ui.theme.SmartyIcons
 
 //
@@ -242,7 +242,7 @@ fun LoginScreen(
                                     }
                                     withStyle(
                                         androidx.compose.ui.text
-                                            .SpanStyle(color = PinkAccent),
+                                            .SpanStyle(color = ApplePink),
                                     ) {
                                         append("Friday")
                                     }
@@ -394,7 +394,7 @@ fun LoginScreen(
                     painter = painterResource(id = R.drawable.ic_launcher_monochrome),
                     contentDescription = "Smarty",
                     modifier = Modifier.size(72.dp),
-                    tint = PinkAccent,
+                    tint = ApplePink,
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -412,7 +412,7 @@ fun LoginScreen(
                                 }
                                 withStyle(
                                     androidx.compose.ui.text
-                                        .SpanStyle(color = PinkAccent),
+                                        .SpanStyle(color = ApplePink),
                                 ) {
                                     append("Back")
                                 }
@@ -425,7 +425,7 @@ fun LoginScreen(
                                 }
                                 withStyle(
                                     androidx.compose.ui.text
-                                        .SpanStyle(color = PinkAccent),
+                                        .SpanStyle(color = ApplePink),
                                 ) {
                                     append("Account")
                                 }
@@ -823,3 +823,4 @@ fun LoginScreen(
         }
     }
 }
+

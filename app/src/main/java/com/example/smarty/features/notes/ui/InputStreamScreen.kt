@@ -86,8 +86,8 @@ import com.example.smarty.ui.components.sheets.ArchiveSheet
 import com.example.smarty.ui.components.sheets.CalendarSheet
 import com.example.smarty.ui.components.sheets.SettingsSheet
 import com.example.smarty.ui.components.sheets.StacksSheet
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleSpacing
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.SmartyBrushes
 import com.example.smarty.ui.theme.softCardShadow
 import kotlinx.coroutines.Job
@@ -939,7 +939,7 @@ fun InputStreamScreen(
                                             }
                                             data.dismiss()
                                         },
-                                        shape = LocalShapes.current.chipSmall,
+                                        shape = MaterialTheme.appleShapes.small,
                                         color = LocalAccentColor.current.copy(alpha = 0.2f),
                                     ) {
                                         Text(
@@ -1074,7 +1074,7 @@ fun InputStreamScreen(
                         ) { mode ->
                             val contentPaddingWithTop =
                                 PaddingValues(
-                                    top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
+                                    top = MaterialTheme.appleSpacing.medium + topPadding, // Start content below header
                                     bottom = 140.dp + bottomContentPadding, // Extra padding for floating input
                                 )
 
@@ -1739,3 +1739,5 @@ fun SelectionPillBar(
         }
     }
 }
+
+

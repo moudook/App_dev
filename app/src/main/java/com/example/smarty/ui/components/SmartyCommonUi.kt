@@ -14,9 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.LocalShapes
 
 /**
  * Standard Primary Button for Smarty App
@@ -32,15 +32,14 @@ fun SmartyButton(
     containerColor: Color = LocalAccentColor.current,
     contentColor: Color = Color.White,
 ) {
-    val shapes = LocalShapes.current
     Button(
         onClick = onClick,
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(ComponentSpacing.buttonHeight),
+                .height(48.dp),
         enabled = enabled && !isLoading,
-        shape = shapes.button,
+        shape = MaterialTheme.appleShapes.pill,
         colors =
             ButtonDefaults.buttonColors(
                 containerColor = containerColor,
@@ -102,7 +101,6 @@ fun SmartyOutlinedTextField(
     singleLine: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shapes = LocalShapes.current
 
     // Animate border color on focus/error
     val borderColor = if (isError) MaterialTheme.colorScheme.error else LocalAccentColor.current
@@ -120,7 +118,7 @@ fun SmartyOutlinedTextField(
             trailingIcon = trailingIcon,
             visualTransformation = visualTransformation,
             singleLine = singleLine,
-            shape = shapes.button,
+            shape = MaterialTheme.appleShapes.pill,
             colors =
                 OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = borderColor,
@@ -140,7 +138,7 @@ fun SmartyOutlinedTextField(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = ComponentSpacing.inputPadding, top = 4.dp),
+                modifier = Modifier.padding(start = MaterialTheme.appleSpacing.medium, top = 4.dp),
             )
         }
     }
@@ -155,14 +153,13 @@ fun SmartyGoogleButton(
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
 ) {
-    val shapes = LocalShapes.current
     OutlinedButton(
         onClick = onClick,
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(ComponentSpacing.buttonHeight),
-        shape = shapes.button,
+                .height(48.dp),
+        shape = MaterialTheme.appleShapes.pill,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         enabled = !isLoading,
     ) {

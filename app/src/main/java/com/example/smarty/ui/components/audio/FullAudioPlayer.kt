@@ -24,7 +24,7 @@ import com.example.smarty.R
 import com.example.smarty.core.domain.model.AudioPlayerUiState
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
 
@@ -49,7 +49,7 @@ fun FullAudioPlayer(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = ComponentSpacing.sheetCornerRadius, topEnd = ComponentSpacing.sheetCornerRadius),
+        shape = RoundedCornerShape(topStart = MaterialTheme.appleSpacing.large, topEnd = MaterialTheme.appleSpacing.large),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Surface(
@@ -60,8 +60,8 @@ fun FullAudioPlayer(
                 Box(
                     modifier =
                         Modifier.size(
-                            width = ComponentSpacing.sheetDragHandleWidth,
-                            height = ComponentSpacing.sheetDragHandleHeight,
+                            width = MaterialTheme.appleSpacing.extraLarge,
+                            height = MaterialTheme.appleSpacing.tiny,
                         ),
                 )
             }

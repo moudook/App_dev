@@ -33,7 +33,7 @@ import com.example.smarty.ui.components.ArchiveEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NotesLoadingState
 import com.example.smarty.ui.components.common.SmartyDialog
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 
 /**
  * Archive screen showing all archived notes.
@@ -84,7 +84,7 @@ fun ArchiveScreen(
                                 top = 16.dp,
                                 bottom = 100.dp,
                             ),
-                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
+                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.appleSpacing.medium),
                     ) {
                         items(
                             items = archivedNotes,
@@ -188,7 +188,7 @@ fun ArchiveScreen(
                                 top = 16.dp,
                                 bottom = 100.dp,
                             ),
-                        verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
+                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.appleSpacing.medium),
                     ) {
                         items(
                             items = archivedNotes,
@@ -325,3 +325,5 @@ private fun ConcentricVaultBackground() {
         )
     }
 }
+
+

@@ -851,8 +851,8 @@ private fun PremiumEventCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .softCardShadow(shape = LocalShapes.current.card),
-        shape = LocalShapes.current.card,
+                .softCardShadow(shape = MaterialTheme.appleShapes.large),
+        shape = MaterialTheme.appleShapes.large,
         color = MaterialTheme.colorScheme.surface,
     ) {
         Row(
@@ -866,7 +866,7 @@ private fun PremiumEventCard(
             Column(modifier = Modifier.weight(1f)) {
                 // Time Pill
                 Surface(
-                    shape = LocalShapes.current.button,
+                    shape = MaterialTheme.appleShapes.medium,
                     color = bgColor.copy(alpha = 0.6f),
                 ) {
                     val timeText =
@@ -998,3 +998,4 @@ private fun generateMonthDays(month: Calendar): List<Calendar?> {
 
     return days
 }
+

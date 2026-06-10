@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.theme.AudioPink
+import androidx.compose.material3.MaterialTheme
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.PI
@@ -37,9 +37,9 @@ fun OptimizedOrbVisualizer(
     amplitude: Float = 0f,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    primaryColor: Color = AudioPink,
-    secondaryColor: Color = AudioPink.copy(alpha = 0.5f),
-    backgroundColor: Color = AudioPink.copy(alpha = 0.1f),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    secondaryColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+    backgroundColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
 ) {
     // Smooth amplitude using simple exponential smoothing
     // Avoids expensive spring calculations

@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.LocalShapes
 
 /**
  * =============================================================================
@@ -99,7 +98,7 @@ fun CompactIconButton(
     contentDescription: String? = null,
     enabled: Boolean = true,
 ) {
-    val shapes = LocalShapes.current
+    // Get size configuration
 
     // Get size configuration
     val sizeConfig =
@@ -139,7 +138,7 @@ fun CompactIconButton(
         modifier =
             modifier
                 .size(sizeConfig.containerSize)
-                .clip(shapes.iconButton)
+                .clip(CircleShape)
                 .then(
                     if (effectiveBackgroundColor != null) {
                         Modifier.background(effectiveBackgroundColor)
@@ -196,7 +195,7 @@ fun CircularIconButton(
     contentDescription: String? = null,
     enabled: Boolean = true,
 ) {
-    val shapes = LocalShapes.current
+    // Get size configuration
 
     // Get size configuration
     val sizeConfig =

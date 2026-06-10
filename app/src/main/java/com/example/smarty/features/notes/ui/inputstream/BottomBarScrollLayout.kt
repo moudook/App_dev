@@ -1,5 +1,7 @@
 package com.example.smarty.features.notes.ui.inputstream
 
+import androidx.compose.material3.MaterialTheme
+
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -31,7 +33,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.SmartyBrushes
 
 @Composable
@@ -56,7 +58,7 @@ fun BottomBarScrollLayout(
     val multiLineExtraHeight = 0.dp
 
     val inputFieldHeight = if (showSelectionPill) 0.dp else (72.dp + attachmentRowHeight + multiLineExtraHeight)
-    val inputFieldPadding = ComponentSpacing.screenPadding
+    val inputFieldPadding = MaterialTheme.appleSpacing.medium
     val isSearchSuggestionsVisible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty()
     val searchSuggestionsHeight =
         if (isSearchSuggestionsVisible && !showSelectionPill) {
@@ -144,7 +146,7 @@ fun BottomBarScrollLayout(
                         .padding(
                             start = 8.dp,
                             end = 8.dp,
-                            bottom = ComponentSpacing.screenPadding,
+                            bottom = MaterialTheme.appleSpacing.medium,
                             top = 0.dp,
                         ).zIndex(2f),
                 )
@@ -152,3 +154,7 @@ fun BottomBarScrollLayout(
         }
     }
 }
+
+
+
+

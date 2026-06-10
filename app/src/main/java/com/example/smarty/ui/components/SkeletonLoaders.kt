@@ -26,8 +26,8 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.animation.directionalShimmer
 import com.example.smarty.ui.animation.shimmerEffect
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleSpacing
+import com.example.smarty.ui.theme.appleShapes
 
 /**
  * Skeleton loader for category cards with halftone shimmer effect.
@@ -35,14 +35,14 @@ import com.example.smarty.ui.theme.LocalShapes
  */
 @Composable
 fun CategoryCardSkeleton(modifier: Modifier = Modifier) {
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
 
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
                 .height(100.dp)
-                .clip(shapes.cardMedium)
+                .clip(shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
                 .directionalShimmer(
                     isVisible = true,
@@ -63,7 +63,7 @@ fun CategoryCardSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxWidth(0.6f)
                         .height(20.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
             )
 
@@ -73,7 +73,7 @@ fun CategoryCardSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxWidth(0.4f)
                         .height(14.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
             )
         }
@@ -85,7 +85,7 @@ fun CategoryCardSkeleton(modifier: Modifier = Modifier) {
  */
 @Composable
 fun NoteCardSkeleton(modifier: Modifier = Modifier) {
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
     val accentColor = LocalAccentColor.current
 
     Box(
@@ -93,7 +93,7 @@ fun NoteCardSkeleton(modifier: Modifier = Modifier) {
             modifier
                 .fillMaxWidth()
                 .height(80.dp)
-                .clip(shapes.cardMedium)
+                .clip(shapes.large)
                 .background(MaterialTheme.colorScheme.surface)
                 .directionalShimmer(
                     isVisible = true,
@@ -113,7 +113,7 @@ fun NoteCardSkeleton(modifier: Modifier = Modifier) {
                 modifier =
                     Modifier
                         .size(36.dp)
-                        .clip(LocalShapes.current.tag)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
             )
 
@@ -130,7 +130,7 @@ fun NoteCardSkeleton(modifier: Modifier = Modifier) {
                         Modifier
                             .fillMaxWidth(0.7f)
                             .height(16.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                 )
 
@@ -140,7 +140,7 @@ fun NoteCardSkeleton(modifier: Modifier = Modifier) {
                         Modifier
                             .fillMaxWidth(0.9f)
                             .height(12.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
                 )
             }
@@ -230,7 +230,7 @@ fun BackupCardSkeleton(modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.onSurface,
                     direction = ShimmerDirection.LEFT_TO_RIGHT,
                 ),
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
@@ -264,7 +264,7 @@ fun BackupCardSkeleton(modifier: Modifier = Modifier) {
                             Modifier
                                 .fillMaxWidth(0.4f)
                                 .height(16.dp)
-                                .clip(LocalShapes.current.skeleton)
+                                .clip(MaterialTheme.appleShapes.small)
                                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -274,7 +274,7 @@ fun BackupCardSkeleton(modifier: Modifier = Modifier) {
                             Modifier
                                 .fillMaxWidth(0.7f)
                                 .height(12.dp)
-                                .clip(LocalShapes.current.skeleton)
+                                .clip(MaterialTheme.appleShapes.small)
                                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
                     )
                 }
@@ -320,7 +320,7 @@ fun ChatSessionSkeleton(modifier: Modifier = Modifier) {
             modifier =
                 Modifier
                     .size(44.dp)
-                    .clip(LocalShapes.current.iconButton)
+                    .clip(MaterialTheme.appleShapes.medium)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
         )
 
@@ -333,7 +333,7 @@ fun ChatSessionSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxWidth(0.5f)
                         .height(16.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -343,7 +343,7 @@ fun ChatSessionSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxWidth(0.8f)
                         .height(12.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
             )
         }
@@ -374,7 +374,7 @@ fun ChatHistoryLoadingState(
  */
 @Composable
 fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
     val accentColor = LocalAccentColor.current
 
     Column(
@@ -412,7 +412,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .width(100.dp)
                         .height(24.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -421,7 +421,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .width(180.dp)
                         .height(14.dp)
-                        .clip(LocalShapes.current.skeleton)
+                        .clip(MaterialTheme.appleShapes.small)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -430,7 +430,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .width(80.dp)
                         .height(36.dp)
-                        .clip(LocalShapes.current.dialog)
+                        .clip(MaterialTheme.appleShapes.extraLarge)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
             )
         }
@@ -447,7 +447,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                         Modifier
                             .width(80.dp)
                             .height(16.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                 )
 
@@ -456,7 +456,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .clip(shapes.cardMedium)
+                            .clip(shapes.large)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f))
                             .padding(bottom = 1.dp),
                 ) {
@@ -483,7 +483,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                                         Modifier
                                             .width(120.dp)
                                             .height(16.dp)
-                                            .clip(LocalShapes.current.skeleton)
+                                            .clip(MaterialTheme.appleShapes.small)
                                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -492,7 +492,7 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
                                         Modifier
                                             .width(160.dp)
                                             .height(12.dp)
-                                            .clip(LocalShapes.current.skeleton)
+                                            .clip(MaterialTheme.appleShapes.small)
                                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)),
                                 )
                             }
@@ -517,15 +517,15 @@ fun SettingsMainSkeleton(modifier: Modifier = Modifier) {
 fun EventCardSkeleton(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = LocalShapes.current.cardSmall,
+        shape = MaterialTheme.appleShapes.medium,
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)),
     ) {
         Row(
-            modifier = Modifier.padding(ComponentSpacing.inputPadding),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(modifier = Modifier.size(ComponentSpacing.iconButtonSize).clip(LocalShapes.current.iconButton).shimmerEffect())
+            Box(modifier = Modifier.size(36.dp).clip(MaterialTheme.appleShapes.medium).shimmerEffect())
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Box(
@@ -533,7 +533,7 @@ fun EventCardSkeleton(modifier: Modifier = Modifier) {
                         Modifier
                             .fillMaxWidth(0.6f)
                             .height(16.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .shimmerEffect(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -542,7 +542,7 @@ fun EventCardSkeleton(modifier: Modifier = Modifier) {
                         Modifier
                             .fillMaxWidth(0.4f)
                             .height(12.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .shimmerEffect(),
                 )
             }
@@ -571,7 +571,7 @@ fun CalendarLoadingState(
 @Composable
 fun ChatMessageSkeleton(isFromUser: Boolean = false) {
     val alignment = if (isFromUser) Alignment.End else Alignment.Start
-    val bubbleShape = if (isFromUser) LocalShapes.current.bubbleUser else LocalShapes.current.bubbleAi
+    val bubbleShape = if (isFromUser) MaterialTheme.appleShapes.bubbleUser else MaterialTheme.appleShapes.bubbleAi
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -580,15 +580,15 @@ fun ChatMessageSkeleton(isFromUser: Boolean = false) {
         Surface(
             shape = bubbleShape,
             color = if (isFromUser) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent,
-            modifier = Modifier.widthIn(min = 100.dp, max = ComponentSpacing.bubbleMaxWidth),
+            modifier = Modifier.widthIn(min = 100.dp, max = 320.dp),
         ) {
-            Column(modifier = Modifier.padding(ComponentSpacing.inputPadding)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Box(
                     modifier =
                         Modifier
                             .width(180.dp)
                             .height(16.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .shimmerEffect(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -597,7 +597,7 @@ fun ChatMessageSkeleton(isFromUser: Boolean = false) {
                         Modifier
                             .width(120.dp)
                             .height(16.dp)
-                            .clip(LocalShapes.current.skeleton)
+                            .clip(MaterialTheme.appleShapes.small)
                             .shimmerEffect(),
                 )
             }
@@ -620,3 +620,7 @@ fun SkeletonList(
         }
     }
 }
+
+
+
+

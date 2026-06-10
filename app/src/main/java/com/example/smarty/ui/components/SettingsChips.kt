@@ -22,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 
 // Internal composition local to pass background color down to rows for seamless look
 private val LocalCardContainerColor = staticCompositionLocalOf { Color.Transparent }
@@ -46,7 +46,7 @@ object SmartySettingsDefaults {
     val CardShape: CornerBasedShape
         @Composable
         @ReadOnlyComposable
-        get() = LocalShapes.current.card
+        get() = MaterialTheme.appleShapes.large
 
     val ItemShape: CornerBasedShape
         get() = RoundedCornerShape(ItemCornerRadius)
@@ -234,3 +234,4 @@ fun SmartySettingsSwitchRow(
         },
     )
 }
+

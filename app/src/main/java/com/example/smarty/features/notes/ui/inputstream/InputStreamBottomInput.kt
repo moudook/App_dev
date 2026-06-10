@@ -51,7 +51,7 @@ import com.example.smarty.features.voice.SpeechToTextState
 import com.example.smarty.features.voice.VoiceNoteRecorder
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.SmartyInputField
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.SmartyBrushes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -147,14 +147,14 @@ fun InputStreamBottomInput(
     val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
 
     val showSelectionPill = isSelectionMode && selectedNoteIds.isNotEmpty()
-    val miniPlayerHeight = ComponentSpacing.miniPlayerHeight
+    val miniPlayerHeight = 72.dp
     val miniPlayerExtraMargin = 16.dp
     val miniPlayerPadding = if (isMiniPlayerVisible && !isKeyboardVisible) miniPlayerHeight + miniPlayerExtraMargin else 0.dp
     val attachmentCount = currentInputAttachments.size
     val attachmentRowHeight = if (attachmentCount > 0) 60.dp else 0.dp
     val multiLineExtraHeight = if (textValue.text.count { it == '\n' } > 0) 40.dp else 0.dp
     val inputFieldHeight = if (showSelectionPill) 0.dp else (72.dp + attachmentRowHeight + multiLineExtraHeight)
-    val inputFieldPadding = ComponentSpacing.screenPadding
+    val inputFieldPadding = MaterialTheme.appleSpacing.medium
     val isSearchSuggestionsVisible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty()
     val searchSuggestionsHeight =
         if (isSearchSuggestionsVisible && !showSelectionPill) {
@@ -291,7 +291,7 @@ fun InputStreamBottomInput(
                             }.padding(
                                 start = 8.dp,
                                 end = 8.dp,
-                                bottom = ComponentSpacing.screenPadding,
+                                bottom = MaterialTheme.appleSpacing.medium,
                                 top = 0.dp,
                             ).zIndex(2f),
                 ) {
@@ -537,3 +537,6 @@ fun InputStreamBottomInput(
         }
     }
 }
+
+
+

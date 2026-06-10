@@ -36,7 +36,7 @@ import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CategoryEmptyState
 import com.example.smarty.ui.components.NoteCard
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,13 +254,13 @@ private fun QRCodeDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = LocalShapes.current.dialog,
+            shape = MaterialTheme.appleShapes.extraLarge,
             color = MaterialTheme.colorScheme.surface,
             modifier =
                 Modifier.border(
                     1.dp,
                     MaterialTheme.colorScheme.outline,
-                    LocalShapes.current.dialog,
+                    MaterialTheme.appleShapes.extraLarge,
                 ),
         ) {
             Column(
@@ -309,7 +309,7 @@ private fun QRCodeDialog(
                         modifier =
                             Modifier
                                 .size(200.dp)
-                                .clip(LocalShapes.current.tag)
+                                .clip(MaterialTheme.appleShapes.small)
                                 .background(qrBackground)
                                 .padding(8.dp),
                     ) {
@@ -349,7 +349,7 @@ private fun QRCodeDialog(
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = LocalShapes.current.button,
+                        shape = MaterialTheme.appleShapes.medium,
                     ) {
                         Text(stringResource(R.string.close), style = MaterialTheme.typography.labelLarge)
                     }
@@ -357,7 +357,7 @@ private fun QRCodeDialog(
                     Button(
                         onClick = onShare,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = LocalShapes.current.button,
+                        shape = MaterialTheme.appleShapes.medium,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = LocalAccentColor.current,
@@ -378,3 +378,4 @@ private fun QRCodeDialog(
         }
     }
 }
+

@@ -169,7 +169,7 @@ fun NoteCard(
                 modifier =
                     Modifier
                         .matchParentSize()
-                        .clip(LocalShapes.current.cardMedium)
+                        .clip(MaterialTheme.appleShapes.medium)
                         .background(color),
                 contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
@@ -203,7 +203,7 @@ fun NoteCard(
                     .onGloballyPositioned { coordinates ->
                         cardOffsetInWindow = coordinates.positionInWindow()
                     }.offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                    .softCardShadow(shape = LocalShapes.current.cardMedium)
+                    .softCardShadow(shape = MaterialTheme.appleShapes.medium)
                     .graphicsLayer {
                         rotationZ = rotation
                         cameraDistance = 12f * density.density
@@ -293,7 +293,7 @@ fun NoteCard(
                             )
                         }
                     },
-            shape = LocalShapes.current.cardMedium,
+            shape = MaterialTheme.appleShapes.medium,
             color =
                 animateColorAsState(
                     targetValue =
@@ -504,7 +504,7 @@ fun NoteCardPill(
 
     Surface(
         color = bg,
-        shape = RoundedCornerShape(50), // Fully rounded pill
+        shape = MaterialTheme.appleShapes.pill,
         modifier = Modifier.height(28.dp),
     ) {
         Row(
@@ -550,7 +550,7 @@ fun CategoryChip(
     val cardColor = if (isNew) accentColor.copy(alpha = Alpha.medium) else bg
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(50),
+        shape = MaterialTheme.appleShapes.pill,
         color = cardColor,
     ) {
         Text(

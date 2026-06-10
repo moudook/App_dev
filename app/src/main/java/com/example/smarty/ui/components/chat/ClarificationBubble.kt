@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ClarificationRequest
+import com.example.smarty.ui.theme.appleShapes
 
 /**
  * Interactive bubble that displays AI clarification questions with
@@ -59,7 +60,7 @@ fun ClarificationBubble(
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.appleShapes.medium,
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -113,7 +114,7 @@ fun ClarificationBubble(
                                 selectedOption = option
                             }
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.appleShapes.small,
                         color =
                             when {
                                 showSubmittedCheck -> accentColor.copy(alpha = 0.2f)
@@ -198,7 +199,7 @@ fun ClarificationBubble(
                         modifier = Modifier.weight(1f),
                         textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.appleShapes.small,
                         enabled = !isSubmitted,
                         trailingIcon = {
                             if (customInput.isNotBlank() && !isSubmitted) {

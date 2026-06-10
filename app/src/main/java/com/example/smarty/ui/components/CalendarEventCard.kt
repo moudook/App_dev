@@ -58,8 +58,8 @@ fun CalendarEventCard(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val shapes = LocalShapes.current
-    val spacing = LocalSpacing.current
+    val shapes = MaterialTheme.appleShapes
+    val spacing = MaterialTheme.appleSpacing
 
     // Press state for animations
     var isPressed by remember { mutableStateOf(false) }
@@ -110,7 +110,7 @@ fun CalendarEventCard(
                 modifier =
                     Modifier
                         .matchParentSize()
-                        .clip(shapes.cardMedium)
+                        .clip(shapes.large)
                         .background(MaterialTheme.colorScheme.error),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -132,7 +132,7 @@ fun CalendarEventCard(
                 Modifier
                     .fillMaxWidth()
                     .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                    .softCardShadow(shape = shapes.cardMedium)
+                    .softCardShadow(shape = shapes.large)
                     .graphicsLayer {
                         rotationZ = rotation
                         cameraDistance = 12f * density.density
@@ -168,7 +168,7 @@ fun CalendarEventCard(
                             },
                         )
                     },
-            shape = shapes.cardMedium,
+            shape = shapes.large,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
         ) {
@@ -176,7 +176,7 @@ fun CalendarEventCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(spacing.default),
+                        .padding(spacing.medium),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(spacing.medium),
             ) {
@@ -285,7 +285,7 @@ private fun DateBox(
     event: CalendarEvent,
     modifier: Modifier = Modifier,
 ) {
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
     val isToday = event.isToday()
     val isPast = event.isPast()
     val isHappening = event.isHappeningNow()
@@ -320,7 +320,7 @@ private fun DateBox(
     Column(
         modifier =
             modifier
-                .clip(shapes.button)
+                .clip(shapes.medium)
                 .background(backgroundColor)
                 .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -386,7 +386,7 @@ private fun TimeRow(event: CalendarEvent) {
         // "Now" indicator
         if (isHappening) {
             Surface(
-                shape = LocalShapes.current.pill,
+                shape = MaterialTheme.appleShapes.pill,
                 color = LocalAccentColor.current.copy(alpha = 0.15f),
             ) {
                 Text(
@@ -400,3 +400,6 @@ private fun TimeRow(event: CalendarEvent) {
         }
     }
 }
+
+
+

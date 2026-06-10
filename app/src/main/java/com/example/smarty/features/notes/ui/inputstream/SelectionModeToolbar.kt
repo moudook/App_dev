@@ -1,5 +1,7 @@
 package com.example.smarty.features.notes.ui.inputstream
 
+import com.example.smarty.ui.theme.AppleError
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -33,12 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.DarkBorder2
-import com.example.smarty.ui.theme.DarkSurfaceElevated2
-import com.example.smarty.ui.theme.SemanticColors
-import com.example.smarty.ui.theme.SoftBackground
-import com.example.smarty.ui.theme.SubtleBorder
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.softCardShadow
 
 /**
@@ -62,11 +59,11 @@ fun SelectionModeToolbar(
     val hasSelection = selectedCount > 0
 
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
-    val borderColor = if (isDark) DarkBorder2 else SubtleBorder
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.outlineVariant
 
     Surface(
-        shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+        shape = RoundedCornerShape(28.dp),
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
         modifier =
@@ -75,7 +72,7 @@ fun SelectionModeToolbar(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .softCardShadow(
                     elevation = 8.dp,
-                    shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+                    shape = RoundedCornerShape(28.dp),
                     spotColor = Color.Black.copy(alpha = 0.15f),
                 ),
     ) {
@@ -174,7 +171,7 @@ fun SelectionModeToolbar(
                 SelectionActionChip(
                     icon = Icons.Default.DeleteOutline,
                     label = "Delete",
-                    tint = SemanticColors.error,
+                    tint = AppleError,
                     enabled = hasSelection,
                     onClick = onDeleteSelected,
                 )
@@ -212,3 +209,7 @@ private fun SelectionActionChip(
         }
     }
 }
+
+
+
+

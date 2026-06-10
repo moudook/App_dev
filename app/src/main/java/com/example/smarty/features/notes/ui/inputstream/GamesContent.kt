@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import com.example.smarty.ui.theme.ApplePink
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,8 +22,7 @@ import com.example.smarty.features.games.ui.ChessScreen
 import com.example.smarty.features.games.ui.CoinTossGameContent
 import com.example.smarty.features.games.ui.TicTacToeGameContent
 import com.example.smarty.ui.components.UnifiedDragHandle
-import com.example.smarty.ui.theme.ComponentColors
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 
 /**
  * Games Hub — Anthropic-aesthetic redesign.
@@ -53,7 +53,7 @@ fun GamesContent(
     modifier: Modifier = Modifier,
 ) {
     val isDark = isSystemInDarkTheme()
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
 
     var showTicTacToe by remember { mutableStateOf(false) }
     var showCoinToss by remember { mutableStateOf(false) }
@@ -96,7 +96,7 @@ fun GamesContent(
                 MaterialTheme.colorScheme.primaryContainer,
                 MaterialTheme.colorScheme.secondaryContainer,
                 MaterialTheme.colorScheme.tertiaryContainer,
-                ComponentColors.breathingAccent,
+                ApplePink,
             )
         val onClicks =
             listOf(
@@ -190,7 +190,7 @@ private fun GameHubCard(
     isDark: Boolean,
     onClick: () -> Unit,
 ) {
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
     val borderColor =
         if (isDark) {
             Color.White.copy(alpha = 0.06f)
@@ -217,12 +217,12 @@ private fun GameHubCard(
             Modifier
                 .fillMaxWidth()
                 .graphicsLayerScale(scale)
-                .clip(shapes.card)
+                .clip(shapes.large)
                 .clickable(
                     onClick = onClick,
                     onClickLabel = "Open $title",
                 ),
-        shape = shapes.card,
+        shape = shapes.large,
         color = cardBg,
         border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         tonalElevation = 0.dp,
@@ -258,7 +258,7 @@ private fun GameHubCard(
                 modifier =
                     Modifier
                         .size(52.dp)
-                        .clip(shapes.cardSmall)
+                        .clip(shapes.medium)
                         .background(accentBg),
                 contentAlignment = Alignment.Center,
             ) {
@@ -278,3 +278,7 @@ private fun Modifier.graphicsLayerScale(scale: Float): Modifier =
         scaleX = scale,
         scaleY = scale,
     )
+
+
+
+

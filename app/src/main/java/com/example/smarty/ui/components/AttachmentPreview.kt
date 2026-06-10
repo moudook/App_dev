@@ -382,12 +382,13 @@ private fun getAttachmentIcon(type: AttachmentType): ImageVector =
 private fun getAttachmentColor(type: AttachmentType): Color =
     when (type) {
         AttachmentType.IMAGE -> LocalAccentColor.current
-        AttachmentType.VIDEO -> com.example.smarty.ui.theme.VideoRed
-        AttachmentType.AUDIO -> com.example.smarty.ui.theme.AudioPink
-        AttachmentType.DOCUMENT -> com.example.smarty.ui.theme.DocumentBlue
-        AttachmentType.SPREADSHEET -> com.example.smarty.ui.theme.SpreadsheetGreen
-        AttachmentType.PRESENTATION -> com.example.smarty.ui.theme.PresentationOrange
-        AttachmentType.APK -> com.example.smarty.ui.theme.ApkGreen
-        AttachmentType.ARCHIVE -> com.example.smarty.ui.theme.ArchiveYellow
-        AttachmentType.FILE -> com.example.smarty.ui.theme.FileGray
+        AttachmentType.VIDEO -> com.example.smarty.ui.theme.AppleError
+        AttachmentType.AUDIO -> com.example.smarty.ui.theme.ApplePink
+        AttachmentType.DOCUMENT -> com.example.smarty.ui.theme.AppleInfo
+        AttachmentType.SPREADSHEET -> com.example.smarty.ui.theme.AppleSuccess
+        AttachmentType.PRESENTATION -> com.example.smarty.ui.theme.AppleWarning
+        AttachmentType.APK -> com.example.smarty.ui.theme.AppleSuccess
+        AttachmentType.ARCHIVE -> com.example.smarty.ui.theme.AppleWarning
+        AttachmentType.FILE -> com.example.smarty.ui.theme.AppleNeutral
     }
+

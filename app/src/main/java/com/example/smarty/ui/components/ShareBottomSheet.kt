@@ -451,13 +451,13 @@ private fun getTypeIcon(type: NoteType): ImageVector =
 
 private fun getTypeColor(type: NoteType): androidx.compose.ui.graphics.Color =
     when (type) {
-        NoteType.IMAGE -> ImageTeal
-        NoteType.VIDEO -> VideoRed
-        NoteType.AUDIO -> AudioPink
-        NoteType.DOCUMENT -> DocumentBlue
-        NoteType.YOUTUBE -> YoutubeRed
-        NoteType.CODE -> CodeCyan
-        else -> FileGray
+        NoteType.IMAGE -> AppleInfo
+        NoteType.VIDEO -> AppleError
+        NoteType.AUDIO -> ApplePink
+        NoteType.DOCUMENT -> AppleInfo
+        NoteType.YOUTUBE -> AppleError
+        NoteType.CODE -> AppleInfo
+        else -> AppleNeutral
     }
 
 @Composable
@@ -472,3 +472,4 @@ private fun getTypeName(type: NoteType): String =
         NoteType.DOCUMENT -> stringResource(R.string.type_document)
         else -> stringResource(R.string.type_file)
     }
+

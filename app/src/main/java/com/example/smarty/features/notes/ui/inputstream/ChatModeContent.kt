@@ -169,6 +169,21 @@ fun ChatModeContent(
                             remember(notes) {
                                 { id: String -> notes.find { it.id == id } }
                             }
+
+                        com.example.smarty.ui.components.ChatMessageItem(
+                            message = message,
+                            groupPosition = groupPosition,
+                            modifier = Modifier.padding(top = topSpacing),
+                            getNote = stableGetNote,
+                            onNoteClick = onNoteClick,
+                            onNoteClickById = onNoteClickById,
+                            onEventClickById = onEventClickById,
+                            onCopyMessage = onCopyMessage,
+                            onDeleteMessage = onDeleteMessage,
+                            onRegenerateMessage = onRegenerateMessage,
+                            onEditMessage = onEditMessage,
+                            onClarificationSubmit = onClarificationSubmit ?: {},
+                        )
                     }
                 }
 

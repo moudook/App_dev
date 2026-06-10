@@ -44,9 +44,13 @@ import com.example.smarty.data.backup.BackupOperationState
 import com.example.smarty.data.backup.LocalBackupMetadata
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.common.SmartyDialog
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.SemanticColors
+import com.example.smarty.ui.theme.appleSpacing
+import com.example.smarty.ui.theme.appleShapes
+import com.example.smarty.ui.theme.AppleSuccess
+import com.example.smarty.ui.theme.AppleError
+import com.example.smarty.ui.theme.AppleWarning
+import com.example.smarty.ui.theme.AppleInfo
+import com.example.smarty.ui.theme.AppleNeutral
 import com.example.smarty.ui.theme.rememberMonochromeAccent
 import com.example.smarty.ui.theme.softCardShadow
 import java.text.SimpleDateFormat
@@ -111,7 +115,7 @@ fun BackupSettingsScreen(
             Box(modifier = modifier.fillMaxSize()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(ComponentSpacing.screenPadding),
+                    contentPadding = PaddingValues(MaterialTheme.appleSpacing.medium),
                     verticalArrangement = Arrangement.spacedBy(16.dp), // Calmer spacing
                 ) {
                     // Google Account Section
@@ -299,8 +303,8 @@ fun BackupSettingsScreen(
                         modifier
                             .fillMaxSize()
                             .padding(paddingValues),
-                    contentPadding = PaddingValues(ComponentSpacing.screenPadding),
-                    verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap),
+                    contentPadding = PaddingValues(MaterialTheme.appleSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.appleSpacing.medium),
                 ) {
                     // Google Account Section
                     item {
@@ -564,8 +568,8 @@ private fun GoogleAccountCard(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 4.dp)
-                .softCardShadow(elevation = 4.dp, shape = LocalShapes.current.card),
-        shape = LocalShapes.current.card,
+                .softCardShadow(elevation = 4.dp, shape = MaterialTheme.appleShapes.large),
+        shape = MaterialTheme.appleShapes.large,
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
         colors =
             CardDefaults.cardColors(
@@ -622,7 +626,7 @@ private fun GoogleAccountCard(
                     Text(
                         stringResource(R.string.sign_out),
                         style = MaterialTheme.typography.labelMedium,
-                        color = SemanticColors.error.copy(alpha = 0.8f),
+                        color = AppleError.copy(alpha = 0.8f),
                     )
                 }
             } else {
@@ -650,7 +654,7 @@ private fun GoogleAccountCard(
 
                 Button(
                     onClick = onSignIn,
-                    shape = LocalShapes.current.button,
+                    shape = MaterialTheme.appleShapes.medium,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onSurface, // Monochrome Action
@@ -700,7 +704,7 @@ private fun BackupStatusCard(
                 Icon(
                     imageVector = Icons.Default.CloudSync,
                     contentDescription = null, // Decorative icon - "Last backup" text provides context
-                    tint = SemanticColors.info,
+                    tint = AppleInfo,
                     modifier = Modifier.size(24.dp),
                 )
 
@@ -751,7 +755,7 @@ private fun BackupStatusCard(
                     Button(
                         onClick = onCreateBackup,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = LocalShapes.current.button,
+                        shape = MaterialTheme.appleShapes.medium,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onSurface,
@@ -796,7 +800,7 @@ private fun BackupStatusCard(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null, // Decorative icon - success status shown in text
-                            tint = SemanticColors.success,
+                            tint = AppleSuccess,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -807,7 +811,7 @@ private fun BackupStatusCard(
                                     else -> backupState.message
                                 },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = SemanticColors.success,
+                            color = AppleSuccess,
                         )
                     }
                 }
@@ -821,7 +825,7 @@ private fun BackupStatusCard(
                             Icon(
                                 imageVector = Icons.Default.GppBad,
                                 contentDescription = null, // Decorative icon - error status shown in text
-                                tint = SemanticColors.error,
+                                tint = AppleError,
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -833,7 +837,7 @@ private fun BackupStatusCard(
                                         else -> backupState.message
                                     },
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = SemanticColors.error,
+                                color = AppleError,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -848,8 +852,8 @@ private fun BackupStatusCard(
                             Button(
                                 onClick = { launcher.launch(intent) },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = LocalShapes.current.button,
-                                colors = ButtonDefaults.buttonColors(containerColor = SemanticColors.error),
+                                shape = MaterialTheme.appleShapes.medium,
+                                colors = ButtonDefaults.buttonColors(containerColor = AppleError),
                             ) {
                                 Icon(Icons.Default.VpnKey, contentDescription = null) // Decorative icon - "Fix permissions" text provides context
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -916,7 +920,7 @@ private fun AutoBackupCard(
                     colors =
                         SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.background,
-                            checkedTrackColor = SemanticColors.info,
+                            checkedTrackColor = AppleInfo,
                             uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                             uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                         ),
@@ -948,7 +952,7 @@ private fun AutoBackupCard(
                             Text(
                                 text = stringResource(R.string.every_x_days, intervalDays),
                                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-                                color = SemanticColors.info,
+                                color = AppleInfo,
                             )
                         }
 
@@ -1068,7 +1072,7 @@ private fun BackupListItem(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onRestore,
-                        shape = LocalShapes.current.button,
+                        shape = MaterialTheme.appleShapes.medium,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onSurface,
@@ -1117,7 +1121,7 @@ private fun IntervalPickerDialog(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .clip(LocalShapes.current.skeleton)
+                                    .clip(MaterialTheme.appleShapes.small)
                                     .clickable { onSelectInterval(days) }
                                     .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1127,7 +1131,7 @@ private fun IntervalPickerDialog(
                                 onClick = { onSelectInterval(days) },
                                 colors =
                                     RadioButtonDefaults.colors(
-                                        selectedColor = SemanticColors.info,
+                                        selectedColor = AppleInfo,
                                     ),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1225,7 +1229,7 @@ private fun LocalBackupCard(
                     Button(
                         onClick = onCreateLocalBackup,
                         modifier = Modifier.fillMaxWidth().height(44.dp),
-                        shape = LocalShapes.current.button,
+                        shape = MaterialTheme.appleShapes.medium,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onSurface,
@@ -1270,13 +1274,13 @@ private fun LocalBackupCard(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null, // Decorative icon - success status shown in text
-                            tint = SemanticColors.success,
+                            tint = AppleSuccess,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = localBackupState.message,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = SemanticColors.success,
+                            color = AppleSuccess,
                         )
                     }
                 }
@@ -1289,13 +1293,13 @@ private fun LocalBackupCard(
                         Icon(
                             imageVector = Icons.Default.GppBad,
                             contentDescription = null, // Decorative icon - error status shown in text
-                            tint = SemanticColors.error,
+                            tint = AppleError,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = localBackupState.message,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = SemanticColors.error,
+                            color = AppleError,
                         )
                     }
                 }
@@ -1385,15 +1389,15 @@ private fun LocalBackupListItem(
                         imageVector = Icons.Default.DeleteOutline,
                         contentDescription = null, // Decorative icon - "Delete" text provides context
                         modifier = Modifier.size(18.dp),
-                        tint = SemanticColors.error.copy(alpha = 0.8f),
+                        tint = AppleError.copy(alpha = 0.8f),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.delete), color = SemanticColors.error.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.delete), color = AppleError.copy(alpha = 0.8f))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = onShare,
-                    shape = LocalShapes.current.button,
+                    shape = MaterialTheme.appleShapes.medium,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onSurface,
@@ -1416,3 +1420,6 @@ private fun LocalBackupListItem(
         }
     }
 }
+
+
+

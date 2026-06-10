@@ -37,7 +37,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.rememberMonochromeAccent
 
 /**
@@ -550,7 +550,7 @@ private fun CreateCategorySheet(
 ) {
     var categoryName by remember { mutableStateOf(initialName) }
     val isValid = categoryName.isNotBlank() && categoryName.length <= 20
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
     val accentColor = LocalAccentColor.current
 
     ModalBottomSheet(
@@ -704,3 +704,4 @@ private fun CreateCategorySheet(
         }
     }
 }
+

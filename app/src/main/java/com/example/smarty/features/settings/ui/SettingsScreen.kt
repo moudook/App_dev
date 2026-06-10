@@ -234,7 +234,7 @@ fun SettingsScreen(
                                         modifier =
                                             Modifier
                                                 .size(80.dp)
-                                                .background(SemanticColors.warning, CircleShape),
+                                                .background(AppleWarning, CircleShape),
                                         // Yellow circle
                                         contentAlignment = Alignment.Center,
                                     ) {
@@ -266,7 +266,7 @@ fun SettingsScreen(
                                                 contentColor = MaterialTheme.colorScheme.onBackground,
                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), // Added subtle background for better contrast
                                             ),
-                                        shape = LocalShapes.current.buttonLarge,
+                                        shape = MaterialTheme.appleShapes.large,
                                         modifier = Modifier.height(38.dp),
                                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
                                     ) {
@@ -755,7 +755,7 @@ private fun CalendarSelectorView(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onSelect(calendar.id) },
-                    shape = LocalShapes.current.buttonLarge,
+                    shape = MaterialTheme.appleShapes.large,
                     color =
                         if (isSelected) {
                             LocalAccentColor.current.copy(
@@ -857,9 +857,9 @@ private fun SettingsItem(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(LocalShapes.current.card)
+                .clip(MaterialTheme.appleShapes.large)
                 .clickable(enabled = enabled, onClick = onClick),
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -969,9 +969,9 @@ private fun SettingsToggleItem(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(LocalShapes.current.card)
+                .clip(MaterialTheme.appleShapes.large)
                 .clickable(enabled = enabled) { onCheckedChange(!isChecked) },
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -1690,3 +1690,4 @@ private fun GuidedBreathingView(onBack: () -> Unit) {
         )
     }
 }
+

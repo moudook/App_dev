@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
 
 /**
  * Modern Soft Shadow System
@@ -52,7 +53,7 @@ fun Modifier.softCardShadow(
         this.then(
             Modifier.shadow(
                 elevation = elevation,
-                shape = shape ?: LocalShapes.current.card,
+                shape = shape ?: MaterialTheme.appleShapes.medium,
                 spotColor = spotColor,
                 ambientColor = ambientColor,
             ),
@@ -72,7 +73,7 @@ fun Modifier.elevatedShadow(
         this.then(
             Modifier.shadow(
                 elevation = elevation,
-                shape = shape ?: LocalShapes.current.dialog,
+                shape = shape ?: MaterialTheme.appleShapes.large,
                 spotColor = spotColor,
                 ambientColor = ambientColor,
             ),
@@ -92,7 +93,7 @@ fun Modifier.activeGlow(
         this.then(
             Modifier.shadow(
                 elevation = elevation,
-                shape = shape ?: LocalShapes.current.button,
+                shape = shape ?: MaterialTheme.appleShapes.pill,
                 spotColor = spotColor,
                 ambientColor = Color.Transparent,
             ),
@@ -111,7 +112,7 @@ fun Modifier.subtleShadow(
         this.then(
             Modifier.shadow(
                 elevation = elevation,
-                shape = shape ?: LocalShapes.current.tag,
+                shape = shape ?: MaterialTheme.appleShapes.small,
                 spotColor = spotColor,
                 ambientColor = Color.Transparent,
             ),

@@ -81,7 +81,7 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.ThemeAwareColors
 import com.example.smarty.ui.utils.TextEmphasis
 import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.components.LaTeXView
 // Single source of truth for all markdown rendering (DRY)
@@ -340,7 +340,7 @@ fun ChatMessageItem(
                 modifier =
                     Modifier
                         .padding(top = 10.dp)
-                        .widthIn(max = ComponentSpacing.bubbleMaxWidth),
+                        .widthIn(max = 320.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 message.suggestions.take(2).forEach { suggestion ->
@@ -401,7 +401,7 @@ fun ChatMessageItem(
                 modifier =
                     Modifier
                         .padding(top = 6.dp, start = 12.dp, end = 4.dp)
-                        .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                        .widthIn(max = 320.dp)
                         .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -597,7 +597,7 @@ private fun MessageContent(
                             },
                             modifier =
                                 Modifier
-                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .widthIn(max = 320.dp)
                                     .clip(RoundedCornerShape(16.dp)),
                         )
 
@@ -642,7 +642,7 @@ private fun MessageContent(
                             },
                             modifier =
                                 Modifier
-                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .widthIn(max = 320.dp)
                                     .clip(RoundedCornerShape(16.dp)),
                         )
 
@@ -912,7 +912,7 @@ private fun ClarificationBubble(
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth),
+                modifier = Modifier.widthIn(max = 320.dp),
             ) {
                 request.options.forEach { option ->
                     Surface(
@@ -1077,3 +1077,6 @@ private fun EventBlockCard(
 }
 
 private fun cleanContent(raw: String): String = com.example.smarty.ui.components.chat.cleanContent(raw)
+
+
+

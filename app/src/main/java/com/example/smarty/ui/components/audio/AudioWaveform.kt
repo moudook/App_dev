@@ -16,7 +16,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.smarty.ui.theme.AudioPink
+
 import kotlin.math.abs
 
 /**
@@ -29,7 +29,7 @@ fun AudioWaveform(
     waveformData: List<Float>,
     progress: Float,
     modifier: Modifier = Modifier,
-    activeColor: Color = AudioPink,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
     inactiveColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
     barWidth: Dp = 3.dp,
     barGap: Dp = 2.dp,
@@ -108,7 +108,7 @@ fun AudioWaveform(
 fun AudioProgressBar(
     progress: Float,
     modifier: Modifier = Modifier,
-    playedColor: Color = AudioPink,
+    playedColor: Color = MaterialTheme.colorScheme.primary,
     unplayedColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
     height: Dp = 4.dp,
     onSeek: ((Float) -> Unit)? = null,

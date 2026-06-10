@@ -1,5 +1,9 @@
 package com.example.smarty.features.digest.ui
 
+import com.example.smarty.ui.theme.AppleSuccess
+import com.example.smarty.ui.theme.AppleInfo
+import com.example.smarty.ui.theme.AppleWarning
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,8 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.features.digest.domain.DigestResult
 import com.example.smarty.features.digest.domain.GoalProgress
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.SemanticColors
+import com.example.smarty.ui.theme.appleShapes
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -216,7 +219,7 @@ private fun DigestCard(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor =
@@ -267,7 +270,7 @@ private fun DigestCard(
 
                 if (hasCriticalInfo) {
                     Surface(
-                        shape = LocalShapes.current.tag,
+                        shape = MaterialTheme.appleShapes.small,
                         color = MaterialTheme.colorScheme.error,
                     ) {
                         Row(
@@ -464,7 +467,7 @@ private fun CriticalInfoBanner(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -571,7 +574,7 @@ private fun InsightsSection(
                     Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                shape = LocalShapes.current.button,
+                shape = MaterialTheme.appleShapes.medium,
                 colors =
                     CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
@@ -632,9 +635,9 @@ private fun GoalProgressCard(
 ) {
     val statusColor =
         when (goal.status) {
-            "completed" -> SemanticColors.success
-            "on-track" -> SemanticColors.info
-            "at-risk" -> SemanticColors.warning
+            "completed" -> AppleSuccess
+            "on-track" -> AppleInfo
+            "at-risk" -> AppleWarning
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         }
 
@@ -651,7 +654,7 @@ private fun GoalProgressCard(
             modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp),
-        shape = LocalShapes.current.button,
+        shape = MaterialTheme.appleShapes.medium,
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -726,7 +729,7 @@ private fun PrioritiesSection(
                     Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                shape = LocalShapes.current.button,
+                shape = MaterialTheme.appleShapes.medium,
                 colors =
                     CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
@@ -760,7 +763,7 @@ private fun StatsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = LocalShapes.current.card,
+        shape = MaterialTheme.appleShapes.large,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -847,3 +850,5 @@ private fun buildAnalyzedText(digest: DigestResult): String {
     if (digest.memoriesAnalyzed > 0) parts.add("${digest.memoriesAnalyzed} memories")
     return "Analyzed: ${parts.joinToString(", ")}"
 }
+
+

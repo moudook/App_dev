@@ -1,5 +1,7 @@
 package com.example.smarty.features.notes.ui.inputstream
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -32,7 +34,7 @@ import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NotesEmptyState
 import com.example.smarty.ui.components.NotesLoadingState
 import com.example.smarty.ui.components.SearchEmptyState
-import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.appleSpacing
 import kotlinx.coroutines.launch
 
 /**
@@ -90,7 +92,7 @@ fun NormalModeContent(
             modifier =
                 modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = ComponentSpacing.listContentPadding),
+                    .padding(horizontal = 16.dp, vertical = MaterialTheme.appleSpacing.medium),
         )
     } else if (displayedNotes.isEmpty()) {
         if (isSearchMode) {
@@ -124,7 +126,7 @@ fun NormalModeContent(
                         .scale(gridScale),
                 contentPadding =
                     PaddingValues(
-                        top = ComponentSpacing.listContentPadding + topContentPadding,
+                        top = MaterialTheme.appleSpacing.medium + topContentPadding,
                         bottom = 140.dp + bottomContentPadding,
                         start = 8.dp,
                         end = 8.dp,
@@ -203,3 +205,7 @@ fun NormalModeContent(
         }
     }
 }
+
+
+
+

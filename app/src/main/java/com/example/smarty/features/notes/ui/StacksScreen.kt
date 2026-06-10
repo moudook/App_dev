@@ -50,7 +50,7 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.components.CategoriesLoadingState
 import com.example.smarty.ui.components.StacksEmptyState
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.softCardShadow
 import kotlin.math.min
 
@@ -130,7 +130,7 @@ fun StacksScreen(
                 onClick = { showCreateSheet = true },
                 containerColor = LocalAccentColor.current,
                 contentColor = Color.White,
-                shape = LocalShapes.current.pill,
+                shape = MaterialTheme.appleShapes.pill,
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp, pressedElevation = 12.dp),
             ) {
                 Row(
@@ -290,7 +290,7 @@ fun StacksScreen(
                                 .fillMaxWidth()
                                 .background(
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
-                                    shape = LocalShapes.current.skeleton,
+                                    shape = MaterialTheme.appleShapes.small,
                                 ).padding(12.dp),
                     ) {
                         Icon(
@@ -408,7 +408,7 @@ private fun CategoryCard(
     val activeAccentColor = if (isEmpty) textColor.copy(alpha = 0.3f) else accentColor
 
     // Corner Radius — use centralized card token
-    val cornerRadius = LocalShapes.current.card
+    val cornerRadius = MaterialTheme.appleShapes.large
 
     // Modern Minimalist Card with Physical Stack Effect
     Box(
@@ -628,12 +628,12 @@ private fun CreateCategoryBottomSheet(
 ) {
     var categoryName by remember { mutableStateOf(initialName) }
     val isValid = categoryName.isNotBlank() && categoryName.length <= 20
-    val shapes = LocalShapes.current
+    val shapes = MaterialTheme.appleShapes
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = shapes.bottomSheet,
+        shape = shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = {
@@ -694,12 +694,12 @@ private fun CreateCategoryBottomSheet(
                     Modifier
                         .fillMaxWidth()
                         .height(64.dp)
-                        .clip(shapes.chipLarge)
+                        .clip(shapes.large)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         .border(
                             width = if (categoryName.isNotBlank()) 2.dp else 1.dp,
                             color = if (categoryName.isNotBlank()) LocalAccentColor.current else Color.Transparent,
-                            shape = shapes.chipLarge,
+                            shape = shapes.large,
                         ).padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -749,7 +749,7 @@ private fun CreateCategoryBottomSheet(
                     TextButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = shapes.button,
+                        shape = shapes.medium,
                     ) {
                         Text(
                             text = stringResource(R.string.cancel),
@@ -766,7 +766,7 @@ private fun CreateCategoryBottomSheet(
                         onClick = { onCreate(categoryName.trim()) },
                         enabled = isValid,
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = shapes.button,
+                        shape = shapes.medium,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = LocalAccentColor.current,
@@ -793,7 +793,7 @@ private fun CreateCategoryBottomSheet(
                     TextButton(
                         onClick = onDeleteRequest,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = shapes.button,
+                        shape = shapes.medium,
                         colors =
                             ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error,
@@ -819,3 +819,5 @@ private fun CreateCategoryBottomSheet(
         }
     }
 }
+
+

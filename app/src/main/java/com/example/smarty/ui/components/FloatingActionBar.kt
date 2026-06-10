@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -32,11 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.DarkBorder2
-import com.example.smarty.ui.theme.DarkSurfaceElevated2
-import com.example.smarty.ui.theme.SoftBackground
-import com.example.smarty.ui.theme.SubtleBorder
+import com.example.smarty.ui.theme.appleSpacing
 import com.example.smarty.ui.theme.softCardShadow
 
 //
@@ -71,7 +69,7 @@ fun FloatingActionBar(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = ComponentSpacing.screenPadding),
+                    .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -132,8 +130,8 @@ private fun FloatingActionPill(
         !MaterialTheme.colorScheme.surface
             .luminance()
             .let { it > 0.5f }
-    val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
-    val borderColor = if (isDark) DarkBorder2 else SubtleBorder
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.outlineVariant
 
     Box(
         modifier =
@@ -183,17 +181,17 @@ fun SelectionFloatingBar(
         !MaterialTheme.colorScheme.surface
             .luminance()
             .let { it > 0.5f }
-    val backgroundColor = if (isDark) DarkSurfaceElevated2 else SoftBackground
-    val borderColor = if (isDark) DarkBorder2 else SubtleBorder
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.outlineVariant
 
     Surface(
-        shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+        shape = RoundedCornerShape(28.dp),
         color = backgroundColor,
         border = BorderStroke(1.dp, borderColor),
         modifier =
             modifier.softCardShadow(
                 elevation = 12.dp,
-                shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+                shape = RoundedCornerShape(28.dp),
                 spotColor = Color.Black.copy(alpha = 0.15f),
             ),
     ) {
@@ -257,3 +255,8 @@ fun SelectionFloatingBar(
         }
     }
 }
+
+
+
+
+

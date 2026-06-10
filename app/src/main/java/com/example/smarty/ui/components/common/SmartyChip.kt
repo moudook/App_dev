@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.AnimationDuration
-import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.appleShapes
 import com.example.smarty.ui.theme.LocalSpacing
 
 /**
@@ -128,7 +128,6 @@ fun SmartyChip(
 ) {
     val accentColor = LocalAccentColor.current
     val spacing = LocalSpacing.current
-    val shapes = LocalShapes.current
 
     // Get size configuration
     val sizeConfig =
@@ -225,9 +224,9 @@ fun SmartyChip(
     // Determine the shape based on variant
     val chipShape =
         when (variant) {
-            ChipVariant.Default, ChipVariant.Accent -> shapes.pill
-            ChipVariant.Muted -> shapes.tag
-            ChipVariant.Category -> shapes.button
+            ChipVariant.Default, ChipVariant.Accent -> MaterialTheme.appleShapes.pill
+            ChipVariant.Muted -> MaterialTheme.appleShapes.small
+            ChipVariant.Category -> MaterialTheme.appleShapes.pill
         }
 
     // Base modifier with background and border
