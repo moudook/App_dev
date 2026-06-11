@@ -426,7 +426,7 @@ class OpencodeLlmProvider(
             }
             if (lastError != null) {
                 logger.error("[OpenCode.DirectZen][inference=$inferenceId] all models failed", lastError)
-                emit(LlmChunk(content = null, finishReason = "error", sseEvent = "error"))
+                throw lastError!!
             }
         }.flowOn(Dispatchers.IO)
 }
