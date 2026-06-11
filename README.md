@@ -55,7 +55,7 @@ Smarty utilizes a thin-client Android architecture connected to a scalable Ktor 
 
 ## OpenCode Zen API Integration
 - **Direct Integration**: Seamless, native Ktor connection to the `OpenCode Zen API` for robust LLM inference, completely bypassing legacy CLI daemons.
-- **Model Support**: **As of June 12, 2026, ONLY the `north-mini` model is working.** Other models are currently not working due to API constraints.
+- **Model Support**: **As of June 11, 2026, ONLY the `north-mini-code-free` model is fully functional.** Other models are currently not working due to API constraints.
 - **Dynamic Discovery**: Automatic model discovery and fallback management directly from the Android UI.
 
 ## Agentic Timeline UI & Transparent Reasoning
