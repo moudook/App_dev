@@ -10,7 +10,7 @@ import com.example.smarty.core.domain.model.MentionState
  *
  * Current default fallback: deepseek-v4-flash
  */
-val DEFAULT_FREE_MODELS = listOf(
+val DEFAULT_MODELS = listOf(
     "opencode/deepseek-v4-flash" to "Deepseek V4 Flash",
 )
 
@@ -42,7 +42,7 @@ data class ChatUiState(
     val autoSendActive: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val selectedModel: String = "default",
-    val availableModels: List<Pair<String, String>> = DEFAULT_FREE_MODELS,
+    val availableModels: List<Pair<String, String>> = DEFAULT_MODELS,
     val modelVariantMap: Map<String, List<String>> = emptyMap(),
     val selectedVariant: String? = null,
 ) {

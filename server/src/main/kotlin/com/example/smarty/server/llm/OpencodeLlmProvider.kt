@@ -69,7 +69,8 @@ class OpencodeLlmProvider(
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
             val rawModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
-            val modelId = if (rawModelId == "auto") "deepseek-v4-flash" else rawModelId
+            val cleanModelId = rawModelId.removeSuffix("-free").removeSuffix("-Free")
+            val modelId = if (cleanModelId == "auto") "deepseek-v4-flash" else cleanModelId
             val requestStartMs = System.currentTimeMillis()
 
             val toolsJson =
