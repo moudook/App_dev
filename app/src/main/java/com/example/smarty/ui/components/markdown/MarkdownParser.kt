@@ -99,8 +99,8 @@ internal fun parseTextWithInlineMath(text: String): List<TextSegment> {
  *  - Converts literal "\n" (two chars: backslash + n) to real newlines
  *  - Normalises \r\n to \n
  *  - Strips orphan carriage returns
- *  - Fixes AI-quoted dollar signs: '$...$', "$$...$$", ‘$$...$$’ → $$...$$
- *    (models often wrap $ in single/double/smart quotes to "escape" them)
+ *  - Fixes AI-quoted dollar signs
+ *  - Processes streaming XML tags (<accordion>, <final>, <note>) via a lexical state machine
  */
 fun preprocessContent(raw: String): String {
     var text = raw
@@ -120,11 +120,85 @@ fun preprocessContent(raw: String): String {
     }
     text = sb.toString()
 
-    // Fix quoted/escaped dollar signs → bare $...$ or $$...$$
-    // Using manual indexOf/substring instead of regex replacements to avoid
-    // Java Matcher.replaceAll's dangerous $-escaping semantics.
     text = fixQuotedDollars(text)
+    
+    // §3.1 Lexical State Machine for streaming tags
+    text = processStreamingTags(text)
+    
     return text
+}
+
+private fun processStreamingTags(text: String): String {
+    val result = StringBuilder()
+    var i = 0
+    val length = text.length
+    var buffer = StringBuilder()
+    var inTag = false
+    
+    while (i < length) {
+        val c = text[i]
+        
+        if (inTag) {
+            buffer.append(c)
+            // Fail-safe: if tag buffer exceeds 50 chars without closing, eject
+            if (buffer.length > 50) {
+                result.append(buffer)
+                buffer.clear()
+                inTag = false
+            } else if (c == '>') {
+                // Process completed tag
+                val tagStr = buffer.toString()
+                val lowerTag = tagStr.lowercase()
+                
+                when {
+                    lowerTag.startsWith("<accordion title=") -> {
+                        // Extract title: <accordion title="My Title"> or <accordion title='My Title'>
+                        val match = Regex("<accordion title=[\"'](.*?)[\"']>").find(tagStr)
+                        val title = match?.groupValues?.get(1) ?: "Details"
+                        result.append("[[[$title]]]\n")
+                    }
+                    lowerTag == "</accordion>" -> {
+                        result.append("\n[[[/]]]\n")
+                    }
+                    lowerTag == "<final>" -> {
+                        result.append("[[[Final Output]]]\n")
+                    }
+                    lowerTag == "</final>" -> {
+                        result.append("\n[[[/]]]\n")
+                    }
+                    lowerTag.startsWith("<note_") -> {
+                        val match = Regex("<note_(\\d+)>").find(lowerTag)
+                        val noteId = match?.groupValues?.get(1) ?: "Unknown"
+                        result.append("[[[Note $noteId]]]\n")
+                    }
+                    lowerTag.startsWith("</note_") -> {
+                        result.append("\n[[[/]]]\n")
+                    }
+                    else -> {
+                        // Not a recognized tag, eject as literal
+                        result.append(tagStr)
+                    }
+                }
+                buffer.clear()
+                inTag = false
+            }
+        } else {
+            if (c == '<') {
+                inTag = true
+                buffer.append(c)
+            } else {
+                result.append(c)
+            }
+        }
+        i++
+    }
+    
+    // If text ended while in a tag, append the incomplete buffer
+    if (buffer.isNotEmpty()) {
+        result.append(buffer)
+    }
+    
+    return result.toString()
 }
 
 private fun fixQuotedDollars(text: String): String {

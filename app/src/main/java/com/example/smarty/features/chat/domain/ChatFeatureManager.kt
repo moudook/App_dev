@@ -254,6 +254,12 @@ class ChatFeatureManager(
     private val _pendingClarificationRequests = MutableStateFlow<List<ClarificationRequest>>(emptyList())
     val pendingClarificationRequests: StateFlow<List<ClarificationRequest>> = _pendingClarificationRequests.asStateFlow()
 
+    // §2.2 ask_user abandoned-session flag:
+    // Set to true when the user dismisses the interactive question UI without answering,
+    // so the UI can show a contextual "Session abandoned" nudge.
+    private val _abandonedAskUserSession = MutableStateFlow(false)
+    val abandonedAskUserSession: kotlinx.coroutines.flow.StateFlow<Boolean> = _abandonedAskUserSession.asStateFlow()
+
     private val chatQueryDispatcher: ChatQueryDispatcher by lazy {
         ChatQueryDispatcher(
             scope = scope,
@@ -475,6 +481,45 @@ class ChatFeatureManager(
         feedback: String? = null,
     ) {
         chatQueryDispatcher.callApproval(toolId, approved, feedback)
+    }
+
+    /**
+     * §2.2 Submit answers to a DB-backed ask_user interactive session.
+     * Called when the user taps a choice or submits voice/text input.
+     *
+     * @param toolCallId  The toolCallId from the AskUserRequest event
+     * @param answers     Map of questionIndex -> answerText (0-based)
+     */
+    fun callAskUserResponse(
+        toolCallId: String,
+        answers: Map<Int, String>,
+    ) {
+        val sessionId = currentSessionId.value ?: return
+        scope.launch {
+            try {
+                remoteAgentService.submitAskUserResponse(toolCallId, sessionId, answers)
+                _pendingApprovalState.value = null
+                _pendingClarificationRequests.value = emptyList()
+                _abandonedAskUserSession.value = false
+                android.util.Log.i(TAG, "callAskUserResponse: answers submitted toolCallId=$toolCallId")
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "callAskUserResponse failed: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * §2.2 Abandon an active ask_user interactive session (user dismissed without answering).
+     * Clears the interactive UI state and sets the abandoned flag for the UI to observe.
+     */
+    fun abandonAskUserSession() {
+        _pendingApprovalState.value = null
+        _pendingClarificationRequests.value = emptyList()
+        _abandonedAskUserSession.value = true
+        scope.launch {
+            kotlinx.coroutines.delay(3000L)
+            _abandonedAskUserSession.value = false
+        }
     }
 
     fun generateImageDirect(

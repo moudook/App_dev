@@ -37,6 +37,7 @@ class ServerAgent(
     private val userId: String = "dev-user",
     private val noteService: com.example.smarty.server.services.NoteService? = null,
     private val capabilities: com.example.smarty.protocol.DeviceCapabilities? = null,
+    private val fcmService: com.example.smarty.server.services.FcmNotificationService? = null,
 ) {
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
 
@@ -54,6 +55,7 @@ class ServerAgent(
             eventEmitter = eventEmitter,
             noteService = noteService,
             capabilities = capabilities,
+            fcmService = fcmService,
         )
     private val tracer: AgentTracer =
         CompositeTracer(
@@ -363,6 +365,15 @@ class ServerAgent(
                                 content = "[Tool Result for $toolName]: $toolResult",
                                 name = toolName,
                             )
+
+                        // §2.2 ask_user: ToolExecutor suspends the turn by returning this
+                        // sentinel. The agent pauses here; the webhook will inject the user's
+                        // answers into history and the client will start a new query to resume.
+                        if (toolResult == "__ASK_USER_TURN_COMPLETE__") {
+                            logger.info("[ServerAgent] ask_user suspended agent loop for tool=$toolName session=$sessionId")
+                            persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "ask_user_suspended")
+                            break
+                        }
 
                         val stepDescription = "Executed $toolName"
                         if (isToolError) {

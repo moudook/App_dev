@@ -3,6 +3,17 @@ package com.example.smarty.protocol
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * One question in an ask_user multi-question schema.
+ */
+@Serializable
+data class AskUserQuestion(
+    val question: String,
+    val options: List<String> = emptyList(),
+    @SerialName("allow_custom") val allowCustom: Boolean = false,
+    @SerialName("input_mode") val inputMode: String = "choice", // "choice" | "text"
+)
+
 @Serializable
 sealed class AgentEvent {
     abstract val eventId: String
@@ -160,6 +171,91 @@ sealed class AgentEvent {
         val toolId: String,
         val granted: Boolean,
         val feedback: String = "",
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: ask_user hands-free interactive loop (§2.2, §6.1).
+     * Client renders the question UI, activates mic, and POSTs answers to
+     * /webhook/ask_user_response. The server SSE turn ends after this event.
+     */
+    @Serializable
+    @SerialName("ask_user_request")
+    data class AskUserRequest(
+        override val eventId: String,
+        override val timestamp: Long,
+        val toolId: String,
+        val sessionId: String,
+        val questions: List<AskUserQuestion>,
+        @SerialName("tool_call_id") val toolCallId: String,
+        val ttlMinutes: Int = 30,
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: launch an OS intent / internal screen (§3.2).
+     * Client must ACK within 15s via POST /webhook/launch_result.
+     */
+    @Serializable
+    @SerialName("launch_ui_request")
+    data class LaunchUiRequest(
+        override val eventId: String,
+        override val timestamp: Long,
+        val commandId: String,
+        val sessionId: String,
+        val intent: String, // e.g. "spotify", "home", "calendar"
+        val payload: String? = null, // Optional deep-link data
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: trigger Android Share Sheet (§3.1).
+     */
+    @Serializable
+    @SerialName("share_content_request")
+    data class ShareContentRequest(
+        override val eventId: String,
+        override val timestamp: Long,
+        val commandId: String,
+        val sessionId: String,
+        val content: String,
+        val title: String? = null,
+        val mimeType: String = "text/plain",
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: an image generation is complete (§3.1, generate_image tool).
+     */
+    @Serializable
+    @SerialName("image_ready")
+    data class ImageReady(
+        override val eventId: String,
+        override val timestamp: Long,
+        val imageId: String,
+        val url: String,
+        val prompt: String? = null,
+        val messageId: String? = null,
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: a background note-processing task has completed (§5.2).
+     */
+    @Serializable
+    @SerialName("note_processed")
+    data class NoteProcessed(
+        override val eventId: String,
+        override val timestamp: Long,
+        val noteId: String,
+        val success: Boolean = true,
+        val errorMessage: String? = null,
+    ) : AgentEvent()
+
+    /**
+     * Server -> Client: dispositional memory was updated by update_user_profile (§5.3).
+     */
+    @Serializable
+    @SerialName("memory_updated")
+    data class MemoryUpdated(
+        override val eventId: String,
+        override val timestamp: Long,
+        val profileField: String? = null,
     ) : AgentEvent()
 
     // ── Terminal

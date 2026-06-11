@@ -190,4 +190,41 @@ object ApprovalRegistry {
 
     fun hasPendingForSession(sessionId: String): Boolean =
         pendingApprovals.values.any { it.sessionId == sessionId }
+
+    /**
+     * Evicts entries older than [ttlMs]. Returns count evicted.
+     * Called by the Registry Reaper coroutine in Application.kt every 5 minutes.
+     * Per §7.1: 30-minute TTL — matches ask_user session lifetime.
+     * Evicted entries are resolved with false so suspended coroutines unblock cleanly.
+     */
+    fun evictExpired(ttlMs: Long = 30 * 60_000L): Int {
+        val now = System.currentTimeMillis()
+        var count = 0
+        val iterator = pendingApprovals.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (now - entry.value.createdAt > ttlMs) {
+                entry.value.deferred.complete(ApprovalResult(false, "Session expired"))
+                iterator.remove()
+                logger.warn("[ApprovalRegistry] Evicted stale toolCallId=${entry.key} (age=${now - entry.value.createdAt}ms)")
+                count++
+            }
+        }
+        // Circuit breaker: if registry still has > 1000 entries, force-evict oldest 500
+        if (pendingApprovals.size > 1000) {
+            logger.warn("[ApprovalRegistry] Registry exceeded 1000 entries — force-evicting oldest 500")
+            pendingApprovals.entries
+                .sortedBy { it.value.createdAt }
+                .take(500)
+                .forEach {
+                    it.value.deferred.complete(ApprovalResult(false, "Force-evicted"))
+                    pendingApprovals.remove(it.key)
+                    count++
+                }
+        }
+        return count
+    }
+
+    fun size(): Int = pendingApprovals.size
 }
+

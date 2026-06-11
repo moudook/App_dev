@@ -92,6 +92,42 @@ class FcmNotificationService(
         }
 
     /**
+     * Send a pure data message to a specific user (no notification payload).
+     * This allows the client app to handle the payload silently or spawn a custom local notification.
+     *
+     * @param userId The user's Firebase UID
+     * @param data Data payload to send
+     */
+    suspend fun sendDataMessage(
+        userId: String,
+        data: Map<String, String>,
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            if (serverKey.isNullOrBlank()) {
+                logger.warn("FCM server key not configured, skipping data message")
+                return@withContext false
+            }
+
+            try {
+                val tokens = getUserFcmTokens(userId)
+                if (tokens.isEmpty()) {
+                    return@withContext false
+                }
+
+                var successCount = 0
+                for (token in tokens) {
+                    if (sendToFcmTokenDataOnly(token, data)) {
+                        successCount++
+                    }
+                }
+                successCount > 0
+            } catch (e: Exception) {
+                logger.error("Failed to send data message: ${e.message}", e)
+                false
+            }
+        }
+
+    /**
      * Send notification to a specific FCM token.
      */
     private suspend fun sendToFcmToken(
@@ -109,6 +145,21 @@ class FcmNotificationService(
             }
         } catch (e: Exception) {
             logger.error("Failed to send to token ${token.take(10)}...: ${e.message}", e)
+            false
+        }
+
+    private suspend fun sendToFcmTokenDataOnly(
+        token: String,
+        data: Map<String, String>,
+    ): Boolean =
+        try {
+            if (!projectId.isNullOrBlank()) {
+                sendV1DataMessage(token, data)
+            } else {
+                sendLegacyDataMessage(token, data)
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to send data to token ${token.take(10)}...: ${e.message}", e)
             false
         }
 
@@ -175,6 +226,37 @@ class FcmNotificationService(
         }
     }
 
+    private suspend fun sendV1DataMessage(
+        token: String,
+        data: Map<String, String>,
+    ): Boolean {
+        val message =
+            FcmV1Message(
+                message =
+                    FcmV1Message.Message(
+                        token = token,
+                        data = data,
+                    ),
+            )
+
+        return try {
+            val response =
+                httpClient.post(getV1Url(projectId!!)) {
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer $serverKey")
+                    setBody(message)
+                }
+
+            if (!response.status.isSuccess()) {
+                sendLegacyDataMessage(token, data)
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            sendLegacyDataMessage(token, data)
+        }
+    }
+
     /**
      * Send using FCM Legacy HTTP API.
      */
@@ -192,6 +274,27 @@ class FcmNotificationService(
                         title = title,
                         body = body,
                     ),
+                data = data,
+                priority = "high",
+            )
+
+        val response =
+            httpClient.post(legacyUrl) {
+                contentType(ContentType.Application.Json)
+                header("Authorization", "key=$serverKey")
+                setBody(message)
+            }
+
+        return response.status.isSuccess()
+    }
+
+    private suspend fun sendLegacyDataMessage(
+        token: String,
+        data: Map<String, String>,
+    ): Boolean {
+        val message =
+            FcmLegacyMessage(
+                to = token,
                 data = data,
                 priority = "high",
             )
@@ -233,7 +336,7 @@ class FcmNotificationService(
     @Serializable
     data class FcmLegacyMessage(
         val to: String,
-        val notification: Notification,
+        val notification: Notification? = null,
         val data: Map<String, String>? = null,
         val priority: String = "high",
     ) {

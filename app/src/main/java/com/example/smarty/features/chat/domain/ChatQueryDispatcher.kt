@@ -905,6 +905,107 @@ class ChatQueryDispatcher(
                                 )
                             }
                         }
+                        is AgentEvent.AskUserRequest -> {
+                            // §2.2 DB-backed ask_user interactive session.
+                            // Render question UI (options or open text), activate mic,
+                            // then POST answers to /webhook/ask_user_response.
+                            Log.i(TAG, ">>> ASK_USER_REQUEST: toolCallId=${event.toolCallId}, questions=${event.questions.size}")
+                            // Update the streaming message to show the question
+                            val firstQuestion = event.questions.firstOrNull()?.question ?: "Please answer:"
+                            val options = event.questions.firstOrNull()?.options ?: emptyList()
+                            val parsed = event.questions.map { q ->
+                                ClarificationRequest(
+                                    question = q.question,
+                                    options = q.options,
+                                    allowCustomInput = true,
+                                )
+                            }
+                            _pendingClarificationRequests.value = parsed
+                            _pendingApprovalState.value = PendingApproval(
+                                messageId = streamingMessageId,
+                                sessionId = chatManager.currentSessionId.value,
+                                eventId = event.eventId,
+                                toolId = event.toolCallId,
+                                toolName = "ask_user",
+                                toolTitle = "Question",
+                                toolArgs = org.json.JSONObject().apply {
+                                    put("questions", org.json.JSONArray().apply {
+                                        event.questions.forEach { q ->
+                                            put(org.json.JSONObject().apply {
+                                                put("question", q.question)
+                                                put("options", org.json.JSONArray(q.options))
+                                                put("allow_custom", true)
+                                            })
+                                        }
+                                    })
+                                }.toString(),
+                            )
+                            // Flush so the question UI appears in the message
+                            pushSkeleton()
+                        }
+                        is AgentEvent.LaunchUiRequest -> {
+                            // §3.2 launch_ui: navigate to the requested screen and ACK back.
+                            Log.i(TAG, ">>> LAUNCH_UI_REQUEST: commandId=${event.commandId}, intent=${event.intent}")
+                            scope.launch {
+                                var success = true
+                                var resultMsg = "Launched ${event.intent}"
+                                try {
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        navigateTo(event.intent)
+                                    }
+                                } catch (e: Exception) {
+                                    success = false
+                                    resultMsg = "Failed to launch ${event.intent}: ${e.message}"
+                                    Log.e(TAG, "LaunchUiRequest failed", e)
+                                }
+                                try {
+                                    remoteAgentService.submitLaunchResult(event.commandId, success, resultMsg)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "submitLaunchResult failed: ${e.message}", e)
+                                }
+                            }
+                        }
+                        is AgentEvent.ShareContentRequest -> {
+                            // §3.1 share_content: trigger Android Share Sheet.
+                            Log.i(TAG, ">>> SHARE_CONTENT_REQUEST: commandId=${event.commandId}, mimeType=${event.mimeType}")
+                            scope.launch {
+                                try {
+                                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = event.mimeType
+                                        putExtra(android.content.Intent.EXTRA_TEXT, event.content)
+                                        event.title?.let { putExtra(android.content.Intent.EXTRA_SUBJECT, it) }
+                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    application.startActivity(
+                                        android.content.Intent.createChooser(shareIntent, event.title ?: "Share")
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "ShareContentRequest failed: ${e.message}", e)
+                                }
+                            }
+                        }
+                        is AgentEvent.ImageReady -> {
+                            // §3.1 image_ready: inject image into chat bubble.
+                            Log.i(TAG, ">>> IMAGE_READY: imageId=${event.imageId}, messageId=${event.messageId}")
+                            pendingInlineImages.removeAll { it.fileName == event.imageId }
+                            pendingInlineImages.add(
+                                com.example.smarty.features.chat.agent.models.ImageDisplayItem(
+                                    uri = event.url,
+                                    fileName = event.imageId,
+                                    noteTitle = event.prompt ?: "",
+                                )
+                            )
+                            pushSkeleton()
+                        }
+                        is AgentEvent.NoteProcessed -> {
+                            // §5.2 background note processing complete — no visible UI change needed.
+                            Log.d(TAG, ">>> NOTE_PROCESSED: noteId=${event.noteId}, success=${event.success}")
+                        }
+                        is AgentEvent.MemoryUpdated -> {
+                            // §5.3 user profile updated — silent ACK.
+                            Log.d(TAG, ">>> MEMORY_UPDATED: profileField=${event.profileField}")
+                        }
 
                     }
                 }

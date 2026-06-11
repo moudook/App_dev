@@ -2,6 +2,10 @@ package com.example.smarty.features.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,6 +13,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +65,46 @@ class SpeechToTextState(
     private val maxRetries = 3
     private var lastIntent: Intent? = null
 
+    // §6.1 Audio Focus: request TRANSIENT_EXCLUSIVE before mic, abandon immediately after.
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    // Optional: caller can set this to have the flag toggled around the mic session.
+    var keepScreenOnWindow: android.view.Window? = null
+
+    private fun requestAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener { }
+                .build()
+            audioFocusRequest = focusRequest
+            audioManager.requestAudioFocus(focusRequest)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+        }
+        keepScreenOnWindow?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        Log.d(TAG, "[AudioFocus] Requested TRANSIENT_EXCLUSIVE")
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            audioFocusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        keepScreenOnWindow?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        Log.d(TAG, "[AudioFocus] Abandoned")
+    }
+
     private val recognitionListener: RecognitionListener =
         object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
@@ -81,6 +126,7 @@ class SpeechToTextState(
 
             override fun onEndOfSpeech() {
                 Log.d(TAG, "onEndOfSpeech")
+                abandonAudioFocus()
                 isListening = false
             }
 
@@ -224,6 +270,8 @@ class SpeechToTextState(
 
             lastIntent = intent
 
+            // §6.1 Audio Focus contract: request TRANSIENT_EXCLUSIVE to pause background media
+            requestAudioFocus()
             speechRecognizer?.startListening(intent)
 
             Log.d(TAG, "Started listening in ${if (isChatMode) "CHAT" else "MAIN"} mode")
@@ -248,6 +296,7 @@ class SpeechToTextState(
             Log.e(TAG, "Error stopping recognizer: ${e.message}")
         }
 
+        abandonAudioFocus()
         isListening = false
     }
 
@@ -260,6 +309,7 @@ class SpeechToTextState(
             Log.e(TAG, "Error canceling recognizer: ${e.message}")
         }
 
+        abandonAudioFocus()
         isListening = false
         transcript = ""
         partialTranscript = ""

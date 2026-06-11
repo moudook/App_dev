@@ -3,6 +3,7 @@ package com.example.smarty.server.routes
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
 import com.example.smarty.server.agent.ServerAgent
+import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
@@ -60,6 +61,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.example.smarty.server.data.ToolSessionRepository
 import java.util.UUID
 
 /*
@@ -117,7 +119,10 @@ private fun normalizeProviderSelection(provider: String?): String? {
     return null
 }
 
-fun Application.configureChatRoutes(noteService: com.example.smarty.server.services.NoteService? = null) {
+fun Application.configureChatRoutes(
+    noteService: com.example.smarty.server.services.NoteService? = null,
+    fcmService: FcmNotificationService? = null
+) {
     // JSON encoder for events
     val json =
         Json {
@@ -352,6 +357,109 @@ fun Application.configureChatRoutes(noteService: com.example.smarty.server.servi
                     call.application.log.error("Failed to process client event", e)
                     call.respond(HttpStatusCode.InternalServerError, "An internal error occurred while processing the event.")
                 }
+            }
+
+            /**
+             * POST /webhook/ask_user_response
+             * Receives user answers from the Android client after an ask_user SSE turn.
+             * Marks the tool_sessions row as ANSWERED, then resumes the agent by injecting
+             * a TOOL message into history and triggering a new AgentRunManager run.
+             *
+             * Body: { toolCallId, sessionId, answers: [{questionIndex, answer}] }
+             */
+            post("/webhook/ask_user_response") {
+                val user = call.firebaseUser()
+                if (user == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                    return@post
+                }
+                val body = try {
+                    call.receiveText()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
+                    return@post
+                }
+                val bodyJson = try {
+                    Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
+                    return@post
+                }
+                val toolCallId = bodyJson["toolCallId"]?.jsonPrimitive?.contentOrNull
+                val sessionId = bodyJson["sessionId"]?.jsonPrimitive?.contentOrNull
+                if (toolCallId.isNullOrBlank() || sessionId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing toolCallId or sessionId"))
+                    return@post
+                }
+                val ds = DatabaseFactory.getDataSource()
+                val toolSessionRepo = ds?.let { ToolSessionRepository(it) }
+                if (toolSessionRepo == null) {
+                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf("error" to "Database unavailable"))
+                    return@post
+                }
+                val marked = toolSessionRepo.markAnswered(toolCallId, body)
+                if (!marked) {
+                    call.application.log.warn("[Webhook] ask_user_response: session not found or already answered toolCallId=$toolCallId")
+                    call.respond(HttpStatusCode.Gone, mapOf("error" to "Session expired or already answered"))
+                    return@post
+                }
+                call.application.log.info("[Webhook] ask_user_response: answers received for toolCallId=$toolCallId, injecting TOOL message into session $sessionId")
+                // Inject TOOL role message into AgentRunManager event flow so the next sendQuery
+                // call picks it up from history. The actual resume happens when the client
+                // sends a new sendQuery with the full history including this TOOL message.
+                val answersForLlm = bodyJson["answers"]?.toString() ?: body
+                com.example.smarty.server.agent.AgentRunManager.emitEvent(
+                    sessionId,
+                    AgentEvent.ApprovalResult(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        toolId = toolCallId,
+                        granted = true,
+                        feedback = answersForLlm,
+                    )
+                )
+                call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId))
+            }
+
+            /**
+             * POST /webhook/launch_result
+             * ACK from the Android client after executing a launch_ui command.
+             * Resolves the pending DeviceResponseRegistry entry so the agent knows
+             * whether the navigation succeeded or failed.
+             *
+             * Body: { commandId, success, resultMessage }
+             */
+            post("/webhook/launch_result") {
+                val user = call.firebaseUser()
+                if (user == null) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+                    return@post
+                }
+                val body = try {
+                    call.receiveText()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
+                    return@post
+                }
+                val bodyJson = try {
+                    Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
+                    return@post
+                }
+                val commandId = bodyJson["commandId"]?.jsonPrimitive?.contentOrNull
+                val success = bodyJson["success"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                val resultMessage = bodyJson["resultMessage"]?.jsonPrimitive?.contentOrNull ?: if (success) "Launched" else "Launch failed"
+                if (commandId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing commandId"))
+                    return@post
+                }
+                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
+                    commandId,
+                    mapOf("result" to resultMessage, "status" to if (success) "success" else "error")
+                )
+                call.application.log.info("[Webhook] launch_result: commandId=$commandId success=$success message=$resultMessage")
+                call.respond(HttpStatusCode.OK, mapOf("status" to "acked", "commandId" to commandId))
             }
 
             /**

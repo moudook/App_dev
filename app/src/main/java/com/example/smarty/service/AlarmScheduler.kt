@@ -65,12 +65,33 @@ class AlarmScheduler(
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     /**
-     * Schedule a timer or alarm.
-     * For one-time timers, schedules at the specified triggerTime.
-     * For recurring alarms, schedules the next occurrence based on repeatDays.
+     * Result of attempting to schedule an alarm.
+     * See §3.2 of client_architecture.md: AlarmScheduler Permission Contract (API 33+).
      */
-    fun scheduleTimer(timer: SmartyTimer) {
+    sealed class AlarmResult {
+        /** Alarm was scheduled successfully. */
+        object Success : AlarmResult()
+        /** Exact alarm permission is not granted (Android 12+, API 31+).
+         *  Caller MUST NOT silently reject. Use createExactAlarmPermissionIntent() to
+         *  open settings, and send a "failed" ACK to the server in the meantime. */
+        object PermissionRequired : AlarmResult()
+        /** A runtime exception occurred during scheduling. */
+        data class Error(val message: String, val cause: Throwable? = null) : AlarmResult()
+    }
+
+    /**
+     * Schedule a timer or alarm, returning an [AlarmResult] to the caller.
+     * Does NOT silently fall back to inexact alarms — callers must handle [AlarmResult.PermissionRequired]
+     * by prompting the user via [createExactAlarmPermissionIntent] (API 31+).
+     */
+    fun scheduleTimer(timer: SmartyTimer): AlarmResult {
         Log.d(TAG, "Scheduling timer: ${timer.name} at ${timer.triggerTime}")
+
+        // §3.2 Permission contract: check before persisting or scheduling
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            Log.w(TAG, "SCHEDULE_EXACT_ALARM permission not granted — returning PermissionRequired for timer=${timer.name}")
+            return AlarmResult.PermissionRequired
+        }
 
         // Persist to database
         scope.launch {
@@ -95,34 +116,20 @@ class AlarmScheduler(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
-        // Use exact alarm for precise timing
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        timer.triggerTime,
-                        pendingIntent,
-                    )
-                } else {
-                    // Fallback to inexact alarm
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        timer.triggerTime,
-                        pendingIntent,
-                    )
-                    Log.w(TAG, "Cannot schedule exact alarms, using inexact")
-                }
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    timer.triggerTime,
-                    pendingIntent,
-                )
-            }
+        return try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                timer.triggerTime,
+                pendingIntent,
+            )
             Log.d(TAG, "Timer scheduled successfully: ${timer.name}")
+            AlarmResult.Success
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException scheduling timer (permission revoked mid-flight): ${e.message}", e)
+            AlarmResult.PermissionRequired
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule timer: ${e.message}", e)
+            AlarmResult.Error(e.message ?: "Unknown scheduling error", e)
         }
     }
 

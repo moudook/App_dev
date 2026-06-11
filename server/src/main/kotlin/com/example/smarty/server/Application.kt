@@ -45,7 +45,6 @@ import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.services.FileProcessingService
-import com.example.smarty.server.services.GoogleDriveService
 import com.example.smarty.server.services.GroqWhisperService
 import com.example.smarty.server.services.OrchestratorService
 import com.example.smarty.server.services.ReasoningService
@@ -79,8 +78,13 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.server.sse.SSE
 import io.ktor.server.websocket.WebSockets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.UUID
+
 
 /*
  * Friday Server - Cloud-hosted agent runtime.
@@ -335,12 +339,6 @@ fun Application.module() {
                 httpClient = HttpClientSingleton.client,
             )
 
-        val googleDriveService =
-            GoogleDriveService(
-                httpClient = HttpClientSingleton.client,
-                serviceAccountJsonPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS") ?: "service-account.json",
-            )
-
         val groqWhisperService =
             GroqWhisperService(
                 httpClient = HttpClientSingleton.client,
@@ -350,11 +348,11 @@ fun Application.module() {
         // Configure routes
         configureAuthRoutes()
         configureHealthRoutes()
-        configureChatRoutes(noteService)
+        configureChatRoutes(noteService, fcmService)
         configureProcessingRoutes()
         configureHandshakeRoutes()
         configureDataRoutes(noteService)
-        configureFileRoutes(googleDriveService, groqWhisperService)
+        configureFileRoutes(groqWhisperService)
 
         val taskRepo = TaskRepository(ds)
         val tagRepo = TagRepository(ds)
@@ -493,8 +491,34 @@ fun Application.module() {
     com.example.smarty.server.agent.ActiveSessionManager
         .startSweeper(this)
 
+    // Registry Reaper: evict orphaned ApprovalRegistry + DeviceResponseRegistry entries
+    // Per §7.1: ApprovalRegistry TTL=30min, DeviceResponseRegistry TTL=60s
+    // Runs every 5 minutes as a non-blocking background coroutine.
+    GlobalScope.launch(Dispatchers.IO) {
+        val reaperLog = org.slf4j.LoggerFactory.getLogger("RegistryReaper")
+        val toolSessionRepo = DatabaseFactory.getDataSource()?.let {
+            com.example.smarty.server.data.ToolSessionRepository(it)
+        }
+        while (true) {
+            delay(5 * 60_000L) // 5 minutes
+            try {
+                val approvalEvicted = com.example.smarty.server.agent.ApprovalRegistry.evictExpired()
+                val deviceEvicted = com.example.smarty.server.agent.DeviceResponseRegistry.evictExpired()
+                val toolSessionsSwept = toolSessionRepo?.sweepExpired() ?: 0
+                if (approvalEvicted > 0 || deviceEvicted > 0 || toolSessionsSwept > 0) {
+                    reaperLog.info("[RegistryReaper] Evicted $approvalEvicted approval(s), $deviceEvicted device request(s), $toolSessionsSwept tool_session(s). Remaining: ${com.example.smarty.server.agent.ApprovalRegistry.size()} approvals, ${com.example.smarty.server.agent.DeviceResponseRegistry.size()} device requests.")
+                }
+            } catch (e: Exception) {
+                reaperLog.error("[RegistryReaper] Error during eviction pass: ${e.message}", e)
+            }
+        }
+    }
+
+
+
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
+
 
     // Log startup
     log.info("Friday Server started on port $serverPort")

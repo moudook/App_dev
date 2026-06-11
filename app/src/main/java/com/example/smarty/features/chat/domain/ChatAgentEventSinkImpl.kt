@@ -1,5 +1,6 @@
 package com.example.smarty.features.chat.domain
 
+import android.content.Intent
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +33,13 @@ class ChatAgentEventSinkImpl(
     private val onDisplayImagesCallback: (List<ImageDisplayItem>) -> Unit,
     private val validateCommandCallback: (AgentCommand) -> ChatCommandValidator.CommandValidationResult,
     private val logCommandCallback: (AgentCommand, Boolean, String?) -> Unit,
-    private val getCommandSummaryCallback: (AgentCommand) -> String
+    private val getCommandSummaryCallback: (AgentCommand) -> String,
+    /**
+     * §3.2 Alarm Permission Contract: Called with a settings Intent when AlarmScheduler
+     * cannot schedule exact alarms. Caller should show a dialog and launch the intent if approved.
+     * May be null if the caller does not need to handle this (e.g., test contexts).
+     */
+    private val onPermissionRequired: ((Intent?) -> Unit)? = null,
 ) : AgentEventSink {
     companion object { private const val TAG = "ChatAgentEventSinkImpl" }
         override fun onToolExecutionStarted(
@@ -125,7 +132,19 @@ class ChatAgentEventSinkImpl(
                                     createdAt = info.createdAt,
                                     repeatDays = null, // Server doesn't support recurring yet
                                 )
-                            alarmScheduler.scheduleTimer(timer)
+                            val result = alarmScheduler.scheduleTimer(timer)
+                            when (result) {
+                                is AlarmScheduler.AlarmResult.Success ->
+                                    Log.d(TAG, "Timer scheduled: ${timer.name}")
+                                is AlarmScheduler.AlarmResult.PermissionRequired -> {
+                                    // §3.2: Permission not granted — client must not silently reject.
+                                    // Notify caller so UI can launch ACTION_REQUEST_SCHEDULE_EXACT_ALARM.
+                                    Log.w(TAG, "SCHEDULE_EXACT_ALARM permission required for timer=${timer.name}")
+                                    onPermissionRequired?.invoke(alarmScheduler.createExactAlarmPermissionIntent())
+                                }
+                                is AlarmScheduler.AlarmResult.Error ->
+                                    Log.e(TAG, "Failed to schedule timer ${timer.name}: ${result.message}")
+                            }
                         }
                         "event_scheduled" -> {
                             val info = Json.decodeFromString<CalendarEventInfo>(data)

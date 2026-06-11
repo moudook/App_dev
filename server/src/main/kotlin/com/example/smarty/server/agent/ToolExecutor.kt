@@ -1,10 +1,13 @@
 package com.example.smarty.server.agent
 
 import com.example.smarty.server.data.CalendarRepository
+import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.GeneratedImageRepository
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.ToolSessionPayload
+import com.example.smarty.server.data.ToolSessionRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.tools.KreaImageTool
 import kotlinx.serialization.SerialName
@@ -18,14 +21,18 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.AskUserQuestion
 import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
+import kotlinx.coroutines.*
 
 /**
 // === PERMISSION ENGINE: Tools that require user approval ===
 // These tools will be paused before execution and sent as ApprovalRequested events.
 // In OpenCode terms, these are the MCP tools that need human sanction.
-// Agent asks "May I?" → stream pauses → user approves/denies → stream resumes.
+// Agent asks "May I?" â†’ stream pauses â†’ user approves/denies â†’ stream resumes.
 // Permission list lives here; add entries to grow gate coverage.
 // In the App layer, ChatViewModel.callApproval() sends back the user decision.
 
@@ -34,7 +41,7 @@ sealed class ToolExecutionResult {
  data object RequiresApproval : ToolExecutionResult()
  data object Denied : ToolExecutionResult()
 }
-// ════════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
  * Extracted tool execution logic from ServerAgent.kt
  * Handles all tool execution, parameter parsing, and result formatting
@@ -52,16 +59,19 @@ class ToolExecutor(
     private val eventEmitter: suspend (com.example.smarty.protocol.AgentEvent) -> Unit,
     private val noteService: com.example.smarty.server.services.NoteService? = null,
     private val capabilities: com.example.smarty.protocol.DeviceCapabilities? = null,
+    private val fcmService: com.example.smarty.server.services.FcmNotificationService? = null,
     private val toolPermissionEnforcer: ToolPermissionEnforcer = ToolPermissionEnforcer(),
 ) {
     private val logger = LoggerFactory.getLogger(ToolExecutor::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val generatedImageRepository =
-        com.example.smarty.server.data.DatabaseFactory.getDataSource()?.let {
-            GeneratedImageRepository(
-                it,
-            )
+        DatabaseFactory.getDataSource()?.let {
+            GeneratedImageRepository(it)
         }
+
+    /** DB-backed session store for ask_user turn-taking (§2.2 of agent_architecture.md). */
+    private val toolSessionRepository =
+        DatabaseFactory.getDataSource()?.let { ToolSessionRepository(it) }
 
     @Serializable
     data class GenerateImageArgs(
@@ -103,6 +113,13 @@ class ToolExecutor(
         val questions: kotlinx.serialization.json.JsonArray? = null,
         @SerialName("search_depth") val searchDepth: String? = null,
         @SerialName("max_results") val maxResults: Int? = null,
+        // === Atomic tool fields (Phase 2 additions) ===
+        val intent: String? = null,
+        val code: String? = null,
+        val language: String? = null,
+        val iteration: Int? = null,
+        val queries: kotlinx.serialization.json.JsonArray? = null,
+        @SerialName("emotional_significance") val emotionalSignificance: Int? = null,
     )
 
     suspend fun executeTool(
@@ -156,6 +173,48 @@ class ToolExecutor(
         }
 
         return when (toolName) {
+            // === Atomic Tool Set (Phase 2) ===
+            "manage_notes" -> {
+                when (args.action) {
+                    "save" -> {
+                        if (section?.lowercase() == "notes") {
+                            return """{"error":"Notes section is refinement-only. The agent cannot create new notes here. Use 'manage_notes' with action='update' to refine the existing note."}"""
+                        }
+                        executeMemorySave(args)
+                    }
+                    "find" -> executeMemoryFind(args)
+                    "update" -> executeMemoryUpdate(args)
+                    "delete" -> {
+                        if (section?.lowercase() == "notes") {
+                            return """{"error":"Notes section is refinement-only. Notes cannot be deleted from here."}"""
+                        }
+                        executeMemoryDelete(args)
+                    }
+                    else -> "Unknown manage_notes action: ${args.action}"
+                }
+            }
+            "update_user_profile" -> executeMemoryRemember(args)
+            "manage_calendar" -> executeScheduleTool(args, clientTimezone, clientTimeMillis)
+            "set_timer_alarm" -> executeRemindTool(args, clientTimezone, clientTimeMillis)
+            "launch_ui" -> executeNavigateTool(args.copy(action = "go", screen = args.intent ?: args.screen), sessionId)
+            "share_content" -> executeNavigateTool(args.copy(action = "share"), sessionId)
+            "web_search" -> {
+                val queries = args.queries?.joinToString(", ") {
+                    try { it.jsonPrimitive.content } catch (_: Exception) { it.toString() }
+                } ?: args.query ?: return "No search query provided"
+                "[WEB_SEARCH_STUB] Queries: $queries. (Live Tavily integration pending)"
+            }
+            "code_interpreter" -> {
+                val code = args.code ?: return "No code provided to execute"
+                "[CODE_INTERPRETER_STUB] Language: ${args.language ?: "kotlin"}, code received (${code.length} chars). (Chicory/QuickJS integration pending)"
+            }
+            "scratchpad" -> {
+                val content = args.content ?: args.note ?: ""
+                "Scratchpad iteration ${args.iteration ?: 0} recorded (${content.length} chars)."
+            }
+            "search_past_chats" -> executeSearchHistory(args)
+
+            // === Legacy Tool Set (still fully supported) ===
             "memory_save" -> {
                 if (section?.lowercase() == "notes") {
                     return """{"error":"Notes section is refinement-only. The agent cannot create new notes here. Use 'memory_update' to refine the existing note, or move to Chat to create new notes."}"""
@@ -281,6 +340,7 @@ class ToolExecutor(
     companion object {
         fun mapOldToolNames(name: String): String =
             when (name) {
+                // Legacy → legacy canonical
                 "save_note", "create_note" -> "memory_save"
                 "find_note", "search_notes" -> "memory_find"
                 "edit_note", "update_note" -> "memory_update"
@@ -296,7 +356,12 @@ class ToolExecutor(
                 "get_device_info" -> "device_status"
                 "take_screenshot" -> "device_capture"
                 "go_to_screen" -> "navigate_go"
-                "share_content", "share" -> "navigate_share"
+                "share" -> "navigate_share"
+                // Atomic → route directly (no rename needed, handled in when block)
+                "manage_notes", "update_user_profile", "manage_calendar",
+                "set_timer_alarm", "launch_ui", "share_content",
+                "web_search", "code_interpreter", "scratchpad",
+                "search_past_chats" -> name
                 else -> name
             }
     }
@@ -593,43 +658,124 @@ class ToolExecutor(
         return "Starting guided breathing session."
     }
 
+    /**
+     * DB-backed ask_user interactive session (§2.2 of agent_architecture.md).
+     *
+     * ARCHITECTURE MANDATE: We do NOT use CompletableDeferred or any in-memory
+     * suspend pattern here. The full flow is:
+     *   1. Validate args (return error string to LLM on bad schema).
+     *   2. Persist minimal delta state to `tool_sessions` table (< 8 KB).
+     *   3. Emit `AskUserRequest` SSE event to client.
+     *   4. Return `__ASK_USER_TURN_COMPLETE__` — agent loop exits this SSE turn cleanly.
+     *   5. Client posts answers to /webhook/ask_user_response.
+     *   6. Webhook handler injects TOOL message into history and resumes agent.
+     */
     private suspend fun executeAskUser(
         args: UnifiedToolArgs,
         toolCallId: String,
         sessionId: String,
     ): String {
         logger.info(
-            "[ToolExecutor] ask_user called with questions=${args.questions?.size}, question=${args.question?.take(
-                100,
-            )}, options=${args.options?.toString()?.take(100)}",
+            "[ToolExecutor] ask_user called (DB-backed): questions=${args.questions?.size}, " +
+            "question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}"
         )
 
-        // Validate arguments BEFORE emitting ApprovalRequested — return error string if malformed
+        // 1. Validate — return error to LLM if malformed so it can self-correct
         val validationError = validateAskUserArgs(args)
         if (validationError != null) {
-            logger.warn("[ToolExecutor] ask_user validation failed for toolCallId=$toolCallId: ${validationError.take(200)}")
+            logger.warn("[ToolExecutor] ask_user validation failed toolCallId=$toolCallId: ${validationError.take(200)}")
             return validationError
         }
 
-        // Build toolArgs JSON that the app expects (questions array format)
-        val toolArgsJson = buildToolArgsJson(args)
-
-        logger.info("[ToolExecutor] ask_user: awaiting approval for toolCallId=$toolCallId")
-
-        // Create pending approval and suspend until user responds (or timeout)
-        // 161s timeout — golden ratio (φ ≈ 1.618) × 100 ≈ 161s
-        val result =
-            runCatching {
-                kotlinx.coroutines.withTimeoutOrNull(161_000L) {
-                    ApprovalRegistry.createPendingApproval(toolCallId, sessionId, userId, "ask_user").await()
-                }
-            }.getOrNull() ?: ApprovalResult(false, "Approval timed out")
-
-        return if (result.approved) {
-            result.feedback ?: "Proceed with your best judgment"
-        } else {
-            result.feedback ?: "User denied"
+        // 2. Build typed question list
+        val questions: List<AskUserQuestion> = buildQuestionList(args)
+        if (questions.isEmpty()) {
+            return "ERROR: ask_user requires at least one question with options."
         }
+
+        // 3. Persist session to DB (no coroutine blocked — turn-taking via webhook)
+        val ttlMinutes = 30
+        val expiresAt = Instant.now().plus(ttlMinutes.toLong(), ChronoUnit.MINUTES)
+        val payload = ToolSessionPayload(
+            chatSessionId = sessionId,
+            toolCallId = toolCallId,
+            userId = userId,
+            questionSummaries = questions.map { q -> q.question.take(120) },
+            expiresAt = expiresAt.toString(),
+        )
+        val dbId = toolSessionRepository?.createPendingSession(payload)
+        if (toolSessionRepository != null && dbId == null) {
+            logger.error("[ToolExecutor] ask_user DB persistence failed for toolCallId=$toolCallId")
+            return "ERROR: Failed to persist ask_user session state. The database may be unavailable. Please try again."
+        }
+        logger.info("[ToolExecutor] ask_user: session persisted dbId=$dbId toolCallId=$toolCallId sessionId=$sessionId")
+
+        // 4. Emit AskUserRequest SSE event — client renders question UI + activates mic
+        eventEmitter(
+            AgentEvent.AskUserRequest(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                toolId = toolCallId,
+                sessionId = sessionId,
+                questions = questions,
+                toolCallId = toolCallId,
+                ttlMinutes = ttlMinutes,
+            )
+        )
+
+        // 5. Trigger FCM Wakeup (Push Notification)
+        fcmService?.let { service ->
+            logger.info("[ToolExecutor] ask_user: sending FCM wakeup for sessionId=$sessionId")
+            try {
+                // Ensure launch runs in its own scope so it doesn't block
+                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    service.sendDataMessage(
+                        userId = userId,
+                        data = mapOf(
+                            "type" to "ask_user_wakeup",
+                            "sessionId" to sessionId,
+                            "toolCallId" to toolCallId
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                logger.error("[ToolExecutor] ask_user: failed to dispatch FCM wakeup", e)
+            }
+        }
+
+        // 6. Return sentinel — ServerAgent/AgentRunManager checks this string and ends the SSE turn.
+        //    The agent will be resumed by the webhook injecting a TOOL role message into history.
+        logger.info("[ToolExecutor] ask_user: SSE turn ending cleanly, awaiting /webhook/ask_user_response for toolCallId=$toolCallId")
+        return "__ASK_USER_TURN_COMPLETE__"
+    }
+
+    /**
+     * Build a typed AskUserQuestion list from UnifiedToolArgs.
+     * Handles 'questions' array format (preferred) and legacy single 'question' + 'options'.
+     */
+    private fun buildQuestionList(args: UnifiedToolArgs): List<AskUserQuestion> {
+        if (args.questions != null && args.questions.isNotEmpty()) {
+            return args.questions.mapNotNull { element ->
+                try {
+                    val qObj = element.jsonObject
+                    val questionText = qObj["question"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                    val optionsArr = qObj["options"]?.jsonArray ?: return@mapNotNull null
+                    val options = optionsArr.mapNotNull { opt ->
+                        try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+                    }
+                    val allowCustom = qObj["allow_custom"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                    val inputMode = qObj["input_mode"]?.jsonPrimitive?.content ?: "choice"
+                    AskUserQuestion(question = questionText, options = options, allowCustom = allowCustom, inputMode = inputMode)
+                } catch (_: Exception) { null }
+            }
+        }
+        // Legacy single-question format
+        val questionText = args.question ?: return emptyList()
+        val optionsArr = try { args.options?.jsonArray } catch (_: Exception) { null }
+        val options = optionsArr?.mapNotNull { opt ->
+            try { opt.jsonPrimitive.content } catch (_: Exception) { null }
+        } ?: emptyList()
+        return listOf(AskUserQuestion(question = questionText, options = options))
     }
 
     /**
@@ -638,7 +784,7 @@ class ToolExecutor(
      * Handles both the 'questions' array format and the single 'question' + 'options' fallback.
      */
     private fun validateAskUserArgs(args: UnifiedToolArgs): String? {
-        // Format 1: 'questions' array (preferred — each item is a {question, options, allow_custom?} object)
+        // Format 1: 'questions' array (preferred â€” each item is a {question, options, allow_custom?} object)
         if (args.questions != null && args.questions.isNotEmpty()) {
             for ((i, element) in args.questions.withIndex()) {
                 val qObj =
@@ -805,7 +951,7 @@ class ToolExecutor(
                 results.forEachIndexed { index, result ->
                     val sessionInfo = result.sessionTitle ?: "Conversation"
                     appendLine("${index + 1}. **$sessionInfo**")
-                    appendLine("   ${result.content.take(200)}${if (result.content.length > 200) "…" else ""}")
+                    appendLine("   ${result.content.take(200)}${if (result.content.length > 200) "â€¦" else ""}")
                     appendLine("   <chat_${result.sessionId}>")
                     appendLine()
                 }
@@ -1054,11 +1200,11 @@ class ToolExecutor(
             result
         }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PERMISSION ENGINE — Approval gating & resume callbacks
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // PERMISSION ENGINE â€” Approval gating & resume callbacks
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-    /** Maps a tool canonical name → optional human-readable title displayed in the approval card. */
+    /** Maps a tool canonical name â†’ optional human-readable title displayed in the approval card. */
     sealed class ToolApprovalStatus {
         object ExecutesNormally : ToolApprovalStatus()
 
@@ -1068,13 +1214,13 @@ class ToolExecutor(
     }
 
     /**
-     * Registry of tool → approval policy.
+     * Registry of tool â†’ approval policy.
      * Extend this map to gate more tools. Adding an entry ensures the agent asks
      * before the tool runs, and the stream pauses until the client approves/denies.
      *
-     * "device" → controls app opens, media playback, toggling airplane/wifi etc.
-     * "bash"    → will be added when device shell commands are implemented
-     * "semantic_search_notes"  → off; tool already requires access key
+     * "device" â†’ controls app opens, media playback, toggling airplane/wifi etc.
+     * "bash"    â†’ will be added when device shell commands are implemented
+     * "semantic_search_notes"  â†’ off; tool already requires access key
      */
     private val toolApprovalRegistry: Map<String, ToolApprovalStatus> =
         mapOf(
@@ -1116,7 +1262,7 @@ class ToolExecutor(
     }
 
     /**
-     * Approval title factory — used when emitting ApprovalRequested so the UI
+     * Approval title factory â€” used when emitting ApprovalRequested so the UI
      * shows a human-readable card title instead of just the raw tool name.
      */
     fun permissionTitleFor(canonicalToolName: String): String =
@@ -1126,7 +1272,7 @@ class ToolExecutor(
         }
 
     /**
-     * Short question shown in the approval card — what the tool is about to do.
+     * Short question shown in the approval card â€” what the tool is about to do.
      */
     fun permissionQuestionFor(
         canonicalToolName: String,

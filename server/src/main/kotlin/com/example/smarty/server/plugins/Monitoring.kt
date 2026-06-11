@@ -148,27 +148,29 @@ object ServerMonitor {
 }
 
 fun Application.configureMonitoring() {
-                // Zen API is remote, we don't ping it locally.
-                ServerMonitor.isZenApiReachable = true
-                ServerMonitor.zenApiStatusMsg = "Cloud API"
+    // 1. Background Health Check (Daemon)
+    launch {
+        while (isActive) {
+            // Zen API is remote, we don't ping it locally.
+            ServerMonitor.isZenApiReachable = true
+            ServerMonitor.zenApiStatusMsg = "Cloud API"
 
-                // Check DB
-                try {
-                    val ds = DatabaseFactory.getDataSource()
-                    if (ds != null) {
-                        val conn = ds.connection
-                        val isValid = conn.isValid(2)
-                        conn.close()
-                        ServerMonitor.isDbConnected = isValid
-                    } else {
-                        ServerMonitor.isDbConnected = false
-                    }
-                } catch (e: Exception) {
+            // Check DB
+            try {
+                val ds = DatabaseFactory.getDataSource()
+                if (ds != null) {
+                    val conn = ds.connection
+                    val isValid = conn.isValid(2)
+                    conn.close()
+                    ServerMonitor.isDbConnected = isValid
+                } else {
                     ServerMonitor.isDbConnected = false
                 }
-
-                ServerMonitor.lastHealthCheck = System.currentTimeMillis()
+            } catch (e: Exception) {
+                ServerMonitor.isDbConnected = false
             }
+
+            ServerMonitor.lastHealthCheck = System.currentTimeMillis()
             delay(5000) // Check every 5s
         }
     }

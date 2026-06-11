@@ -78,6 +78,11 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("com.h2database:h2:2.3.232")
+
+    // JVM Wasm & QuickJS for code_interpreter
+    implementation("io.roastedroot:quickjs4j:0.0.17")
+    implementation("com.dylibso.chicory:runtime:1.7.5")
+
 }
 
 tasks.test {

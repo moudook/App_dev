@@ -186,6 +186,18 @@ class RemoteAgentService(
                         retryDelay = 1_000L // Reset backoff on connect
                         Log.i(TAG, ">>> WS_CONNECTED: WebSocket connected successfully (attempt ${retryCount + 1})")
 
+                        // §3.2 Offline image generation: fetch any images that completed while disconnected
+                        if (sessionId != null && retryCount > 0) {
+                            try {
+                                val images = fetchPendingImages(sessionId)
+                                images.forEach { imageEvent ->
+                                    handleEvent(imageEvent, this@flow)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, ">>> WS_PENDING_IMAGES_ERROR: Failed to fetch pending images", e)
+                            }
+                        }
+
                         // Send the query request frame to start the run.
                         val requestObj =
                             ChatQueryRequest(
@@ -326,6 +338,7 @@ class RemoteAgentService(
                     if (token != null) {
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
+                    header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                     contentType(ContentType.Application.Json)
                     setBody(event)
                 }
@@ -358,6 +371,7 @@ class RemoteAgentService(
                     if (token != null) {
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
+                    header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                     contentType(ContentType.Application.Json)
                     setBody(ApprovalRequest(toolId, approved, feedback))
                 }
@@ -372,6 +386,101 @@ class RemoteAgentService(
         }
     }
 
+    /**
+     * Submit user answers to an ask_user interactive session (§2.2).
+     * Called after the client receives an AskUserRequest SSE event and the user
+     * has responded (via taps or voice-to-text). POSTs answers to the server
+     * which resumes the agent by injecting a TOOL message into history.
+     *
+     * @param toolCallId  The toolCallId from the AskUserRequest event
+     * @param sessionId   The chat session ID
+     * @param answers     Map of questionIndex -> answerText
+     */
+    suspend fun submitAskUserResponse(
+        toolCallId: String,
+        sessionId: String,
+        answers: Map<Int, String>,
+    ) {
+        Log.i(TAG, ">>> SUBMIT_ASK_USER: toolCallId=$toolCallId sessionId=$sessionId answers=${answers.size}")
+        try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val answersArray = answers.entries.sortedBy { it.key }.joinToString(",") {
+                """{"questionIndex":${it.key},"answer":${kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.json.JsonPrimitive(it.value))}"""
+            }
+            val body = """{"toolCallId":"$toolCallId","sessionId":"$sessionId","answers":[$answersArray]}"""
+            val response = client.post("$baseUrl/webhook/ask_user_response") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (response.status.isSuccess()) {
+                Log.i(TAG, ">>> SUBMIT_ASK_USER_OK: toolCallId=$toolCallId (${response.status})")
+            } else {
+                Log.e(TAG, ">>> SUBMIT_ASK_USER_FAILED: ${response.status} for toolCallId=$toolCallId")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, ">>> SUBMIT_ASK_USER_ERROR: toolCallId=$toolCallId", e)
+        }
+    }
+
+    /**
+     * ACK a launch_ui command result to the server (§3.2).
+     * Called after the Android app has executed (or failed to execute) a LaunchUiRequest.
+     *
+     * @param commandId     The commandId from the LaunchUiRequest SSE event
+     * @param success       Whether the launch succeeded
+     * @param resultMessage Human-readable status message (sent to LLM as tool output)
+     */
+    suspend fun submitLaunchResult(
+        commandId: String,
+        success: Boolean,
+        resultMessage: String,
+    ) {
+        Log.i(TAG, ">>> SUBMIT_LAUNCH_RESULT: commandId=$commandId success=$success")
+        try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val body = """{"commandId":"$commandId","success":$success,"resultMessage":${kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.json.JsonPrimitive(resultMessage))}}"""
+            val response = client.post("$baseUrl/webhook/launch_result") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (response.status.isSuccess()) {
+                Log.i(TAG, ">>> SUBMIT_LAUNCH_RESULT_OK: commandId=$commandId (${response.status})")
+            } else {
+                Log.e(TAG, ">>> SUBMIT_LAUNCH_RESULT_FAILED: ${response.status} for commandId=$commandId")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, ">>> SUBMIT_LAUNCH_RESULT_ERROR: commandId=$commandId", e)
+        }
+    }
+
+    /**
+     * Fetch pending offline-completed images for a session (§3.2).
+     */
+    suspend fun fetchPendingImages(sessionId: String): List<AgentEvent> {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val response = client.get("$baseUrl/images/pending?sessionId=${sessionId.encodeURLParameter()}") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                val data = response.bodyAsText()
+                val jsonArray = kotlinx.serialization.json.Json.parseToJsonElement(data).takeIf { it is kotlinx.serialization.json.JsonArray } as? kotlinx.serialization.json.JsonArray
+                jsonArray?.mapNotNull { decodeAgentEvent("image_ready", it.toString()) } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch pending images", e)
+            emptyList()
+        }
+    }
 
     /**
      * Delete a chat session from the server (Supabase sync).

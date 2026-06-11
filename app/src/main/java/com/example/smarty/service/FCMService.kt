@@ -1,4 +1,4 @@
-﻿package com.example.smarty.service
+package com.example.smarty.service
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -102,8 +102,13 @@ class FCMService : FirebaseMessagingService() {
     }
 
     private fun handleDataMessage(data: Map<String, String>) {
-        // Handle background data sync or other logic here
-        // For now, we just log it
+        val type = data["type"]
+        if (type == "ask_user_wakeup") {
+            val sessionId = data["sessionId"] ?: return
+            val toolCallId = data["toolCallId"] ?: return
+            Log.i(TAG, "Received ask_user_wakeup for sessionId=$sessionId")
+            NotificationHelper.showAskUserWakeup(this, sessionId, toolCallId)
+        }
     }
 
     private fun sendNotification(

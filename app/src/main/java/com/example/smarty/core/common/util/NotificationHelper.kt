@@ -146,4 +146,54 @@ object NotificationHelper {
             // Permission not granted
         }
     }
+
+    fun showAskUserWakeup(
+        context: Context,
+        sessionId: String,
+        toolCallId: String,
+    ) {
+        val intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("route", "chat")
+                putExtra("sessionId", sessionId)
+                putExtra("ask_user_wakeup", true)
+            }
+
+        val pendingIntent: PendingIntent =
+            PendingIntent.getActivity(
+                context,
+                NOTIFICATION_ID_FCM + 2,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+
+        val builder =
+            NotificationCompat
+                .Builder(context, CHANNEL_ID_GENERAL)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Friday Needs You")
+                .setContentText("Friday is asking a question. Tap to answer.")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.POST_NOTIFICATIONS,
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_FCM + 2, builder.build())
+                }
+            } else {
+                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_FCM + 2, builder.build())
+            }
+        } catch (e: SecurityException) {
+            CrashLogger.log(context, "Failed to post ask_user_wakeup notification: Permission denied")
+        }
+    }
 }

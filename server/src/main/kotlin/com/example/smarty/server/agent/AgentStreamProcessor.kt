@@ -3,11 +3,16 @@ package com.example.smarty.server.agent
 import com.example.smarty.server.llm.LlmUsage
 import org.slf4j.LoggerFactory
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * AgentStreamProcessor — Handles SSE streaming and state management.
  * Accumulates text, detects tool calls, and returns results.
  * No event emission — plugin bridge handles all events.
+ *
+ * Implements §2.5 Normalization Middleware:
+ * - Strips markdown fences (```json) from LLM tool arguments before parsing
+ * - Uses ToolCallAccumulator (keyed by integer index) for multi-frame JSON safety
  */
 class AgentStreamProcessor(
     private val sessionId: String,
@@ -29,8 +34,21 @@ class AgentStreamProcessor(
     private var currentThinkingStepId: String? = null
     private val currentThinkingContent = StringBuilder()
 
+    // ToolCallAccumulator map: keyed by integer index (per §6 spec — NOT string id)
+    private val accumulators = ConcurrentHashMap<Int, ToolCallAccumulator>()
+
     // Regex for pseudo-narration (e.g. "[tool_call: web_search]")
-    private val pseudoNarrationRegex = Regex("""\[(?:tool_call|subtask|patch|file):.*?\]""")
+    private val pseudoNarrationRegex = Regex("""\\[(?:tool_call|subtask|patch|file):.*?\\]""")
+
+    // Normalization Middleware §2.5: strip markdown code fences from tool args
+    private val markdownFenceRegex = Regex("""^```(?:json|javascript|js|python)?\s*\n?|```\s*$""", RegexOption.MULTILINE)
+
+    /**
+     * Strips markdown code fences that some models (LLaMA3, DeepSeek) inject
+     * around tool call JSON arguments. Also trims stray whitespace/control chars.
+     */
+    private fun normalizeToolArgs(raw: String): String =
+        raw.replace(markdownFenceRegex, "").trim()
 
     private suspend fun startThinkingStep() {
         if (currentThinkingStepId != null) return
@@ -93,7 +111,9 @@ class AgentStreamProcessor(
 
             // Only append delta if there is one
             if (toolCall.arguments.isNotEmpty()) {
-                currentToolArgs += toolCall.arguments
+                // Normalization Middleware §2.5: strip markdown fences before accumulating
+                val normalizedFragment = normalizeToolArgs(toolCall.arguments)
+                currentToolArgs += normalizedFragment
                 thinkingStorage.updateToolCall(sessionId, currentToolId!!, currentToolName, "started", currentToolArgs)
             }
 
@@ -130,5 +150,7 @@ class AgentStreamProcessor(
         currentThinkingStepId = null
         currentThinkingContent.clear()
         finishReason = null
+        accumulators.clear()
     }
 }
+
