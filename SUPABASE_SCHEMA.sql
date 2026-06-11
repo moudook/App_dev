@@ -809,6 +809,7 @@ CREATE TABLE tool_sessions (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     tool_name VARCHAR(255) NOT NULL,
     status VARCHAR(50) DEFAULT 'WAITING',
+    expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

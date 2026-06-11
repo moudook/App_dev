@@ -1,0 +1,1 @@
+ALTER TABLE tool_sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
