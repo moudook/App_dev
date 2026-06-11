@@ -8,9 +8,9 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
- * OpenCode CLI is the ONLY LLM provider.
- * All model inference routes through the daemon HTTP API (port 4096).
- * NO API keys required.
+ * OpenCode Zen API is the ONLY LLM provider.
+ * All model inference routes through the Zen HTTP API natively.
+ * NO CLI daemon required.
  */
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
