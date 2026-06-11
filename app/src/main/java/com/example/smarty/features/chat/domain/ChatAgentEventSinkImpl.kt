@@ -105,14 +105,13 @@ class ChatAgentEventSinkImpl(
                     when (syncType) {
                         "note_created" -> {
                             val info = Json.decodeFromString<NoteInfo>(data)
-                            val category = null // TODO: resolve categoryId to Category object
                             val note =
                                 Note(
                                     id = info.id,
                                     title = info.title,
                                     content = info.content,
                                     categoryId = info.categoryId,
-                                    categoryName = null, // TODO: resolve categoryId to name
+                                    categoryName = info.categoryName,
                                     type = NoteType.BRAIN_DUMP,
                                     createdAt = info.createdAt,
                                     updatedAt = info.updatedAt,

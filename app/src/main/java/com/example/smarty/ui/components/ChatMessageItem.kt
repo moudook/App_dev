@@ -507,6 +507,8 @@ private fun MessageContent(
     onRegenerateMessage: (String) -> Unit,
     onApproval: (String, Boolean, String?) -> Unit,
 ) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
     Column(
         modifier =
             Modifier.padding(
@@ -712,7 +714,11 @@ private fun MessageContent(
                             citations = message.citations,
                             accentColor = accentColor,
                             onCitationClick = { url ->
-                                // TODO: open URL in browser
+                                try {
+                                    uriHandler.openUri(url)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("ChatMessageItem", "Failed to open citation URL: $url", e)
+                                }
                             },
                         )
                     }

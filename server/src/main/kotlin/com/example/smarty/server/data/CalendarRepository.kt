@@ -7,6 +7,11 @@ import org.slf4j.LoggerFactory
 import java.sql.ResultSet
 import java.util.UUID
 import javax.sql.DataSource
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 class CalendarRepository(
     private val dataSource: DataSource,
@@ -177,7 +182,14 @@ class CalendarRepository(
             endTime = rs.getTimestamp("end_time")?.time ?: rs.getTimestamp("start_time").time,
             description = rs.getString("description"),
             location = rs.getString("location"),
-            reminderMinutes = 15, // TODO: parse from reminders JSONB
+            reminderMinutes = try {
+                val remindersStr = rs.getString("reminders")
+                if (!remindersStr.isNullOrBlank() && remindersStr != "[]") {
+                    val arr = Json.parseToJsonElement(remindersStr).jsonArray
+                    val first = arr.firstOrNull()?.jsonObject
+                    first?.get("minutes")?.jsonPrimitive?.intOrNull ?: 15
+                } else 15
+            } catch (e: Exception) { 15 },
             linkedNoteId = rs.getObject("linked_note_id")?.toString(),
             googleEventId = rs.getString("google_event_id"),
             isEventPrivate = rs.getBoolean("is_event_private"),
