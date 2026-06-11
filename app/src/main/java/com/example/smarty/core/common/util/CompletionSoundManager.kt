@@ -208,9 +208,11 @@ class CompletionSoundManager private constructor(
             // Release any existing player
             releaseMediaPlayer()
 
-            mediaPlayer =
-                MediaPlayer().apply {
-                    setAudioAttributes(
+            val player = MediaPlayer()
+            mediaPlayer = player
+            
+            player.apply {
+                setAudioAttributes(
                         AudioAttributes
                             .Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -218,9 +220,17 @@ class CompletionSoundManager private constructor(
                             .build(),
                     )
 
-                    // Use Uri for raw resource (safer than AssetFileDescriptor)
-                    val uri = Uri.parse("android.resource://${context.packageName}/${R.raw.completion_sound}")
-                    setDataSource(context, uri)
+                    // Use AssetFileDescriptor for raw resource (safest approach)
+                    val afd = context.resources.openRawResourceFd(R.raw.completion_sound)
+                    if (afd != null) {
+                        setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                        afd.close()
+                    } else {
+                        Log.e(TAG, "Failed to open raw resource fd for completion_sound")
+                        playingState.set(false)
+                        releaseMediaPlayer()
+                        return
+                    }
 
                     setOnCompletionListener {
                         Log.d(TAG, "Completion sound finished")
