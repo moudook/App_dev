@@ -82,8 +82,8 @@ class AgentStreamProcessor(
 
         if (!chunk.content.isNullOrEmpty()) {
             // Strip think tags
-            val strippedContent = chunk.content.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "").trim()
-            val filteredContent = strippedContent.replace(pseudoNarrationRegex, "").trim()
+            val strippedContent = chunk.content.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
+            val filteredContent = strippedContent.replace(pseudoNarrationRegex, "")
             if (filteredContent.isNotEmpty()) {
                 if (isToolCallInProgress) finalizeCurrentTool("completed")
                 if (currentThinkingStepId != null) finalizeThinkingStep()

@@ -1030,7 +1030,9 @@ class RemoteAgentService(
         flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>,
     ): Boolean {
         Log.d(TAG, ">>> HANDLE_EVENT: ${event::class.simpleName}")
-        flowCollector.emit(event)
+        if (event !is AgentEvent.ReasoningDelta && event !is AgentEvent.ReasoningBlock) {
+            flowCollector.emit(event)
+        }
         return event is AgentEvent.Done || event is AgentEvent.Error
     }
 

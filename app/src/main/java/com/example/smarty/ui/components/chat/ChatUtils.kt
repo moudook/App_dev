@@ -30,5 +30,5 @@ fun cleanContent(raw: String): String {
     text = CleaningPatterns.partialFinal.replace(text, "")
     text = CleaningPatterns.partialThink.replace(text, "")
 
-    return text.trim()
+    return text
 }
