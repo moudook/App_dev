@@ -540,14 +540,35 @@ class RemoteAgentService(
      * Falls back to cached models if server call fails.
      */
     suspend fun getZenModels(refresh: Boolean = false): List<ModelInfo> {
-        return listOf(ModelInfo(id = "default", label = "Default Model", variants = emptyList()))
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+            val response = client.get("$baseUrl/api/v1/models") {
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                url { if (refresh) parameters.append("refresh", "true") }
+            }
+            if (response.status.isSuccess()) {
+                val state = response.body<ServerModelState>()
+                state.models.map {
+                    ModelInfo(id = it.id, label = it.label, variants = emptyList())
+                }.takeIf { it.isNotEmpty() } ?: getFallbackModels()
+            } else {
+                getFallbackModels()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch models", e)
+            getFallbackModels()
+        }
     }
+
+    private fun getFallbackModels(): List<ModelInfo> =
+        listOf(ModelInfo(id = "default", label = "Default Model", variants = emptyList()))
 
     /**
      * Legacy variant — returns plain (modelId, label) pairs for backward compat.
      */
     suspend fun getZenModelPairs(refresh: Boolean = false): List<Pair<String, String>> =
-        listOf("default" to "Default Model")
+        getZenModels(refresh).map { it.id to it.label }
 
     /**
      * Analyze content on the server.
@@ -1282,6 +1303,27 @@ data class ChatAttachment(
     val name: String,
     val mimeType: String? = null,
     val extractedText: String? = null, // Text extracted from the attachment
+)
+
+@Serializable
+data class SyncResponse(
+    val status: String,
+    val count: Int,
+    val message: String? = null,
+)
+
+@Serializable
+data class ServerModelState(
+    val defaultModel: String? = null,
+    val activeModel: String? = null,
+    val models: List<ServerModelInfo> = emptyList()
+)
+
+@Serializable
+data class ServerModelInfo(
+    val id: String,
+    val label: String,
+    val provider: String? = null
 )
 
 @Serializable
