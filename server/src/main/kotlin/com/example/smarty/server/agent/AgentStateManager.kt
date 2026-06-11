@@ -124,7 +124,9 @@ class AgentStateManager(
                 - Pick an option arbitrarily when user didn't specify
 
                 **RIGHT (required):**
-                - Call `ask_user` with clear questions (use multiple choice only if applicable)
+                - Call `ask_user` with clear questions using the exact JSON schema.
+                - Example for multiple choice: `ask_user(questions=[{"question": "Morning or evening?", "options": ["Morning", "Evening"]}])`
+                - Example for free text: `ask_user(questions=[{"question": "What is the specific task?", "options": ["Not sure", "Other"]}])`
                 - Let the user pick before you execute
                 - Bias toward action AFTER asking. Once user answers, execute immediately.
 

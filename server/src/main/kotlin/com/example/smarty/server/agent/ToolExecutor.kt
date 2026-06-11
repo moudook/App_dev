@@ -770,7 +770,14 @@ class ToolExecutor(
         if (args.questions != null && args.questions.isNotEmpty()) {
             return args.questions.mapNotNull { element ->
                 try {
-                    val qObj = element.jsonObject
+                    val qObj = try { element.jsonObject } catch (_: Exception) { null }
+                    if (qObj == null) {
+                        val str = try { element.jsonPrimitive.content } catch (_: Exception) { null }
+                        if (str != null && str.isNotBlank()) {
+                            return@mapNotNull AskUserQuestion(question = str, options = emptyList(), allowCustom = true, inputMode = "text")
+                        }
+                        return@mapNotNull null
+                    }
                     val questionText = qObj["question"]?.jsonPrimitive?.content ?: return@mapNotNull null
                     val optionsArr = qObj["options"]?.jsonArray ?: return@mapNotNull null
                     val options =
@@ -824,7 +831,12 @@ class ToolExecutor(
                         null
                     }
                 if (qObj == null) {
-                    return "ERROR: Question at index $i is not a valid JSON object. " +
+                    val str = try { element.jsonPrimitive.content } catch (_: Exception) { null }
+                    if (str != null) {
+                        if (str.isBlank()) return "ERROR: Question string at index $i is empty."
+                        continue
+                    }
+                    return "ERROR: Question at index $i is not a valid JSON object or string. " +
                         "Each item in 'questions' must be an object with 'question' (string) and 'options' (array of strings)."
                 }
                 val questionText =
