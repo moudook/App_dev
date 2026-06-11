@@ -292,6 +292,21 @@ class ServerAgent(
                     val finalThinkingForStep = ThinkingStorageManagerSingleton.instance.finalizeAndGetThinking(sessionId)
                     ThinkingStorageManagerSingleton.instance.clear(sessionId)
 
+                    val toolCallId = streamProcessor.currentToolId ?: "tool-${java.util.UUID.randomUUID()}"
+                    
+                    // Append the assistant's tool call to history so the Zen API knows what we're responding to
+                    messagesForAgent += LlmMessage(
+                        role = LlmMessage.Role.ASSISTANT,
+                        content = streamProcessor.currentContent,
+                        toolCalls = listOf(
+                            com.example.smarty.server.llm.LlmToolCall(
+                                id = toolCallId,
+                                functionName = toolName,
+                                arguments = toolArgs
+                            )
+                        )
+                    )
+
                     // ToolCall tracking — plugin bridge handles events
 
                     try {
@@ -303,8 +318,6 @@ class ServerAgent(
                                 metadata = mapOf("args" to toolArgs),
                             ),
                         )
-
-                        val toolCallId = "tool-${java.util.UUID.randomUUID()}"
 
                         val toolResult =
                             toolExecutor.executeTool(
@@ -338,6 +351,7 @@ class ServerAgent(
                                                 "Do NOT attempt to call this tool again with similar arguments. " +
                                                 "Inform the user and stop.",
                                         name = toolName,
+                                        toolCallId = toolCallId,
                                     )
                                 goalMemoryManager.addError(
                                     "Tool $toolName permanent failure: ${toolResult.take(200)}",
@@ -376,6 +390,7 @@ class ServerAgent(
                                 role = LlmMessage.Role.TOOL,
                                 content = "[Tool Result for $toolName]: $toolResult",
                                 name = toolName,
+                                toolCallId = toolCallId,
                             )
 
                         // §2.2 ask_user: ToolExecutor suspends the turn by returning this
@@ -409,6 +424,7 @@ class ServerAgent(
                                 role = LlmMessage.Role.TOOL,
                                 content = "[Tool Error for $toolName]: ${e.message}",
                                 name = toolName,
+                                toolCallId = toolCallId,
                             )
                         goalMemoryManager.addError("Tool $toolName exception: ${e.message?.take(200)}")
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_$toolName")
