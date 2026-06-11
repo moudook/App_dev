@@ -393,10 +393,9 @@ class OpencodeLlmProvider(
                                     }
                                     if (!content.isNullOrEmpty() || !reasoning.isNullOrEmpty() || toolCall != null) {
                                         directChunkCount++
-                                        val emitText = content ?: reasoning ?: ""
                                         emit(
                                             LlmChunk(
-                                                content = emitText,
+                                                content = content,
                                                 reasoning = reasoning,
                                                 toolCall = toolCall,
                                                 finishReason = finishReason,
