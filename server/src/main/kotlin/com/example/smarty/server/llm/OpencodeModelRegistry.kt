@@ -87,6 +87,7 @@ object OpencodeModelRegistry {
         if (discovered.any { it.id == normalized }) {
             return true
         }
+        if (isDirectZenMode) return true
         return normalized.startsWith("opencode/") && normalized.contains("free", ignoreCase = true)
     }
 
@@ -140,14 +141,15 @@ object OpencodeModelRegistry {
             if (data != null) {
                 for (item in data) {
                     val rawId = item.jsonObject["id"]?.jsonPrimitive?.content ?: continue
-                    if (rawId.endsWith("-free")) {
-                        val prefixedId = "opencode/$rawId"
-                        val labelName = rawId.replace("-free", "").replace("-", " ")
+                    if (isDirectZenMode || rawId.endsWith("-free")) {
+                        val prefixedId = if (rawId.startsWith("opencode/")) rawId else "opencode/$rawId"
+                        val labelName = rawId.removePrefix("opencode/").replace("-free", "").replace("-", " ")
                         val capitalized =
                             labelName.split(" ").joinToString(" ") {
                                 it.replaceFirstChar { c -> c.uppercase() }
                             }
-                        fetchedModels.add(OpencodeModelInfo(id = prefixedId, label = "$capitalized Free"))
+                        val finalLabel = if (rawId.endsWith("-free") && !capitalized.endsWith("Free")) "$capitalized Free" else capitalized
+                        fetchedModels.add(OpencodeModelInfo(id = prefixedId, label = finalLabel))
                     }
                 }
             }
