@@ -39,17 +39,15 @@ object OpencodeModelRegistry {
     /**
      * Fallback model ID patterns. We no longer use CLI discovery.
      */
-    val KNOWN_FREE_MODELS =
+    val KNOWN_MODELS =
         listOf(
-            OpencodeModelInfo(id = "opencode/gemini-2.5-pro-free", label = "Gemini 2.5 Pro Free"),
-            OpencodeModelInfo(id = "opencode/deepseek-r1-free", label = "DeepSeek R1 Free"),
-            OpencodeModelInfo(id = "opencode/claude-3.5-haiku-free", label = "Claude 3.5 Haiku Free"),
+            OpencodeModelInfo(id = "opencode/deepseek-v4-flash", label = "Deepseek V4 Flash"),
         )
 
     private const val DAEMON_DECIDE = "opencode/auto"
 
     val zenApiKey: String?
-        get() = System.getenv("OPENCODE_ZEN_API_KEY")?.takeIf { it.isNotBlank() }
+        get() = System.getenv("OPENCODE_API_KEY")?.takeIf { it.isNotBlank() }
 
     val zenBaseUrl: String
         get() =
@@ -59,25 +57,30 @@ object OpencodeModelRegistry {
     val isDirectZenMode: Boolean
         get() = !zenApiKey.isNullOrBlank()
 
-    private val discoveredModels = AtomicReference<List<OpencodeModelInfo>>(KNOWN_FREE_MODELS)
+    private val discoveredModels = AtomicReference<List<OpencodeModelInfo>>(KNOWN_MODELS)
     private val cachedState = AtomicReference<OpencodeModelState?>(null)
 
     val defaultModel: String
         get() = discoveredModels.get().firstOrNull()?.id ?: DAEMON_DECIDE
 
     fun discoverAtStartup(timeoutMs: Long = 15_000L) {
-        logger.info("[OpencodeModelRegistry] === Static Model Initializer ===")
-        val models = KNOWN_FREE_MODELS
-        discoveredModels.set(models)
-        val state =
-            OpencodeModelState(
-                defaultModel = models.firstOrNull()?.id ?: "",
-                activeModel = models.firstOrNull()?.id ?: "",
-                models = models,
-                source = "static",
-            )
-        cachedState.set(state)
-        logger.info("[OpencodeModelRegistry] Initialized static Zen models.")
+        logger.info("[OpencodeModelRegistry] === Dynamic Model Initializer ===")
+        try {
+            runBlockingRefresh()
+            logger.info("[OpencodeModelRegistry] Initialized Zen models dynamically from API.")
+        } catch (e: Exception) {
+            logger.error("[OpencodeModelRegistry] Failed to initialize dynamic models, using fallback.", e)
+            val models = KNOWN_MODELS
+            discoveredModels.set(models)
+            val state =
+                OpencodeModelState(
+                    defaultModel = models.firstOrNull()?.id ?: "",
+                    activeModel = models.firstOrNull()?.id ?: "",
+                    models = models,
+                    source = "static",
+                )
+            cachedState.set(state)
+        }
     }
 
     fun isAllowedFreeModel(model: String?): Boolean {
@@ -87,8 +90,7 @@ object OpencodeModelRegistry {
         if (discovered.any { it.id == normalized }) {
             return true
         }
-        if (isDirectZenMode) return true
-        return normalized.startsWith("opencode/") && normalized.contains("free", ignoreCase = true)
+        return true // Accept any requested model and let the API reject it if unauthorized
     }
 
     fun requireAllowedFreeModel(model: String?): String {
@@ -141,20 +143,21 @@ object OpencodeModelRegistry {
             if (data != null) {
                 for (item in data) {
                     val rawId = item.jsonObject["id"]?.jsonPrimitive?.content ?: continue
-                    if (isDirectZenMode || rawId.endsWith("-free")) {
-                        val prefixedId = if (rawId.startsWith("opencode/")) rawId else "opencode/$rawId"
-                        val labelName = rawId.removePrefix("opencode/").replace("-free", "").replace("-", " ")
-                        val capitalized =
-                            labelName.split(" ").joinToString(" ") {
-                                it.replaceFirstChar { c -> c.uppercase() }
-                            }
-                        val finalLabel = if (rawId.endsWith("-free") && !capitalized.endsWith("Free")) "$capitalized Free" else capitalized
-                        fetchedModels.add(OpencodeModelInfo(id = prefixedId, label = finalLabel))
-                    }
+                    val prefixedId = if (rawId.startsWith("opencode/")) rawId else "opencode/$rawId"
+                    val labelName = rawId.removePrefix("opencode/").replace("-", " ")
+                    val capitalized = labelName.split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                    fetchedModels.add(OpencodeModelInfo(id = prefixedId, label = capitalized))
                 }
             }
 
-            val models = if (fetchedModels.isNotEmpty()) fetchedModels else KNOWN_FREE_MODELS
+            val models =
+                if (fetchedModels.isNotEmpty()) {
+                    fetchedModels
+                } else {
+                    listOf(
+                        OpencodeModelInfo("opencode/deepseek-v4-flash", "Deepseek V4 Flash"),
+                    )
+                }
             discoveredModels.set(models)
 
             val newState =
@@ -169,7 +172,7 @@ object OpencodeModelRegistry {
             newState
         } catch (e: Exception) {
             logger.error("[OpencodeModelRegistry] Failed to fetch models from API: ${e.message}", e)
-            val models = KNOWN_FREE_MODELS
+            val models = listOf(OpencodeModelInfo("opencode/deepseek-v4-flash", "Deepseek V4 Flash"))
             discoveredModels.set(models)
             val newState =
                 OpencodeModelState(

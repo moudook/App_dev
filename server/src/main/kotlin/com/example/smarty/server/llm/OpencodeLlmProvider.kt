@@ -34,7 +34,7 @@ class OpencodeLlmProvider(
 
     companion object {
         private const val ZEN_BASE_URL = "https://opencode.ai/zen/v1"
-        private val ZEN_PUBLIC_KEY = System.getenv("OPENCODE_API_KEY") ?: "public"
+        private val ZEN_PUBLIC_KEY = System.getenv("OPENCODE_API_KEY") ?: ""
     }
 
     override suspend fun generate(
@@ -69,14 +69,7 @@ class OpencodeLlmProvider(
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
             val rawModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
-            val isDirectZenMode = System.getenv("OPENCODE_API_KEY")?.takeIf { it.isNotBlank() } != null
-            val cleanModelId =
-                if (isDirectZenMode && rawModelId.endsWith("-free")) {
-                    rawModelId.removeSuffix("-free")
-                } else {
-                    rawModelId
-                }
-            val modelId = if (cleanModelId == "auto") "deepseek-v4-flash" else cleanModelId
+            val modelId = if (rawModelId == "auto") "deepseek-v4-flash" else rawModelId
             val requestStartMs = System.currentTimeMillis()
 
             val toolsJson =
