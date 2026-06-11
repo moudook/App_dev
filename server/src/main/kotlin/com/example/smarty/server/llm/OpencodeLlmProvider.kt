@@ -68,8 +68,15 @@ class OpencodeLlmProvider(
             // Notify of session ID if it's new (using externalSessionId or just generating a random one)
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
-            val rawModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash-free"
-            val modelId = if (rawModelId == "auto") "deepseek-v4-flash-free" else rawModelId
+            val rawModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
+            val isDirectZenMode = System.getenv("OPENCODE_API_KEY")?.takeIf { it.isNotBlank() } != null
+            val cleanModelId =
+                if (isDirectZenMode && rawModelId.endsWith("-free")) {
+                    rawModelId.removeSuffix("-free")
+                } else {
+                    rawModelId
+                }
+            val modelId = if (cleanModelId == "auto") "deepseek-v4-flash" else cleanModelId
             val requestStartMs = System.currentTimeMillis()
 
             val toolsJson =

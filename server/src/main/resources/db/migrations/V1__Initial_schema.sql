@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at      TIMESTAMPTZ,
-    expires_at      TIMESTAMPTZ
+    opencode_session_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -548,3 +548,4 @@ BEGIN
         CREATE TRIGGER trg_tool_sessions_updated_at BEFORE UPDATE ON tool_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
     END IF;
 END $$;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS opencode_session_id TEXT;
