@@ -237,6 +237,7 @@ fun AssistOverlayScreen(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .imePadding()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },

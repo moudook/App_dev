@@ -3,7 +3,6 @@ package com.example.smarty.server.routes
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
 import com.example.smarty.server.agent.ServerAgent
-import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
@@ -15,10 +14,12 @@ import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.Stack
 import com.example.smarty.server.data.StackRepository
 import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.ToolSessionRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
+import com.example.smarty.server.services.FcmNotificationService
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
@@ -26,8 +27,8 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.contentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.application
@@ -35,10 +36,10 @@ import io.ktor.server.application.call
 import io.ktor.server.application.log
 import io.ktor.server.auth.authenticate
 import io.ktor.server.request.*
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.response.respondTextWriter
-import io.ktor.server.response.header
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -61,7 +62,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import com.example.smarty.server.data.ToolSessionRepository
 import java.util.UUID
 
 /*
@@ -121,7 +121,7 @@ private fun normalizeProviderSelection(provider: String?): String? {
 
 fun Application.configureChatRoutes(
     noteService: com.example.smarty.server.services.NoteService? = null,
-    fcmService: FcmNotificationService? = null
+    fcmService: FcmNotificationService? = null,
 ) {
     // JSON encoder for events
     val json =
@@ -175,22 +175,27 @@ fun Application.configureChatRoutes(
                 flush()
                 call.application.log.info("[SSE] Connection established for sessionId=$sessionId")
 
-                val eventFlow = com.example.smarty.server.agent.AgentRunManager.getEventFlow(sessionId)
-                
+                val eventFlow =
+                    com.example.smarty.server.agent.AgentRunManager
+                        .getEventFlow(sessionId)
+
                 try {
                     kotlinx.coroutines.coroutineScope {
                         // Keep-alive job
-                        val keepAliveJob = launch {
-                            while (isActive) {
-                                delay(15_000)
-                                write(":ping\n\n")
-                                flush()
+                        val keepAliveJob =
+                            launch {
+                                while (isActive) {
+                                    delay(15_000)
+                                    write(":ping\n\n")
+                                    flush()
+                                }
                             }
-                        }
 
                         // Collect events from the flow
                         eventFlow.collect { event ->
-                            val jsonStr = kotlinx.serialization.json.Json.encodeToString(AgentEvent.serializer(), event)
+                            val jsonStr =
+                                kotlinx.serialization.json.Json
+                                    .encodeToString(AgentEvent.serializer(), event)
                             write("data: $jsonStr\n\n")
                             flush()
                             call.application.log.debug("[SSE] Sent event ${event::class.simpleName} to $sessionId")
@@ -305,7 +310,7 @@ fun Application.configureChatRoutes(
                                 chatRepository.saveMessage(user.userId, sessionId, LlmMessage.Role.TOOL.name, content)
                                 com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
                                     event.commandId,
-                                    mapOf("result" to event.result, "status" to if (event.isError) "error" else "success")
+                                    mapOf("result" to event.result, "status" to if (event.isError) "error" else "success"),
                                 )
                             }
                             is ClientEvent.ActiveNotesResponse -> {
@@ -373,18 +378,20 @@ fun Application.configureChatRoutes(
                     call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
                     return@post
                 }
-                val body = try {
-                    call.receiveText()
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
-                    return@post
-                }
-                val bodyJson = try {
-                    Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
-                    return@post
-                }
+                val body =
+                    try {
+                        call.receiveText()
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
+                        return@post
+                    }
+                val bodyJson =
+                    try {
+                        Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
+                        return@post
+                    }
                 val toolCallId = bodyJson["toolCallId"]?.jsonPrimitive?.contentOrNull
                 val sessionId = bodyJson["sessionId"]?.jsonPrimitive?.contentOrNull
                 if (toolCallId.isNullOrBlank() || sessionId.isNullOrBlank()) {
@@ -403,7 +410,9 @@ fun Application.configureChatRoutes(
                     call.respond(HttpStatusCode.Gone, mapOf("error" to "Session expired or already answered"))
                     return@post
                 }
-                call.application.log.info("[Webhook] ask_user_response: answers received for toolCallId=$toolCallId, injecting TOOL message into session $sessionId")
+                call.application.log.info(
+                    "[Webhook] ask_user_response: answers received for toolCallId=$toolCallId, injecting TOOL message into session $sessionId",
+                )
                 // Inject TOOL role message into AgentRunManager event flow so the next sendQuery
                 // call picks it up from history. The actual resume happens when the client
                 // sends a new sendQuery with the full history including this TOOL message.
@@ -416,7 +425,7 @@ fun Application.configureChatRoutes(
                         toolId = toolCallId,
                         granted = true,
                         feedback = answersForLlm,
-                    )
+                    ),
                 )
                 call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId))
             }
@@ -435,18 +444,20 @@ fun Application.configureChatRoutes(
                     call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
                     return@post
                 }
-                val body = try {
-                    call.receiveText()
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
-                    return@post
-                }
-                val bodyJson = try {
-                    Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
-                    return@post
-                }
+                val body =
+                    try {
+                        call.receiveText()
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid body"))
+                        return@post
+                    }
+                val bodyJson =
+                    try {
+                        Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Malformed JSON"))
+                        return@post
+                    }
                 val commandId = bodyJson["commandId"]?.jsonPrimitive?.contentOrNull
                 val success = bodyJson["success"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                 val resultMessage = bodyJson["resultMessage"]?.jsonPrimitive?.contentOrNull ?: if (success) "Launched" else "Launch failed"
@@ -456,7 +467,7 @@ fun Application.configureChatRoutes(
                 }
                 com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
                     commandId,
-                    mapOf("result" to resultMessage, "status" to if (success) "success" else "error")
+                    mapOf("result" to resultMessage, "status" to if (success) "success" else "error"),
                 )
                 call.application.log.info("[Webhook] launch_result: commandId=$commandId success=$success message=$resultMessage")
                 call.respond(HttpStatusCode.OK, mapOf("status" to "acked", "commandId" to commandId))
@@ -541,37 +552,42 @@ fun Application.configureChatRoutes(
                                 }
 
                                 // Launch the run via decoupled manager
-                                val started = com.example.smarty.server.agent.AgentRunManager.startRun(
-                                    userId = userId,
-                                    sessionId = activeSessionId,
-                                    query = chatRequest.query,
-                                    llmProvider = llmProvider,
-                                    vectorStore = vectorStore,
-                                    summarizer = summarizer,
-                                    noteRepository = noteRepository,
-                                    timerRepository = timerRepository,
-                                    calendarRepository = calendarRepository,
-                                    noteService = noteService,
-                                    chatRepository = chatRepository,
-                                    modelOverride = chatRequest.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) },
-                                    clientTimezone = chatRequest.timezone,
-                                    clientTimeMillis = chatRequest.clientTime,
-                                    personality = chatRequest.personality,
-                                    history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
-                                    opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
-                                    messageId = chatRequest.messageId,
-                                    variantOverride = chatRequest.variant,
-                                    section = chatRequest.section,
-                                )
+                                val started =
+                                    com.example.smarty.server.agent.AgentRunManager.startRun(
+                                        userId = userId,
+                                        sessionId = activeSessionId,
+                                        query = chatRequest.query,
+                                        llmProvider = llmProvider,
+                                        vectorStore = vectorStore,
+                                        summarizer = summarizer,
+                                        noteRepository = noteRepository,
+                                        timerRepository = timerRepository,
+                                        calendarRepository = calendarRepository,
+                                        noteService = noteService,
+                                        chatRepository = chatRepository,
+                                        modelOverride = chatRequest.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) },
+                                        clientTimezone = chatRequest.timezone,
+                                        clientTimeMillis = chatRequest.clientTime,
+                                        personality = chatRequest.personality,
+                                        history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
+                                        opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
+                                        messageId = chatRequest.messageId,
+                                        variantOverride = chatRequest.variant,
+                                        section = chatRequest.section,
+                                    )
                                 if (!started) {
-                                    send(Frame.Text(json.encodeToString(
-                                        AgentEvent.Error(
-                                            eventId = UUID.randomUUID().toString(),
-                                            timestamp = System.currentTimeMillis(),
-                                            message = "Agent run already active with pending approval. Please respond to the pending request first.",
-                                            code = "PENDING_APPROVAL",
+                                    send(
+                                        Frame.Text(
+                                            json.encodeToString(
+                                                AgentEvent.Error(
+                                                    eventId = UUID.randomUUID().toString(),
+                                                    timestamp = System.currentTimeMillis(),
+                                                    message = "Agent run already active with pending approval. Please respond to the pending request first.",
+                                                    code = "PENDING_APPROVAL",
+                                                ),
+                                            ),
                                         ),
-                                    )))
+                                    )
                                 }
                             } catch (e: kotlinx.serialization.SerializationException) {
                                 // If not ChatRequest, try ClientEvent
@@ -588,7 +604,10 @@ fun Application.configureChatRoutes(
                                                 chatRepository.saveMessage(userId, sessionIdParam, LlmMessage.Role.TOOL.name, content)
                                                 com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(
                                                     clientEvent.commandId,
-                                                    mapOf("result" to clientEvent.result, "status" to if (clientEvent.isError) "error" else "success")
+                                                    mapOf(
+                                                        "result" to clientEvent.result,
+                                                        "status" to if (clientEvent.isError) "error" else "success",
+                                                    ),
                                                 )
                                             }
                                             is ClientEvent.SystemStatusResponse -> {
@@ -612,12 +631,14 @@ fun Application.configureChatRoutes(
                     // Don't cancel the run if there are pending approvals â€” the user
                     // can still respond via HTTP at /api/v1/chat/events/approval.
                     // AgentRunManager cleans up on natural completion or 2-hour timeout.
-                    if (!com.example.smarty.server.agent.ApprovalRegistry.hasPendingForSession(sessionIdParam)) {
+                    if (!com.example.smarty.server.agent.ApprovalRegistry
+                            .hasPendingForSession(sessionIdParam)
+                    ) {
                         com.example.smarty.server.agent.AgentRunManager
                             .cancelRun(sessionIdParam)
                     } else {
                         call.application.log.info(
-                            "WS disconnect: preserving agent run for session $sessionIdParam (pending approval)"
+                            "WS disconnect: preserving agent run for session $sessionIdParam (pending approval)",
                         )
                     }
                     // End the session tracker entry; the agent run remains active
@@ -1288,17 +1309,22 @@ fun Application.configureChatRoutes(
         // AUTH DISABLED.
         // ============================================================================
         get("/debug/model/info") {
-            val models = com.example.smarty.server.llm.OpencodeModelRegistry.discoveredFreeModels()
-            val currentDefault = com.example.smarty.server.llm.OpencodeModelRegistry.requireAllowedFreeModel(null)
+            val models =
+                com.example.smarty.server.llm.OpencodeModelRegistry
+                    .discoveredFreeModels()
+            val currentDefault =
+                com.example.smarty.server.llm.OpencodeModelRegistry
+                    .requireAllowedFreeModel(null)
             val directZenFlag = System.getenv("OPENCODE_USE_DIRECT_ZEN") ?: ""
-            val stateJson = buildString {
-                append("{\"defaultModel\":\"$currentDefault\",\"opencodeUseDirectZen\":\"$directZenFlag\",\"discovered\":[")
-                models.forEachIndexed { i, m ->
-                    if (i > 0) append(",")
-                    append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
+            val stateJson =
+                buildString {
+                    append("{\"defaultModel\":\"$currentDefault\",\"opencodeUseDirectZen\":\"$directZenFlag\",\"discovered\":[")
+                    models.forEachIndexed { i, m ->
+                        if (i > 0) append(",")
+                        append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
+                    }
+                    append("],\"count\":${models.size}}")
                 }
-                append("],\"count\":${models.size}}")
-            }
             call.respondText(stateJson, ContentType.Application.Json)
         }
 
@@ -1308,14 +1334,13 @@ fun Application.configureChatRoutes(
          * so the LlmProvider interface stays clean.
          */
         // @VisibleForTesting
-        fun convertTools(
-            tools: kotlinx.serialization.json.JsonArray?,
-        ): List<com.example.smarty.server.llm.ToolDefinition> {
+        fun convertTools(tools: kotlinx.serialization.json.JsonArray?): List<com.example.smarty.server.llm.ToolDefinition> {
             if (tools == null || tools.isEmpty()) return emptyList()
             return tools.mapNotNull { el ->
                 val obj = el as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                val fn = obj["function"]?.let { it as? kotlinx.serialization.json.JsonObject }
-                    ?: return@mapNotNull null
+                val fn =
+                    obj["function"]?.let { it as? kotlinx.serialization.json.JsonObject }
+                        ?: return@mapNotNull null
                 val name = fn["name"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: return@mapNotNull null
                 val description = fn["description"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: ""
                 val paramsJson = fn["parameters"]?.let { it as? kotlinx.serialization.json.JsonObject }
@@ -1330,7 +1355,9 @@ fun Application.configureChatRoutes(
                         )
                     } ?: emptyMap()
                 val required =
-                    paramsJson?.get("required")?.let { it as? kotlinx.serialization.json.JsonArray }
+                    paramsJson
+                        ?.get("required")
+                        ?.let { it as? kotlinx.serialization.json.JsonArray }
                         ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
                 com.example.smarty.server.llm.ToolDefinition(
                     name = name,
@@ -1354,18 +1381,21 @@ fun Application.configureChatRoutes(
         post("/debug/llm/stream") {
             val body = call.receiveText()
             val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
-            val messageText = parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: "Say hi in one short sentence."
+            val messageText =
+                parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: "Say hi in one short sentence."
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
             // Optional tools definition (OpenAI format). Pass straight through to the LLM.
             val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
             val toolChoiceOverride =
                 parsed?.get("tool_choice")?.let { (it as? JsonPrimitive)?.contentOrNull }
 
-            val provider = com.example.smarty.server.llm.LlmProviderFactory.create(
-                com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient(),
-            )
+            val provider =
+                com.example.smarty.server.llm.LlmProviderFactory.create(
+                    com.example.smarty.server.llm.LlmProviderFactory
+                        .getOrCreateHttpClient(),
+                )
 
             val started = System.currentTimeMillis()
             var firstChunkMs: Long? = null
@@ -1386,51 +1416,65 @@ fun Application.configureChatRoutes(
                     flush()
                     try {
                         kotlinx.coroutines.runBlocking {
-                            val job = kotlinx.coroutines.GlobalScope.launch {
-                                try {
-                                    provider.stream(
-                                        messages = listOf(
-                                            com.example.smarty.server.llm.LlmMessage(
-                                                role = com.example.smarty.server.llm.LlmMessage.Role.USER,
-                                                content = messageText,
-                                            ),
-                                        ),
-                                        tools = convertTools(toolsOverride),
-                                        model = modelOverride,
-                                    ).collect { chunk ->
-                                        val now = System.currentTimeMillis()
-                                        val dFromStart = now - started
-                                        val dFromLast = now - lastChunkMs
-                                        if (firstChunkMs == null) firstChunkMs = dFromStart
-                                        chunkCount++
-                                        val content = chunk.content
-                                        val rawJson = chunk.rawJson
-                                        val sseEvent = chunk.sseEvent
-                                        val safeText = JsonPrimitive(content ?: "").toString()
-                                        val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
-                                        val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
-                                        val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
-                                        chunkLog.append(line)
-                                        write(line)
-                                        flush()
-                                        if (!content.isNullOrBlank()) accumulated.append(content)
-                                        lastChunkMs = now
+                            val job =
+                                kotlinx.coroutines.GlobalScope.launch {
+                                    try {
+                                        provider
+                                            .stream(
+                                                messages =
+                                                    listOf(
+                                                        com.example.smarty.server.llm.LlmMessage(
+                                                            role = com.example.smarty.server.llm.LlmMessage.Role.USER,
+                                                            content = messageText,
+                                                        ),
+                                                    ),
+                                                tools = convertTools(toolsOverride),
+                                                model = modelOverride,
+                                            ).collect { chunk ->
+                                                val now = System.currentTimeMillis()
+                                                val dFromStart = now - started
+                                                val dFromLast = now - lastChunkMs
+                                                if (firstChunkMs == null) firstChunkMs = dFromStart
+                                                chunkCount++
+                                                val content = chunk.content
+                                                val rawJson = chunk.rawJson
+                                                val sseEvent = chunk.sseEvent
+                                                val safeText = JsonPrimitive(content ?: "").toString()
+                                                val safeRaw = JsonPrimitive((rawJson ?: "").take(500)).toString()
+                                                val safeEvent = JsonPrimitive(sseEvent ?: "").toString()
+                                                val line = "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast,\"fromStart\":$dFromStart,\"content\":$safeText,\"sseEvent\":$safeEvent,\"rawJson\":$safeRaw}\n\n"
+                                                chunkLog.append(line)
+                                                write(line)
+                                                flush()
+                                                if (!content.isNullOrBlank()) accumulated.append(content)
+                                                lastChunkMs = now
+                                            }
+                                    } catch (e: Exception) {
+                                        val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                        val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                        val safeStack = JsonPrimitive((e.stackTraceToString().take(800))).toString()
+                                        call.application.log.error(
+                                            "[debug/llm/stream] INTERNAL CATCH class={} msg={} stack={}",
+                                            e.javaClass.name,
+                                            e.message,
+                                            e.stackTraceToString().take(500),
+                                        )
+                                        write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
+                                        chunkLog.append(
+                                            "event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n",
+                                        )
                                     }
-                                } catch (e: Exception) {
-                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
-                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
-                                    val safeStack = JsonPrimitive((e.stackTraceToString().take(800))).toString()
-                                    call.application.log.error("[debug/llm/stream] INTERNAL CATCH class={} msg={} stack={}", e.javaClass.name, e.message, e.stackTraceToString().take(500))
-                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
-                                    chunkLog.append("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg,\"stack\":$safeStack}\n\n")
                                 }
-                            }
                             job.join()
                         }
                     } catch (e: Exception) {
                         val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
                         val safeClass = JsonPrimitive(e.javaClass.name).toString()
-                        call.application.log.error("[debug/llm/stream] runBlocking/launch outer CATCH class={} msg={}", e.javaClass.name, e.message)
+                        call.application.log.error(
+                            "[debug/llm/stream] runBlocking/launch outer CATCH class={} msg={}",
+                            e.javaClass.name,
+                            e.message,
+                        )
                         write("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
                         chunkLog.append("event: outerError\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
                     }
@@ -1464,25 +1508,30 @@ fun Application.configureChatRoutes(
         get("/debug/daemon/event") {
             val started = System.currentTimeMillis()
             try {
-                val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+                val client =
+                    com.example.smarty.server.llm.LlmProviderFactory
+                        .getOrCreateHttpClient()
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
-                    client.prepareGet("http://127.0.0.1:4096/event") {
-                        header("Accept", "text/event-stream")
-                    }.execute { response ->
-                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
-                        flush()
-                        val channel = response.bodyAsChannel()
-                        var chunkN = 0
-                        while (!channel.isClosedForRead) {
-                            val line = channel.readLine() ?: break
-                            chunkN++
-                            val safeLine = JsonPrimitive(line.take(300)).toString()
-                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                    client
+                        .prepareGet("http://127.0.0.1:4096/event") {
+                            header("Accept", "text/event-stream")
+                        }.execute { response ->
+                            write(
+                                "event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n",
+                            )
                             flush()
-                            if (chunkN > 100) break
+                            val channel = response.bodyAsChannel()
+                            var chunkN = 0
+                            while (!channel.isClosedForRead) {
+                                val line = channel.readLine() ?: break
+                                chunkN++
+                                val safeLine = JsonPrimitive(line.take(300)).toString()
+                                write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                                flush()
+                                if (chunkN > 100) break
+                            }
+                            write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
                         }
-                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
-                    }
                 }
             } catch (e: Exception) {
                 call.respond(
@@ -1508,22 +1557,26 @@ fun Application.configureChatRoutes(
         post("/chat/query/stream") {
             val body = call.receiveText()
             val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
-            val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: ""
-            val hasExplicitHistory = parsed?.get("history") is kotlinx.serialization.json.JsonArray
-                || parsed?.get("messages") is kotlinx.serialization.json.JsonArray
+            val messageText =
+                parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: ""
+            val hasExplicitHistory =
+                parsed?.get("history") is kotlinx.serialization.json.JsonArray ||
+                    parsed?.get("messages") is kotlinx.serialization.json.JsonArray
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val toolsOverride = parsed?.get("tools") as? kotlinx.serialization.json.JsonArray
-            val historyJson = parsed?.get("history") as? kotlinx.serialization.json.JsonArray
-                ?: parsed?.get("messages") as? kotlinx.serialization.json.JsonArray
+            val historyJson =
+                parsed?.get("history") as? kotlinx.serialization.json.JsonArray
+                    ?: parsed?.get("messages") as? kotlinx.serialization.json.JsonArray
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
             val systemOverride = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
-            val streamProvider = LlmProviderFactory.create(
-                LlmProviderFactory.getOrCreateHttpClient(),
-            )
+            val streamProvider =
+                LlmProviderFactory.create(
+                    LlmProviderFactory.getOrCreateHttpClient(),
+                )
 
             val started = System.currentTimeMillis()
             var firstChunkMs: Long? = null
@@ -1555,8 +1608,9 @@ fun Application.configureChatRoutes(
                                 com.example.smarty.server.llm.LlmToolCall(
                                     id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "",
                                     functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
-                                    arguments = fn?.get("arguments")?.jsonPrimitive?.contentOrNull
-                                        ?: fn?.get("arguments")?.toString() ?: "",
+                                    arguments =
+                                        fn?.get("arguments")?.jsonPrimitive?.contentOrNull
+                                            ?: fn?.get("arguments")?.toString() ?: "",
                                 )
                             }
                         } else {
@@ -1604,51 +1658,53 @@ fun Application.configureChatRoutes(
                     flush()
                     try {
                         kotlinx.coroutines.runBlocking {
-                            val job = kotlinx.coroutines.GlobalScope.launch {
-                                try {
-                                    streamProvider.stream(
-                                        messages = messages,
-                                        tools = convertTools(toolsOverride),
-                                        model = safeModelOverride,
-                                    ).collect { chunk ->
-                                        val now = System.currentTimeMillis()
-                                        val dFromStart = now - started
-                                        val dFromLast = now - lastChunkMs
-                                        if (firstChunkMs == null) firstChunkMs = dFromStart
-                                        chunkCount++
-                                        val safeText = JsonPrimitive(chunk.content ?: "").toString()
-                                        val safeReasoning = JsonPrimitive(chunk.reasoning ?: "").toString()
-                                        val safeRaw = JsonPrimitive((chunk.rawJson ?: "").take(500)).toString()
-                                        val safeEvent = JsonPrimitive(chunk.sseEvent ?: "").toString()
-                                        val safeFinish = JsonPrimitive(chunk.finishReason ?: "").toString()
-                                        val toolJson =
-                                            if (chunk.toolCall != null) {
-                                                buildJsonObject {
-                                                    put("id", JsonPrimitive(chunk.toolCall.id))
-                                                    put("functionName", JsonPrimitive(chunk.toolCall.functionName))
-                                                    put("arguments", JsonPrimitive(chunk.toolCall.arguments))
-                                                }.toString()
-                                            } else {
-                                                "null"
+                            val job =
+                                kotlinx.coroutines.GlobalScope.launch {
+                                    try {
+                                        streamProvider
+                                            .stream(
+                                                messages = messages,
+                                                tools = convertTools(toolsOverride),
+                                                model = safeModelOverride,
+                                            ).collect { chunk ->
+                                                val now = System.currentTimeMillis()
+                                                val dFromStart = now - started
+                                                val dFromLast = now - lastChunkMs
+                                                if (firstChunkMs == null) firstChunkMs = dFromStart
+                                                chunkCount++
+                                                val safeText = JsonPrimitive(chunk.content ?: "").toString()
+                                                val safeReasoning = JsonPrimitive(chunk.reasoning ?: "").toString()
+                                                val safeRaw = JsonPrimitive((chunk.rawJson ?: "").take(500)).toString()
+                                                val safeEvent = JsonPrimitive(chunk.sseEvent ?: "").toString()
+                                                val safeFinish = JsonPrimitive(chunk.finishReason ?: "").toString()
+                                                val toolJson =
+                                                    if (chunk.toolCall != null) {
+                                                        buildJsonObject {
+                                                            put("id", JsonPrimitive(chunk.toolCall.id))
+                                                            put("functionName", JsonPrimitive(chunk.toolCall.functionName))
+                                                            put("arguments", JsonPrimitive(chunk.toolCall.arguments))
+                                                        }.toString()
+                                                    } else {
+                                                        "null"
+                                                    }
+                                                write(
+                                                    "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast," +
+                                                        "\"fromStart\":$dFromStart,\"content\":$safeText," +
+                                                        "\"reasoning\":$safeReasoning,\"sseEvent\":$safeEvent," +
+                                                        "\"finishReason\":$safeFinish,\"toolCall\":$toolJson," +
+                                                        "\"rawJson\":$safeRaw}\n\n",
+                                                )
+                                                flush()
+                                                if (!chunk.content.isNullOrEmpty()) accumulated.append(chunk.content)
+                                                lastChunkMs = now
                                             }
-                                        write(
-                                            "data: {\"chunk\":$chunkCount,\"+ms\":$dFromLast," +
-                                                "\"fromStart\":$dFromStart,\"content\":$safeText," +
-                                                "\"reasoning\":$safeReasoning,\"sseEvent\":$safeEvent," +
-                                                "\"finishReason\":$safeFinish,\"toolCall\":$toolJson," +
-                                                "\"rawJson\":$safeRaw}\n\n",
-                                        )
+                                    } catch (e: Exception) {
+                                        val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
+                                        val safeClass = JsonPrimitive(e.javaClass.name).toString()
+                                        write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
                                         flush()
-                                        if (!chunk.content.isNullOrEmpty()) accumulated.append(chunk.content)
-                                        lastChunkMs = now
                                     }
-                                } catch (e: Exception) {
-                                    val safeMsg = JsonPrimitive(e.message ?: e.javaClass.simpleName).toString()
-                                    val safeClass = JsonPrimitive(e.javaClass.name).toString()
-                                    write("event: error\ndata: {\"class\":$safeClass,\"message\":$safeMsg}\n\n")
-                                    flush()
                                 }
-                            }
                             job.join()
                         }
                     } catch (e: Exception) {
@@ -1667,7 +1723,11 @@ fun Application.configureChatRoutes(
                     flush()
                 }
             } catch (e: Exception) {
-                call.application.log.error("[/chat/query/stream] respondTextWriter OUTER CATCH class={} msg={}", e.javaClass.name, e.message)
+                call.application.log.error(
+                    "[/chat/query/stream] respondTextWriter OUTER CATCH class={} msg={}",
+                    e.javaClass.name,
+                    e.message,
+                )
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     mapOf(
@@ -1695,16 +1755,19 @@ fun Application.configureChatRoutes(
         post("/chat/query/agent/stream") {
             val body = call.receiveText()
             val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
-            val messageText = parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                ?: "What is 2+2? Briefly."
+            val messageText =
+                parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: "What is 2+2? Briefly."
             val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
 
             val safeModel = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
 
             val streamProvider = LlmProviderFactory.create(LlmProviderFactory.getOrCreateHttpClient())
-            val streamSummarizer = com.example.smarty.server.data.ConversationSummarizer(streamProvider)
+            val streamSummarizer =
+                com.example.smarty.server.data
+                    .ConversationSummarizer(streamProvider)
             val activeSessionId = sessionId ?: UUID.randomUUID().toString()
 
             val started = System.currentTimeMillis()
@@ -1723,29 +1786,31 @@ fun Application.configureChatRoutes(
                 call.application.log.info(withTs)
             }
 
-            val eventChannel = kotlinx.coroutines.channels.Channel<com.example.smarty.protocol.AgentEvent>(
-                kotlinx.coroutines.channels.Channel.UNLIMITED,
-            )
-            val agent = ServerAgent(
-                llmProvider = streamProvider,
-                vectorStore = vectorStore,
-                summarizer = streamSummarizer,
-                noteRepository = noteRepository,
-                timerRepository = timerRepository,
-                calendarRepository = calendarRepository,
-                eventEmitter = { event ->
-                    eventChannel.trySend(event)
-                    val now = System.currentTimeMillis()
-                    val dMs = now - lastEventMsBoxed[0]
-                    lastEventMsBoxed[0] = now
-                    totalEventsBoxed[0]++
-                    val typeName = event::class.simpleName ?: "unknown"
-                    log("EVENT $typeName +${dMs}ms")
-                },
-                userId = "agent-stream-test",
-                noteService = noteService,
-                capabilities = null,
-            )
+            val eventChannel =
+                kotlinx.coroutines.channels.Channel<com.example.smarty.protocol.AgentEvent>(
+                    kotlinx.coroutines.channels.Channel.UNLIMITED,
+                )
+            val agent =
+                ServerAgent(
+                    llmProvider = streamProvider,
+                    vectorStore = vectorStore,
+                    summarizer = streamSummarizer,
+                    noteRepository = noteRepository,
+                    timerRepository = timerRepository,
+                    calendarRepository = calendarRepository,
+                    eventEmitter = { event ->
+                        eventChannel.trySend(event)
+                        val now = System.currentTimeMillis()
+                        val dMs = now - lastEventMsBoxed[0]
+                        lastEventMsBoxed[0] = now
+                        totalEventsBoxed[0]++
+                        val typeName = event::class.simpleName ?: "unknown"
+                        log("EVENT $typeName +${dMs}ms")
+                    },
+                    userId = "agent-stream-test",
+                    noteService = noteService,
+                    capabilities = null,
+                )
 
             var responseText = ""
             var runError: Throwable? = null
@@ -1756,36 +1821,39 @@ fun Application.configureChatRoutes(
                     log("AGENT START model=$safeModel query=\"$messageText\"")
 
                     // Drain events from the channel and emit them as SSE.
-                    val drainJob = kotlinx.coroutines.GlobalScope.launch {
-                        try {
-                            for (event in eventChannel) {
-                                val now2 = System.currentTimeMillis()
-                                val dMs2 = now2 - lastEventMsBoxed[0]
-                                val typeName = event::class.simpleName ?: "unknown"
-                                val eventJson = runCatching {
-                                    Json.encodeToString(
-                                        com.example.smarty.protocol.AgentEvent.serializer(),
-                                        event,
+                    val drainJob =
+                        kotlinx.coroutines.GlobalScope.launch {
+                            try {
+                                for (event in eventChannel) {
+                                    val now2 = System.currentTimeMillis()
+                                    val dMs2 = now2 - lastEventMsBoxed[0]
+                                    val typeName = event::class.simpleName ?: "unknown"
+                                    val eventJson =
+                                        runCatching {
+                                            Json.encodeToString(
+                                                com.example.smarty.protocol.AgentEvent
+                                                    .serializer(),
+                                                event,
+                                            )
+                                        }.getOrElse { "{\"err\":${JsonPrimitive(it.message ?: it.javaClass.simpleName)}}" }
+                                    write(
+                                        "data: {\"type\":\"event\",\"eventType\":${JsonPrimitive(typeName)}," +
+                                            "\"+ms\":$dMs2,\"event\":$eventJson}\n\n",
                                     )
-                                }.getOrElse { "{\"err\":${JsonPrimitive(it.message ?: it.javaClass.simpleName).toString()}}" }
-                                write(
-                                    "data: {\"type\":\"event\",\"eventType\":${JsonPrimitive(typeName).toString()}," +
-                                        "\"+ms\":$dMs2,\"event\":$eventJson}\n\n",
-                                )
-                                flush()
+                                    flush()
+                                }
+                            } catch (_: Exception) {
                             }
-                        } catch (_: Exception) {
                         }
-                    }
 
                     try {
-                        responseText = agent.run(
-                            query = messageText,
-                            sessionId = activeSessionId,
-                            history = emptyList(),
-                            modelOverride = safeModel,
-
-                        )
+                        responseText =
+                            agent.run(
+                                query = messageText,
+                                sessionId = activeSessionId,
+                                history = emptyList(),
+                                modelOverride = safeModel,
+                            )
                     } catch (e: Throwable) {
                         runError = e
                         log("AGENT RUN FAILED class=${e.javaClass.name} msg=${e.message}")
@@ -1798,15 +1866,15 @@ fun Application.configureChatRoutes(
                     log("AGENT END totalEvents=${totalEventsBoxed[0]} totalMs=$finalTotalMs responseLen=${responseText.length}")
                     if (runError != null) {
                         write(
-                            "data: {\"type\":\"error\",\"class\":${JsonPrimitive(runError!!.javaClass.name).toString()}," +
-                                "\"message\":${JsonPrimitive(runError!!.message ?: "").toString()}}\n\n",
+                            "data: {\"type\":\"error\",\"class\":${JsonPrimitive(runError!!.javaClass.name)}," +
+                                "\"message\":${JsonPrimitive(runError!!.message ?: "")}}\n\n",
                         )
                         flush()
                     }
                     write(
                         "event: done\ndata: {\"type\":\"done\"," +
-                            "\"response\":${JsonPrimitive(responseText).toString()}," +
-                            "\"sessionId\":${JsonPrimitive(activeSessionId).toString()}," +
+                            "\"response\":${JsonPrimitive(responseText)}," +
+                            "\"sessionId\":${JsonPrimitive(activeSessionId)}," +
                             "\"totalEvents\":${totalEventsBoxed[0]}," +
                             "\"totalMs\":$finalTotalMs}\n\n",
                     )
@@ -1849,14 +1917,18 @@ fun Application.configureChatRoutes(
         // vs "is the LLM call itself slow".
         // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
         get("/debug/daemon/auth") {
-            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            val client =
+                com.example.smarty.server.llm.LlmProviderFactory
+                    .getOrCreateHttpClient()
             try {
                 call.respondTextWriter(contentType = ContentType.Application.Json) {
-                    val authText = runCatching {
-                        client.prepareGet("http://127.0.0.1:4096/auth") {
-                            header("Accept", "application/json")
-                        }.execute { it.bodyAsText() }
-                    }.getOrElse { "ERR: ${it.message}" }
+                    val authText =
+                        runCatching {
+                            client
+                                .prepareGet("http://127.0.0.1:4096/auth") {
+                                    header("Accept", "application/json")
+                                }.execute { it.bodyAsText() }
+                        }.getOrElse { "ERR: ${it.message}" }
                     write("event: auth\ndata: ")
                     write(JsonPrimitive(authText.take(5000)).toString())
                     write("\n\n")
@@ -1874,14 +1946,18 @@ fun Application.configureChatRoutes(
         // vs "is the LLM call itself slow".
         // GET /debug/daemon/chat?message=hi&model=opencode/big-pickle
         get("/debug/daemon/config") {
-            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            val client =
+                com.example.smarty.server.llm.LlmProviderFactory
+                    .getOrCreateHttpClient()
             try {
                 call.respondTextWriter(contentType = ContentType.Application.Json) {
                     write(":ping\n\n")
                     flush()
-                    val cfgText = client.prepareGet("http://127.0.0.1:4096/config") {
-                        header("Accept", "application/json")
-                    }.execute { it.bodyAsText() }
+                    val cfgText =
+                        client
+                            .prepareGet("http://127.0.0.1:4096/config") {
+                                header("Accept", "application/json")
+                            }.execute { it.bodyAsText() }
                     write("event: config\ndata: ")
                     write(JsonPrimitive(cfgText.take(20000)).toString())
                     write("\n\n")
@@ -1903,20 +1979,29 @@ fun Application.configureChatRoutes(
             val messageText = call.request.queryParameters["message"] ?: "hi"
             val modelOverride = call.request.queryParameters["model"] ?: "opencode/big-pickle"
 
-            val client = com.example.smarty.server.llm.LlmProviderFactory.getOrCreateHttpClient()
+            val client =
+                com.example.smarty.server.llm.LlmProviderFactory
+                    .getOrCreateHttpClient()
             val started = System.currentTimeMillis()
             try {
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
                     write(":ping\n\n")
                     flush()
                     // Create session
-                    val sessionText = client.preparePost("http://127.0.0.1:4096/session") {
-                        contentType(ContentType.Application.Json)
-                        setBody("{}")
-                    }.execute { it.bodyAsText() }
-                    val sessionId = runCatching {
-                        Json.parseToJsonElement(sessionText).jsonObject["id"]?.jsonPrimitive?.content
-                    }.getOrNull()
+                    val sessionText =
+                        client
+                            .preparePost("http://127.0.0.1:4096/session") {
+                                contentType(ContentType.Application.Json)
+                                setBody("{}")
+                            }.execute { it.bodyAsText() }
+                    val sessionId =
+                        runCatching {
+                            Json
+                                .parseToJsonElement(sessionText)
+                                .jsonObject["id"]
+                                ?.jsonPrimitive
+                                ?.content
+                        }.getOrNull()
                     write("event: session\ndata: {\"id\":\"$sessionId\"}\n\n")
                     flush()
 
@@ -1924,39 +2009,43 @@ fun Application.configureChatRoutes(
                     val providerId = if (slashIdx > 0) modelOverride.substring(0, slashIdx) else "opencode"
                     val modelId = if (slashIdx > 0) modelOverride.substring(slashIdx + 1) else modelOverride
 
-                    val body2 = buildString {
-                        append("{\"parts\":[{\"type\":\"text\",\"text\":")
-                        append(JsonPrimitive(messageText).toString())
-                        append("}],\"model\":{\"providerID\":")
-                        append(JsonPrimitive(providerId).toString())
-                        append(",\"modelID\":")
-                        append(JsonPrimitive(modelId).toString())
-                        append("}}")
-                    }
+                    val body2 =
+                        buildString {
+                            append("{\"parts\":[{\"type\":\"text\",\"text\":")
+                            append(JsonPrimitive(messageText).toString())
+                            append("}],\"model\":{\"providerID\":")
+                            append(JsonPrimitive(providerId).toString())
+                            append(",\"modelID\":")
+                            append(JsonPrimitive(modelId).toString())
+                            append("}}")
+                        }
                     write("event: requestBody\ndata: ")
                     write(JsonPrimitive(body2).toString())
                     write("\n\n")
                     flush()
 
-                    client.preparePost("http://127.0.0.1:4096/session/$sessionId/message") {
-                        contentType(ContentType.Application.Json)
-                        header("Accept", "text/event-stream")
-                        setBody(body2)
-                    }.execute { response ->
-                        write("event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n")
-                        flush()
-                        val channel = response.bodyAsChannel()
-                        var chunkN = 0
-                        while (!channel.isClosedForRead) {
-                            val line = channel.readLine() ?: break
-                            chunkN++
-                            val safeLine = JsonPrimitive(line.take(2000)).toString()
-                            write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                    client
+                        .preparePost("http://127.0.0.1:4096/session/$sessionId/message") {
+                            contentType(ContentType.Application.Json)
+                            header("Accept", "text/event-stream")
+                            setBody(body2)
+                        }.execute { response ->
+                            write(
+                                "event: open\ndata: {\"status\":${response.status.value}, \"headersAfterMs\":${System.currentTimeMillis() - started}}\n\n",
+                            )
                             flush()
-                            if (chunkN > 200) break
+                            val channel = response.bodyAsChannel()
+                            var chunkN = 0
+                            while (!channel.isClosedForRead) {
+                                val line = channel.readLine() ?: break
+                                chunkN++
+                                val safeLine = JsonPrimitive(line.take(2000)).toString()
+                                write("data: {\"daemonChunk\":$chunkN, \"line\":$safeLine}\n\n")
+                                flush()
+                                if (chunkN > 200) break
+                            }
+                            write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
                         }
-                        write("event: done\ndata: {\"chunksRead\":$chunkN, \"totalMs\":${System.currentTimeMillis() - started}}\n\n")
-                    }
                 }
             } catch (e: Exception) {
                 call.application.log.error("[debug/daemon/chat] error class={} msg={}", e.javaClass.name, e.message)
@@ -1993,19 +2082,28 @@ private fun defaultMockToolImpls(): Map<String, (Map<String, kotlinx.serializati
             """{"product":${a * b}}"""
         },
         "get_current_time" to { _ ->
-            val now = java.time.Instant.now().toString()
-            """{"utc":${JsonPrimitive(now).toString()}}"""
+            val now =
+                java.time.Instant
+                    .now()
+                    .toString()
+            """{"utc":${JsonPrimitive(now)}}"""
         },
         "get_weather" to { args ->
             val city = (args["city"] as? JsonPrimitive)?.contentOrNull ?: "unknown"
-            """{"city":${JsonPrimitive(city).toString()},"temp_c":22,"condition":"sunny"}"""
+            """{"city":${JsonPrimitive(city)},"temp_c":22,"condition":"sunny"}"""
         },
         "fibonacci" to { args ->
             val n = (args["n"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+
             fun fib(k: Int): Long {
                 if (k < 2) return k.toLong()
-                var a = 0L; var b = 1L
-                repeat(k - 1) { val c = a + b; a = b; b = c }
+                var a = 0L
+                var b = 1L
+                repeat(k - 1) {
+                    val c = a + b
+                    a = b
+                    b = c
+                }
                 return b
             }
             """{"n":$n,"value":${fib(n)}}"""

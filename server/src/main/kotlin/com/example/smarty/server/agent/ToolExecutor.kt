@@ -1,5 +1,7 @@
 package com.example.smarty.server.agent
 
+import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.AskUserQuestion
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.GeneratedImageRepository
@@ -10,23 +12,21 @@ import com.example.smarty.server.data.ToolSessionPayload
 import com.example.smarty.server.data.ToolSessionRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.tools.KreaImageTool
+import kotlinx.coroutines.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import com.example.smarty.protocol.AgentEvent
-import com.example.smarty.protocol.AskUserQuestion
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-import kotlinx.coroutines.*
 
 /**
 // === PERMISSION ENGINE: Tools that require user approval ===
@@ -199,9 +199,14 @@ class ToolExecutor(
             "launch_ui" -> executeNavigateTool(args.copy(action = "go", screen = args.intent ?: args.screen), sessionId)
             "share_content" -> executeNavigateTool(args.copy(action = "share"), sessionId)
             "web_search" -> {
-                val queries = args.queries?.joinToString(", ") {
-                    try { it.jsonPrimitive.content } catch (_: Exception) { it.toString() }
-                } ?: args.query ?: return "No search query provided"
+                val queries =
+                    args.queries?.joinToString(", ") {
+                        try {
+                            it.jsonPrimitive.content
+                        } catch (_: Exception) {
+                            it.toString()
+                        }
+                    } ?: args.query ?: return "No search query provided"
                 "[WEB_SEARCH_STUB] Queries: $queries. (Live Tavily integration pending)"
             }
             "code_interpreter" -> {
@@ -289,7 +294,6 @@ class ToolExecutor(
                             com.example.smarty.server.factory.SupabaseClientFactory
                                 .getImageBucketName(),
                     )
-
             } catch (e: Exception) {
                 logger.warn("Supabase upload failed, will use Krea URL: ${e.message}")
             }
@@ -361,7 +365,8 @@ class ToolExecutor(
                 "manage_notes", "update_user_profile", "manage_calendar",
                 "set_timer_alarm", "launch_ui", "share_content",
                 "web_search", "code_interpreter", "scratchpad",
-                "search_past_chats" -> name
+                "search_past_chats",
+                -> name
                 else -> name
             }
     }
@@ -593,11 +598,16 @@ class ToolExecutor(
     ): String {
         // Issue #16: Real device dispatch via DeviceResponseRegistry + WebSocket
         val commandId = "devcmd-${java.util.UUID.randomUUID()}"
-        val deferred = com.example.smarty.server.agent.DeviceResponseRegistry.createPendingRequest(commandId, sessionId)
+        val deferred =
+            com.example.smarty.server.agent.DeviceResponseRegistry
+                .createPendingRequest(commandId, sessionId)
 
         val deviceCommand =
             com.example.smarty.protocol.AgentEvent.DeviceCommand(
-                eventId = java.util.UUID.randomUUID().toString(),
+                eventId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
                 timestamp = System.currentTimeMillis(),
                 sessionId = sessionId,
                 commandId = commandId,
@@ -615,7 +625,8 @@ class ToolExecutor(
             try {
                 kotlinx.coroutines.withTimeout(15_000) { deferred.await() }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                com.example.smarty.server.agent.DeviceResponseRegistry.resolveRequest(commandId, emptyMap())
+                com.example.smarty.server.agent.DeviceResponseRegistry
+                    .resolveRequest(commandId, emptyMap())
                 return "Device command timed out after 15s. Make sure your device is connected."
             }
 
@@ -652,8 +663,8 @@ class ToolExecutor(
                 timestamp = System.currentTimeMillis(),
                 action = "guided_breathing",
                 sessionId = sessionId,
-                commandId = UUID.randomUUID().toString()
-            )
+                commandId = UUID.randomUUID().toString(),
+            ),
         )
         return "Starting guided breathing session."
     }
@@ -677,7 +688,7 @@ class ToolExecutor(
     ): String {
         logger.info(
             "[ToolExecutor] ask_user called (DB-backed): questions=${args.questions?.size}, " +
-            "question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}"
+                "question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}",
         )
 
         // 1. Validate — return error to LLM if malformed so it can self-correct
@@ -696,13 +707,14 @@ class ToolExecutor(
         // 3. Persist session to DB (no coroutine blocked — turn-taking via webhook)
         val ttlMinutes = 30
         val expiresAt = Instant.now().plus(ttlMinutes.toLong(), ChronoUnit.MINUTES)
-        val payload = ToolSessionPayload(
-            chatSessionId = sessionId,
-            toolCallId = toolCallId,
-            userId = userId,
-            questionSummaries = questions.map { q -> q.question.take(120) },
-            expiresAt = expiresAt.toString(),
-        )
+        val payload =
+            ToolSessionPayload(
+                chatSessionId = sessionId,
+                toolCallId = toolCallId,
+                userId = userId,
+                questionSummaries = questions.map { q -> q.question.take(120) },
+                expiresAt = expiresAt.toString(),
+            )
         val dbId = toolSessionRepository?.createPendingSession(payload)
         if (toolSessionRepository != null && dbId == null) {
             logger.error("[ToolExecutor] ask_user DB persistence failed for toolCallId=$toolCallId")
@@ -720,7 +732,7 @@ class ToolExecutor(
                 questions = questions,
                 toolCallId = toolCallId,
                 ttlMinutes = ttlMinutes,
-            )
+            ),
         )
 
         // 5. Trigger FCM Wakeup (Push Notification)
@@ -731,11 +743,12 @@ class ToolExecutor(
                 kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     service.sendDataMessage(
                         userId = userId,
-                        data = mapOf(
-                            "type" to "ask_user_wakeup",
-                            "sessionId" to sessionId,
-                            "toolCallId" to toolCallId
-                        )
+                        data =
+                            mapOf(
+                                "type" to "ask_user_wakeup",
+                                "sessionId" to sessionId,
+                                "toolCallId" to toolCallId,
+                            ),
                     )
                 }
             } catch (e: Exception) {
@@ -760,21 +773,38 @@ class ToolExecutor(
                     val qObj = element.jsonObject
                     val questionText = qObj["question"]?.jsonPrimitive?.content ?: return@mapNotNull null
                     val optionsArr = qObj["options"]?.jsonArray ?: return@mapNotNull null
-                    val options = optionsArr.mapNotNull { opt ->
-                        try { opt.jsonPrimitive.content } catch (_: Exception) { null }
-                    }
+                    val options =
+                        optionsArr.mapNotNull { opt ->
+                            try {
+                                opt.jsonPrimitive.content
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
                     val allowCustom = qObj["allow_custom"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                     val inputMode = qObj["input_mode"]?.jsonPrimitive?.content ?: "choice"
                     AskUserQuestion(question = questionText, options = options, allowCustom = allowCustom, inputMode = inputMode)
-                } catch (_: Exception) { null }
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
         // Legacy single-question format
         val questionText = args.question ?: return emptyList()
-        val optionsArr = try { args.options?.jsonArray } catch (_: Exception) { null }
-        val options = optionsArr?.mapNotNull { opt ->
-            try { opt.jsonPrimitive.content } catch (_: Exception) { null }
-        } ?: emptyList()
+        val optionsArr =
+            try {
+                args.options?.jsonArray
+            } catch (_: Exception) {
+                null
+            }
+        val options =
+            optionsArr?.mapNotNull { opt ->
+                try {
+                    opt.jsonPrimitive.content
+                } catch (_: Exception) {
+                    null
+                }
+            } ?: emptyList()
         return listOf(AskUserQuestion(question = questionText, options = options))
     }
 
@@ -893,7 +923,10 @@ class ToolExecutor(
             "Note retrieval not available"
         }
 
-    private suspend fun executeNavigateTool(args: UnifiedToolArgs, sessionId: String): String =
+    private suspend fun executeNavigateTool(
+        args: UnifiedToolArgs,
+        sessionId: String,
+    ): String =
         when (args.action) {
             "go" -> {
                 logger.info("Device navigate requested: ${args.screen}")
@@ -904,8 +937,8 @@ class ToolExecutor(
                         action = "navigate",
                         info = args.screen,
                         sessionId = sessionId,
-                        commandId = UUID.randomUUID().toString()
-                    )
+                        commandId = UUID.randomUUID().toString(),
+                    ),
                 )
                 "Going to ${args.screen}."
             }
@@ -918,8 +951,8 @@ class ToolExecutor(
                         action = "navigate",
                         actionType = "share",
                         sessionId = sessionId,
-                        commandId = UUID.randomUUID().toString()
-                    )
+                        commandId = UUID.randomUUID().toString(),
+                    ),
                 )
                 "Sharing content."
             }
@@ -1302,6 +1335,4 @@ class ToolExecutor(
             }
             else -> "Execute '$canonicalToolName'?"
         }
-
-
 }

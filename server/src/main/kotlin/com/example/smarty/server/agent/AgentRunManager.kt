@@ -52,7 +52,10 @@ object AgentRunManager {
                 )
             }.asSharedFlow()
 
-    fun setMessageId(sessionId: String, messageId: String) {
+    fun setMessageId(
+        sessionId: String,
+        messageId: String,
+    ) {
         if (messageId.isBlank()) return
         messageIdMap[sessionId] = messageId
     }
@@ -193,24 +196,53 @@ object AgentRunManager {
                         val eid = UUID.randomUUID().toString()
                         // Only emit if bridge hasn't already sent the text (bridge sets sentTextForSession flag)
                         if (!hasBridgeSentText(sessionId)) {
-                            logger.info("AgentRunManager: bridge did not emit text, emitting directly for session=$sessionId len=${assistantResponse.length}")
-                            emitEvent(sessionId, AgentEvent.TextDelta(
-                                eventId = UUID.randomUUID().toString(), timestamp = ts, text = assistantResponse))
-                            emitEvent(sessionId, AgentEvent.ResponseBlock(
-                                eventId = UUID.randomUUID().toString(), timestamp = ts,
-                                sessionId = sessionId, messageId = messageIdMap[sessionId] ?: eid,
-                                content = assistantResponse))
+                            logger.info(
+                                "AgentRunManager: bridge did not emit text, emitting directly for session=$sessionId len=${assistantResponse.length}",
+                            )
+                            emitEvent(
+                                sessionId,
+                                AgentEvent.TextDelta(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = ts,
+                                    text = assistantResponse,
+                                ),
+                            )
+                            emitEvent(
+                                sessionId,
+                                AgentEvent.ResponseBlock(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = ts,
+                                    sessionId = sessionId,
+                                    messageId = messageIdMap[sessionId] ?: eid,
+                                    content = assistantResponse,
+                                ),
+                            )
                         }
                     }
-
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     val msg = "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId"
                     logger.error(msg, e)
-                    emitEvent(sessionId, AgentEvent.Error(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis(), message = msg, code = "TIMEOUT"))
+                    emitEvent(
+                        sessionId,
+                        AgentEvent.Error(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = msg,
+                            code = "TIMEOUT",
+                        ),
+                    )
                 } catch (e: Exception) {
                     val msg = "Agent execution failed for session: $sessionId: ${e.message}"
                     logger.error(msg, e)
-                    emitEvent(sessionId, AgentEvent.Error(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis(), message = msg, code = "INTERNAL_ERROR"))
+                    emitEvent(
+                        sessionId,
+                        AgentEvent.Error(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = msg,
+                            code = "INTERNAL_ERROR",
+                        ),
+                    )
                 } finally {
                     // Critical Fix: Small delay before terminal Done to allow late-arriving
                     // bridge snapshots (ResponseBlock) to reach the SharedFlow.

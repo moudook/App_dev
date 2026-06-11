@@ -1,7 +1,6 @@
 package com.example.smarty.server
 
 import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatFolderRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.ChatRepository
@@ -14,7 +13,6 @@ import com.example.smarty.server.data.ReasoningTraceRepository
 import com.example.smarty.server.data.SearchHistoryRepository
 import com.example.smarty.server.data.TagRepository
 import com.example.smarty.server.data.TaskRepository
-import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.UserDeviceRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
@@ -85,7 +83,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
-
 /*
  * Friday Server - Cloud-hosted agent runtime.
  *
@@ -120,9 +117,11 @@ fun main() {
 fun Application.module() {
     // Discover OpenCode free models in background (daemon thread, non-blocking).
     // The registry falls back to "opencode/auto" (daemon decides) until discovery completes.
-    val modelDiscoveryThread = Thread {
-        com.example.smarty.server.llm.OpencodeModelRegistry.discoverAtStartup()
-    }
+    val modelDiscoveryThread =
+        Thread {
+            com.example.smarty.server.llm.OpencodeModelRegistry
+                .discoverAtStartup()
+        }
     modelDiscoveryThread.isDaemon = true
     modelDiscoveryThread.name = "model-discovery"
     modelDiscoveryThread.start()
@@ -396,8 +395,6 @@ fun Application.module() {
         configurePermissionRoutes()
         log.info("PermissionRoutes configured")
 
-
-
         // Image serving endpoint (Firebase-authenticated)
         routing {
             authenticate("firebase") {
@@ -480,8 +477,6 @@ fun Application.module() {
         configureOptimizedSyncRoutes()
         configureModelRoutes()
         configureChatRoutes(null)
-
-
     }
 
     // Configure Monitoring
@@ -496,17 +491,25 @@ fun Application.module() {
     // Runs every 5 minutes as a non-blocking background coroutine.
     GlobalScope.launch(Dispatchers.IO) {
         val reaperLog = org.slf4j.LoggerFactory.getLogger("RegistryReaper")
-        val toolSessionRepo = DatabaseFactory.getDataSource()?.let {
-            com.example.smarty.server.data.ToolSessionRepository(it)
-        }
+        val toolSessionRepo =
+            DatabaseFactory.getDataSource()?.let {
+                com.example.smarty.server.data
+                    .ToolSessionRepository(it)
+            }
         while (true) {
             delay(5 * 60_000L) // 5 minutes
             try {
-                val approvalEvicted = com.example.smarty.server.agent.ApprovalRegistry.evictExpired()
-                val deviceEvicted = com.example.smarty.server.agent.DeviceResponseRegistry.evictExpired()
+                val approvalEvicted =
+                    com.example.smarty.server.agent.ApprovalRegistry
+                        .evictExpired()
+                val deviceEvicted =
+                    com.example.smarty.server.agent.DeviceResponseRegistry
+                        .evictExpired()
                 val toolSessionsSwept = toolSessionRepo?.sweepExpired() ?: 0
                 if (approvalEvicted > 0 || deviceEvicted > 0 || toolSessionsSwept > 0) {
-                    reaperLog.info("[RegistryReaper] Evicted $approvalEvicted approval(s), $deviceEvicted device request(s), $toolSessionsSwept tool_session(s). Remaining: ${com.example.smarty.server.agent.ApprovalRegistry.size()} approvals, ${com.example.smarty.server.agent.DeviceResponseRegistry.size()} device requests.")
+                    reaperLog.info(
+                        "[RegistryReaper] Evicted $approvalEvicted approval(s), $deviceEvicted device request(s), $toolSessionsSwept tool_session(s). Remaining: ${com.example.smarty.server.agent.ApprovalRegistry.size()} approvals, ${com.example.smarty.server.agent.DeviceResponseRegistry.size()} device requests.",
+                    )
                 }
             } catch (e: Exception) {
                 reaperLog.error("[RegistryReaper] Error during eviction pass: ${e.message}", e)
@@ -514,11 +517,8 @@ fun Application.module() {
         }
     }
 
-
-
     // Configure Enhanced Health Check
     configureEnhancedHealthCheck()
-
 
     // Log startup
     log.info("Friday Server started on port $serverPort")

@@ -47,8 +47,7 @@ class AgentStreamProcessor(
      * Strips markdown code fences that some models (LLaMA3, DeepSeek) inject
      * around tool call JSON arguments. Also trims stray whitespace/control chars.
      */
-    private fun normalizeToolArgs(raw: String): String =
-        raw.replace(markdownFenceRegex, "").trim()
+    private fun normalizeToolArgs(raw: String): String = raw.replace(markdownFenceRegex, "").trim()
 
     private suspend fun startThinkingStep() {
         if (currentThinkingStepId != null) return
@@ -153,4 +152,3 @@ class AgentStreamProcessor(
         accumulators.clear()
     }
 }
-

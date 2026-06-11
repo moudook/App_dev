@@ -14,11 +14,8 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.readRemaining
 import kotlinx.io.readByteArray
-import kotlinx.serialization.Serializable
 
-fun Application.configureFileRoutes(
-    groqWhisperService: GroqWhisperService,
-) {
+fun Application.configureFileRoutes(groqWhisperService: GroqWhisperService) {
     routing {
         authenticate("firebase") {
             route("/files") {

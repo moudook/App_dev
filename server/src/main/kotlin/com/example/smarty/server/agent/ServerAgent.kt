@@ -155,7 +155,15 @@ class ServerAgent(
         val toolExamples = toolExampleStore.getRelevantExamples(query)
 
         // 2. Build Messages
-        val systemMessage = stateManager.buildSystemMessage(query, clientTimezone, clientTimeMillis, personality, goalMemoryManager, section)
+        val systemMessage =
+            stateManager.buildSystemMessage(
+                query,
+                clientTimezone,
+                clientTimeMillis,
+                personality,
+                goalMemoryManager,
+                section,
+            )
 
         val userMessage =
             if (query.isNotBlank()) {
@@ -207,11 +215,13 @@ class ServerAgent(
                     ).collect { chunk ->
                         streamProcessor.processChunk(chunk)
                         if (chunk.content != null) {
-                            eventEmitter(AgentEvent.TextDelta(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                text = chunk.content,
-                            ))
+                            eventEmitter(
+                                AgentEvent.TextDelta(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = System.currentTimeMillis(),
+                                    text = chunk.content,
+                                ),
+                            )
                             // Mark that the LLM provider (not the plugin bridge) emitted text first.
                             // This prevents the plugin bridge from emitting duplicate text deltas
                             // and also prevents the AgentRunManager fallback from re-emitting the
@@ -219,11 +229,13 @@ class ServerAgent(
                             AgentRunManager.markBridgeSentText(sessionId)
                         }
                         if (chunk.reasoning != null) {
-                            eventEmitter(AgentEvent.ReasoningDelta(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                text = chunk.reasoning,
-                            ))
+                            eventEmitter(
+                                AgentEvent.ReasoningDelta(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = System.currentTimeMillis(),
+                                    text = chunk.reasoning,
+                                ),
+                            )
                         }
                     }
 
@@ -502,5 +514,4 @@ class ServerAgent(
         goalMemoryManager.markFailed("Max iterations reached: $MAX_ITERATIONS")
         return "I completed several actions but reached my iteration limit."
     }
-
 }

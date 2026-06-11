@@ -47,13 +47,9 @@ class ToolCallAccumulator {
         }
     }
 
-    fun isComplete(): Boolean {
-        return buffer.isNotEmpty() && braceCount == 0 && !inString
-    }
+    fun isComplete(): Boolean = buffer.isNotEmpty() && braceCount == 0 && !inString
 
-    fun getAccumulatedContent(): String {
-        return buffer.toString()
-    }
+    fun getAccumulatedContent(): String = buffer.toString()
 
     fun reset() {
         buffer.clear()

@@ -87,7 +87,6 @@ class AssistActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             @Suppress("DEPRECATION")
             statusBarColor = Color.TRANSPARENT
             @Suppress("DEPRECATION")

@@ -188,8 +188,7 @@ object ApprovalRegistry {
         }
     }
 
-    fun hasPendingForSession(sessionId: String): Boolean =
-        pendingApprovals.values.any { it.sessionId == sessionId }
+    fun hasPendingForSession(sessionId: String): Boolean = pendingApprovals.values.any { it.sessionId == sessionId }
 
     /**
      * Evicts entries older than [ttlMs]. Returns count evicted.
@@ -227,4 +226,3 @@ object ApprovalRegistry {
 
     fun size(): Int = pendingApprovals.size
 }
-

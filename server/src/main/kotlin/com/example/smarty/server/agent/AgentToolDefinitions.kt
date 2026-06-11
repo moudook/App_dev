@@ -19,7 +19,12 @@ object AgentToolDefinitions {
                 ToolParameters(
                     properties =
                         mapOf(
-                            "action" to ToolProperty("string", "Action: save|find|update|delete", enum = listOf("save", "find", "update", "delete")),
+                            "action" to
+                                ToolProperty(
+                                    "string",
+                                    "Action: save|find|update|delete",
+                                    enum = listOf("save", "find", "update", "delete"),
+                                ),
                             "title" to ToolProperty("string", "Title for saved content (save action)"),
                             "content" to ToolProperty("string", "Content to save (save action)"),
                             "category" to ToolProperty("string", "Optional category (save/find actions)"),
@@ -41,7 +46,12 @@ object AgentToolDefinitions {
                         mapOf(
                             "action" to ToolProperty("string", "Action: remember|forget|list", enum = listOf("remember", "forget", "list")),
                             "fact" to ToolProperty("string", "Fact to remember (remember action)"),
-                            "category" to ToolProperty("string", "Category: emotional|routine|preference|skill|relationship", enum = listOf("emotional", "routine", "preference", "skill", "relationship")),
+                            "category" to
+                                ToolProperty(
+                                    "string",
+                                    "Category: emotional|routine|preference|skill|relationship",
+                                    enum = listOf("emotional", "routine", "preference", "skill", "relationship"),
+                                ),
                             "emotional_significance" to ToolProperty("number", "1-5 scale of emotional significance"),
                         ),
                     required = listOf("action"),
@@ -58,7 +68,8 @@ object AgentToolDefinitions {
                         mapOf(
                             "action" to ToolProperty("string", "Action: add|list|remove", enum = listOf("add", "list", "remove")),
                             "title" to ToolProperty("string", "Event name (add action)"),
-                            "when" to ToolProperty("string", "When: natural language like 'tomorrow 2pm', 'Friday', 'Dec 25' (add/list action)"),
+                            "when" to
+                                ToolProperty("string", "When: natural language like 'tomorrow 2pm', 'Friday', 'Dec 25' (add/list action)"),
                             "duration" to ToolProperty("string", "Duration: '1 hour', '30 min' (add action)"),
                             "description" to ToolProperty("string", "Extra details (add action)"),
                             "id" to ToolProperty("string", "Event ID (remove action)"),
@@ -93,7 +104,11 @@ object AgentToolDefinitions {
                 ToolParameters(
                     properties =
                         mapOf(
-                            "intent" to ToolProperty("string", "Intent name: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe or an external app name like 'spotify'"),
+                            "intent" to
+                                ToolProperty(
+                                    "string",
+                                    "Intent name: home|calendar|stacks|archive|settings|guided_breathing|chess|coin_toss|tic_tac_toe or an external app name like 'spotify'",
+                                ),
                         ),
                     required = listOf("intent"),
                 ),

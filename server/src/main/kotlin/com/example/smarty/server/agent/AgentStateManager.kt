@@ -144,32 +144,40 @@ class AgentStateManager(
                 - **Language mirroring.** Always reply in the same language the user writes in.
                 - **You are a good catcher.** You easily pick up on the subtle sarcasm and jokes slipped between the texts. Acknowledge the humor with a brief compliment before getting back to work.
 
-                                ${if (personality != null && personality.uppercase() in listOf("PROFESSIONAL", "CASUAL", "CONCISE", "DETAILED")) {
-                                    val personalityOverride =
-                                        when (personality.uppercase()) {
-                                            "PROFESSIONAL" ->
-                                                "- Be formal, precise, and business-like. Use complete sentences. Avoid slang.\n" +
-                                                    "- Keep responses concise but thorough.\n" +
-                                                    "- Focus on accuracy and completeness."
-                                            "CASUAL" ->
-                                                "- Be relaxed, friendly, and conversational. Use contractions.\n" +
-                                                    "- Be playful and approachable.\n" +
-                                                    "- Keep it light but helpful."
-                                            "CONCISE" ->
-                                                "- Be extremely brief. Maximum 2-3 sentences unless the user asks for detail.\n" +
-                                                    "- No filler words. Get to the point.\n" +
-                                                    "- Prioritize action items and key information."
-                                            "DETAILED" ->
-                                                "- Be thorough and comprehensive.\n" +
-                                                    "- Explain your reasoning.\n" +
-                                                    "- Include examples, context, and caveats.\n" +
-                                                    "- Don't rush — give full answers."
-                                            else -> ""
-                                        }
-                                    "\n\n<personality_override>\n${personalityOverride}\n</personality_override>"
-                                } else {
-                                    ""
-                                }}
+                                ${if (personality != null &&
+                    personality.uppercase() in
+                    listOf(
+                        "PROFESSIONAL",
+                        "CASUAL",
+                        "CONCISE",
+                        "DETAILED",
+                    )
+                ) {
+                    val personalityOverride =
+                        when (personality.uppercase()) {
+                            "PROFESSIONAL" ->
+                                "- Be formal, precise, and business-like. Use complete sentences. Avoid slang.\n" +
+                                    "- Keep responses concise but thorough.\n" +
+                                    "- Focus on accuracy and completeness."
+                            "CASUAL" ->
+                                "- Be relaxed, friendly, and conversational. Use contractions.\n" +
+                                    "- Be playful and approachable.\n" +
+                                    "- Keep it light but helpful."
+                            "CONCISE" ->
+                                "- Be extremely brief. Maximum 2-3 sentences unless the user asks for detail.\n" +
+                                    "- No filler words. Get to the point.\n" +
+                                    "- Prioritize action items and key information."
+                            "DETAILED" ->
+                                "- Be thorough and comprehensive.\n" +
+                                    "- Explain your reasoning.\n" +
+                                    "- Include examples, context, and caveats.\n" +
+                                    "- Don't rush — give full answers."
+                            else -> ""
+                        }
+                    "\n\n<personality_override>\n${personalityOverride}\n</personality_override>"
+                } else {
+                    ""
+                }}
                                 </personality>
 
                 ---
@@ -462,9 +470,9 @@ class AgentStateManager(
                 ${notesSectionModePrompt(section)}
 
                 <context>
-                User Profile: ${userProfile}
-                Query Context: ${queryContext}
-                ${timeContext}
+                User Profile: $userProfile
+                Query Context: $queryContext
+                $timeContext
                 ${goalMemoryManager.getProgressContext()}
                 </context>
 
