@@ -455,7 +455,7 @@ class ServerAgent(
                     val reason = streamProcessor.finishReason
                     if (reason == "error") {
                         logger.warn("LLM stream ended with error for user: $userId")
-                        return ""
+                        return "I'm sorry, my language model encountered an error generating the response."
                     }
                     logger.warn("LLM stream completed with no content for user: $userId")
                     tracer.trace(
@@ -465,7 +465,7 @@ class ServerAgent(
                             content = "Empty response from LLM",
                         ),
                     )
-                    return ""
+                    return "I processed your request, but wasn't able to generate a text response."
                 }
             } catch (e: Exception) {
                 // Don't swallow CancellationException (including TimeoutCancellationException) —
@@ -506,7 +506,7 @@ class ServerAgent(
                         else -> "I encountered an unexpected issue while processing your request. Please try again."
                     }
                 goalMemoryManager.markFailed(errorMsg)
-                return ""
+                return userMsg
             }
         }
 
