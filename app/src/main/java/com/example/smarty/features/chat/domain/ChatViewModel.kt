@@ -166,7 +166,7 @@ class ChatViewModel(
         Log.d(TAG, "ViewModel init: initialModel=$initialModel, cachedModels=${initialCachedModels.size}")
 
         // Always start with correct fallback models (synced with server discoveries)
-        val fallbackModels = com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
+        val fallbackModels = com.example.smarty.features.chat.domain.state.DEFAULT_MODELS
 
         _uiState.update {
             it.copy(
@@ -767,7 +767,7 @@ class ChatViewModel(
                     }
                 } else {
                     _uiState.update {
-                        it.copy(availableModels = com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS)
+                        it.copy(availableModels = com.example.smarty.features.chat.domain.state.DEFAULT_MODELS)
                     }
                 }
             } catch (e: Exception) {
@@ -791,12 +791,12 @@ class ChatViewModel(
                     _uiState.update { it.copy(availableModels = pairs, modelVariantMap = variantMap) }
                     pairs
                 } else {
-                    com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
+                    com.example.smarty.features.chat.domain.state.DEFAULT_MODELS
                 }
             models
         } catch (e: Exception) {
             Log.e(TAG, "Failed to refresh models: ${e.message}")
-            com.example.smarty.features.chat.domain.state.DEFAULT_FREE_MODELS
+            com.example.smarty.features.chat.domain.state.DEFAULT_MODELS
         }
 }
 
