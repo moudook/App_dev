@@ -10,9 +10,13 @@ import com.example.smarty.core.domain.model.MentionState
  *
  * Current default fallback: deepseek-v4-flash
  */
-val DEFAULT_MODELS = listOf(
-    "opencode/deepseek-v4-flash" to "Deepseek V4 Flash",
+val DEFAULT_FREE_MODELS = listOf(
+    "opencode/north-mini-code-free" to "North Mini Code Free",
+    "opencode/mimo-v2.5-free" to "Mimo V2.5 Free",
+    "opencode/deepseek-v4-flash-free" to "DeepSeek V4 Flash Free"
 )
+
+val DEFAULT_MODELS = DEFAULT_FREE_MODELS
 
 /**
  * UI-specific state for chat screen.

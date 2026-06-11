@@ -68,9 +68,17 @@ class OpencodeLlmProvider(
             // Notify of session ID if it's new (using externalSessionId or just generating a random one)
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
-            val rawModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash"
-            val cleanModelId = rawModelId.removeSuffix("-free").removeSuffix("-Free")
-            val modelId = if (cleanModelId == "auto") "deepseek-v4-flash" else cleanModelId
+            val requestedModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash-free"
+            
+            val freeModels = listOf("north-mini-code-free", "mimo-v2.5-free", "deepseek-v4-flash-free")
+            val modelsToTry = if (requestedModelId == "auto" || requestedModelId == "default") {
+                freeModels
+            } else if (requestedModelId in freeModels) {
+                listOf(requestedModelId) + freeModels.filter { it != requestedModelId }
+            } else {
+                listOf(requestedModelId)
+            }
+            
             val requestStartMs = System.currentTimeMillis()
 
             val toolsJson =
@@ -176,22 +184,26 @@ class OpencodeLlmProvider(
                     }
                 }
 
-            val body =
-                buildJsonObject {
-                    put("model", JsonPrimitive(modelId))
-                    put("stream", JsonPrimitive(true))
-                    put("messages", kotlinx.serialization.json.JsonArray(chatMessages))
-                    if (toolsJson.isNotEmpty()) {
-                        put("tools", toolsJson)
+            var lastError: Exception? = null
+
+            for (currentModelId in modelsToTry) {
+                val body =
+                    buildJsonObject {
+                        put("model", JsonPrimitive(currentModelId))
+                        put("stream", JsonPrimitive(true))
+                        put("messages", kotlinx.serialization.json.JsonArray(chatMessages))
+                        if (toolsJson.isNotEmpty()) {
+                            put("tools", toolsJson)
+                        }
                     }
-                }
 
-            logger.info(
-                "[OpenCode.DirectZen][inference=$inferenceId] POST $ZEN_BASE_URL/chat/completions model=$modelId tools=${tools.size}",
-            )
+                logger.info(
+                    "[OpenCode.DirectZen][inference=$inferenceId] POST $ZEN_BASE_URL/chat/completions model=$currentModelId tools=${tools.size}",
+                )
 
-            try {
-                client
+                var success = false
+                try {
+                    client
                     .preparePost("$ZEN_BASE_URL/chat/completions") {
                         contentType(ContentType.Application.Json)
                         header("Authorization", "Bearer $ZEN_PUBLIC_KEY")
@@ -398,9 +410,19 @@ class OpencodeLlmProvider(
                         logger.info(
                             "[OpenCode.DirectZen.StreamDiag][inference=$inferenceId] STREAM_COMPLETE totalMs=$totalMs chunks=$directChunkCount",
                         )
+                        success = true
                     }
-            } catch (e: Exception) {
-                logger.error("[OpenCode.DirectZen][inference=$inferenceId] failed class={} msg={}", e.javaClass.name, e.message)
+                    if (success) {
+                        return@flow
+                    }
+                } catch (e: Exception) {
+                    lastError = e
+                    logger.warn("[OpenCode.DirectZen][inference=$inferenceId] failed model=$currentModelId class=${e.javaClass.name} msg=${e.message}, trying next if available")
+                    continue
+                }
+            }
+            if (lastError != null) {
+                logger.error("[OpenCode.DirectZen][inference=$inferenceId] all models failed", lastError)
                 emit(LlmChunk(content = null, finishReason = "error", sseEvent = "error"))
             }
         }.flowOn(Dispatchers.IO)
