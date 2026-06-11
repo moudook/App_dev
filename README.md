@@ -56,7 +56,7 @@ Smarty utilizes a thin-client Android architecture connected to a scalable Ktor 
 
 ## OpenCode CLI & Local AI Integration
 - **Direct Integration**: Seamless connection to `opencode serve` for robust LLM inference.
-- **Model Support**: Native support for on-device and free-tier models (e.g., `opencode/deepseek-v4-flash-free`, `opencode/nemotron-3-super-free`).
+- **Model Support**: **Currently, ONLY the `north-mini` model is working.** Other models are currently not working due to API constraints.
 - **Dynamic Discovery**: Automatic model discovery and fallback management directly from the Android UI.
 
 ## Agentic Timeline UI & Transparent Reasoning
