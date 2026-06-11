@@ -33,7 +33,7 @@ class OpencodeLlmProvider(
     private val logger = LoggerFactory.getLogger(OpencodeLlmProvider::class.java)
 
     companion object {
-        private const val ZEN_BASE_URL = "https://opencode.ai/zen/v1"
+        private const val ZEN_BASE_URL = "http://127.0.0.1:4096/v1"
         private const val ZEN_PUBLIC_KEY = "public"
     }
 
