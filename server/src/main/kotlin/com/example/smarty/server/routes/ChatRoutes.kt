@@ -486,7 +486,7 @@ fun Application.configureChatRoutes(
                 }
 
                 val userId = user.userId
-                val sessionIdParam = java.util.UUID.randomUUID().toString()
+                val sessionIdParam = call.request.queryParameters["sessionId"] ?: java.util.UUID.randomUUID().toString()
 
                 call.application.log.info("WebSocket connected for user: $userId, session: $sessionIdParam")
 

@@ -76,8 +76,14 @@ object AgentRunManager {
     suspend fun emitEvent(
         sessionId: String,
         event: AgentEvent,
-    ) {
-        sessionEventFlows[sessionId]?.emit(event)
+    ): Boolean {
+        val flow = sessionEventFlows[sessionId]
+        if (flow == null) {
+            logger.warn("AgentRunManager: bridge.emit failed! No WebSocket subscribed for session=$sessionId")
+            return false
+        }
+        flow.emit(event)
+        return true
     }
 
     /**
@@ -207,17 +213,19 @@ object AgentRunManager {
                                     text = assistantResponse,
                                 ),
                             )
-                            emitEvent(
-                                sessionId,
-                                AgentEvent.ResponseBlock(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = ts,
-                                    sessionId = sessionId,
-                                    messageId = messageIdMap[sessionId] ?: eid,
-                                    content = assistantResponse,
-                                ),
-                            )
                         }
+                        
+                        // ALWAYS emit ResponseBlock so the Android client can save the final formatted response!
+                        emitEvent(
+                            sessionId,
+                            AgentEvent.ResponseBlock(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = ts,
+                                sessionId = sessionId,
+                                messageId = messageIdMap[sessionId] ?: eid,
+                                content = assistantResponse,
+                            ),
+                        )
                     }
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     val msg = "Agent execution timed out after ${ServerAgent.MAX_EXECUTION_TIME_MS / 60000} minutes for session: $sessionId"
