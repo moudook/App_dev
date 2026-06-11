@@ -468,13 +468,11 @@ fun Application.configureChatRoutes(
              * AUTH DISABLED â€” accepts any connection as anonymous user. See AGENTS.md "Auth State".
              */
             webSocket("/chat/ws") {
-                // AUTH DISABLED â€” skip Firebase token verify, accept all connections.
-                val user =
-                    com.example.smarty.server.plugins.FirebaseUserPrincipal(
-                        userId = "anonymous",
-                        email = com.example.smarty.server.plugins.ADMIN_EMAIL,
-                        displayName = "Auth Disabled",
-                    )
+                val user = call.firebaseUser()
+                if (user == null) {
+                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Unauthorized"))
+                    return@webSocket
+                }
 
                 val userId = user.userId
                 val sessionIdParam = call.request.queryParameters["sessionId"] ?: UUID.randomUUID().toString()

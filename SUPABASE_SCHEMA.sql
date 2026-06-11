@@ -284,7 +284,6 @@ CREATE TABLE chat_sessions (
     metadata        JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ,
     expires_at      TIMESTAMPTZ
 );
 CREATE INDEX idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
