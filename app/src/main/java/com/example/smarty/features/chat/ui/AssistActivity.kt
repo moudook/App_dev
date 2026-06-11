@@ -84,7 +84,6 @@ class AssistActivity : ComponentActivity() {
      */
     private fun setupTransparentWindow() {
         window.setFormat(PixelFormat.TRANSLUCENT)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             @Suppress("DEPRECATION")
