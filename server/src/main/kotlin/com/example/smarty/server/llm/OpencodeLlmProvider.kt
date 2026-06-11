@@ -203,8 +203,7 @@ class OpencodeLlmProvider(
                         if (response.status.value !in 200..299) {
                             val errBody = runCatching { response.bodyAsText() }.getOrElse { "<no body>" }
                             logger.error("[OpenCode.DirectZen][inference=$inferenceId] HTTP ${response.status} body=$errBody")
-                            emit(LlmChunk(content = null, finishReason = "error", rawJson = errBody.take(500), sseEvent = "error"))
-                            return@execute
+                            throw RuntimeException("HTTP ${response.status.value}: $errBody")
                         }
                         val channel = response.bodyAsChannel()
                         var currentData = StringBuilder()
