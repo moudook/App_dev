@@ -355,10 +355,14 @@ class OpencodeLlmProvider(
                                     val rawToolCall =
                                         if (toolCallDelta != null) {
                                             val fn = toolCallDelta["function"]?.jsonObject
+                                            val args =
+                                                fn?.get("arguments")?.jsonPrimitive?.contentOrNull
+                                                    ?: fn?.get("arguments")?.toString()
+                                                    ?: ""
                                             com.example.smarty.server.llm.LlmToolCall(
                                                 id = toolCallDelta["id"]?.jsonPrimitive?.contentOrNull ?: "",
                                                 functionName = fn?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
-                                                arguments = fn?.get("arguments")?.toString() ?: "",
+                                                arguments = args,
                                             )
                                         } else {
                                             null
