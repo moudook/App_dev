@@ -54,7 +54,7 @@ object OpencodeModelRegistry {
     val zenBaseUrl: String
         get() =
             System.getenv("OPENCODE_ZEN_BASE_URL")?.takeIf { it.isNotBlank() }
-                ?: "https://gateway.opencode.ai/v1"
+                ?: "https://opencode.ai/zen/v1"
 
     val isDirectZenMode: Boolean
         get() = !zenApiKey.isNullOrBlank()
