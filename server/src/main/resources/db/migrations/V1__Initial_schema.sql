@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS daily_digests (
     chats_analyzed    INTEGER NOT NULL DEFAULT 0,
     memories_analyzed INTEGER NOT NULL DEFAULT 0,
     notification_sent BOOLEAN NOT NULL DEFAULT false,
-    calendar_event_id UUID,
+    calendar_event_id UUID REFERENCES calendar_events(id) ON DELETE SET NULL,
     generated_by_ai   BOOLEAN NOT NULL DEFAULT true,
     linked_note_ids   TEXT[] DEFAULT '{}',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),

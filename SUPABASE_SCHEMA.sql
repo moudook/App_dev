@@ -51,6 +51,7 @@ DROP TABLE IF EXISTS user_vaults CASCADE;
 DROP TABLE IF EXISTS impressed_log CASCADE;
 DROP TABLE IF EXISTS permission_audit_log CASCADE;
 DROP TABLE IF EXISTS tool_permissions CASCADE;
+DROP TABLE IF EXISTS tool_sessions CASCADE;
 
 -- Drop trigger function if exists
 DROP FUNCTION IF EXISTS set_updated_at() CASCADE;
@@ -560,7 +561,7 @@ CREATE TABLE daily_digests (
     chats_analyzed    INTEGER NOT NULL DEFAULT 0,
     memories_analyzed INTEGER NOT NULL DEFAULT 0,
     notification_sent BOOLEAN NOT NULL DEFAULT false,
-    calendar_event_id UUID,
+    calendar_event_id UUID REFERENCES calendar_events(id) ON DELETE SET NULL,
     generated_by_ai   BOOLEAN NOT NULL DEFAULT true,
     linked_note_ids   TEXT[] DEFAULT '{}',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -814,6 +815,8 @@ CREATE TABLE tool_sessions (
 CREATE TRIGGER trg_tool_sessions_updated_at BEFORE UPDATE ON tool_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ALTER TABLE tool_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own tool sessions" ON tool_sessions FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can insert own tool sessions" ON tool_sessions FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can update own tool sessions" ON tool_sessions FOR UPDATE USING (user_id = auth.uid());
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can CRUD own calendar events" ON calendar_events FOR ALL USING (user_id = auth.uid());
 
@@ -899,7 +902,6 @@ CREATE POLICY "Users can view own permission audit log" ON permission_audit_log
 -- ============================================================
 -- MIGRATIONS
 -- ============================================================
-ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_events_json JSONB DEFAULT '[]'::jsonb;
 
 -- ============================================================
 -- COMPLETE
