@@ -68,7 +68,7 @@ class OpencodeLlmProvider(
             // Notify of session ID if it's new (using externalSessionId or just generating a random one)
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
-            val modelsToTry = listOf("openrouter/owl-alpha")
+            val modelsToTry = listOf(model ?: "openrouter/owl-alpha")
             
             val requestStartMs = System.currentTimeMillis()
 

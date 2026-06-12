@@ -88,7 +88,7 @@ object OpencodeModelRegistry {
     }
 
     fun requireAllowedFreeModel(model: String?): String {
-        return "openrouter/owl-alpha"
+        return model ?: "openrouter/owl-alpha"
     }
 
     fun discoveredFreeModels(): List<OpencodeModelInfo> = discoveredModels.get()
@@ -125,10 +125,9 @@ object OpencodeModelRegistry {
             if (data != null) {
                 for (item in data) {
                     val rawId = item.jsonObject["id"]?.jsonPrimitive?.content ?: continue
-                    val prefixedId = if (rawId.startsWith("opencode/")) rawId else "opencode/$rawId"
-                    val labelName = rawId.removePrefix("opencode/").replace("-", " ")
-                    val capitalized = labelName.split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    fetchedModels.add(OpencodeModelInfo(id = prefixedId, label = capitalized))
+                    val labelName = rawId.replace("-", " ")
+                    val capitalized = labelName.split(" ", "/").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                    fetchedModels.add(OpencodeModelInfo(id = rawId, label = capitalized))
                 }
             }
 
