@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -87,6 +88,47 @@ fun ModelSelectorSheet(
 
                 // Content
                 var expandedVariantModel by remember { mutableStateOf<String?>(null) }
+                var searchQuery by remember { mutableStateOf("") }
+
+                // Search Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clip(shapes.small)
+                        .background(if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = 14.sp,
+                            color = if (isDark) Color.White else Color.Black
+                        ),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text("Search models...", fontSize = 14.sp, color = Color.Gray)
+                            }
+                            innerTextField()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                val filteredModels = remember(searchQuery, availableModels) {
+                    if (searchQuery.isBlank()) availableModels
+                    else availableModels.filter { it.second.contains(searchQuery, ignoreCase = true) || it.first.contains(searchQuery, ignoreCase = true) }
+                }
 
                 Column(
                     modifier =
@@ -96,7 +138,7 @@ fun ModelSelectorSheet(
                             .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    availableModels.forEach { (modelId, label) ->
+                    filteredModels.forEach { (modelId, label) ->
                         val cleanLabel =
                             label
                                 .replace(Regex("(?i)-free\\b"), "")
