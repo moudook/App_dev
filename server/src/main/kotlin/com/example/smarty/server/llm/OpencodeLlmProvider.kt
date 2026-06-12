@@ -27,13 +27,13 @@ import java.util.UUID
 
 class OpencodeLlmProvider(
     private val client: HttpClient,
-    override val providerName: String = "OpenCode Zen API",
+    override val providerName: String = "OpenRouter",
     private val defaultModel: String = OpencodeModelRegistry.defaultModel,
 ) : LlmProvider {
     private val logger = LoggerFactory.getLogger(OpencodeLlmProvider::class.java)
 
     companion object {
-        private const val ZEN_BASE_URL = "https://opencode.ai/zen/v1"
+        private const val ZEN_BASE_URL = "https://openrouter.ai/api/v1"
         private val ZEN_PUBLIC_KEY = System.getenv("OPENCODE_API_KEY") ?: ""
     }
 
@@ -68,16 +68,7 @@ class OpencodeLlmProvider(
             // Notify of session ID if it's new (using externalSessionId or just generating a random one)
             val activeSessionId = externalSessionId ?: UUID.randomUUID().toString().also { onExternalSessionCreated(it) }
 
-            val requestedModelId = (model ?: defaultModel).substringAfter('/').takeIf { it.isNotBlank() } ?: "deepseek-v4-flash-free"
-            
-            val freeModels = listOf("north-mini-code-free", "mimo-v2.5-free", "deepseek-v4-flash-free")
-            val modelsToTry = if (requestedModelId == "auto" || requestedModelId == "default") {
-                freeModels
-            } else if (requestedModelId in freeModels) {
-                listOf(requestedModelId) + freeModels.filter { it != requestedModelId }
-            } else {
-                listOf(requestedModelId)
-            }
+            val modelsToTry = listOf("openrouter/owl-alpha")
             
             val requestStartMs = System.currentTimeMillis()
 
@@ -207,6 +198,8 @@ class OpencodeLlmProvider(
                     .preparePost("$ZEN_BASE_URL/chat/completions") {
                         contentType(ContentType.Application.Json)
                         header("Authorization", "Bearer $ZEN_PUBLIC_KEY")
+                        header("HTTP-Referer", "https://github.com/moudook")
+                        header("X-Title", "Smarty Android")
                         header("Accept", "text/event-stream")
                         setBody(body.toString())
                     }.execute { response ->

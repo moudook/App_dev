@@ -41,10 +41,10 @@ object OpencodeModelRegistry {
      */
     val KNOWN_MODELS =
         listOf(
-            OpencodeModelInfo(id = "opencode/deepseek-v4-flash", label = "Deepseek V4 Flash"),
+            OpencodeModelInfo(id = "openrouter/owl-alpha", label = "Owl Alpha"),
         )
 
-    private const val DAEMON_DECIDE = "opencode/auto"
+    private const val DAEMON_DECIDE = "openrouter/owl-alpha"
 
     val zenApiKey: String?
         get() = System.getenv("OPENCODE_API_KEY")?.takeIf { it.isNotBlank() }
@@ -52,7 +52,7 @@ object OpencodeModelRegistry {
     val zenBaseUrl: String
         get() =
             System.getenv("OPENCODE_ZEN_BASE_URL")?.takeIf { it.isNotBlank() }
-                ?: "https://opencode.ai/zen/v1"
+                ?: "https://openrouter.ai/api/v1"
 
     val isDirectZenMode: Boolean
         get() = !zenApiKey.isNullOrBlank()
@@ -84,29 +84,11 @@ object OpencodeModelRegistry {
     }
 
     fun isAllowedFreeModel(model: String?): Boolean {
-        val normalized = model?.trim()?.takeIf { it.isNotEmpty() } ?: return false
-        val discovered = discoveredModels.get()
-
-        if (discovered.any { it.id == normalized }) {
-            return true
-        }
-        return true // Accept any requested model and let the API reject it if unauthorized
+        return true
     }
 
     fun requireAllowedFreeModel(model: String?): String {
-        val discovered = discoveredModels.get()
-        val discoveredDefault = discovered.firstOrNull()?.id
-
-        val paramModel = model?.trim()?.takeIf { it.isNotBlank() }
-        if (paramModel != null) {
-            return if (isAllowedFreeModel(paramModel)) {
-                paramModel
-            } else {
-                val fallback = discoveredDefault ?: DAEMON_DECIDE
-                fallback
-            }
-        }
-        return discoveredDefault ?: DAEMON_DECIDE
+        return "openrouter/owl-alpha"
     }
 
     fun discoveredFreeModels(): List<OpencodeModelInfo> = discoveredModels.get()
@@ -155,7 +137,7 @@ object OpencodeModelRegistry {
                     fetchedModels
                 } else {
                     listOf(
-                        OpencodeModelInfo("opencode/deepseek-v4-flash", "Deepseek V4 Flash"),
+                        OpencodeModelInfo("openrouter/owl-alpha", "Owl Alpha"),
                     )
                 }
             discoveredModels.set(models)
@@ -172,7 +154,7 @@ object OpencodeModelRegistry {
             newState
         } catch (e: Exception) {
             logger.error("[OpencodeModelRegistry] Failed to fetch models from API: ${e.message}", e)
-            val models = listOf(OpencodeModelInfo("opencode/deepseek-v4-flash", "Deepseek V4 Flash"))
+            val models = listOf(OpencodeModelInfo("openrouter/owl-alpha", "Owl Alpha"))
             discoveredModels.set(models)
             val newState =
                 OpencodeModelState(
