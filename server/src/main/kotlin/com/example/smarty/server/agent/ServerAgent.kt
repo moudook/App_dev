@@ -4,14 +4,19 @@ import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.AskUserQuestion
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ConversationSummarizer
+import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.ToolSessionPayload
+import com.example.smarty.server.data.ToolSessionRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProvider
 import io.micrometer.core.instrument.Metrics
 import net.logstash.logback.argument.StructuredArguments.kv
 import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
@@ -173,21 +178,36 @@ class ServerAgent(
                 RegexOption.IGNORE_CASE,
             )
         if (askUserDemonstrationPattern.containsMatchIn(query)) {
-            logger.info("ASK_USER DEMO GUARD: Forcing ask_user tool for query: $query")
+            val toolCallId = "tool-${UUID.randomUUID()}"
+            val demoQuestions =
+                listOf(
+                    AskUserQuestion(
+                        question = "What would you like the ask_user demo to ask?",
+                        options = listOf("Clarification question", "Preference selection", "Approval workflow", "Other"),
+                    ),
+                )
+            DatabaseFactory.getDataSource()?.let { dataSource ->
+                val ttlMinutes = 30
+                val expiresAt = Instant.now().plus(ttlMinutes.toLong(), ChronoUnit.MINUTES)
+                val payload =
+                    ToolSessionPayload(
+                        chatSessionId = sessionId,
+                        toolCallId = toolCallId,
+                        userId = userId,
+                        questionSummaries = demoQuestions.map { q -> q.question.take(120) },
+                        expiresAt = expiresAt.toString(),
+                    )
+                ToolSessionRepository(dataSource).createPendingSession(payload)
+            }
+            logger.info("ASK_USER DEMO GUARD: Forcing ask_user tool for query: $query toolCallId=$toolCallId")
             eventEmitter(
                 AgentEvent.AskUserRequest(
                     eventId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    toolId = "tool-${UUID.randomUUID()}",
+                    toolId = toolCallId,
                     sessionId = sessionId,
-                    questions =
-                        listOf(
-                            AskUserQuestion(
-                                question = "What would you like the ask_user demo to ask?",
-                                options = listOf("Clarification question", "Preference selection", "Approval workflow", "Other"),
-                            ),
-                        ),
-                    toolCallId = "tool-${UUID.randomUUID()}",
+                    questions = demoQuestions,
+                    toolCallId = toolCallId,
                 ),
             )
             return "I've opened the ask_user interface. Please answer the question to continue."

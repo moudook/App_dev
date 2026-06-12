@@ -18,6 +18,12 @@ import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.ui.components.chat.ChatEmptyState
 import kotlinx.coroutines.launch
 
+private val askUserToolPattern = Regex("(?i)ask[_ -]?user|askquestion|ask[_ -]?question")
+
+private fun isAskUserTool(toolName: String?, toolTitle: String? = null): Boolean =
+    askUserToolPattern.containsMatchIn(toolName.orEmpty()) ||
+        askUserToolPattern.containsMatchIn(toolTitle.orEmpty())
+
 /**
  * Main Chat Screen - Demonstrates complete SDE architecture.
  *
@@ -226,15 +232,7 @@ fun ChatScreen(
         var activeApprovalId: String? = null
         var isAskUserSession = false
 
-        if (pendingApproval != null &&
-            (
-                pendingApproval!!.toolName.contains("ask_user") ||
-                    pendingApproval!!.toolName.contains("askuser") ||
-                    pendingApproval!!.toolName.contains("ask-user") ||
-                    pendingApproval!!.toolName.contains("ask_question") ||
-                    pendingApproval!!.toolName.contains("askquestion")
-            )
-        ) {
+        if (isAskUserTool(pendingApproval?.toolName, pendingApproval?.toolTitle)) {
             isAskUserSession = true
             activeApprovalId = pendingApproval!!.toolId
             try {
@@ -325,7 +323,11 @@ fun ChatScreen(
             },
             onSubmit = {
                 if (inputText.text.isNotBlank()) {
-                    viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
+                    if (isAskUserSession && activeApprovalId != null) {
+                        viewModel.callAskUserResponse(activeApprovalId, mapOf(0 to inputText.text.trim()))
+                    } else {
+                        viewModel.onEvent(ChatEvent.MessageSent(inputText.text))
+                    }
                     inputText =
                         androidx.compose.ui.text.input
                             .TextFieldValue("")

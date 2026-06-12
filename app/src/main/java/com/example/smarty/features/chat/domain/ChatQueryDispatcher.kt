@@ -917,7 +917,7 @@ class ChatQueryDispatcher(
                                 ClarificationRequest(
                                     question = q.question,
                                     options = q.options,
-                                    allowCustomInput = true,
+                                    allowCustomInput = q.allowCustom,
                                 )
                             }
                             _pendingClarificationRequests.value = parsed
@@ -934,7 +934,7 @@ class ChatQueryDispatcher(
                                             put(org.json.JSONObject().apply {
                                                 put("question", q.question)
                                                 put("options", org.json.JSONArray(q.options))
-                                                put("allow_custom", true)
+                                                put("allow_custom", q.allowCustom)
                                             })
                                         }
                                     })
