@@ -19,7 +19,7 @@ class PdfChunkerTest {
     fun chunkLazy_producesCorrectNumberOfChunks() {
         // Given
         val text = "A".repeat(30000) // 30,000 characters
-        val chunker = PdfChunker(maxChunkSize = 10000, overlap = 1000)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 10000, overlap = 1000))
 
         // When
         val chunks = chunker.chunk(text)
@@ -33,7 +33,7 @@ class PdfChunkerTest {
     fun chunkLazy_respectsMaxChunkSize() {
         // Given
         val text = "A".repeat(5000)
-        val chunker = PdfChunker(maxChunkSize = 1000, overlap = 100)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 100))
 
         // When
         val chunks = chunker.chunk(text)
@@ -46,7 +46,7 @@ class PdfChunkerTest {
     fun chunkLazy_includesOverlap() {
         // Given
         val text = "A".repeat(5000)
-        val chunker = PdfChunker(maxChunkSize = 1000, overlap = 200)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 200))
 
         // When
         val chunks = chunker.chunk(text)
@@ -82,7 +82,7 @@ class PdfChunkerTest {
     fun chunkLazy_handlesShortText() {
         // Given
         val text = "Short text"
-        val chunker = PdfChunker(maxChunkSize = 1000, overlap = 100)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 100))
 
         // When
         val chunks = chunker.chunk(text)
@@ -96,7 +96,7 @@ class PdfChunkerTest {
     fun chunkWithMetadata_producesCorrectMetadata() {
         // Given
         val text = "A".repeat(5000)
-        val chunker = PdfChunker(maxChunkSize = 1000, overlap = 100)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 100))
 
         // When
         val chunks = chunker.chunkWithMetadata(text)
@@ -119,7 +119,7 @@ class PdfChunkerTest {
     fun chunkWithMetadata_positionsAreContinuous() {
         // Given
         val text = "A".repeat(5000)
-        val chunker = PdfChunker(maxChunkSize = 1000, overlap = 100)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 100))
 
         // When
         val chunks = chunker.chunkWithMetadata(text)
@@ -137,7 +137,7 @@ class PdfChunkerTest {
             buildString {
                 repeat(100) { append("This is a test sentence. ") }
             }
-        val chunker = PdfChunker(maxChunkSize = 500, overlap = 50)
+        val chunker = PdfChunker(ChunkerConfig(chunkSize = 500, overlap = 50))
 
         // When
         val chunks = chunker.chunk(text)
@@ -156,20 +156,24 @@ class PdfChunkerTest {
     @Test
     fun chunker_validatesMaxChunkSize() {
         // When/Then
-        assertFailsWith<IllegalArgumentException> {
-            PdfChunker(maxChunkSize = 50) // Less than MIN_CHUNK_SIZE (100)
+        assertThrows(IllegalArgumentException::class.java) {
+            PdfChunker(ChunkerConfig(chunkSize = 50, overlap = 0))
         }
     }
 
     @Test
     fun chunker_validatesOverlap() {
         // When/Then
-        assertFailsWith<IllegalArgumentException> {
-            PdfChunker(maxChunkSize = 1000, overlap = -1)
+        assertThrows(IllegalArgumentException::class.java) {
+            PdfChunker(ChunkerConfig(chunkSize = 50, overlap = 0))
         }
 
-        assertFailsWith<IllegalArgumentException> {
-            PdfChunker(maxChunkSize = 1000, overlap = 1000) // overlap >= maxChunkSize
+        assertThrows(IllegalArgumentException::class.java) {
+            PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = -1))
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            PdfChunker(ChunkerConfig(chunkSize = 1000, overlap = 1000))
         }
     }
 
@@ -179,7 +183,7 @@ class PdfChunkerTest {
         val text = "A".repeat(3000)
 
         // When
-        val chunks = text.chunkWithOverlap(maxChunkSize = 1000, overlap = 100).toList()
+        val chunks = text.chunkWithOverlap(ChunkerConfig(chunkSize = 1000, overlap = 100)).toList()
 
         // Then
         assertTrue(chunks.isNotEmpty())
@@ -192,7 +196,7 @@ class PdfChunkerTest {
         val text = "A".repeat(3000)
 
         // When
-        val chunks = text.chunkIntoDocumentChunks(maxChunkSize = 1000, overlap = 100)
+        val chunks = text.chunkIntoDocumentChunks(ChunkerConfig(chunkSize = 1000, overlap = 100))
 
         // Then
         assertTrue(chunks.isNotEmpty())

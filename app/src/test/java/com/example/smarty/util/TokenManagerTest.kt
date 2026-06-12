@@ -3,8 +3,10 @@ package com.example.smarty.util
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -120,7 +122,7 @@ class TokenManagerTest {
 
             // Collect states in background
             val collectJob =
-                testScope.backgroundScope.uncontrolled {
+                testScope.backgroundScope.launch {
                     tokenManager.tokenState.collect { state ->
                         states.add(state)
                     }

@@ -2,10 +2,12 @@ package com.example.smarty.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatSession
-import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -65,7 +67,7 @@ class DaoTest {
 
             chatDao.insertSession(session)
 
-            val result = chatDao.getSession("session-123")
+            val result = chatDao.getSessionById("session-123")
             assertNotNull(result)
             assertEquals("Test Session", result?.title)
         }
@@ -126,9 +128,9 @@ class DaoTest {
                 ),
             )
 
-            chatDao.deleteSession("session-123")
+            chatDao.deleteSessionById("session-123")
 
-            val sessionResult = chatDao.getSession("session-123")
+            val sessionResult = chatDao.getSessionById("session-123")
             assertNull(sessionResult)
         }
 
@@ -160,11 +162,13 @@ class DaoTest {
                     id = "note-123",
                     title = "Test Note",
                     content = "Test content",
+                    type = NoteType.BRAIN_DUMP,
+                    processingStatus = ProcessingStatus.COMPLETED,
                 )
 
-            noteDao.insert(note)
+            noteDao.insertNote(note)
 
-            val result = noteDao.getById("note-123")
+            val result = noteDao.getNoteById("note-123")
             assertNotNull(result)
             assertEquals("Test Note", result?.title)
         }
@@ -173,15 +177,17 @@ class DaoTest {
     fun `get all notes returns list`() =
         runBlocking {
             repeat(3) { i ->
-                noteDao.insert(
+                noteDao.insertNote(
                     Note(
                         id = "note-$i",
                         title = "Note $i",
+                        content = "Note $i",
+                        type = NoteType.BRAIN_DUMP,
                     ),
                 )
             }
 
-            val notes = noteDao.getAll()
+            val notes = noteDao.getAllNotesOnce()
             assertEquals(3, notes.size)
         }
 
@@ -192,13 +198,15 @@ class DaoTest {
                 Note(
                     id = "note-123",
                     title = "Original",
+                    content = "Original content",
+                    type = NoteType.BRAIN_DUMP,
                 )
-            noteDao.insert(note)
+            noteDao.insertNote(note)
 
             val updated = note.copy(title = "Updated")
-            noteDao.update(updated)
+            noteDao.updateNote(updated)
 
-            val result = noteDao.getById("note-123")
+            val result = noteDao.getNoteById("note-123")
             assertEquals("Updated", result?.title)
         }
 
@@ -209,34 +217,40 @@ class DaoTest {
                 Note(
                     id = "note-123",
                     title = "Test",
+                    content = "Test content",
+                    type = NoteType.BRAIN_DUMP,
                 )
-            noteDao.insert(note)
+            noteDao.insertNote(note)
 
-            noteDao.delete("note-123")
+            noteDao.deleteNoteById("note-123")
 
-            val result = noteDao.getById("note-123")
+            val result = noteDao.getNoteById("note-123")
             assertNull(result)
         }
 
     @Test
     fun `get notes by category returns filtered list`() =
         runBlocking {
-            noteDao.insert(
+            noteDao.insertNote(
                 Note(
                     id = "note-1",
                     title = "Work Note",
+                    content = "Work content",
                     categoryName = "Work",
+                    type = NoteType.BRAIN_DUMP,
                 ),
             )
-            noteDao.insert(
+            noteDao.insertNote(
                 Note(
                     id = "note-2",
                     title = "Personal Note",
+                    content = "Personal content",
                     categoryName = "Personal",
+                    type = NoteType.BRAIN_DUMP,
                 ),
             )
 
-            val workNotes = noteDao.getByCategory("Work")
+            val workNotes = noteDao.getAllNotesOnce().filter { it.categoryName == "Work" }
             assertEquals(1, workNotes.size)
         }
 
@@ -253,9 +267,9 @@ class DaoTest {
                     endTime = System.currentTimeMillis() + 3600000,
                 )
 
-            calendarDao.insert(event)
+            calendarDao.insertEvent(event)
 
-            val result = calendarDao.getById("event-123")
+            val result = calendarDao.getEventById("event-123")
             assertNotNull(result)
             assertEquals("Test Event", result?.title)
         }
@@ -264,22 +278,24 @@ class DaoTest {
     fun `get upcoming events returns future events`() =
         runBlocking {
             val now = System.currentTimeMillis()
-            calendarDao.insert(
+            calendarDao.insertEvent(
                 CalendarEvent(
                     id = "event-1",
                     title = "Future Event",
                     startTime = now + 86400000,
+                    endTime = now + 2 * 86400000,
                 ),
             )
-            calendarDao.insert(
+            calendarDao.insertEvent(
                 CalendarEvent(
                     id = "event-2",
                     title = "Past Event",
                     startTime = now - 86400000,
+                    endTime = now - 3600000,
                 ),
             )
 
-            val upcoming = calendarDao.getUpcoming()
+            val upcoming = calendarDao.getAllEventsOnce().filter { it.startTime > now }
             assertEquals(1, upcoming.size)
             assertEquals("Future Event", upcoming[0].title)
         }
@@ -294,12 +310,12 @@ class DaoTest {
                     startTime = System.currentTimeMillis(),
                     endTime = System.currentTimeMillis() + 3600000,
                 )
-            calendarDao.insert(event)
+            calendarDao.insertEvent(event)
 
             val updated = event.copy(title = "Updated")
-            calendarDao.update(updated)
+            calendarDao.updateEvent(updated)
 
-            val result = calendarDao.getById("event-123")
+            val result = calendarDao.getEventById("event-123")
             assertEquals("Updated", result?.title)
         }
 
@@ -313,83 +329,26 @@ class DaoTest {
                     startTime = System.currentTimeMillis(),
                     endTime = System.currentTimeMillis() + 3600000,
                 )
-            calendarDao.insert(event)
+            calendarDao.insertEvent(event)
 
-            calendarDao.delete("event-123")
+            calendarDao.deleteEventById("event-123")
 
-            val result = calendarDao.getById("event-123")
+            val result = calendarDao.getEventById("event-123")
             assertNull(result)
         }
-}
-
-// Test DAOs
-@androidx.room.Dao
-interface ChatDao {
-    @androidx.room.Insert suspend fun insertSession(session: ChatSession)
-
-    @androidx.room.Query("SELECT * FROM chat_sessions WHERE id = :id")
-    suspend fun getSession(id: String): ChatSession?
-
-    @androidx.room.Insert suspend fun insertMessage(message: ChatMessageEntity)
-
-    @androidx.room.Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
-    fun getMessagesForSession(sessionId: String): kotlinx.coroutines.flow.Flow<List<ChatMessageEntity>>
-
-    @androidx.room.Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId AND role = :role ORDER BY timestamp ASC")
-    fun getMessagesByRole(
-        sessionId: String,
-        role: String,
-    ): kotlinx.coroutines.flow.Flow<List<ChatMessageEntity>>
-
-    @androidx.room.Query("DELETE FROM chat_sessions WHERE id = :id")
-    suspend fun deleteSession(id: String)
-
-    @androidx.room.Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC LIMIT :limit")
-    suspend fun getRecentSessions(limit: Int): List<ChatSession>
-}
-
-@androidx.room.Dao
-interface NoteDao {
-    @androidx.room.Insert suspend fun insert(note: Note)
-
-    @androidx.room.Query("SELECT * FROM notes WHERE id = :id")
-    suspend fun getById(id: String): Note?
-
-    @androidx.room.Query("SELECT * FROM notes")
-    suspend fun getAll(): List<Note>
-
-    @androidx.room.Update suspend fun update(note: Note)
-
-    @androidx.room.Query("DELETE FROM notes WHERE id = :id")
-    suspend fun delete(id: String): Int
-
-    @androidx.room.Query("SELECT * FROM notes WHERE categoryName = :category")
-    suspend fun getByCategory(category: String): List<Note>
-}
-
-@androidx.room.Dao
-interface CalendarDao {
-    @androidx.room.Insert suspend fun insert(event: CalendarEvent)
-
-    @androidx.room.Query("SELECT * FROM calendar_events WHERE id = :id")
-    suspend fun getById(id: String): CalendarEvent?
-
-    @androidx.room.Query("SELECT * FROM calendar_events WHERE startTime > :now ORDER BY startTime ASC")
-    suspend fun getUpcoming(now: Long = System.currentTimeMillis()): List<CalendarEvent>
-
-    @androidx.room.Update suspend fun update(event: CalendarEvent)
-
-    @androidx.room.Query("DELETE FROM calendar_events WHERE id = :id")
-    suspend fun delete(id: String): Int
 }
 
 @androidx.room.Database(
     entities = [
         ChatSession::class,
         ChatMessageEntity::class,
+        Note::class,
+        CalendarEvent::class,
     ],
     version = 1,
+    exportSchema = false,
 )
+@androidx.room.TypeConverters(Converters::class)
 abstract class TestSmartyDatabase : androidx.room.RoomDatabase() {
     abstract fun chatDao(): ChatDao
 

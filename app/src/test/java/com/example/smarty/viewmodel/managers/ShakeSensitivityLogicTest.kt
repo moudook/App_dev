@@ -1,6 +1,7 @@
 package com.example.smarty.core.domain.model
 
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.features.settings.domain.SettingsFeatureManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

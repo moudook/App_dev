@@ -66,6 +66,9 @@ object TestBuilders {
         var isArchived: Boolean = false
         var isPinned: Boolean = false
         var isPrivate: Boolean = false
+        var isFullPrivacy: Boolean = false
+        var excludeFromAiChat: Boolean = false
+        var isFavorite: Boolean = false
         var type: NoteType = NoteType.BRAIN_DUMP
         var processingStatus: ProcessingStatus = ProcessingStatus.COMPLETED
         var isAiCreated: Boolean = false
@@ -81,13 +84,15 @@ object TestBuilders {
                 categoryName = categoryName,
                 isArchived = isArchived,
                 isPinned = isPinned,
-                isPrivate = isPrivate,
+                isFavorite = isFavorite,
+                isFullPrivacy = isFullPrivacy,
+                excludeFromAiChat = excludeFromAiChat,
                 type = type,
                 processingStatus = processingStatus,
                 isAiCreated = isAiCreated,
                 createdAt = createdAt,
                 updatedAt = updatedAt,
-                attachments = attachments,
+                attachmentsJson = null,
             )
 
         // Pre-configured templates for common scenarios
@@ -102,9 +107,20 @@ object TestBuilders {
                 isPinned = true
             }
 
+        fun active(): NoteBuilder =
+            apply {
+                isArchived = false
+            }
+
+        fun favorite(): NoteBuilder =
+            apply {
+                isFavorite = true
+            }
+
         fun private(): NoteBuilder =
             apply {
                 isPrivate = true
+                isFullPrivacy = true
                 title = "Private: $title"
             }
 
@@ -145,25 +161,31 @@ object TestBuilders {
     class CategoryBuilder {
         var id: String = UUID.randomUUID().toString()
         var name: String = "Test Category"
-        var color: String = "#2196F3" // Default blue
+        var description: String? = null
         var noteCount: Int = 0
+        var isAiGenerated: Boolean = true
+        var createdAt: Long = System.currentTimeMillis()
+        var lastUpdated: Long = System.currentTimeMillis()
 
         fun build(): Category =
             Category(
                 id = id,
                 name = name,
-                color = color,
+                description = description,
                 noteCount = noteCount,
+                isAiGenerated = isAiGenerated,
+                createdAt = createdAt,
+                lastUpdated = lastUpdated,
             )
 
         // Pre-configured templates
-        fun red(): CategoryBuilder = apply { color = "#F44336" }
+        fun red(): CategoryBuilder = apply { name = "Red" }
 
-        fun green(): CategoryBuilder = apply { color = "#4CAF50" }
+        fun green(): CategoryBuilder = apply { name = "Green" }
 
-        fun orange(): CategoryBuilder = apply { color = "#FF9800" }
+        fun orange(): CategoryBuilder = apply { name = "Orange" }
 
-        fun purple(): CategoryBuilder = apply { color = "#9C27B0" }
+        fun purple(): CategoryBuilder = apply { name = "Purple" }
     }
 
     // ==================== Calendar Event Builders ====================
@@ -181,6 +203,12 @@ object TestBuilders {
         var startTime: Long = System.currentTimeMillis() + 86400000 // Tomorrow
         var endTime: Long = startTime + 3600000 // 1 hour duration
         var location: String? = null
+        var color: Int? = null
+        var reminderMinutes: Int? = null
+        var isEventPrivate: Boolean = false
+        var isRecurring: Boolean = false
+        var recurrenceRule: String? = null
+        var linkedNoteId: String? = null
         var calendarId: String = "primary"
         var googleEventId: String? = null
         var isAllDay: Boolean = false
@@ -194,10 +222,14 @@ object TestBuilders {
                 description = description,
                 startTime = startTime,
                 endTime = endTime,
+                color = color,
                 location = location,
-                calendarId = calendarId,
+                reminderMinutes = reminderMinutes,
+                isRecurring = isRecurring,
+                recurrenceRule = recurrenceRule,
+                linkedNoteId = linkedNoteId,
                 googleEventId = googleEventId,
-                isAllDay = isAllDay,
+                isEventPrivate = isEventPrivate,
                 createdAt = createdAt,
                 updatedAt = updatedAt,
             )
@@ -222,8 +254,7 @@ object TestBuilders {
         fun build(): Attachment =
             Attachment(
                 id = id,
-                type = type,
-                url = url,
+                uri = url,
                 fileName = fileName,
                 fileSize = fileSize,
                 mimeType = mimeType,
@@ -274,13 +305,13 @@ object TestBuilders {
 
         // Common test strings
         const val EMPTY_STRING = ""
-        const val LONG_STRING = "A".repeat(10000)
-        const val SPECIAL_CHARS = "!@#\$%^&*()_+-=[]{}|;:',.<>?/"
+        val LONG_STRING = "A".repeat(10000)
+        val SPECIAL_CHARS = "!@#\$%^&*()_+-=[]{}|;:',.<>?/"
 
         // Common test URLs
-        const val TEST_URL = "https://example.com"
-        const val TEST_IMAGE_URL = "https://example.com/image.jpg"
-        const val TEST_PDF_URL = "https://example.com/document.pdf"
+        val TEST_URL = "https://example.com"
+        val TEST_IMAGE_URL = "https://example.com/image.jpg"
+        val TEST_PDF_URL = "https://example.com/document.pdf"
     }
 
     // ==================== FCM/Token Testing ====================
@@ -298,7 +329,7 @@ object TestBuilders {
     object PdfTestData {
         const val EMPTY_PDF_TEXT = ""
         const val SHORT_PDF_TEXT = "This is a short PDF content."
-        const val LONG_PDF_TEXT = "A".repeat(50000) // 50KB of text
+        val LONG_PDF_TEXT = "A".repeat(50000) // 50KB of text
 
         fun generateChunkedText(
             chunkSize: Int = 1000,

@@ -2,16 +2,18 @@ package com.example.smarty.service
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.smarty.service.TokenState
 import com.example.smarty.util.TokenManager
-import com.example.smarty.util.TokenState
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*
@@ -19,7 +21,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows
 
 /**
  * Unit tests for FCMService.
@@ -59,7 +60,6 @@ class FCMServiceTest {
     @After
     fun teardown() {
         unmockkAll()
-        Shadows.shadowOf(context.cacheDir).clear()
     }
 
     @Test
@@ -158,7 +158,7 @@ class FCMServiceTest {
 
             // Collect states
             val collectJob =
-                testScope.backgroundScope.uncontrolled {
+                testScope.backgroundScope.launch {
                     fcmService.tokenState.collect { state ->
                         states.add(state)
                     }

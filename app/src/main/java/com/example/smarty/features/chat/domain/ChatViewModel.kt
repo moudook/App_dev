@@ -146,6 +146,33 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * §2.2 Submit answers to a DB-backed ask_user interactive session.
+     * Called when the user taps a choice or submits voice/text input.
+     */
+    fun callAskUserResponse(
+        toolCallId: String,
+        answers: Map<Int, String>,
+    ) {
+        Log.i(TAG, ">>> CALL_ASK_USER_RESPONSE: toolCallId=$toolCallId answers=${answers.size}")
+        val current = _pendingApprovalState.value
+        val sessionId = current?.sessionId
+        if (current == null || sessionId == null) {
+            Log.w(TAG, "callAskUserResponse: no pending approval found — discarding")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                Log.i(TAG, ">>> CALL_ASK_USER_RESPONSE: sending to server webhook...")
+                remoteAgentService.submitAskUserResponse(toolCallId, sessionId, answers)
+                Log.i(TAG, ">>> CALL_ASK_USER_RESPONSE: sent successfully")
+                _pendingApprovalState.update { null }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send ask_user response: ${e.message}", e)
+            }
+        }
+    }
+
     init {
         // Collect model preference updates dynamically for perfect real-time sync across viewports
         viewModelScope.launch {

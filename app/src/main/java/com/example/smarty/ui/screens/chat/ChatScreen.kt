@@ -220,10 +220,11 @@ fun ChatScreen(
             }
         }
 
-        // Calculate pending questions for the input field
+// Calculate pending questions for the input field
         val clarificationMsg = msgWithClarification
         val pendingQuestions = mutableListOf<com.example.smarty.core.domain.model.ClarificationRequest>()
         var activeApprovalId: String? = null
+        var isAskUserSession = false
 
         if (pendingApproval != null &&
             (
@@ -234,10 +235,18 @@ fun ChatScreen(
                     pendingApproval!!.toolName.contains("askquestion")
             )
         ) {
+            isAskUserSession = true
             activeApprovalId = pendingApproval!!.toolId
             try {
                 val json = org.json.JSONObject(pendingApproval!!.toolArgs)
-                val questionsArray = json.optJSONArray("questions")
+                // Handle LLM double-nesting: {"questions":{"questions":[...]}} -> unwrap to get array
+                var questionsArray = json.optJSONArray("questions")
+                if (questionsArray == null) {
+                    val nestedObj = json.optJSONObject("questions")
+                    if (nestedObj != null) {
+                        questionsArray = nestedObj.optJSONArray("questions")
+                    }
+                }
 
                 if (questionsArray != null && questionsArray.length() > 0) {
                     for (i in 0 until questionsArray.length()) {
@@ -280,7 +289,6 @@ fun ChatScreen(
                         ),
                     )
                 }
-
             } catch (e: Exception) {
                 android.util.Log.e("ChatScreen", "Error parsing ask_user args: ${pendingApproval!!.toolArgs}", e)
                 if (pendingQuestions.isEmpty()) {
@@ -301,7 +309,7 @@ fun ChatScreen(
                     question = "Approve tool call: ${pendingApproval!!.toolName}?\n$summary",
                     options = listOf("Approve", "Deny"),
                     allowCustomInput = false,
-                )
+                ),
             )
         } else if (clarificationMsg?.clarificationRequest != null) {
             pendingQuestions.add(clarificationMsg.clarificationRequest!!)
@@ -328,10 +336,15 @@ fun ChatScreen(
                 if (clarificationMsg?.clarificationRequest != null) {
                     viewModel.onEvent(ChatEvent.ClarificationSubmitted(clarificationMsg.id, response))
                 } else if (activeApprovalId != null) {
-                    val isApproved = response.equals("Approve", ignoreCase = true) || 
-                                     (response.isNotEmpty() && !response.equals("Deny", ignoreCase = true))
-                    val feedbackStr = if (response.equals("Approve", ignoreCase = true) || response.equals("Deny", ignoreCase = true)) null else response
-                    viewModel.callApproval(activeApprovalId, isApproved, feedbackStr)
+                    if (isAskUserSession) {
+                        // For ask_user, send to /webhook/ask_user_response with question index mapping
+                        viewModel.callAskUserResponse(activeApprovalId, mapOf(0 to response))
+                    } else {
+                        val isApproved = response.equals("Approve", ignoreCase = true) || 
+                                         (response.isNotEmpty() && !response.equals("Deny", ignoreCase = true))
+                        val feedbackStr = if (response.equals("Approve", ignoreCase = true) || response.equals("Deny", ignoreCase = true)) null else response
+                        viewModel.callApproval(activeApprovalId, isApproved, feedbackStr)
+                    }
                 }
             },
             isChatMode = true,

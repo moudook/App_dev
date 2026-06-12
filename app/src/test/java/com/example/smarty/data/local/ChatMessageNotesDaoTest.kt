@@ -22,7 +22,7 @@ import java.util.UUID
  */
 @RunWith(AndroidJUnit4::class)
 class ChatMessageNotesDaoTest {
-    private lateinit var database: TestSmartyDatabase
+    private lateinit var database: ChatMessageNotesTestDatabase
     private lateinit var dao: ChatMessageNotesDao
 
     @Before
@@ -32,7 +32,7 @@ class ChatMessageNotesDaoTest {
             Room
                 .inMemoryDatabaseBuilder(
                     context,
-                    TestSmartyDatabase::class.java,
+                    ChatMessageNotesTestDatabase::class.java,
                 ).allowMainThreadQueries()
                 .build()
 
@@ -128,7 +128,7 @@ class ChatMessageNotesDaoTest {
 
             // Assert
             assert(linkedMessageIds.size == 2)
-            assert(linkedMessageIds.containsAll(listOf(messageId1, messageIdId2)))
+            assert(linkedMessageIds.containsAll(listOf(messageId1, messageId2)))
         }
 
     @Test
@@ -223,7 +223,7 @@ class ChatMessageNotesDaoTest {
     exportSchema = false,
 )
 @androidx.room.TypeConverters(Converters::class)
-abstract class TestSmartyDatabase : androidx.room.RoomDatabase() {
+abstract class ChatMessageNotesTestDatabase : androidx.room.RoomDatabase() {
     abstract fun chatMessageNotesDao(): ChatMessageNotesDao
 
     abstract fun calendarEventNotesDao(): CalendarEventNotesDao

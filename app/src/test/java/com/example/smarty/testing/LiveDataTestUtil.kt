@@ -2,6 +2,11 @@ package com.example.smarty.testing
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -110,8 +115,9 @@ suspend fun <T> kotlinx.coroutines.flow.Flow<T>.collectAllValues(
     timeUnit: TimeUnit = TimeUnit.SECONDS,
 ): List<T> {
     val values = mutableListOf<T>()
-    val job =
-        kotlinx.coroutines.launch {
+    val scope = CoroutineScope(Dispatchers.Unconfined)
+    val job: Job =
+        scope.launch {
             collect { values.add(it) }
         }
 

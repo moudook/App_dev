@@ -110,7 +110,7 @@ class ToolExecutor(
         val source: String? = null,
         val url: String? = null,
         val note: String? = null,
-        val questions: kotlinx.serialization.json.JsonArray? = null,
+        val questions: kotlinx.serialization.json.JsonElement? = null,
         @SerialName("search_depth") val searchDepth: String? = null,
         @SerialName("max_results") val maxResults: Int? = null,
         // === Atomic tool fields (Phase 2 additions) ===
@@ -118,7 +118,7 @@ class ToolExecutor(
         val code: String? = null,
         val language: String? = null,
         val iteration: Int? = null,
-        val queries: kotlinx.serialization.json.JsonArray? = null,
+        val queries: kotlinx.serialization.json.JsonElement? = null,
         @SerialName("emotional_significance") val emotionalSignificance: Int? = null,
     )
 
@@ -199,8 +199,16 @@ class ToolExecutor(
             "launch_ui" -> executeNavigateTool(args.copy(action = "go", screen = args.intent ?: args.screen), sessionId)
             "share_content" -> executeNavigateTool(args.copy(action = "share"), sessionId)
             "web_search" -> {
+                // Handle potential double-nesting: {"queries":{"queries":[...]}}
+                val queriesArray: kotlinx.serialization.json.JsonArray? = when {
+                    args.queries?.jsonObject != null && args.queries.jsonObject["queries"] != null -> {
+                        args.queries.jsonObject["queries"]?.jsonArray
+                    }
+                    args.queries?.jsonArray != null -> args.queries.jsonArray
+                    else -> null
+                }
                 val queries =
-                    args.queries?.joinToString(", ") {
+                    queriesArray?.joinToString(", ") {
                         try {
                             it.jsonPrimitive.content
                         } catch (_: Exception) {
@@ -686,8 +694,15 @@ class ToolExecutor(
         toolCallId: String,
         sessionId: String,
     ): String {
+        val questionsCount = when {
+            args.questions?.jsonObject != null && args.questions.jsonObject["questions"] != null -> {
+                args.questions.jsonObject["questions"]?.jsonArray?.size
+            }
+            args.questions?.jsonArray != null -> args.questions.jsonArray.size
+            else -> null
+        }
         logger.info(
-            "[ToolExecutor] ask_user called (DB-backed): questions=${args.questions?.size}, " +
+            "[ToolExecutor] ask_user called (DB-backed): questions=$questionsCount, " +
                 "question=${args.question?.take(100)}, options=${args.options?.toString()?.take(100)}",
         )
 
@@ -765,10 +780,22 @@ class ToolExecutor(
     /**
      * Build a typed AskUserQuestion list from UnifiedToolArgs.
      * Handles 'questions' array format (preferred) and legacy single 'question' + 'options'.
+     * Also handles LLM double-nesting bug: {"questions":{"questions":[...]}}.
      */
     private fun buildQuestionList(args: UnifiedToolArgs): List<AskUserQuestion> {
-        if (args.questions != null && args.questions.isNotEmpty()) {
-            return args.questions.mapNotNull { element ->
+        val questionsArray: kotlinx.serialization.json.JsonArray? = when {
+            // LLM sent: {"questions":{"questions":[...]}} - unwrap the nested object
+            args.questions?.jsonObject != null && args.questions.jsonObject["questions"] != null -> {
+                args.questions.jsonObject["questions"]?.jsonArray
+            }
+            // Standard format: {"questions": [{...}, ...]}
+            args.questions?.jsonArray != null -> {
+                args.questions.jsonArray
+            }
+            else -> null
+        }
+        if (questionsArray != null && questionsArray.isNotEmpty()) {
+            return questionsArray.mapNotNull { element ->
                 try {
                     val qObj = try { element.jsonObject } catch (_: Exception) { null }
                     if (qObj == null) {
@@ -820,10 +847,18 @@ class ToolExecutor(
      * The error message is written in natural language so the AI can self-correct.
      * Handles both the 'questions' array format and the single 'question' + 'options' fallback.
      */
-    private fun validateAskUserArgs(args: UnifiedToolArgs): String? {
-        // Format 1: 'questions' array (preferred â€” each item is a {question, options, allow_custom?} object)
-        if (args.questions != null && args.questions.isNotEmpty()) {
-            for ((i, element) in args.questions.withIndex()) {
+private fun validateAskUserArgs(args: UnifiedToolArgs): String? {
+        // Extract questions array, handling LLM double-nesting: {"questions":{"questions":[...]}}
+        val questionsArray: kotlinx.serialization.json.JsonArray? = when {
+            args.questions?.jsonObject != null && args.questions.jsonObject["questions"] != null -> {
+                args.questions.jsonObject["questions"]?.jsonArray
+            }
+            args.questions?.jsonArray != null -> args.questions.jsonArray
+            else -> null
+        }
+        // Format 1: 'questions' array (preferred — each item is a {question, options, allow_custom?} object)
+        if (questionsArray != null && questionsArray.isNotEmpty()) {
+            for ((i, element) in questionsArray.withIndex()) {
                 val qObj =
                     try {
                         element.jsonObject
@@ -884,7 +919,7 @@ class ToolExecutor(
                 "Provide a 'questions' array with question objects, or a single 'question' string with 'options'. " +
                 """Example: ask_user(questions=[{"question": "What color?", "options": ["Red", "Blue"]}])"""
         }
-        val optionsArray =
+val optionsArray =
             try {
                 args.options?.jsonArray
             } catch (_: Exception) {
@@ -902,10 +937,17 @@ class ToolExecutor(
 
     private fun buildToolArgsJson(args: UnifiedToolArgs): String {
         val json = kotlinx.serialization.json.Json
-        if (args.questions != null && args.questions.isNotEmpty()) {
+        val questionsValue: kotlinx.serialization.json.JsonArray? = when {
+            args.questions?.jsonObject != null && args.questions.jsonObject["questions"] != null -> {
+                args.questions.jsonObject["questions"]?.jsonArray
+            }
+            args.questions?.jsonArray != null -> args.questions.jsonArray
+            else -> null
+        }
+        if (questionsValue != null && questionsValue.isNotEmpty()) {
             return json.encodeToString(
                 kotlinx.serialization.json.buildJsonObject {
-                    put("questions", args.questions)
+                    put("questions", questionsValue)
                 },
             )
         }
