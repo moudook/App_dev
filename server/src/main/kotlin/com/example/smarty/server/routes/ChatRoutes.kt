@@ -3,6 +3,7 @@ package com.example.smarty.server.routes
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
 import com.example.smarty.server.agent.ServerAgent
+import com.example.smarty.server.agent.AgentPersistenceManager
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
@@ -427,7 +428,47 @@ fun Application.configureChatRoutes(
                         feedback = answersForLlm,
                     ),
                 )
-                call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId))
+
+                val checkpoint = AgentPersistenceManager(user.userId).loadCheckpoint(sessionId)
+                val resumeHistory = checkpoint?.messages ?: chatRepository?.getHistory(user.userId, sessionId).orEmpty()
+                val resumeToolResult =
+                    if (checkpoint?.context == "ask_user_suspended") {
+                        null
+                    } else {
+                        LlmMessage(
+                            role = LlmMessage.Role.TOOL,
+                            content = "[Tool Result for ask_user]: User answered:\n$answersForLlm",
+                            name = "ask_user",
+                            toolCallId = toolCallId,
+                        )
+                    }
+                val resumed =
+                    com.example.smarty.server.agent.AgentRunManager.startRun(
+                        userId = user.userId,
+                        sessionId = sessionId,
+                        query = "",
+                        llmProvider = llmProvider,
+                        vectorStore = vectorStore,
+                        summarizer = summarizer,
+                        noteRepository = noteRepository,
+                        timerRepository = timerRepository,
+                        calendarRepository = calendarRepository,
+                        noteService = noteService,
+                        chatRepository = chatRepository,
+                        modelOverride = null,
+                        clientTimezone = null,
+                        clientTimeMillis = null,
+                        personality = null,
+                        history = resumeHistory,
+                        opencodeSessionId = null,
+                        messageId = null,
+                        variantOverride = null,
+                        section = null,
+                        fcmService = fcmService,
+                        resumeToolResult = resumeToolResult,
+                    )
+                call.application.log.info("[Webhook] ask_user_response: resume requested session=$sessionId started=$resumed")
+                call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId, "resumed" to resumed))
             }
 
             /**

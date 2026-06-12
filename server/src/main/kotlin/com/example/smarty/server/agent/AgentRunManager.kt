@@ -112,6 +112,7 @@ object AgentRunManager {
         variantOverride: String? = null,
         section: String? = null,
         fcmService: com.example.smarty.server.services.FcmNotificationService? = null,
+        resumeToolResult: LlmMessage? = null,
     ): Boolean {
         val existingJob = activeRuns[sessionId]
         if (existingJob?.isActive == true) {
@@ -188,6 +189,7 @@ object AgentRunManager {
                                 },
                                 variantOverride = variantOverride,
                                 section = section,
+                                resumeToolResult = resumeToolResult,
                             )
                         }
 

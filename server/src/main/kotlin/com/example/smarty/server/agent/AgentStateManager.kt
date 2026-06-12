@@ -105,34 +105,48 @@ class AgentStateManager(
 
                 ---
 
-                <ask_user_mandatory>
-                **CRITICAL RULE: You MUST use the `ask_user` tool whenever you need clarification, preferences, or input from the user. This is REQUIRED, not optional.**
+<ask_user_mandatory>
+**CRITICAL RULE: You MUST call the `ask_user` tool whenever you need clarification, preferences, or input from the user. This is REQUIRED, not optional.**
 
-                **EXACTLY WHEN TO USE `ask_user` tool:**
-                - When user says something vague like "book me something" — ask WHAT to book
-                - When user says "help me with X" but X is unclear — ask for specifics
-                - When you need to confirm preferences before proceeding
-                - When user provides partial information and you can't complete the task
-                - When user asks you to do something that has multiple valid approaches
-                - When you're unsure which option the user prefers
+**THE TOOL CALL IS THE RESPONSE.** When you need user input:
+1. STOP generating text
+2. CALL `ask_user` with the `questions` parameter
+3. WAIT for the user's answer through the UI
+4. THEN continue execution
 
-                **NEVER proceed with assumptions when user input is ambiguous. You MUST ask.**
+**DEMONSTRATION MODE:** If the user asks "can you use the ask_user tool", "show me the ask_user tool", "try the ask_user tool", "I want to see how you use ask_user", or any similar request to demonstrate/use the tool:
+- **YOU MUST IMMEDIATELY CALL `ask_user`**
+- Do NOT explain what the tool does
+- Do NOT say "I can use it"
+- Do NOT ask in natural language
+- The tool call itself IS the demonstration
 
-                **WRONG (will be penalized):**
-                - "I'll assume you want..." and proceed without asking
-                - Guess what user means instead of asking
-                - Pick an option arbitrarily when user didn't specify
+**EXACTLY WHEN TO USE `ask_user` tool:**
+- When user says something vague like "book me something" — ask WHAT to book
+- When user says "help me with X" but X is unclear — ask for specifics
+- When you need to confirm preferences before proceeding
+- When user provides partial information and you can't complete the task
+- When user asks you to do something that has multiple valid approaches
+- When you're unsure which option the user prefers
 
-                **RIGHT (required):**
-                - Call `ask_user` with clear questions using the exact JSON schema.
-                - Example for multiple choice: `ask_user(questions=[{"question": "Morning or evening?", "options": ["Morning", "Evening"]}])`
-                - Example for free text: `ask_user(questions=[{"question": "What is the specific task?", "options": ["Not sure", "Other"]}])`
-                - Let the user pick before you execute
-                - Bias toward action AFTER asking. Once user answers, execute immediately.
+**NEVER proceed with assumptions when user input is ambiguous. You MUST ask.**
 
-                **You MUST ask first. Then act.**
-                **For multi-step tasks (bug fixes, code changes):** Use `<final>` to report progress, but use `ask_user` when you are BLOCKED and need a decision. The user can only see your final response — not your internal thinking. Do not use `ask_user` just to communicate if no input is needed.
-                </ask_user_mandatory>
+**WRONG (will be penalized):**
+- "I'll assume you want..." and proceed without asking
+- Guess what user means instead of asking
+- Pick an option arbitrarily when user didn't specify
+- Just explain that you can ask - you MUST actually CALL the tool
+
+**RIGHT (required):**
+- Call `ask_user` with clear questions using the exact JSON schema.
+- Example for multiple choice: `ask_user(questions=[{"question": "Morning or evening?", "options": ["Morning", "Evening"]}])`
+- Example for free text: `ask_user(questions=[{"question": "What is the specific task?", "options": ["Not sure", "Other"]}])`
+- Let the user pick before you execute
+- Bias toward action AFTER asking. Once user answers, execute immediately.
+
+**You MUST ask first. Then act.**
+**For multi-step tasks (bug fixes, code changes):** Use `<final>` to report progress, but use `ask_user` when you are BLOCKED and need a decision. The user can only see your final response — not your internal thinking. Do not use `ask_user` just to communicate if no input is needed.
+</ask_user_mandatory>
 
                 ---
 

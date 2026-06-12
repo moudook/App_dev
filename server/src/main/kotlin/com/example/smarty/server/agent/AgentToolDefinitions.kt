@@ -196,7 +196,10 @@ object AgentToolDefinitions {
     val askUserTool: ToolDefinition =
         ToolDefinition(
             name = "ask_user",
-            description = "Explicit Clarification. Halt agent execution and ask the user questions.",
+            description =
+                "PAUSE EXECUTION AND ASK THE USER. Use this tool ONLY when you need clarification, preferences, or input from the user before continuing. " +
+                "This tool will stop the agent, show a UI to the user, wait for their answer, and then resume execution with their response. " +
+                "Do NOT just talk about asking - CALL THIS TOOL when you need user input.",
             parameters =
                 ToolParameters(
                     properties =
@@ -204,21 +207,22 @@ object AgentToolDefinitions {
                             "questions" to
                                 ToolProperty(
                                     type = "array",
-                                    description = "List of questions to ask sequentially.",
+                                    description = "Array of questions to ask the user. Each question must have a 'question' string and an 'options' array of 2-5 choices. Example: {\"questions\": [{\"question\": \"What do you want?\", \"options\": [\"Option A\", \"Option B\"]}]}",
                                     items =
                                         ToolProperty(
                                             type = "object",
                                             properties =
                                                 mapOf(
-                                                    "question" to ToolProperty("string", "The question to ask the user"),
+                                                    "question" to ToolProperty("string", "The exact question text to show the user"),
                                                     "options" to
                                                         ToolProperty(
                                                             "array",
-                                                            "List of 2-5 multiple choice options",
+                                                            "Array of 2-5 answer choices the user can tap",
                                                             items = ToolProperty("string"),
                                                         ),
+                                                    "allow_custom" to ToolProperty("boolean", "Whether the user can type a custom answer (default false)"),
                                                 ),
-                                            required = listOf("question"),
+                                            required = listOf("question", "options"),
                                         ),
                                 ),
                         ),

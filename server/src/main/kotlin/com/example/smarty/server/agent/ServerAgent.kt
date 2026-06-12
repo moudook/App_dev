@@ -1,6 +1,7 @@
 package com.example.smarty.server.agent
 
 import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.AskUserQuestion
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.NoteRepository
@@ -92,6 +93,7 @@ class ServerAgent(
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
         section: String? = null,
+        resumeToolResult: LlmMessage? = null,
     ): String {
         if (query.length > 10000) {
             throw IllegalArgumentException("Query too long")
@@ -112,6 +114,7 @@ class ServerAgent(
             onOpencodeSessionCreated,
             variantOverride,
             section,
+            resumeToolResult,
         )
     }
 
@@ -127,6 +130,7 @@ class ServerAgent(
         onOpencodeSessionCreated: suspend (String) -> Unit = {},
         variantOverride: String? = null,
         section: String? = null,
+        resumeToolResult: LlmMessage? = null,
     ): String {
         var toolCallCount = 0
 
@@ -149,10 +153,45 @@ class ServerAgent(
 
         // Session Recovery
         val checkpoint = persistenceManager.loadCheckpoint(sessionId)
-        val initialHistory = checkpoint?.messages ?: history
+        val checkpointedHistory = checkpoint?.messages ?: history
+        val initialHistory =
+            if (resumeToolResult != null) {
+                checkpointedHistory + resumeToolResult
+            } else {
+                checkpointedHistory
+            }
 
         // 1.5 Fetch Tool Examples
         val toolExamples = toolExampleStore.getRelevantExamples(query)
+
+        // Production guard: force ask_user for explicit tool demonstration requests.
+        // This mirrors LangGraph's interrupt() pattern where the framework can pause at deterministic points
+        // rather than relying solely on the LLM to decide when to ask.
+        val askUserDemonstrationPattern =
+            Regex(
+                "\\b(can you|show me|use|try|demo|demonstrate|test)\\b.*\\b(ask[_ ]user|ask user)\\b",
+                RegexOption.IGNORE_CASE,
+            )
+        if (askUserDemonstrationPattern.containsMatchIn(query)) {
+            logger.info("ASK_USER DEMO GUARD: Forcing ask_user tool for query: $query")
+            eventEmitter(
+                AgentEvent.AskUserRequest(
+                    eventId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    toolId = "tool-${UUID.randomUUID()}",
+                    sessionId = sessionId,
+                    questions =
+                        listOf(
+                            AskUserQuestion(
+                                question = "What would you like the ask_user demo to ask?",
+                                options = listOf("Clarification question", "Preference selection", "Approval workflow", "Other"),
+                            ),
+                        ),
+                    toolCallId = "tool-${UUID.randomUUID()}",
+                ),
+            )
+            return "I've opened the ask_user interface. Please answer the question to continue."
+        }
 
         // 2. Build Messages
         val systemMessage =

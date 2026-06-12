@@ -1,13 +1,18 @@
 package com.example.smarty.server.agent
 
 import com.example.smarty.server.data.DatabaseFactory
+import com.example.smarty.server.llm.LlmMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -204,19 +209,25 @@ class AgentPersistenceManager(
 
     fun saveCheckpoint(
         sessionId: String,
-        messages: List<com.example.smarty.server.llm.LlmMessage>,
+        messages: List<LlmMessage>,
         context: String,
     ) {
         val dataSource = DatabaseFactory.getDataSource() ?: return
 
         try {
-            dataSource.connection.use { conn ->
-                val stateJson =
-                    buildJsonObject {
-                        put("messages", buildJsonArray { })
-                        put("context", kotlinx.serialization.json.JsonPrimitive(context))
-                    }.toString()
+            val messagesJson =
+                buildJsonArray {
+                    messages.forEach { message ->
+                        add(json.encodeToJsonElement(LlmMessage.serializer(), message))
+                    }
+                }
+            val stateJson =
+                buildJsonObject {
+                    put("messages", messagesJson)
+                    put("context", JsonPrimitive(context))
+                }.toString()
 
+            dataSource.connection.use { conn ->
                 val stmt =
                     conn.prepareStatement(
                         """
@@ -236,8 +247,8 @@ class AgentPersistenceManager(
                     stmt.setObject(3, java.util.UUID.fromString(userId))
                     stmt.setString(4, stateJson)
                     stmt.setInt(5, 1)
-                    stmt.setTimestamp(6, java.sql.Timestamp.from(Instant.now()))
-                    stmt.setTimestamp(7, java.sql.Timestamp.from(Instant.now()))
+                    stmt.setTimestamp(6, Timestamp.from(Instant.now()))
+                    stmt.setTimestamp(7, Timestamp.from(Instant.now()))
 
                     stmt.executeUpdate()
                 }
@@ -270,7 +281,11 @@ class AgentPersistenceManager(
                         try {
                             val parsed = json.parseToJsonElement(stateJson).jsonObject
                             val context = parsed["context"]?.jsonPrimitive?.content ?: ""
-                            CheckpointResult(context = context)
+                            val messages =
+                                parsed["messages"]?.jsonArray
+                                    ?.mapNotNull { element -> parseMessage(element) }
+                                    ?: emptyList()
+                            CheckpointResult(messages = messages, context = context)
                         } catch (e: Exception) {
                             logger.warn("Failed to parse checkpoint JSON: ${e.message}")
                             CheckpointResult(context = stateJson)
@@ -285,6 +300,14 @@ class AgentPersistenceManager(
             null
         }
     }
+
+    private fun parseMessage(element: JsonElement): LlmMessage? =
+        try {
+            json.decodeFromJsonElement(LlmMessage.serializer(), element)
+        } catch (e: Exception) {
+            logger.warn("Failed to parse checkpoint message: ${e.message}")
+            null
+        }
 
     fun clearCheckpoint(sessionId: String) {
         val dataSource = DatabaseFactory.getDataSource() ?: return
