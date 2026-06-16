@@ -38,6 +38,7 @@ val postgresqlVersion = "42.7.11"
 val hikaricpVersion = "6.3.0"
 val firebaseAdminVersion = "9.7.1"
 val pdfboxVersion = "3.0.1"
+val langchain4jVersion = "1.15.0"
 
 dependencies {
     implementation(project(":common"))
@@ -83,6 +84,10 @@ dependencies {
 
     // Firebase Admin
     implementation("com.google.firebase:firebase-admin:$firebaseAdminVersion")
+
+    // LangChain4j
+    implementation("dev.langchain4j:langchain4j:$langchain4jVersion")
+    implementation("dev.langchain4j:langchain4j-open-ai:$langchain4jVersion")
 
     // Testing
     testImplementation(kotlin("test"))
